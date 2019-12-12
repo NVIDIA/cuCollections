@@ -1,0 +1,9 @@
+[submodule "thirdparty/cub"]
+	path = thirdparty/cub
+	url = https://github.com/rapidsai/thirdparty-cub.git
+[submodule "thirdparty/libcudacxx"]
+	path = thirdparty/libcudacxx
+	url = https://github.com/rapidsai/thirdparty-freestanding.git
+[submodule "thirdparty/rmm"]
+	path = thirdparty/rmm
+	url = https://github.com/rapidsai/rmm.git
