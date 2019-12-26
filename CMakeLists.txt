@@ -103,7 +103,6 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_${ptx},code=comp
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
 
 # set warnings as errors
-# TODO: remove `no-maybe-unitialized` used to suppress warnings in rmm::exec_policy
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Werror cross-execution-space-call -Xcompiler -Wall,-Werror")
 
 # Option to enable line info in CUDA device compilation to allow introspection when profiling / memchecking
@@ -127,12 +126,6 @@ option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(BUILD_TESTS "Configure CMake to build tests" ON)
 
 ###################################################################################################
-# - cnmem ---------------------------------------------------------------------------------
-# include cnmem.h in the include/detail directory
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/thirdparty/cnmem/include/cnmem.h" 
-               "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/include/rmm/detail/cnmem.h" COPYONLY)
-
-###################################################################################################
 # - cmake modules ---------------------------------------------------------------------------------
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/" ${CMAKE_MODULE_PATH})
@@ -152,9 +145,7 @@ include_directories("${CMAKE_BINARY_DIR}/include"
                     "${CMAKE_CURRENT_SOURCE_DIR}/include"
                     "${CMAKE_CURRENT_SOURCE_DIR}/src"
                     "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/cub"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/libcudacxx/include"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/include"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/thirdparty/cnmem/include")
+                    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/libcudacxx/include")
 
 ###################################################################################################
 # - library paths ---------------------------------------------------------------------------------
@@ -192,11 +183,7 @@ if (cuDataStructures_ENABLE_BUILD)
 
   add_library(cuds
               src/hash/concurrent_unordered_map.cuh
-              src/hash/concurrent_unordered_multimap.cuh
-              "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/src/rmm.cpp"
-              "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/src/memory_manager.cpp"
-              "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/thirdparty/cnmem/src/cnmem.cpp"
-              "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/src/mr/default_memory_resource.cpp")
+              src/hash/concurrent_unordered_multimap.cuh)
 
   set_target_properties(cuds PROPERTIES LINKER_LANGUAGE CUDA)
   set_target_properties(cuds PROPERTIES BUILD_RPATH "\$ORIGIN")

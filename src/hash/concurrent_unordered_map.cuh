@@ -17,8 +17,8 @@
 #ifndef CONCURRENT_UNORDERED_MAP_CUH
 #define CONCURRENT_UNORDERED_MAP_CUH
 
+#include <cu_collections/detail/utilities/hash_functions.cuh>
 #include <utilities/legacy/device_atomics.cuh>
-#include <cudf/detail/utilities/hash_functions.cuh>
 #include "helper_functions.cuh"
 #include "managed_allocator.cuh"
 
@@ -30,10 +30,20 @@
 #include <type_traits>
 
 namespace {
-template <std::size_t N> struct packed { using type = void; };
-template <> struct packed<sizeof(uint64_t)> { using type = uint64_t; };
-template <> struct packed<sizeof(uint32_t)> { using type = uint32_t; };
-template <typename pair_type> using packed_t = typename packed<sizeof(pair_type)>::type; 
+template <std::size_t N>
+struct packed {
+  using type = void;
+};
+template <>
+struct packed<sizeof(uint64_t)> {
+  using type = uint64_t;
+};
+template <>
+struct packed<sizeof(uint32_t)> {
+  using type = uint32_t;
+};
+template <typename pair_type>
+using packed_t = typename packed<sizeof(pair_type)>::type;
 
 /**---------------------------------------------------------------------------*
  * @brief Indicates if a pair type can be packed.
@@ -89,7 +99,7 @@ union pair_packer<pair_type, std::enable_if_t<is_packable<pair_type>()>> {
  */
 template <typename Key, typename Element, typename Hasher = default_hash<Key>,
           typename Equality = equal_to<Key>,
-          typename Allocator = legacy_allocator<thrust::pair<Key, Element>>>
+          typename Allocator = managed_allocator<thrust::pair<Key, Element>>>
 class concurrent_unordered_map {
  public:
   using size_type = size_t;

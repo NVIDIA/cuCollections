@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include <cudf/cudf.h>
-#include <tests/utilities/legacy/cudf_test_fixtures.h>
+#include <cu_collections/cu_collections.h>
 #include <hash/concurrent_unordered_map.cuh>
 
+#include <ftw.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <rmm/thrust_rmm_allocator.h>
 #include <thrust/device_vector.h>
 #include <thrust/logical.h>
 #include <cstdlib>
@@ -38,7 +38,7 @@ struct key_value_types {
 };
 
 template <typename T>
-struct InsertTest : public GdfTest {
+struct InsertTest : public ::testing::Test {
   using key_type = typename T::key_type;
   using value_type = typename T::value_type;
   using pair_type = typename T::pair_type;
@@ -53,7 +53,7 @@ struct InsertTest : public GdfTest {
   }
 
   const cudf::size_type size{10000};
-  rmm::device_vector<pair_type> pairs;
+  thrust::device_vector<pair_type> pairs;
   std::unique_ptr<map_type, std::function<void(map_type*)>> map;
 };
 

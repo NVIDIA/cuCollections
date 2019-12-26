@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cudf/types.hpp>
+#include <cu_collections/types.hpp>
 
 #include <cuda_runtime.h>
 #include <cub/util_type.cuh>
@@ -34,7 +34,6 @@ namespace cudf {
 namespace experimental {
 
 struct bool8 {
-
   using value_type = uint8_t;
 
   // defaulted bool8 move/copy constructors
@@ -42,23 +41,23 @@ struct bool8 {
   bool8() = default;
   ~bool8() = default;
   bool8(bool8 &&) = default;
-  bool8(bool8 const& w) = default;
-  bool8& operator=(bool8&&) = default;
-  bool8& operator=(const bool8&) = default;
+  bool8(bool8 const &w) = default;
+  bool8 &operator=(bool8 &&) = default;
+  bool8 &operator=(const bool8 &) = default;
 
   CUDA_HOST_DEVICE_CALLABLE constexpr bool8(bool v)
-    : value{static_cast<value_type>(v)} {}
+      : value{static_cast<value_type>(v)} {}
 
   // move/copy assignment operators for non-bool8 types
 
   template <typename from_type>
-  CUDA_HOST_DEVICE_CALLABLE bool8& operator=(from_type&& rhs) {
+  CUDA_HOST_DEVICE_CALLABLE bool8 &operator=(from_type &&rhs) {
     this->value = static_cast<value_type>(static_cast<bool>(std::move(rhs)));
     return *this;
   }
 
   template <typename from_type>
-  CUDA_HOST_DEVICE_CALLABLE bool8& operator=(const from_type& rhs) {
+  CUDA_HOST_DEVICE_CALLABLE bool8 &operator=(const from_type &rhs) {
     this->value = static_cast<value_type>(static_cast<bool>(rhs));
     return *this;
   }
@@ -75,7 +74,7 @@ struct bool8 {
 
   // ostream << operator overload
 
-  inline std::ostream& operator<<(std::ostream& os) {
+  inline std::ostream &operator<<(std::ostream &os) {
     return os << static_cast<bool>(this->value);
   }
 
@@ -90,11 +89,11 @@ struct bool8 {
   }
 
   CUDA_HOST_DEVICE_CALLABLE bool operator<=(bool8 const &rhs) const {
-    return static_cast<bool>(*this) <= static_cast<bool>(rhs); 
+    return static_cast<bool>(*this) <= static_cast<bool>(rhs);
   }
 
   CUDA_HOST_DEVICE_CALLABLE bool operator>=(bool8 const &rhs) const {
-    return static_cast<bool>(*this) >= static_cast<bool>(rhs); 
+    return static_cast<bool>(*this) >= static_cast<bool>(rhs);
   }
 
   CUDA_HOST_DEVICE_CALLABLE bool operator<(bool8 const &rhs) const {
@@ -127,31 +126,31 @@ struct bool8 {
 
   // unary operator overloads
 
-  CUDA_HOST_DEVICE_CALLABLE bool8& operator+=(bool8 const &rhs) {
+  CUDA_HOST_DEVICE_CALLABLE bool8 &operator+=(bool8 const &rhs) {
     bool8 &lhs = *this;
     lhs = lhs + rhs;
     return lhs;
   }
 
-  CUDA_HOST_DEVICE_CALLABLE bool8& operator-=(bool8 const &rhs) {
+  CUDA_HOST_DEVICE_CALLABLE bool8 &operator-=(bool8 const &rhs) {
     bool8 &lhs = *this;
     lhs = lhs - rhs;
     return lhs;
   }
 
-  CUDA_HOST_DEVICE_CALLABLE bool8& operator*=(bool8 const &rhs) {
+  CUDA_HOST_DEVICE_CALLABLE bool8 &operator*=(bool8 const &rhs) {
     bool8 &lhs = *this;
     lhs = lhs * rhs;
     return lhs;
   }
 
-  CUDA_HOST_DEVICE_CALLABLE bool8& operator/=(bool8 const &rhs) {
+  CUDA_HOST_DEVICE_CALLABLE bool8 &operator/=(bool8 const &rhs) {
     bool8 &lhs = *this;
     lhs = lhs / rhs;
     return lhs;
   }
 
-private:
+ private:
   value_type value;
 };
 
@@ -167,23 +166,22 @@ static constexpr bool8 true_v{bool8::value_type{1}};
 static constexpr bool8 false_v{bool8::value_type{0}};
 #endif
 
-} // experimental
-}  // cudf
+}  // namespace experimental
+}  // namespace cudf
 
 namespace std {
 /** --------------------------------------------------------------------------*
-  * @brief Specialization of std::numeric_limits for cudf::experimental::bool8
-  *
-  * Required since the underlying type, uint8_t, has different limits than bool
-  * --------------------------------------------------------------------------**/
+ * @brief Specialization of std::numeric_limits for cudf::experimental::bool8
+ *
+ * Required since the underlying type, uint8_t, has different limits than bool
+ * --------------------------------------------------------------------------**/
 template <>
 struct numeric_limits<cudf::experimental::bool8> {
-  
   static constexpr cudf::experimental::bool8 max() noexcept {
     // tried using `return cudf::true_v` but it causes a compiler segfault!
     return cudf::experimental::bool8{true};
   }
-  
+
   static constexpr cudf::experimental::bool8 lowest() noexcept {
     return cudf::experimental::bool8{false};
   }
@@ -199,11 +197,4 @@ struct is_integral<cudf::experimental::bool8> : true_type {};
 template <>
 struct is_arithmetic<cudf::experimental::bool8> : true_type {};
 
-} // std
-
-namespace cub {
-
-template <> struct NumericTraits<cudf::experimental::bool8> :
-  BaseTraits<SIGNED_INTEGER, true, false, uint8_t, int8_t> {};
-
-} // cub
+}  // namespace std

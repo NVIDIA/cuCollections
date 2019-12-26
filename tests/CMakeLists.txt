@@ -33,7 +33,6 @@ include_directories("${CMAKE_BINARY_DIR}/include"
                     "${CMAKE_SOURCE_DIR}/src"
                     "${CMAKE_SOURCE_DIR}/thirdparty/cub"
                     "${CMAKE_SOURCE_DIR}/thirdparty/libcudacxx/include"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/rmm/include"
                     "${GTEST_INCLUDE_DIR}")
 
 ###################################################################################################
@@ -43,8 +42,7 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT
                  "${CMAKE_BINARY_DIR}/lib"
                  "${CMAKE_BINARY_DIR}"
                  "${FLATBUFFERS_LIBRARY_DIR}"
-                 "${GTEST_LIBRARY_DIR}"
-                 "${RMM_LIBRARY}")
+                 "${GTEST_LIBRARY_DIR}")
 
 ###################################################################################################
 ### test sources ##################################################################################

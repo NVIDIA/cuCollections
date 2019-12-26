@@ -17,7 +17,6 @@
 #ifndef CONCURRENT_UNORDERED_MULTIMAP_CUH
 #define CONCURRENT_UNORDERED_MULTIMAP_CUH
 
-#include <cudf/cudf.h>
 #include <cassert>
 #include <iostream>
 #include <iterator>
@@ -25,8 +24,8 @@
 
 #include <thrust/pair.h>
 
-#include <cudf/detail/utilities/hash_functions.cuh>
-#include "managed.cuh"
+#include <cu_collections/cu_collections.h>
+#include <cu_collections/detail/utilities/hash_functions.cuh>
 #include "managed_allocator.cuh"
 
 #include "helper_functions.cuh"

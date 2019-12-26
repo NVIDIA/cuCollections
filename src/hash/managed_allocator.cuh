@@ -19,70 +19,37 @@
 
 #include <new>
 
-#include <rmm/rmm.h>
-
 template <class T>
 struct managed_allocator {
-      typedef T value_type;
-      
-      managed_allocator() = default;
-      
-      template <class U> constexpr managed_allocator(const managed_allocator<U>&) noexcept {}
-      
-      T* allocate(std::size_t n) const {
-          T* ptr = 0;
-          cudaError_t result = cudaMallocManaged( &ptr, n*sizeof(T) );
-          if( cudaSuccess != result || nullptr == ptr )
-          {
-            std::cerr << "ERROR: CUDA Runtime call in line " << __LINE__ << "of file " 
-                      << __FILE__ << " failed with " << cudaGetErrorString(result) 
-                      << " (" << result << ") "
-                      << " Attempted to allocate: " << n * sizeof(T) << " bytes.\n";
-            throw std::bad_alloc();
-          } 
-          return ptr;
-      }
-      void deallocate(T* p, std::size_t) const {
-        cudaFree(p);
-      }
+  typedef T value_type;
+
+  managed_allocator() = default;
+
+  template <class U>
+  constexpr managed_allocator(const managed_allocator<U>&) noexcept {}
+
+  T* allocate(std::size_t n) const {
+    T* ptr = 0;
+    cudaError_t result = cudaMallocManaged(&ptr, n * sizeof(T));
+    if (cudaSuccess != result || nullptr == ptr) {
+      std::cerr << "ERROR: CUDA Runtime call in line " << __LINE__ << "of file "
+                << __FILE__ << " failed with " << cudaGetErrorString(result)
+                << " (" << result << ") "
+                << " Attempted to allocate: " << n * sizeof(T) << " bytes.\n";
+      throw std::bad_alloc();
+    }
+    return ptr;
+  }
+  void deallocate(T* p, std::size_t) const { cudaFree(p); }
 };
 
 template <class T, class U>
-bool operator==(const managed_allocator<T>&, const managed_allocator<U>&) { return true; }
+bool operator==(const managed_allocator<T>&, const managed_allocator<U>&) {
+  return true;
+}
 template <class T, class U>
-bool operator!=(const managed_allocator<T>&, const managed_allocator<U>&) { return false; }
-
-template <class T>
-struct legacy_allocator {
-      typedef T value_type;
-
-      legacy_allocator() = default;
-
-      template <class U> constexpr legacy_allocator(const legacy_allocator<U>&) noexcept {}
-
-      T* allocate(std::size_t n) const {
-          T* ptr = 0;
-          rmmError_t result = RMM_ALLOC( (void**)&ptr, n*sizeof(T), 0 ); // TODO non-default stream?
-          if( RMM_SUCCESS != result || nullptr == ptr ) 
-          {
-            std::cerr << "ERROR: RMM call in line " << __LINE__ << "of file " 
-                      << __FILE__ << " failed with result " << rmmGetErrorString(result) 
-                      << " (" << result << ") "
-                      << " Attempted to allocate: " << n * sizeof(T) << " bytes.\n";
-            throw std::bad_alloc();
-          }
-
-          return ptr;
-      }
-      void deallocate(T* p, std::size_t) const {
-          rmmError_t result = RMM_FREE(p, 0); // TODO: non-default stream
-          if ( RMM_SUCCESS != result) throw std::runtime_error("legacy_allocator: RMM Memory Manager Error");
-      }
-};
-
-template <class T, class U>
-bool operator==(const legacy_allocator<T>&, const legacy_allocator<U>&) { return true; }
-template <class T, class U>
-bool operator!=(const legacy_allocator<T>&, const legacy_allocator<U>&) { return false; }
+bool operator!=(const managed_allocator<T>&, const managed_allocator<U>&) {
+  return false;
+}
 
 #endif
