@@ -21,10 +21,10 @@
 
 /**
  * @file string_view.cuh
- * @brief Class definition for cudf::string_view.
+ * @brief Class definition for cuCollections::string_view.
  */
 
-namespace cudf {
+namespace cuCollections {
 
 // UTF-8 characters are 1-4 bytes
 using char_utf8 = uint32_t;
@@ -362,6 +362,6 @@ __host__ __device__ size_type characters_in_string(const char* str,
 
 }  // namespace detail
 }  // namespace strings
-}  // namespace cudf
+}  // namespace cuCollections
 
 #include "./string_view.inl"

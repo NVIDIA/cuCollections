@@ -5,12 +5,12 @@
 #include <stdexcept>
 #include <string>
 
-namespace cudf {
+namespace cuCollections {
 /**---------------------------------------------------------------------------*
  * @brief Exception thrown when logical precondition is violated.
  *
  * This exception should not be thrown directly and is instead thrown by the
- * CUDF_EXPECTS macro.
+ * CU_COLLECTIONS_EXPECTS macro.
  *
  *---------------------------------------------------------------------------**/
 struct logic_error : public std::logic_error {
@@ -28,41 +28,42 @@ struct logic_error : public std::logic_error {
 struct cuda_error : public std::runtime_error {
   cuda_error(std::string const& message) : std::runtime_error(message) {}
 };
-}  // namespace cudf
+}  // namespace cuCollections
 
 #define STRINGIFY_DETAIL(x) #x
-#define CUDF_STRINGIFY(x) STRINGIFY_DETAIL(x)
+#define CU_COLLECTIONS_STRINGIFY(x) STRINGIFY_DETAIL(x)
 
 /**---------------------------------------------------------------------------*
  * @brief Indicates that an erroneous code path has been taken.
  *
- * In host code, throws a `cudf::logic_error`.
+ * In host code, throws a `cuCollections::logic_error`.
  *
  *
  * Example usage:
  * ```
- * CUDF_FAIL("Non-arithmetic operation is not supported");
+ * CU_COLLECTIONS_FAIL("Non-arithmetic operation is not supported");
  * ```
  *
  * @param[in] reason String literal description of the reason
  *---------------------------------------------------------------------------**/
-#define CUDF_FAIL(reason)                              \
-  throw cudf::logic_error("cuDF failure at: " __FILE__ \
-                          ":" CUDF_STRINGIFY(__LINE__) ": " reason)
+#define CU_COLLECTIONS_FAIL(reason)         \
+  throw cuCollections::logic_error(         \
+      "cuCollections failure at: " __FILE__ \
+      ":" CU_COLLECTIONS_STRINGIFY(__LINE__) ": " reason)
 
-namespace cudf {
+namespace cuCollections {
 namespace detail {
 
 inline void throw_cuda_error(cudaError_t error, const char* file,
                              unsigned int line) {
-  throw cudf::cuda_error(
+  throw cuCollections::cuda_error(
       std::string{"CUDA error encountered at: " + std::string{file} + ":" +
                   std::to_string(line) + ": " + std::to_string(error) + " " +
                   cudaGetErrorName(error) + " " + cudaGetErrorString(error)});
 }
 
 }  // namespace detail
-}  // namespace cudf
+}  // namespace cuCollections
 
 /**---------------------------------------------------------------------------*
  * @brief Error checking macro for CUDA runtime API functions.
@@ -74,12 +75,12 @@ inline void throw_cuda_error(cudaError_t error, const char* file,
  * GDF_REQUIRE should be considered deprecated.
  *
  *---------------------------------------------------------------------------**/
-#define CUDA_TRY(call)                                            \
-  do {                                                            \
-    cudaError_t const status = (call);                            \
-    if (cudaSuccess != status) {                                  \
-      cudf::detail::throw_cuda_error(status, __FILE__, __LINE__); \
-    }                                                             \
+#define CUDA_TRY(call)                                                     \
+  do {                                                                     \
+    cudaError_t const status = (call);                                     \
+    if (cudaSuccess != status) {                                           \
+      cuCollections::detail::throw_cuda_error(status, __FILE__, __LINE__); \
+    }                                                                      \
   } while (0);
 
 #define CUDA_CHECK_LAST() CUDA_TRY(cudaPeekAtLastError())

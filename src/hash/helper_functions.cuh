@@ -34,7 +34,7 @@ constexpr int64_t DEFAULT_HASH_TABLE_OCCUPANCY = 50;
  * occupancy for the specified number of insertions
  *---------------------------------------------------------------------------**/
 inline size_t compute_hash_table_size(
-    cudf::size_type num_keys_to_insert,
+    cuCollections::size_type num_keys_to_insert,
     uint32_t desired_occupancy = DEFAULT_HASH_TABLE_OCCUPANCY) {
   assert(desired_occupancy != 0);
   assert(desired_occupancy <= 100);

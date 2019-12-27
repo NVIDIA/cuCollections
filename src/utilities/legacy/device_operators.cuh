@@ -29,7 +29,7 @@
 #include <cu_collections/utilities/legacy/wrapper_types.hpp>
 #include <type_traits>
 
-namespace cudf {
+namespace cuCollections {
 
 // ------------------------------------------------------------------------
 // Binary operators
@@ -110,6 +110,6 @@ struct DeviceXor {
   }
 };
 
-}  // namespace cudf
+}  // namespace cuCollections
 
 #endif

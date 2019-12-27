@@ -20,7 +20,7 @@
     }                                                                         \
   }
 
-namespace cuDataStructures {
+namespace cuCollections {
 namespace details {
 
 template <typename Map, typename KeyType, typename ValType>
@@ -117,6 +117,6 @@ class unordered_map {
     return hResults;
   }
 };
-}  // namespace cuDataStructures
+}  // namespace cuCollections
 
 #endif

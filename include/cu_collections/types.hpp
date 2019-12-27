@@ -31,11 +31,11 @@
 
 /**---------------------------------------------------------------------------*
  * @file types.hpp
- * @brief Type declarations for libcudf.
+ * @brief Type declarations.
  *
  *---------------------------------------------------------------------------**/
 
-namespace cudf {
+namespace cuCollections {
 
 using size_type = int32_t;
 using valid_type = uint8_t;
@@ -65,4 +65,4 @@ enum type_id {
   NUM_TYPE_IDS  ///< Total number of type ids
 };
 
-}  // namespace cudf
+}  // namespace cuCollections

@@ -30,7 +30,7 @@
  * @brief Concrete type definition for uint8_t values !0 and 0 representing
  * boolean true and false respectively.
  *---------------------------------------------------------------------------**/
-namespace cudf {
+namespace cuCollections {
 namespace experimental {
 
 struct bool8 {
@@ -167,34 +167,36 @@ static constexpr bool8 false_v{bool8::value_type{0}};
 #endif
 
 }  // namespace experimental
-}  // namespace cudf
+}  // namespace cuCollections
 
 namespace std {
 /** --------------------------------------------------------------------------*
- * @brief Specialization of std::numeric_limits for cudf::experimental::bool8
+ * @brief Specialization of std::numeric_limits for
+ * cuCollections::experimental::bool8
  *
  * Required since the underlying type, uint8_t, has different limits than bool
  * --------------------------------------------------------------------------**/
 template <>
-struct numeric_limits<cudf::experimental::bool8> {
-  static constexpr cudf::experimental::bool8 max() noexcept {
-    // tried using `return cudf::true_v` but it causes a compiler segfault!
-    return cudf::experimental::bool8{true};
+struct numeric_limits<cuCollections::experimental::bool8> {
+  static constexpr cuCollections::experimental::bool8 max() noexcept {
+    // tried using `return cuCollections::true_v` but it causes a compiler
+    // segfault!
+    return cuCollections::experimental::bool8{true};
   }
 
-  static constexpr cudf::experimental::bool8 lowest() noexcept {
-    return cudf::experimental::bool8{false};
+  static constexpr cuCollections::experimental::bool8 lowest() noexcept {
+    return cuCollections::experimental::bool8{false};
   }
 
-  static constexpr cudf::experimental::bool8 min() noexcept {
-    return cudf::experimental::bool8{false};
+  static constexpr cuCollections::experimental::bool8 min() noexcept {
+    return cuCollections::experimental::bool8{false};
   }
 };
 
 template <>
-struct is_integral<cudf::experimental::bool8> : true_type {};
+struct is_integral<cuCollections::experimental::bool8> : true_type {};
 
 template <>
-struct is_arithmetic<cudf::experimental::bool8> : true_type {};
+struct is_arithmetic<cuCollections::experimental::bool8> : true_type {};
 
 }  // namespace std

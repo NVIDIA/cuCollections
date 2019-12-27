@@ -21,15 +21,16 @@
  * @brief overloads for CUDA atomic operations
  * @file device_atomics.cuh
  *
- * Provides the overloads for all of possible cudf's data types,
- * where cudf's data types are, int8_t, int16_t, int32_t, int64_t, float,
- * double, cudf::date32, cudf::date64, cudf::timestamp, cudf::category,
- * cudf::nvstring_category, cudf::bool8,
+ * Provides the overloads for all of possible cuCollections's data types,
+ * where cuCollections's data types are, int8_t, int16_t, int32_t, int64_t,
+ * float, double, cuCollections::date32, cuCollections::date64,
+ * cuCollections::timestamp, cuCollections::category,
+ * cuCollections::nvstring_category, cuCollections::bool8,
  * where CUDA atomic operations are, `atomicAdd`, `atomicMin`, `atomicMax`,
  * `atomicCAS`.
  * `atomicAnd`, `atomicOr`, `atomicXor` are also supported for integer data
- * types. Also provides `cudf::genericAtomicOperation` which performs atomic
- * operation with the given binary operator.
+ * types. Also provides `cuCollections::genericAtomicOperation` which performs
+ * atomic operation with the given binary operator.
  * ---------------------------------------------------------------------------**/
 
 #include <cu_collections/cu_collections.h>
@@ -39,7 +40,7 @@
 #include <type_traits>
 #include <utilities/legacy/device_operators.cuh>
 
-namespace cudf {
+namespace cuCollections {
 namespace detail {
 // TODO: remove this if C++17 is supported.
 // `static_assert` requires a string literal at C++14.
@@ -431,10 +432,11 @@ struct typesAtomicCASImpl<T, 8> {
  * and stores the result back to memory at the same address.
  * These three operations are performed in one atomic transaction.
  *
- * The supported cudf types for `genericAtomicOperation` are:
+ * The supported cuCollections types for `genericAtomicOperation` are:
  * int8_t, int16_t, int32_t, int64_t, float, double,
- * cudf::date32, cudf::date64, cudf::timestamp, cudf::category,
- * cudf::nvstring_category, cudf::bool8
+ * cuCollections::date32, cuCollections::date64, cuCollections::timestamp,
+ * cuCollections::category, cuCollections::nvstring_category,
+ * cuCollections::bool8
  *
  * @param[in] address The address of old value in global or shared memory
  * @param[in] val The value to be computed
@@ -443,61 +445,68 @@ struct typesAtomicCASImpl<T, 8> {
  * @returns The old value at `address`
  * -------------------------------------------------------------------------**/
 template <typename T, typename BinaryOp>
-typename std::enable_if_t<std::is_arithmetic<T>::value ||
-                              std::is_same<T, cudf::date32>::value ||
-                              std::is_same<T, cudf::date64>::value ||
-                              std::is_same<T, cudf::timestamp>::value ||
-                              std::is_same<T, cudf::category>::value ||
-                              std::is_same<T, cudf::nvstring_category>::value,
-                          T>
+typename std::enable_if_t<
+    std::is_arithmetic<T>::value ||
+        std::is_same<T, cuCollections::date32>::value ||
+        std::is_same<T, cuCollections::date64>::value ||
+        std::is_same<T, cuCollections::timestamp>::value ||
+        std::is_same<T, cuCollections::category>::value ||
+        std::is_same<T, cuCollections::nvstring_category>::value,
+    T>
     __forceinline__ __device__ genericAtomicOperation(T* address,
                                                       T const& update_value,
                                                       BinaryOp op) {
-  using T_int = cudf::detail::unwrapped_type_t<T>;
+  using T_int = cuCollections::detail::unwrapped_type_t<T>;
   // unwrap the input type to expect
   // that the native atomic API is used for the underlying type if possible
-  auto fun = cudf::detail::genericAtomicOperationImpl<T_int, BinaryOp>{};
+  auto fun =
+      cuCollections::detail::genericAtomicOperationImpl<T_int, BinaryOp>{};
   return T(fun(reinterpret_cast<T_int*>(address),
-               cudf::detail::unwrap(update_value), op));
+               cuCollections::detail::unwrap(update_value), op));
 }
 
-// specialization for cudf::bool8 types
+// specialization for cuCollections::bool8 types
 template <typename BinaryOp>
-__forceinline__ __device__ cudf::bool8 genericAtomicOperation(
-    cudf::bool8* address, cudf::bool8 const& update_value, BinaryOp op) {
-  using T = cudf::bool8;
-  // don't use underlying type to apply operation for cudf::bool8
-  auto fun = cudf::detail::genericAtomicOperationImpl<T, BinaryOp>{};
+__forceinline__ __device__ cuCollections::bool8 genericAtomicOperation(
+    cuCollections::bool8* address, cuCollections::bool8 const& update_value,
+    BinaryOp op) {
+  using T = cuCollections::bool8;
+  // don't use underlying type to apply operation for cuCollections::bool8
+  auto fun = cuCollections::detail::genericAtomicOperationImpl<T, BinaryOp>{};
   return T(fun(address, update_value, op));
 }
 
-// // specialization for cudf::detail::timestamp types
+// // specialization for cuCollections::detail::timestamp types
 // template <typename T, typename BinaryOp>
-// typename std::enable_if_t<cudf::is_timestamp<T>(), T> __forceinline__
+// typename std::enable_if_t<cuCollections::is_timestamp<T>(), T>
+// __forceinline__
 // __device__ genericAtomicOperation(T* address, T const& update_value, BinaryOp
 // op) {
 //   using R = typename T::rep;
 //   // Unwrap the input timestamp to its underlying duration value
 //   representation.
 //   // Use the underlying representation's type to apply operation for the
-//   // cudf::detail::timestamp
+//   // cuCollections::detail::timestamp
 //   auto update_value_rep = update_value.time_since_epoch().count();
-//   auto fun = cudf::detail::genericAtomicOperationImpl<R, BinaryOp>{};
-//   return T(fun(reinterpret_cast<R*>(address), update_value_rep, op));
+//   auto fun = cuCollections::detail::genericAtomicOperationImpl<R,
+//   BinaryOp>{}; return T(fun(reinterpret_cast<R*>(address), update_value_rep,
+//   op));
 // }
 
-// specialization for cudf::experimental::bool8 types
+// specialization for cuCollections::experimental::bool8 types
 template <typename BinaryOp>
-__forceinline__ __device__ cudf::experimental::bool8 genericAtomicOperation(
-    cudf::experimental::bool8* address,
-    cudf::experimental::bool8 const& update_value, BinaryOp op) {
-  using T = cudf::experimental::bool8;
-  // don't use underlying type to apply operation for cudf::experimental::bool8
-  auto fun = cudf::detail::genericAtomicOperationImpl<T, BinaryOp>{};
+__forceinline__ __device__ cuCollections::experimental::bool8
+genericAtomicOperation(cuCollections::experimental::bool8* address,
+                       cuCollections::experimental::bool8 const& update_value,
+                       BinaryOp op) {
+  using T = cuCollections::experimental::bool8;
+  // don't use underlying type to apply operation for
+  // cuCollections::experimental::bool8
+  auto fun = cuCollections::detail::genericAtomicOperationImpl<T, BinaryOp>{};
   return T(fun(address, update_value, op));
 }
 
-}  // namespace cudf
+}  // namespace cuCollections
 
 /** -------------------------------------------------------------------------*
  * @brief Overloads for `atomicAdd`
@@ -505,11 +514,12 @@ __forceinline__ __device__ cudf::experimental::bool8 genericAtomicOperation(
  * computes (old + val), and stores the result back to memory at the same
  * address. These three operations are performed in one atomic transaction.
  *
- * The supported cudf types for `atomicAdd` are:
+ * The supported cuCollections types for `atomicAdd` are:
  * int8_t, int16_t, int32_t, int64_t, float, double,
- * cudf::date32, cudf::date64, cudf::timestamp, cudf::category,
- * cudf::nvstring_category, cudf::bool8
- * Cuda natively supports `sint32`, `uint32`, `uint64`, `float`, `double.
+ * cuCollections::date32, cuCollections::date64, cuCollections::timestamp,
+ * cuCollections::category, cuCollections::nvstring_category,
+ * cuCollections::bool8 Cuda natively supports `sint32`, `uint32`, `uint64`,
+ * `float`, `double.
  * (`double` is supported after Pascal).
  * Other types are implemented by `atomicCAS`.
  *
@@ -520,7 +530,8 @@ __forceinline__ __device__ cudf::experimental::bool8 genericAtomicOperation(
  * -------------------------------------------------------------------------**/
 template <typename T>
 __forceinline__ __device__ T atomicAdd(T* address, T val) {
-  return cudf::genericAtomicOperation(address, val, cudf::DeviceSum{});
+  return cuCollections::genericAtomicOperation(address, val,
+                                               cuCollections::DeviceSum{});
 }
 
 /** -------------------------------------------------------------------------*
@@ -530,12 +541,12 @@ __forceinline__ __device__ T atomicAdd(T* address, T val) {
  * at the same address.
  * These three operations are performed in one atomic transaction.
  *
- * The supported cudf types for `atomicMin` are:
+ * The supported cuCollections types for `atomicMin` are:
  * int8_t, int16_t, int32_t, int64_t, float, double,
- * cudf::date32, cudf::date64, cudf::timestamp, cudf::category,
- * cudf::nvstring_category
- * Cuda natively supports `sint32`, `uint32`, `sint64`, `uint64`.
- * Other types are implemented by `atomicCAS`.
+ * cuCollections::date32, cuCollections::date64, cuCollections::timestamp,
+ * cuCollections::category, cuCollections::nvstring_category Cuda natively
+ * supports `sint32`, `uint32`, `sint64`, `uint64`. Other types are implemented
+ * by `atomicCAS`.
  *
  * @param[in] address The address of old value in global or shared memory
  * @param[in] val The value to be computed
@@ -544,7 +555,8 @@ __forceinline__ __device__ T atomicAdd(T* address, T val) {
  * -------------------------------------------------------------------------**/
 template <typename T>
 __forceinline__ __device__ T atomicMin(T* address, T val) {
-  return cudf::genericAtomicOperation(address, val, cudf::DeviceMin{});
+  return cuCollections::genericAtomicOperation(address, val,
+                                               cuCollections::DeviceMin{});
 }
 
 /** -------------------------------------------------------------------------*
@@ -554,12 +566,12 @@ __forceinline__ __device__ T atomicMin(T* address, T val) {
  * at the same address.
  * These three operations are performed in one atomic transaction.
  *
- * The supported cudf types for `atomicMax` are:
+ * The supported cuCollections types for `atomicMax` are:
  * int8_t, int16_t, int32_t, int64_t, float, double,
- * cudf::date32, cudf::date64, cudf::timestamp, cudf::category,
- * cudf::nvstring_category
- * Cuda natively supports `sint32`, `uint32`, `sint64`, `uint64`.
- * Other types are implemented by `atomicCAS`.
+ * cuCollections::date32, cuCollections::date64, cuCollections::timestamp,
+ * cuCollections::category, cuCollections::nvstring_category Cuda natively
+ * supports `sint32`, `uint32`, `sint64`, `uint64`. Other types are implemented
+ * by `atomicCAS`.
  *
  * @param[in] address The address of old value in global or shared memory
  * @param[in] val The value to be computed
@@ -568,7 +580,8 @@ __forceinline__ __device__ T atomicMin(T* address, T val) {
  * -------------------------------------------------------------------------**/
 template <typename T>
 __forceinline__ __device__ T atomicMax(T* address, T val) {
-  return cudf::genericAtomicOperation(address, val, cudf::DeviceMax{});
+  return cuCollections::genericAtomicOperation(address, val,
+                                               cuCollections::DeviceMax{});
 }
 
 /** --------------------------------------------------------------------------*
@@ -578,11 +591,12 @@ __forceinline__ __device__ T atomicMax(T* address, T val) {
  * and stores the result back to memory at the same address.
  * These three operations are performed in one atomic transaction.
  *
- * The supported cudf types for `atomicCAS` are:
+ * The supported cuCollections types for `atomicCAS` are:
  * int8_t, int16_t, int32_t, int64_t, float, double,
- * cudf::date32, cudf::date64, cudf::timestamp, cudf::category,
- * cudf::nvstring_category cudf::bool8 Cuda natively supports `sint32`,
- * `uint32`, `uint64`. Other types are implemented by `atomicCAS`.
+ * cuCollections::date32, cuCollections::date64, cuCollections::timestamp,
+ * cuCollections::category, cuCollections::nvstring_category
+ * cuCollections::bool8 Cuda natively supports `sint32`, `uint32`, `uint64`.
+ * Other types are implemented by `atomicCAS`.
  *
  * @param[in] address The address of old value in global or shared memory
  * @param[in] compare The value to be compared
@@ -592,7 +606,7 @@ __forceinline__ __device__ T atomicMax(T* address, T val) {
  * -------------------------------------------------------------------------**/
 template <typename T>
 __forceinline__ __device__ T atomicCAS(T* address, T compare, T val) {
-  return cudf::detail::typesAtomicCASImpl<T>()(address, compare, val);
+  return cuCollections::detail::typesAtomicCASImpl<T>()(address, compare, val);
 }
 
 /** -------------------------------------------------------------------------*
@@ -613,7 +627,8 @@ __forceinline__ __device__ T atomicCAS(T* address, T compare, T val) {
 template <typename T,
           typename std::enable_if_t<std::is_integral<T>::value, T>* = nullptr>
 __forceinline__ __device__ T atomicAnd(T* address, T val) {
-  return cudf::genericAtomicOperation(address, val, cudf::DeviceAnd{});
+  return cuCollections::genericAtomicOperation(address, val,
+                                               cuCollections::DeviceAnd{});
 }
 
 /** -------------------------------------------------------------------------*
@@ -634,7 +649,8 @@ __forceinline__ __device__ T atomicAnd(T* address, T val) {
 template <typename T,
           typename std::enable_if_t<std::is_integral<T>::value, T>* = nullptr>
 __forceinline__ __device__ T atomicOr(T* address, T val) {
-  return cudf::genericAtomicOperation(address, val, cudf::DeviceOr{});
+  return cuCollections::genericAtomicOperation(address, val,
+                                               cuCollections::DeviceOr{});
 }
 
 /** -------------------------------------------------------------------------*
@@ -655,7 +671,8 @@ __forceinline__ __device__ T atomicOr(T* address, T val) {
 template <typename T,
           typename std::enable_if_t<std::is_integral<T>::value, T>* = nullptr>
 __forceinline__ __device__ T atomicXor(T* address, T val) {
-  return cudf::genericAtomicOperation(address, val, cudf::DeviceXor{});
+  return cuCollections::genericAtomicOperation(address, val,
+                                               cuCollections::DeviceXor{});
 }
 
 #endif
