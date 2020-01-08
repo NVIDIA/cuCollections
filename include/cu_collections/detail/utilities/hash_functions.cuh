@@ -16,10 +16,8 @@
 
 #pragma once
 
-#include <cu_collections/strings/string_view.cuh>
+#include <cu_collections/cu_collections.h>
 #include <cu_collections/utilities/error.hpp>
-#include <cu_collections/utilities/legacy/wrapper_types.hpp>
-#include <cu_collections/wrappers/bool.hpp>
 
 using hash_value_type = uint32_t;
 
@@ -76,86 +74,7 @@ struct MurmurHash3_32 {
   }
 
   template <typename TKey = Key>
-  typename std::enable_if_t<std::is_same<TKey, cuCollections::bool8>::value,
-                            result_type>
-      CUDA_HOST_DEVICE_CALLABLE operator()(const TKey& key) const {
-    return this->operator()(static_cast<int8_t>(key));
-  }
-
-  template <typename TKey = Key>
-  typename std::enable_if_t<
-      std::is_same<TKey, cuCollections::experimental::bool8>::value,
-      result_type>
-      CUDA_HOST_DEVICE_CALLABLE operator()(const TKey& key) const {
-    return this->operator()(static_cast<uint8_t>(key));
-  }
-
-  /**
-   * @brief Specialization of MurmurHash3_32 operator for strings.
-   */
-  template <typename TKey = Key>
-  typename std::enable_if_t<
-      std::is_same<TKey, cuCollections::string_view>::value, result_type>
-      CUDA_HOST_DEVICE_CALLABLE operator()(const TKey& key) const {
-    const int len = (int)key.size_bytes();
-    const uint8_t* data = (const uint8_t*)key.data();
-    const int nblocks = len / 4;
-    result_type h1 = m_seed;
-    constexpr uint32_t c1 = 0xcc9e2d51;
-    constexpr uint32_t c2 = 0x1b873593;
-    auto getblock32 = [] __host__ __device__(const uint32_t* p,
-                                             int i) -> uint32_t {
-// Individual byte reads for unaligned accesses (very likely)
-#ifndef __CUDA_ARCH__
-      CU_COLLECTIONS_FAIL("Hashing a string in host code is not supported.");
-#else
-      auto q = (const uint8_t*)(p + i);
-      return q[0] | (q[1] << 8) | (q[2] << 16) | (q[3] << 24);
-#endif
-    };
-
-    //----------
-    // body
-    const uint32_t* const blocks = (const uint32_t*)(data + nblocks * 4);
-    for (int i = -nblocks; i; i++) {
-      uint32_t k1 = getblock32(blocks, i);
-      k1 *= c1;
-      k1 = rotl32(k1, 15);
-      k1 *= c2;
-      h1 ^= k1;
-      h1 = rotl32(h1, 13);
-      h1 = h1 * 5 + 0xe6546b64;
-    }
-    //----------
-    // tail
-    const uint8_t* tail = (const uint8_t*)(data + nblocks * 4);
-    uint32_t k1 = 0;
-    switch (len & 3) {
-      case 3:
-        k1 ^= tail[2] << 16;
-      case 2:
-        k1 ^= tail[1] << 8;
-      case 1:
-        k1 ^= tail[0];
-        k1 *= c1;
-        k1 = rotl32(k1, 15);
-        k1 *= c2;
-        h1 ^= k1;
-    };
-    //----------
-    // finalization
-    h1 ^= len;
-    h1 = fmix32(h1);
-    return h1;
-  }
-
-  template <typename TKey = Key>
-  typename std::enable_if_t<
-      !std::is_same<TKey, cuCollections::bool8>::value &&
-          !std::is_same<TKey, cuCollections::string_view>::value &&
-          !std::is_same<TKey, cuCollections::experimental::bool8>::value,
-      result_type>
-      CUDA_HOST_DEVICE_CALLABLE operator()(const TKey& key) const {
+  result_type CUDA_HOST_DEVICE_CALLABLE operator()(const TKey& key) const {
     constexpr int len = sizeof(argument_type);
     const uint8_t* const data = (const uint8_t*)&key;
     constexpr int nblocks = len / 4;
@@ -237,38 +156,6 @@ struct IdentityHash {
 
   CUDA_HOST_DEVICE_CALLABLE result_type operator()(const Key& key) const {
     return static_cast<result_type>(key);
-  }
-};
-
-/**
- * @brief Specialization of IdentityHash for wrapper structs that hashes the
- * underlying value.
- */
-template <typename T, gdf_dtype type_id>
-struct IdentityHash<cuCollections::detail::wrapper<T, type_id>> {
-  using result_type = hash_value_type;
-
-  CUDA_HOST_DEVICE_CALLABLE result_type hash_combine(result_type lhs,
-                                                     result_type rhs) const {
-    result_type combined{lhs};
-
-    combined ^= rhs + 0x9e3779b9 + (combined << 6) + (combined >> 2);
-
-    return combined;
-  }
-
-  template <gdf_dtype dtype = type_id>
-  typename std::enable_if_t<(dtype == GDF_BOOL8), result_type>
-      CUDA_HOST_DEVICE_CALLABLE
-      operator()(cuCollections::detail::wrapper<T, dtype> const& key) const {
-    return static_cast<result_type>(key);
-  }
-
-  template <gdf_dtype dtype = type_id>
-  typename std::enable_if_t<(dtype != GDF_BOOL8), result_type>
-      CUDA_HOST_DEVICE_CALLABLE
-      operator()(cuCollections::detail::wrapper<T, dtype> const& key) const {
-    return static_cast<result_type>(key.value);
   }
 };
 

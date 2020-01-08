@@ -16,7 +16,7 @@ git clone --recurse-submodules  https://github.com/rapidsai/cuCollections.git $c
 cd $cuCollectionsPath
 git submodule update --init --recursive
 mkdir build && cd build
-cmake .. -DCMAKE_CXX11_ABI=ON
+cmake ..
 make -j$(nproc)
 make test # optional
 ```

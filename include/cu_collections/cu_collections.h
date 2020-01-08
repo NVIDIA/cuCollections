@@ -19,7 +19,17 @@
 
 #include <cstdint>
 #include <cstdlib>
-#include "types.h"
-#include "types.hpp"
+
+#ifndef CUDA_HOST_DEVICE_CALLABLE
+#ifdef __CUDACC__
+#define CUDA_HOST_DEVICE_CALLABLE __host__ __device__ inline
+#else
+#define CUDA_HOST_DEVICE_CALLABLE inline
+#endif
+#endif
+
+namespace cuCollections {
+using size_type = int32_t;
+}  // namespace cuCollections
 
 #endif /* CU_COLLECTIONS_H */

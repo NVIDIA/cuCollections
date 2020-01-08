@@ -24,9 +24,8 @@
  * ---------------------------------------------------------------------------**/
 
 #include <cu_collections/cu_collections.h>
-#include <utilities/legacy/utils.h>
-#include <cu_collections/utilities/error.hpp>
-#include <cu_collections/utilities/legacy/wrapper_types.hpp>
+
+#include <limits>
 #include <type_traits>
 
 namespace cuCollections {

@@ -6,19 +6,10 @@
 
 #include <thrust/device_vector.h>
 
+#include <cu_collections/utilities/error.hpp>
 #include <hash/concurrent_unordered_map.cuh>
 
-// TODO: Move to utils
 #define DIV_AND_CEIL(x, y) (x + y - 1) / y
-#define CHK_CUDA(expression)                                                  \
-  {                                                                           \
-    cudaError_t status = (expression);                                        \
-    if (status != cudaSuccess) {                                              \
-      std::cerr << "Error in file: " << __FILE__ << ", on line: " << __LINE__ \
-                << ": " << cudaGetErrorString(status) << std::endl;           \
-      std::exit(EXIT_FAILURE);                                                \
-    }                                                                         \
-  }
 
 namespace cuCollections {
 namespace details {
@@ -81,18 +72,18 @@ class unordered_map {
     ValType* dVals;
     const size_t numBlocks = DIV_AND_CEIL(keys.size(), kThreadBlockSize_);
 
-    CHK_CUDA(cudaMalloc((void**)&dKeys, keys.size() * sizeof(KeyType)));
-    CHK_CUDA(cudaMalloc((void**)&dVals, vals.size() * sizeof(ValType)));
+    CUDA_TRY(cudaMalloc((void**)&dKeys, keys.size() * sizeof(KeyType)));
+    CUDA_TRY(cudaMalloc((void**)&dVals, vals.size() * sizeof(ValType)));
 
-    CHK_CUDA(cudaMemcpy(dKeys, keys.data(), keys.size() * sizeof(KeyType),
+    CUDA_TRY(cudaMemcpy(dKeys, keys.data(), keys.size() * sizeof(KeyType),
                         cudaMemcpyHostToDevice));
-    CHK_CUDA(cudaMemcpy(dVals, vals.data(), vals.size() * sizeof(ValType),
+    CUDA_TRY(cudaMemcpy(dVals, vals.data(), vals.size() * sizeof(ValType),
                         cudaMemcpyHostToDevice));
 
     details::insert<<<numBlocks, kThreadBlockSize_>>>(*map_.get(), keys.size(),
                                                       dKeys, dVals);
-    CHK_CUDA(cudaFree(dKeys));
-    CHK_CUDA(cudaFree(dVals));
+    CUDA_TRY(cudaFree(dKeys));
+    CUDA_TRY(cudaFree(dVals));
   }
 
   std::vector<ValType> find(const std::vector<KeyType>& keys) {
@@ -101,19 +92,19 @@ class unordered_map {
     ValType* dResults;
     const size_t numBlocks = DIV_AND_CEIL(keys.size(), kThreadBlockSize_);
 
-    CHK_CUDA(cudaMalloc((void**)&dKeys, keys.size() * sizeof(KeyType)));
-    CHK_CUDA(cudaMalloc((void**)&dResults, keys.size() * sizeof(ValType)));
+    CUDA_TRY(cudaMalloc((void**)&dKeys, keys.size() * sizeof(KeyType)));
+    CUDA_TRY(cudaMalloc((void**)&dResults, keys.size() * sizeof(ValType)));
 
-    CHK_CUDA(cudaMemcpy(dKeys, keys.data(), keys.size() * sizeof(KeyType),
+    CUDA_TRY(cudaMemcpy(dKeys, keys.data(), keys.size() * sizeof(KeyType),
                         cudaMemcpyHostToDevice));
 
     details::find<<<numBlocks, kThreadBlockSize_>>>(*map_.get(), keys.size(),
                                                     dKeys, dResults);
 
-    CHK_CUDA(cudaMemcpy(hResults.data(), dResults,
+    CUDA_TRY(cudaMemcpy(hResults.data(), dResults,
                         keys.size() * sizeof(ValType), cudaMemcpyDeviceToHost));
-    CHK_CUDA(cudaFree(dKeys));
-    CHK_CUDA(cudaFree(dResults));
+    CUDA_TRY(cudaFree(dKeys));
+    CUDA_TRY(cudaFree(dResults));
     return hResults;
   }
 };

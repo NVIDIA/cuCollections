@@ -34,9 +34,6 @@
  * ---------------------------------------------------------------------------**/
 
 #include <cu_collections/cu_collections.h>
-#include <cu_collections/utilities/error.hpp>
-#include <cu_collections/utilities/legacy/wrapper_types.hpp>
-#include <cu_collections/wrappers/bool.hpp>
 #include <type_traits>
 #include <utilities/legacy/device_operators.cuh>
 
@@ -445,65 +442,15 @@ struct typesAtomicCASImpl<T, 8> {
  * @returns The old value at `address`
  * -------------------------------------------------------------------------**/
 template <typename T, typename BinaryOp>
-typename std::enable_if_t<
-    std::is_arithmetic<T>::value ||
-        std::is_same<T, cuCollections::date32>::value ||
-        std::is_same<T, cuCollections::date64>::value ||
-        std::is_same<T, cuCollections::timestamp>::value ||
-        std::is_same<T, cuCollections::category>::value ||
-        std::is_same<T, cuCollections::nvstring_category>::value,
-    T>
-    __forceinline__ __device__ genericAtomicOperation(T* address,
-                                                      T const& update_value,
-                                                      BinaryOp op) {
-  using T_int = cuCollections::detail::unwrapped_type_t<T>;
+typename std::enable_if_t<std::is_arithmetic<T>::value, T> __forceinline__
+    __device__
+    genericAtomicOperation(T* address, T const& update_value, BinaryOp op) {
+  using T_int = T;
   // unwrap the input type to expect
   // that the native atomic API is used for the underlying type if possible
   auto fun =
       cuCollections::detail::genericAtomicOperationImpl<T_int, BinaryOp>{};
-  return T(fun(reinterpret_cast<T_int*>(address),
-               cuCollections::detail::unwrap(update_value), op));
-}
-
-// specialization for cuCollections::bool8 types
-template <typename BinaryOp>
-__forceinline__ __device__ cuCollections::bool8 genericAtomicOperation(
-    cuCollections::bool8* address, cuCollections::bool8 const& update_value,
-    BinaryOp op) {
-  using T = cuCollections::bool8;
-  // don't use underlying type to apply operation for cuCollections::bool8
-  auto fun = cuCollections::detail::genericAtomicOperationImpl<T, BinaryOp>{};
-  return T(fun(address, update_value, op));
-}
-
-// // specialization for cuCollections::detail::timestamp types
-// template <typename T, typename BinaryOp>
-// typename std::enable_if_t<cuCollections::is_timestamp<T>(), T>
-// __forceinline__
-// __device__ genericAtomicOperation(T* address, T const& update_value, BinaryOp
-// op) {
-//   using R = typename T::rep;
-//   // Unwrap the input timestamp to its underlying duration value
-//   representation.
-//   // Use the underlying representation's type to apply operation for the
-//   // cuCollections::detail::timestamp
-//   auto update_value_rep = update_value.time_since_epoch().count();
-//   auto fun = cuCollections::detail::genericAtomicOperationImpl<R,
-//   BinaryOp>{}; return T(fun(reinterpret_cast<R*>(address), update_value_rep,
-//   op));
-// }
-
-// specialization for cuCollections::experimental::bool8 types
-template <typename BinaryOp>
-__forceinline__ __device__ cuCollections::experimental::bool8
-genericAtomicOperation(cuCollections::experimental::bool8* address,
-                       cuCollections::experimental::bool8 const& update_value,
-                       BinaryOp op) {
-  using T = cuCollections::experimental::bool8;
-  // don't use underlying type to apply operation for
-  // cuCollections::experimental::bool8
-  auto fun = cuCollections::detail::genericAtomicOperationImpl<T, BinaryOp>{};
-  return T(fun(address, update_value, op));
+  return T(fun(reinterpret_cast<T_int*>(address), update_value, op));
 }
 
 }  // namespace cuCollections
