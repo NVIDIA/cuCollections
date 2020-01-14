@@ -9,7 +9,7 @@ cuCollections will likely have several classes that are on different points on t
 Lowest-level, highest performance "bare metal" data structure with limited feature set.
 
 - Fixed-size
-- Keys limited to native integral types where `sizeof(Key) <= largest atomicCAS (64bits)
+- Keys limited to native integral types where `sizeof(Key) <= largest atomicCAS (64bits)`
 - Insert/Find/Erase
    - Storage for "Erased" values cannot be reclaimed
 - Uses sentinel values to indicate empty/erased cells
