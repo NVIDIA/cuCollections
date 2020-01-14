@@ -101,8 +101,10 @@ thrust::pair<iterator,bool> insert( value_type const& v, KeyEqual key_equal = st
    */
 template <typename KeyEqual> 
 const_iterator find( Key const& k, KeyEqual key_equal = std::equal_to<Key>{});
+```
 
 ### `erase`
+
 ```c++
 /**
    * @brief Erases the specified key (if it exists).
