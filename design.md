@@ -2,67 +2,46 @@ There are several “hash map” like data structures lie on a spectrum from hig
 full-featured structures that may be less performant. 
 cuCollections will likely have several classes that are on different points on this spectrum.
 
-# HashArray (TODO Naming)
 
+# insert_only_hash_array
 ## Summary
+- Fixed size
+- Concurrent Insert/Find only (no erase)
+- Primitive Key/Value Support:
+   - Packable key/value no overhead
+   - Non-packable incur additional memory overhead for in-place locks
+- Require single sentinel for key/values: `EMPTY`
+- AoS layout 
+   -`cuda::std::atomic<thrust::pair<Key,Value>>`
+   
+## Questions:
+- When is `key_equal` respected?
+  - atomicCAS doesn't use the `key_equal`
+ 
+- Require unique object representation?
+  - Sentinel may have padding bits, which requires zero-init of buffer before sentinel init
+  - Can add support in the future in C++17 and on
 
-Lowest-level, highest performance "bare metal" data structure with limited feature set.
 
-- Fixed-size
-- Keys limited to native integral types where `sizeof(Key) <= largest atomicCAS (64bits)`
-- Insert/Find/Erase
-   - Storage for "Erased" values cannot be reclaimed
-- Uses sentinel values to indicate empty/erased cells
+# insert_erase_hash_array
+## Summary
+- Fixed Size
+- Concurrent insert/find/erase
+- Primitive (CASable) keys
+- Arbitrary value types
+- *THREE* key sentinel values: `EMPTY, FILLING, ERASED`
 
-```c++
-template <typename Key, typename Value, typename Hash, typename KeyEqual, typename Allocator>
-class HashArray{
-   using value_type = thrust::pair<Key,Value>;
-}
-```
 
-## Keys and Values
+# general_purpose_hash_array
+## Summary
+- Fixed size
+- Arbitrary key/value
+- Control state (byte/bits) per cell
+  - Additional memory overhead
+- Concurrent insert/find/erase
+- No sentinel values required
 
-Key types are limited to native, integral types to allow bitwise equality comparison (i.e., no floating-point keys).
 
-### DECISION REQUIRED: Integral Values vs Arbitrary Values
-
-#### Integral, Packable Values
-
-Require `Value` to be an integral, "packable" type. 
-
-"Packable" key/value types are those types where `sizeof(Key) + sizeof(Value) <= largest atomicCAS (64bits)`
-
-Requires Array of Struct layout.
-
-- Pros:
-   - Performance: enables update of key/value in a single atomicCAS operation (assumes AoS layout)
-   - Find/Insert/Erase can be concurrent
-
-- Cons:
-  - Least flexible
-  - Requires user to specify `EMPTY/ERASED` sentinels for both `Key` and `Value`
-
-#### Arbitrary Values
-
-`Value` can be any device constructible type.
-
-Can use either AoS or SoA.
-
-- Pros:
-   - Flexible
-   - Sentinels only required for `Key` `EMPTY/ERASED/(FILLING)`
-
-- Cons:
-   - Potentially Less Performant:
-      - `atomicCAS` key w/ dependent write for value (placement new)
-   - Concurrent insert/find/erase requires additional sentinel for FILLING state
-
-## Layout
-
-### DECISION NEEDED: Array of Structs vs Struct of Arrays
-
-Layout largely determined by decision on integral vs. arbitrary `Value`s. 
 
 ## Operations
 
@@ -118,11 +97,3 @@ template <typename KeyEqual>
 bool erase( Key const& k, KeyEqual key_equal = std::equal_to<Key>{});
 ```
 
-
-# HashMap, Bryce version from SC libcu++ talk (TODO Name)
-
-Higher-level, with more features:
-- Arbitrary key/value types
-- Per-bucket status byte/bit(s)
-   - EMPTY, FILLING, FILLED, DELETED
-- Fixed Size? 
