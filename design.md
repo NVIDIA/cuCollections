@@ -9,9 +9,10 @@ cuCollections will likely have several classes that are on different points on t
 - Concurrent Insert/Find only (no erase)
 - Primitive Key/Value Support:
    - Packable key/value no overhead
+      - "Packable" means a key/value can be CASed in a single operation (`sizeof(Key) + sizeof(Value) <= max CAS`)
    - Non-packable incur additional memory overhead for in-place locks
 - Require single sentinel for key/values: `EMPTY`
-- AoS layout 
+- Array of Struct layout 
    -`cuda::std::atomic<thrust::pair<Key,Value>>`
    
 ## Questions:
