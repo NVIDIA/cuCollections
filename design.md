@@ -3,7 +3,7 @@ full-featured structures that may be less performant.
 cuCollections will likely have several classes that are on different points on this spectrum.
 
 
-# insert_only_hash_array
+# insert_only_hash_array (P0)
 ## Summary
 - Fixed size
 - Concurrent Insert/Find only (no erase)
@@ -13,27 +13,34 @@ cuCollections will likely have several classes that are on different points on t
    - Non-packable incur additional memory overhead for in-place locks
 - Require single sentinel for key/values: `EMPTY`
 - Array of Struct layout 
-   -`cuda::std::atomic<thrust::pair<Key,Value>>`
+   -`cuda::atomic<thrust::pair<Key,Value>>`
+- Needs template parameter for atomic scope
+   - System, Shared, etc. see libcu++ thread_scope
    
 ## Questions:
 - When is `key_equal` respected?
   - atomicCAS doesn't use the `key_equal`
+  - Use memcmp for checking against sentinel value(s)
+   - Document that bitwise equality is used 
  
 - Require unique object representation?
   - Sentinel may have padding bits, which requires zero-init of buffer before sentinel init
   - Can add support in the future in C++17 and on
 
 
-# insert_erase_hash_array
+# insert_erase_hash_array (P1)
 ## Summary
 - Fixed Size
 - Concurrent insert/find/erase
 - Primitive (CASable) keys
 - Arbitrary value types
 - *THREE* key sentinel values: `EMPTY, FILLING, ERASED`
+- Needs template parameter for atomic scope
+   - System, Shared, etc. see libcu++ thread_scope
+- *Needs more study of DL use case*
 
 
-# general_purpose_hash_array
+# general_purpose_hash_array (P2)
 ## Summary
 - Fixed size
 - Arbitrary key/value
