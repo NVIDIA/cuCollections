@@ -181,12 +181,12 @@ if (CU_COLLECTIONS_ENABLE_BUILD)
 
   ###################################################################################################
 
-  add_library(cuc
-              src/old/hash/concurrent_unordered_map.cuh
-              src/old/hash/concurrent_unordered_multimap.cuh)
+  add_library(cucol
+              src/old/concurrent_unordered_map.cuh
+              src/old/concurrent_unordered_multimap.cuh)
 
-  set_target_properties(cuds PROPERTIES LINKER_LANGUAGE CUDA)
-  set_target_properties(cuds PROPERTIES BUILD_RPATH "\$ORIGIN")
+  set_target_properties(cucol PROPERTIES LINKER_LANGUAGE CUDA)
+  set_target_properties(cucol PROPERTIES BUILD_RPATH "\$ORIGIN")
 
   ###################################################################################################
   # - build options ---------------------------------------------------------------------------------
@@ -195,7 +195,7 @@ if (CU_COLLECTIONS_ENABLE_BUILD)
   if(USE_NVTX)
       message(STATUS "Using Nvidia Tools Extension")
       find_library(NVTX_LIBRARY nvToolsExt PATH ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
-      target_link_libraries(cuds ${NVTX_LIBRARY})
+      target_link_libraries(cucol ${NVTX_LIBRARY})
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUSE_NVTX")
   endif(USE_NVTX)
 
@@ -208,7 +208,7 @@ if (CU_COLLECTIONS_ENABLE_BUILD)
   ###################################################################################################
   # - link libraries --------------------------------------------------------------------------------
 
-  target_link_libraries(cuds cuda)
+  target_link_libraries(cucol cuda)
   
   ###################################################################################################
 
