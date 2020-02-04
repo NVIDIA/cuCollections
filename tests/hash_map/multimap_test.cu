@@ -17,7 +17,7 @@
 #include <thrust/device_vector.h>
 
 #include <cu_collections/cu_collections.h>
-#include <hash/concurrent_unordered_multimap.cuh>
+#include <old/concurrent_unordered_multimap.cuh>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
