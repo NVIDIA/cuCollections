@@ -17,8 +17,9 @@
 #ifndef CONCURRENT_UNORDERED_MAP_CUH
 #define CONCURRENT_UNORDERED_MAP_CUH
 
+#include <cu_collections/utilities/utils.h>
+#include <cu_collections/detail/utilities/hash_functions.cuh>
 #include <utilities/legacy/device_atomics.cuh>
-#include <cudf/detail/utilities/hash_functions.cuh>
 #include "helper_functions.cuh"
 #include "managed_allocator.cuh"
 
@@ -30,10 +31,20 @@
 #include <type_traits>
 
 namespace {
-template <std::size_t N> struct packed { using type = void; };
-template <> struct packed<sizeof(uint64_t)> { using type = uint64_t; };
-template <> struct packed<sizeof(uint32_t)> { using type = uint32_t; };
-template <typename pair_type> using packed_t = typename packed<sizeof(pair_type)>::type; 
+template <std::size_t N>
+struct packed {
+  using type = void;
+};
+template <>
+struct packed<sizeof(uint64_t)> {
+  using type = uint64_t;
+};
+template <>
+struct packed<sizeof(uint32_t)> {
+  using type = uint32_t;
+};
+template <typename pair_type>
+using packed_t = typename packed<sizeof(pair_type)>::type;
 
 /**---------------------------------------------------------------------------*
  * @brief Indicates if a pair type can be packed.
@@ -89,7 +100,7 @@ union pair_packer<pair_type, std::enable_if_t<is_packable<pair_type>()>> {
  */
 template <typename Key, typename Element, typename Hasher = default_hash<Key>,
           typename Equality = equal_to<Key>,
-          typename Allocator = legacy_allocator<thrust::pair<Key, Element>>>
+          typename Allocator = managed_allocator<thrust::pair<Key, Element>>>
 class concurrent_unordered_map {
  public:
   using size_type = size_t;
@@ -311,8 +322,8 @@ class concurrent_unordered_map {
     }
   }
 
-  gdf_error assign_async(const concurrent_unordered_map& other,
-                         cudaStream_t stream = 0) {
+  cc_error assign_async(const concurrent_unordered_map& other,
+                        cudaStream_t stream = 0) {
     if (other.m_capacity <= m_capacity) {
       m_capacity = other.m_capacity;
     } else {
@@ -325,7 +336,7 @@ class concurrent_unordered_map {
     CUDA_TRY(cudaMemcpyAsync(m_hashtbl_values, other.m_hashtbl_values,
                              m_capacity * sizeof(value_type), cudaMemcpyDefault,
                              stream));
-    return GDF_SUCCESS;
+    return CC_SUCCESS;
   }
 
   void clear_async(cudaStream_t stream = 0) {
@@ -342,7 +353,7 @@ class concurrent_unordered_map {
     }
   }
 
-  gdf_error prefetch(const int dev_id, cudaStream_t stream = 0) {
+  cc_error prefetch(const int dev_id, cudaStream_t stream = 0) {
     cudaPointerAttributes hashtbl_values_ptr_attributes;
     cudaError_t status = cudaPointerGetAttributes(
         &hashtbl_values_ptr_attributes, m_hashtbl_values);
@@ -353,7 +364,7 @@ class concurrent_unordered_map {
     }
     CUDA_TRY(cudaMemPrefetchAsync(this, sizeof(*this), dev_id, stream));
 
-    return GDF_SUCCESS;
+    return CC_SUCCESS;
   }
 
   /**---------------------------------------------------------------------------*

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, NVIDIA CORPORATION.
+ * Copyright (c) 2018-2019, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,22 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef CU_COLLECTIONS_H
+#define CU_COLLECTIONS_H
 
-#define _LIBCUDACXX_USE_CXX20_CHRONO
-#define _LIBCUDACXX_USE_CXX17_TYPE_TRAITS
+#include <cstdint>
+#include <cstdlib>
 
-#include <simt/chrono>
-#include <details/iterator>
+#ifndef CUDA_HOST_DEVICE_CALLABLE
+#ifdef __CUDACC__
+#define CUDA_HOST_DEVICE_CALLABLE __host__ __device__ inline
+#else
+#define CUDA_HOST_DEVICE_CALLABLE inline
+#endif
+#endif
+
+namespace cuCollections {
+using size_type = int32_t;
+}  // namespace cuCollections
+
+#endif /* CU_COLLECTIONS_H */

@@ -15,7 +15,7 @@ int main() {
     vals[i] = i * 0.5;
   }
 
-  cuDataStructures::unordered_map<int, double> map(N);
+  cuCollections::unordered_map<int, double> map(N);
   map.insert(keys, vals);
   auto results = map.find(keys);
 

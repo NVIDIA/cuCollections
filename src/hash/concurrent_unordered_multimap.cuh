@@ -17,7 +17,6 @@
 #ifndef CONCURRENT_UNORDERED_MULTIMAP_CUH
 #define CONCURRENT_UNORDERED_MULTIMAP_CUH
 
-#include <cudf/cudf.h>
 #include <cassert>
 #include <iostream>
 #include <iterator>
@@ -25,8 +24,9 @@
 
 #include <thrust/pair.h>
 
-#include <cudf/detail/utilities/hash_functions.cuh>
-#include "managed.cuh"
+#include <cu_collections/cu_collections.h>
+#include <cu_collections/utilities/utils.h>
+#include <cu_collections/detail/utilities/hash_functions.cuh>
 #include "managed_allocator.cuh"
 
 #include "helper_functions.cuh"
@@ -396,8 +396,8 @@ class concurrent_unordered_multimap {
                           begin_ptr);
   }
 
-  gdf_error assign_async(const concurrent_unordered_multimap& other,
-                         cudaStream_t stream = 0) {
+  cc_error assign_async(const concurrent_unordered_multimap& other,
+                        cudaStream_t stream = 0) {
     m_collisions = other.m_collisions;
     if (other.m_hashtbl_size <= m_hashtbl_capacity) {
       m_hashtbl_size = other.m_hashtbl_size;
@@ -412,7 +412,7 @@ class concurrent_unordered_multimap {
                              m_hashtbl_size * sizeof(value_type),
                              cudaMemcpyDefault, stream));
 
-    return GDF_SUCCESS;
+    return CC_SUCCESS;
   }
 
   void clear_async(cudaStream_t stream = 0) {
@@ -432,7 +432,7 @@ class concurrent_unordered_multimap {
     }
   }
 
-  gdf_error prefetch(const int dev_id, cudaStream_t stream = 0) {
+  cc_error prefetch(const int dev_id, cudaStream_t stream = 0) {
     cudaPointerAttributes hashtbl_values_ptr_attributes;
     cudaError_t status = cudaPointerGetAttributes(
         &hashtbl_values_ptr_attributes, m_hashtbl_values);
@@ -442,7 +442,7 @@ class concurrent_unordered_multimap {
                                     m_hashtbl_size * sizeof(value_type), dev_id,
                                     stream));
     }
-    return GDF_SUCCESS;
+    return CC_SUCCESS;
   }
 
   concurrent_unordered_multimap() = delete;

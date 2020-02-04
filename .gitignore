@@ -17,14 +17,8 @@ DartConfiguration.tcl
 
 ## Python build directories & artifacts
 dist/
-cudf.egg-info/
 python/build
 python/*/build
-python/cudf/*/_lib/**/*.cpp
-python/cudf/*/_lib/**/*.h
-python/cudf/*/_lib/.nfs*
-python/cudf/*.ipynb
-python/cudf/.ipynb_checkpoints
 python/*/record.txt
 .Python
 env/
@@ -65,7 +59,6 @@ CMakeFiles/
 Debug
 build/
 cpp/build/
-cpp/include/cudf/ipc_generated/*.h
 cpp/thirdparty/googletest/
 
 ## Eclipse IDE

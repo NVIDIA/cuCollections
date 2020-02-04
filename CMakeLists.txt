@@ -15,7 +15,7 @@
 #=============================================================================
 cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 
-project(cuDataStructures VERSION 0.0.1 LANGUAGES C CXX CUDA)
+project(cuCollections VERSION 0.0.1 LANGUAGES C CXX CUDA)
 
 if(NOT CMAKE_CUDA_COMPILER)
   message(SEND_ERROR "CMake cannot locate a CUDA compiler")
@@ -52,9 +52,9 @@ if(CMAKE_COMPILER_IS_GNUCXX)
 
     option(CMAKE_CXX11_ABI "Enable the GLIBCXX11 ABI" ON)
     if(CMAKE_CXX11_ABI)
-        message(STATUS "cuDataStructures: Enabling the GLIBCXX11 ABI")
+        message(STATUS "cuCollections: Enabling the GLIBCXX11 ABI")
     else()
-        message(STATUS "cuDataStructures: Disabling the GLIBCXX11 ABI")
+        message(STATUS "cuCollections: Disabling the GLIBCXX11 ABI")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
         set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -D_GLIBCXX_USE_CXX11_ABI=0")
@@ -103,7 +103,6 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_${ptx},code=comp
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
 
 # set warnings as errors
-# TODO: remove `no-maybe-unitialized` used to suppress warnings in rmm::exec_policy
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Werror cross-execution-space-call -Xcompiler -Wall,-Werror")
 
 # Option to enable line info in CUDA device compilation to allow introspection when profiling / memchecking
@@ -127,12 +126,6 @@ option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(BUILD_TESTS "Configure CMake to build tests" ON)
 
 ###################################################################################################
-# - cnmem ---------------------------------------------------------------------------------
-# include cnmem.h in the include/detail directory
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/thirdparty/cnmem/include/cnmem.h" 
-               "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/include/rmm/detail/cnmem.h" COPYONLY)
-
-###################################################################################################
 # - cmake modules ---------------------------------------------------------------------------------
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/" ${CMAKE_MODULE_PATH})
@@ -152,9 +145,7 @@ include_directories("${CMAKE_BINARY_DIR}/include"
                     "${CMAKE_CURRENT_SOURCE_DIR}/include"
                     "${CMAKE_CURRENT_SOURCE_DIR}/src"
                     "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/cub"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/libcudacxx/include"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/include"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/thirdparty/cnmem/include")
+                    "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/libcudacxx/include")
 
 ###################################################################################################
 # - library paths ---------------------------------------------------------------------------------
@@ -164,12 +155,12 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT
 
 # If the project is used as a submodule, don't spend time building libraries or tests
 if(NOT "^${CMAKE_SOURCE_DIR}$" STREQUAL "^${PROJECT_SOURCE_DIR}$")
-  set(cuDataStructures_ENABLE_BUILD FALSE)
+  set(CU_COLLECTIONS_ENABLE_BUILD FALSE)
 else()
-  set(cuDataStructures_ENABLE_BUILD TRUE)
+  set(CU_COLLECTIONS_ENABLE_BUILD TRUE)
 endif()
 
-if (cuDataStructures_ENABLE_BUILD)
+if (CU_COLLECTIONS_ENABLE_BUILD)
 
   ###################################################################################################
   # - add gtest -------------------------------------------------------------------------------------
@@ -186,17 +177,13 @@ if (cuDataStructures_ENABLE_BUILD)
       endif(GTEST_FOUND)
   endif(BUILD_TESTS)
 
-  message(STATUS "cuDataStructures_TEST_LIST set to: ${cuDataStructures_TEST_LIST}")
+  message(STATUS "CU_COLLECTIONS_TEST_LIST set to: ${CU_COLLECTIONS_TEST_LIST}")
 
   ###################################################################################################
 
   add_library(cuds
               src/hash/concurrent_unordered_map.cuh
-              src/hash/concurrent_unordered_multimap.cuh
-              "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/src/rmm.cpp"
-              "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/src/memory_manager.cpp"
-              "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/thirdparty/cnmem/src/cnmem.cpp"
-              "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rmm/src/mr/default_memory_resource.cpp")
+              src/hash/concurrent_unordered_multimap.cuh)
 
   set_target_properties(cuds PROPERTIES LINKER_LANGUAGE CUDA)
   set_target_properties(cuds PROPERTIES BUILD_RPATH "\$ORIGIN")
@@ -232,8 +219,15 @@ if (cuDataStructures_ENABLE_BUILD)
   
   ###################################################################################################
 
-endif(cuDataStructures_ENABLE_BUILD)  
+endif(CU_COLLECTIONS_ENABLE_BUILD)  
+
+###################################################################################################
+# - saving cmake configs --------------------------------------------------------------------------
+# Configs that simplify using this project as a submodule.
 
 get_property(DIRS DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
-set(cuDataStructures_INCLUDE_DIRS ${DIRS} "${CMAKE_CURRENT_SOURCE_DIR}"
+set(CU_COLLECTIONS_INCLUDE_DIRS ${DIRS} "${CMAKE_CURRENT_SOURCE_DIR}"
 CACHE INTERNAL "${PROJECT_NAME}: Include Directories" FORCE)
+
+set(CMAKE_CUDA_FLAGS ${CMAKE_CUDA_FLAGS} CACHE STRING "CMAKE CUDA flags for cuCollections" FORCE)
+###################################################################################################

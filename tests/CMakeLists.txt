@@ -1,13 +1,13 @@
 ﻿cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
 
-project(cuDataStructures_TESTS LANGUAGES C CXX CUDA)
+project(cuCollections_TESTS LANGUAGES C CXX CUDA)
 
 if(NOT CMAKE_CUDA_COMPILER)
   message(SEND_ERROR "CMake cannot locate a CUDA compiler")
 endif()
 
 
-set(cuDataStructures_TEST_LIST CACHE INTERNAL "cuDataStructures_TEST_LIST")
+set(CU_COLLECTIONS_TEST_LIST CACHE INTERNAL "CU_COLLECTIONS_TEST_LIST")
 
 function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
     add_executable(${CMAKE_TEST_NAME}
@@ -17,7 +17,7 @@ function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
     set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
                             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gtests")
     add_test(NAME ${CMAKE_TEST_NAME} COMMAND ${CMAKE_TEST_NAME})
-    set(cuDataStructures_TEST_LIST ${cuDataStructures_TEST_LIST} ${CMAKE_TEST_NAME} CACHE INTERNAL "cuDataStructures_TEST_LIST")
+    set(CU_COLLECTIONS_TEST_LIST ${CU_COLLECTIONS_TEST_LIST} ${CMAKE_TEST_NAME} CACHE INTERNAL "CU_COLLECTIONS_TEST_LIST")
 endfunction(ConfigureTest)
 
 ###################################################################################################
@@ -33,7 +33,6 @@ include_directories("${CMAKE_BINARY_DIR}/include"
                     "${CMAKE_SOURCE_DIR}/src"
                     "${CMAKE_SOURCE_DIR}/thirdparty/cub"
                     "${CMAKE_SOURCE_DIR}/thirdparty/libcudacxx/include"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/rmm/include"
                     "${GTEST_INCLUDE_DIR}")
 
 ###################################################################################################
@@ -43,8 +42,7 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT
                  "${CMAKE_BINARY_DIR}/lib"
                  "${CMAKE_BINARY_DIR}"
                  "${FLATBUFFERS_LIBRARY_DIR}"
-                 "${GTEST_LIBRARY_DIR}"
-                 "${RMM_LIBRARY}")
+                 "${GTEST_LIBRARY_DIR}")
 
 ###################################################################################################
 ### test sources ##################################################################################
