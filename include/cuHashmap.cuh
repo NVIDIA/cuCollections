@@ -7,7 +7,7 @@
 #include <thrust/device_vector.h>
 
 #include <cu_collections/utilities/error.hpp>
-#include <hash/concurrent_unordered_map.cuh>
+#include <old/concurrent_unordered_map.cuh>
 
 #define DIV_AND_CEIL(x, y) (x + y - 1) / y
 

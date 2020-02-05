@@ -15,7 +15,7 @@
  */
 
 #include <cu_collections/cu_collections.h>
-#include <hash/concurrent_unordered_map.cuh>
+#include <old/concurrent_unordered_map.cuh>
 
 #include <ftw.h>
 #include <gmock/gmock.h>
