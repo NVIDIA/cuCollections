@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <cu_collections/hash_functions.cuh>
+
 #include <thrust/device_vector.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/pair.h>
@@ -30,6 +32,7 @@ struct store_pair {
 
   template <simt::thread_scope Scope>
   void operator()(simt::atomic<thrust::pair<Key, Value>, Scope>& p) {
+    // TODO: (JH) Use placement new instead?
     p.store(thrust::make_pair(k_, v_), simt::memory_order_relaxed);
   }
 
@@ -65,18 +68,22 @@ class insert_only_hash_array {
    * accessors and modifiers.
    */
   struct device_view {
+    // TODO (JH): What should the iterator type be? Exposing the atomic seems
+    // wrong
     using iterator = atomic_pair_type*;
     using const_iterator = atomic_pair_type const*;
 
     device_view(atomic_pair_type* slots, std::size_t capacity) noexcept
         : slots_{slots}, capacity_{capacity} {}
 
-    template <typename Hash, typename KeyEqual = thrust::equal_to<Key>>
+    template <typename Hash = MurmurHash3_32<Key>,
+              typename KeyEqual = thrust::equal_to<Key>>
     __device__ thrust::pair<iterator, bool> insert(
         pair_type const& insert_pair, Hash hash = Hash{},
         KeyEqual key_equal = KeyEqual{}) noexcept {}
 
-    template <typename Hash, typename KeyEqual>
+    template <typename Hash = MurmurHash3_32<Key>,
+              typename KeyEqual = thrust::equal_to<Key>>
     __device__ const_iterator find(Key const& k, Hash hash,
                                    KeyEqual key_equal) const noexcept {}
 
