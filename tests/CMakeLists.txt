@@ -52,3 +52,9 @@ set(HASH_MAP_TEST_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/hash_map/multimap_test.cu")
 
 ConfigureTest(HASH_MAP_TEST "${HASH_MAP_TEST_SRC}")
+###################################################################################################
+set(HASH_ARRAY_TEST_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/insert_only_hash_array/insert_only_hash_array_test.cu")
+
+ConfigureTest(HASH_ARRAY_TEST "${HASH_ARRAY_TEST_SRC}")
+###################################################################################################
