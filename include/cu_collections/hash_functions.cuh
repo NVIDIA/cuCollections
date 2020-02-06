@@ -37,44 +37,8 @@ struct MurmurHash3_32 {
 
   CUDA_HOST_DEVICE_CALLABLE MurmurHash3_32() : m_seed(0) {}
 
-  CUDA_HOST_DEVICE_CALLABLE uint32_t rotl32(uint32_t x, int8_t r) const {
-    return (x << r) | (x >> (32 - r));
-  }
-
-  CUDA_HOST_DEVICE_CALLABLE uint32_t fmix32(uint32_t h) const {
-    h ^= h >> 16;
-    h *= 0x85ebca6b;
-    h ^= h >> 13;
-    h *= 0xc2b2ae35;
-    h ^= h >> 16;
-    return h;
-  }
-
-  /* --------------------------------------------------------------------------*/
-  /**
-   * @brief  Combines two hash values into a new single hash value. Called
-   * repeatedly to create a hash value from several variables.
-   * Taken from the Boost hash_combine function
-   * https://www.boost.org/doc/libs/1_35_0/doc/html/boost/hash_combine_id241013.html
-   *
-   * @param lhs The first hash value to combine
-   * @param rhs The second hash value to combine
-   *
-   * @returns A hash value that intelligently combines the lhs and rhs hash
-   * values
-   */
-  /* ----------------------------------------------------------------------------*/
-  CUDA_HOST_DEVICE_CALLABLE result_type hash_combine(result_type lhs,
-                                                     result_type rhs) {
-    result_type combined{lhs};
-
-    combined ^= rhs + 0x9e3779b9 + (combined << 6) + (combined >> 2);
-
-    return combined;
-  }
-
-  template <typename TKey = Key>
-  result_type CUDA_HOST_DEVICE_CALLABLE operator()(const TKey& key) const {
+  constexpr result_type CUDA_HOST_DEVICE_CALLABLE
+  operator()(Key const& key) const noexcept {
     constexpr int len = sizeof(argument_type);
     const uint8_t* const data = (const uint8_t*)&key;
     constexpr int nblocks = len / 4;
@@ -118,13 +82,17 @@ struct MurmurHash3_32 {
   }
 
  private:
+  constexpr CUDA_HOST_DEVICE_CALLABLE uint32_t rotl32(uint32_t x, int8_t r) const noexcept {
     return (x << r) | (x >> (32 - r));
   }
 
-  CUDA_HOST_DEVICE_CALLABLE result_type operator()(const Key& key) const {
-    return static_cast<result_type>(key);
+  constexpr CUDA_HOST_DEVICE_CALLABLE uint32_t fmix32(uint32_t h) const noexcept {
+    h ^= h >> 16;
+    h *= 0x85ebca6b;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35;
+    h ^= h >> 16;
+    return h;
   }
+  uint32_t m_seed;
 };
-
-template <typename Key>
-using default_hash = MurmurHash3_32<Key>;
