@@ -18,7 +18,7 @@
 #define CONCURRENT_UNORDERED_MAP_CUH
 
 #include <cu_collections/utilities/utils.h>
-#include <cu_collections/detail/utilities/hash_functions.cuh>
+#include <cu_collections/hash_functions.cuh>
 #include <utilities/legacy/device_atomics.cuh>
 #include "helper_functions.cuh"
 #include "managed_allocator.cuh"
@@ -98,7 +98,7 @@ union pair_packer<pair_type, std::enable_if_t<is_packable<pair_type>()>> {
  *  - add constructor that takes pointer to hash_table to avoid allocations
  *  - extend interface to accept streams
  */
-template <typename Key, typename Element, typename Hasher = default_hash<Key>,
+template <typename Key, typename Element, typename Hasher = MurmurHash3_32<Key>,
           typename Equality = equal_to<Key>,
           typename Allocator = managed_allocator<thrust::pair<Key, Element>>>
 class concurrent_unordered_map {
