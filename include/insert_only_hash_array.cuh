@@ -45,7 +45,6 @@ class insert_only_hash_array {
   // TODO: (JH) What static_assert(s) should we have on Key/Value?
   // is_literal_type? (deprecated in C++17, removed c++20)
   // std::has_unique_object_representations? (C++17)
-  //
 
  public:
   using pair_type = thrust::pair<Key, Value>;
@@ -66,16 +65,20 @@ class insert_only_hash_array {
    * accessors and modifiers.
    */
   struct device_view {
+    using iterator = atomic_pair_type*;
+    using const_iterator = atomic_pair_type const*;
+
     device_view(atomic_pair_type* slots, std::size_t capacity) noexcept
         : slots_{slots}, capacity_{capacity} {}
 
-    template <typename Hash, typename KeyEqual>
-    __device__ void insert(pair_type const& insert_pair, Hash hash,
-                           KeyEqual key_equal) noexcept {}
+    template <typename Hash, typename KeyEqual = thrust::equal_to<Key>>
+    __device__ thrust::pair<iterator, bool> insert(
+        pair_type const& insert_pair, Hash hash = Hash{},
+        KeyEqual key_equal = KeyEqual{}) noexcept {}
 
     template <typename Hash, typename KeyEqual>
-    __device__ void find(Key const& k, Hash hash, KeyEqual key_equal) const
-        noexcept {}
+    __device__ const_iterator find(Key const& k, Hash hash,
+                                   KeyEqual key_equal) const noexcept {}
 
    private:
     atomic_pair_type* const slots_;
