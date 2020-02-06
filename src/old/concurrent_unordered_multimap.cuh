@@ -26,7 +26,7 @@
 
 #include <cu_collections/cu_collections.h>
 #include <cu_collections/utilities/utils.h>
-#include <cu_collections/detail/utilities/hash_functions.cuh>
+#include <cu_collections/hash_functions.cuh>
 #include "managed_allocator.cuh"
 
 #include "helper_functions.cuh"
@@ -41,7 +41,7 @@
  *  - extend interface to accept streams
  */
 template <typename Key, typename Element, typename size_type, Key unused_key,
-          Element unused_element, typename Hasher = default_hash<Key>,
+          Element unused_element, typename Hasher = MurmurHash3_32<Key>,
           typename Equality = equal_to<Key>,
           typename Allocator = managed_allocator<thrust::pair<Key, Element>>,
           bool count_collisions = false>

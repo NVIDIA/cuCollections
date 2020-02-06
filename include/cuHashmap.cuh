@@ -49,7 +49,7 @@ template <typename KeyType, typename ValType>
 class unordered_map {
  private:
   using SpecializedPair = thrust::pair<KeyType, ValType>;
-  using Map = concurrent_unordered_map<KeyType, ValType, default_hash<KeyType>,
+  using Map = concurrent_unordered_map<KeyType, ValType, MurmurHash3_32<KeyType>,
                                        equal_to<KeyType>,
                                        managed_allocator<SpecializedPair>>;
   const int kThreadBlockSize_ = 256;
