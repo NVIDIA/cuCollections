@@ -181,9 +181,7 @@ if (CU_COLLECTIONS_ENABLE_BUILD)
 
   ###################################################################################################
 
-  add_library(cucol
-              src/old/concurrent_unordered_map.cuh
-              src/old/concurrent_unordered_multimap.cuh)
+  #add_library(cucol )
 
   set_target_properties(cucol PROPERTIES LINKER_LANGUAGE CUDA)
   set_target_properties(cucol PROPERTIES BUILD_RPATH "\$ORIGIN")
