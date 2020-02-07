@@ -121,7 +121,7 @@ class insert_only_hash_array {
         KeyEqual key_equal = KeyEqual{}) noexcept {
       // TODO: What parameter order should key_equal/hash be in?
 
-      auto current_slot{get_slot(insert_pair.first, hash)};
+      auto current_slot{initial_slot(insert_pair.first, hash)};
 
       auto expected =
           thrust::make_pair(empty_key_sentinel_, empty_value_sentinel_);
@@ -163,7 +163,7 @@ class insert_only_hash_array {
               typename KeyEqual = thrust::equal_to<Key>>
     __device__ const_iterator find(Key const& k, Hash hash,
                                    KeyEqual key_equal) const noexcept {
-      auto current_slot{get_slot(k, hash)};
+      auto current_slot{initial_slot(k, hash)};
 
       while (true) {
         // Key exists, return iterator to location
@@ -208,7 +208,7 @@ class insert_only_hash_array {
      * @return Pointer to the initial slot for `k`
      */
     template <typename Hash>
-    __device__ auto get_slot(Key const& k, Hash hash) const noexcept {
+    __device__ auto initial_slot(Key const& k, Hash hash) const noexcept {
       return &slots_[hash(k) % capacity_];
     }
 
@@ -223,7 +223,7 @@ class insert_only_hash_array {
     __device__ auto next_slot(atomic_pair_type const* s) const noexcept {
       return (s < (--end())) ? ++s : slots_;
     }
-  };
+  }; // device_view
 
   device_view get_device_view() noexcept {
     return device_view{slots_.data().get(), slots_.size(),
