@@ -166,13 +166,15 @@ class insert_only_hash_array {
       auto current_slot{initial_slot(k, hash)};
 
       while (true) {
+        auto const current_key =
+            current_slot->load(simt::memory_order_relaxed).first;
         // Key exists, return iterator to location
-        if (key_equal(k, current_slot->first)) {
+        if (key_equal(k, current_key)) {
           return current_slot;
         }
 
         // Key doesn't exist, return end()
-        if (key_equal(empty_key_sentinel_, current_slot->first)) {
+        if (key_equal(empty_key_sentinel_, current_key)) {
           return end();
         }
 
@@ -221,7 +223,7 @@ class insert_only_hash_array {
      * @return The next slot after `s`
      */
     __device__ auto next_slot(atomic_pair_type const* s) const noexcept {
-      // TODO: Since modulus is expensive, I think this should be more efficient 
+      // TODO: Since modulus is expensive, I think this should be more efficient
       // than doing (++index % capacity_)
       return (s < (--end())) ? ++s : slots_;
     }
