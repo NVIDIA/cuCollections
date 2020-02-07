@@ -47,8 +47,3 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT
 ###################################################################################################
 ### test sources ##################################################################################
 ###################################################################################################
-set(HASH_MAP_TEST_SRC 
-    "${CMAKE_CURRENT_SOURCE_DIR}/hash_map/map_test.cu"
-    "${CMAKE_CURRENT_SOURCE_DIR}/hash_map/multimap_test.cu")
-
-ConfigureTest(HASH_MAP_TEST "${HASH_MAP_TEST_SRC}")
