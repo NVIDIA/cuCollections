@@ -50,12 +50,20 @@ class insert_only_hash_array {
   // std::has_unique_object_representations? (C++17)
   // probably is_arithmetic
   // document padding bits sharp edges
+  static_assert(std::is_arithmetic<Key>::value,
+                "Unsupported, non-arithmetic type.");
 
  public:
-  using value_type = thrust::pair<Key, Value>;
-  using pair_type = thrust::pair<const Key, Value>;
+  // Public member types make the `Key` const
+  using value_type = thrust::pair<const Key, Value>;
+  using atomic_value_type = simt::atomic<value_type, Scope>;
+
+ private:
+  // Internal storage types doesn't make sense to have `Key` const
+  using pair_type = thrust::pair<Key, Value>;
   using atomic_pair_type = simt::atomic<pair_type, Scope>;
 
+ public:
   explicit insert_only_hash_array(std::size_t capacity, Key empty_key_sentinel,
                                   Value empty_value_sentinel)
       : slots_(capacity),
@@ -78,8 +86,8 @@ class insert_only_hash_array {
     // TODO: (JH): What should the iterator type be? Exposing the
     // atomic seems wrong
     // Only have const_iterator in early version?
-    using iterator = atomic_pair_type*;
-    using const_iterator = atomic_pair_type const*;
+    using iterator = value_type*;
+    using const_iterator = atomic_value_type const*;
 
     /**
      * @brief Construct a new device view object
@@ -91,13 +99,16 @@ class insert_only_hash_array {
      */
     device_view(atomic_pair_type* slots, std::size_t capacity,
                 Key empty_key_sentinel, Value empty_value_sentinel) noexcept
-        : slots_{slots}, capacity_{capacity} {}
+        : slots_{slots},
+          capacity_{capacity},
+          empty_key_sentinel_{empty_key_sentinel},
+          empty_value_sentinel_{empty_value_sentinel} {}
 
     /**
      * @brief Insert key/value pair.
      *
-     * @tparam MurmurHash3_32<Key>
-     * @tparam thrust::equal_to<Key>
+     * @tparam Hash
+     * @tparam KeyEqual
      * @param insert_pair
      * @param hash
      * @param key_equal
@@ -106,9 +117,9 @@ class insert_only_hash_array {
     template <typename Hash = MurmurHash3_32<Key>,
               typename KeyEqual = thrust::equal_to<Key>>
     __device__ thrust::pair<iterator, bool> insert(
-        pair_type const& insert_pair, Hash hash = Hash{},
+        value_type const& insert_pair, Hash hash = Hash{},
         KeyEqual key_equal = KeyEqual{}) noexcept {
-      // TODO: What order should key_equal/hash be in?
+      // TODO: What parameter order should key_equal/hash be in?
 
       auto const key_hash{hash(insert_pair.first)};
       auto const index{key_hash % capacity_};
@@ -120,8 +131,8 @@ class insert_only_hash_array {
     /**
      * @brief Find element whose key is equal to `k`.
      *
-     * @tparam MurmurHash3_32<Key>
-     * @tparam thrust::equal_to<Key>
+     * @tparam Hash
+     * @tparam KeyEqual
      * @param k
      * @param hash
      * @param key_equal
@@ -132,11 +143,18 @@ class insert_only_hash_array {
     __device__ const_iterator find(Key const& k, Hash hash,
                                    KeyEqual key_equal) const noexcept {}
 
+    device_view() = delete;
+    device_view(device_view const&) = default;
+    device_view(device_view&&) = default;
+    device_view& operator=(device_view const&) = default;
+    device_view& operator=(device_view&&) = default;
+    ~device_view() = default;
+
    private:
-    atomic_pair_type* const slots_;
-    std::size_t const capacity_;
-    Key const empty_key_sentinel_;
-    Value const empty_value_sentinel_;
+    atomic_pair_type* const slots_{};
+    std::size_t const capacity_{};
+    Key const empty_key_sentinel_{};
+    Value const empty_value_sentinel_{};
   };
 
   device_view get_device_view() noexcept {
