@@ -221,9 +221,11 @@ class insert_only_hash_array {
      * @return The next slot after `s`
      */
     __device__ auto next_slot(atomic_pair_type const* s) const noexcept {
+      // TODO: Since modulus is expensive, I think this should be more efficient 
+      // than doing (++index % capacity_)
       return (s < (--end())) ? ++s : slots_;
     }
-  }; // device_view
+  };  // device_view
 
   device_view get_device_view() noexcept {
     return device_view{slots_.data().get(), slots_.size(),
