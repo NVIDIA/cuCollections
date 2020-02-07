@@ -121,17 +121,15 @@ class insert_only_hash_array {
         KeyEqual key_equal = KeyEqual{}) noexcept {
       // TODO: What parameter order should key_equal/hash be in?
 
-      auto const key_hash{hash(insert_pair.first)};
-      auto const index{key_hash % capacity_};
+      auto current_slot{get_slot(insert_pair.first, hash)};
 
       auto expected =
           thrust::make_pair(empty_key_sentinel_, empty_value_sentinel_);
 
       while (true) {
-        iterator current_slot{&slots_[index]};
         // Check for empty slot
         // TODO: Is memory_order_relaxed correct?
-        if (slots_[index].compare_exchange_strong(expected, insert_pair,
+        if (current_slot->compare_exchange_strong(expected, insert_pair,
                                                   simt::memory_order_relaxed)) {
           return thrust::make_pair(current_slot, true);
         }
@@ -143,9 +141,11 @@ class insert_only_hash_array {
           return thrust::make_pair(current_slot, false);
         }
 
+        // TODO: Add check for full hash map?
+
         // Slot is occupied by a different key---collision
         // Advance to next slot
-        index = (++index) % capacity_;
+        current_slot = next_slot(current_slot);
       }
     }
 
@@ -163,12 +163,9 @@ class insert_only_hash_array {
               typename KeyEqual = thrust::equal_to<Key>>
     __device__ const_iterator find(Key const& k, Hash hash,
                                    KeyEqual key_equal) const noexcept {
-      auto const key_hash{hash(k)};
-      auto const index{key_hash % capacity_};
-      while (true) {
-        const_iterator current_slot{
-            &slots_[index].load(simt::memory_order_relaxed)};
+      auto current_slot{get_slot(k, hash)};
 
+      while (true) {
         // Key exists, return iterator to location
         if (key_equal(k, current_slot->first)) {
           return current_slot;
@@ -179,9 +176,11 @@ class insert_only_hash_array {
           return end();
         }
 
+        // TODO: Add check for full hash map?
+
         // Slot is occupied by a different key---collision
         // Advance to next slot
-        index = (++index) % capacity_;
+        current_slot = next_slot(current_slot);
       }
     }
 
@@ -199,6 +198,31 @@ class insert_only_hash_array {
     std::size_t const capacity_{};
     Key const empty_key_sentinel_{};
     Value const empty_value_sentinel_{};
+
+    /**
+     * @brief Returns the initial slot for a given key `k`
+     *
+     * @tparam Hash
+     * @param k The key to get the slot for
+     * @param hash Hash to use to determine the slot
+     * @return Pointer to the initial slot for `k`
+     */
+    template <typename Hash>
+    __device__ auto get_slot(Key const& k, Hash hash) const noexcept {
+      return &slots_[hash(k) % capacity_];
+    }
+
+    /**
+     * @brief Given a slot `s`, returns the next slot.
+     *
+     * If `s` is the last slot, wraps back around to the first slot.
+     *
+     * @param s The slot to advance
+     * @return The next slot after `s`
+     */
+    __device__ auto next_slot(atomic_pair_type const* s) const noexcept {
+      return (s < (--end())) ? ++s : slots_;
+    }
   };
 
   device_view get_device_view() noexcept {
