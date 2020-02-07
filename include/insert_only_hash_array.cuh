@@ -86,7 +86,7 @@ class insert_only_hash_array {
     // TODO: (JH): What should the iterator type be? Exposing the
     // atomic seems wrong
     // Only have const_iterator in early version?
-    using iterator = value_type*;
+    using iterator = atomic_value_type*;
     using const_iterator = atomic_value_type const*;
 
     /**
@@ -124,8 +124,29 @@ class insert_only_hash_array {
       auto const key_hash{hash(insert_pair.first)};
       auto const index{key_hash % capacity_};
 
-      // TODO: What kind of atomic exchange to use?
-      // MD: use strong w/ acq_rel
+      auto expected =
+          thrust::make_pair(empty_key_sentinel_, empty_value_sentinel_);
+
+      while (true) {
+        iterator current_slot{&slots_[index]};
+        // Check for empty slot
+        // TODO: Is memory_order_relaxed correct?
+        if (slots_[index].compare_exchange_strong(expected, insert_pair,
+                                                  simt::memory_order_relaxed)) {
+          return thrust::make_pair(current_slot, true);
+        }
+
+        // Exchange failed, `expected` contains actual value
+
+        // Key already exists
+        if (key_equal(insert_pair.first, expected.first)) {
+          return thrust::make_pair(current_slot, false);
+        }
+
+        // Slot is occupied by a different key---collision
+        // Advance to next slot
+        index = (++index) % capacity_;
+      }
     }
 
     /**
