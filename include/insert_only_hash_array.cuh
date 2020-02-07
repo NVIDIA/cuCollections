@@ -162,7 +162,30 @@ class insert_only_hash_array {
     template <typename Hash = MurmurHash3_32<Key>,
               typename KeyEqual = thrust::equal_to<Key>>
     __device__ const_iterator find(Key const& k, Hash hash,
-                                   KeyEqual key_equal) const noexcept {}
+                                   KeyEqual key_equal) const noexcept {
+      auto const key_hash{hash(k)};
+      auto const index{key_hash % capacity_};
+      while (true) {
+        const_iterator current_slot{
+            &slots_[index].load(simt::memory_order_relaxed)};
+
+        // Key exists, return iterator to location
+        if (key_equal(k, current_slot->first)) {
+          return current_slot;
+        }
+
+        // Key doesn't exist, return end()
+        if (key_equal(empty_key_sentinel_, current_slot->first)) {
+          return end();
+        }
+
+        // Slot is occupied by a different key---collision
+        // Advance to next slot
+        index = (++index) % capacity_;
+      }
+    }
+
+    const_iterator end() const noexcept { return slots_ + capacity_; }
 
     device_view() = delete;
     device_view(device_view const&) = default;
