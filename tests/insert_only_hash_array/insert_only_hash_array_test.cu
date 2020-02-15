@@ -20,12 +20,28 @@
 #include <gtest/gtest.h>
 #include <cstdint>
 
+#include <thrust/for_each.h>
 #include <simt/atomic>
+
+
+struct inserter{
+
+
+};
 
 TEST(FirstTest, First) {
   insert_only_hash_array<int32_t, int32_t> a{1000, -1, -1};
 
   auto view = a.get_device_view();
 
-  (void) view;
+  std::vector<thrust::pair<int32_t, int32_t>> pairs(100);
+  std::generate(pairs.begin(), pairs.end(), []() {
+    static int32_t counter{};
+    return thrust::make_pair(++counter, counter);
+  });
+
+  thrust::device_vector<thrust::pair<int32_t, int32_t>> d_pairs(pairs);
+
+
+  (void)view;
 }
