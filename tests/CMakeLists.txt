@@ -33,6 +33,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 11)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 ###################################################################################################
+# - determine CUDA version-------------------------------------------------------------------------
 
 if(CMAKE_CUDA_COMPILER_VERSION)
   # Compute the version. from  CMAKE_CUDA_COMPILER_VERSION
