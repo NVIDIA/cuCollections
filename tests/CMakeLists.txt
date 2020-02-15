@@ -13,7 +13,7 @@ function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
     add_executable(${CMAKE_TEST_NAME}
                    ${CMAKE_TEST_SRC})
     set_target_properties(${CMAKE_TEST_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    target_link_libraries(${CMAKE_TEST_NAME} gmock gtest gmock_main gtest_main pthread cucol)
+    target_link_libraries(${CMAKE_TEST_NAME} gmock gtest gmock_main gtest_main pthread)
     set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
                             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gtests")
     add_test(NAME ${CMAKE_TEST_NAME} COMMAND ${CMAKE_TEST_NAME})
@@ -47,8 +47,3 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT
 ###################################################################################################
 ### test sources ##################################################################################
 ###################################################################################################
-set(HASH_MAP_TEST_SRC 
-    "${CMAKE_CURRENT_SOURCE_DIR}/hash_map/map_test.cu"
-    "${CMAKE_CURRENT_SOURCE_DIR}/hash_map/multimap_test.cu")
-
-ConfigureTest(HASH_MAP_TEST "${HASH_MAP_TEST_SRC}")
