@@ -125,4 +125,9 @@ set(EXAMPLE_TEST_SRC
 
 ConfigureTest(EXAMPLE_TEST "${EXAMPLE_TEST_SRC}")
 ###################################################################################################
+set(EXAMPLE_CUDA_TEST_SRC 
+    "${CMAKE_CURRENT_SOURCE_DIR}/example/example.cu")
+
+ConfigureTest(EXAMPLE_CUDA_TEST "${EXAMPLE_CUDA_TEST_SRC}")
+###################################################################################################
 
