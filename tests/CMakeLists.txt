@@ -85,16 +85,6 @@ if(CMAKE_CUDA_LINEINFO)
 endif(CMAKE_CUDA_LINEINFO)
 
 
-function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
-    add_executable(${CMAKE_TEST_NAME}
-                   ${CMAKE_TEST_SRC})
-    set_target_properties(${CMAKE_TEST_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    target_link_libraries(${CMAKE_TEST_NAME} pthread)
-    set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
-                            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
-    add_test(NAME ${CMAKE_TEST_NAME} COMMAND ${CMAKE_TEST_NAME})
-    set(CU_COLLECTIONS_TEST_LIST ${CU_COLLECTIONS_TEST_LIST} ${CMAKE_TEST_NAME} CACHE INTERNAL "CU_COLLECTIONS_TEST_LIST")
-endfunction(ConfigureTest)
 
 ###################################################################################################
 # - include paths ---------------------------------------------------------------------------------
@@ -116,6 +106,30 @@ include_directories("${CMAKE_BINARY_DIR}/include"
 link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES is an undocumented/unsupported variable containing the link directories for nvcc
                  "${CMAKE_BINARY_DIR}/lib"
                  "${CMAKE_BINARY_DIR}")
+
+
+###################################################################################################
+# - compile catch main()---------------------------------------------------------------------------
+
+# catch_main.cpp defines `CATCH_CONFIG_MAIN` which provides main() 
+# Compiles it to be linked into test executables
+set(CATCH_MAIN_SOURCE 
+    catch_main.cpp)                 
+
+add_library(CatchMain OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/${CATCH_MAIN_SOURCE})
+
+
+###################################################################################################
+function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
+    add_executable(${CMAKE_TEST_NAME}
+                   ${CMAKE_TEST_SRC})
+    set_target_properties(${CMAKE_TEST_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    target_link_libraries(${CMAKE_TEST_NAME} CatchMain pthread)
+    set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
+                            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+    add_test(NAME ${CMAKE_TEST_NAME} COMMAND ${CMAKE_TEST_NAME})
+    set(CU_COLLECTIONS_TEST_LIST ${CU_COLLECTIONS_TEST_LIST} ${CMAKE_TEST_NAME} CACHE INTERNAL "CU_COLLECTIONS_TEST_LIST")
+endfunction(ConfigureTest)
 
 ###################################################################################################
 ### test sources ##################################################################################
