@@ -88,9 +88,6 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_${ptx},code=comp
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
 
-# set warnings as errors
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Werror cross-execution-space-call -Xcompiler -Wall,-Werror")
-
 # Debug options
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     message(STATUS "Building with debugging flags")
