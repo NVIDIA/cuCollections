@@ -75,7 +75,6 @@ class insert_only_hash_array {
     thrust::for_each(thrust::device, slots_.begin(), slots_.end(),
                      detail::store_pair<Key, Value>{empty_key_sentinel,
                                                     empty_value_sentinel});
-
   }
 
   /**
@@ -124,10 +123,9 @@ class insert_only_hash_array {
       iterator current_slot{initial_slot(insert_pair.first, hash)};
 
       while (true) {
-      auto expected =
-          thrust::make_pair(empty_key_sentinel_, empty_value_sentinel_);
+        auto expected =
+            thrust::make_pair(empty_key_sentinel_, empty_value_sentinel_);
 
-      while (true) {
         // Check for empty slot
         // TODO: Is memory_order_relaxed correct?
         if (current_slot->compare_exchange_strong(expected, insert_pair,
@@ -226,11 +224,11 @@ class insert_only_hash_array {
      * @return The next slot after `s`
      */
     __device__ iterator next_slot(iterator s) const noexcept {
-      // TODO: Since modulus is expensive, I think this should be more efficient
-      // than doing (++index % capacity_)
+      // TODO: Since modulus is expensive, I think this should be more
+      // efficient than doing (++index % capacity_)
       return (++s < end()) ? s : slots_;
     }
-  };  // device_view
+  };  // class device_view
 
   device_view get_device_view() noexcept {
     return device_view{slots_.data().get(), slots_.size(),
