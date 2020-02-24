@@ -31,11 +31,8 @@ struct store_pair {
   store_pair(Key k, Value v) : k_{k}, v_{v} {}
 
   template <simt::thread_scope Scope>
-  void operator()(simt::atomic<thrust::pair<Key, Value>, Scope>& p) {
-    // TODO: (JH) Use placement new instead?
-    //p.store(thrust::make_pair(k_, v_), simt::memory_order_relaxed);
-
-    new (&p) simt::atomic<thrust::pair<Key, Value>>{k_,v_};
+  __device__ void operator()(simt::atomic<thrust::pair<Key, Value>, Scope>& p) {
+    new (&p) simt::atomic<thrust::pair<Key, Value>>{thrust::make_pair(k_, v_)};
   }
 
  private:
@@ -75,9 +72,10 @@ class insert_only_hash_array {
 
     // TODO: (JH) Is this the most efficient way to initialize a vector of
     // atomics?
-    thrust::for_each(slots_.begin(), slots_.end(),
+    thrust::for_each(thrust::device, slots_.begin(), slots_.end(),
                      detail::store_pair<Key, Value>{empty_key_sentinel,
                                                     empty_value_sentinel});
+
   }
 
   /**
