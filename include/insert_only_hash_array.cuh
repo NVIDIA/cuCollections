@@ -86,8 +86,8 @@ class insert_only_hash_array {
     // TODO: (JH): What should the iterator type be? Exposing the
     // atomic seems wrong
     // Only have const_iterator in early version?
-    using iterator = atomic_value_type*;
-    using const_iterator = atomic_value_type const*;
+    using iterator = atomic_pair_type*;
+    using const_iterator = atomic_pair_type const*;
 
     /**
      * @brief Construct a new device view object
