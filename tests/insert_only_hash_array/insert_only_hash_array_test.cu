@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define CATCH_CONFIG_MAIN  // This tells Catch to provide a main() - only do this in one cpp file
-
 #include <catch.hpp>
 
 unsigned int Factorial( unsigned int number ) {
@@ -30,10 +28,6 @@ TEST_CASE( "Factorials are computed", "[factorial]" ) {
 }
 
 /*
-#include <insert_only_hash_array.cuh>
-#include <cstdint>
-#include <thrust/for_each.h>
-#include <simt/atomic>
 */
 
 

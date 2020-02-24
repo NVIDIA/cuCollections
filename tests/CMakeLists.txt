@@ -145,4 +145,10 @@ set(EXAMPLE_CUDA_TEST_SRC
 
 ConfigureTest(EXAMPLE_CUDA_TEST "${EXAMPLE_CUDA_TEST_SRC}")
 ###################################################################################################
+###################################################################################################
+set(INSERT_ONLY_HASH_ARRAY_TEST_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/insert_only_hash_array/insert_only_hash_array_test.cu")
+
+ConfigureTest(INSERT_ONLY_HASH_ARRAY_TEST "${INSERT_ONLY_HASH_ARRAY_TEST_SRC}")
+###################################################################################################
 
