@@ -121,8 +121,9 @@ class insert_only_hash_array {
         KeyEqual key_equal = KeyEqual{}) noexcept {
       // TODO: What parameter order should key_equal/hash be in?
 
-      auto current_slot{initial_slot(insert_pair.first, hash)};
+      iterator current_slot{initial_slot(insert_pair.first, hash)};
 
+      while (true) {
       auto expected =
           thrust::make_pair(empty_key_sentinel_, empty_value_sentinel_);
 
