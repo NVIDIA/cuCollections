@@ -33,7 +33,9 @@ struct store_pair {
   template <simt::thread_scope Scope>
   void operator()(simt::atomic<thrust::pair<Key, Value>, Scope>& p) {
     // TODO: (JH) Use placement new instead?
-    p.store(thrust::make_pair(k_, v_), simt::memory_order_relaxed);
+    //p.store(thrust::make_pair(k_, v_), simt::memory_order_relaxed);
+
+    new (&p) simt::atomic<thrust::pair<Key, Value>>{k_,v_};
   }
 
  private:
@@ -210,7 +212,7 @@ class insert_only_hash_array {
      * @return Pointer to the initial slot for `k`
      */
     template <typename Hash>
-    __device__ auto initial_slot(Key const& k, Hash hash) const noexcept {
+    __device__ iterator initial_slot(Key const& k, Hash hash) const noexcept {
       return &slots_[hash(k) % capacity_];
     }
 
@@ -222,7 +224,7 @@ class insert_only_hash_array {
      * @param s The slot to advance
      * @return The next slot after `s`
      */
-    __device__ auto next_slot(atomic_pair_type const* s) const noexcept {
+    __device__ iterator next_slot(atomic_pair_type const* s) const noexcept {
       // TODO: Since modulus is expensive, I think this should be more efficient
       // than doing (++index % capacity_)
       return (s < (--end())) ? ++s : slots_;
