@@ -222,10 +222,10 @@ class insert_only_hash_array {
      * @param s The slot to advance
      * @return The next slot after `s`
      */
-    __device__ iterator next_slot(atomic_pair_type const* s) const noexcept {
+    __device__ iterator next_slot(iterator s) const noexcept {
       // TODO: Since modulus is expensive, I think this should be more efficient
       // than doing (++index % capacity_)
-      return (s < (--end())) ? ++s : slots_;
+      return (++s < end()) ? s : slots_;
     }
   };  // device_view
 
