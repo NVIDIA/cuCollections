@@ -46,14 +46,12 @@ TEST_CASE("The first test") {
 
   CUDA_TRY(cudaDeviceSynchronize());
 
-  // thrust::for_each(
-  //    d_pairs.begin(), d_pairs.end(),
-  //    [view] __device__(
-  //        thrust::pair<const int32_t, int32_t> const& pair) mutable {
-  //      view.insert(pair);
-  //    });
-
-  insert_kernel<<<5, 256>>>(view, d_pairs.data().get(), d_pairs.size());
+  thrust::for_each(
+      d_pairs.begin(), d_pairs.end(),
+      [view] __device__(
+          thrust::pair<const int32_t, int32_t> const& pair) mutable {
+        view.insert(pair);
+      });
 
   CUDA_TRY(cudaDeviceSynchronize());
 }
