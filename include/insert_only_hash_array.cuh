@@ -67,7 +67,7 @@ class insert_only_hash_array {
                                   Value empty_value_sentinel)
       : slots_(capacity),
         empty_key_sentinel_{empty_key_sentinel},
-        empty_value_sentinel_{empty_value_sentinel_} {
+        empty_value_sentinel_{empty_value_sentinel} {
     // vector_base? uninitialized fill
 
     // TODO: (JH) Is this the most efficient way to initialize a vector of
