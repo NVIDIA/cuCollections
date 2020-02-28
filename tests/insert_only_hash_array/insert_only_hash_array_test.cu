@@ -14,19 +14,16 @@
  * limitations under the License.
  */
 
-
-//#define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 
-//#include <cu_collections/utilities/error.hpp>
+#include <cu_collections/utilities/error.hpp>
 #include <cuco/insert_only_hash_array.cuh>
 
-//#include <thrust/count.h>
+#include <thrust/count.h>
 #include <thrust/device_vector.h>
-//#include <thrust/for_each.h>
-//#include <algorithm>
+#include <thrust/for_each.h>
+#include <algorithm>
 
-/*
 namespace {
 // Thrust logical algorithms (any_of/all_of/none_of) don't work with device
 // lambdas: See https://github.com/thrust/thrust/issues/1062
@@ -45,17 +42,14 @@ template <typename Iterator, typename Predicate>
 bool none_of(Iterator begin, Iterator end, Predicate p) {
   return not all_of(begin, end, p);
 }
-
-
 }  // namespace
-*/
 
 TEST_CASE("The first test") {
-  insert_only_hash_array<int32_t, int32_t> a{1000, -1, -1};
+  insert_only_hash_array<int32_t, int32_t> a{100000, -1, -1};
 
-  //auto view = a.get_device_view();
+  auto view = a.get_device_view();
 
-  std::vector<thrust::pair<int32_t, int32_t>> pairs(100);
+  std::vector<thrust::pair<int32_t, int32_t>> pairs(50000);
   std::generate(pairs.begin(), pairs.end(), []() {
     static int32_t counter{};
     ++counter;
@@ -64,8 +58,6 @@ TEST_CASE("The first test") {
 
   thrust::device_vector<thrust::pair<int32_t, int32_t>> d_pairs(pairs);
 
-
-/*
   SECTION("Inserting keys should return valid iterator and insert success.") {
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
@@ -109,18 +101,19 @@ TEST_CASE("The first test") {
         }));
   }
 
-  SECTION("Keys are all found after inserting many keys.") {
-    // Bulk insert keys
-    thrust::for_each(
-        d_pairs.begin(), d_pairs.end(),
-        [view] __device__(auto const& pair) mutable { view.insert(pair); });
+  /*
+    SECTION("Keys are all found after inserting many keys.") {
+      // Bulk insert keys
+      thrust::for_each(
+          d_pairs.begin(), d_pairs.end(),
+          [view] __device__(auto const& pair) mutable { view.insert(pair); });
 
-    // All keys should be found
-    REQUIRE(all_of(
-        d_pairs.begin(), d_pairs.end(),
-        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
-          return view.find(pair.first) != view.end();
-        }));
-  }
-  */
+      // All keys should be found
+      REQUIRE(all_of(
+          d_pairs.begin(), d_pairs.end(),
+          [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable
+    { return view.find(pair.first) != view.end();
+          }));
+    }
+    */
 }
