@@ -71,8 +71,10 @@ TEST_CASE("The first test") {
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
         [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
-          view.insert(pair);
-          return view.find(pair.first) != view.end();
+          auto insert_result = view.insert(pair);
+          auto find_result = view.find(pair.first);
+          bool same_iterator = (insert_result.first == find_result);
+          return same_iterator;
         }));
   }
 
