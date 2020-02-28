@@ -101,19 +101,17 @@ TEST_CASE("The first test") {
         }));
   }
 
-  /*
-    SECTION("Keys are all found after inserting many keys.") {
-      // Bulk insert keys
-      thrust::for_each(
-          d_pairs.begin(), d_pairs.end(),
-          [view] __device__(auto const& pair) mutable { view.insert(pair); });
+  SECTION("Keys are all found after inserting many keys.") {
+    // Bulk insert keys
+    thrust::for_each(
+        d_pairs.begin(), d_pairs.end(),
+        [view] __device__(auto const& pair) mutable { view.insert(pair); });
 
-      // All keys should be found
-      REQUIRE(all_of(
-          d_pairs.begin(), d_pairs.end(),
-          [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable
-    { return view.find(pair.first) != view.end();
-          }));
-    }
-    */
+    // All keys should be found
+    REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(),
+        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+          return view.find(pair.first) != view.end();
+        }));
+  }
 }
