@@ -45,11 +45,11 @@ bool none_of(Iterator begin, Iterator end, Predicate p) {
 }  // namespace
 
 TEST_CASE("The first test") {
-  insert_only_hash_array<int32_t, int32_t> a{100000, -1, -1};
+  insert_only_hash_array<int32_t, int32_t> a{100'000'000, -1, -1};
 
   auto view = a.get_device_view();
 
-  std::vector<thrust::pair<int32_t, int32_t>> pairs(50000);
+  std::vector<thrust::pair<int32_t, int32_t>> pairs(50'000'000);
   std::generate(pairs.begin(), pairs.end(), []() {
     static int32_t counter{};
     ++counter;
