@@ -16,7 +16,7 @@
 
 #include "synchronization.hpp"
 
-#include <detail/error.hpp>
+#include <cuco/detail/error.hpp>
 
 cuda_event_timer::cuda_event_timer(benchmark::State& state, bool flush_l2_cache,
                                    cudaStream_t stream)

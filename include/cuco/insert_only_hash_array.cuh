@@ -160,8 +160,9 @@ class insert_only_hash_array {
      */
     template <typename Hash = MurmurHash3_32<Key>,
               typename KeyEqual = thrust::equal_to<Key>>
-    __device__ const_iterator find(Key const& k, Hash hash,
-                                   KeyEqual key_equal) const noexcept {
+    __device__ const_iterator find(Key const& k, Hash hash = Hash{},
+                                   KeyEqual key_equal = KeyEqual{}) const
+        noexcept {
       auto current_slot{initial_slot(k, hash)};
 
       while (true) {
@@ -197,10 +198,10 @@ class insert_only_hash_array {
     ~device_view() = default;
 
    private:
-    atomic_pair_type* const slots_{};
-    std::size_t const capacity_{};
-    Key const empty_key_sentinel_{};
-    Value const empty_value_sentinel_{};
+    atomic_pair_type* slots_{};
+    std::size_t capacity_{};
+    Key empty_key_sentinel_{};
+    Value empty_value_sentinel_{};
 
     /**
      * @brief Returns the initial slot for a given key `k`
