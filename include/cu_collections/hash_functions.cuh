@@ -35,9 +35,9 @@ struct MurmurHash3_32 {
   using argument_type = Key;
   using result_type = hash_value_type;
 
-  CUDA_HOST_DEVICE_CALLABLE MurmurHash3_32() : m_seed(0) {}
+  CUDA_HOST_DEVICE_CALLABLE constexpr MurmurHash3_32() : m_seed(0) {}
 
-  result_type CUDA_HOST_DEVICE_CALLABLE
+  constexpr result_type CUDA_HOST_DEVICE_CALLABLE
   operator()(Key const& key) const noexcept {
     constexpr int len = sizeof(argument_type);
     const uint8_t* const data = (const uint8_t*)&key;
@@ -86,7 +86,7 @@ struct MurmurHash3_32 {
     return (x << r) | (x >> (32 - r));
   }
 
-  CUDA_HOST_DEVICE_CALLABLE uint32_t fmix32(uint32_t h) const noexcept {
+  constexpr CUDA_HOST_DEVICE_CALLABLE uint32_t fmix32(uint32_t h) const noexcept {
     h ^= h >> 16;
     h *= 0x85ebca6b;
     h ^= h >> 13;
