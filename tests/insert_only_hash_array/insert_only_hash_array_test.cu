@@ -15,23 +15,37 @@
  */
 
 #include <cu_collections/utilities/error.hpp>
-#include <insert_only_hash_array.cuh>
+#include <cuco/insert_only_hash_array.cuh>
 
+#include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
 #include <algorithm>
 #include <catch.hpp>
 
-template <typename Map, typename Pairs>
-__global__ void insert_kernel(Map map, Pairs const* pairs, size_t size) {
-  auto tid = threadIdx.x + blockIdx.x * blockDim.x;
-  if (tid < size) map.insert(pairs[tid]);
+namespace {
+// Thrust logical algorithms (any_of/all_of/none_of) don't work with device
+// lambdas: See https://github.com/thrust/thrust/issues/1062
+template <typename Iterator, typename Predicate>
+bool all_of(Iterator begin, Iterator end, Predicate p) {
+  auto size = thrust::distance(begin, end);
+  return size == thrust::count_if(begin, end, p);
 }
+
+template <typename Iterator, typename Predicate>
+bool any_of(Iterator begin, Iterator end, Predicate p) {
+  return thrust::count_if(begin, end, p) > 0;
+}
+
+template <typename Iterator, typename Predicate>
+bool none_of(Iterator begin, Iterator end, Predicate p) {
+  return not all_of(begin, end, p);
+}
+
+}  // namespace
 
 TEST_CASE("The first test") {
   insert_only_hash_array<int32_t, int32_t> a{1000, -1, -1};
-
-  CUDA_TRY(cudaDeviceSynchronize());
 
   auto view = a.get_device_view();
 
@@ -44,10 +58,58 @@ TEST_CASE("The first test") {
 
   thrust::device_vector<thrust::pair<int32_t, int32_t>> d_pairs(pairs);
 
-  CUDA_TRY(cudaDeviceSynchronize());
+  SECTION("Inserting keys should return valid iterator and insert success.") {
+    REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(),
+        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+          auto result = view.insert(pair);
+          return (result.first != view.end()) and (result.second == true);
+        }));
+  }
 
-  thrust::for_each(d_pairs.begin(), d_pairs.end(),
-                   [view] __device__(auto pair) mutable { view.insert(pair); });
+  SECTION("Key is found immediately after insertion.") {
+    REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(),
+        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+          view.insert(pair);
+          return view.find(pair.first) != view.end();
+        }));
+  }
 
-  CUDA_TRY(cudaDeviceSynchronize());
+  SECTION("Inserting same key twice.") {
+    REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(),
+        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+          auto const first_insert = view.insert(pair);
+          auto const second_insert = view.insert(pair);
+          bool const same_iterator =
+              (first_insert.first == second_insert.first);
+
+          // Inserting the same key twice should return the same
+          // iterator and false for the insert result
+          return same_iterator and (second_insert.second == false);
+        }));
+  }
+
+  SECTION("Cannot find any key in an empty hash map") {
+    REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(),
+        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+          return view.find(pair.first) == view.end();
+        }));
+  }
+
+  SECTION("Keys are all found after inserting many keys.") {
+    // Bulk insert keys
+    thrust::for_each(
+        d_pairs.begin(), d_pairs.end(),
+        [view] __device__(auto const& pair) mutable { view.insert(pair); });
+
+    // All keys should be found
+    REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(),
+        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+          return view.find(pair.first) != view.end();
+        }));
+  }
 }
