@@ -42,5 +42,11 @@ set(TEST_BENCH_SRC
   "${CMAKE_CURRENT_SOURCE_DIR}/test/test_benchmark.cpp")
 
 ConfigureBench(TEST_BENCH "${TEST_BENCH_SRC}")
+# - test benchmark --------------------------------------------------------------------------------
+
+set(HASH_BENCH_SRC
+  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/hash_table_bench.cu")
+
+ConfigureBench(HASH_TABLE_BENCH "${HASH_BENCH_SRC}")
 
 ###################################################################################################
