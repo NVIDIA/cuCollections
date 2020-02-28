@@ -47,6 +47,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
+if(CMAKE_COMPILER_IS_GNUCXX)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
+    option(CMAKE_CXX11_ABI "Enable the GLIBCXX11 ABI" ON)
+    if(CMAKE_CXX11_ABI)
+        message(STATUS "cuCollections: Enabling the GLIBCXX11 ABI")
+    else()
+        message(STATUS "cuCollections: Disabling the GLIBCXX11 ABI")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -D_GLIBCXX_USE_CXX11_ABI=0")
+    endif(CMAKE_CXX11_ABI)
+endif(CMAKE_COMPILER_IS_GNUCXX)
+
 
 if(CMAKE_CUDA_COMPILER_VERSION)
   # Compute the version. from  CMAKE_CUDA_COMPILER_VERSION
@@ -62,7 +75,7 @@ message(STATUS "CUDA_VERSION: ${CUDA_VERSION}")
 set(CUDA_VERSION_STRING "${CUDA_VERSION}")
 
 # Auto-detect available GPU compute architectures
-set(GPU_ARCHS "ALL" CACHE STRING
+set(GPU_ARCHS "" CACHE STRING
   "List of GPU architectures (semicolon-separated) to be compiled for. Pass 'ALL' if you want to compile for all supported GPU architectures. Empty string means to auto-detect the GPUs on the current system")
 
 if("${GPU_ARCHS}" STREQUAL "")
@@ -97,6 +110,7 @@ endif(CMAKE_BUILD_TYPE MATCHES Debug)
 
 # Build options
 option(BUILD_TESTS "Configure CMake to build tests" ON)
+option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ON)
 
 ###################################################################################################
 # - cmake modules ---------------------------------------------------------------------------------
@@ -125,6 +139,19 @@ message(STATUS "CU_COLLECTIONS_TEST_LIST set to: ${CU_COLLECTIONS_TEST_LIST}")
 endif(CU_COLLECTIONS_ENABLE_BUILD)  
 
 ###################################################################################################
+###################################################################################################
+# - add google benchmark --------------------------------------------------------------------------
+
+if(BUILD_BENCHMARKS)
+  include(ConfigureGoogleBenchmark)
+  if(GBENCH_FOUND)
+    message(STATUS "Google C++ Benchmarking Framework (Google Benchmark) found in ${GBENCH_ROOT}")
+    include_directories(${GBENCH_INCLUDE_DIR})
+    add_subdirectory(${CMAKE_SOURCE_DIR}/benchmarks)
+  else()
+    message(AUTHOR_WARNING "Google C++ Benchmarking Framework (Google Benchmark) not found: automated tests are disabled.")
+  endif(GBENCH_FOUND)
+endif(BUILD_BENCHMARKS)
 # - saving cmake configs --------------------------------------------------------------------------
 # Configs that simplify using this project as a submodule.
 
