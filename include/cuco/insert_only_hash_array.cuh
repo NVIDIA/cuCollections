@@ -63,18 +63,34 @@ class insert_only_hash_array {
   using atomic_pair_type = simt::atomic<pair_type, Scope>;
 
  public:
+  /**
+   * @brief Construct a new `insert_only_hash_array` with the specified
+   * capacity, empty key sentinel, and initial value.
+   *
+   * A `insert_only_hash_array` will be constructed with sufficient "slots"
+   * capable of holding `capacity` key/value pairs. The `empty_key_sentinel` is
+   * used to indicate an empty slot. Attempting to insert or find a key equal to
+   * `empty_key_sentinel` results in undefined behavior. The value of empty
+   * slots is initialized to `initial_value`.
+   *
+   * @param capacity The maximum number of key/value pairs that can be inserted
+   * @param empty_key_sentinel Key value used to indicate an empty slot.
+   * Undefined behavior results from trying to insert or find a key equal to
+   * `empty_key_sentinel`.
+   * @param initial_value The initial value used for empty slots.
+   */
   explicit insert_only_hash_array(std::size_t capacity, Key empty_key_sentinel,
-                                  Value empty_value_sentinel)
+                                  Value initial_value = Value{})
       : slots_(capacity),
         empty_key_sentinel_{empty_key_sentinel},
-        empty_value_sentinel_{empty_value_sentinel} {
+        initial_value_{initial_value} {
     // vector_base? uninitialized fill
 
     // TODO: (JH) Is this the most efficient way to initialize a vector of
     // atomics?
-    thrust::for_each(thrust::device, slots_.begin(), slots_.end(),
-                     detail::store_pair<Key, Value>{empty_key_sentinel,
-                                                    empty_value_sentinel});
+    thrust::for_each(
+        thrust::device, slots_.begin(), slots_.end(),
+        detail::store_pair<Key, Value>{empty_key_sentinel, initial_value});
   }
 
   /**
@@ -94,14 +110,14 @@ class insert_only_hash_array {
      * @param slots
      * @param capacity
      * @param empty_key_sentinel
-     * @param empty_value_sentinel
+     * @param initial_value
      */
     device_view(atomic_pair_type* slots, std::size_t capacity,
-                Key empty_key_sentinel, Value empty_value_sentinel) noexcept
+                Key empty_key_sentinel, Value initial_value) noexcept
         : slots_{slots},
           capacity_{capacity},
           empty_key_sentinel_{empty_key_sentinel},
-          empty_value_sentinel_{empty_value_sentinel} {}
+          initial_value_{initial_value} {}
 
     /**
      * @brief Insert key/value pair.
@@ -123,8 +139,7 @@ class insert_only_hash_array {
       iterator current_slot{initial_slot(insert_pair.first, hash)};
 
       while (true) {
-        auto expected =
-            thrust::make_pair(empty_key_sentinel_, empty_value_sentinel_);
+        auto expected = thrust::make_pair(empty_key_sentinel_, initial_value_);
 
         // Check for empty slot
         // TODO: Is memory_order_relaxed correct?
@@ -201,7 +216,7 @@ class insert_only_hash_array {
     atomic_pair_type* slots_{};
     std::size_t capacity_{};
     Key empty_key_sentinel_{};
-    Value empty_value_sentinel_{};
+    Value initial_value_{};
 
     /**
      * @brief Returns the initial slot for a given key `k`
@@ -233,14 +248,12 @@ class insert_only_hash_array {
 
   device_view get_device_view() noexcept {
     return device_view{slots_.data().get(), slots_.size(),
-                       get_empty_key_sentinel(), get_empty_value_sentinel()};
+                       get_empty_key_sentinel(), get_initial_value()};
   }
 
   Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
-  Value get_empty_value_sentinel() const noexcept {
-    return empty_value_sentinel_;
-  }
+  Value get_initial_value() const noexcept { return initial_value_; }
 
   insert_only_hash_array() = default;
   insert_only_hash_array(insert_only_hash_array const&) = default;
@@ -252,5 +265,5 @@ class insert_only_hash_array {
  private:
   thrust::device_vector<atomic_pair_type> slots_{};
   Key const empty_key_sentinel_{};
-  Value const empty_value_sentinel_{};
+  Value const initial_value_{};
 };
