@@ -16,15 +16,29 @@
 
 #include <benchmark/benchmark.h>
 
+#include <cuco/insert_only_hash_array.cuh>
+#include "cudf/concurrent_unordered_map.cuh"
+
 #include <iostream>
 
-static void BM_test(::benchmark::State& state) {
+static void BM_cudf(::benchmark::State& state) {
+  using map_type = concurrent_unordered_map<int32_t, int32_t>;
+
   for (auto _ : state) {
-      std::string string;
+    auto map = map_type::create(1000);
   }
 }
-BENCHMARK(BM_test);
+BENCHMARK(BM_cudf)->Unit(benchmark::kMillisecond);
 
+static void BM_cuco(::benchmark::State& state) {
+  using map_type = insert_only_hash_array<int32_t, int32_t>;
+  for (auto _ : state) {
+    map_type map{1000, -1};
+  }
+}
+BENCHMARK(BM_cuco)->Unit(benchmark::kMillisecond);
+
+/*
 // Define another benchmark
 static void BM_StringCopy(benchmark::State& state) {
   std::string x = "hello";
@@ -57,3 +71,4 @@ void BM_Sequential(benchmark::State& state) {
                           state.range(0));
 }
 BENCHMARK_TEMPLATE(BM_Sequential, std::vector<int>)->Range(1 << 0, 1 << 10);
+*/
