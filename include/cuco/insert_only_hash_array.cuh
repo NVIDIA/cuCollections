@@ -213,10 +213,10 @@ class insert_only_hash_array {
     ~device_view() = default;
 
    private:
-    atomic_pair_type* slots_{};
-    std::size_t capacity_{};
-    Key empty_key_sentinel_{};
-    Value initial_value_{};
+    atomic_pair_type* const slots_{};
+    std::size_t const capacity_{};
+    Key const empty_key_sentinel_{};
+    Value const initial_value_{};
 
     /**
      * @brief Returns the initial slot for a given key `k`
