@@ -14,15 +14,19 @@
  * limitations under the License.
  */
 
-#include <cu_collections/utilities/error.hpp>
+
+//#define CATCH_CONFIG_MAIN
+#include "catch.hpp"
+
+//#include <cu_collections/utilities/error.hpp>
 #include <cuco/insert_only_hash_array.cuh>
 
-#include <thrust/count.h>
+//#include <thrust/count.h>
 #include <thrust/device_vector.h>
-#include <thrust/for_each.h>
-#include <algorithm>
-#include <catch.hpp>
+//#include <thrust/for_each.h>
+//#include <algorithm>
 
+/*
 namespace {
 // Thrust logical algorithms (any_of/all_of/none_of) don't work with device
 // lambdas: See https://github.com/thrust/thrust/issues/1062
@@ -42,12 +46,14 @@ bool none_of(Iterator begin, Iterator end, Predicate p) {
   return not all_of(begin, end, p);
 }
 
+
 }  // namespace
+*/
 
 TEST_CASE("The first test") {
   insert_only_hash_array<int32_t, int32_t> a{1000, -1, -1};
 
-  auto view = a.get_device_view();
+  //auto view = a.get_device_view();
 
   std::vector<thrust::pair<int32_t, int32_t>> pairs(100);
   std::generate(pairs.begin(), pairs.end(), []() {
@@ -58,6 +64,8 @@ TEST_CASE("The first test") {
 
   thrust::device_vector<thrust::pair<int32_t, int32_t>> d_pairs(pairs);
 
+
+/*
   SECTION("Inserting keys should return valid iterator and insert success.") {
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
@@ -114,4 +122,5 @@ TEST_CASE("The first test") {
           return view.find(pair.first) != view.end();
         }));
   }
+  */
 }

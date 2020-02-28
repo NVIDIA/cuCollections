@@ -178,7 +178,7 @@ class insert_only_hash_array {
     __device__ const_iterator find(Key const& k, Hash hash = Hash{},
                                    KeyEqual key_equal = KeyEqual{}) const
         noexcept {
-      auto current_slot{initial_slot(k, hash)};
+      auto current_slot = initial_slot(k, hash);
 
       while (true) {
         auto const current_key =
