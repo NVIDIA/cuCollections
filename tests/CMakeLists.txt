@@ -123,9 +123,6 @@ function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
                    ${CMAKE_TEST_SRC}
                    $<TARGET_OBJECTS:CatchMain>
                    "${CMAKE_SOURCE_DIR}/tests/catch.hpp")
-    #set_target_properties(${CMAKE_TEST_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    #target_link_libraries(${CMAKE_TEST_NAME} CatchMain pthread)
-    #target_link_libraries(${CMAKE_TEST_NAME} pthread)
     set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
                             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     add_test(NAME ${CMAKE_TEST_NAME} COMMAND ${CMAKE_TEST_NAME})
