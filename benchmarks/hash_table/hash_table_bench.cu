@@ -18,25 +18,36 @@
 
 #include <cuco/insert_only_hash_array.cuh>
 #include "cudf/concurrent_unordered_map.cuh"
+#include "../synchronization/synchronization.hpp"
 
 #include <iostream>
 
-static void BM_cudf(::benchmark::State& state) {
+static void BM_cudf_construction(::benchmark::State& state) {
   using map_type = concurrent_unordered_map<int32_t, int32_t>;
 
   for (auto _ : state) {
-    auto map = map_type::create(1000);
+    cuda_event_timer t{state, true};
+    auto map = map_type::create(state.range(0));
   }
 }
-BENCHMARK(BM_cudf)->Unit(benchmark::kMillisecond);
+BENCHMARK(BM_cudf_construction)
+    ->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->RangeMultiplier(10)
+    ->Range(10'000, 100'000'000);
 
-static void BM_cuco(::benchmark::State& state) {
+static void BM_cuco_construction(::benchmark::State& state) {
   using map_type = insert_only_hash_array<int32_t, int32_t>;
   for (auto _ : state) {
-    map_type map{1000, -1};
+    cuda_event_timer t{state, true};
+    map_type map{state.range(0), -1};
   }
 }
-BENCHMARK(BM_cuco)->Unit(benchmark::kMillisecond);
+BENCHMARK(BM_cuco_construction)
+    ->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->RangeMultiplier(10)
+    ->Range(10'000, 100'000'000);
 
 /*
 // Define another benchmark
