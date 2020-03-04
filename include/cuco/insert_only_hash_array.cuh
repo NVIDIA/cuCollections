@@ -64,6 +64,12 @@ class insert_only_hash_array {
 
  public:
   /**
+   * @brief Checks whether the atomic operations on the slots are lock free.
+   *
+   */
+  bool is_lock_free() { return atomic_pair_type{}.is_lock_free(); }
+
+  /**
    * @brief Construct a new `insert_only_hash_array` with the specified
    * capacity, empty key sentinel, and initial value.
    *

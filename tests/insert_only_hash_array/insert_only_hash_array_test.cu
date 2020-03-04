@@ -47,6 +47,8 @@ bool none_of(Iterator begin, Iterator end, Predicate p) {
 TEST_CASE("Unique sequence of keys") {
   insert_only_hash_array<int32_t, int32_t> a{100'000'000, -1, -1};
 
+  REQUIRE(true == a.is_lock_free());
+
   auto view = a.get_device_view();
 
   std::vector<thrust::pair<int32_t, int32_t>> pairs(50'000'000);
