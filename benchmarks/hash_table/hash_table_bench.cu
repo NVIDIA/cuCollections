@@ -17,9 +17,10 @@
 #include <benchmark/benchmark.h>
 
 #include <cuco/insert_only_hash_array.cuh>
-#include "cudf/concurrent_unordered_map.cuh"
 #include "../synchronization/synchronization.hpp"
+#include "cudf/concurrent_unordered_map.cuh"
 
+#include <thrust/for_each.h>
 #include <iostream>
 
 static void BM_cudf_construction(::benchmark::State& state) {
@@ -49,37 +50,62 @@ BENCHMARK(BM_cuco_construction)
     ->RangeMultiplier(10)
     ->Range(10'000, 100'000'000);
 
-/*
-// Define another benchmark
-static void BM_StringCopy(benchmark::State& state) {
-  std::string x = "hello";
-  for (auto _ : state) std::string copy(x);
-}
-BENCHMARK(BM_StringCopy);
+static void BM_cuco_insert_unique_keys(::benchmark::State& state) {
+  using map_type = insert_only_hash_array<int32_t, int32_t>;
 
-static void BM_StringCompare(benchmark::State& state) {
-  std::string s1(state.range(0), '-');
-  std::string s2(state.range(0), '-');
-  for (auto _ : state) {
-    benchmark::DoNotOptimize(s1.compare(s2));
-  }
-  state.SetComplexityN(state.range(0));
-}
-BENCHMARK(BM_StringCompare)
-    ->RangeMultiplier(2)
-    ->Range(1 << 10, 1 << 18)
-    ->Complexity(benchmark::oN);
+  auto fill_factor = 0.5;
 
-template <class Q>
-void BM_Sequential(benchmark::State& state) {
-  Q q;
-  typename Q::value_type v(0);
   for (auto _ : state) {
-    for (int i = state.range(0); i--;) q.push_back(v);
+    map_type map{state.range(0) / fill_factor, -1};
+    auto view = map.get_device_view();
+    auto counting_iterator = thrust::make_counting_iterator(0);
+    auto zip_counter = thrust::make_zip_iterator(
+        thrust::make_tuple(counting_iterator, counting_iterator));
+
+    {
+      // Only time the kernel
+      cuda_event_timer t{state, true};
+      thrust::for_each(thrust::device, zip_counter,
+                       zip_counter + state.range(0),
+                       [view] __device__(auto const& p) mutable {
+                         view.insert(thrust::make_pair(thrust::get<0>(p),
+                                                       thrust::get<1>(p)));
+                       });
+    }
   }
-  // actually messages, not bytes:
-  state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
-                          state.range(0));
 }
-BENCHMARK_TEMPLATE(BM_Sequential, std::vector<int>)->Range(1 << 0, 1 << 10);
-*/
+BENCHMARK(BM_cuco_insert_unique_keys)
+    ->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->RangeMultiplier(10)
+    ->Range(10'000, 100'000'000);
+
+static void BM_cudf_insert_unique_keys(::benchmark::State& state) {
+  using map_type = concurrent_unordered_map<int32_t, int32_t>;
+
+  auto fill_factor = 0.5;
+
+  for (auto _ : state) {
+    auto map = map_type::create(state.range(0) / fill_factor);
+    auto view = *map;
+    auto counting_iterator = thrust::make_counting_iterator(0);
+    auto zip_counter = thrust::make_zip_iterator(
+        thrust::make_tuple(counting_iterator, counting_iterator));
+
+    {
+      // Only time the kernel
+      cuda_event_timer t{state, true};
+      thrust::for_each(thrust::device, zip_counter,
+                       zip_counter + state.range(0),
+                       [view] __device__(auto const& p) mutable {
+                         view.insert(thrust::make_pair(thrust::get<0>(p),
+                                                       thrust::get<1>(p)));
+                       });
+    }
+  }
+}
+BENCHMARK(BM_cudf_insert_unique_keys)
+    ->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->RangeMultiplier(10)
+    ->Range(10'000, 100'000'000);
