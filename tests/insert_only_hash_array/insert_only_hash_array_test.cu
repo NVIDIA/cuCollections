@@ -62,8 +62,17 @@ TEST_CASE("The first test") {
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
         [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
-          auto result = view.insert(pair);
+          auto const result = view.insert(pair);
           return (result.first != view.end()) and (result.second == true);
+        }));
+  }
+
+  SECTION("Dereferenced iterator should equal inserted pair.") {
+    REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(),
+        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+          auto const result = view.insert(pair);
+          return result.first->load() == pair;
         }));
   }
 
@@ -71,9 +80,9 @@ TEST_CASE("The first test") {
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
         [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
-          auto insert_result = view.insert(pair);
-          auto find_result = view.find(pair.first);
-          bool same_iterator = (insert_result.first == find_result);
+          auto const insert_result = view.insert(pair);
+          auto const find_result = view.find(pair.first);
+          bool const same_iterator = (insert_result.first == find_result);
           return same_iterator;
         }));
   }
@@ -84,12 +93,23 @@ TEST_CASE("The first test") {
         [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
           auto const first_insert = view.insert(pair);
           auto const second_insert = view.insert(pair);
+          auto const find_result = view.find(pair.first);
           bool const same_iterator =
               (first_insert.first == second_insert.first);
 
           // Inserting the same key twice should return the same
           // iterator and false for the insert result
           return same_iterator and (second_insert.second == false);
+        }));
+  }
+
+  SECTION("Pair isn't changed after inserting twice.") {
+    REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(),
+        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+          auto const first_insert = view.insert(pair);
+          auto const second_insert = view.insert(pair);
+          return (second_insert.first->load() == pair);
         }));
   }
 
@@ -103,15 +123,18 @@ TEST_CASE("The first test") {
 
   SECTION("Keys are all found after inserting many keys.") {
     // Bulk insert keys
-    thrust::for_each(
+    REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
-        [view] __device__(auto const& pair) mutable { view.insert(pair); });
+        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+          return view.insert(pair).second;
+        }));
 
     // All keys should be found
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
         [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
-          return view.find(pair.first) != view.end();
+          auto const found = view.find(pair.first);
+          return (found != view.end()) and (found->load() == pair);
         }));
   }
 }
