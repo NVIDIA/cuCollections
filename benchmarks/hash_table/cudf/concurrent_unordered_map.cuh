@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef CONCURRENT_UNORDERED_MAP_CUH
-#define CONCURRENT_UNORDERED_MAP_CUH
+#pragma once
+
 
 //#include <utilities/legacy/device_atomics.cuh>
 #include "helper_functions.cuh"
-#include "managed_allocator.cuh"
+#include "allocator.cuh"
 #include <cu_collections/hash_functions.cuh>
 
 #include <thrust/pair.h>
@@ -99,7 +99,7 @@ union pair_packer<pair_type, std::enable_if_t<is_packable<pair_type>()>> {
  */
 template <typename Key, typename Element, typename Hasher = MurmurHash3_32<Key>,
           typename Equality = equal_to<Key>,
-          typename Allocator = managed_allocator<thrust::pair<Key, Element>>>
+          typename Allocator = cuda_allocator<thrust::pair<Key, Element>>>
 class concurrent_unordered_map {
  public:
   using size_type = size_t;
@@ -412,4 +412,3 @@ class concurrent_unordered_map {
   }
 };
 
-#endif  // CONCURRENT_UNORDERED_MAP_CUH

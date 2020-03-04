@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef MANAGED_ALLOCATOR_CUH
-#define MANAGED_ALLOCATOR_CUH
+#pragma once
 
 #include <new>
 
@@ -52,4 +51,36 @@ bool operator!=(const managed_allocator<T>&, const managed_allocator<U>&) {
   return false;
 }
 
-#endif
+template <class T>
+struct cuda_allocator {
+  typedef T value_type;
+
+  cuda_allocator() = default;
+
+  template <class U>
+  constexpr cuda_allocator(const cuda_allocator<U>&) noexcept {}
+
+  T* allocate(std::size_t n) const {
+    T* ptr = 0;
+    cudaError_t result = cudaMalloc(&ptr, n * sizeof(T));
+    if (cudaSuccess != result || nullptr == ptr) {
+      std::cerr << "ERROR: CUDA Runtime call in line " << __LINE__ << "of file "
+                << __FILE__ << " failed with " << cudaGetErrorString(result)
+                << " (" << result << ") "
+                << " Attempted to allocate: " << n * sizeof(T) << " bytes.\n";
+      throw std::bad_alloc();
+    }
+    return ptr;
+  }
+  void deallocate(T* p, std::size_t) const { cudaFree(p); }
+};
+
+template <class T, class U>
+bool operator==(const cuda_allocator<T>&, const cuda_allocator<U>&) {
+  return true;
+}
+template <class T, class U>
+bool operator!=(const cuda_allocator<T>&, const cuda_allocator<U>&) {
+  return false;
+}
+
