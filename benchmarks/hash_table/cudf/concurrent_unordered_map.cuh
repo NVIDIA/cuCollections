@@ -35,12 +35,12 @@ struct packed {
   using type = void;
 };
 template <>
-struct packed<sizeof(uint64_t)> {
-  using type = uint64_t;
+struct packed<sizeof(unsigned long long int)> {
+  using type = unsigned long long int;
 };
 template <>
-struct packed<sizeof(uint32_t)> {
-  using type = uint32_t;
+struct packed<sizeof(unsigned int)> {
+  using type = unsigned int;
 };
 template <typename pair_type>
 using packed_t = typename packed<sizeof(pair_type)>::type;
