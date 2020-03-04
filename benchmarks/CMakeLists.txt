@@ -13,6 +13,10 @@ set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 ###################################################################################################
+# - find nvtx  ------------------------------------------------------------------------------------
+find_library(NVTX_LIBRARY nvToolsExt PATH ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+
+###################################################################################################
 # - compiler function -----------------------------------------------------------------------------
 
 function(ConfigureBench CMAKE_BENCH_NAME CMAKE_BENCH_SRC)
@@ -20,7 +24,7 @@ function(ConfigureBench CMAKE_BENCH_NAME CMAKE_BENCH_SRC)
                    ${CMAKE_BENCH_SRC}
                    "${CMAKE_CURRENT_SOURCE_DIR}/synchronization/synchronization.cpp")
     set_target_properties(${CMAKE_BENCH_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    target_link_libraries(${CMAKE_BENCH_NAME} benchmark benchmark_main pthread cudart)
+    target_link_libraries(${CMAKE_BENCH_NAME} benchmark benchmark_main pthread cudart ${NVTX_LIBRARY})
     set_target_properties(${CMAKE_BENCH_NAME} PROPERTIES
                             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
 endfunction(ConfigureBench)
