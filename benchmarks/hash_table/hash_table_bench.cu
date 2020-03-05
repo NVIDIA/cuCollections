@@ -38,7 +38,8 @@ BENCHMARK(BM_cudf_construction)
     ->Range(10'000, 100'000'000);
 
 static void BM_cuco_construction(::benchmark::State& state) {
-  using map_type = insert_only_hash_array<int32_t, int32_t>;
+  using map_type =
+      cuco::insert_only_hash_array<int32_t, int32_t, cuda::thread_scope_device>;
   for (auto _ : state) {
     cuda_event_timer t{state, true};
     map_type map{state.range(0), -1};
@@ -51,7 +52,8 @@ BENCHMARK(BM_cuco_construction)
     ->Range(10'000, 100'000'000);
 
 static void BM_cuco_insert_unique_keys(::benchmark::State& state) {
-  using map_type = insert_only_hash_array<int32_t, int32_t>;
+  using map_type =
+      cuco::insert_only_hash_array<int32_t, int32_t, cuda::thread_scope_device>;
 
   auto fill_factor = 0.5;
 
@@ -68,8 +70,8 @@ static void BM_cuco_insert_unique_keys(::benchmark::State& state) {
       thrust::for_each(thrust::device, zip_counter,
                        zip_counter + state.range(0),
                        [view] __device__(auto const& p) mutable {
-                         view.insert(thrust::make_pair(thrust::get<0>(p),
-                                                       thrust::get<1>(p)));
+                         view.insert(cuco::make_pair_type(thrust::get<0>(p),
+                                                          thrust::get<1>(p)));
                        });
     }
   }

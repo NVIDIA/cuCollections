@@ -23,6 +23,40 @@
 #include <cuda/std/atomic>
 #include <simt/atomic>
 
+namespace cuco {
+
+template <typename First, typename Second>
+struct alignas(sizeof(First) + sizeof(Second)) pair {
+  using first_type = First;
+  using second_type = Second;
+  First first{};
+  Second second{};
+  pair() = default;
+  __host__ __device__
+  constexpr pair(First f, Second s) noexcept : first{f}, second{s} {}
+};
+
+template <typename First, typename Second>
+__host__ __device__ bool operator==(pair<First, Second> const& lhs,
+                                    pair<First, Second> const& rhs) {
+  return thrust::tie(lhs.first, lhs.second) ==
+         thrust::tie(rhs.first, rhs.second);
+}
+
+template <typename First, typename Second>
+pair<First, Second> make_pair(First f, Second s) {
+  return pair<First, Second>{f, s};
+}
+
+template <typename K, typename V>
+using pair_type = cuco::pair<K, V>;  // thrust::pair<K, V>;
+
+template <typename F, typename S>
+__host__ __device__
+pair_type<F, S> make_pair_type(F f, S s) {
+  return pair_type<F, S>{f, s};
+}
+
 namespace detail {
 
 // Function object is required because __device__ lambdas aren't allowed in
@@ -32,8 +66,8 @@ struct store_pair {
   store_pair(Key k, Value v) : k_{k}, v_{v} {}
 
   template <cuda::thread_scope Scope>
-  __device__ void operator()(cuda::atomic<thrust::pair<Key, Value>, Scope>& p) {
-    new (&p) cuda::atomic<thrust::pair<Key, Value>>{thrust::make_pair(k_, v_)};
+  __device__ void operator()(cuda::atomic<pair_type<Key, Value>, Scope>& p) {
+    new (&p) cuda::atomic<pair_type<Key, Value>>{make_pair_type(k_, v_)};
   }
 
  private:
@@ -55,13 +89,13 @@ class insert_only_hash_array {
 
  public:
   // Public member types make the `Key` const
-  using value_type = thrust::pair<Key, Value>;
+  using value_type = pair_type<Key, Value>;
   using atomic_value_type = cuda::atomic<value_type, Scope>;
 
  private:
   // Internal storage types doesn't make sense to have `Key` const
-  using pair_type = thrust::pair<Key, Value>;
-  using atomic_pair_type = cuda::atomic<pair_type, Scope>;
+  // using pair_type = thrust::pair<Key, Value>;
+  using atomic_pair_type = cuda::atomic<value_type, Scope>;
 
  public:
   /**
@@ -146,12 +180,11 @@ class insert_only_hash_array {
       iterator current_slot{initial_slot(insert_pair.first, hash)};
 
       while (true) {
-        thrust::pair<int32_t, int32_t> pair = insert_pair;
-        auto expected = thrust::make_pair(empty_key_sentinel_, initial_value_);
+        auto expected = make_pair_type(empty_key_sentinel_, initial_value_);
 
         // Check for empty slot
         // TODO: Is memory_order_relaxed correct?
-        if (current_slot->compare_exchange_strong(expected, pair)) {
+        if (current_slot->compare_exchange_strong(expected, insert_pair)) {
           return thrust::make_pair(current_slot, true);
         }
 
@@ -189,7 +222,7 @@ class insert_only_hash_array {
 
       while (true) {
         auto const current_key =
-            current_slot->load(cuda::std:: ::memory_order_relaxed).first;
+            current_slot->load(cuda::std::memory_order_relaxed).first;
         // Key exists, return iterator to location
         if (key_equal(k, current_key)) {
           return current_slot;
@@ -274,3 +307,4 @@ class insert_only_hash_array {
   Key const empty_key_sentinel_{};
   Value const initial_value_{};
 };
+}  // namespace cuco

@@ -45,25 +45,25 @@ bool none_of(Iterator begin, Iterator end, Predicate p) {
 }  // namespace
 
 TEST_CASE("Unique sequence of keys") {
-  insert_only_hash_array<int32_t, int32_t> a{100'000'000, -1, -1};
+  cuco::insert_only_hash_array<int32_t, int32_t> a{100'000'000, -1, -1};
 
   REQUIRE(true == a.is_lock_free());
 
   auto view = a.get_device_view();
 
-  std::vector<thrust::pair<int32_t, int32_t>> pairs(50'000'000);
+  std::vector<cuco::pair<int32_t, int32_t>> pairs(50'000'000);
   std::generate(pairs.begin(), pairs.end(), []() {
     static int32_t counter{};
     ++counter;
-    return thrust::make_pair(counter, counter);
+    return cuco::make_pair_type(counter, counter);
   });
 
-  thrust::device_vector<thrust::pair<int32_t, int32_t>> d_pairs(pairs);
+  thrust::device_vector<cuco::pair<int32_t, int32_t>> d_pairs(pairs);
 
   SECTION("Inserting keys should return valid iterator and insert success.") {
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
-        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+        [view] __device__(cuco::pair<int32_t, int32_t> const& pair) mutable {
           auto const result = view.insert(pair);
           return (result.first != view.end()) and (result.second == true);
         }));
@@ -72,7 +72,7 @@ TEST_CASE("Unique sequence of keys") {
   SECTION("Dereferenced iterator should equal inserted pair.") {
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
-        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+        [view] __device__(cuco::pair<int32_t, int32_t> const& pair) mutable {
           auto const result = view.insert(pair);
           return result.first->load() == pair;
         }));
@@ -81,7 +81,7 @@ TEST_CASE("Unique sequence of keys") {
   SECTION("Key is found immediately after insertion.") {
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
-        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+        [view] __device__(cuco::pair<int32_t, int32_t> const& pair) mutable {
           auto const insert_result = view.insert(pair);
           auto const find_result = view.find(pair.first);
           bool const same_iterator = (insert_result.first == find_result);
@@ -92,7 +92,7 @@ TEST_CASE("Unique sequence of keys") {
   SECTION("Inserting same key twice.") {
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
-        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+        [view] __device__(cuco::pair<int32_t, int32_t> const& pair) mutable {
           auto const first_insert = view.insert(pair);
           auto const second_insert = view.insert(pair);
           auto const find_result = view.find(pair.first);
@@ -108,7 +108,7 @@ TEST_CASE("Unique sequence of keys") {
   SECTION("Pair isn't changed after inserting twice.") {
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
-        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+        [view] __device__(cuco::pair<int32_t, int32_t> const& pair) mutable {
           auto const first_insert = view.insert(pair);
           auto const second_insert = view.insert(pair);
           return (second_insert.first->load() == pair);
@@ -118,7 +118,7 @@ TEST_CASE("Unique sequence of keys") {
   SECTION("Cannot find any key in an empty hash map") {
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
-        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+        [view] __device__(cuco::pair<int32_t, int32_t> const& pair) mutable {
           return view.find(pair.first) == view.end();
         }));
   }
@@ -127,14 +127,14 @@ TEST_CASE("Unique sequence of keys") {
     // Bulk insert keys
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
-        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+        [view] __device__(cuco::pair<int32_t, int32_t> const& pair) mutable {
           return view.insert(pair).second;
         }));
 
     // All keys should be found
     REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(),
-        [view] __device__(thrust::pair<int32_t, int32_t> const& pair) mutable {
+        [view] __device__(cuco::pair<int32_t, int32_t> const& pair) mutable {
           auto const found = view.find(pair.first);
           return (found != view.end()) and (found->load() == pair);
         }));
