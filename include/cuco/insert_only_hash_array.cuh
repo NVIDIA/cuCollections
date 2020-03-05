@@ -20,6 +20,7 @@
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/pair.h>
 #include <thrust/transform.h>
+#include <cuda/std/atomic>
 #include <simt/atomic>
 
 namespace detail {
@@ -30,9 +31,9 @@ template <typename Key, typename Value>
 struct store_pair {
   store_pair(Key k, Value v) : k_{k}, v_{v} {}
 
-  template <simt::thread_scope Scope>
-  __device__ void operator()(simt::atomic<thrust::pair<Key, Value>, Scope>& p) {
-    new (&p) simt::atomic<thrust::pair<Key, Value>>{thrust::make_pair(k_, v_)};
+  template <cuda::thread_scope Scope>
+  __device__ void operator()(cuda::atomic<thrust::pair<Key, Value>, Scope>& p) {
+    new (&p) cuda::atomic<thrust::pair<Key, Value>>{thrust::make_pair(k_, v_)};
   }
 
  private:
@@ -42,7 +43,7 @@ struct store_pair {
 }  // namespace detail
 
 template <typename Key, typename Value,
-          simt::thread_scope Scope = simt::thread_scope_system>
+          cuda::thread_scope Scope = cuda::thread_scope_system>
 class insert_only_hash_array {
   // TODO: (JH) What static_assert(s) should we have on Key/Value?
   // is_literal_type? (deprecated in C++17, removed c++20)
@@ -54,13 +55,13 @@ class insert_only_hash_array {
 
  public:
   // Public member types make the `Key` const
-  using value_type = thrust::pair<const Key, Value>;
-  using atomic_value_type = simt::atomic<value_type, Scope>;
+  using value_type = thrust::pair<Key, Value>;
+  using atomic_value_type = cuda::atomic<value_type, Scope>;
 
  private:
   // Internal storage types doesn't make sense to have `Key` const
   using pair_type = thrust::pair<Key, Value>;
-  using atomic_pair_type = simt::atomic<pair_type, Scope>;
+  using atomic_pair_type = cuda::atomic<pair_type, Scope>;
 
  public:
   /**
@@ -145,12 +146,12 @@ class insert_only_hash_array {
       iterator current_slot{initial_slot(insert_pair.first, hash)};
 
       while (true) {
+        thrust::pair<int32_t, int32_t> pair = insert_pair;
         auto expected = thrust::make_pair(empty_key_sentinel_, initial_value_);
 
         // Check for empty slot
         // TODO: Is memory_order_relaxed correct?
-        if (current_slot->compare_exchange_strong(expected, insert_pair,
-                                                  simt::memory_order_relaxed)) {
+        if (current_slot->compare_exchange_strong(expected, pair)) {
           return thrust::make_pair(current_slot, true);
         }
 
@@ -188,7 +189,7 @@ class insert_only_hash_array {
 
       while (true) {
         auto const current_key =
-            current_slot->load(simt::memory_order_relaxed).first;
+            current_slot->load(cuda::std:: ::memory_order_relaxed).first;
         // Key exists, return iterator to location
         if (key_equal(k, current_key)) {
           return current_slot;
