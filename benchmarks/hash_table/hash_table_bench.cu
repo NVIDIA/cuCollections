@@ -67,12 +67,11 @@ static void BM_cuco_insert_unique_keys(::benchmark::State& state) {
     {
       // Only time the kernel
       cuda_event_timer t{state, true};
-      thrust::for_each(thrust::device, zip_counter,
-                       zip_counter + state.range(0),
-                       [view] __device__(auto const& p) mutable {
-                         view.insert(cuco::make_pair_type(thrust::get<0>(p),
-                                                          thrust::get<1>(p)));
-                       });
+      thrust::for_each(
+          thrust::device, zip_counter, zip_counter + state.range(0),
+          [view] __device__(auto const& p) mutable {
+            view.insert(cuco::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+          });
     }
   }
 }

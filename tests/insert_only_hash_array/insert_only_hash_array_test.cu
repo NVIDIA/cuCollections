@@ -55,7 +55,7 @@ TEST_CASE("Unique sequence of keys") {
   std::generate(pairs.begin(), pairs.end(), []() {
     static int32_t counter{};
     ++counter;
-    return cuco::make_pair_type(counter, counter);
+    return cuco::make_pair(counter, counter);
   });
 
   thrust::device_vector<cuco::pair<int32_t, int32_t>> d_pairs(pairs);

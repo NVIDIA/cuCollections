@@ -75,16 +75,11 @@ __host__ __device__ bool operator==(pair<First, Second> const& lhs,
          thrust::tie(rhs.first, rhs.second);
 }
 
-template <typename First, typename Second>
-pair<First, Second> make_pair(First f, Second s) {
-  return pair<First, Second>{f, s};
-}
-
 template <typename K, typename V>
 using pair_type = cuco::pair<K, V>;  // thrust::pair<K, V>;
 
 template <typename F, typename S>
-__host__ __device__ pair_type<F, S> make_pair_type(F f, S s) {
+__host__ __device__ pair_type<F, S> make_pair(F f, S s) {
   return pair_type<F, S>{f, s};
 }
 
@@ -98,7 +93,7 @@ struct store_pair {
 
   template <cuda::thread_scope Scope>
   __device__ void operator()(cuda::atomic<pair_type<Key, Value>, Scope>& p) {
-    new (&p) cuda::atomic<pair_type<Key, Value>>{make_pair_type(k_, v_)};
+    new (&p) cuda::atomic<pair_type<Key, Value>>{cuco::make_pair(k_, v_)};
   }
 
  private:
@@ -211,7 +206,7 @@ class insert_only_hash_array {
       iterator current_slot{initial_slot(insert_pair.first, hash)};
 
       while (true) {
-        auto expected = make_pair_type(empty_key_sentinel_, initial_value_);
+        auto expected = cuco::make_pair(empty_key_sentinel_, initial_value_);
 
         // Check for empty slot
         // TODO: Is memory_order_relaxed correct?
