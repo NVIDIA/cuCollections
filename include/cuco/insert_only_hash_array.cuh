@@ -114,21 +114,16 @@ class insert_only_hash_array {
                 "Unsupported, non-arithmetic type.");
 
  public:
-  // Public member types make the `Key` const
-  using value_type = pair_type<Key, Value>;
+  // TODO: Should be `pair_type<const Key, Value>` but then we can't CAS it
+  using value_type = cuco::pair_type<Key, Value>;
   using atomic_value_type = cuda::atomic<value_type, Scope>;
-
- private:
-  // Internal storage types doesn't make sense to have `Key` const
-  // using pair_type = thrust::pair<Key, Value>;
-  using atomic_pair_type = cuda::atomic<value_type, Scope>;
 
  public:
   /**
    * @brief Checks whether the atomic operations on the slots are lock free.
    *
    */
-  bool is_lock_free() { return atomic_pair_type{}.is_lock_free(); }
+  bool is_lock_free() { return atomic_value_type{}.is_lock_free(); }
 
   /**
    * @brief Construct a new `insert_only_hash_array` with the specified
@@ -168,8 +163,8 @@ class insert_only_hash_array {
     // TODO: (JH): What should the iterator type be? Exposing the
     // atomic seems wrong
     // Only have const_iterator in early version?
-    using iterator = atomic_pair_type*;
-    using const_iterator = atomic_pair_type const*;
+    using iterator = atomic_value_type*;
+    using const_iterator = atomic_value_type const*;
 
     /**
      * @brief Construct a new device view object
@@ -179,7 +174,7 @@ class insert_only_hash_array {
      * @param empty_key_sentinel
      * @param initial_value
      */
-    device_view(atomic_pair_type* slots, std::size_t capacity,
+    device_view(atomic_value_type* slots, std::size_t capacity,
                 Key empty_key_sentinel, Value initial_value) noexcept
         : slots_{slots},
           capacity_{capacity},
@@ -279,7 +274,7 @@ class insert_only_hash_array {
     ~device_view() = default;
 
    private:
-    atomic_pair_type* const slots_{};
+    atomic_value_type* const slots_{};
     std::size_t const capacity_{};
     Key const empty_key_sentinel_{};
     Value const initial_value_{};
@@ -329,7 +324,7 @@ class insert_only_hash_array {
   ~insert_only_hash_array() = default;
 
  private:
-  thrust::device_vector<atomic_pair_type> slots_{};
+  thrust::device_vector<atomic_value_type> slots_{};
   Key const empty_key_sentinel_{};
   Value const initial_value_{};
 };
