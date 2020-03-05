@@ -29,7 +29,8 @@ void thrust_reduce_by_key(KeyRandomIterator keys_begin,
   using Value =
       typename thrust::iterator_traits<ValueRandomIterator>::value_type;
 
-  // Exact size of output is unknown (number of unique keys), but upper bounded by the number of keys
+  // Exact size of output is unknown (number of unique keys), but upper bounded
+  // by the number of keys
   auto maximum_output_size = thrust::distance(keys_begin, keys_end);
   thrust::device_vector<Key> output_keys(maximum_output_size);
   thrust::device_vector<Value> output_values(maximum_output_size);
@@ -40,11 +41,24 @@ void thrust_reduce_by_key(KeyRandomIterator keys_begin,
 }
 
 static void BM_thrust(::benchmark::State& state) {
+  for (auto _ : state) {
+    thrust::device_vector<int32_t> keys(state.range(0));
+    thrust::device_vector<int32_t> values(state.range(0));
+    cuda_event_timer t{state, true};
+    thrust_reduce_by_key(keys.begin(), keys.end(), values.begin());
+  }
+}
+BENCHMARK(BM_thrust)
+    ->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->RangeMultiplier(10)
+    ->Range(100'000, 1'000'000'000);
+
+static void BM_cuco(::benchmark::State& state) {
   thrust::device_vector<int32_t> keys(state.range(0));
   thrust::device_vector<int32_t> values(state.range(0));
   for (auto _ : state) {
     cuda_event_timer t{state, true};
-    thrust_reduce_by_key(keys.begin(), keys.end(), values.begin());
   }
 }
 BENCHMARK(BM_thrust)
