@@ -264,9 +264,19 @@ class insert_only_hash_array {
       }
     }
 
+    /**
+     * @brief Returns iterator to one past the last element.
+     *
+     */
     __host__ __device__ const_iterator end() const noexcept {
       return slots_ + capacity_;
     }
+
+    /**
+     * @brief Returns iterator to one past the last element.
+     *
+     */
+    __host__ __device__ iterator end() noexcept { return slots_ + capacity_; }
 
     device_view() = delete;
     device_view(device_view const&) = default;
