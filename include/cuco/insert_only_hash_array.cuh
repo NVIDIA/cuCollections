@@ -194,8 +194,8 @@ class insert_only_hash_array {
     template <typename Hash = MurmurHash3_32<Key>,
               typename KeyEqual = thrust::equal_to<Key>>
     __device__ thrust::pair<iterator, bool> insert(
-        value_type const& insert_pair, Hash hash = Hash{},
-        KeyEqual key_equal = KeyEqual{}) noexcept {
+        value_type const& insert_pair, KeyEqual key_equal = KeyEqual{},
+        Hash hash = Hash{}) noexcept {
       // TODO: What parameter order should key_equal/hash be in?
 
       iterator current_slot{initial_slot(insert_pair.first, hash)};
@@ -236,9 +236,9 @@ class insert_only_hash_array {
      */
     template <typename Hash = MurmurHash3_32<Key>,
               typename KeyEqual = thrust::equal_to<Key>>
-    __device__ const_iterator find(Key const& k, Hash hash = Hash{},
-                                   KeyEqual key_equal = KeyEqual{}) const
-        noexcept {
+    __device__ const_iterator find(Key const& k,
+                                   KeyEqual key_equal = KeyEqual{},
+                                   Hash hash = Hash{}) const noexcept {
       auto current_slot = initial_slot(k, hash);
 
       while (true) {
