@@ -76,7 +76,7 @@ __host__ __device__ bool operator==(pair<First, Second> const& lhs,
 }
 
 template <typename K, typename V>
-using pair_type = cuco::pair<K, V>;  // thrust::pair<K, V>;
+using pair_type = cuco::pair<K, V>;  
 
 template <typename F, typename S>
 __host__ __device__ pair_type<F, S> make_pair(F f, S s) {
@@ -117,6 +117,8 @@ class insert_only_hash_array {
   // TODO: Should be `pair_type<const Key, Value>` but then we can't CAS it
   using value_type = cuco::pair_type<Key, Value>;
   using atomic_value_type = cuda::atomic<value_type, Scope>;
+  using key_type = Key;
+  using mapped_type = Value;
 
  public:
   /**
