@@ -88,7 +88,6 @@ static void generate_size_and_occupancy(benchmark::internal::Benchmark* b) {
 /**
  * @brief Benchmark inserting all unique keys of a given number with specified
  * hash table occupancy
- *
  */
 template <typename Key, typename Value>
 static void BM_cuco_insert_unique_keys(::benchmark::State& state) {
@@ -115,6 +114,9 @@ static void BM_cuco_insert_unique_keys(::benchmark::State& state) {
           });
     }
   }
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                          int64_t(state.iterations()) *
+                          int64_t(state.range(0)));
 }
 
 BENCHMARK_TEMPLATE(BM_cuco_insert_unique_keys, int32_t, int32_t)
@@ -152,6 +154,11 @@ static void BM_cudf_insert_unique_keys(::benchmark::State& state) {
                        });
     }
   }
+
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                          int64_t(state.iterations()) *
+                          int64_t(state.range(0)));
+
 }
 BENCHMARK_TEMPLATE(BM_cudf_insert_unique_keys, int32_t, int32_t)
     ->UseManualTime()
