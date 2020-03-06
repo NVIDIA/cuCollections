@@ -51,18 +51,28 @@ BENCHMARK(BM_cuco_construction)
     ->RangeMultiplier(10)
     ->Range(10'000, 100'000'000);
 
+static void generate_size_and_occupancy(benchmark::internal::Benchmark* b) {
+  for (auto occupancy = 40; occupancy <= 90; occupancy += 10) {
+    for (auto size = 100'000; size <= 100'000'000; size *= 10) {
+      b->Args({size, occupancy});
+    }
+  }
+}
+
+template <typename Key, typename Value>
 static void BM_cuco_insert_unique_keys(::benchmark::State& state) {
   using map_type =
-      cuco::insert_only_hash_array<int32_t, int32_t, cuda::thread_scope_device>;
+      cuco::insert_only_hash_array<Key, Value, cuda::thread_scope_device>;
 
-  auto fill_factor = 0.5;
-
+  auto occupancy = (state.range(1) / double{100});
+  auto capacity = state.range(0) / occupancy;
   for (auto _ : state) {
-    map_type map{state.range(0) / fill_factor, -1};
+    map_type map{capacity, -1};
     auto view = map.get_device_view();
-    auto counting_iterator = thrust::make_counting_iterator(0);
+    auto key_iterator = thrust::make_counting_iterator<Key>(0);
+    auto value_iterator = thrust::make_counting_iterator<Value>(0);
     auto zip_counter = thrust::make_zip_iterator(
-        thrust::make_tuple(counting_iterator, counting_iterator));
+        thrust::make_tuple(key_iterator, value_iterator));
 
     {
       // Only time the kernel
@@ -75,19 +85,23 @@ static void BM_cuco_insert_unique_keys(::benchmark::State& state) {
     }
   }
 }
-BENCHMARK(BM_cuco_insert_unique_keys)
+BENCHMARK_TEMPLATE(BM_cuco_insert_unique_keys, int32_t, int32_t)
     ->UseManualTime()
     ->Unit(benchmark::kMillisecond)
-    ->RangeMultiplier(10)
-    ->Range(10'000, 100'000'000);
+    ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_cuco_insert_unique_keys, int64_t, int64_t)
+    ->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->Apply(generate_size_and_occupancy);
 
 static void BM_cudf_insert_unique_keys(::benchmark::State& state) {
   using map_type = concurrent_unordered_map<int32_t, int32_t>;
 
-  auto fill_factor = 0.5;
-
+  auto occupancy = (state.range(1) / double{100});
+  auto capacity = state.range(0) / occupancy;
   for (auto _ : state) {
-    auto map = map_type::create(state.range(0) / fill_factor);
+    auto map = map_type::create(capacity);
     auto view = *map;
     auto counting_iterator = thrust::make_counting_iterator(0);
     auto zip_counter = thrust::make_zip_iterator(
@@ -108,5 +122,4 @@ static void BM_cudf_insert_unique_keys(::benchmark::State& state) {
 BENCHMARK(BM_cudf_insert_unique_keys)
     ->UseManualTime()
     ->Unit(benchmark::kMillisecond)
-    ->RangeMultiplier(10)
-    ->Range(10'000, 100'000'000);
+    ->Apply(generate_size_and_occupancy);
