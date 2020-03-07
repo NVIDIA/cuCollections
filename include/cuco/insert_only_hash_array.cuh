@@ -66,6 +66,16 @@ struct alignas(pair_alignment<First, Second>()) pair {
   pair() = default;
   __host__ __device__ constexpr pair(First f, Second s) noexcept
       : first{f}, second{s} {}
+
+  /**
+   * @brief Implicit constructor from thrust::tuple<First,Second>
+   *
+   * @param t
+   * @return __host__ constexpr pair
+   */
+  __host__ __device__ constexpr pair(
+      thrust::tuple<First, Second> const& t) noexcept
+      : first{thrust::get<0>(t)}, second{thrust::get<1>(t)} {}
 };
 
 template <typename First, typename Second>
@@ -76,7 +86,7 @@ __host__ __device__ bool operator==(pair<First, Second> const& lhs,
 }
 
 template <typename K, typename V>
-using pair_type = cuco::pair<K, V>;  
+using pair_type = cuco::pair<K, V>;
 
 template <typename F, typename S>
 __host__ __device__ pair_type<F, S> make_pair(F f, S s) {
