@@ -15,6 +15,7 @@
  */
 
 #include <cu_collections/hash_functions.cuh>
+#include <cuco/detail/error.hpp>
 
 #include <thrust/device_vector.h>
 #include <thrust/iterator/discard_iterator.h>
@@ -112,10 +113,13 @@ struct store_pair {
 };
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-__global__ void initialize(cuda::atomic<pair_type<Key, Value>, Scope>* const __restrict__ slots, Key k, Value v, std::size_t size) {
+__global__ void initialize(
+    cuda::atomic<pair_type<Key, Value>, Scope>* const __restrict__ slots, Key k,
+    Value v, std::size_t size) {
   auto tid = threadIdx.x + blockIdx.x * blockDim.x;
   while (tid < size) {
-    new (&slots[tid]) cuda::atomic<pair_type<Key, Value>>{cuco::make_pair(k, v)};
+    new (&slots[tid])
+        cuda::atomic<pair_type<Key, Value>, Scope>{cuco::make_pair(k, v)};
     tid += gridDim.x * blockDim.x;
   }
 }
@@ -165,10 +169,12 @@ class insert_only_hash_array {
    */
   explicit insert_only_hash_array(std::size_t capacity, Key empty_key_sentinel,
                                   Value initial_value = Value{})
-      : slots_(capacity),
+      : capacity_{capacity},
         empty_key_sentinel_{empty_key_sentinel},
         initial_value_{initial_value} {
     // vector_base? uninitialized fill
+
+    CUCO_CUDA_TRY(cudaMalloc(&slots_, capacity * sizeof(atomic_value_type)));
 
     // TODO: (JH) Is this the most efficient way to initialize a vector of
     // atomics?
@@ -178,8 +184,8 @@ class insert_only_hash_array {
 
     auto const block_size = 256;
     auto const grid_size = (capacity + 4 * block_size - 1) / (4 * block_size);
-    detail::initialize<<<grid_size, block_size>>>(
-        slots_.data().get(), empty_key_sentinel, initial_value, capacity);
+    detail::initialize<<<grid_size, block_size>>>(slots_, empty_key_sentinel,
+                                                  initial_value, capacity);
   }
 
   /**
@@ -311,7 +317,7 @@ class insert_only_hash_array {
     ~device_view() = default;
 
    private:
-    atomic_value_type* const slots_{};
+    atomic_value_type* __restrict__ const slots_{};
     std::size_t const capacity_{};
     Key const empty_key_sentinel_{};
     Value const initial_value_{};
@@ -345,8 +351,8 @@ class insert_only_hash_array {
   };  // class device_view
 
   device_view get_device_view() noexcept {
-    return device_view{slots_.data().get(), slots_.size(),
-                       get_empty_key_sentinel(), get_initial_value()};
+    return device_view{slots_, capacity_, get_empty_key_sentinel(),
+                       get_initial_value()};
   }
 
   Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
@@ -354,15 +360,21 @@ class insert_only_hash_array {
   Value get_initial_value() const noexcept { return initial_value_; }
 
   insert_only_hash_array() = default;
-  insert_only_hash_array(insert_only_hash_array const&) = default;
-  insert_only_hash_array(insert_only_hash_array&&) = default;
-  insert_only_hash_array& operator=(insert_only_hash_array const&) = default;
-  insert_only_hash_array& operator=(insert_only_hash_array&&) = default;
-  ~insert_only_hash_array() = default;
+  insert_only_hash_array(insert_only_hash_array const&) = delete;
+  insert_only_hash_array(insert_only_hash_array&&) = delete;
+  insert_only_hash_array& operator=(insert_only_hash_array const&) = delete;
+  insert_only_hash_array& operator=(insert_only_hash_array&&) = delete;
+
+  /**
+   * @brief Destroy and free device memory.
+   *
+   */
+  ~insert_only_hash_array() { CUCO_ASSERT_CUDA_SUCCESS(cudaFree(slots_)); }
 
  private:
-  thrust::device_vector<atomic_value_type> slots_{};
-  Key const empty_key_sentinel_{};
-  Value const initial_value_{};
+  atomic_value_type* slots_{nullptr};  ///< Pointer to flat slots storage
+  std::size_t capacity_{};             ///< Total number of slots
+  Key const empty_key_sentinel_{};  ///< Key value that represents an empty slot
+  Value const initial_value_{};     ///< Initial value of empty slot
 };
 }  // namespace cuco
