@@ -17,6 +17,7 @@
 #include <benchmark/benchmark.h>
 
 #include <cuco/insert_only_hash_array.cuh>
+#include "../nvtx3.hpp"
 #include "cudf/concurrent_unordered_map.cuh"
 
 #include <thrust/for_each.h>
@@ -30,8 +31,11 @@ template <typename Key, typename Value>
 static void BM_cudf_construction(::benchmark::State& state) {
   using map_type = concurrent_unordered_map<Key, Value>;
 
+  std::string msg{"cudf construction: " + std::to_string(state.range(0))};
+  nvtx3::thread_range r{"msg"};
+
   for (auto _ : state) {
-    // cuda_event_timer t{state, true};
+    nvtx3::thread_range l;
     auto map = map_type::create(state.range(0));
     cudaDeviceSynchronize();
   }
@@ -58,8 +62,9 @@ template <typename Key, typename Value>
 static void BM_cuco_construction(::benchmark::State& state) {
   using map_type =
       cuco::insert_only_hash_array<Key, Value, cuda::thread_scope_device>;
+  nvtx3::thread_range r{"cuco construction"};
   for (auto _ : state) {
-    // cuda_event_timer t{state, true};
+    nvtx3::thread_range l;
     map_type map{state.range(0), -1};
     cudaDeviceSynchronize();
   }

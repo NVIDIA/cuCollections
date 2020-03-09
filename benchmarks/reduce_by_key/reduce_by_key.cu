@@ -19,11 +19,13 @@
 #include <thrust/reduce.h>
 #include <thrust/sort.h>
 #include <cuco/insert_only_hash_array.cuh>
+#include "../nvtx3.hpp"
 
 template <typename KeyRandomIterator, typename ValueRandomIterator>
 void thrust_reduce_by_key(KeyRandomIterator keys_begin,
                           KeyRandomIterator keys_end,
                           ValueRandomIterator values_begin) {
+  nvtx3::thread_range l;
   using Key = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
   using Value =
       typename thrust::iterator_traits<ValueRandomIterator>::value_type;
@@ -41,28 +43,35 @@ void thrust_reduce_by_key(KeyRandomIterator keys_begin,
 
 template <typename Key, typename Value>
 static void BM_thrust(::benchmark::State& state) {
+  std::string msg{"thrust rbk: "};
+  msg += std::to_string(state.range(0));
+  nvtx3::thread_range r{msg};
   for (auto _ : state) {
     state.PauseTiming();
     thrust::device_vector<Key> keys(state.range(0));
     thrust::device_vector<Value> values(state.range(0));
     state.ResumeTiming();
     thrust_reduce_by_key(keys.begin(), keys.end(), values.begin());
+    cudaDeviceSynchronize();
   }
 }
 BENCHMARK_TEMPLATE(BM_thrust, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->RangeMultiplier(10)
-    ->Range(100'000, 1'000'000'000);
+    ->Range(1'000'000, 1'000'000'000);
 
+/*
 BENCHMARK_TEMPLATE(BM_thrust, int64_t, int64_t)
     ->Unit(benchmark::kMillisecond)
     ->RangeMultiplier(10)
     ->Range(100'000, 100'000'000);
+    */
 
 template <typename KeyRandomIterator, typename ValueRandomIterator>
 void cuco_reduce_by_key(KeyRandomIterator keys_begin,
                         KeyRandomIterator keys_end,
                         ValueRandomIterator values_begin) {
+  nvtx3::thread_range l{};
   using Key = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
   using Value =
       typename thrust::iterator_traits<ValueRandomIterator>::value_type;
@@ -76,15 +85,19 @@ void cuco_reduce_by_key(KeyRandomIterator keys_begin,
 
 template <typename Key, typename Value>
 static void BM_cuco(::benchmark::State& state) {
+  std::string msg{"cuco rbk: "};
+  msg += std::to_string(state.range(0));
+  nvtx3::thread_range r{msg};
   for (auto _ : state) {
     state.PauseTiming();
     thrust::device_vector<Key> keys(state.range(0));
     thrust::device_vector<Value> values(state.range(0));
     state.ResumeTiming();
     cuco_reduce_by_key(keys.begin(), keys.end(), values.begin());
+    cudaDeviceSynchronize();
   }
 }
 BENCHMARK_TEMPLATE(BM_cuco, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->RangeMultiplier(10)
-    ->Range(100'000, 1'000'000'000);
+    ->Range(1'000'000, 1'000'000'000);
