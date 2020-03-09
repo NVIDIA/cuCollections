@@ -40,7 +40,7 @@ BENCHMARK_TEMPLATE(BM_cudf_construction, int32_t, int32_t)
     ->UseManualTime()
     ->Unit(benchmark::kMillisecond)
     ->RangeMultiplier(10)
-    ->Range(10'000, 100'000'000);
+    ->Range(10'000, 1'000'000'000);
 
 BENCHMARK_TEMPLATE(BM_cudf_construction, int64_t, int64_t)
     ->UseManualTime()
@@ -65,7 +65,7 @@ BENCHMARK_TEMPLATE(BM_cuco_construction, int32_t, int32_t)
     ->UseManualTime()
     ->Unit(benchmark::kMillisecond)
     ->RangeMultiplier(10)
-    ->Range(10'000, 100'000'000);
+    ->Range(10'000, 1'000'000'000);
 
 BENCHMARK_TEMPLATE(BM_cuco_construction, int64_t, int64_t)
     ->UseManualTime()
