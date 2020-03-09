@@ -46,8 +46,10 @@ static void BM_thrust(::benchmark::State& state) {
     thrust::device_vector<Key> keys(state.range(0));
     thrust::device_vector<Value> values(state.range(0));
     // Only time kernel execution
-    cuda_event_timer t{state, true};
-    thrust_reduce_by_key(keys.begin(), keys.end(), values.begin());
+    {
+      cuda_event_timer t{state, true};
+      thrust_reduce_by_key(keys.begin(), keys.end(), values.begin());
+    }
   }
 }
 BENCHMARK_TEMPLATE(BM_thrust, int32_t, int32_t)
@@ -62,12 +64,30 @@ BENCHMARK_TEMPLATE(BM_thrust, int64_t, int64_t)
     ->RangeMultiplier(10)
     ->Range(100'000, 100'000'000);
 
+template <typename KeyRandomIterator, typename ValueRandomIterator>
+void cuco_reduce_by_key(KeyRandomIterator keys_begin,
+                        KeyRandomIterator keys_end,
+                        ValueRandomIterator values_begin) {
+  using Key = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
+  using Value =
+      typename thrust::iterator_traits<ValueRandomIterator>::value_type;
+
+  auto const input_size = thrust::distance(keys_begin, keys_end);
+  auto const occupancy = 0.9;
+  std::size_t const map_capacity = input_size / occupancy;
+  cuco::insert_only_hash_array<Key, Value, cuda::thread_scope_device> map{
+      map_capacity, -1};
+}
+
 template <typename Key, typename Value>
 static void BM_cuco(::benchmark::State& state) {
   for (auto _ : state) {
     thrust::device_vector<Key> keys(state.range(0));
     thrust::device_vector<Value> values(state.range(0));
-    cuda_event_timer t{state, true};
+    {
+      cuda_event_timer t{state, true};
+      cuco_reduce_by_key(keys.begin(), keys.end(), values.begin());
+    }
   }
 }
 BENCHMARK_TEMPLATE(BM_cuco, int32_t, int32_t)
