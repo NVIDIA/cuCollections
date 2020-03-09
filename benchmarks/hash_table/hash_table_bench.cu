@@ -35,6 +35,10 @@ static void BM_cudf_construction(::benchmark::State& state) {
     cuda_event_timer t{state, true};
     auto map = map_type::create(state.range(0));
   }
+
+  state.SetBytesProcessed(
+      ((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
+       int64_t(state.range(0))));
 }
 BENCHMARK_TEMPLATE(BM_cudf_construction, int32_t, int32_t)
     ->UseManualTime()
@@ -60,6 +64,10 @@ static void BM_cuco_construction(::benchmark::State& state) {
     cuda_event_timer t{state, true};
     map_type map{state.range(0), -1};
   }
+
+  state.SetBytesProcessed((sizeof(typename map_type::atomic_value_type) *
+                           int64_t(state.iterations()) *
+                           int64_t(state.range(0))));
 }
 BENCHMARK_TEMPLATE(BM_cuco_construction, int32_t, int32_t)
     ->UseManualTime()
@@ -158,7 +166,6 @@ static void BM_cudf_insert_unique_keys(::benchmark::State& state) {
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
                           int64_t(state.iterations()) *
                           int64_t(state.range(0)));
-
 }
 BENCHMARK_TEMPLATE(BM_cudf_insert_unique_keys, int32_t, int32_t)
     ->UseManualTime()
