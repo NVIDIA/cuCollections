@@ -110,6 +110,16 @@ struct store_pair {
   Key k_;
   Value v_;
 };
+
+template <typename Key, typename Value, cuda::thread_scope Scope>
+__global__ void initialize(cuda::atomic<pair_type<Key, Value>, Scope>* const __restrict__ slots, Key k, Value v, std::size_t size) {
+  auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+  while (tid < size) {
+    new (&slots[tid]) cuda::atomic<pair_type<Key, Value>>{cuco::make_pair(k, v)};
+    tid += gridDim.x * blockDim.x;
+  }
+}
+
 }  // namespace detail
 
 template <typename Key, typename Value,
@@ -162,9 +172,14 @@ class insert_only_hash_array {
 
     // TODO: (JH) Is this the most efficient way to initialize a vector of
     // atomics?
-    thrust::for_each(
-        thrust::device, slots_.begin(), slots_.end(),
-        detail::store_pair<Key, Value>{empty_key_sentinel, initial_value});
+    // thrust::for_each(
+    //    thrust::device, slots_.begin(), slots_.end(),
+    //    detail::store_pair<Key, Value>{empty_key_sentinel, initial_value});
+
+    auto const block_size = 256;
+    auto const grid_size = (capacity + 4 * block_size - 1) / (4 * block_size);
+    detail::initialize<<<grid_size, block_size>>>(
+        slots_.data().get(), empty_key_sentinel, initial_value, capacity);
   }
 
   /**
