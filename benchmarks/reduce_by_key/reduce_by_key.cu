@@ -35,33 +35,42 @@ void thrust_reduce_by_key(KeyRandomIterator keys_begin,
   thrust::device_vector<Key> output_keys(maximum_output_size);
   thrust::device_vector<Value> output_values(maximum_output_size);
 
-  thrust::sort_by_key(keys_begin, keys_end, values_begin);
-  thrust::reduce_by_key(keys_begin, keys_end, values_begin, output_keys.begin(),
-                        output_values.end());
+  thrust::sort_by_key(thrust::device, keys_begin, keys_end, values_begin);
+  thrust::reduce_by_key(thrust::device, keys_begin, keys_end, values_begin,
+                        output_keys.begin(), output_values.end());
 }
 
+template <typename Key, typename Value>
 static void BM_thrust(::benchmark::State& state) {
   for (auto _ : state) {
-    thrust::device_vector<int32_t> keys(state.range(0));
-    thrust::device_vector<int32_t> values(state.range(0));
+    thrust::device_vector<Key> keys(state.range(0));
+    thrust::device_vector<Value> values(state.range(0));
+    // Only time kernel execution
     cuda_event_timer t{state, true};
     thrust_reduce_by_key(keys.begin(), keys.end(), values.begin());
   }
 }
-BENCHMARK(BM_thrust)
+BENCHMARK_TEMPLATE(BM_thrust, int32_t, int32_t)
     ->UseManualTime()
     ->Unit(benchmark::kMillisecond)
     ->RangeMultiplier(10)
     ->Range(100'000, 1'000'000'000);
 
+BENCHMARK_TEMPLATE(BM_thrust, int64_t, int64_t)
+    ->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->RangeMultiplier(10)
+    ->Range(100'000, 100'000'000);
+
+template <typename Key, typename Value>
 static void BM_cuco(::benchmark::State& state) {
-  thrust::device_vector<int32_t> keys(state.range(0));
-  thrust::device_vector<int32_t> values(state.range(0));
   for (auto _ : state) {
+    thrust::device_vector<Key> keys(state.range(0));
+    thrust::device_vector<Value> values(state.range(0));
     cuda_event_timer t{state, true};
   }
 }
-BENCHMARK(BM_thrust)
+BENCHMARK_TEMPLATE(BM_cuco, int32_t, int32_t)
     ->UseManualTime()
     ->Unit(benchmark::kMillisecond)
     ->RangeMultiplier(10)
