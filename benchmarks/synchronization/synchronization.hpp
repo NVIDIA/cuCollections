@@ -20,40 +20,45 @@
  */
 
 /**
- * @brief  This class serves as a wrapper for using `cudaEvent_t` as the user 
- * defined timer within the framework of google benchmark 
+ * @brief  This class serves as a wrapper for using `cudaEvent_t` as the user
+ * defined timer within the framework of google benchmark
  * (https://github.com/google/benchmark).
  *
- * It is built on top of the idea of Resource acquisition is initialization 
+ * It is built on top of the idea of Resource acquisition is initialization
  * (RAII). In the following we show a minimal example of how to use this class.
-*
-*  Example:
-*  ```
-*  #include <benchmark/benchmark.h>
-*    
-*  static void sample_cuda_benchmark(benchmark::State& state) {
-*    for (auto _ : state){
-*     cudaStream_t stream = 0;
-*        
-*     // Create (Construct) an object of this class. You HAVE to pass in the
-*     // benchmark::State object you are using. It measures the time from its 
-*     // creation to its destruction that is spent on the specified CUDA stream.
-*     // It also clears the L2 cache by cudaMemset'ing a device buffer that is of
-*     // the size of the L2 cache (if flush_l2_cache is set to true and there is 
-*     // an L2 cache on the current device).
-*     cuda_event_timer raii(state, true, stream); // flush_l2_cache = true
-*     
-*     // Now perform the operations that is to be benchmarked
-*     sample_kernel<<<1, 256, 0, stream>>>(); // Possibly launching a CUDA kernel
-*
-*      }
-*    }
-*
-*  // Register the function as a benchmark. You will need to set the `UseManualTime()`
-*  // flag in order to use the timer embedded in this class.
-*  BENCHMARK(sample_cuda_benchmark)->UseManualTime();
-*  ```
-*
+ *
+ *  Example:
+ *  ```
+ *  #include <benchmark/benchmark.h>
+ *
+ *  static void sample_cuda_benchmark(benchmark::State& state) {
+ *    for (auto _ : state){
+ *     cudaStream_t stream = 0;
+ *
+ *     // Create (Construct) an object of this class. You HAVE to pass in the
+ *     // benchmark::State object you are using. It measures the time from its
+ *     // creation to its destruction that is spent on the specified CUDA
+ * stream.
+ *     // It also clears the L2 cache by cudaMemset'ing a device buffer that is
+ * of
+ *     // the size of the L2 cache (if flush_l2_cache is set to true and there
+ * is
+ *     // an L2 cache on the current device).
+ *     cuda_event_timer raii(state, true, stream); // flush_l2_cache = true
+ *
+ *     // Now perform the operations that is to be benchmarked
+ *     sample_kernel<<<1, 256, 0, stream>>>(); // Possibly launching a CUDA
+ * kernel
+ *
+ *      }
+ *    }
+ *
+ *  // Register the function as a benchmark. You will need to set the
+ * `UseManualTime()`
+ *  // flag in order to use the timer embedded in this class.
+ *  BENCHMARK(sample_cuda_benchmark)->UseManualTime();
+ *  ```
+ *
  */
 
 #ifndef CUDF_BENCH_SYNCHRONIZATION_H
@@ -64,32 +69,63 @@
 #include <cuda_runtime_api.h>
 
 class cuda_event_timer {
- 
-public:
-
+ public:
   /**
    * @brief This c'tor clears the L2$ by cudaMemset'ing a buffer of L2$ size
    * and starts the timer.
    *
-   * @param[in,out] state  This is the benchmark::State whose timer we are going 
+   * @param[in,out] state  This is the benchmark::State whose timer we are going
    * to update.
    * @param[in] flush_l2_cache_ whether or not to flush the L2 cache before
    *                            every iteration.
    * @param[in] stream_ The CUDA stream we are measuring time on.
    */
-  cuda_event_timer(benchmark::State& state,
-                   bool flush_l2_cache,
-                   cudaStream_t stream_ = 0);
- 
+  cuda_event_timer(benchmark::State& state, bool flush_l2_cache,
+                   cudaStream_t stream_ = 0)
+
+      : p_state(&state), stream(stream) {
+    // flush all of L2$
+    if (flush_l2_cache) {
+      int current_device = 0;
+      CUCO_CUDA_TRY(cudaGetDevice(&current_device));
+
+      int l2_cache_bytes = 0;
+      CUCO_CUDA_TRY(cudaDeviceGetAttribute(
+          &l2_cache_bytes, cudaDevAttrL2CacheSize, current_device));
+
+      if (l2_cache_bytes > 0) {
+        const int memset_value = 0;
+        int* l2_cache_buffer = nullptr;
+        CUCO_CUDA_TRY(cudaMalloc((void**)&l2_cache_buffer, l2_cache_bytes));
+        CUCO_CUDA_TRY(
+            cudaMemset(l2_cache_buffer, memset_value, l2_cache_bytes));
+        CUCO_CUDA_TRY(cudaFree(l2_cache_buffer));
+      }
+    }
+
+    CUCO_CUDA_TRY(cudaEventCreate(&start));
+    CUCO_CUDA_TRY(cudaEventCreate(&stop));
+    CUCO_CUDA_TRY(cudaEventRecord(start, stream));
+  }
+
   cuda_event_timer() = delete;
 
   /**
    * @brief Destroy the cuda event timer object, ending the manual timing range.
    *
    */
-  ~cuda_event_timer();
+  ~cuda_event_timer() {
+    CUCO_ASSERT_CUDA_SUCCESS(cudaEventRecord(stop, stream));
+    CUCO_ASSERT_CUDA_SUCCESS(cudaEventSynchronize(stop));
 
-private:
+    float milliseconds = 0.0f;
+    CUCO_ASSERT_CUDA_SUCCESS(cudaEventElapsedTime(&milliseconds, start, stop));
+    p_state->SetIterationTime(milliseconds / (1000.0f));
+    CUCO_ASSERT_CUDA_SUCCESS(cudaEventDestroy(start));
+    CUCO_ASSERT_CUDA_SUCCESS(cudaEventDestroy(stop));
+  }
+
+ private:
   cudaEvent_t start{};
   cudaEvent_t stop{};
   cudaStream_t stream{};
