@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include <cu_collections/hash_functions.cuh>
-#include <cuco/detail/error.hpp>
-
 #include <thrust/device_vector.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/pair.h>
 #include <thrust/transform.h>
+
+#include <cu_collections/hash_functions.cuh>
+#include <cuco/detail/error.hpp>
 #include <cuda/std/atomic>
 #include <simt/atomic>
 
