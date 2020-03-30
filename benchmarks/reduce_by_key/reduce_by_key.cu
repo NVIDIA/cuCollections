@@ -156,9 +156,7 @@ void cudf_reduce_by_key(KeyRandomIterator keys_begin,
             found = result.first;
           }
 
-          cuda::atomic<thrust::pair<Key, Value>>& found_pair = *found;
-
-          atomicAdd(&(found_pair.second), v);
+          atomicAdd(&(found->second), v);
           return 0;
         });
   } else {
