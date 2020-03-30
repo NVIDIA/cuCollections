@@ -269,9 +269,8 @@ class insert_only_hash_array {
      */
     template <typename Hash = MurmurHash3_32<Key>,
               typename KeyEqual = thrust::equal_to<Key>>
-    __device__ const_iterator find(Key const& k,
-                                   KeyEqual key_equal = KeyEqual{},
-                                   Hash hash = Hash{}) const noexcept {
+    __device__ iterator find(Key const& k, KeyEqual key_equal = KeyEqual{},
+                             Hash hash = Hash{}) noexcept {
       auto current_slot = initial_slot(k, hash);
 
       while (true) {
