@@ -69,7 +69,7 @@ static void BM_cuco_construction(::benchmark::State& state) {
     cudaDeviceSynchronize();
   }
 
-  state.SetBytesProcessed((sizeof(typename map_type::atomic_value_type) *
+  state.SetBytesProcessed((sizeof(typename map_type::pair_atomic_type) *
                            int64_t(state.iterations()) *
                            int64_t(state.range(0))));
 }

@@ -227,12 +227,14 @@ void cuco_cas_reduce_by_key(KeyRandomIterator keys_begin,
           found = result.first;
         }
 
+/*
         auto expected = found->load(cuda::std::memory_order_relaxed);
 
         while ( not found->compare_exchange_weak(
                 expected, cuco::make_pair(expected.first, expected.second + v)),
             cuda::std::memory_order_relaxed) {
         }
+        */
 
         return 0;
       });

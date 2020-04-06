@@ -95,31 +95,15 @@ __host__ __device__ pair_type<F, S> make_pair(F f, S s) {
 }
 
 namespace detail {
-
-// Function object is required because __device__ lambdas aren't allowed in
-// ctors
-template <typename Key, typename Value>
-struct store_pair {
-  store_pair(Key k, Value v) : k_{k}, v_{v} {}
-
-  template <cuda::thread_scope Scope>
-  __device__ void operator()(cuda::atomic<pair_type<Key, Value>, Scope>& p) {
-    new (&p) cuda::atomic<pair_type<Key, Value>>{cuco::make_pair(k_, v_)};
-  }
-
- private:
-  Key k_;
-  Value v_;
-};
-
 template <typename Key, typename Value, cuda::thread_scope Scope>
 __global__ void initialize(
-    cuda::atomic<pair_type<Key, Value>, Scope>* const __restrict__ slots, Key k,
-    Value v, std::size_t size) {
+    pair_type<cuda::atomic<Key, Scope>,
+              cuda::atomic<Value, Scope>>* const __restrict__ slots,
+    Key k, Value v, std::size_t size) {
   auto tid = threadIdx.x + blockIdx.x * blockDim.x;
   while (tid < size) {
-    new (&slots[tid])
-        cuda::atomic<pair_type<Key, Value>, Scope>{cuco::make_pair(k, v)};
+    new (&slots[tid].first) cuda::atomic<Key, Scope>{k};
+    new (&slots[tid].second) cuda::atomic<Value, Scope>{v};
     tid += gridDim.x * blockDim.x;
   }
 }
@@ -140,16 +124,18 @@ class insert_only_hash_array {
  public:
   // TODO: Should be `pair_type<const Key, Value>` but then we can't CAS it
   using value_type = cuco::pair_type<Key, Value>;
-  using atomic_value_type = cuda::atomic<value_type, Scope>;
   using key_type = Key;
   using mapped_type = Value;
+  using atomic_key_type = cuda::atomic<key_type, Scope>;
+  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
+  using pair_atomic_type = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
 
  public:
   /**
    * @brief Checks whether the atomic operations on the slots are lock free.
    *
    */
-  bool is_lock_free() { return atomic_value_type{}.is_lock_free(); }
+  // bool is_lock_free() { return atomic_value_type{}.is_lock_free(); }
 
   /**
    * @brief Construct a new `insert_only_hash_array` with the specified
@@ -174,7 +160,7 @@ class insert_only_hash_array {
         initial_value_{initial_value} {
     // vector_base? uninitialized fill
 
-    CUCO_CUDA_TRY(cudaMalloc(&slots_, capacity * sizeof(atomic_value_type)));
+    CUCO_CUDA_TRY(cudaMalloc(&slots_, capacity * sizeof(pair_atomic_type)));
 
     // TODO: (JH) Is this the most efficient way to initialize a vector of
     // atomics?
@@ -196,8 +182,8 @@ class insert_only_hash_array {
     // TODO: (JH): What should the iterator type be? Exposing the
     // atomic seems wrong
     // Only have const_iterator in early version?
-    using iterator = atomic_value_type*;
-    using const_iterator = atomic_value_type const*;
+    using iterator = pair_atomic_type*;
+    using const_iterator = pair_atomic_type const*;
 
     /**
      * @brief Construct a new device view object
@@ -207,7 +193,7 @@ class insert_only_hash_array {
      * @param empty_key_sentinel
      * @param initial_value
      */
-    device_view(atomic_value_type* slots, std::size_t capacity,
+    device_view(pair_atomic_type* slots, std::size_t capacity,
                 Key empty_key_sentinel, Value initial_value) noexcept
         : slots_{slots},
           capacity_{capacity},
@@ -234,22 +220,47 @@ class insert_only_hash_array {
       iterator current_slot{initial_slot(insert_pair.first, hash)};
 
       while (true) {
-        auto expected = cuco::make_pair(empty_key_sentinel_, initial_value_);
+        using cuda::std::memory_order_relaxed;
+        auto expected_key = empty_key_sentinel_;
+        auto expected_value = initial_value_;
 
-        // Check for empty slot
-        // TODO: Is memory_order_relaxed correct?
-        if (current_slot->compare_exchange_strong(expected, insert_pair)) {
+        auto& slot_key = current_slot->first;
+        auto& slot_value = current_slot->second;
+
+        // Update key/value via independent CASes
+        bool key_success = slot_key.compare_exchange_strong(
+            expected_key, insert_pair.first, memory_order_relaxed);
+
+        bool value_success = slot_value.compare_exchange_strong(
+            expected_value, insert_pair.second, memory_order_relaxed);
+
+        // Usually, both will succeed. Otherwise, whoever won the key CAS is
+        // guaranteed to eventually update the value
+        if (key_success) {
+          // If key succeeds and value doesn't, someone else won the value CAS
+          // Spin trying to update the value
+          while (not value_success) {
+            value_success = slot_value.compare_exchange_strong(
+                expected_value = initial_value_, insert_pair.second,
+                memory_order_relaxed);
+          }
           return thrust::make_pair(current_slot, true);
+        } else if (value_success) {
+          // Key CAS failed, but value succeeded. Restore the value to it's
+          // initial value
+
+          // FIXME: JH: There's a race condition here. If the value is equal to
+          // initial_value, inserting on an existing key can have side effects with
+          // a concurrent thread doing a find + modify on the same key.
+          slot_value.store(initial_value_, memory_order_relaxed);
         }
 
-        // Exchange failed, `expected` contains actual value
+        // expected_key/expected_value contain actual values
 
         // Key already exists
-        if (key_equal(insert_pair.first, expected.first)) {
+        if (key_equal(insert_pair.first, expected_key)) {
           return thrust::make_pair(current_slot, false);
         }
-
-        // TODO: Add check for full hash map?
 
         // Slot is occupied by a different key---collision
         // Advance to next slot
@@ -273,6 +284,10 @@ class insert_only_hash_array {
                              Hash hash = Hash{}) noexcept {
       auto current_slot = initial_slot(k, hash);
 
+      return current_slot;
+
+      /*
+
       while (true) {
         auto const current_key =
             current_slot->load(cuda::std::memory_order_relaxed).first;
@@ -292,6 +307,7 @@ class insert_only_hash_array {
         // Advance to next slot
         current_slot = next_slot(current_slot);
       }
+      */
     }
 
     /**
@@ -316,7 +332,7 @@ class insert_only_hash_array {
     ~device_view() = default;
 
    private:
-    atomic_value_type* __restrict__ const slots_{};
+    pair_atomic_type* __restrict__ const slots_{};
     std::size_t const capacity_{};
     Key const empty_key_sentinel_{};
     Value const initial_value_{};
@@ -371,8 +387,8 @@ class insert_only_hash_array {
   ~insert_only_hash_array() { CUCO_ASSERT_CUDA_SUCCESS(cudaFree(slots_)); }
 
  private:
-  atomic_value_type* slots_{nullptr};  ///< Pointer to flat slots storage
-  std::size_t capacity_{};             ///< Total number of slots
+  pair_atomic_type* slots_{nullptr};  ///< Pointer to flat slots storage
+  std::size_t capacity_{};            ///< Total number of slots
   Key const empty_key_sentinel_{};  ///< Key value that represents an empty slot
   Value const initial_value_{};     ///< Initial value of empty slot
 };
