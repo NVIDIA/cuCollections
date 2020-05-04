@@ -33,17 +33,17 @@ using hash_value_type = uint32_t;
 template <typename Key>
 struct MurmurHash3_32 {
   using argument_type = Key;
-  using result_type = hash_value_type;
+  using result_type   = hash_value_type;
 
   CUDA_HOST_DEVICE_CALLABLE constexpr MurmurHash3_32() : m_seed(0) {}
 
-  constexpr result_type CUDA_HOST_DEVICE_CALLABLE
-  operator()(Key const& key) const noexcept {
-    constexpr int len = sizeof(argument_type);
+  constexpr result_type CUDA_HOST_DEVICE_CALLABLE operator()(Key const& key) const noexcept
+  {
+    constexpr int len         = sizeof(argument_type);
     const uint8_t* const data = (const uint8_t*)&key;
-    constexpr int nblocks = len / 4;
+    constexpr int nblocks     = len / 4;
 
-    uint32_t h1 = m_seed;
+    uint32_t h1           = m_seed;
     constexpr uint32_t c1 = 0xcc9e2d51;
     constexpr uint32_t c2 = 0x1b873593;
     //----------
@@ -61,12 +61,10 @@ struct MurmurHash3_32 {
     //----------
     // tail
     const uint8_t* tail = (const uint8_t*)(data + nblocks * 4);
-    uint32_t k1 = 0;
+    uint32_t k1         = 0;
     switch (len & 3) {
-      case 3:
-        k1 ^= tail[2] << 16;
-      case 2:
-        k1 ^= tail[1] << 8;
+      case 3: k1 ^= tail[2] << 16;
+      case 2: k1 ^= tail[1] << 8;
       case 1:
         k1 ^= tail[0];
         k1 *= c1;
@@ -82,11 +80,13 @@ struct MurmurHash3_32 {
   }
 
  private:
-  constexpr CUDA_HOST_DEVICE_CALLABLE uint32_t rotl32(uint32_t x, int8_t r) const noexcept {
+  constexpr CUDA_HOST_DEVICE_CALLABLE uint32_t rotl32(uint32_t x, int8_t r) const noexcept
+  {
     return (x << r) | (x >> (32 - r));
   }
 
-  constexpr CUDA_HOST_DEVICE_CALLABLE uint32_t fmix32(uint32_t h) const noexcept {
+  constexpr CUDA_HOST_DEVICE_CALLABLE uint32_t fmix32(uint32_t h) const noexcept
+  {
     h ^= h >> 16;
     h *= 0x85ebca6b;
     h ^= h >> 13;

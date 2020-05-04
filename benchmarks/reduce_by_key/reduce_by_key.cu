@@ -30,21 +30,20 @@
  * @brief Generates input sizes and number of unique keys
  *
  */
-static void generate_size_and_num_unique(benchmark::internal::Benchmark* b) {
+static void generate_size_and_num_unique(benchmark::internal::Benchmark* b)
+{
   for (auto num_unique = 64; num_unique <= 1 << 20; num_unique <<= 1) {
-    for (auto size = 10'000'000; size <= 10'000'000; size *= 10) {
-      b->Args({size, num_unique});
-    }
+    for (auto size = 10'000'000; size <= 10'000'000; size *= 10) { b->Args({size, num_unique}); }
   }
 }
 
 template <typename KeyRandomIterator, typename ValueRandomIterator>
 void thrust_reduce_by_key(KeyRandomIterator keys_begin,
                           KeyRandomIterator keys_end,
-                          ValueRandomIterator values_begin) {
-  using Key = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
-  using Value =
-      typename thrust::iterator_traits<ValueRandomIterator>::value_type;
+                          ValueRandomIterator values_begin)
+{
+  using Key   = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
+  using Value = typename thrust::iterator_traits<ValueRandomIterator>::value_type;
 
   // Exact size of output is unknown (number of unique keys), but upper bounded
   // by the number of keys
@@ -53,20 +52,22 @@ void thrust_reduce_by_key(KeyRandomIterator keys_begin,
   thrust::device_vector<Value> output_values(maximum_output_size);
 
   thrust::sort_by_key(thrust::device, keys_begin, keys_end, values_begin);
-  thrust::reduce_by_key(thrust::device, keys_begin, keys_end, values_begin,
-                        output_keys.begin(), output_values.end());
+  thrust::reduce_by_key(
+    thrust::device, keys_begin, keys_end, values_begin, output_keys.begin(), output_values.end());
 }
 
 template <typename Key, typename Value>
-static void BM_thrust(::benchmark::State& state) {
+static void BM_thrust(::benchmark::State& state)
+{
   auto const num_unique_keys = state.range(1);
   for (auto _ : state) {
     state.PauseTiming();
     thrust::device_vector<Key> keys(state.range(0));
     auto begin = thrust::make_counting_iterator(0);
     thrust::transform(
-        begin, begin + state.range(0), keys.begin(),
-        [num_unique_keys] __device__(auto i) { return i % num_unique_keys; });
+      begin, begin + state.range(0), keys.begin(), [num_unique_keys] __device__(auto i) {
+        return i % num_unique_keys;
+      });
 
     thrust::device_vector<Value> values(state.range(0));
     state.ResumeTiming();
@@ -130,51 +131,56 @@ BENCHMARK_TEMPLATE(BM_cuco, int32_t, int32_t)
 template <typename KeyRandomIterator, typename ValueRandomIterator>
 void cudf_reduce_by_key(KeyRandomIterator keys_begin,
                         KeyRandomIterator keys_end,
-                        ValueRandomIterator values_begin) {
+                        ValueRandomIterator values_begin)
+{
   nvtx3::thread_range l{};
-  using Key = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
-  using Value =
-      typename thrust::iterator_traits<ValueRandomIterator>::value_type;
+  using Key   = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
+  using Value = typename thrust::iterator_traits<ValueRandomIterator>::value_type;
 
-  auto const input_size = thrust::distance(keys_begin, keys_end);
-  auto const occupancy = 0.5;
+  auto const input_size          = thrust::distance(keys_begin, keys_end);
+  auto const occupancy           = 0.5;
   std::size_t const map_capacity = input_size / occupancy;
 
   using map_type = concurrent_unordered_map<Key, Value>;
-  auto map = map_type::create(map_capacity);
+  auto map       = map_type::create(map_capacity);
 
   // Concurrent insert/find are supported
   if (sizeof(Key) + sizeof(Value) <= 8) {
-    thrust::transform(
-        thrust::device, keys_begin, keys_end, values_begin,
-        thrust::make_discard_iterator(),
-        [view = *map] __device__(Key const& k, Value const& v) mutable {
-          auto found = view.find(k);
+    thrust::transform(thrust::device,
+                      keys_begin,
+                      keys_end,
+                      values_begin,
+                      thrust::make_discard_iterator(),
+                      [view = *map] __device__(Key const& k, Value const& v) mutable {
+                        auto found = view.find(k);
 
-          if (view.end() == found) {
-            auto result = view.insert(thrust::make_pair(k, 0));
-            found = result.first;
-          }
+                        if (view.end() == found) {
+                          auto result = view.insert(thrust::make_pair(k, 0));
+                          found       = result.first;
+                        }
 
-          atomicAdd(&(found->second), v);
-          return 0;
-        });
+                        atomicAdd(&(found->second), v);
+                        return 0;
+                      });
   } else {
-    thrust::transform(
-        thrust::device, keys_begin, keys_end, values_begin,
-        thrust::make_discard_iterator(),
-        [view = *map] __device__(Key const& k, Value const& v) mutable {
-          auto result = view.insert(thrust::make_pair(k, 0));
-          auto found = result.first;
-          thrust::pair<Key, Value>& found_pair = *found;
-          atomicAdd(&(found_pair.second), v);
-          return 0;
-        });
+    thrust::transform(thrust::device,
+                      keys_begin,
+                      keys_end,
+                      values_begin,
+                      thrust::make_discard_iterator(),
+                      [view = *map] __device__(Key const& k, Value const& v) mutable {
+                        auto result                          = view.insert(thrust::make_pair(k, 0));
+                        auto found                           = result.first;
+                        thrust::pair<Key, Value>& found_pair = *found;
+                        atomicAdd(&(found_pair.second), v);
+                        return 0;
+                      });
   }
 }
 
 template <typename Key, typename Value>
-static void BM_cudf(::benchmark::State& state) {
+static void BM_cudf(::benchmark::State& state)
+{
   std::string msg{"cudf rbk: "};
   msg += std::to_string(state.range(0));
   auto const num_unique_keys = state.range(1);
@@ -185,8 +191,9 @@ static void BM_cudf(::benchmark::State& state) {
     thrust::device_vector<Key> keys(state.range(0));
     auto begin = thrust::make_counting_iterator(0);
     thrust::transform(
-        begin, begin + state.range(0), keys.begin(),
-        [num_unique_keys] __device__(auto i) { return i % num_unique_keys; });
+      begin, begin + state.range(0), keys.begin(), [num_unique_keys] __device__(auto i) {
+        return i % num_unique_keys;
+      });
     auto values = thrust::counting_iterator<int32_t>(0);
     state.ResumeTiming();
     cudf_reduce_by_key(keys.begin(), keys.end(), values);
@@ -194,54 +201,56 @@ static void BM_cudf(::benchmark::State& state) {
   }
 }
 BENCHMARK_TEMPLATE(BM_cudf, unsigned long long int, unsigned long long int)
-    ->Unit(benchmark::kMillisecond)
-    ->Apply(generate_size_and_num_unique);
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_num_unique);
 
 template <typename KeyRandomIterator, typename ValueRandomIterator>
 void cuco_cas_reduce_by_key(KeyRandomIterator keys_begin,
                             KeyRandomIterator keys_end,
-                            ValueRandomIterator values_begin) {
+                            ValueRandomIterator values_begin)
+{
   nvtx3::thread_range l{};
-  using Key = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
-  using Value =
-      typename thrust::iterator_traits<ValueRandomIterator>::value_type;
+  using Key   = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
+  using Value = typename thrust::iterator_traits<ValueRandomIterator>::value_type;
 
-  auto const input_size = thrust::distance(keys_begin, keys_end);
-  auto const occupancy = 0.5;
+  auto const input_size          = thrust::distance(keys_begin, keys_end);
+  auto const occupancy           = 0.5;
   std::size_t const map_capacity = input_size / occupancy;
 
-  using map_type =
-      cuco::insert_only_hash_array<Key, Value, cuda::thread_scope_device>;
+  using map_type = cuco::insert_only_hash_array<Key, Value, cuda::thread_scope_device>;
 
   map_type map{map_capacity, -1};
 
   thrust::transform(
-      thrust::device, keys_begin, keys_end, values_begin,
-      thrust::make_discard_iterator(),
-      [view = map.get_device_view()] __device__(Key const& k,
-                                                Value const& v) mutable {
-        auto found = view.find(k);
+    thrust::device,
+    keys_begin,
+    keys_end,
+    values_begin,
+    thrust::make_discard_iterator(),
+    [view = map.get_device_view()] __device__(Key const& k, Value const& v) mutable {
+      auto found = view.find(k);
 
-        if (view.end() == found) {
-          auto result = view.insert(cuco::make_pair(k, 0));
-          found = result.first;
-        }
+      if (view.end() == found) {
+        auto result = view.insert(cuco::make_pair(k, 0));
+        found       = result.first;
+      }
 
-/*
-        auto expected = found->load(cuda::std::memory_order_relaxed);
+      /*
+              auto expected = found->load(cuda::std::memory_order_relaxed);
 
-        while ( not found->compare_exchange_weak(
-                expected, cuco::make_pair(expected.first, expected.second + v)),
-            cuda::std::memory_order_relaxed) {
-        }
-        */
+              while ( not found->compare_exchange_weak(
+                      expected, cuco::make_pair(expected.first, expected.second + v)),
+                  cuda::std::memory_order_relaxed) {
+              }
+              */
 
-        return 0;
-      });
+      return 0;
+    });
 }
 
 template <typename Key, typename Value>
-static void BM_cuco_cas(::benchmark::State& state) {
+static void BM_cuco_cas(::benchmark::State& state)
+{
   std::string msg{"cudf rbk: "};
   msg += std::to_string(state.range(0));
   auto const num_unique_keys = state.range(1);
@@ -252,8 +261,9 @@ static void BM_cuco_cas(::benchmark::State& state) {
     thrust::device_vector<Key> keys(state.range(0));
     auto begin = thrust::make_counting_iterator(0);
     thrust::transform(
-        begin, begin + state.range(0), keys.begin(),
-        [num_unique_keys] __device__(auto i) { return i % num_unique_keys; });
+      begin, begin + state.range(0), keys.begin(), [num_unique_keys] __device__(auto i) {
+        return i % num_unique_keys;
+      });
     auto values = thrust::counting_iterator<int32_t>(0);
     state.ResumeTiming();
     cuco_cas_reduce_by_key(keys.begin(), keys.end(), values);
@@ -262,5 +272,5 @@ static void BM_cuco_cas(::benchmark::State& state) {
 }
 
 BENCHMARK_TEMPLATE(BM_cuco_cas, int64_t, int64_t)
-    ->Unit(benchmark::kMillisecond)
-    ->Apply(generate_size_and_num_unique);
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_num_unique);
