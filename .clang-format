@@ -15,7 +15,7 @@ AllowShortBlocksOnASingleLine: true
 AllowShortCaseLabelsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: All
 AllowShortIfStatementsOnASingleLine: true
-AllowShortLoopsOnASingleLine: true
+AllowShortLoopsOnASingleLine: false
 # This is deprecated
 AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: None
@@ -153,4 +153,3 @@ StatementMacros:
 # Be consistent with indent-width, even for people who use tab for indentation!
 TabWidth: 2
 UseTab: Never
-
