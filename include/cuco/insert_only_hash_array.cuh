@@ -134,31 +134,32 @@ class insert_only_hash_array {
 
  public:
   /**
-   * @brief Checks whether the atomic operations on the slots are lock free.
-   *
-   */
-  // bool is_lock_free() { return atomic_value_type{}.is_lock_free(); }
-
-  /**
    * @brief Construct a new `insert_only_hash_array` with the specified
-   * capacity, empty key sentinel, and initial value.
+   * capacity, empty key and mapped value sentinels
    *
    * A `insert_only_hash_array` will be constructed with sufficient "slots"
-   * capable of holding `capacity` key/value pairs. The `empty_key_sentinel` is
-   * used to indicate an empty slot. Attempting to insert or find a key equal to
-   * `empty_key_sentinel` results in undefined behavior. The value of empty
-   * slots is initialized to `initial_value`.
+   * capable of holding `capacity` key/value pairs. The `empty_key_sentinel` and
+   * `empty_value_sentinel` are used to indicate an empty slot. Attempting to insert or find a
+   * key equal to `empty_key_sentinel` results in undefined behavior. Likewise, attempting to insert
+   * a value equal to `empty_value_sentinel` with any associated key results in undefined behavior.
+   *
+   * Attempting to insert a number of keys beyond `capacity` results in undefined behavior. For best
+   * performance, the number of keys inserted should be ~2/3 the `capacity` to reduce the number of
+   * collisions.
    *
    * @param capacity The maximum number of key/value pairs that can be inserted
    * @param empty_key_sentinel Key value used to indicate an empty slot.
    * Undefined behavior results from trying to insert or find a key equal to
    * `empty_key_sentinel`.
-   * @param initial_value The initial value used for empty slots.
+   * @param empty_value_sentinel Mapped value used to indicate an empty slot. Undefined behavior
+   * results from trying to insert/find a mapped value equal to `empty_value_sentinel`.
    */
   explicit insert_only_hash_array(std::size_t capacity,
                                   Key empty_key_sentinel,
-                                  Value initial_value = Value{})
-    : capacity_{capacity}, empty_key_sentinel_{empty_key_sentinel}, initial_value_{initial_value}
+                                  Value empty_value_sentinel = Value{})
+    : capacity_{capacity},
+      empty_key_sentinel_{empty_key_sentinel},
+      empty_value_sentinel_{empty_value_sentinel}
   {
     // vector_base? uninitialized fill
 
@@ -168,12 +169,12 @@ class insert_only_hash_array {
     // atomics?
     // thrust::for_each(
     //    thrust::device, slots_.begin(), slots_.end(),
-    //    detail::store_pair<Key, Value>{empty_key_sentinel, initial_value});
+    //    detail::store_pair<Key, Value>{empty_key_sentinel, empty_value_sentinel});
 
     auto const block_size = 256;
     auto const grid_size  = (capacity + 4 * block_size - 1) / (4 * block_size);
     detail::initialize<<<grid_size, block_size>>>(
-      slots_, empty_key_sentinel, initial_value, capacity);
+      slots_, empty_key_sentinel, empty_value_sentinel, capacity);
   }
 
   /**
@@ -193,16 +194,16 @@ class insert_only_hash_array {
      * @param slots
      * @param capacity
      * @param empty_key_sentinel
-     * @param initial_value
+     * @param empty_value_sentinel
      */
     device_view(pair_atomic_type* slots,
                 std::size_t capacity,
                 Key empty_key_sentinel,
-                Value initial_value) noexcept
+                Value empty_value_sentinel) noexcept
       : slots_{slots},
         capacity_{capacity},
         empty_key_sentinel_{empty_key_sentinel},
-        initial_value_{initial_value}
+        empty_value_sentinel_{empty_value_sentinel}
     {
     }
 
@@ -228,7 +229,7 @@ class insert_only_hash_array {
       while (true) {
         using cuda::std::memory_order_relaxed;
         auto expected_key   = empty_key_sentinel_;
-        auto expected_value = initial_value_;
+        auto expected_value = empty_value_sentinel_;
 
         auto& slot_key   = current_slot->first;
         auto& slot_value = current_slot->second;
@@ -247,7 +248,7 @@ class insert_only_hash_array {
           // Spin trying to update the value
           while (not value_success) {
             value_success = slot_value.compare_exchange_strong(
-              expected_value = initial_value_, insert_pair.second, memory_order_relaxed);
+              expected_value = empty_value_sentinel_, insert_pair.second, memory_order_relaxed);
           }
           return thrust::make_pair(current_slot, true);
         } else if (value_success) {
@@ -255,9 +256,9 @@ class insert_only_hash_array {
           // initial value
 
           // FIXME: JH: There's a race condition here. If the value is equal to
-          // initial_value, inserting on an existing key can have side effects with
+          // empty_value_sentinel, inserting on an existing key can have side effects with
           // a concurrent thread doing a find + modify on the same key.
-          slot_value.store(initial_value_, memory_order_relaxed);
+          slot_value.store(empty_value_sentinel_, memory_order_relaxed);
         }
 
         // expected_key/expected_value contain actual values
@@ -336,15 +337,15 @@ class insert_only_hash_array {
     ~device_view()                        = default;
 
    private:
-    pair_atomic_type* __restrict__ const slots_{};
-    std::size_t const capacity_{};
-    Key const empty_key_sentinel_{};
-    Value const initial_value_{};
+    pair_atomic_type* __restrict__ const slots_{};  ///< Pointer to slot storage
+    std::size_t const capacity_{};                  ///< The number of slots
+    Key const empty_key_sentinel_{};                ///< Sentinel key value for empty slots
+    Value const empty_value_sentinel_{};            ///< Sentinel mapped value for empty slots
 
     /**
      * @brief Returns the initial slot for a given key `k`
      *
-     * @tparam Hash
+     * @tparam Hash Unary callable type
      * @param k The key to get the slot for
      * @param hash Hash to use to determine the slot
      * @return Pointer to the initial slot for `k`
@@ -373,12 +374,12 @@ class insert_only_hash_array {
 
   device_view get_device_view() noexcept
   {
-    return device_view{slots_, capacity_, get_empty_key_sentinel(), get_initial_value()};
+    return device_view{slots_, capacity_, get_empty_key_sentinel(), get_empty_value_sentinel()};
   }
 
   Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
-  Value get_initial_value() const noexcept { return initial_value_; }
+  Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
 
   insert_only_hash_array()                              = default;
   insert_only_hash_array(insert_only_hash_array const&) = delete;
@@ -393,9 +394,9 @@ class insert_only_hash_array {
   ~insert_only_hash_array() { CUCO_ASSERT_CUDA_SUCCESS(cudaFree(slots_)); }
 
  private:
-  pair_atomic_type* slots_{nullptr};  ///< Pointer to flat slots storage
-  std::size_t capacity_{};            ///< Total number of slots
-  Key const empty_key_sentinel_{};    ///< Key value that represents an empty slot
-  Value const initial_value_{};       ///< Initial value of empty slot
+  pair_atomic_type* slots_{nullptr};    ///< Pointer to flat slots storage
+  std::size_t capacity_{};              ///< Total number of slots
+  Key const empty_key_sentinel_{};      ///< Key value that represents an empty slot
+  Value const empty_value_sentinel_{};  ///< Initial value of empty slot
 };
 }  // namespace cuco
