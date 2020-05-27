@@ -75,8 +75,7 @@ message(STATUS "CUDA_VERSION: ${CUDA_VERSION}")
 set(CUDA_VERSION_STRING "${CUDA_VERSION}")
 
 # Auto-detect available GPU compute architectures
-set(GPU_ARCHS "" CACHE STRING
-  "List of GPU architectures (semicolon-separated) to be compiled for. Pass 'ALL' if you want to compile for all supported GPU architectures. Empty string means to auto-detect the GPUs on the current system")
+set(GPU_ARCHS "70")# CACHE STRING "List of GPU architectures (semicolon-separated) to be compiled for. Pass 'ALL' if you want to compile for all supported GPU architectures. Empty string means to auto-detect the GPUs on the current system")
 
 if("${GPU_ARCHS}" STREQUAL "")
   include(cmake/EvalGpuArchs.cmake)
@@ -94,6 +93,7 @@ if("${GPU_ARCHS}" STREQUAL "ALL")
 endif()
 
 foreach(arch ${GPU_ARCHS})
+  message(STATUS ${arch})
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_${arch},code=sm_${arch}")
 endforeach()
 

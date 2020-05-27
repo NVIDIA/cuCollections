@@ -4,3 +4,6 @@
 [submodule "thirdparty/libcudacxx"]
 	path = thirdparty/libcudacxx
 	url = https://github.com/rapidsai/thirdparty-freestanding.git
+[submodule "include/SlabHash"]
+	path = include/SlabHash
+	url = https://github.com/owensgroup/SlabHash.git

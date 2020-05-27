@@ -19,6 +19,7 @@
 #include <cuco/insert_only_hash_array.cuh>
 #include "../nvtx3.hpp"
 #include "cudf/concurrent_unordered_map.cuh"
+#include "SlabHash/src/gpu_hash_table.cuh"
 
 #include <thrust/for_each.h>
 #include <iostream>
@@ -44,6 +45,8 @@ static void BM_cudf_construction(::benchmark::State& state) {
       ((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
        int64_t(state.range(0))));
 }
+
+/*
 BENCHMARK_TEMPLATE(BM_cudf_construction, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->RangeMultiplier(10)
@@ -53,6 +56,7 @@ BENCHMARK_TEMPLATE(BM_cudf_construction, int64_t, int64_t)
     ->Unit(benchmark::kMillisecond)
     ->RangeMultiplier(10)
     ->Range(10'000, 100'000'000);
+    */
 
 /**
  * @brief Benchmarks the time it takes to construct a cuco hash map of a given
@@ -73,6 +77,8 @@ static void BM_cuco_construction(::benchmark::State& state) {
                            int64_t(state.iterations()) *
                            int64_t(state.range(0))));
 }
+
+/*
 BENCHMARK_TEMPLATE(BM_cuco_construction, int32_t, int32_t)
     //->UseManualTime()
     ->Unit(benchmark::kMillisecond)
@@ -84,6 +90,52 @@ BENCHMARK_TEMPLATE(BM_cuco_construction, int64_t, int64_t)
     ->Unit(benchmark::kMillisecond)
     ->RangeMultiplier(10)
     ->Range(10'000, 100'000'000);
+*/
+
+
+
+/**
+ * @brief Generates input sizes and number of buckets for SlabHash
+ */
+static void genNumKeysAndNumSlabs32(benchmark::internal::Benchmark *b) {
+  for(auto i = 10'000; i < 1'000'000'000; i *= 10) {
+    for(auto j = 1; j < 2; ++j) {
+      b->Args({i, j});
+    }    
+  }
+}
+
+/**
+ * @brief Benchmarks the time it takes to construct a SlabHash hash map of a
+ * given size.
+ */
+template <typename Key, typename Value>
+static void BM_slabhash_construction(::benchmark::State& state) {
+  using map_type = gpu_hash_table<Key, Value, SlabHashTypeT::ConcurrentMap>;
+
+  uint32_t numKeys = state.range(0);
+  uint32_t numSlabsPerBucketAvg = state.range(1);
+  uint32_t numKeysPerSlab = 15u;//ConcurrentMapT<Key, Value>::SlabTypeT.NUM_ELEMENTS_PER_SLAB;
+  uint32_t numKeysPerBucketAvg = numSlabsPerBucketAvg * numKeysPerSlab;
+  uint32_t numBuckets = (numKeys + numKeysPerBucketAvg - 1) / numKeysPerBucketAvg;
+  const uint32_t deviceIdx = 0;
+  const int64_t seed = 1;
+  
+  for(auto _ : state)  {
+    map_type map{numKeys, numBuckets, deviceIdx, seed};
+    cudaDeviceSynchronize();
+  }
+  
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                           int64_t(state.iterations()) *
+                           int64_t(numKeys));
+}
+/*
+BENCHMARK_TEMPLATE(BM_slabhash_construction, int32_t, int32_t)
+    //->UseManualTime()
+    ->Unit(benchmark::kMillisecond)
+    ->Apply(genNumKeysAndNumSlabs32);
+*/
 
 /**
  * @brief Generates input sizes and hash table occupancies
@@ -128,6 +180,7 @@ static void BM_cuco_insert_unique_keys(::benchmark::State& state) {
                           int64_t(state.range(0)));
 }
 
+/*
 BENCHMARK_TEMPLATE(BM_cuco_insert_unique_keys, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(generate_size_and_occupancy);
@@ -135,6 +188,7 @@ BENCHMARK_TEMPLATE(BM_cuco_insert_unique_keys, int32_t, int32_t)
 BENCHMARK_TEMPLATE(BM_cuco_insert_unique_keys, int64_t, int64_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(generate_size_and_occupancy);
+*/
 
 template <typename Key, typename Value>
 static void BM_cudf_insert_unique_keys(::benchmark::State& state) {
@@ -163,6 +217,8 @@ static void BM_cudf_insert_unique_keys(::benchmark::State& state) {
                           int64_t(state.iterations()) *
                           int64_t(state.range(0)));
 }
+
+/*
 BENCHMARK_TEMPLATE(BM_cudf_insert_unique_keys, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(generate_size_and_occupancy);
@@ -172,3 +228,59 @@ BENCHMARK_TEMPLATE(BM_cudf_insert_unique_keys, unsigned long long int,
                    unsigned long long int)
     ->Unit(benchmark::kMillisecond)
     ->Apply(generate_size_and_occupancy);
+*/
+
+/**
+ * @brief Generates input sizes and number of buckets for SlabHash
+ */
+static void genSizeOccupancySlabs(benchmark::internal::Benchmark *b) {
+  for (auto occupancy = 40; occupancy <= 90; occupancy += 10) {
+    for (auto size = 100'000; size <= 100'000'000; size *= 10) {
+      for(auto numSlabsPerBucketAvg = 1; numSlabsPerBucketAvg < 2; ++numSlabsPerBucketAvg) {
+        b->Args({size, occupancy, numSlabsPerBucketAvg});
+      }
+    }
+  }
+}
+
+template <typename Key, typename Value>
+static void BM_slabhash_insert_unique_keys(::benchmark::State& state) {
+  /* 
+   * To adjust the occupancy, we fix the average number of slabs per bucket and
+   * instead manipulate the total number of buckets
+   */
+  
+  using map_type = gpu_hash_table<Key, Value, SlabHashTypeT::ConcurrentMap>;
+
+  uint32_t numKeys = state.range(0);
+  uint32_t numSlabsPerBucketAvg = state.range(2);
+  uint32_t numKeysPerSlab = 15u;
+  uint32_t numKeysPerBucketAvg = numSlabsPerBucketAvg * numKeysPerSlab;
+  double occupancy = (state.range(1) / double{100});
+  uint32_t numBuckets = 
+    (numKeys + numKeysPerBucketAvg - 1) / (numKeysPerBucketAvg * occupancy);
+  const uint32_t deviceIdx = 0;
+  const int64_t seed = 1;
+
+  map_type map{numKeys, numBuckets, deviceIdx, seed};
+  
+  // initialize key-value pairs for insertion
+  Key *keys = new Key[numKeys];
+  Value *values = new Value[numKeys];
+  for(auto i = 0; i < numKeys; ++i) {
+    keys[i] = i;
+    values[i] = i;
+  }
+
+  for(auto _ : state) {
+    map.hash_build_with_unique_keys(keys, values, numKeys);
+  }
+  
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                          int64_t(state.iterations()) *
+                          int64_t(state.range(0)));
+}
+
+BENCHMARK_TEMPLATE(BM_slabhash_insert_unique_keys, int32_t, int32_t)
+    ->Unit(benchmark::kMillisecond)
+    ->Apply(genSizeOccupancySlabs);
