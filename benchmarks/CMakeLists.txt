@@ -72,4 +72,10 @@ set(RBK_BENCH_SRC
 
 ConfigureBench(RBK_BENCH "${RBK_BENCH_SRC}")
 
+# individual benchmarks 
+set(SLAB_BENCH_SRC
+  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/slab_hash_bench.cu")
+
+ConfigureBench(SLAB_BENCH "${SLAB_BENCH_SRC}")
+
 ###################################################################################################

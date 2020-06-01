@@ -297,6 +297,7 @@ static void BM_cuco_search_all(::benchmark::State& state) {
                           int64_t(state.range(0)));
 }
 
+
 BENCHMARK_TEMPLATE(BM_cuco_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(generate_size_and_occupancy);
@@ -441,11 +442,11 @@ static void BM_cudf_search_all(::benchmark::State& state) {
                           int64_t(state.range(0)));
 }
 
-/*
+
 BENCHMARK_TEMPLATE(BM_cudf_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(generate_size_and_occupancy);
-*/
+
 
 
 /**
@@ -453,7 +454,7 @@ BENCHMARK_TEMPLATE(BM_cudf_search_all, int32_t, int32_t)
  */
 static void genSizeSlabs(benchmark::internal::Benchmark *b) {
   for (auto size = 100'000; size <= 10'000'000; size *= 10) {
-    for(auto deciSPBAvg = 1; deciSPBAvg < 30; ++deciSPBAvg) {
+    for(auto deciSPBAvg = 1; deciSPBAvg < 20; ++deciSPBAvg) {
       b->Args({size, deciSPBAvg});
     }
   }
@@ -634,8 +635,6 @@ static void BM_slabhash_search_all(::benchmark::State& state) {
                                      int64_t(state.range(0)) / (1'000'000 * searchTime);
 }
 
-/*
 BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(genSizeSlabs);
-*/
