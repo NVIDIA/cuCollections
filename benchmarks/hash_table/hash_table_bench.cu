@@ -89,7 +89,7 @@ BENCHMARK_TEMPLATE(BM_cuco_construction, int32_t, int32_t)
  * @brief Generates input sizes and number of buckets for SlabHash
  */
 static void genNumKeysAndNumSlabs32(benchmark::internal::Benchmark *b) {
-  for(auto i = 10'000; i < 1'000'000'000; i *= 10) {
+  for(auto i = 100'000; i < 10'000'000; i *= 7) {
     for(auto j = 1; j < 2; ++j) {
       b->Args({i, j});
     }    
@@ -138,8 +138,8 @@ BENCHMARK_TEMPLATE(BM_slabhash_construction, int32_t, int32_t)
  *
  */
 static void generate_size_and_occupancy(benchmark::internal::Benchmark* b) {
-  for (auto occupancy = 40; occupancy <= 90; occupancy += 10) {
-    for (auto size = 100'000; size <= 100'000'000; size *= 10) {
+  for (auto occupancy = 55; occupancy <= 56; occupancy += 10) {
+    for (auto size = 10'000'000; size <= 10'000'000; size *= 2) {
       b->Args({size, occupancy});
     }
   }
@@ -241,7 +241,6 @@ BENCHMARK_TEMPLATE(BM_cuco_insert_random_keys, int32_t, int32_t)
 */
 
 
-
 /**
  * @brief Benchmark inserting all unique keys of a given number with specified
  * hash table occupancy
@@ -297,11 +296,11 @@ static void BM_cuco_search_all(::benchmark::State& state) {
                           int64_t(state.range(0)));
 }
 
-
+/*
 BENCHMARK_TEMPLATE(BM_cuco_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(generate_size_and_occupancy);
-
+*/
 
 
 template <typename Key, typename Value>
@@ -379,18 +378,17 @@ static void BM_cudf_insert_random_keys(::benchmark::State& state) {
         });
   }
 
+  
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
                           int64_t(state.iterations()) *
                           int64_t(state.range(0)));
+                          
 }
-
 /*
 BENCHMARK_TEMPLATE(BM_cudf_insert_random_keys, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(generate_size_and_occupancy);
 */
-
-
 
 template <typename Key, typename Value>
 static void BM_cudf_search_all(::benchmark::State& state) {
@@ -401,7 +399,11 @@ static void BM_cudf_search_all(::benchmark::State& state) {
   auto numKeys = state.range(0);
   
   for (auto _ : state) {
-    state.PauseTiming();
+    nvtx3::thread_range l{"loop"};
+    {
+      nvtx3::thread_range p{"pause"};
+      state.PauseTiming();
+    }
     auto map = map_type::create(capacity);
     auto view = *map;
     
@@ -411,6 +413,7 @@ static void BM_cudf_search_all(::benchmark::State& state) {
     for(auto i = 0; i < numKeys; ++i) {
       h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
       h_values[i] = ~h_keys[i];
+
     }
 
     thrust::device_vector<Key> d_keys(numKeys);
@@ -428,8 +431,10 @@ static void BM_cudf_search_all(::benchmark::State& state) {
         [view] __device__(auto const& p) mutable {
           view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
         });
+    nvtx3::thread_range s{"resume timing"};
     state.ResumeTiming();
-
+    
+    nvtx3::thread_range r{"search"};
     thrust::for_each(
       thrust::device, key_iterator, key_iterator + state.range(0),
       [view] __device__(auto const& p) mutable {
@@ -453,8 +458,8 @@ BENCHMARK_TEMPLATE(BM_cudf_search_all, int32_t, int32_t)
  * @brief Generates input sizes and number of buckets for SlabHash
  */
 static void genSizeSlabs(benchmark::internal::Benchmark *b) {
-  for (auto size = 100'000; size <= 10'000'000; size *= 10) {
-    for(auto deciSPBAvg = 1; deciSPBAvg < 20; ++deciSPBAvg) {
+  for (auto size = 10'000'000; size <= 10'000'000; size *= 2) {
+    for(auto deciSPBAvg = 6; deciSPBAvg < 7; ++deciSPBAvg) {
       b->Args({size, deciSPBAvg});
     }
   }
@@ -531,7 +536,7 @@ static void BM_slabhash_insert_random_keys(::benchmark::State& state) {
   using map_type = gpu_hash_table<Key, Value, SlabHashTypeT::ConcurrentMap>;
 
   uint32_t numKeys = state.range(0);
-  float numSlabsPerBucketAvg = state.range(1) / float{10};
+  float numSlabsPerBucketAvg = 0.6;//state.range(1) / float{10};
   uint32_t numKeysPerSlab = 15u;
   uint32_t numKeysPerBucketAvg = numSlabsPerBucketAvg * numKeysPerSlab;
   uint32_t numBuckets = 
@@ -635,6 +640,8 @@ static void BM_slabhash_search_all(::benchmark::State& state) {
                                      int64_t(state.range(0)) / (1'000'000 * searchTime);
 }
 
+/*
 BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(genSizeSlabs);
+*/
