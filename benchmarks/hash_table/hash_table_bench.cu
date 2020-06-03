@@ -138,8 +138,8 @@ BENCHMARK_TEMPLATE(BM_slabhash_construction, int32_t, int32_t)
  *
  */
 static void generate_size_and_occupancy(benchmark::internal::Benchmark* b) {
-  for (auto occupancy = 55; occupancy <= 56; occupancy += 10) {
-    for (auto size = 10'000'000; size <= 10'000'000; size *= 2) {
+  for (auto occupancy = 40; occupancy <= 90; occupancy += 10) {
+    for (auto size = 100'000; size <= 100'000'000; size *= 10) {
       b->Args({size, occupancy});
     }
   }
@@ -198,47 +198,52 @@ static void BM_cuco_insert_random_keys(::benchmark::State& state) {
   auto occupancy = (state.range(1) / double{100});
   auto capacity = state.range(0) / occupancy;
   auto numKeys = state.range(0);
+    
+  std::mt19937 rng(/* seed = */ 12);
+  std::vector<Key> h_keys(numKeys);
+  std::vector<Value> h_values(numKeys);
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
+    h_values[i] = ~h_keys[i];
+  }
+
+  thrust::device_vector<Key> d_keys(numKeys);
+  thrust::device_vector<Key> d_values(numKeys);
+  thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
+  thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
+
+  auto key_iterator = d_keys.begin();
+  auto value_iterator = d_values.begin();
+  auto zip_counter = thrust::make_zip_iterator(
+  thrust::make_tuple(key_iterator, value_iterator));
+
 
   for (auto _ : state) {
+    
+    state.ResumeTiming();
     state.PauseTiming();
     map_type map{capacity, -1};
     auto view = map.get_device_view();
-    
-    std::mt19937 rng(/* seed = */ 12);
-    std::vector<Key> h_keys(numKeys);
-    std::vector<Value> h_values(numKeys);
-    for(auto i = 0; i < numKeys; ++i) {
-      h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
-      h_values[i] = ~h_keys[i];
-    }
-
-    thrust::device_vector<Key> d_keys(numKeys);
-    thrust::device_vector<Key> d_values(numKeys);
-    thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
-    thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
-
-    auto key_iterator = d_keys.begin();
-    auto value_iterator = d_values.begin();
-    auto zip_counter = thrust::make_zip_iterator(
-        thrust::make_tuple(key_iterator, value_iterator));
     state.ResumeTiming();
-
+  
     thrust::for_each(
-        thrust::device, zip_counter, zip_counter + state.range(0),
-        [view] __device__(auto const& p) mutable {
-          view.insert(cuco::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
-        });
+      thrust::device, zip_counter, zip_counter + state.range(0),
+      [view] __device__(auto const& p) mutable {
+        view.insert(cuco::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+      });
+    
+    state.PauseTiming();
   }
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
                           int64_t(state.iterations()) *
                           int64_t(state.range(0)));
 }
 
-/*
+
 BENCHMARK_TEMPLATE(BM_cuco_insert_random_keys, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(generate_size_and_occupancy);
-*/
+
 
 
 /**
@@ -253,37 +258,35 @@ static void BM_cuco_search_all(::benchmark::State& state) {
   auto occupancy = (state.range(1) / double{100});
   auto capacity = state.range(0) / occupancy;
   auto numKeys = state.range(0);
+  
+  map_type map{capacity, -1};
+  auto view = map.get_device_view();
+
+  std::mt19937 rng(/* seed = */ 12);
+  std::vector<Key> h_keys(numKeys);
+  std::vector<Value> h_values(numKeys);
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
+    h_values[i] = ~h_keys[i];
+  }
+
+  thrust::device_vector<Key> d_keys(numKeys);
+  thrust::device_vector<Key> d_values(numKeys);
+  thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
+  thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
+
+  auto key_iterator = d_keys.begin();
+  auto value_iterator = d_values.begin();
+  auto zip_counter = thrust::make_zip_iterator(
+      thrust::make_tuple(key_iterator, value_iterator));
+
+  thrust::for_each(
+      thrust::device, zip_counter, zip_counter + state.range(0),
+      [view] __device__(auto const& p) mutable {
+        view.insert(cuco::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+      });
 
   for (auto _ : state) {
-    state.PauseTiming();
-    map_type map{capacity, -1};
-    auto view = map.get_device_view();
-
-    std::mt19937 rng(/* seed = */ 12);
-    std::vector<Key> h_keys(numKeys);
-    std::vector<Value> h_values(numKeys);
-    for(auto i = 0; i < numKeys; ++i) {
-      h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
-      h_values[i] = ~h_keys[i];
-    }
-
-    thrust::device_vector<Key> d_keys(numKeys);
-    thrust::device_vector<Key> d_values(numKeys);
-    thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
-    thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
-
-    auto key_iterator = d_keys.begin();
-    auto value_iterator = d_values.begin();
-    auto zip_counter = thrust::make_zip_iterator(
-        thrust::make_tuple(key_iterator, value_iterator));
-
-    thrust::for_each(
-        thrust::device, zip_counter, zip_counter + state.range(0),
-        [view] __device__(auto const& p) mutable {
-          view.insert(cuco::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
-        });
-    state.ResumeTiming();
-
     thrust::for_each(
         thrust::device, key_iterator, key_iterator + state.range(0),
         [view] __device__(auto const& p) mutable {
@@ -309,16 +312,15 @@ static void BM_cudf_insert_unique_keys(::benchmark::State& state) {
 
   auto occupancy = (state.range(1) / double{100});
   auto capacity = state.range(0) / occupancy;
-  for (auto _ : state) {
-    state.PauseTiming();
-    auto map = map_type::create(capacity);
-    auto view = *map;
-    auto key_iterator = thrust::make_counting_iterator<Key>(0);
-    auto value_iterator = thrust::make_counting_iterator<Value>(0);
-    auto zip_counter = thrust::make_zip_iterator(
-        thrust::make_tuple(key_iterator, value_iterator));
+  
+  auto map = map_type::create(capacity);
+  auto view = *map;
+  auto key_iterator = thrust::make_counting_iterator<Key>(0);
+  auto value_iterator = thrust::make_counting_iterator<Value>(0);
+  auto zip_counter = thrust::make_zip_iterator(
+  thrust::make_tuple(key_iterator, value_iterator));
 
-    state.ResumeTiming();
+  for (auto _ : state) {
     thrust::for_each(
         thrust::device, zip_counter, zip_counter + state.range(0),
         [view] __device__(auto const& p) mutable {
@@ -347,35 +349,39 @@ static void BM_cudf_insert_random_keys(::benchmark::State& state) {
   auto capacity = state.range(0) / occupancy;
   auto numKeys = state.range(0);
   
+  std::mt19937 rng(/* seed = */ 12);
+  std::vector<Key> h_keys(numKeys);
+  std::vector<Value> h_values(numKeys);
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
+    h_values[i] = ~h_keys[i];
+  }
+
+  thrust::device_vector<Key> d_keys(numKeys);
+  thrust::device_vector<Key> d_values(numKeys);
+  thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
+  thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
+
+  auto key_iterator = d_keys.begin();
+  auto value_iterator = d_values.begin();
+  auto zip_counter = thrust::make_zip_iterator(
+      thrust::make_tuple(key_iterator, value_iterator));
+  
   for (auto _ : state) {
+    
+    state.ResumeTiming();
     state.PauseTiming();
     auto map = map_type::create(capacity);
     auto view = *map;
-    
-    std::mt19937 rng(/* seed = */ 12);
-    std::vector<Key> h_keys(numKeys);
-    std::vector<Value> h_values(numKeys);
-    for(auto i = 0; i < numKeys; ++i) {
-      h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
-      h_values[i] = ~h_keys[i];
-    }
-
-    thrust::device_vector<Key> d_keys(numKeys);
-    thrust::device_vector<Key> d_values(numKeys);
-    thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
-    thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
-
-    auto key_iterator = d_keys.begin();
-    auto value_iterator = d_values.begin();
-    auto zip_counter = thrust::make_zip_iterator(
-        thrust::make_tuple(key_iterator, value_iterator));
     state.ResumeTiming();
-
+    
     thrust::for_each(
         thrust::device, zip_counter, zip_counter + state.range(0),
         [view] __device__(auto const& p) mutable {
           view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
         });
+
+    state.PauseTiming();
   }
 
   
@@ -384,11 +390,12 @@ static void BM_cudf_insert_random_keys(::benchmark::State& state) {
                           int64_t(state.range(0)));
                           
 }
-/*
+
 BENCHMARK_TEMPLATE(BM_cudf_insert_random_keys, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(generate_size_and_occupancy);
-*/
+
+
 
 template <typename Key, typename Value>
 static void BM_cudf_search_all(::benchmark::State& state) {
@@ -398,43 +405,35 @@ static void BM_cudf_search_all(::benchmark::State& state) {
   auto capacity = state.range(0) / occupancy;
   auto numKeys = state.range(0);
   
+  auto map = map_type::create(capacity);
+  auto view = *map;
+  
+  std::mt19937 rng(/* seed = */ 12);
+  std::vector<Key> h_keys(numKeys);
+  std::vector<Value> h_values(numKeys);
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
+    h_values[i] = ~h_keys[i];
+
+  }
+
+  thrust::device_vector<Key> d_keys(numKeys);
+  thrust::device_vector<Key> d_values(numKeys);
+  thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
+  thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
+
+  auto key_iterator = d_keys.begin();
+  auto value_iterator = d_values.begin();
+  auto zip_counter = thrust::make_zip_iterator(
+      thrust::make_tuple(key_iterator, value_iterator));
+
+  thrust::for_each(
+      thrust::device, zip_counter, zip_counter + state.range(0),
+      [view] __device__(auto const& p) mutable {
+        view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+      });
+
   for (auto _ : state) {
-    nvtx3::thread_range l{"loop"};
-    {
-      nvtx3::thread_range p{"pause"};
-      state.PauseTiming();
-    }
-    auto map = map_type::create(capacity);
-    auto view = *map;
-    
-    std::mt19937 rng(/* seed = */ 12);
-    std::vector<Key> h_keys(numKeys);
-    std::vector<Value> h_values(numKeys);
-    for(auto i = 0; i < numKeys; ++i) {
-      h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
-      h_values[i] = ~h_keys[i];
-
-    }
-
-    thrust::device_vector<Key> d_keys(numKeys);
-    thrust::device_vector<Key> d_values(numKeys);
-    thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
-    thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
-
-    auto key_iterator = d_keys.begin();
-    auto value_iterator = d_values.begin();
-    auto zip_counter = thrust::make_zip_iterator(
-        thrust::make_tuple(key_iterator, value_iterator));
-
-    thrust::for_each(
-        thrust::device, zip_counter, zip_counter + state.range(0),
-        [view] __device__(auto const& p) mutable {
-          view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
-        });
-    nvtx3::thread_range s{"resume timing"};
-    state.ResumeTiming();
-    
-    nvtx3::thread_range r{"search"};
     thrust::for_each(
       thrust::device, key_iterator, key_iterator + state.range(0),
       [view] __device__(auto const& p) mutable {
@@ -447,19 +446,19 @@ static void BM_cudf_search_all(::benchmark::State& state) {
                           int64_t(state.range(0)));
 }
 
-
+/*
 BENCHMARK_TEMPLATE(BM_cudf_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(generate_size_and_occupancy);
-
+*/
 
 
 /**
  * @brief Generates input sizes and number of buckets for SlabHash
  */
 static void genSizeSlabs(benchmark::internal::Benchmark *b) {
-  for (auto size = 10'000'000; size <= 10'000'000; size *= 2) {
-    for(auto deciSPBAvg = 6; deciSPBAvg < 7; ++deciSPBAvg) {
+  for (auto size = 100'000; size <= 100'000'000; size *= 2) {
+    for(auto deciSPBAvg = 6; deciSPBAvg <= 6; ++deciSPBAvg) {
       b->Args({size, deciSPBAvg});
     }
   }
@@ -536,7 +535,7 @@ static void BM_slabhash_insert_random_keys(::benchmark::State& state) {
   using map_type = gpu_hash_table<Key, Value, SlabHashTypeT::ConcurrentMap>;
 
   uint32_t numKeys = state.range(0);
-  float numSlabsPerBucketAvg = 0.6;//state.range(1) / float{10};
+  float numSlabsPerBucketAvg = state.range(1) / float{10};
   uint32_t numKeysPerSlab = 15u;
   uint32_t numKeysPerBucketAvg = numSlabsPerBucketAvg * numKeysPerSlab;
   uint32_t numBuckets = 
@@ -578,11 +577,11 @@ static void BM_slabhash_insert_random_keys(::benchmark::State& state) {
                                      int64_t(state.range(0)) / (1'000'000 * buildTime);
 }
 
-/*
+
 BENCHMARK_TEMPLATE(BM_slabhash_insert_random_keys, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(genSizeSlabs);
-*/
+
 
 
 
@@ -640,8 +639,7 @@ static void BM_slabhash_search_all(::benchmark::State& state) {
                                      int64_t(state.range(0)) / (1'000'000 * searchTime);
 }
 
-/*
+
 BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(genSizeSlabs);
-*/
