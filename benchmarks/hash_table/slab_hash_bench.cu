@@ -31,7 +31,7 @@ static void cuco_search_all() {
   using map_type =
       cuco::insert_only_hash_array<Key, Value, cuda::thread_scope_device>;
 
-  auto numKeys = 10'000'000;
+  auto numKeys = 100'000'000;
   auto occupancy = 0.55;
   auto capacity = numKeys / occupancy;
 
@@ -55,18 +55,24 @@ static void cuco_search_all() {
   auto value_iterator = d_values.begin();
   auto zip_counter = thrust::make_zip_iterator(
       thrust::make_tuple(key_iterator, value_iterator));
+  
+  {    
+    nvtx3::thread_range b{"cuco build"};
+    thrust::for_each(
+        thrust::device, zip_counter, zip_counter + numKeys,
+        [view] __device__(auto const& p) mutable {
+          view.insert(cuco::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+        });
+  }
 
-  thrust::for_each(
-      thrust::device, zip_counter, zip_counter + numKeys,
-      [view] __device__(auto const& p) mutable {
-        view.insert(cuco::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
-      });
-
-  thrust::for_each(
-      thrust::device, key_iterator, key_iterator + numKeys,
-      [view] __device__(auto const& p) mutable {
-        view.find(p);
-      });
+  {
+    nvtx3::thread_range s{"cuco search"};
+    thrust::for_each(
+        thrust::device, key_iterator, key_iterator + numKeys,
+        [view] __device__(auto const& p) mutable {
+          view.find(p);
+        });
+  }
 }
 
 
@@ -75,7 +81,7 @@ template <typename Key, typename Value>
 static void cudf_search_all() {
   using map_type = concurrent_unordered_map<Key, Value>;
   
-  auto numKeys = 10'000'000;
+  auto numKeys = 100'000'000;
   auto occupancy = 0.55;
   auto capacity = numKeys / occupancy;
 
@@ -99,20 +105,24 @@ static void cudf_search_all() {
   auto value_iterator = d_values.begin();
   auto zip_counter = thrust::make_zip_iterator(
       thrust::make_tuple(key_iterator, value_iterator));
-
-  thrust::for_each(
-      thrust::device, zip_counter, zip_counter + numKeys,
-      [view] __device__(auto const& p) mutable {
-        view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
-      });
   
-  nvtx3::thread_range r{"search"};
-  thrust::for_each(
-    thrust::device, key_iterator, key_iterator + numKeys,
-    [view] __device__(auto const& p) mutable {
-      view.find(p);
-    });
-  nvtx3::thread_range l;
+  {    
+    nvtx3::thread_range b{"cudf build"};
+    thrust::for_each(
+        thrust::device, zip_counter, zip_counter + numKeys,
+        [view] __device__(auto const& p) mutable {
+          view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+        });
+  }
+  
+  {
+    nvtx3::thread_range s{"cudf search"};
+    thrust::for_each(
+      thrust::device, key_iterator, key_iterator + numKeys,
+      [view] __device__(auto const& p) mutable {
+        view.find(p);
+      });
+  }
 }
 
 template <typename Key, typename Value>
@@ -124,7 +134,7 @@ static void slabhash_search_all() {
   
   using map_type = gpu_hash_table<Key, Value, SlabHashTypeT::ConcurrentMap>;
 
-  uint32_t numKeys = 10'000'000;
+  uint32_t numKeys = 100'000'000;
   float numSlabsPerBucketAvg = 6 / float{10};
   uint32_t numKeysPerSlab = 15u;
   uint32_t numKeysPerBucketAvg = numSlabsPerBucketAvg * numKeysPerSlab;
@@ -151,10 +161,10 @@ static void slabhash_search_all() {
 
 int main() {
   
-  for(auto i = 0; i < 10; ++i) {
+  for(auto i = 0; i < 1; ++i) {
     cudf_search_all<int32_t, int32_t>();
-    //cuco_search_all<int32_t, int32_t>();
-    //slabhash_search_all<int32_t, int32_t>();
+    cuco_search_all<int32_t, int32_t>();
+    slabhash_search_all<int32_t, int32_t>();
   }
 
   return 0;
