@@ -72,6 +72,12 @@ static void SlabSweepLoad(benchmark::internal::Benchmark *b) {
   }
 }
 
+static void ResizeSweep(benchmark::internal::Benchmark *b) {
+  for(auto size = 300'000'000; size <= 300'000'000; size *= 2) {
+    b->Args({size});
+  }
+}
+
 
 
 /**
@@ -174,35 +180,6 @@ static void BM_cuco_search_all(::benchmark::State& state) {
         thrust::device, key_iterator, key_iterator + state.range(0),
         [view] __device__(auto const& p) mutable {
           view.find(p);
-        });
-  }
-
-  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
-                          int64_t(state.iterations()) *
-                          int64_t(state.range(0)));
-}
-
-
-
-template <typename Key, typename Value>
-static void BM_cudf_insert_unique_keys(::benchmark::State& state) {
-  using map_type = concurrent_unordered_map<Key, Value>;
-
-  auto occupancy = (state.range(1) / double{100});
-  auto capacity = state.range(0) / occupancy;
-  
-  auto map = map_type::create(capacity);
-  auto view = *map;
-  auto key_iterator = thrust::make_counting_iterator<Key>(0);
-  auto value_iterator = thrust::make_counting_iterator<Value>(0);
-  auto zip_counter = thrust::make_zip_iterator(
-  thrust::make_tuple(key_iterator, value_iterator));
-
-  for (auto _ : state) {
-    thrust::for_each(
-        thrust::device, zip_counter, zip_counter + state.range(0),
-        [view] __device__(auto const& p) mutable {
-          view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
         });
   }
 
@@ -317,6 +294,62 @@ static void BM_cudf_search_all(::benchmark::State& state) {
 
 
 template <typename Key, typename Value>
+static void BM_cudf_insert_resize(::benchmark::State& state) {
+  using map_type = concurrent_unordered_map<Key, Value>;
+
+  auto numKeys = 300'000'000;
+  auto resizeOccupancy = 0.60;
+  
+  std::mt19937 rng(/* seed = */ 12);
+  std::vector<Key> h_keys(numKeys);
+  std::vector<Value> h_values(numKeys);
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
+    h_values[i] = ~h_keys[i];
+  }
+
+  thrust::device_vector<Key> d_keys(numKeys);
+  thrust::device_vector<Key> d_values(numKeys);
+  thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
+  thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
+
+  auto key_iterator = d_keys.begin();
+  auto value_iterator = d_values.begin();
+  auto zip_counter = thrust::make_zip_iterator(
+      thrust::make_tuple(key_iterator, value_iterator));
+    
+  for (auto _ : state) {
+    
+    state.ResumeTiming();
+    state.PauseTiming();
+    auto map = map_type::create(294'000'000);
+    auto view = *map;
+    state.ResumeTiming();
+    
+    thrust::for_each(
+        thrust::device, zip_counter, zip_counter + (uint32_t) (resizeOccupancy * numKeys),
+        [view] __device__(auto const& p) mutable {
+          view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+        });
+
+    state.PauseTiming();
+    map = map_type::create(428'000'000);
+    view = *map;
+    state.ResumeTiming();
+
+    thrust::for_each(
+        thrust::device, zip_counter, zip_counter + numKeys,
+        [view] __device__(auto const& p) mutable {
+          view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+        });
+
+    state.PauseTiming();
+  }
+}
+
+
+
+template <typename Key, typename Value>
 static void BM_slabhash_insert_random_keys(::benchmark::State& state) {
   /* 
    * To adjust the occupancy, we fix the average number of slabs per bucket and
@@ -408,7 +441,7 @@ static void BM_slabhash_search_all(::benchmark::State& state) {
     map.hash_build(keys, values, numKeys);
     state.ResumeTiming();
 
-    searchTime += map.hash_search_bulk(keys, results, numKeys);
+    searchTime += map.hash_search(keys, results, numKeys);
 
     state.PauseTiming();
     avgLoadFactor += map.measureLoadFactor();
@@ -423,6 +456,49 @@ static void BM_slabhash_search_all(::benchmark::State& state) {
   state.counters["GBytesPerSecond"] = (sizeof(Key) + sizeof(Value)) *
                                      int64_t(state.range(0)) / (1'000'000 * searchTime);
 }
+
+
+
+template <typename Key, typename Value>
+static void BM_slabhash_insert_resize(::benchmark::State& state) {
+  /* 
+   * To adjust the occupancy, we fix the average number of slabs per bucket and
+   * instead manipulate the total number of buckets
+   */
+  
+  using map_type = gpu_hash_table<Key, Value, SlabHashTypeT::ConcurrentMap>;
+
+  uint32_t numKeys = 300'000'000;
+  float numSlabsPerBucketAvg = 20 / float{10};
+  uint32_t numKeysPerSlab = 15u;
+  uint32_t numKeysPerBucketAvg = numSlabsPerBucketAvg * numKeysPerSlab;
+  uint32_t numBuckets = 
+    (numKeys + numKeysPerBucketAvg - 1) / numKeysPerBucketAvg;
+  const uint32_t deviceIdx = 0;
+  const int64_t seed = 1;
+
+  
+  // initialize key-value pairs for insertion
+  std::mt19937 rng(/* seed = */ 12);
+  Key *keys = new Key[numKeys];
+  Value *values = new Value[numKeys];
+  for(auto i = 0; i < numKeys; ++i) {
+    keys[i] = int32_t(rng() & 0x7FFFFFFF);
+    values[i] = ~keys[i];
+  }
+
+  auto buildTime = 0.0;
+
+  for(auto _ : state) {
+    state.PauseTiming();
+    map_type map{numKeys, numBuckets, deviceIdx, seed};
+    state.ResumeTiming();
+
+    buildTime = map.hash_build(keys, values, numKeys);
+    state.SetIterationTime((float)buildTime / 1000);
+  }
+}
+
 
 
 /*
@@ -452,6 +528,11 @@ BENCHMARK_TEMPLATE(BM_cudf_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(cuSweepSize);
 */
+
+BENCHMARK_TEMPLATE(BM_cudf_insert_resize, int32_t, int32_t)
+    ->Unit(benchmark::kMillisecond);
+
+/*
 // SlabHash tests
 BENCHMARK_TEMPLATE(BM_slabhash_insert_random_keys, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
@@ -460,3 +541,8 @@ BENCHMARK_TEMPLATE(BM_slabhash_insert_random_keys, int32_t, int32_t)
 BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(SlabSweepLoad);
+*/
+
+BENCHMARK_TEMPLATE(BM_slabhash_insert_resize, int32_t, int32_t)
+    ->Unit(benchmark::kMillisecond)
+    ->UseManualTime();

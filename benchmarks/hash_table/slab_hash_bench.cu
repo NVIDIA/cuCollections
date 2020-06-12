@@ -106,7 +106,7 @@ static void cudf_search_all() {
   auto zip_counter = thrust::make_zip_iterator(
       thrust::make_tuple(key_iterator, value_iterator));
   
-  {    
+  { 
     nvtx3::thread_range b{"cudf build"};
     thrust::for_each(
         thrust::device, zip_counter, zip_counter + numKeys,
@@ -134,8 +134,8 @@ static void slabhash_search_all() {
   
   using map_type = gpu_hash_table<Key, Value, SlabHashTypeT::ConcurrentMap>;
 
-  uint32_t numKeys = 100'000'000;
-  float numSlabsPerBucketAvg = 6 / float{10};
+  uint32_t numKeys = 300'000'000;
+  float numSlabsPerBucketAvg = 20 / float{10};
   uint32_t numKeysPerSlab = 15u;
   uint32_t numKeysPerBucketAvg = numSlabsPerBucketAvg * numKeysPerSlab;
   uint32_t numBuckets =
@@ -155,15 +155,24 @@ static void slabhash_search_all() {
   Value *results = new Value[numKeys];
 
   map_type map{numKeys, numBuckets, deviceIdx, seed};
+  
   map.hash_build(keys, values, numKeys);
-  map.hash_search_bulk(keys, results, numKeys);
+  map.hash_search(keys, results, numKeys);
+  
+  for(auto i = 0; i < numKeys; ++i) {
+    if(keys[i] != ~results[i]) {
+      std::cout << "Key-value mismatch at index " << i << std::endl;
+      break;
+    }
+  }
+  
 }
 
 int main() {
   
   for(auto i = 0; i < 1; ++i) {
-    cudf_search_all<int32_t, int32_t>();
-    cuco_search_all<int32_t, int32_t>();
+    //cudf_search_all<int32_t, int32_t>();
+    //cuco_search_all<int32_t, int32_t>();
     slabhash_search_all<int32_t, int32_t>();
   }
 
