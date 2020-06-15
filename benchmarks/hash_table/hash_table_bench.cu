@@ -73,7 +73,7 @@ static void SlabSweepLoad(benchmark::internal::Benchmark *b) {
 }
 
 static void ResizeSweep(benchmark::internal::Benchmark *b) {
-  for(auto size = 300'000'000; size <= 300'000'000; size *= 2) {
+  for(auto size = 10'000'000; size <= 310'000'000; size += 20'000'000) {
     b->Args({size});
   }
 }
@@ -297,8 +297,9 @@ template <typename Key, typename Value>
 static void BM_cudf_insert_resize(::benchmark::State& state) {
   using map_type = concurrent_unordered_map<Key, Value>;
 
-  auto numKeys = 300'000'000;
-  auto resizeOccupancy = 0.60;
+  auto numKeys = state.range(0);
+  auto resizeOccupancy = 0.6;
+  auto initSize = 134'217'728;
   
   std::mt19937 rng(/* seed = */ 12);
   std::vector<Key> h_keys(numKeys);
@@ -317,34 +318,54 @@ static void BM_cudf_insert_resize(::benchmark::State& state) {
   auto value_iterator = d_values.begin();
   auto zip_counter = thrust::make_zip_iterator(
       thrust::make_tuple(key_iterator, value_iterator));
-    
+      
   for (auto _ : state) {
     
-    state.ResumeTiming();
-    state.PauseTiming();
-    auto map = map_type::create(294'000'000);
-    auto view = *map;
-    state.ResumeTiming();
+    auto size = 134'217'728;
+    auto numToInsert =  std::min((uint32_t)(resizeOccupancy * size), (uint32_t) numKeys);
+    auto finished = false;
     
-    thrust::for_each(
-        thrust::device, zip_counter, zip_counter + (uint32_t) (resizeOccupancy * numKeys),
-        [view] __device__(auto const& p) mutable {
-          view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
-        });
+    auto t1 = 0;
+    auto t2 = 0;
+    auto buildTime = 0;
 
-    state.PauseTiming();
-    map = map_type::create(428'000'000);
-    view = *map;
-    state.ResumeTiming();
+    do {
+      std::chrono::steady_clock::time_point begin1 = std::chrono::steady_clock::now();
+      auto map = map_type::create(size);
+      auto view = *map;
+      std::chrono::steady_clock::time_point end1 = std::chrono::steady_clock::now();
+      
+      if(size == initSize) {
+        t1 = 0;
+      }
+      else {
+        t1 = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - begin1).count();
+      }
+      
+      std::chrono::steady_clock::time_point begin2 = std::chrono::steady_clock::now();
+      thrust::for_each(
+          thrust::device, zip_counter, zip_counter + numToInsert,
+          [view] __device__(auto const& p) mutable {
+            view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+          });
+     
+      finished = (numToInsert == numKeys);
+      size *= 2;
+      numToInsert = std::min((uint32_t) (resizeOccupancy * size), (uint32_t) numKeys);
+      std::chrono::steady_clock::time_point end2 = std::chrono::steady_clock::now();
+      
+      t2 = std::chrono::duration_cast<std::chrono::milliseconds>(end2 - begin2).count();
 
-    thrust::for_each(
-        thrust::device, zip_counter, zip_counter + numKeys,
-        [view] __device__(auto const& p) mutable {
-          view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
-        });
+      buildTime += (t1 + t2);
 
-    state.PauseTiming();
+    } while(!finished);
+
+    state.SetIterationTime((float) buildTime / 1000);
   }
+  
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                          int64_t(state.iterations()) *
+                          int64_t(state.range(0)));
 }
 
 
@@ -468,35 +489,38 @@ static void BM_slabhash_insert_resize(::benchmark::State& state) {
   
   using map_type = gpu_hash_table<Key, Value, SlabHashTypeT::ConcurrentMap>;
 
-  uint32_t numKeys = 300'000'000;
-  float numSlabsPerBucketAvg = 20 / float{10};
+  uint32_t numKeys = state.range(0);
+  /*
+  float numSlabsPerBucketAvg = 6 / float{10};
   uint32_t numKeysPerSlab = 15u;
   uint32_t numKeysPerBucketAvg = numSlabsPerBucketAvg * numKeysPerSlab;
-  uint32_t numBuckets = 
-    (numKeys + numKeysPerBucketAvg - 1) / numKeysPerBucketAvg;
+  */
+  uint32_t numBuckets = 4'194'304;
+    /*(numKeys + numKeysPerBucketAvg - 1) / numKeysPerBucketAvg; */
   const uint32_t deviceIdx = 0;
   const int64_t seed = 1;
 
   
   // initialize key-value pairs for insertion
   std::mt19937 rng(/* seed = */ 12);
-  Key *keys = new Key[numKeys];
-  Value *values = new Value[numKeys];
+  Key *keys1 = new Key[numKeys];
+  Value *values1 = new Value[numKeys];
   for(auto i = 0; i < numKeys; ++i) {
-    keys[i] = int32_t(rng() & 0x7FFFFFFF);
-    values[i] = ~keys[i];
+    keys1[i] = int32_t(rng() & 0x7FFFFFFF);
+    values1[i] = ~keys1[i];
   }
-
+  
   auto buildTime = 0.0;
-
   for(auto _ : state) {
-    state.PauseTiming();
+    //std::cout << "loop" << std::endl;
     map_type map{numKeys, numBuckets, deviceIdx, seed};
-    state.ResumeTiming();
-
-    buildTime = map.hash_build(keys, values, numKeys);
+    buildTime = map.hash_build(keys1, values1, numKeys);
     state.SetIterationTime((float)buildTime / 1000);
   }
+
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                          int64_t(state.iterations()) *
+                          int64_t(state.range(0)));
 }
 
 
@@ -530,7 +554,9 @@ BENCHMARK_TEMPLATE(BM_cudf_search_all, int32_t, int32_t)
 */
 
 BENCHMARK_TEMPLATE(BM_cudf_insert_resize, int32_t, int32_t)
-    ->Unit(benchmark::kMillisecond);
+    ->Unit(benchmark::kMillisecond)
+    ->UseManualTime()
+    ->Apply(ResizeSweep);
 
 /*
 // SlabHash tests
@@ -541,8 +567,9 @@ BENCHMARK_TEMPLATE(BM_slabhash_insert_random_keys, int32_t, int32_t)
 BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(SlabSweepLoad);
-*/
 
 BENCHMARK_TEMPLATE(BM_slabhash_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
-    ->UseManualTime();
+    ->UseManualTime()
+    ->Apply(ResizeSweep);
+*/
