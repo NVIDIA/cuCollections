@@ -512,9 +512,8 @@ static void BM_slabhash_insert_resize(::benchmark::State& state) {
   
   auto buildTime = 0.0;
   for(auto _ : state) {
-    //std::cout << "loop" << std::endl;
     map_type map{numKeys, numBuckets, deviceIdx, seed};
-    buildTime = map.hash_build(keys1, values1, numKeys);
+    buildTime = map.hash_build_with_unique_keys(keys1, values1, numKeys);
     state.SetIterationTime((float)buildTime / 1000);
   }
 
@@ -551,13 +550,12 @@ BENCHMARK_TEMPLATE(BM_cudf_search_all, int32_t, int32_t)
 BENCHMARK_TEMPLATE(BM_cudf_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(cuSweepSize);
-*/
 
 BENCHMARK_TEMPLATE(BM_cudf_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
-
+*/
 /*
 // SlabHash tests
 BENCHMARK_TEMPLATE(BM_slabhash_insert_random_keys, int32_t, int32_t)
@@ -567,9 +565,8 @@ BENCHMARK_TEMPLATE(BM_slabhash_insert_random_keys, int32_t, int32_t)
 BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(SlabSweepLoad);
-
+*/
 BENCHMARK_TEMPLATE(BM_slabhash_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
-*/
