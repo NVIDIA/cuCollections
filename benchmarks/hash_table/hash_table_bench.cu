@@ -674,8 +674,6 @@ template <typename Key, typename Value>
 static void BM_cudf_chain_insert_random_keys(::benchmark::State& state) {
   using map_type = concurrent_unordered_map_chain<Key, Value>;
 
-  auto occupancy = (state.range(1) / double{100});
-  auto capacity = state.range(0) / occupancy;
   auto numKeys = state.range(0);
   
   std::mt19937 rng(/* seed = */ 12);
@@ -685,36 +683,17 @@ static void BM_cudf_chain_insert_random_keys(::benchmark::State& state) {
     h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
     h_values[i] = ~h_keys[i];
   }
-
-  thrust::device_vector<Key> d_keys(numKeys);
-  thrust::device_vector<Key> d_values(numKeys);
-  thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
-  thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
-
-  auto key_iterator = d_keys.begin();
-  auto value_iterator = d_values.begin();
-  auto zip_counter = thrust::make_zip_iterator(
-      thrust::make_tuple(key_iterator, value_iterator));
-  
+ 
+  float buildTime = 0.0f;
   for (auto _ : state) {
-    
-    state.ResumeTiming();
-    state.PauseTiming();
-    auto map = map_type::create(capacity);
+    auto map = map_type::create(134'217'728);
     auto view = *map;
-    state.ResumeTiming();
-    
-    /*
-    thrust::for_each(
-        thrust::device, zip_counter, zip_counter + state.range(0),
-        [view] __device__(auto const& p) mutable {
-          view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
-        });
-    */
 
-    state.PauseTiming();
+    buildTime = view.bulkInsert(h_keys, h_values, numKeys);
+    state.SetIterationTime(buildTime / 1000);
+
+    view.freeSubmaps();
   }
-
   
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
                           int64_t(state.iterations()) *
@@ -732,7 +711,7 @@ static void BM_cudf_chain_search_all(::benchmark::State& state) {
   auto capacity = state.range(0) / occupancy;
   auto numKeys = state.range(0);
   
-  auto map = map_type::create(capacity);
+  auto map = map_type::create(134'217'728);
   auto view = *map;
   
   std::mt19937 rng(/* seed = */ 12);
@@ -836,4 +815,5 @@ BENCHMARK_TEMPLATE(BM_slabhash_insert_resize_search, int32_t, int32_t)
 
 BENCHMARK_TEMPLATE(BM_cudf_chain_insert_random_keys, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
-    ->Apply(cuSweepSize);
+    ->UseManualTime()
+    ->Apply(ResizeSweep);

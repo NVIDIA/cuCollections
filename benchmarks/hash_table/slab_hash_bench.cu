@@ -235,7 +235,6 @@ static void cudf_chain_search_all() {
   // insert host keys
   view.bulkInsert(h_keys, h_values, numKeys); 
 
-  /*
 
   // search for keys
   Value* d_results;
@@ -261,13 +260,10 @@ static void cudf_chain_search_all() {
 
   for(auto i = 0; i < numKeys; ++i) {
     if(h_results[i] != h_values[i]) {
-      std::cout << "Value-result mismatch " << std::endl;
+      std::cout << "Value-result mismatch at index " << i  << std::endl;
       break;
     }
   }
-
-  */
-  
 }
 
 

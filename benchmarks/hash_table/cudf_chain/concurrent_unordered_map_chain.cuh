@@ -273,6 +273,12 @@ class concurrent_unordered_map_chain {
     m_num_submaps++;
   }
   
+  void freeSubmaps() {
+    for(auto i = 0; i < m_num_submaps; ++i) {
+      m_allocator.deallocate(m_submaps[i], m_capacity);
+    }
+  }
+  
   // bulk insert kernel is called from host so that predictive resizing can be implemented
   __host__ float bulkInsert(std::vector<key_type> h_keys,
                            std::vector<mapped_type> h_values,
@@ -317,6 +323,7 @@ class concurrent_unordered_map_chain {
       
       numElementsRemaining -= numElementsToInsert;
       numElementsInserted += numElementsToInsert;
+      m_num_elements[i] += numElementsToInsert;
     }
     
     cudaEventRecord(stop, 0);
@@ -383,9 +390,9 @@ class concurrent_unordered_map_chain {
    *---------------------------------------------------------------------------**/
   __device__ const_iterator find(key_type const& k) const {
     size_type const key_hash = m_hf(k);
-    size_type index = key_hash % m_capacity;
 
     for(auto i = 0; i < m_num_submaps; ++i) {
+      size_type index = key_hash % m_capacity;
       value_type* submap = m_submaps[i];
       value_type* current_bucket = &submap[index];
       
@@ -444,9 +451,14 @@ class concurrent_unordered_map_chain {
    * from the `create()` factory function.
    *---------------------------------------------------------------------------**/
   void destroy() {
-    m_allocator.deallocate(m_hashtbl_values, m_capacity);
+    /*
+    for(auto i = 0; i < m_num_submaps; ++i) {
+      m_allocator.deallocate(m_submaps[i], m_capacity);
+    }
+    */
     delete this;
   }
+
 
   concurrent_unordered_map_chain() = delete;
   concurrent_unordered_map_chain(concurrent_unordered_map_chain const&) = default;
