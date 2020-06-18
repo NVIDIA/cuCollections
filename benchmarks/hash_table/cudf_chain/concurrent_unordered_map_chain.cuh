@@ -91,6 +91,7 @@ union pair_packer<pair_type, std::enable_if_t<is_packable<pair_type>()>> {
   __device__ pair_packer(packed_type _packed) : packed{_packed} {}
 };
 }  // namespace
+
 #endif
 
 /**
@@ -103,7 +104,7 @@ union pair_packer<pair_type, std::enable_if_t<is_packable<pair_type>()>> {
 template <typename Key, typename Element, typename Hasher = MurmurHash3_32<Key>,
           typename Equality = equal_to<Key>,
           typename Allocator = cuda_allocator<thrust::pair<Key, Element>>>
-class concurrent_unordered_map {
+class concurrent_unordered_map_chain {
  public:
   using size_type = size_t;
   using hasher = Hasher;
@@ -114,6 +115,9 @@ class concurrent_unordered_map {
   using value_type = thrust::pair<Key, Element>;
   using iterator = cycle_iterator_adapter<value_type*>;
   using const_iterator = const cycle_iterator_adapter<value_type*>;
+
+  static constexpr uint32_t m_max_num_submaps = 8;
+  static constexpr float m_max_load_factor = 0.6;
 
  public:
   /**---------------------------------------------------------------------------*
@@ -147,7 +151,7 @@ class concurrent_unordered_map {
       const Equality& equal = key_equal(),
       const allocator_type& allocator = allocator_type()) {
     using Self =
-        concurrent_unordered_map<Key, Element, Hasher, Equality, Allocator>;
+        concurrent_unordered_map_chain<Key, Element, Hasher, Equality, Allocator>;
 
     auto deleter = [](Self* p) { p->destroy(); };
 
@@ -194,6 +198,8 @@ class concurrent_unordered_map {
     SUCCESS,   ///< New pair inserted successfully
     DUPLICATE  ///< Insert did not succeed, key is already present
   };
+
+
 
   /**---------------------------------------------------------------------------*
    * @brief Specialization for value types that can be packed.
@@ -252,6 +258,77 @@ class concurrent_unordered_map {
   }
 
  public:
+  
+  __host__ void addNewSubmap() {
+    value_type* submap = m_allocator.allocate(m_capacity);
+    constexpr int block_size = 128;
+
+    init_hashtbl<<<((m_capacity - 1) / block_size) + 1, block_size>>>(
+        submap, m_capacity, m_unused_key, m_unused_element);
+    CUDA_RT_CALL(cudaGetLastError());
+    CUDA_RT_CALL(cudaStreamSynchronize(0));
+
+    m_submaps[m_num_submaps] = submap;
+    m_num_elements[m_num_submaps] = 0;
+    m_num_submaps++;
+  }
+  
+  // bulk insert kernel is called from host so that predictive resizing can be implemented
+  __host__ float bulkInsert(std::vector<key_type> h_keys,
+                           std::vector<mapped_type> h_values,
+                           uint32_t numKeys) {
+    thrust::device_vector<key_type> d_keys( h_keys );
+    thrust::device_vector<mapped_type> d_values( h_values );
+    auto view = *this;
+    
+    float temp_time = 0.0f;
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
+    
+    // determine if it will be necessary to add another map
+    uint32_t finalNumElements = m_total_num_elements + numKeys;
+    uint32_t capacityPerSubmap = m_capacity * m_max_load_factor;
+    uint32_t numSubmapsNeeded = (finalNumElements + capacityPerSubmap - 1) / capacityPerSubmap;
+    uint32_t numSubmapsToAllocate = numSubmapsNeeded - m_num_submaps;
+    
+    for(auto i = 0; i < numSubmapsToAllocate; ++i) {
+      addNewSubmap();
+    }
+
+    uint32_t numElementsInserted = 0;
+    uint32_t numElementsRemaining = numKeys;
+    for(auto i = 0; i < m_num_submaps; ++i) {
+      
+      value_type* submap = m_submaps[i];
+      uint32_t numElementsToInsert = std::min(capacityPerSubmap - m_num_elements[i], numElementsRemaining);
+      
+      auto key_iterator = d_keys.begin() + numElementsInserted;
+      auto value_iterator = d_values.begin() + numElementsInserted;
+      auto zip_counter = thrust::make_zip_iterator(
+        thrust::make_tuple(key_iterator, value_iterator));
+      
+      thrust::for_each(
+            thrust::device, zip_counter, zip_counter + numElementsToInsert,
+            [view, submap] __device__(auto const& p) mutable {
+              view.insert(submap, thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+            });
+      
+      numElementsRemaining -= numElementsToInsert;
+      numElementsInserted += numElementsToInsert;
+    }
+    
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&temp_time, start, stop);
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+
+    return temp_time;
+  }
+
   /**---------------------------------------------------------------------------*
    * @brief Attempts to insert a key, value pair into the map.
    *
@@ -271,6 +348,7 @@ class concurrent_unordered_map {
    *Boolean indicates insert success.
    *---------------------------------------------------------------------------**/
   __device__ thrust::pair<iterator, bool> insert(
+      value_type* submap,
       value_type const& insert_pair) {
     const size_type key_hash{m_hf(insert_pair.first)};
     size_type index{key_hash % m_capacity};
@@ -280,7 +358,7 @@ class concurrent_unordered_map {
     value_type* current_bucket{nullptr};
 
     while (status == insert_result::CONTINUE) {
-      current_bucket = &m_hashtbl_values[index];
+      current_bucket = &submap[index];
       status = attempt_insert(current_bucket, insert_pair);
       index = (index + 1) % m_capacity;
     }
@@ -289,7 +367,7 @@ class concurrent_unordered_map {
         (status == insert_result::SUCCESS) ? true : false;
 
     return thrust::make_pair(
-        iterator(m_hashtbl_values, m_hashtbl_values + m_capacity,
+        iterator(submap, submap + m_capacity,
                  current_bucket),
         insert_success);
   }
@@ -307,24 +385,28 @@ class concurrent_unordered_map {
     size_type const key_hash = m_hf(k);
     size_type index = key_hash % m_capacity;
 
-    value_type* current_bucket = &m_hashtbl_values[index];
+    for(auto i = 0; i < m_num_submaps; ++i) {
+      value_type* submap = m_submaps[i];
+      value_type* current_bucket = &submap[index];
+      
+      while (true) {
+        key_type const existing_key = current_bucket->first;
 
-    while (true) {
-      key_type const existing_key = current_bucket->first;
-
-      if (m_equal(k, existing_key)) {
-        return const_iterator(m_hashtbl_values, m_hashtbl_values + m_capacity,
-                              current_bucket);
+        if (m_equal(k, existing_key)) {
+          return const_iterator(submap, submap + m_capacity,
+                                current_bucket);
+        }
+        if (m_equal(m_unused_key, existing_key)) {
+          break;
+        }
+        index = (index + 1) % m_capacity;
+        current_bucket = &submap[index];
       }
-      if (m_equal(m_unused_key, existing_key)) {
-        return this->end();
-      }
-      index = (index + 1) % m_capacity;
-      current_bucket = &m_hashtbl_values[index];
     }
+    return this->end();
   }
 
-  cc_error assign_async(const concurrent_unordered_map& other,
+  cc_error assign_async(const concurrent_unordered_map_chain& other,
                         cudaStream_t stream = 0) {
     if (other.m_capacity <= m_capacity) {
       m_capacity = other.m_capacity;
@@ -366,13 +448,13 @@ class concurrent_unordered_map {
     delete this;
   }
 
-  concurrent_unordered_map() = delete;
-  concurrent_unordered_map(concurrent_unordered_map const&) = default;
-  concurrent_unordered_map(concurrent_unordered_map&&) = default;
-  concurrent_unordered_map& operator=(concurrent_unordered_map const&) =
+  concurrent_unordered_map_chain() = delete;
+  concurrent_unordered_map_chain(concurrent_unordered_map_chain const&) = default;
+  concurrent_unordered_map_chain(concurrent_unordered_map_chain&&) = default;
+  concurrent_unordered_map_chain& operator=(concurrent_unordered_map_chain const&) =
       default;
-  concurrent_unordered_map& operator=(concurrent_unordered_map&&) = default;
-  ~concurrent_unordered_map() = default;
+  concurrent_unordered_map_chain& operator=(concurrent_unordered_map_chain&&) = default;
+  ~concurrent_unordered_map_chain() = default;
 
  private:
   hasher m_hf;
@@ -382,6 +464,10 @@ class concurrent_unordered_map {
   allocator_type m_allocator;
   size_type m_capacity;
   value_type* m_hashtbl_values;
+  value_type* m_submaps[m_max_num_submaps];
+  uint32_t m_num_elements[m_max_num_submaps];
+  uint32_t m_total_num_elements;
+  uint32_t m_num_submaps;
 
   /**---------------------------------------------------------------------------*
    * @brief Private constructor used by `create` factory function.
@@ -395,7 +481,7 @@ class concurrent_unordered_map {
    * @param allocator The allocator to use for allocation the hash table's
    * storage
    *---------------------------------------------------------------------------**/
-  concurrent_unordered_map(size_type capacity, const mapped_type unused_element,
+  concurrent_unordered_map_chain(size_type capacity, const mapped_type unused_element,
                            const key_type unused_key,
                            const Hasher& hash_function, const Equality& equal,
                            const allocator_type& allocator)
@@ -404,7 +490,9 @@ class concurrent_unordered_map {
         m_allocator(allocator),
         m_capacity(capacity),
         m_unused_element(unused_element),
-        m_unused_key(unused_key) {
+        m_unused_key(unused_key),
+        m_total_num_elements(0),
+        m_num_submaps(1) {
     m_hashtbl_values = m_allocator.allocate(m_capacity);
     constexpr int block_size = 128;
 
@@ -412,6 +500,9 @@ class concurrent_unordered_map {
         m_hashtbl_values, m_capacity, m_unused_key, m_unused_element);
     CUDA_RT_CALL(cudaGetLastError());
     CUDA_RT_CALL(cudaStreamSynchronize(0));
+
+    m_submaps[0] = m_hashtbl_values;
+    m_num_elements[0] = 0;
   }
 };
 

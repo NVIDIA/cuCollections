@@ -19,6 +19,7 @@
 #include <cuco/insert_only_hash_array.cuh>
 #include "../nvtx3.hpp"
 #include "cudf/concurrent_unordered_map.cuh"
+#include "cudf_chain/concurrent_unordered_map_chain.cuh"
 #include "SlabHash/src/gpu_hash_table.cuh"
 
 #include <thrust/for_each.h>
@@ -669,6 +670,113 @@ static void BM_slabhash_insert_resize_search(::benchmark::State& state) {
 
 
 
+template <typename Key, typename Value>
+static void BM_cudf_chain_insert_random_keys(::benchmark::State& state) {
+  using map_type = concurrent_unordered_map_chain<Key, Value>;
+
+  auto occupancy = (state.range(1) / double{100});
+  auto capacity = state.range(0) / occupancy;
+  auto numKeys = state.range(0);
+  
+  std::mt19937 rng(/* seed = */ 12);
+  std::vector<Key> h_keys(numKeys);
+  std::vector<Value> h_values(numKeys);
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
+    h_values[i] = ~h_keys[i];
+  }
+
+  thrust::device_vector<Key> d_keys(numKeys);
+  thrust::device_vector<Key> d_values(numKeys);
+  thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
+  thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
+
+  auto key_iterator = d_keys.begin();
+  auto value_iterator = d_values.begin();
+  auto zip_counter = thrust::make_zip_iterator(
+      thrust::make_tuple(key_iterator, value_iterator));
+  
+  for (auto _ : state) {
+    
+    state.ResumeTiming();
+    state.PauseTiming();
+    auto map = map_type::create(capacity);
+    auto view = *map;
+    state.ResumeTiming();
+    
+    /*
+    thrust::for_each(
+        thrust::device, zip_counter, zip_counter + state.range(0),
+        [view] __device__(auto const& p) mutable {
+          view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+        });
+    */
+
+    state.PauseTiming();
+  }
+
+  
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                          int64_t(state.iterations()) *
+                          int64_t(state.range(0)));
+                          
+}
+
+
+
+template <typename Key, typename Value>
+static void BM_cudf_chain_search_all(::benchmark::State& state) {
+  using map_type = concurrent_unordered_map_chain<Key, Value>;
+
+  auto occupancy = (state.range(1) / double{100});
+  auto capacity = state.range(0) / occupancy;
+  auto numKeys = state.range(0);
+  
+  auto map = map_type::create(capacity);
+  auto view = *map;
+  
+  std::mt19937 rng(/* seed = */ 12);
+  std::vector<Key> h_keys(numKeys);
+  std::vector<Value> h_values(numKeys);
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
+    h_values[i] = ~h_keys[i];
+
+  }
+
+  thrust::device_vector<Key> d_keys(numKeys);
+  thrust::device_vector<Key> d_values(numKeys);
+  thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
+  thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
+
+  auto key_iterator = d_keys.begin();
+  auto value_iterator = d_values.begin();
+  auto zip_counter = thrust::make_zip_iterator(
+      thrust::make_tuple(key_iterator, value_iterator));
+  
+  /*
+  thrust::for_each(
+      thrust::device, zip_counter, zip_counter + state.range(0),
+      [view] __device__(auto const& p) mutable {
+        view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+      });
+  */
+
+  for (auto _ : state) {
+    thrust::for_each(
+      thrust::device, key_iterator, key_iterator + state.range(0),
+      [view] __device__(auto const& p) mutable {
+        view.find(p);
+      });
+  }
+
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                          int64_t(state.iterations()) *
+                          int64_t(state.range(0)));
+}
+
+
+
 /*
 // cuCo tests
 BENCHMARK_TEMPLATE(BM_cuco_insert_random_keys, int32_t, int32_t)
@@ -714,16 +822,18 @@ BENCHMARK_TEMPLATE(BM_slabhash_insert_random_keys, int32_t, int32_t)
 BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(SlabSweepLoad);
-*/
 
 BENCHMARK_TEMPLATE(BM_slabhash_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
 
-/*
 BENCHMARK_TEMPLATE(BM_slabhash_insert_resize_search, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
 */
+
+BENCHMARK_TEMPLATE(BM_cudf_chain_insert_random_keys, int32_t, int32_t)
+    ->Unit(benchmark::kMillisecond)
+    ->Apply(cuSweepSize);
