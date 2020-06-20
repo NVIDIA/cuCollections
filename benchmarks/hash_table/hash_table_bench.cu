@@ -671,7 +671,7 @@ static void BM_slabhash_insert_resize_search(::benchmark::State& state) {
 
 
 template <typename Key, typename Value>
-static void BM_cudf_chain_insert_random_keys(::benchmark::State& state) {
+static void BM_cudf_chain_insert_resize(::benchmark::State& state) {
   using map_type = concurrent_unordered_map_chain<Key, Value>;
 
   auto numKeys = state.range(0);
@@ -704,11 +704,9 @@ static void BM_cudf_chain_insert_random_keys(::benchmark::State& state) {
 
 
 template <typename Key, typename Value>
-static void BM_cudf_chain_search_all(::benchmark::State& state) {
+static void BM_cudf_chain_search_resize(::benchmark::State& state) {
   using map_type = concurrent_unordered_map_chain<Key, Value>;
 
-  auto occupancy = (state.range(1) / double{100});
-  auto capacity = state.range(0) / occupancy;
   auto numKeys = state.range(0);
   
   auto map = map_type::create(134'217'728);
@@ -723,35 +721,36 @@ static void BM_cudf_chain_search_all(::benchmark::State& state) {
 
   }
 
-  thrust::device_vector<Key> d_keys(numKeys);
-  thrust::device_vector<Key> d_values(numKeys);
-  thrust::copy(h_keys.begin(), h_keys.end(), d_keys.begin());
-  thrust::copy(h_values.begin(), h_values.end(), d_values.begin());
-
-  auto key_iterator = d_keys.begin();
-  auto value_iterator = d_values.begin();
-  auto zip_counter = thrust::make_zip_iterator(
-      thrust::make_tuple(key_iterator, value_iterator));
+  // insert keys
+  view.bulkInsert(h_keys, h_values, numKeys);
   
-  /*
-  thrust::for_each(
-      thrust::device, zip_counter, zip_counter + state.range(0),
-      [view] __device__(auto const& p) mutable {
-        view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
-      });
-  */
-
-  for (auto _ : state) {
+  // search for keys
+  Value* d_results;
+  cudaMalloc((void**)&d_results, numKeys * sizeof(Value*));
+  Value* h_results = (Value*) malloc(numKeys * sizeof(Value*));
+  
+  thrust::device_vector<Key> d_keys( h_keys );
+  auto idx_iterator = thrust::make_counting_iterator<uint32_t>(0);
+  auto key_iterator = d_keys.begin();
+  auto key_counter = thrust::make_zip_iterator(
+      thrust::make_tuple(idx_iterator, key_iterator));
+  
+  for(auto _ : state) {
     thrust::for_each(
-      thrust::device, key_iterator, key_iterator + state.range(0),
+      thrust::device, key_iterator, key_iterator + numKeys,
       [view] __device__(auto const& p) mutable {
         view.find(p);
+        //d_results[thrust::get<0>(p)] = found->second;
       });
   }
-
+  
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
                           int64_t(state.iterations()) *
                           int64_t(state.range(0)));
+  // cleanup 
+  view.freeSubmaps();
+  cudaFree(d_results);
+  free(h_results);
 }
 
 
@@ -787,7 +786,6 @@ BENCHMARK_TEMPLATE(BM_cudf_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
-
 BENCHMARK_TEMPLATE(BM_cudf_insert_resize_search, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(ResizeSweep);
@@ -798,9 +796,14 @@ BENCHMARK_TEMPLATE(BM_slabhash_insert_random_keys, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(SlabSweepLoad);
 
+
 BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(SlabSweepLoad);
+
+BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
+    ->Unit(benchmark::kMillisecond)
+    ->Apply(SlabSweepSize);
 
 BENCHMARK_TEMPLATE(BM_slabhash_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
@@ -813,7 +816,13 @@ BENCHMARK_TEMPLATE(BM_slabhash_insert_resize_search, int32_t, int32_t)
     ->Apply(ResizeSweep);
 */
 
-BENCHMARK_TEMPLATE(BM_cudf_chain_insert_random_keys, int32_t, int32_t)
+// chaining cuDF tests
+/*
+BENCHMARK_TEMPLATE(BM_cudf_chain_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
+    ->Apply(ResizeSweep);
+*/
+BENCHMARK_TEMPLATE(BM_cudf_chain_search_resize, int32_t, int32_t)
+    ->Unit(benchmark::kMillisecond)
     ->Apply(ResizeSweep);

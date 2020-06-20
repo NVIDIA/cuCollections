@@ -264,6 +264,11 @@ static void cudf_chain_search_all() {
       break;
     }
   }
+  
+  // cleanup 
+  view.freeSubmaps();
+  cudaFree(d_results);
+  free(h_results);
 }
 
 

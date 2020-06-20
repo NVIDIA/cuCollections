@@ -391,6 +391,7 @@ class concurrent_unordered_map_chain {
   __device__ const_iterator find(key_type const& k) const {
     size_type const key_hash = m_hf(k);
 
+    #if 0
     for(auto i = 0; i < m_num_submaps; ++i) {
       size_type index = key_hash % m_capacity;
       value_type* submap = m_submaps[i];
@@ -410,7 +411,62 @@ class concurrent_unordered_map_chain {
         current_bucket = &submap[index];
       }
     }
-    return this->end();
+    #endif
+    #if 1
+    size_type index = key_hash % m_capacity;
+    bool done0 = false;
+    bool done1 = false;
+    bool done2 = false;
+    uint32_t numDone = 0;
+    value_type* submap;
+    value_type* current_bucket;
+    
+    constexpr uint32_t gran = 16;
+    
+    while (true) {
+      for(auto i = 0; i < gran * m_num_submaps; ++i) {
+        // change submapIdx every gran probes
+        uint32_t submapIdx = i / gran;
+        uint32_t localIdx = (index + i % gran) % m_capacity;
+        // if we already know it isn't in this map, just continue on to the next one
+        
+        if((submapIdx == 0 && done0) || (submapIdx == 1 && done1) || (submapIdx == 2 && done2)) {
+          i = (submapIdx + 1) * gran - 1;
+          continue;
+        }
+        
+
+        submap = m_submaps[submapIdx];
+        current_bucket = &submap[localIdx];
+        key_type const existing_key = current_bucket->first;
+
+        if (m_equal(k, existing_key)) {
+          return const_iterator(submap, submap + m_capacity,
+                                current_bucket);
+        }
+        if (m_equal(m_unused_key, existing_key)) {
+          switch(submapIdx) {
+            case 0:
+              done0 = true;
+              break;
+            case 1:
+              done1 = true;
+              break;
+            case 2:
+              done2 = true;
+              break;
+          }
+          numDone++;
+        }
+      }
+
+      if(numDone >= m_num_submaps) {
+        return this->end();
+      }
+
+      index = (index + gran) % m_capacity;
+    }
+    #endif
   }
 
   cc_error assign_async(const concurrent_unordered_map_chain& other,
