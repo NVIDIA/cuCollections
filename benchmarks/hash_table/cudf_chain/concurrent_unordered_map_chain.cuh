@@ -260,11 +260,12 @@ class concurrent_unordered_map_chain {
  public:
   
   __host__ void addNewSubmap() {
-    value_type* submap = m_allocator.allocate(m_capacity);
+    uint32_t capacity = m_submap_caps[m_num_submaps] * m_capacity;
+    value_type* submap = m_allocator.allocate(capacity);
     constexpr int block_size = 128;
 
-    init_hashtbl<<<((m_capacity - 1) / block_size) + 1, block_size>>>(
-        submap, m_capacity, m_unused_key, m_unused_element);
+    init_hashtbl<<<((capacity - 1) / block_size) + 1, block_size>>>(
+        submap, capacity, m_unused_key, m_unused_element);
     CUDA_RT_CALL(cudaGetLastError());
     CUDA_RT_CALL(cudaStreamSynchronize(0));
 
@@ -275,7 +276,7 @@ class concurrent_unordered_map_chain {
   
   void freeSubmaps() {
     for(auto i = 0; i < m_num_submaps; ++i) {
-      m_allocator.deallocate(m_submaps[i], m_capacity);
+      m_allocator.deallocate(m_submaps[i], m_submap_caps[i] * m_capacity);
     }
   }
   
@@ -285,7 +286,6 @@ class concurrent_unordered_map_chain {
                            uint32_t numKeys) {
     thrust::device_vector<key_type> d_keys( h_keys );
     thrust::device_vector<mapped_type> d_values( h_values );
-    auto view = *this;
     
     float temp_time = 0.0f;
     cudaEvent_t start, stop;
@@ -295,8 +295,12 @@ class concurrent_unordered_map_chain {
     
     // determine if it will be necessary to add another map
     uint32_t finalNumElements = m_total_num_elements + numKeys;
-    uint32_t capacityPerSubmap = m_capacity * m_max_load_factor;
-    uint32_t numSubmapsNeeded = (finalNumElements + capacityPerSubmap - 1) / capacityPerSubmap;
+    uint32_t numSubmapsNeeded = 0;
+    int64_t count = finalNumElements;
+    while(count > 0) {
+      count -= m_submap_caps[numSubmapsNeeded] * m_capacity * m_max_load_factor;
+      numSubmapsNeeded++;
+    }
     uint32_t numSubmapsToAllocate = numSubmapsNeeded - m_num_submaps;
     
     for(auto i = 0; i < numSubmapsToAllocate; ++i) {
@@ -306,19 +310,24 @@ class concurrent_unordered_map_chain {
     uint32_t numElementsInserted = 0;
     uint32_t numElementsRemaining = numKeys;
     for(auto i = 0; i < m_num_submaps; ++i) {
-      
-      value_type* submap = m_submaps[i];
-      uint32_t numElementsToInsert = std::min(capacityPerSubmap - m_num_elements[i], numElementsRemaining);
+      uint32_t n = m_submap_caps[i] * m_capacity * m_max_load_factor;
+      uint32_t numElementsToInsert = std::min(n - m_num_elements[i], numElementsRemaining);
       
       auto key_iterator = d_keys.begin() + numElementsInserted;
       auto value_iterator = d_values.begin() + numElementsInserted;
       auto zip_counter = thrust::make_zip_iterator(
         thrust::make_tuple(key_iterator, value_iterator));
-      
+        
+      auto view = *this;
       thrust::for_each(
             thrust::device, zip_counter, zip_counter + numElementsToInsert,
-            [view, submap] __device__(auto const& p) mutable {
-              view.insert(submap, thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+            [view, i] __device__(auto const& p) mutable {
+              auto k = thrust::get<0>(p);
+              auto found = view.DupCheck(k, i);
+              // only insert when we know the key does not already exist
+              if(!found) {
+                view.insert(i, thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+              }
             });
       
       numElementsRemaining -= numElementsToInsert;
@@ -355,29 +364,64 @@ class concurrent_unordered_map_chain {
    *Boolean indicates insert success.
    *---------------------------------------------------------------------------**/
   __device__ thrust::pair<iterator, bool> insert(
-      value_type* submap,
+      uint32_t submapIdx,
       value_type const& insert_pair) {
+    value_type* submap = m_submaps[submapIdx];
+    uint32_t submap_cap = m_submap_caps[submapIdx] * m_capacity;
     const size_type key_hash{m_hf(insert_pair.first)};
-    size_type index{key_hash % m_capacity};
+    size_type index{key_hash % submap_cap};
 
     insert_result status{insert_result::CONTINUE};
 
     value_type* current_bucket{nullptr};
 
     while (status == insert_result::CONTINUE) {
-      current_bucket = &submap[index];
+      current_bucket = submap + index;
       status = attempt_insert(current_bucket, insert_pair);
-      index = (index + 1) % m_capacity;
+      index = (index + 1) % submap_cap;
     }
 
     bool const insert_success =
         (status == insert_result::SUCCESS) ? true : false;
 
     return thrust::make_pair(
-        iterator(submap, submap + m_capacity,
+        iterator(submap, submap + submap_cap,
                  current_bucket),
         insert_success);
   }
+
+
+  __device__ bool DupCheck(key_type const& k, uint32_t submapIdx) const {
+    size_type const key_hash = m_hf(k);
+    size_type index{0};
+    value_type* submap{nullptr};
+    value_type* current_bucket{nullptr};
+    uint32_t submap_cap = 0;
+
+    for(auto i = 0; i < submapIdx; ++i) {
+      submap_cap = m_submap_caps[i] * m_capacity;
+      index = key_hash % submap_cap;
+      submap = m_submaps[i];
+      current_bucket = &submap[index];
+      
+      while (true) {
+        key_type const existing_key = current_bucket->first;
+
+        if (m_equal(k, existing_key)) {
+          return true;
+        }
+        if (m_equal(m_unused_key, existing_key)) {
+          break;
+        }
+        index = (index + 1) % submap_cap;
+        current_bucket = &submap[index];
+      }
+    }
+
+    return false;
+  }
+
+
 
   /**---------------------------------------------------------------------------*
    * @brief Searches the map for the specified key.
@@ -390,29 +434,37 @@ class concurrent_unordered_map_chain {
    *---------------------------------------------------------------------------**/
   __device__ const_iterator find(key_type const& k) const {
     size_type const key_hash = m_hf(k);
+    size_type index{0};
+    value_type* submap{nullptr};
+    value_type* current_bucket{nullptr}; 
+    uint32_t submap_cap = 0;
 
-    #if 0
+    #if 1
     for(auto i = 0; i < m_num_submaps; ++i) {
-      size_type index = key_hash % m_capacity;
-      value_type* submap = m_submaps[i];
-      value_type* current_bucket = &submap[index];
+      submap_cap = m_submap_caps[i] * m_capacity;
+      index = key_hash % submap_cap;
+      submap = m_submaps[i];
+      current_bucket = &submap[index];
       
       while (true) {
         key_type const existing_key = current_bucket->first;
 
         if (m_equal(k, existing_key)) {
-          return const_iterator(submap, submap + m_capacity,
+          return const_iterator(submap, submap + submap_cap,
                                 current_bucket);
         }
         if (m_equal(m_unused_key, existing_key)) {
           break;
         }
-        index = (index + 1) % m_capacity;
+        index = (index + 1) % submap_cap;
         current_bucket = &submap[index];
       }
     }
+
+    return this->end();
     #endif
-    #if 1
+    
+    #if 0
     size_type index = key_hash % m_capacity;
     bool done0 = false;
     bool done1 = false;
@@ -421,7 +473,7 @@ class concurrent_unordered_map_chain {
     value_type* submap;
     value_type* current_bucket;
     
-    constexpr uint32_t gran = 16;
+    constexpr uint32_t gran = 1024;
     
     while (true) {
       for(auto i = 0; i < gran * m_num_submaps; ++i) {
@@ -533,6 +585,7 @@ class concurrent_unordered_map_chain {
   size_type m_capacity;
   value_type* m_hashtbl_values;
   value_type* m_submaps[m_max_num_submaps];
+  uint32_t m_submap_caps[m_max_num_submaps];
   uint32_t m_num_elements[m_max_num_submaps];
   uint32_t m_total_num_elements;
   uint32_t m_num_submaps;
@@ -560,6 +613,7 @@ class concurrent_unordered_map_chain {
         m_unused_element(unused_element),
         m_unused_key(unused_key),
         m_total_num_elements(0),
+        m_submap_caps{1, 1, 2, 4, 5, 16, 32, 64},
         m_num_submaps(1) {
     m_hashtbl_values = m_allocator.allocate(m_capacity);
     constexpr int block_size = 128;

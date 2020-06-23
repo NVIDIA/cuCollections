@@ -24,6 +24,7 @@
 
 #include <thrust/for_each.h>
 #include <iostream>
+#include <fstream>
 
 
 
@@ -372,6 +373,7 @@ static void BM_cudf_insert_resize(::benchmark::State& state) {
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
                           int64_t(state.iterations()) *
                           int64_t(state.range(0)));
+
 }
 
 
@@ -496,7 +498,7 @@ static void BM_slabhash_insert_random_keys(::benchmark::State& state) {
     map_type map{numKeys, numBuckets, deviceIdx, seed};
     state.ResumeTiming();
 
-    buildTime += map.hash_build(keys, values, numKeys);
+    buildTime += map.hash_build_with_unique_keys(keys, values, numKeys);
 
     state.PauseTiming();
     avgLoadFactor += map.measureLoadFactor();
@@ -550,7 +552,7 @@ static void BM_slabhash_search_all(::benchmark::State& state) {
   auto searchTime = 0.0;
 
   map_type map{numKeys, numBuckets, deviceIdx, seed};
-  map.hash_build(keys, values, numKeys);
+  map.hash_build_with_unique_keys(keys, values, numKeys);
   
   for(auto _ : state) {
     searchTime += map.hash_search(keys, results, numKeys);
@@ -676,29 +678,34 @@ static void BM_cudf_chain_insert_resize(::benchmark::State& state) {
 
   auto numKeys = state.range(0);
   
-  std::mt19937 rng(/* seed = */ 12);
+  std::mt19937 rng(12);
   std::vector<Key> h_keys(numKeys);
   std::vector<Value> h_values(numKeys);
+  
+
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
     h_values[i] = ~h_keys[i];
   }
  
   float buildTime = 0.0f;
+  float totalBuildTime = 0.0f;
+
   for (auto _ : state) {
     auto map = map_type::create(134'217'728);
     auto view = *map;
 
     buildTime = view.bulkInsert(h_keys, h_values, numKeys);
+    totalBuildTime += buildTime;
     state.SetIterationTime(buildTime / 1000);
 
     view.freeSubmaps();
   }
-  
-  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+ 
+  uint64_t nBytes = (sizeof(Key) + sizeof(Value)) *
                           int64_t(state.iterations()) *
-                          int64_t(state.range(0)));
-                          
+                          int64_t(state.range(0));
+  state.SetBytesProcessed(nBytes);
 }
 
 
@@ -786,6 +793,8 @@ BENCHMARK_TEMPLATE(BM_cudf_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
+
+
 BENCHMARK_TEMPLATE(BM_cudf_insert_resize_search, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(ResizeSweep);

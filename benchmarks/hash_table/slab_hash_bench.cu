@@ -211,7 +211,7 @@ static void slabhash_insert_resize() {
 }
 
 
-
+/*
 template <typename Key, typename Value>
 static void cudf_chain_search_all() {
   using map_type = concurrent_unordered_map_chain<Key, Value>;
@@ -223,7 +223,7 @@ static void cudf_chain_search_all() {
   auto map = map_type::create(capacity);
   auto view = *map;
   
-  std::mt19937 rng(/* seed = */ 12);
+  std::mt19937 rng( 12);
   std::vector<Key> h_keys(numKeys);
   std::vector<Value> h_values(numKeys);
   for(auto i = 0; i < numKeys; ++i) {
@@ -270,7 +270,7 @@ static void cudf_chain_search_all() {
   cudaFree(d_results);
   free(h_results);
 }
-
+*/
 
 
 int main() {
@@ -280,7 +280,7 @@ int main() {
     //cuco_search_all<int32_t, int32_t>();
     //slabhash_search_all<int32_t, int32_t>();
     //slabhash_insert_resize<int32_t, int32_t>();
-    cudf_chain_search_all<int32_t, int32_t>();
+    //cudf_chain_search_all<int32_t, int32_t>();
   }
 
   return 0;
