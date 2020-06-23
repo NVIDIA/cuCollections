@@ -433,13 +433,14 @@ class concurrent_unordered_map_chain {
    * @return An iterator to the key if it exists, else map.end()
    *---------------------------------------------------------------------------**/
   __device__ const_iterator find(key_type const& k) const {
+    
+    #if 1
     size_type const key_hash = m_hf(k);
     size_type index{0};
     value_type* submap{nullptr};
     value_type* current_bucket{nullptr}; 
     uint32_t submap_cap = 0;
 
-    #if 1
     for(auto i = 0; i < m_num_submaps; ++i) {
       submap_cap = m_submap_caps[i] * m_capacity;
       index = key_hash % submap_cap;
@@ -463,9 +464,10 @@ class concurrent_unordered_map_chain {
 
     return this->end();
     #endif
-    
+
     #if 0
-    size_type index = key_hash % m_capacity;
+    size_type const key_hash = m_hf(k);
+    size_type probeIdx = 0;
     bool done0 = false;
     bool done1 = false;
     bool done2 = false;
@@ -473,13 +475,14 @@ class concurrent_unordered_map_chain {
     value_type* submap;
     value_type* current_bucket;
     
-    constexpr uint32_t gran = 1024;
+    constexpr uint32_t gran = 64;
     
     while (true) {
       for(auto i = 0; i < gran * m_num_submaps; ++i) {
         // change submapIdx every gran probes
         uint32_t submapIdx = i / gran;
-        uint32_t localIdx = (index + i % gran) % m_capacity;
+        uint32_t submap_cap = m_capacity * m_submap_caps[submapIdx];
+        uint32_t localIdx = (key_hash + probeIdx + i % gran) % submap_cap;
         // if we already know it isn't in this map, just continue on to the next one
         
         if((submapIdx == 0 && done0) || (submapIdx == 1 && done1) || (submapIdx == 2 && done2)) {
@@ -493,7 +496,7 @@ class concurrent_unordered_map_chain {
         key_type const existing_key = current_bucket->first;
 
         if (m_equal(k, existing_key)) {
-          return const_iterator(submap, submap + m_capacity,
+          return const_iterator(submap, submap + submap_cap,
                                 current_bucket);
         }
         if (m_equal(m_unused_key, existing_key)) {
@@ -516,8 +519,10 @@ class concurrent_unordered_map_chain {
         return this->end();
       }
 
-      index = (index + gran) % m_capacity;
+      probeIdx += gran;
     }
+
+    return this->end();
     #endif
   }
 

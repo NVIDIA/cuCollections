@@ -211,7 +211,7 @@ static void slabhash_insert_resize() {
 }
 
 
-/*
+
 template <typename Key, typename Value>
 static void cudf_chain_search_all() {
   using map_type = concurrent_unordered_map_chain<Key, Value>;
@@ -250,11 +250,11 @@ static void cudf_chain_search_all() {
   thrust::for_each(
     thrust::device, key_counter, key_counter + numKeys,
     [view, d_results] __device__(auto const& p) mutable {
-      auto found = view.find(thrust::get<1>(p));
-      d_results[thrust::get<0>(p)] = found->second;
+      /*auto found = */view.find(thrust::get<1>(p));
+      //d_results[thrust::get<0>(p)] = found->second;
     });
   
-
+  /*
   // check results from search
   cudaMemcpy(h_results, d_results, numKeys * sizeof(Value*), cudaMemcpyDeviceToHost);
 
@@ -264,13 +264,13 @@ static void cudf_chain_search_all() {
       break;
     }
   }
-  
+  */ 
   // cleanup 
   view.freeSubmaps();
   cudaFree(d_results);
   free(h_results);
 }
-*/
+
 
 
 int main() {
@@ -280,7 +280,7 @@ int main() {
     //cuco_search_all<int32_t, int32_t>();
     //slabhash_search_all<int32_t, int32_t>();
     //slabhash_insert_resize<int32_t, int32_t>();
-    //cudf_chain_search_all<int32_t, int32_t>();
+    cudf_chain_search_all<int32_t, int32_t>();
   }
 
   return 0;
