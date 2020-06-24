@@ -237,38 +237,19 @@ static void cudf_chain_search_all() {
 
 
   // search for keys
-  Value* d_results;
-  cudaMalloc((void**)&d_results, numKeys * sizeof(Value*));
-  Value* h_results = (Value*) malloc(numKeys * sizeof(Value*));
+  std::vector<Value> h_results(numKeys);
+  view.bulkSearch(h_keys, h_results, numKeys);
   
-  thrust::device_vector<Key> d_keys( h_keys );
-  auto idx_iterator = thrust::make_counting_iterator<uint32_t>(0);
-  auto key_iterator = d_keys.begin();
-  auto key_counter = thrust::make_zip_iterator(
-      thrust::make_tuple(idx_iterator, key_iterator));
-  
-  thrust::for_each(
-    thrust::device, key_counter, key_counter + numKeys,
-    [view, d_results] __device__(auto const& p) mutable {
-      /*auto found = */view.find(thrust::get<1>(p));
-      //d_results[thrust::get<0>(p)] = found->second;
-    });
-  
-  /*
-  // check results from search
-  cudaMemcpy(h_results, d_results, numKeys * sizeof(Value*), cudaMemcpyDeviceToHost);
-
+  // check results
   for(auto i = 0; i < numKeys; ++i) {
     if(h_results[i] != h_values[i]) {
       std::cout << "Value-result mismatch at index " << i  << std::endl;
       break;
     }
   }
-  */ 
+  
   // cleanup 
   view.freeSubmaps();
-  cudaFree(d_results);
-  free(h_results);
 }
 
 

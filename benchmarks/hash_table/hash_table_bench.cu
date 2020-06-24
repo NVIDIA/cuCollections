@@ -740,7 +740,7 @@ static void BM_cudfChain_insert_resize(::benchmark::State& state) {
   std::vector<Value> h_values(numKeys);
 
   // uniformly random keys
-  /*  
+  ///*
   std::mt19937 rng(12);
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
@@ -748,7 +748,7 @@ static void BM_cudfChain_insert_resize(::benchmark::State& state) {
   }
   //*/
   
-  ///*
+  /*
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::normal_distribution<> d{1e9, 1e7};
@@ -760,14 +760,12 @@ static void BM_cudfChain_insert_resize(::benchmark::State& state) {
   //*/
 
   float buildTime = 0.0f;
-  float totalBuildTime = 0.0f;
 
   for (auto _ : state) {
     auto map = map_type::create(134'217'728);
     auto view = *map;
 
     buildTime = view.bulkInsert(h_keys, h_values, numKeys);
-    totalBuildTime += buildTime;
     state.SetIterationTime(buildTime / 1000);
 
     view.freeSubmaps();
@@ -792,16 +790,16 @@ static void BM_cudfChain_search_resize(::benchmark::State& state) {
   
   std::vector<Key> h_keys(numKeys);
   std::vector<Value> h_values(numKeys);
-  /*
+  ///*
   std::mt19937 rng(12);
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
     h_values[i] = ~h_keys[i];
 
   }
-  */
+  //*/
 
-  ///*
+  /*
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::normal_distribution<> d{1e9, 1e7};
@@ -816,32 +814,19 @@ static void BM_cudfChain_search_resize(::benchmark::State& state) {
   view.bulkInsert(h_keys, h_values, numKeys);
   
   // search for keys
-  Value* d_results;
-  cudaMalloc((void**)&d_results, numKeys * sizeof(Value*));
-  Value* h_results = (Value*) malloc(numKeys * sizeof(Value*));
-  
-  thrust::device_vector<Key> d_keys( h_keys );
-  auto idx_iterator = thrust::make_counting_iterator<uint32_t>(0);
-  auto key_iterator = d_keys.begin();
-  auto key_counter = thrust::make_zip_iterator(
-      thrust::make_tuple(idx_iterator, key_iterator));
-  
+  std::vector<Value> h_results(numKeys);
+  float searchTime = 0.0f;
+
   for(auto _ : state) {
-    thrust::for_each(
-      thrust::device, key_iterator, key_iterator + numKeys,
-      [view] __device__(auto const& p) mutable {
-        view.find(p);
-        //d_results[thrust::get<0>(p)] = found->second;
-      });
+    searchTime = view.bulkSearch(h_keys, h_results, numKeys);
+    state.SetIterationTime(searchTime / 1000);
   }
-  
+
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
                           int64_t(state.iterations()) *
                           int64_t(state.range(0)));
   // cleanup 
   view.freeSubmaps();
-  cudaFree(d_results);
-  free(h_results);
 }
 
 
@@ -872,7 +857,6 @@ BENCHMARK_TEMPLATE(BM_cudf_search_all, int32_t, int32_t)
 BENCHMARK_TEMPLATE(BM_cudf_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(cuSweepSize);
-*/
 
 BENCHMARK_TEMPLATE(BM_cudf_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
@@ -882,6 +866,7 @@ BENCHMARK_TEMPLATE(BM_cudf_insert_resize, int32_t, int32_t)
 BENCHMARK_TEMPLATE(BM_cudf_insert_resize_search, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(ResizeSweep);
+*/
 
 /*
 // SlabHash tests
@@ -897,7 +882,7 @@ BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
 BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(SlabSweepSize);
-*/
+
 BENCHMARK_TEMPLATE(BM_slabhash_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
@@ -907,6 +892,7 @@ BENCHMARK_TEMPLATE(BM_slabhash_insert_resize_search, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
+*/
 
 
 // chaining cuDF tests
@@ -918,4 +904,5 @@ BENCHMARK_TEMPLATE(BM_cudfChain_insert_resize, int32_t, int32_t)
 
 BENCHMARK_TEMPLATE(BM_cudfChain_search_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
+    ->UseManualTime()
     ->Apply(ResizeSweep);

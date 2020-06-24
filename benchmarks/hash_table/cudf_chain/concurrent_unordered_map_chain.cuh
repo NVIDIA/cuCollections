@@ -20,6 +20,8 @@
 //#include <utilities/legacy/device_atomics.cuh>
 #include "../cudf_include/helper_functions.cuh"
 #include "../cudf_include/allocator.cuh"
+#include <cub/cub/cub.cuh>
+#include "chain_kernels.cuh"
 #include <cu_collections/hash_functions.cuh>
 
 #include <thrust/pair.h>
@@ -118,6 +120,7 @@ class concurrent_unordered_map_chain {
 
   static constexpr uint32_t m_max_num_submaps = 8;
   static constexpr float m_max_load_factor = 0.6;
+  static constexpr uint32_t insertGran = 1;
 
  public:
   /**---------------------------------------------------------------------------*
@@ -280,9 +283,10 @@ class concurrent_unordered_map_chain {
     }
   }
   
+
   // bulk insert kernel is called from host so that predictive resizing can be implemented
-  __host__ float bulkInsert(std::vector<key_type> h_keys,
-                           std::vector<mapped_type> h_values,
+  __host__ float bulkInsert(std::vector<key_type> const& h_keys,
+                           std::vector<mapped_type> const& h_values,
                            uint32_t numKeys) {
     thrust::device_vector<key_type> d_keys( h_keys );
     thrust::device_vector<mapped_type> d_values( h_values );
@@ -307,29 +311,40 @@ class concurrent_unordered_map_chain {
       addNewSubmap();
     }
 
+    // perform insertions into each submap
     uint32_t numElementsInserted = 0;
     uint32_t numElementsRemaining = numKeys;
     for(auto i = 0; i < m_num_submaps; ++i) {
       uint32_t n = m_submap_caps[i] * m_capacity * m_max_load_factor;
       uint32_t numElementsToInsert = std::min(n - m_num_elements[i], numElementsRemaining);
+
+      std::cout << "nToInsert " << numElementsToInsert << std::endl;
       
-      auto key_iterator = d_keys.begin() + numElementsInserted;
-      auto value_iterator = d_values.begin() + numElementsInserted;
-      auto zip_counter = thrust::make_zip_iterator(
-        thrust::make_tuple(key_iterator, value_iterator));
-        
+      // allocate space for result for number of keys successfully inserted
+      uint32_t h_totalNumSuccesses;
+      uint32_t *d_totalNumSuccesses;
+      cudaMalloc((void**)&d_totalNumSuccesses, sizeof(uint32_t));
+      
+      // perform insertions into the current submap
+      constexpr uint32_t blockSize = 128;
+      uint32_t numBlocks = (numElementsToInsert + blockSize - 1) / blockSize;
       auto view = *this;
-      thrust::for_each(
-            thrust::device, zip_counter, zip_counter + numElementsToInsert,
-            [view, i] __device__(auto const& p) mutable {
-              auto k = thrust::get<0>(p);
-              auto found = view.DupCheck(k, i);
-              // only insert when we know the key does not already exist
-              if(!found) {
-                view.insert(i, thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
-              }
-            });
+
+      insertKeySet
+      <key_type, mapped_type, value_type,
+       concurrent_unordered_map_chain<Key, Element, Hasher, Equality, Allocator>>
+      <<<numBlocks, blockSize>>>
+      (&d_keys[numElementsInserted], &d_values[numElementsInserted], 
+       d_totalNumSuccesses, numElementsToInsert, i, view);
       
+      cudaDeviceSynchronize();
+        
+      // read the number of successful insertions
+      cudaMemcpy(&h_totalNumSuccesses, d_totalNumSuccesses, sizeof(uint32_t), 
+                 cudaMemcpyDeviceToHost);
+
+      std::cout << "numSuccesses " << h_totalNumSuccesses << std::endl;
+
       numElementsRemaining -= numElementsToInsert;
       numElementsInserted += numElementsToInsert;
       m_num_elements[i] += numElementsToInsert;
@@ -338,13 +353,48 @@ class concurrent_unordered_map_chain {
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&temp_time, start, stop);
-
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
 
     return temp_time;
   }
 
+
+
+  __host__ float bulkSearch(std::vector<key_type> const& h_keys,
+                            std::vector<mapped_type> &h_results,
+                            uint32_t numKeys) {
+    thrust::device_vector<key_type> d_keys( h_keys );
+    thrust::device_vector<mapped_type> d_results( h_results );
+    
+    float temp_time = 0.0f;
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    cudaEventRecord(start, 0);
+
+    // search for keys
+    constexpr uint32_t blockSize = 128;
+    uint32_t numBlocks = (numKeys + blockSize - 1) / blockSize;
+    auto view = *this;
+
+    searchKeySet
+    <key_type, mapped_type, 
+     concurrent_unordered_map_chain<Key, Element, Hasher, Equality, Allocator>>
+    <<<numBlocks, blockSize>>>
+    (&d_keys[0], &d_results[0], numKeys, view);
+    
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&temp_time, start, stop);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+
+    // copy search results back to host
+    thrust::copy(d_results.begin(), d_results.end(), h_results.begin());
+
+    return temp_time;
+  }
   /**---------------------------------------------------------------------------*
    * @brief Attempts to insert a key, value pair into the map.
    *
@@ -389,7 +439,7 @@ class concurrent_unordered_map_chain {
                  current_bucket),
         insert_success);
   }
-
+ 
 
   __device__ bool DupCheck(key_type const& k, uint32_t submapIdx) const {
     size_type const key_hash = m_hf(k);
