@@ -317,13 +317,12 @@ class concurrent_unordered_map_chain {
     for(auto i = 0; i < m_num_submaps; ++i) {
       uint32_t n = m_submap_caps[i] * m_capacity * m_max_load_factor;
       uint32_t numElementsToInsert = std::min(n - m_num_elements[i], numElementsRemaining);
-
-      std::cout << "nToInsert " << numElementsToInsert << std::endl;
       
       // allocate space for result for number of keys successfully inserted
       uint32_t h_totalNumSuccesses;
       uint32_t *d_totalNumSuccesses;
       cudaMalloc((void**)&d_totalNumSuccesses, sizeof(uint32_t));
+      cudaMemset(d_totalNumSuccesses, 0x00, sizeof(uint32_t));
       
       // perform insertions into the current submap
       constexpr uint32_t blockSize = 128;
@@ -336,14 +335,11 @@ class concurrent_unordered_map_chain {
       <<<numBlocks, blockSize>>>
       (&d_keys[numElementsInserted], &d_values[numElementsInserted], 
        d_totalNumSuccesses, numElementsToInsert, i, view);
-      
       cudaDeviceSynchronize();
         
       // read the number of successful insertions
       cudaMemcpy(&h_totalNumSuccesses, d_totalNumSuccesses, sizeof(uint32_t), 
                  cudaMemcpyDeviceToHost);
-
-      std::cout << "numSuccesses " << h_totalNumSuccesses << std::endl;
 
       numElementsRemaining -= numElementsToInsert;
       numElementsInserted += numElementsToInsert;

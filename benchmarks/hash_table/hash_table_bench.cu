@@ -75,7 +75,7 @@ static void SlabSweepLoad(benchmark::internal::Benchmark *b) {
 }
 
 static void ResizeSweep(benchmark::internal::Benchmark *b) {
-  for(auto size = 10'000'000; size <= 310'000'000; size += 20'000'000) {
+  for(auto size = 50'000'000; size <= 310'000'000; size += 20'000'000) {
     b->Args({size});
   }
 }
