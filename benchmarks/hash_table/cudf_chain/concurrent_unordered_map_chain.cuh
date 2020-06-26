@@ -121,6 +121,7 @@ class concurrent_unordered_map_chain {
   static constexpr uint32_t m_max_num_submaps = 8;
   static constexpr float m_max_load_factor = 0.6;
   static constexpr uint32_t insertGran = 1;
+  static constexpr uint32_t minKernelSize = 10'000;
 
  public:
   /**---------------------------------------------------------------------------*
@@ -315,8 +316,11 @@ class concurrent_unordered_map_chain {
     uint32_t numElementsInserted = 0;
     uint32_t numElementsRemaining = numKeys;
     for(auto i = 0; i < m_num_submaps; ++i) {
-      uint32_t n = m_submap_caps[i] * m_capacity * m_max_load_factor;
-      uint32_t numElementsToInsert = std::min(n - m_num_elements[i], numElementsRemaining);
+      uint32_t maxNumElements = m_submap_caps[i] * m_capacity * m_max_load_factor;
+      uint32_t numElementsToInsert = std::min(maxNumElements - m_num_elements[i], numElementsRemaining);
+      if(numElementsToInsert < minKernelSize) {
+        continue;
+      }
       
       // allocate space for result for number of keys successfully inserted
       uint32_t h_totalNumSuccesses;
@@ -335,7 +339,7 @@ class concurrent_unordered_map_chain {
       <<<numBlocks, blockSize>>>
       (&d_keys[numElementsInserted], &d_values[numElementsInserted], 
        d_totalNumSuccesses, numElementsToInsert, i, view);
-      cudaDeviceSynchronize();
+      CUDA_RT_CALL(cudaGetLastError());
         
       // read the number of successful insertions
       cudaMemcpy(&h_totalNumSuccesses, d_totalNumSuccesses, sizeof(uint32_t), 
@@ -343,7 +347,8 @@ class concurrent_unordered_map_chain {
 
       numElementsRemaining -= numElementsToInsert;
       numElementsInserted += numElementsToInsert;
-      m_num_elements[i] += numElementsToInsert;
+      m_num_elements[i] += h_totalNumSuccesses;
+      m_total_num_elements += h_totalNumSuccesses;
     }
     
     cudaEventRecord(stop, 0);
@@ -485,14 +490,15 @@ class concurrent_unordered_map_chain {
     size_type index{0};
     value_type* submap{nullptr};
     value_type* current_bucket{nullptr}; 
-    uint32_t submap_cap = 0;
 
+    size_type map_capacity = 1 << m_log_m_capacity;
     for(auto i = 0; i < m_num_submaps; ++i) {
-      submap_cap = m_submap_caps[i] * m_capacity;
+      size_type submap_cap = m_capacity * m_submap_caps[i];
+
       index = key_hash % submap_cap;
       submap = m_submaps[i];
       current_bucket = &submap[index];
-      
+
       while (true) {
         key_type const existing_key = current_bucket->first;
 
@@ -521,7 +527,7 @@ class concurrent_unordered_map_chain {
     value_type* submap;
     value_type* current_bucket;
     
-    constexpr uint32_t gran = 64;
+    constexpr uint32_t gran = 1;
     
     while (true) {
       for(auto i = 0; i < gran * m_num_submaps; ++i) {
@@ -536,7 +542,6 @@ class concurrent_unordered_map_chain {
           continue;
         }
         
-
         submap = m_submaps[submapIdx];
         current_bucket = &submap[localIdx];
         key_type const existing_key = current_bucket->first;
@@ -634,9 +639,10 @@ class concurrent_unordered_map_chain {
   key_type m_unused_key;
   allocator_type m_allocator;
   size_type m_capacity;
+  size_type m_log_m_capacity;
   value_type* m_hashtbl_values;
   value_type* m_submaps[m_max_num_submaps];
-  uint32_t m_submap_caps[m_max_num_submaps];
+  const uint32_t m_submap_caps[m_max_num_submaps] = {1, 1, 2, 4, 5, 16, 32, 64};
   uint32_t m_num_elements[m_max_num_submaps];
   uint32_t m_total_num_elements;
   uint32_t m_num_submaps;
@@ -660,15 +666,17 @@ class concurrent_unordered_map_chain {
       : m_hf(hash_function),
         m_equal(equal),
         m_allocator(allocator),
-        m_capacity(capacity),
         m_unused_element(unused_element),
         m_unused_key(unused_key),
         m_total_num_elements(0),
-        m_submap_caps{1, 1, 2, 4, 5, 16, 32, 64},
         m_num_submaps(1) {
+    // round m_capacity to the nearest larger or equal power of 2
+    m_capacity = std::pow(2, ceil(log(capacity) / log(2)));
+    m_log_m_capacity = ceil(log(capacity / log(2)));
+
     m_hashtbl_values = m_allocator.allocate(m_capacity);
     constexpr int block_size = 128;
-
+    
     init_hashtbl<<<((m_capacity - 1) / block_size) + 1, block_size>>>(
         m_hashtbl_values, m_capacity, m_unused_key, m_unused_element);
     CUDA_RT_CALL(cudaGetLastError());

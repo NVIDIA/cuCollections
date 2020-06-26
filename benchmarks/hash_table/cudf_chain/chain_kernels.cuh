@@ -15,7 +15,7 @@ __global__ void insertKeySet(thrust::device_ptr<key_type> keys,
     for(auto i = 0; i < TILE_SIZE; i += BLOCK_SIZE) {
         auto idx = tid + i;
         if(idx >= numKeys) {
-            continue;
+            break;
         }
         auto key = keys[idx];
         auto value = values[idx];
@@ -50,7 +50,7 @@ __global__ void searchKeySet(thrust::device_ptr<key_type> keys,
     for(auto i = 0; i < TILE_SIZE; i += BLOCK_SIZE) {
         auto idx = tid + i;
         if(idx >= numKeys) {
-            continue;
+            break;
         }
         auto key = keys[idx];
         auto found = view.find(key);

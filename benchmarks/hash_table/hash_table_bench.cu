@@ -75,7 +75,7 @@ static void SlabSweepLoad(benchmark::internal::Benchmark *b) {
 }
 
 static void ResizeSweep(benchmark::internal::Benchmark *b) {
-  for(auto size = 50'000'000; size <= 310'000'000; size += 20'000'000) {
+  for(auto size = 10'000'000; size <= 310'000'000; size += 20'000'000) {
     b->Args({size});
   }
 }
@@ -306,19 +306,31 @@ static void BM_cudf_insert_resize(::benchmark::State& state) {
   std::vector<Key> h_keys(numKeys);
   std::vector<Value> h_values(numKeys);
   
-  /*
+  ///*
   std::mt19937 rng(12);
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
     h_values[i] = ~h_keys[i];
   }
-  */
+  //*/
 
-  ///*
+  /*
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::normal_distribution<> d{1e9, 1e7};
 
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = (int32_t)(std::round(d(gen))) & 0x7FFFFFFF;
+    h_values[i] = ~h_keys[i];
+  }
+  //*/
+  
+  // geometrically distributed keys
+  /*
+  std::random_device rd{};
+  std::mt19937 gen{rd()};
+  std::geometric_distribution<uint32_t> d(0.01);
+  
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = (int32_t)(std::round(d(gen))) & 0x7FFFFFFF;
     h_values[i] = ~h_keys[i];
@@ -335,49 +347,71 @@ static void BM_cudf_insert_resize(::benchmark::State& state) {
   auto value_iterator = d_values.begin();
   auto zip_counter = thrust::make_zip_iterator(
       thrust::make_tuple(key_iterator, value_iterator));
-      
+  
+  auto batchSize = 1e6;
+  auto buildTime = 0;
   for (auto _ : state) {
+    auto size = initSize;
+    auto map = map_type::create(size);
+    auto numKeysInserted = 0;
     
-    auto size = 134'217'728;
-    auto numToInsert =  std::min((uint32_t)(resizeOccupancy * size), (uint32_t) numKeys);
-    auto finished = false;
-    
-    auto t1 = 0;
-    auto t2 = 0;
-    auto buildTime = 0;
-
-    do {
-      std::chrono::steady_clock::time_point begin1 = std::chrono::steady_clock::now();
-      auto map = map_type::create(size);
-      auto view = *map;
-      std::chrono::steady_clock::time_point end1 = std::chrono::steady_clock::now();
-      
-      if(size == initSize) {
-        t1 = 0;
-      }
-      else { // only time the creation time after the map is resized
-        t1 = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - begin1).count();
-      }
-      
-      std::chrono::steady_clock::time_point begin2 = std::chrono::steady_clock::now();
-      thrust::for_each(
-          thrust::device, zip_counter, zip_counter + numToInsert,
+    std::chrono::steady_clock::time_point begin1 = std::chrono::steady_clock::now();
+    for(auto i = 0; i < numKeys / batchSize; ++i) {
+      auto capacity = resizeOccupancy * size;
+      if(numKeysInserted + batchSize <= capacity) {
+        auto view = *map;
+        thrust::for_each(
+          thrust::device, zip_counter + i * batchSize, zip_counter + (i + 1) * batchSize,
           [view] __device__(auto const& p) mutable {
             view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
           });
-     
-      finished = (numToInsert == numKeys);
-      size *= 2;
-      numToInsert = std::min((uint32_t) (resizeOccupancy * size), (uint32_t) numKeys);
-      std::chrono::steady_clock::time_point end2 = std::chrono::steady_clock::now();
-      
-      t2 = std::chrono::duration_cast<std::chrono::milliseconds>(end2 - begin2).count();
+        cudaDeviceSynchronize();
+        numKeysInserted += batchSize;
+      }
+      else { // if the map needs to be resized, resize and reinsert all of the old keys
+        size *= 2;
+        map = map_type::create(size);
+        auto view = *map;
+        thrust::for_each(
+          thrust::device, zip_counter, zip_counter + i * batchSize,
+          [view] __device__(auto const& p) mutable {
+            view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+          });
+        --i;
+      }
+    }
+    std::chrono::steady_clock::time_point end1 = std::chrono::steady_clock::now();
+    buildTime = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - begin1).count();
 
-      buildTime += (t1 + t2);
+    // correctness check
+    /*
+    Value* h_results = (Value*) malloc(numKeys * sizeof(Value)); 
+    Value* d_results;
+    cudaMalloc((void**)&d_results, numKeys * sizeof(Value));
 
-    } while(!finished);
+    auto idxIterator = thrust::make_counting_iterator<Key>(0);
+    auto key_counter = thrust::make_zip_iterator(thrust::make_tuple(idxIterator, key_iterator));
+    auto view = *map;
+    
+    thrust::for_each(
+      thrust::device, key_counter, key_counter + numKeys,
+      [view, d_results] __device__(auto const& p) mutable {
+        auto found = view.find(thrust::get<1>(p));
+        if(found != view.end()) {
+          d_results[thrust::get<0>(p)] = found->second;
+        }
+      });
+    cudaMemcpy(h_results, d_results, numKeys * sizeof(Value), cudaMemcpyDeviceToHost);
+    for(auto i = 0; i < numKeys; ++i) {
+      if(h_results[i] != h_values[i]) {
+        std::cout << "key value mismatch at index " << i << std::endl;
+        break;
+      }
+    }
 
-
+    free(h_results);
+    cudaFree(d_results);
+    */
 
     state.SetIterationTime((float) buildTime / 1000);
   }
@@ -385,7 +419,6 @@ static void BM_cudf_insert_resize(::benchmark::State& state) {
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
                           int64_t(state.iterations()) *
                           int64_t(state.range(0)));
-
 }
 
 
@@ -401,15 +434,15 @@ static void BM_cudf_insert_resize_search(::benchmark::State& state) {
   std::vector<Key> h_keys(numKeys);
   std::vector<Value> h_values(numKeys);
   
-  /*
+  //*
   std::mt19937 rng(12);
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
     h_values[i] = ~h_keys[i];
   }
-  */
+  //*/
   
-  ///*
+  /*
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::normal_distribution<> d{1e9, 1e7};
@@ -419,8 +452,18 @@ static void BM_cudf_insert_resize_search(::benchmark::State& state) {
     h_values[i] = ~h_keys[i];
   }
   //*/
-
-
+  
+  // geometrically distributed keys
+  /*
+  std::random_device rd{};
+  std::mt19937 gen{rd()};
+  std::geometric_distribution<uint32_t> d(0.01);
+  
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = (int32_t)(std::round(d(gen))) & 0x7FFFFFFF;
+    h_values[i] = ~h_keys[i];
+  }
+  //*/
 
   thrust::device_vector<Key> d_keys(numKeys);
   thrust::device_vector<Key> d_values(numKeys);
@@ -432,49 +475,40 @@ static void BM_cudf_insert_resize_search(::benchmark::State& state) {
   auto zip_counter = thrust::make_zip_iterator(
       thrust::make_tuple(key_iterator, value_iterator));
     
-  auto size = 134'217'728;
-  auto numToInsert =  std::min((uint32_t)(resizeOccupancy * size), (uint32_t) numKeys);
-  auto finished = false;
-  
-  auto t1 = 0;
-  auto t2 = 0;
+  auto batchSize = 1e6;
   auto buildTime = 0;
+  auto size = initSize;
+  auto map = map_type::create(size);
+  auto numKeysInserted = 0;
   
-  // dummy initializers so that variables are accessible outside of do-while
-  auto map = map_type::create(1);
-  auto view = *map;
-
-  do {
-    std::chrono::steady_clock::time_point begin1 = std::chrono::steady_clock::now();
-    map = map_type::create(size);
-    view = *map;
-    std::chrono::steady_clock::time_point end1 = std::chrono::steady_clock::now();
-    
-    if(size == initSize) {
-      t1 = 0;
-    }
-    else { // only time the creation after the map is resized
-      t1 = std::chrono::duration_cast<std::chrono::milliseconds>(end1 - begin1).count();
-    }
-    
-    std::chrono::steady_clock::time_point begin2 = std::chrono::steady_clock::now();
-    thrust::for_each(
-        thrust::device, zip_counter, zip_counter + numToInsert,
+  // insert keys
+  for(auto i = 0; i < numKeys / batchSize; ++i) {
+    auto capacity = resizeOccupancy * size;
+    if(numKeysInserted + batchSize <= capacity) {
+      auto view = *map;
+      thrust::for_each(
+        thrust::device, zip_counter + i * batchSize, zip_counter + (i + 1) * batchSize,
         [view] __device__(auto const& p) mutable {
           view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
         });
-    
-    finished = (numToInsert == numKeys);
-    size *= 2;
-    numToInsert = std::min((uint32_t) (resizeOccupancy * size), (uint32_t) numKeys);
-    std::chrono::steady_clock::time_point end2 = std::chrono::steady_clock::now();
-    
-    t2 = std::chrono::duration_cast<std::chrono::milliseconds>(end2 - begin2).count();
-
-    buildTime += (t1 + t2);
-
-  } while(!finished);
+      cudaDeviceSynchronize();
+      numKeysInserted += batchSize;
+    }
+    else { // if the map needs to be resized, resize and reinsert all of the old keys
+      size *= 2;
+      map = map_type::create(size);
+      auto view = *map;
+      thrust::for_each(
+        thrust::device, zip_counter, zip_counter + i * batchSize,
+        [view] __device__(auto const& p) mutable {
+          view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
+        });
+      --i;
+    }
+  }
   
+  // search for inserted keys
+  auto view = *map;
   for (auto _ : state) {
     thrust::for_each(
       thrust::device, key_iterator, key_iterator + state.range(0),
@@ -627,15 +661,15 @@ static void BM_slabhash_insert_resize(::benchmark::State& state) {
   Key *h_keys = new Key[numKeys];
   Value *h_values = new Value[numKeys];
   
-  /*
+  ///*
   std::mt19937 rng(12);
   for(auto i = 0; i < numKeys; ++i) {
-    keys[i] = int32_t(rng() & 0x7FFFFFFF);
-    values[i] = ~keys[i];
+    h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
+    h_values[i] = ~h_keys[i];
   }
-  */
+  //*/
   
-  ///*
+  /*
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::normal_distribution<> d{1e9, 1e7};
@@ -646,10 +680,27 @@ static void BM_slabhash_insert_resize(::benchmark::State& state) {
   }
   //*/
   
-  auto buildTime = 0.0;
+  // geometrically distributed keys
+  /*
+  std::random_device rd{};
+  std::mt19937 gen{rd()};
+  std::geometric_distribution<uint32_t> d(0.01);
+  
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = (int32_t)(std::round(d(gen))) & 0x7FFFFFFF;
+    h_values[i] = ~h_keys[i];
+  }
+  //*/
+  
+  uint32_t batchSize = 1e6;
   for(auto _ : state) {
-    map_type map{numKeys, numBuckets, deviceIdx, seed};
-    buildTime = map.hash_build_with_unique_keys(h_keys, h_values, numKeys);
+    //std::cout << "iter" << std::endl;
+    auto buildTime = 0.0f;
+    map_type map{batchSize, numBuckets, deviceIdx, seed};
+    for(uint32_t i = 0; i < numKeys / batchSize; ++i) {
+      //std::cout << i << std::endl;
+      buildTime += map.hash_build_with_unique_keys(h_keys + i * batchSize, h_values + i * batchSize, batchSize);
+    }
     state.SetIterationTime((float)buildTime / 1000);
   }
 
@@ -696,7 +747,7 @@ static void BM_slabhash_insert_resize_search(::benchmark::State& state) {
   }
   */
   
-  ///*
+  /*
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::normal_distribution<> d{1e9, 1e7};
@@ -707,6 +758,28 @@ static void BM_slabhash_insert_resize_search(::benchmark::State& state) {
   }
   //*/
 
+  /*
+  std::random_random_device rd{};
+  std::mt19937 gen{rd()};
+  std::geometric_distribution<uint32_t> d(0.9);
+  
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = (int32_t)(std::round(d(gen))) & 0x7FFFFFFF;
+    h_values[i] = ~h_keys[i];
+  }
+  //*/
+  
+  // geometrically distributed keys
+  ///*
+  std::random_device rd{};
+  std::mt19937 gen{rd()};
+  std::geometric_distribution<uint32_t> d(0.01);
+  
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = (int32_t)(std::round(d(gen))) & 0x7FFFFFFF;
+    h_values[i] = ~h_keys[i];
+  }
+  //*/
 
   Value *results = new Value[numKeys];
   
@@ -748,6 +821,7 @@ static void BM_cudfChain_insert_resize(::benchmark::State& state) {
   }
   //*/
   
+  // normally distributed keys
   /*
   std::random_device rd{};
   std::mt19937 gen{rd()};
@@ -759,13 +833,29 @@ static void BM_cudfChain_insert_resize(::benchmark::State& state) {
   }
   //*/
 
-  float buildTime = 0.0f;
+  // geometrically distributed keys
+  /*
+  std::random_device rd{};
+  std::mt19937 gen{rd()};
+  std::geometric_distribution<uint32_t> d(0.01);
+  
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = (int32_t)(std::round(d(gen))) & 0x7FFFFFFF;
+    h_values[i] = ~h_keys[i];
+  }
+  //*/
 
+  auto batchSize = 1e6;
   for (auto _ : state) {
+    auto buildTime = 0.0f;
     auto map = map_type::create(134'217'728);
     auto view = *map;
 
-    buildTime = view.bulkInsert(h_keys, h_values, numKeys);
+    for(auto i = 0; i < numKeys / batchSize; ++i) {
+      std::vector<Key> keyBatch (h_keys.begin() + i * batchSize, h_keys.begin() + (i + 1) * batchSize);
+      std::vector<Value> valueBatch (h_values.begin() + i * batchSize, h_values.begin() + (i + 1) * batchSize);
+      buildTime += view.bulkInsert(keyBatch, valueBatch, batchSize);
+    }
     state.SetIterationTime(buildTime / 1000);
 
     view.freeSubmaps();
@@ -804,6 +894,18 @@ static void BM_cudfChain_search_resize(::benchmark::State& state) {
   std::mt19937 gen{rd()};
   std::normal_distribution<> d{1e9, 1e7};
 
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = (int32_t)(std::round(d(gen))) & 0x7FFFFFFF;
+    h_values[i] = ~h_keys[i];
+  }
+  //*/
+  
+  // geometrically distributed keys
+  /*
+  std::random_device rd{};
+  std::mt19937 gen{rd()};
+  std::geometric_distribution<uint32_t> d(0.01);
+  
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = (int32_t)(std::round(d(gen))) & 0x7FFFFFFF;
     h_values[i] = ~h_keys[i];
@@ -857,12 +959,14 @@ BENCHMARK_TEMPLATE(BM_cudf_search_all, int32_t, int32_t)
 BENCHMARK_TEMPLATE(BM_cudf_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(cuSweepSize);
-
+*/
+/*
 BENCHMARK_TEMPLATE(BM_cudf_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
-
+*/
+/*
 BENCHMARK_TEMPLATE(BM_cudf_insert_resize_search, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(ResizeSweep);
@@ -882,12 +986,12 @@ BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
 BENCHMARK_TEMPLATE(BM_slabhash_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->Apply(SlabSweepSize);
-
+*/
 BENCHMARK_TEMPLATE(BM_slabhash_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
-
+/*
 BENCHMARK_TEMPLATE(BM_slabhash_insert_resize_search, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
@@ -896,13 +1000,13 @@ BENCHMARK_TEMPLATE(BM_slabhash_insert_resize_search, int32_t, int32_t)
 
 
 // chaining cuDF tests
-
+/*
 BENCHMARK_TEMPLATE(BM_cudfChain_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
-
 BENCHMARK_TEMPLATE(BM_cudfChain_search_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
+*/
