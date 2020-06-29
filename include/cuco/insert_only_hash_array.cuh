@@ -291,22 +291,13 @@ class insert_only_hash_array {
     {
       auto current_slot = initial_slot(k, hash);
 
-      return current_slot;
-
-      /*
-
       while (true) {
-        auto const current_key =
-            current_slot->load(cuda::std::memory_order_relaxed).first;
+        auto const current_key = current_slot->first.load(cuda::std::memory_order_relaxed);
         // Key exists, return iterator to location
-        if (key_equal(k, current_key)) {
-          return current_slot;
-        }
+        if (key_equal(k, current_key)) { return current_slot; }
 
         // Key doesn't exist, return end()
-        if (key_equal(empty_key_sentinel_, current_key)) {
-          return end();
-        }
+        if (key_equal(empty_key_sentinel_, current_key)) { return end(); }
 
         // TODO: Add check for full hash map?
 
@@ -314,7 +305,6 @@ class insert_only_hash_array {
         // Advance to next slot
         current_slot = next_slot(current_slot);
       }
-      */
     }
 
     /**
