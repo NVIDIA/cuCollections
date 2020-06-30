@@ -16,20 +16,23 @@
 
 #pragma once
 
-
-//#include <utilities/legacy/device_atomics.cuh>
-#include "../cudf_include/helper_functions.cuh"
-#include "../cudf_include/allocator.cuh"
-#include <cub/cub/cub.cuh>
-#include "chain_kernels.cuh"
-#include <cu_collections/hash_functions.cuh>
-
 #include <thrust/pair.h>
 #include <cassert>
 #include <iostream>
 #include <iterator>
 #include <limits>
 #include <type_traits>
+#include <stdint.h>
+
+//#include <utilities/legacy/device_atomics.cuh>
+#include "../cudf_include/helper_functions.cuh"
+#include "../cudf_include/allocator.cuh"
+#include <cub/cub/cub.cuh>
+#include <cooperative_groups.h>
+#include "chain_kernels.cuh"
+#include <cu_collections/hash_functions.cuh>
+  
+namespace cg = cooperative_groups;
 
 #ifndef AN
 #define AN
@@ -103,7 +106,8 @@ union pair_packer<pair_type, std::enable_if_t<is_packable<pair_type>()>> {
  *  - add constructor that takes pointer to hash_table to avoid allocations
  *  - extend interface to accept streams
  */
-template <typename Key, typename Element, typename Hasher = MurmurHash3_32<Key>,
+template <typename Key, typename Element, uint32_t TILE_SIZE, 
+          typename Hasher = MurmurHash3_32<Key>,
           typename Equality = equal_to<Key>,
           typename Allocator = cuda_allocator<thrust::pair<Key, Element>>>
 class concurrent_unordered_map_chain {
@@ -155,7 +159,7 @@ class concurrent_unordered_map_chain {
       const Equality& equal = key_equal(),
       const allocator_type& allocator = allocator_type()) {
     using Self =
-        concurrent_unordered_map_chain<Key, Element, Hasher, Equality, Allocator>;
+        concurrent_unordered_map_chain<Key, Element, TILE_SIZE, Hasher, Equality, Allocator>;
 
     auto deleter = [](Self* p) { p->destroy(); };
 
@@ -335,7 +339,7 @@ class concurrent_unordered_map_chain {
 
       insertKeySet
       <key_type, mapped_type, value_type,
-       concurrent_unordered_map_chain<Key, Element, Hasher, Equality, Allocator>>
+       concurrent_unordered_map_chain<Key, Element, TILE_SIZE, Hasher, Equality, Allocator>>
       <<<numBlocks, blockSize>>>
       (&d_keys[numElementsInserted], &d_values[numElementsInserted], 
        d_totalNumSuccesses, numElementsToInsert, i, view);
@@ -361,7 +365,6 @@ class concurrent_unordered_map_chain {
   }
 
 
-
   __host__ float bulkSearch(std::vector<key_type> const& h_keys,
                             std::vector<mapped_type> &h_results,
                             uint32_t numKeys) {
@@ -373,7 +376,8 @@ class concurrent_unordered_map_chain {
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
-
+    
+    /*
     // search for keys
     constexpr uint32_t blockSize = 128;
     uint32_t numBlocks = (numKeys + blockSize - 1) / blockSize;
@@ -381,10 +385,24 @@ class concurrent_unordered_map_chain {
 
     searchKeySet
     <key_type, mapped_type, 
-     concurrent_unordered_map_chain<Key, Element, Hasher, Equality, Allocator>>
+     concurrent_unordered_map_chain<Key, Element, TILE_SIZE, Hasher, Equality, Allocator>>
+    <<<numBlocks, blockSize>>>
+    (&d_keys[0], &d_results[0], numKeys, view);
+    */
+    
+    
+    constexpr uint32_t blockSize = 128;
+    uint32_t numBlocks = (TILE_SIZE * numKeys + blockSize - 1) / blockSize;
+    auto view = *this;
+    searchKeySetCG
+    <key_type, mapped_type, 
+     concurrent_unordered_map_chain<Key, Element, TILE_SIZE, Hasher, Equality, Allocator>,
+     TILE_SIZE>
     <<<numBlocks, blockSize>>>
     (&d_keys[0], &d_results[0], numKeys, view);
     
+
+
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&temp_time, start, stop);
@@ -491,7 +509,6 @@ class concurrent_unordered_map_chain {
     value_type* submap{nullptr};
     value_type* current_bucket{nullptr}; 
 
-    size_type map_capacity = 1 << m_log_m_capacity;
     for(auto i = 0; i < m_num_submaps; ++i) {
       size_type submap_cap = m_capacity * m_submap_caps[i];
 
@@ -575,6 +592,47 @@ class concurrent_unordered_map_chain {
 
     return this->end();
     #endif
+  }
+
+
+
+  __device__ const_iterator findCG(cg::thread_block_tile<TILE_SIZE> g, key_type const& k) {
+    size_type const keyHash = m_hf(k);
+
+    for(auto submapIdx = 0; submapIdx < m_num_submaps; ++submapIdx) {
+      value_type* submap = m_submaps[submapIdx];
+      size_type submap_cap = m_capacity * m_submap_caps[submapIdx];
+      uint32_t windowIdx = 0;
+      while(true) {
+        size_type index = (keyHash + windowIdx * g.size() + g.thread_rank()) % submap_cap;
+        value_type* current_bucket = &submap[index];
+        key_type const existing_key = current_bucket->first;
+        uint32_t existing = g.ballot(m_equal(existing_key, k));
+        
+        // the key we were searching for was found by one of the threads,
+        // so we return an iterator to the entry
+        if(existing) {
+          uint32_t srcLane = __ffs(existing) - 1;
+          intptr_t res_bucket = g.shfl(reinterpret_cast<intptr_t>(current_bucket), srcLane);
+          return const_iterator(submap, submap + submap_cap,
+                                reinterpret_cast<value_type*>(res_bucket));
+        }
+        
+        // we found an empty slot, meaning that the key we're searching 
+        // for isn't in this submap, so we should move onto the next one
+        uint32_t empty = g.ballot(m_equal(existing_key, m_unused_key));
+        if(empty) {
+          break;
+        }
+
+        // otherwise, all slots in the current window are full with other keys,
+        // so we move onto the next window in the current submap
+        windowIdx++;
+      }
+    }
+
+    // the key was not found in any of the submaps
+    return this->end();
   }
 
   cc_error assign_async(const concurrent_unordered_map_chain& other,

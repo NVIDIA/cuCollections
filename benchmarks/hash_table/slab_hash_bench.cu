@@ -214,7 +214,7 @@ static void slabhash_insert_resize() {
 
 template <typename Key, typename Value>
 static void cudf_chain_search_all() {
-  using map_type = concurrent_unordered_map_chain<Key, Value>;
+  using map_type = concurrent_unordered_map_chain<Key, Value, 4>;
 
   auto occupancy = 0.55;
   auto numKeys = 2 * 10'000'000;
