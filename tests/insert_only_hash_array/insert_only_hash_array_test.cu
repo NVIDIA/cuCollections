@@ -150,4 +150,14 @@ TEMPLATE_TEST_CASE("Unique sequence of keys", "", int32_t, int64_t)
                (found->first.load() == pair.first and found->second.load() == pair.second);
       }));
   }
+  SECTION("Fetch add on value works")
+  {
+    REQUIRE(all_of(
+      kv_pairs, kv_pairs + num_keys, [view] __device__(cuco::pair<Key, Value> const& pair) mutable {
+        auto result = view.insert(pair);
+        auto& v     = result.first->second;
+        v.fetch_add(42);
+        return v.load() == (pair.second + 42);
+      }));
+  }
 }
