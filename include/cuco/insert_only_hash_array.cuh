@@ -255,9 +255,9 @@ class insert_only_hash_array {
           // Key CAS failed, but value succeeded. Restore the value to it's
           // initial value
 
-          // FIXME: JH: There's a race condition here. If the value is equal to
-          // empty_value_sentinel, inserting on an existing key can have side effects with
-          // a concurrent thread doing a find + modify on the same key.
+          // TODO: The pair<atomic<K>, atomic<V>> implementation precludes concurrent insert/find
+          // because another thread doing a "find" for the key that's being inserted could observe
+          // that the key is updated before the value is updated.
           slot_value.store(empty_value_sentinel_, memory_order_relaxed);
         }
 
