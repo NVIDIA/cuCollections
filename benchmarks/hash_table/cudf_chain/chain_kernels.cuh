@@ -4,16 +4,16 @@ namespace cg = cooperative_groups;
 template<typename key_type, typename mapped_type, typename value_type, typename viewT>
 __global__ void insertKeySet(thrust::device_ptr<key_type> keys, 
                thrust::device_ptr<mapped_type> values,
-               uint32_t *totalNumSuccesses,
-               uint32_t numKeys, uint32_t submapIdx, viewT view) { 
+               unsigned long long int *totalNumSuccesses,
+               uint64_t numKeys, uint32_t submapIdx, viewT view) { 
   constexpr uint32_t BLOCK_SIZE = 128;
   constexpr uint32_t TILE_SIZE = BLOCK_SIZE * view.insertGran;
-  uint32_t tid = TILE_SIZE * blockIdx.x + threadIdx.x;
+  uint64_t tid = TILE_SIZE * blockIdx.x + threadIdx.x;
 
-  typedef cub::BlockReduce<uint32_t, BLOCK_SIZE> BlockReduce;
+  typedef cub::BlockReduce<uint64_t, BLOCK_SIZE> BlockReduce;
   __shared__ typename BlockReduce::TempStorage tempStorage;
   
-  uint32_t numSuccess = 0;
+  uint64_t numSuccess = 0;
   for(auto i = 0; i < TILE_SIZE; i += BLOCK_SIZE) {
     auto idx = tid + i;
     if(idx >= numKeys) {
@@ -32,9 +32,47 @@ __global__ void insertKeySet(thrust::device_ptr<key_type> keys,
   }
 
   // tally up number of successful insertions
-  uint32_t blockNumSuccesses = BlockReduce(tempStorage).Sum(numSuccess);
+  uint64_t blockNumSuccesses = BlockReduce(tempStorage).Sum(numSuccess);
   if(threadIdx.x == 0) {
-    atomicAdd(totalNumSuccesses, blockNumSuccesses);
+    atomicAdd(totalNumSuccesses, static_cast<unsigned long long int>(blockNumSuccesses));
+  }
+}
+
+
+
+// cooperative group based search kernel
+template<uint32_t tileSize, typename value_type, typename key_type, 
+         typename mapped_type, typename viewT>
+__global__ void insertKeySetCG(thrust::device_ptr<key_type> keys, 
+                               thrust::device_ptr<mapped_type> values,
+                               unsigned long long int* totalNumSuccesses,
+                               uint64_t numKeys, uint32_t submapIdx,
+                               viewT view) {
+  auto tile = cg::tiled_partition<tileSize>(cg::this_thread_block());
+  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+  
+  constexpr uint32_t BLOCK_SIZE = 128;
+  typedef cub::BlockReduce<uint64_t, BLOCK_SIZE> BlockReduce;
+  __shared__ typename BlockReduce::TempStorage tempStorage;
+  uint64_t numSuccesses = 0;
+
+  if(tid < tileSize * numKeys) {
+    uint64_t keyIdx = tid / tileSize;
+    auto key = keys[keyIdx];
+    auto value = values[keyIdx];
+    auto insertPair = thrust::make_pair(key, value);
+    auto found = view.dupCheckCG(tile, key, submapIdx);
+    if(!found) {
+      auto res = view.insertCG(tile, insertPair, submapIdx);
+      if(tile.thread_rank() == 0 && res.second) {
+        numSuccesses = 1;
+      }
+    }
+  }
+
+  uint64_t blockNumSuccesses = BlockReduce(tempStorage).Sum(numSuccesses);
+  if(threadIdx.x == 0) {
+    atomicAdd(totalNumSuccesses, static_cast<unsigned long long int>(blockNumSuccesses));
   }
 }
 
@@ -63,20 +101,20 @@ __global__ void searchKeySet(thrust::device_ptr<key_type> keys,
 
 
 // cooperative group based search kernel
-template<typename key_type, typename mapped_type, typename viewT, int TILE_SIZE>
+template<uint32_t tileSize, typename key_type, typename mapped_type, typename viewT>
 __global__ void searchKeySetCG(thrust::device_ptr<key_type> keys, 
-                 thrust::device_ptr<mapped_type> results, 
-                 uint32_t numKeys, viewT view) {
-  auto tile = cg::tiled_partition<TILE_SIZE>(cg::this_thread_block());
-  uint32_t tid = blockIdx.x * blockDim.x + threadIdx.x;
+                               thrust::device_ptr<mapped_type> results, 
+                               uint64_t numKeys, viewT view) {
+  auto tile = cg::tiled_partition<tileSize>(cg::this_thread_block());
+  uint64_t tid = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if(tid >= TILE_SIZE * numKeys) {
+  if(tid >= tileSize * numKeys) {
     return;
   }
 
-  uint32_t keyIdx = tid / TILE_SIZE;
+  uint64_t keyIdx = tid / tileSize;
   auto found = view.findCG(tile, keys[keyIdx]);
-  if(tid % TILE_SIZE == 0 && found != view.end()) {
+  if(tile.thread_rank() == 0 && found != view.end()) {
     //results[keyIdx] = found->second;
   }
 }

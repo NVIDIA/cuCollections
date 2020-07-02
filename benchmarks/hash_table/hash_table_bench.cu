@@ -81,6 +81,13 @@ static void ResizeSweep(benchmark::internal::Benchmark *b) {
 }
 
 
+static void OccupancySweep(benchmark::internal::Benchmark *b) {
+  for(auto occ = 40; occ <= 90; occ += 10) {
+    b->Args({occ});
+  }
+}
+
+
 
 /**
  * @brief Benchmark inserting all unique keys of a given number with specified
@@ -306,7 +313,7 @@ static void BM_cudf_insert_resize(::benchmark::State& state) {
   std::vector<Key> h_keys(numKeys);
   std::vector<Value> h_values(numKeys);
   
-  /*
+  ///*
   std::mt19937 rng(12);
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
@@ -314,7 +321,7 @@ static void BM_cudf_insert_resize(::benchmark::State& state) {
   }
   //*/
 
-  ///*
+  /*
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::normal_distribution<> d{1e9, 1e7};
@@ -434,7 +441,7 @@ static void BM_cudf_insert_resize_search(::benchmark::State& state) {
   std::vector<Key> h_keys(numKeys);
   std::vector<Value> h_values(numKeys);
   
-  /*
+  ///*
   std::mt19937 rng(12);
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
@@ -442,7 +449,7 @@ static void BM_cudf_insert_resize_search(::benchmark::State& state) {
   }
   //*/
   
-  ///*
+  /*
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::normal_distribution<> d{1e9, 1e7};
@@ -650,7 +657,7 @@ static void BM_slabhash_insert_resize(::benchmark::State& state) {
   uint32_t numKeysPerSlab = 15u;
   uint32_t numKeysPerBucketAvg = numSlabsPerBucketAvg * numKeysPerSlab;
   */
-  uint32_t numBuckets = 4'194'304;
+  uint32_t numBuckets = 7'340'032;
     /*(numKeys + numKeysPerBucketAvg - 1) / numKeysPerBucketAvg; */
   const uint32_t deviceIdx = 0;
   const int64_t seed = 1;
@@ -660,7 +667,7 @@ static void BM_slabhash_insert_resize(::benchmark::State& state) {
   Key *h_keys = new Key[numKeys];
   Value *h_values = new Value[numKeys];
   
-  /*
+  ///*
   std::mt19937 rng(12);
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
@@ -668,7 +675,7 @@ static void BM_slabhash_insert_resize(::benchmark::State& state) {
   }
   //*/
   
-  ///*
+  /*
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::normal_distribution<> d{1e9, 1e7};
@@ -736,7 +743,7 @@ static void BM_slabhash_insert_resize_search(::benchmark::State& state) {
   Key *h_keys = new Key[numKeys];
   Value *h_values = new Value[numKeys];
   
-  /*
+  ///*
   std::mt19937 rng(12);
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
@@ -744,7 +751,7 @@ static void BM_slabhash_insert_resize_search(::benchmark::State& state) {
   }
   //*/
   
-  ///*
+  /*
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::normal_distribution<> d{1e9, 1e7};
@@ -794,7 +801,7 @@ static void BM_slabhash_insert_resize_search(::benchmark::State& state) {
 
 template <typename Key, typename Value>
 static void BM_cudfChain_insert_resize(::benchmark::State& state) {
-  using map_type = concurrent_unordered_map_chain<Key, Value, 4>;
+  using map_type = concurrent_unordered_map_chain<Key, Value>;
 
   auto numKeys = state.range(0);
 
@@ -802,7 +809,7 @@ static void BM_cudfChain_insert_resize(::benchmark::State& state) {
   std::vector<Value> h_values(numKeys);
 
   // uniformly random keys
-  /*
+  ///*
   std::mt19937 rng(12);
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
@@ -811,7 +818,7 @@ static void BM_cudfChain_insert_resize(::benchmark::State& state) {
   //*/
   
   // normally distributed keys
-  ///*
+  /*
   std::random_device rd{};
   std::mt19937 gen{rd()};
   std::normal_distribution<> d{1e9, 1e7};
@@ -860,11 +867,11 @@ static void BM_cudfChain_insert_resize(::benchmark::State& state) {
 
 template <typename Key, typename Value>
 static void BM_cudfChain_search_resize(::benchmark::State& state) {
-  using map_type = concurrent_unordered_map_chain<Key, Value, 4>;
+  using map_type = concurrent_unordered_map_chain<Key, Value>;
 
   auto numKeys = state.range(0);
   
-  auto map = map_type::create(134'217'728);
+  auto map = map_type::create(1<<28);
   auto view = *map;
   
   std::vector<Key> h_keys(numKeys);
@@ -927,6 +934,105 @@ static void BM_cudfChain_search_resize(::benchmark::State& state) {
 
 
 
+template <typename Key, typename Value>
+static void BM_cudfChain_search_none(::benchmark::State& state) {
+  using map_type = concurrent_unordered_map_chain<Key, Value>;
+
+  uint32_t numKeys = (100'000'000) * state.range(0) / 100;
+  auto numQueries = 30'000'000;
+  
+  auto map = map_type::create(1<<27);
+  auto view = *map;
+  
+  std::vector<Key> h_keys(numKeys);
+  std::vector<Value> h_values(numKeys);
+  ///*
+  std::mt19937 rng(12);
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = i;
+    h_values[i] = i;
+
+  }
+
+  std::vector<Key> h_search_keys(numQueries);
+  for(auto i = 0; i < numQueries; ++i) {
+    h_search_keys[i] = numKeys + i;
+  }
+  
+  // insert keys
+  auto batchSize = 1e6;
+  for(auto i = 0; i < numKeys / batchSize; ++i) {
+    std::vector<Key> keyBatch (h_keys.begin() + i * batchSize, h_keys.begin() + (i + 1) * batchSize);
+    std::vector<Value> valueBatch (h_values.begin() + i * batchSize, h_values.begin() + (i + 1) * batchSize);
+    view.bulkInsert(keyBatch, valueBatch, batchSize);
+  }
+
+  // search for keys
+  std::vector<Value> h_results(numQueries);
+  float searchTime = 0.0f;
+
+  for(auto _ : state) {
+    searchTime = view.bulkSearch(h_search_keys, h_results, numQueries);
+    state.SetIterationTime(searchTime / 1000);
+  }
+
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                          int64_t(state.iterations()) *
+                          int64_t(numQueries));
+  // cleanup 
+  view.freeSubmaps();
+}
+
+
+
+template <typename Key, typename Value>
+static void BM_cudfChain_search_all(::benchmark::State& state) {
+  using map_type = concurrent_unordered_map_chain<Key, Value>;
+
+  uint32_t numKeys = (100'000'000) * state.range(0) / 100;
+  auto numQueries = 30'000'000;
+  
+  auto map = map_type::create(1<<27);
+  auto view = *map;
+  
+  std::vector<Key> h_keys(numKeys);
+  std::vector<Value> h_values(numKeys);
+  ///*
+  std::mt19937 rng(12);
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = i;
+    h_values[i] = i;
+
+  }
+
+  std::vector<Key> h_search_keys(numQueries);
+  for(auto i = 0; i < numQueries; ++i) {
+    h_search_keys[i] = i;
+  }
+  
+  // insert keys
+  auto batchSize = 1e6;
+  for(auto i = 0; i < numKeys / batchSize; ++i) {
+    std::vector<Key> keyBatch (h_keys.begin() + i * batchSize, h_keys.begin() + (i + 1) * batchSize);
+    std::vector<Value> valueBatch (h_values.begin() + i * batchSize, h_values.begin() + (i + 1) * batchSize);
+    view.bulkInsert(keyBatch, valueBatch, batchSize);
+  }
+
+  // search for keys
+  std::vector<Value> h_results(numQueries);
+  float searchTime = 0.0f;
+
+  for(auto _ : state) {
+    searchTime = view.bulkSearch(h_search_keys, h_results, numQueries);
+    state.SetIterationTime(searchTime / 1000);
+  }
+
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                          int64_t(state.iterations()) *
+                          int64_t(numQueries));
+  // cleanup 
+  view.freeSubmaps();
+}
 /*
 // cuCo tests
 BENCHMARK_TEMPLATE(BM_cuco_insert_random_keys, int32_t, int32_t)
@@ -998,8 +1104,19 @@ BENCHMARK_TEMPLATE(BM_cudfChain_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
-*/
+
 BENCHMARK_TEMPLATE(BM_cudfChain_search_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
+*/
+/*
+BENCHMARK_TEMPLATE(BM_cudfChain_search_none, int32_t, int32_t)
+    ->Unit(benchmark::kMillisecond)
+    ->UseManualTime()
+    ->Apply(OccupancySweep);
+*/
+BENCHMARK_TEMPLATE(BM_cudfChain_search_all, int32_t, int32_t)
+    ->Unit(benchmark::kMillisecond)
+    ->UseManualTime()
+    ->Apply(OccupancySweep);

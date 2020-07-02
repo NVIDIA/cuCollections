@@ -214,16 +214,16 @@ static void slabhash_insert_resize() {
 
 template <typename Key, typename Value>
 static void cudf_chain_search_all() {
-  using map_type = concurrent_unordered_map_chain<Key, Value, 4>;
+  using map_type = concurrent_unordered_map_chain<Key, Value>;
 
-  auto occupancy = 0.55;
+  auto occupancy = 0.75;
   auto numKeys = 2 * 10'000'000;
   auto capacity = (numKeys / 2) / occupancy;
   
   auto map = map_type::create(capacity);
   auto view = *map;
   
-  std::mt19937 rng( 12);
+  std::mt19937 rng(12);
   std::vector<Key> h_keys(numKeys);
   std::vector<Value> h_values(numKeys);
   for(auto i = 0; i < numKeys; ++i) {
@@ -235,7 +235,7 @@ static void cudf_chain_search_all() {
   // insert host keys
   view.bulkInsert(h_keys, h_values, numKeys); 
 
-
+  /*
   // search for keys
   std::vector<Value> h_results(numKeys);
   view.bulkSearch(h_keys, h_results, numKeys);
@@ -247,7 +247,8 @@ static void cudf_chain_search_all() {
       break;
     }
   }
-  
+  */
+ 
   // cleanup 
   view.freeSubmaps();
 }

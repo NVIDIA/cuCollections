@@ -106,7 +106,7 @@ union pair_packer<pair_type, std::enable_if_t<is_packable<pair_type>()>> {
  *  - add constructor that takes pointer to hash_table to avoid allocations
  *  - extend interface to accept streams
  */
-template <typename Key, typename Element, uint32_t TILE_SIZE, 
+template <typename Key, typename Element,
           typename Hasher = MurmurHash3_32<Key>,
           typename Equality = equal_to<Key>,
           typename Allocator = cuda_allocator<thrust::pair<Key, Element>>>
@@ -123,7 +123,7 @@ class concurrent_unordered_map_chain {
   using const_iterator = const cycle_iterator_adapter<value_type*>;
 
   static constexpr uint32_t m_max_num_submaps = 8;
-  static constexpr float m_max_load_factor = 0.6;
+  static constexpr float m_max_load_factor = 0.8;
   static constexpr uint32_t insertGran = 1;
   static constexpr uint32_t minKernelSize = 10'000;
 
@@ -159,7 +159,7 @@ class concurrent_unordered_map_chain {
       const Equality& equal = key_equal(),
       const allocator_type& allocator = allocator_type()) {
     using Self =
-        concurrent_unordered_map_chain<Key, Element, TILE_SIZE, Hasher, Equality, Allocator>;
+        concurrent_unordered_map_chain<Key, Element, Hasher, Equality, Allocator>;
 
     auto deleter = [](Self* p) { p->destroy(); };
 
@@ -268,7 +268,7 @@ class concurrent_unordered_map_chain {
  public:
   
   __host__ void addNewSubmap() {
-    uint32_t capacity = m_submap_caps[m_num_submaps] * m_capacity;
+    uint64_t capacity = m_submap_caps[m_num_submaps] * m_capacity;
     value_type* submap = m_allocator.allocate(capacity);
     constexpr int block_size = 128;
 
@@ -290,6 +290,7 @@ class concurrent_unordered_map_chain {
   
 
   // bulk insert kernel is called from host so that predictive resizing can be implemented
+  template<int N = 4>
   __host__ float bulkInsert(std::vector<key_type> const& h_keys,
                            std::vector<mapped_type> const& h_values,
                            uint32_t numKeys) {
@@ -303,52 +304,49 @@ class concurrent_unordered_map_chain {
     cudaEventRecord(start, 0);
     
     // determine if it will be necessary to add another map
-    uint32_t finalNumElements = m_total_num_elements + numKeys;
-    uint32_t numSubmapsNeeded = 0;
+    uint64_t finalNumElements = m_total_num_elements + numKeys;
+    uint64_t numSubmapsNeeded = 0;
     int64_t count = finalNumElements;
     while(count > 0) {
       count -= m_submap_caps[numSubmapsNeeded] * m_capacity * m_max_load_factor;
       numSubmapsNeeded++;
     }
-    uint32_t numSubmapsToAllocate = numSubmapsNeeded - m_num_submaps;
+    uint64_t numSubmapsToAllocate = numSubmapsNeeded - m_num_submaps;
     
     for(auto i = 0; i < numSubmapsToAllocate; ++i) {
       addNewSubmap();
     }
 
     // perform insertions into each submap
-    uint32_t numElementsInserted = 0;
-    uint32_t numElementsRemaining = numKeys;
+    uint64_t numElementsInserted = 0;
+    uint64_t numElementsRemaining = numKeys;
     for(auto i = 0; i < m_num_submaps; ++i) {
-      uint32_t maxNumElements = m_submap_caps[i] * m_capacity * m_max_load_factor;
-      uint32_t numElementsToInsert = std::min(maxNumElements - m_num_elements[i], numElementsRemaining);
+      uint64_t maxNumElements = m_submap_caps[i] * m_capacity * m_max_load_factor;
+      uint64_t numElementsToInsert = std::min(maxNumElements - m_num_elements[i], numElementsRemaining);
       if(numElementsToInsert < minKernelSize) {
         continue;
       }
       
       // allocate space for result for number of keys successfully inserted
-      uint32_t h_totalNumSuccesses;
-      uint32_t *d_totalNumSuccesses;
-      cudaMalloc((void**)&d_totalNumSuccesses, sizeof(uint32_t));
-      cudaMemset(d_totalNumSuccesses, 0x00, sizeof(uint32_t));
+      unsigned long long int h_totalNumSuccesses;
+      unsigned long long int *d_totalNumSuccesses;
+      cudaMalloc((void**)&d_totalNumSuccesses, sizeof(unsigned long long int));
+      cudaMemset(d_totalNumSuccesses, 0x00, sizeof(unsigned long long int));
       
       // perform insertions into the current submap
       constexpr uint32_t blockSize = 128;
-      uint32_t numBlocks = (numElementsToInsert + blockSize - 1) / blockSize;
+      constexpr uint32_t tileSize = 8;
+      uint32_t numBlocks = (tileSize * numElementsToInsert + blockSize - 1) / blockSize;
       auto view = *this;
-
-      insertKeySet
-      <key_type, mapped_type, value_type,
-       concurrent_unordered_map_chain<Key, Element, TILE_SIZE, Hasher, Equality, Allocator>>
+      insertKeySetCG<tileSize, value_type>
       <<<numBlocks, blockSize>>>
       (&d_keys[numElementsInserted], &d_values[numElementsInserted], 
        d_totalNumSuccesses, numElementsToInsert, i, view);
-      CUDA_RT_CALL(cudaGetLastError());
-        
+      
       // read the number of successful insertions
-      cudaMemcpy(&h_totalNumSuccesses, d_totalNumSuccesses, sizeof(uint32_t), 
+      cudaMemcpy(&h_totalNumSuccesses, d_totalNumSuccesses, sizeof(unsigned long long int), 
                  cudaMemcpyDeviceToHost);
-
+      
       numElementsRemaining -= numElementsToInsert;
       numElementsInserted += numElementsToInsert;
       m_num_elements[i] += h_totalNumSuccesses;
@@ -367,7 +365,7 @@ class concurrent_unordered_map_chain {
 
   __host__ float bulkSearch(std::vector<key_type> const& h_keys,
                             std::vector<mapped_type> &h_results,
-                            uint32_t numKeys) {
+                            uint64_t numKeys) {
     thrust::device_vector<key_type> d_keys( h_keys );
     thrust::device_vector<mapped_type> d_results( h_results );
     
@@ -377,31 +375,14 @@ class concurrent_unordered_map_chain {
     cudaEventCreate(&stop);
     cudaEventRecord(start, 0);
     
-    /*
-    // search for keys
     constexpr uint32_t blockSize = 128;
-    uint32_t numBlocks = (numKeys + blockSize - 1) / blockSize;
+    constexpr uint32_t tileSize = 4;
+    uint32_t numBlocks = (tileSize * numKeys + blockSize - 1) / blockSize;
     auto view = *this;
-
-    searchKeySet
-    <key_type, mapped_type, 
-     concurrent_unordered_map_chain<Key, Element, TILE_SIZE, Hasher, Equality, Allocator>>
-    <<<numBlocks, blockSize>>>
-    (&d_keys[0], &d_results[0], numKeys, view);
-    */
-    
-    
-    constexpr uint32_t blockSize = 128;
-    uint32_t numBlocks = (TILE_SIZE * numKeys + blockSize - 1) / blockSize;
-    auto view = *this;
-    searchKeySetCG
-    <key_type, mapped_type, 
-     concurrent_unordered_map_chain<Key, Element, TILE_SIZE, Hasher, Equality, Allocator>,
-     TILE_SIZE>
+    searchKeySetCG<tileSize>
     <<<numBlocks, blockSize>>>
     (&d_keys[0], &d_results[0], numKeys, view);
     
-
 
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
@@ -458,7 +439,91 @@ class concurrent_unordered_map_chain {
                  current_bucket),
         insert_success);
   }
- 
+
+  
+
+  template<typename CG>
+  __device__ thrust::pair<iterator, bool> insertCG(CG g, value_type const& insert_pair,
+                                                   uint32_t submapIdx) {
+    key_type const k = insert_pair.first;
+    mapped_type const v = insert_pair.second;
+    size_type const keyHash = m_hf(k);
+    value_type* submap = m_submaps[submapIdx];
+    size_type submap_cap = m_capacity * m_submap_caps[submapIdx];
+    uint32_t windowIdx = 0;
+    
+    while(true) {
+      size_type index = (keyHash + windowIdx * g.size() + g.thread_rank()) % submap_cap;
+      value_type* current_bucket = &submap[index];
+      key_type const existing_key = current_bucket->first;
+      uint32_t existing = g.ballot(m_equal(existing_key, k));
+      
+      // the key we are trying to insert is already in the map, so we return
+      // with failure to insert
+      if(existing) {
+        return thrust::make_pair(iterator(submap, submap + submap_cap, current_bucket), 
+                                 false);
+      }
+      
+      uint32_t empty = g.ballot(m_equal(existing_key, m_unused_key));
+
+      // we found an empty slot, but not the key we are inserting, so this must
+      // be an empty slot into which we can insert the key
+      if(empty) {
+        // the first lane in the group with an empty slot will attempt the insert
+        insert_result status{insert_result::CONTINUE};
+        uint32_t srcLane = __ffs(empty) - 1;
+
+        if(g.thread_rank() == srcLane) {
+          key_type const old_key{
+            atomicCAS(&(current_bucket->first), m_unused_key, k)};
+
+          // the key was successfully inserted, so insert the value and
+          // report success
+          if(m_equal(old_key, m_unused_key)) {
+            current_bucket->second = v;
+            status = insert_result::SUCCESS;
+          }          
+          // the key was inserted by another group in the time between the 
+          // first ballot and the atomicCAS
+          else if(m_equal(old_key, k)) {
+            status = insert_result::DUPLICATE;
+          }
+          // another key was inserted in the slot we wanted to try
+          // so we need to try the next empty slot in the window
+          else {
+            status = insert_result::CONTINUE;
+          }
+        }
+
+        uint32_t res_status = g.shfl(static_cast<uint32_t>(status), srcLane);
+        status = static_cast<insert_result>(res_status);
+
+        // successful insert
+        if(status == insert_result::SUCCESS) {
+          intptr_t res_bucket = g.shfl(reinterpret_cast<intptr_t>(current_bucket), srcLane);
+          return thrust::make_pair(iterator(submap, submap + submap_cap, 
+                                            reinterpret_cast<value_type*>(res_bucket)), 
+                                   true);
+        }
+        // duplicate present during insert
+        if(status == insert_result::DUPLICATE) {
+          return thrust::make_pair(iterator(submap, submap + submap_cap, current_bucket),
+                                   false);
+        }
+        // if we've gotten this far, a different key took our spot 
+        // before we could insert. We need to retry the insert on the
+        // same window
+      }
+      // if there are no empty slots in the current window,
+      // we move onto the next window
+      else {
+        windowIdx++;
+      }
+    }
+  }
+
+
 
   __device__ bool DupCheck(key_type const& k, uint32_t submapIdx) const {
     size_type const key_hash = m_hf(k);
@@ -490,7 +555,41 @@ class concurrent_unordered_map_chain {
     return false;
   }
 
+  template<typename CG>
+  __device__ bool dupCheckCG(CG g, key_type const& k, uint32_t maxSubmapIdx) {
+    size_type const keyHash = m_hf(k);
 
+    for(auto submapIdx = 0; submapIdx < maxSubmapIdx; ++submapIdx) {
+      value_type* submap = m_submaps[submapIdx];
+      size_type submap_cap = m_capacity * m_submap_caps[submapIdx];
+      uint32_t windowIdx = 0;
+      while(true) {
+        size_type index = (keyHash + windowIdx * g.size() + g.thread_rank()) % submap_cap;
+        value_type* current_bucket = &submap[index];
+        key_type const existing_key = current_bucket->first;
+        uint32_t existing = g.ballot(m_equal(existing_key, k));
+        
+        // the key we were searching for was found by one of the threads,
+        // so we know the key is a duplicate
+        if(existing) {
+          return true;
+        }
+        // we found an empty slot, meaning that the key we're searching 
+        // for isn't in this submap, so we should move onto the next one
+        uint32_t empty = g.ballot(m_equal(existing_key, m_unused_key));
+        if(empty) {
+          break;
+        }
+
+        // otherwise, all slots in the current window are full with other keys,
+        // so we move onto the next window in the current submap
+        windowIdx++;
+      }
+    }
+
+    // the key was not found in any of the submaps
+    return false;
+  }
 
   /**---------------------------------------------------------------------------*
    * @brief Searches the map for the specified key.
@@ -595,8 +694,8 @@ class concurrent_unordered_map_chain {
   }
 
 
-
-  __device__ const_iterator findCG(cg::thread_block_tile<TILE_SIZE> g, key_type const& k) {
+  template<typename CG>
+  __device__ const_iterator findCG(CG g, key_type const& k) {
     size_type const keyHash = m_hf(k);
 
     for(auto submapIdx = 0; submapIdx < m_num_submaps; ++submapIdx) {
