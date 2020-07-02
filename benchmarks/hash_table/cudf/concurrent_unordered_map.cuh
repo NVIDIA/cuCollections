@@ -17,7 +17,7 @@
 #pragma once
 
 //#include <utilities/legacy/device_atomics.cuh>
-#include <cu_collections/hash_functions.cuh>
+#include <cuco/hash_functions.cuh>
 #include "allocator.cuh"
 #include "helper_functions.cuh"
 

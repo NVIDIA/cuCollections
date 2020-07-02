@@ -19,8 +19,8 @@
 #include <thrust/pair.h>
 #include <thrust/transform.h>
 
-#include <cu_collections/hash_functions.cuh>
 #include <cuco/detail/error.hpp>
+#include <cuco/hash_functions.cuh>
 #include <cuda/std/atomic>
 
 namespace cuco {
