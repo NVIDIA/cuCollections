@@ -25,7 +25,6 @@
 #include <cuco/insert_only_hash_array.cuh>
 
 #include "../hash_table/cudf/concurrent_unordered_map.cuh"
-#include "../nvtx3.hpp"
 
 /**
  * @brief Generates input sizes and number of unique keys
@@ -96,7 +95,6 @@ template <typename KeyRandomIterator, typename ValueRandomIterator>
 void cuco_reduce_by_key(KeyRandomIterator keys_begin,
                      KeyRandomIterator keys_end,
                      ValueRandomIterator values_begin) {
-nvtx3::thread_range l{};
 using Key = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
 using Value =
    typename thrust::iterator_traits<ValueRandomIterator>::value_type;
@@ -115,7 +113,6 @@ template <typename Key, typename Value>
 static void BM_cuco(::benchmark::State& state) {
 std::string msg{"cuco rbk: "};
 msg += std::to_string(state.range(0));
-nvtx3::thread_range r{msg};
 for (auto _ : state) {
  state.PauseTiming();
  thrust::device_vector<Key> keys(state.range(0));
@@ -136,7 +133,6 @@ void cudf_reduce_by_key(KeyRandomIterator keys_begin,
                         KeyRandomIterator keys_end,
                         ValueRandomIterator values_begin)
 {
-  nvtx3::thread_range l{};
   using Key   = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
   using Value = typename thrust::iterator_traits<ValueRandomIterator>::value_type;
 
@@ -187,7 +183,6 @@ static void BM_cudf(::benchmark::State& state)
   std::string msg{"cudf rbk: "};
   msg += std::to_string(state.range(0));
   auto const num_unique_keys = state.range(1);
-  nvtx3::thread_range r{msg};
 
   for (auto _ : state) {
     state.PauseTiming();
@@ -213,7 +208,6 @@ void cuco_cas_reduce_by_key(KeyRandomIterator keys_begin,
                             KeyRandomIterator keys_end,
                             ValueRandomIterator values_begin)
 {
-  nvtx3::thread_range l{};
   using Key   = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
   using Value = typename thrust::iterator_traits<ValueRandomIterator>::value_type;
 
@@ -256,7 +250,6 @@ static void BM_cuco_cas(::benchmark::State& state)
   std::string msg{"cudf rbk: "};
   msg += std::to_string(state.range(0));
   auto const num_unique_keys = state.range(1);
-  nvtx3::thread_range r{msg};
 
   for (auto _ : state) {
     state.PauseTiming();
