@@ -276,3 +276,4 @@ static void BM_cuco_cas(::benchmark::State& state)
 BENCHMARK_TEMPLATE(BM_cuco_cas, int64_t, int64_t)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_num_unique);
+  */
