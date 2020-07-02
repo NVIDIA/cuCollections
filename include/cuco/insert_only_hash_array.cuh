@@ -22,7 +22,6 @@
 #include <cu_collections/hash_functions.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuda/std/atomic>
-#include <simt/atomic>
 
 namespace cuco {
 
