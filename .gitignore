@@ -8,6 +8,7 @@ __pycache__
 *.dylib
 .cache
 .vscode
+*.code-workspace
 *.swp
 *.pytest_cache
 DartConfiguration.tcl

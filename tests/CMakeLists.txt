@@ -25,12 +25,12 @@ endif(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 
 ###################################################################################################
 # - compiler options ------------------------------------------------------------------------------
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_C_COMPILER $ENV{CC})
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_C_COMPILER $ENV{tCC})
 set(CMAKE_CXX_COMPILER $ENV{CXX})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(CMAKE_CUDA_STANDARD 11)
+set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 ###################################################################################################
 # - determine CUDA version-------------------------------------------------------------------------
@@ -76,9 +76,6 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_${ptx},code=comp
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
 
-# set warnings as errors
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Werror cross-execution-space-call -Xcompiler -Wall,-Werror")
-
 # Option to enable line info in CUDA device compilation to allow introspection when profiling / memchecking
 option(CMAKE_CUDA_LINEINFO "Enable the -lineinfo option for nvcc (useful for cuda-memcheck / profiler" OFF)
 if(CMAKE_CUDA_LINEINFO)
@@ -123,9 +120,9 @@ add_library(CatchMain OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/${CATCH_MAIN_SOURCE})
 ###################################################################################################
 function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
     add_executable(${CMAKE_TEST_NAME}
-                   ${CMAKE_TEST_SRC})
-    set_target_properties(${CMAKE_TEST_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    target_link_libraries(${CMAKE_TEST_NAME} CatchMain pthread)
+                   ${CMAKE_TEST_SRC}
+                   $<TARGET_OBJECTS:CatchMain>
+                   "${CMAKE_SOURCE_DIR}/tests/catch.hpp")
     set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
                             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     add_test(NAME ${CMAKE_TEST_NAME} COMMAND ${CMAKE_TEST_NAME})
@@ -139,10 +136,16 @@ set(EXAMPLE_TEST_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/example/example.cpp")
 
 ConfigureTest(EXAMPLE_TEST "${EXAMPLE_TEST_SRC}")
-###################################################################################################
-set(EXAMPLE_CUDA_TEST_SRC 
-    "${CMAKE_CURRENT_SOURCE_DIR}/example/example.cu")
+####################################################################################################
+#set(EXAMPLE_CUDA_TEST_SRC 
+#    "${CMAKE_CURRENT_SOURCE_DIR}/example/example.cu")
 
-ConfigureTest(EXAMPLE_CUDA_TEST "${EXAMPLE_CUDA_TEST_SRC}")
+#ConfigureTest(EXAMPLE_CUDA_TEST "${EXAMPLE_CUDA_TEST_SRC}")
+###################################################################################################
+###################################################################################################
+set(INSERT_ONLY_HASH_ARRAY_TEST_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/insert_only_hash_array/insert_only_hash_array_test.cu")
+
+ConfigureTest(INSERT_ONLY_HASH_ARRAY_TEST "${INSERT_ONLY_HASH_ARRAY_TEST_SRC}")
 ###################################################################################################
 
