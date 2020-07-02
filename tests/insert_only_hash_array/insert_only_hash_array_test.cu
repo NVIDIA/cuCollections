@@ -16,7 +16,6 @@
 
 #include "catch.hpp"
 
-#include <cu_collections/utilities/error.hpp>
 #include <cuco/insert_only_hash_array.cuh>
 
 #include <thrust/count.h>

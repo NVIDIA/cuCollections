@@ -17,7 +17,6 @@
 #pragma once
 
 #include <cu_collections/cu_collections.h>
-#include <cu_collections/utilities/error.hpp>
 
 using hash_value_type = uint32_t;
 
