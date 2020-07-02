@@ -42,6 +42,15 @@ class static_map {
   static_map& operator=(static_map const&) = delete;
   static_map& operator=(static_map&&) = delete;
 
+  /**
+   * @brief Construct a fixed-size map with the specified capacity and sentinel values.
+   *
+   * details here...
+   *
+   * @param capacity The total number of slots in the map
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_value_sentinel The reserved mapped value for empty slots
+   */
   static_map(std::size_t capacity, Key empty_key_sentinel, Value empty_value_sentinel);
 
   ~static_map();
