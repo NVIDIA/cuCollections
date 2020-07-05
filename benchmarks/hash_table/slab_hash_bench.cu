@@ -217,7 +217,7 @@ template <typename Key, typename Value>
 static void cudf_chain_search_all() {
   using map_type = concurrent_unordered_map_chain<Key, Value>;
 
-  auto occupancy = 0.75;
+  auto occupancy = 0.55;
   auto numKeys = 2 * 10'000'000;
   auto capacity = (numKeys / 2) / occupancy;
   
@@ -236,7 +236,7 @@ static void cudf_chain_search_all() {
   // insert host keys
   view.bulkInsert(h_keys, h_values, numKeys); 
 
-  /*
+  
   // search for keys
   std::vector<Value> h_results(numKeys);
   view.bulkSearch(h_keys, h_results, numKeys);
@@ -248,7 +248,7 @@ static void cudf_chain_search_all() {
       break;
     }
   }
-  */
+  
  
   // cleanup 
   view.freeSubmaps();
@@ -275,8 +275,8 @@ int main() {
     //cuco_search_all<int32_t, int32_t>();
     //slabhash_search_all<int32_t, int32_t>();
     //slabhash_insert_resize<int32_t, int32_t>();
-    //cudf_chain_search_all<int32_t, int32_t>();
-    init_static_map<int32_t, int32_t>();
+    cudf_chain_search_all<int32_t, int32_t>();
+    //init_static_map<int32_t, int32_t>();
 
   }
 

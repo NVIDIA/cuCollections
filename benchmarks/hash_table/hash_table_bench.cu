@@ -873,7 +873,7 @@ static void BM_cudfChain_search_resize(::benchmark::State& state) {
 
   auto numKeys = state.range(0);
   
-  auto map = map_type::create(1<<28);
+  auto map = map_type::create(1<<27);
   auto view = *map;
   
   std::vector<Key> h_keys(numKeys);
@@ -1114,12 +1114,12 @@ BENCHMARK_TEMPLATE(BM_cudfChain_insert_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
-
+*/
 BENCHMARK_TEMPLATE(BM_cudfChain_search_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
-
+/*
 BENCHMARK_TEMPLATE(BM_cudfChain_search_none, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()

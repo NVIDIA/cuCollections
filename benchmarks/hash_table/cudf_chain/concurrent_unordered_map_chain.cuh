@@ -375,7 +375,7 @@ class concurrent_unordered_map_chain {
     cudaEventRecord(start, 0);
     
     constexpr uint32_t blockSize = 128;
-    constexpr uint32_t tileSize = 4;
+    constexpr uint32_t tileSize = 8;
     uint32_t numBlocks = (tileSize * numKeys + blockSize - 1) / blockSize;
     auto view = *this;
     searchKeySetCG<tileSize>
@@ -696,7 +696,7 @@ class concurrent_unordered_map_chain {
   template<typename CG>
   __device__ const_iterator findCG(CG g, key_type const& k) {
     size_type const keyHash = m_hf(k);
-
+    
     for(auto submapIdx = 0; submapIdx < m_num_submaps; ++submapIdx) {
       value_type* submap = m_submaps[submapIdx];
       size_type submap_cap = m_capacity * m_submap_caps[submapIdx];
@@ -731,6 +731,86 @@ class concurrent_unordered_map_chain {
 
     // the key was not found in any of the submaps
     return this->end();
+  }
+  
+  template<typename CG>
+  __device__ const_iterator findCGAlt(uint32_t alt_gran, CG g, key_type const& k) {
+    size_type const keyHash = m_hf(k);
+    bool done0 = false;
+    bool done1 = false;
+    bool done2 = false;
+    value_type *submap0 = m_submaps[0];
+    value_type *submap1 = m_submaps[1];
+    value_type *submap2 = m_submaps[2];
+    size_type submap_cap0 = m_submap_caps[0];
+    size_type submap_cap1 = m_submap_caps[1];
+    size_type submap_cap2 = m_submap_caps[2];
+    uint32_t numDone = 0;
+    value_type* submap;
+    size_type submap_cap;
+    uint32_t submapIdx = 0;
+    uint32_t windowIdx = 0;
+    uint32_t probeIdx = 0;
+
+    while(true) {
+      switch(submapIdx) {
+        case 0: submap = submap0; submap_cap = m_capacity * submap_cap0; break;
+        case 1: submap = submap1; submap_cap = m_capacity * submap_cap1; break;
+        case 2: submap = submap2; submap_cap = m_capacity * submap_cap2; break;
+      }
+
+      size_type index = (keyHash + windowIdx * g.size() + g.thread_rank()) % submap_cap;
+      value_type* current_bucket = &submap[index];
+      key_type const existing_key = current_bucket->first;
+      uint32_t existing = g.ballot(m_equal(existing_key, k));
+      
+      // the key we were searching for was found by one of the threads,
+      // so we return an iterator to the entry
+      if(existing) {
+        uint32_t srcLane = __ffs(existing) - 1;
+        intptr_t res_bucket = g.shfl(reinterpret_cast<intptr_t>(current_bucket), srcLane);
+        return const_iterator(submap, submap + submap_cap,
+                              reinterpret_cast<value_type*>(res_bucket));
+      }
+      
+      // we found an empty slot, meaning that the key we're searching 
+      // for isn't in this submap, so we should move onto the next one
+      uint32_t empty = g.ballot(m_equal(existing_key, m_unused_key));
+      if(empty) {
+        switch(submapIdx) {
+          case 0: done0 = true; break;
+          case 1: done1 = true; break;
+          case 2: done2 = true; break;
+        }
+      }
+
+      // otherwise, all slots in the current window are full with other keys,
+      // so we move onto the next window in the current submap
+      bool skipped = false;
+      while((submapIdx == 0 && done0) || (submapIdx == 1 && done1) || (submapIdx == 2 && done2)) {
+        // ensure that we move onto the next submap given that we know the key cannot be in one
+        // of these submaps
+        probeIdx += alt_gran - (probeIdx % alt_gran);
+        submapIdx = get_submap_idx_alt(probeIdx, alt_gran);
+        skipped = true;
+      }
+      if(!skipped) {
+        probeIdx++;
+      }
+      submapIdx = get_submap_idx_alt(probeIdx, alt_gran);
+      windowIdx = get_window_idx_alt(probeIdx, alt_gran);
+    }
+
+    // the key was not found in any of the submaps
+    return this->end();
+  }
+
+  __device__ uint32_t get_submap_idx_alt(uint32_t probeIdx, uint32_t alt_gran) {
+    return (probeIdx / alt_gran) % m_num_submaps;
+  }
+
+  __device__ uint32_t get_window_idx_alt(uint32_t probeIdx, uint32_t alt_gran) {
+    return ((probeIdx / alt_gran) / m_num_submaps) + probeIdx % alt_gran;
   }
 
   cc_error assign_async(const concurrent_unordered_map_chain& other,
