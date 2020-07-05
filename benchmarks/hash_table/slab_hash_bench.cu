@@ -16,7 +16,8 @@
 
 #include <benchmark/benchmark.h>
 
-#include <cuco/insert_only_hash_array.cuh>
+//#include <cuco/insert_only_hash_array.cuh>
+#include <cuco/static_map.cuh>
 #include "../nvtx3.hpp"
 #include "cudf/concurrent_unordered_map.cuh"
 #include "cudf_chain/concurrent_unordered_map_chain.cuh"
@@ -26,7 +27,7 @@
 #include <iostream>
 
 
-
+#if 0
 template <typename Key, typename Value>
 static void cuco_search_all() {
   using map_type =
@@ -75,7 +76,7 @@ static void cuco_search_all() {
         });
   }
 }
-
+#endif
 
 
 template <typename Key, typename Value>
@@ -254,6 +255,18 @@ static void cudf_chain_search_all() {
 }
 
 
+template <typename Key, typename Value>
+static void init_static_map() {
+  using map_type = cuco::static_map<Key, Value>;
+  map_type map{1 << 27, -1, -1};
+  thrust::device_vector<int> a(10);
+  thrust::device_vector<int> b(10);
+  auto cow = thrust::make_zip_iterator(thrust::make_tuple(a.begin(), b.begin()));
+  map.insert(cow, cow + 10);
+  map.find(a.begin(), a.end(), b.begin());
+
+
+}
 
 int main() {
   
@@ -262,7 +275,9 @@ int main() {
     //cuco_search_all<int32_t, int32_t>();
     //slabhash_search_all<int32_t, int32_t>();
     //slabhash_insert_resize<int32_t, int32_t>();
-    cudf_chain_search_all<int32_t, int32_t>();
+    //cudf_chain_search_all<int32_t, int32_t>();
+    init_static_map<int32_t, int32_t>();
+
   }
 
   return 0;

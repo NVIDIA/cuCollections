@@ -16,7 +16,8 @@
 
 #include <benchmark/benchmark.h>
 
-#include <cuco/insert_only_hash_array.cuh>
+//#include <cuco/insert_only_hash_array.cuh>
+#include "cuco/static_map.cuh"
 #include "../nvtx3.hpp"
 #include "cudf/concurrent_unordered_map.cuh"
 #include "cudf_chain/concurrent_unordered_map_chain.cuh"
@@ -93,7 +94,8 @@ static void OccupancySweep(benchmark::internal::Benchmark *b) {
  * @brief Benchmark inserting all unique keys of a given number with specified
  * hash table occupancy
  */
-template <typename Key, typename Value>
+#if 0
+ template <typename Key, typename Value>
 static void BM_cuco_insert_random_keys(::benchmark::State& state) {
   using map_type =
       cuco::insert_only_hash_array<Key, Value, cuda::thread_scope_device>;
@@ -196,7 +198,7 @@ static void BM_cuco_search_all(::benchmark::State& state) {
                           int64_t(state.iterations()) *
                           int64_t(state.range(0)));
 }
-
+#endif
 
 
 template <typename Key, typename Value>
@@ -938,11 +940,14 @@ template <typename Key, typename Value>
 static void BM_cudfChain_search_none(::benchmark::State& state) {
   using map_type = concurrent_unordered_map_chain<Key, Value>;
 
-  uint32_t numKeys = (100'000'000) * state.range(0) / 100;
-  auto numQueries = 30'000'000;
+  uint32_t numKeys = 100'000'000;
+  auto numQueries = 100'000'000;
+  auto occupancy = (float)state.range(0) / 100;
+  uint32_t capacity = (float)numKeys / occupancy;
   
-  auto map = map_type::create(1<<27);
+  auto map = map_type::create(capacity);
   auto view = *map;
+  
   
   std::vector<Key> h_keys(numKeys);
   std::vector<Value> h_values(numKeys);
@@ -989,10 +994,12 @@ template <typename Key, typename Value>
 static void BM_cudfChain_search_all(::benchmark::State& state) {
   using map_type = concurrent_unordered_map_chain<Key, Value>;
 
-  uint32_t numKeys = (100'000'000) * state.range(0) / 100;
-  auto numQueries = 30'000'000;
+  uint32_t numKeys = 100'000'000;
+  auto numQueries = 100'000'000;
+  auto occupancy = (float)state.range(0) / 100;
+  uint32_t capacity = (float)numKeys / occupancy;
   
-  auto map = map_type::create(1<<27);
+  auto map = map_type::create(capacity);
   auto view = *map;
   
   std::vector<Key> h_keys(numKeys);
@@ -1033,6 +1040,9 @@ static void BM_cudfChain_search_all(::benchmark::State& state) {
   // cleanup 
   view.freeSubmaps();
 }
+
+
+
 /*
 // cuCo tests
 BENCHMARK_TEMPLATE(BM_cuco_insert_random_keys, int32_t, int32_t)
@@ -1109,14 +1119,14 @@ BENCHMARK_TEMPLATE(BM_cudfChain_search_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
-*/
-/*
+
 BENCHMARK_TEMPLATE(BM_cudfChain_search_none, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(OccupancySweep);
-*/
+
 BENCHMARK_TEMPLATE(BM_cudfChain_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(OccupancySweep);
+*/

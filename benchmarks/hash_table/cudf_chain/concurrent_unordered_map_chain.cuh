@@ -290,7 +290,6 @@ class concurrent_unordered_map_chain {
   
 
   // bulk insert kernel is called from host so that predictive resizing can be implemented
-  template<int N = 4>
   __host__ float bulkInsert(std::vector<key_type> const& h_keys,
                            std::vector<mapped_type> const& h_values,
                            uint32_t numKeys) {
@@ -796,7 +795,6 @@ class concurrent_unordered_map_chain {
   key_type m_unused_key;
   allocator_type m_allocator;
   size_type m_capacity;
-  size_type m_log_m_capacity;
   value_type* m_hashtbl_values;
   value_type* m_submaps[m_max_num_submaps];
   const uint32_t m_submap_caps[m_max_num_submaps] = {1, 1, 2, 4, 5, 16, 32, 64};
@@ -828,8 +826,7 @@ class concurrent_unordered_map_chain {
         m_total_num_elements(0),
         m_num_submaps(1) {
     // round m_capacity to the nearest larger or equal power of 2
-    m_capacity = std::pow(2, ceil(log(capacity) / log(2)));
-    m_log_m_capacity = ceil(log(capacity / log(2)));
+    m_capacity = capacity;//std::pow(2, ceil(log(capacity) / log(2)));
 
     m_hashtbl_values = m_allocator.allocate(m_capacity);
     constexpr int block_size = 128;
