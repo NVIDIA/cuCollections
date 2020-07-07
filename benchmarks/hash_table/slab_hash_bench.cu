@@ -259,13 +259,36 @@ template <typename Key, typename Value>
 static void init_static_map() {
   using map_type = cuco::static_map<Key, Value>;
   map_type map{1 << 27, -1, -1};
-  thrust::device_vector<int> a(10);
-  thrust::device_vector<int> b(10);
-  auto cow = thrust::make_zip_iterator(thrust::make_tuple(a.begin(), b.begin()));
-  map.insert(cow, cow + 10);
-  map.find(a.begin(), a.end(), b.begin());
+  auto view = map.get_device_mutable_view();
+  auto num_keys = 1<<25;
 
 
+  std::vector<int> h_keys( num_keys );
+  std::vector<int> h_values( num_keys );
+  std::vector<cuco::pair_type<int, int>> h_pairs ( num_keys );
+  std::vector<int> h_results (num_keys);
+  
+  for(auto i = 0; i < num_keys; ++i) {
+    h_keys[i] = i;
+    h_values[i] = i;
+    h_pairs[i] = cuco::make_pair(i, i);
+  }
+
+  thrust::device_vector<int> d_keys( h_keys ); 
+  thrust::device_vector<int> d_results( num_keys);
+  thrust::device_vector<cuco::pair_type<int, int>> d_pairs( h_pairs );
+
+  map.insert(d_pairs.begin(), d_pairs.end());
+  map.find(d_keys.begin(), d_keys.end(), d_results.begin());
+
+  thrust::copy(d_results.begin(), d_results.end(), h_results.begin());
+
+  for(auto i = 0; i < num_keys; ++i) {
+    if(h_results[i] != h_values[i]) {
+      std::cout << "key-value mismatch at index " << i << std::endl;
+      break;
+    }
+  }
 }
 
 int main() {
@@ -275,8 +298,8 @@ int main() {
     //cuco_search_all<int32_t, int32_t>();
     //slabhash_search_all<int32_t, int32_t>();
     //slabhash_insert_resize<int32_t, int32_t>();
-    cudf_chain_search_all<int32_t, int32_t>();
-    //init_static_map<int32_t, int32_t>();
+    //cudf_chain_search_all<int32_t, int32_t>();
+    init_static_map<int32_t, int32_t>();
 
   }
 
