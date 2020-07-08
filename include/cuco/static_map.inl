@@ -1,5 +1,22 @@
 namespace cuco {
 
+constexpr std::size_t next_pow2(std::size_t v) noexcept {
+  --v;
+  v |= v >> 1;
+  v |= v >> 2;
+  v |= v >> 4;
+  v |= v >> 8;
+  v |= v >> 16;
+  return ++v;
+}
+
+
+
+template <typename First, typename Second>
+constexpr std::size_t pair_alignment() {
+  return std::min(std::size_t{16}, next_pow2(sizeof(First) + sizeof(Second)));
+}
+
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
@@ -74,6 +91,22 @@ void static_map<Key, Value, Scope>::find(
   findKernel<tile_size><<<grid_size, block_size>>>(first, last, output_begin,
                                                     view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());    
+}
+
+
+
+template<typename Key, typename Value, cuda::thread_scope Scope>
+static_map<Key, Value, Scope>::device_view
+static_map<Key, Value, Scope>::get_device_view() const noexcept {
+  return device_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
+}
+
+
+
+template<typename Key, typename Value, cuda::thread_scope Scope>
+static_map<Key, Value, Scope>::device_mutable_view 
+static_map<Key, Value, Scope>::get_device_mutable_view() const noexcept {
+  return device_mutable_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
 }
 
 
@@ -223,6 +256,47 @@ __device__ thrust::pair<Iterator, bool> static_map<Key, Value, Scope>::device_mu
       current_slot = next_slot(g, current_slot);
     }
   }
+}
+
+
+
+template<typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Hash, typename Iterator>
+__device__ Iterator static_map<Key, Value, Scope>::device_mutable_view::initial_slot(
+  Key const& k, Hash hash) const noexcept {
+
+  return &slots_[hash(k) % capacity_];
+}
+
+
+
+template<typename Key, typename Value, cuda::thread_scope Scope>
+template<typename CG, typename Hash, typename Iterator>
+__device__ Iterator static_map<Key, Value, Scope>::device_mutable_view::initial_slot(
+  CG g, Key const& k, Hash hash) const noexcept {
+
+  return &slots_[(hash(k) + g.thread_rank()) % capacity_];
+}
+
+
+
+template<typename Key, typename Value, cuda::thread_scope Scope>
+template<typename Iterator>
+__device__ Iterator static_map<Key, Value, Scope>::device_mutable_view::next_slot(
+  Iterator s) const noexcept {
+
+  return (++s < end()) ? s : slots_;
+}
+
+
+
+template<typename Key, typename Value, cuda::thread_scope Scope>
+template<typename CG, typename Iterator>
+__device__ Iterator static_map<Key, Value, Scope>::device_mutable_view::next_slot(
+  CG g, Iterator s) const noexcept {
+
+  uint32_t index = s - slots_;
+  return &slots_[(index + g.size()) % capacity_];
 }
 
 

@@ -36,15 +36,7 @@ namespace cuco {
  * @brief Gives a power of 2 value equal to or greater than `v`.
  *
  */
-constexpr std::size_t next_pow2(std::size_t v) noexcept {
-  --v;
-  v |= v >> 1;
-  v |= v >> 2;
-  v |= v >> 4;
-  v |= v >> 8;
-  v |= v >> 16;
-  return ++v;
-}
+constexpr std::size_t next_pow2(std::size_t v) noexcept;
 
 /**
  * @brief Gives value to use as alignment for a pair type that is at least the
@@ -52,9 +44,7 @@ constexpr std::size_t next_pow2(std::size_t v) noexcept {
  * whichever is smaller.
  */
 template <typename First, typename Second>
-constexpr std::size_t pair_alignment() {
-  return std::min(std::size_t{16}, next_pow2(sizeof(First) + sizeof(Second)));
-}
+constexpr std::size_t pair_alignment();
 
 /**
  * @brief Custom pair type
@@ -140,7 +130,6 @@ class static_map {
     Hash hash = Hash{}, 
     KeyEqual key_equal = KeyEqual{}) noexcept;
   
-
   template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
   void contains(
     InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept;
@@ -203,15 +192,11 @@ class static_map {
      * @param hash Hash to use to determine the slot
      * @return Pointer to the initial slot for `k`
      */
-    template <typename Hash>
-    __device__ iterator initial_slot(Key const& k, Hash hash) const noexcept {
-      return &slots_[hash(k) % capacity_];
-    }
+    template <typename Hash, typename Iterator = iterator>
+    __device__ Iterator initial_slot(Key const& k, Hash hash) const noexcept;
 
-    template<typename CG, typename Hash>
-    __device__ iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept {
-      return &slots_[(hash(k) + g.thread_rank()) % capacity_];
-    }
+    template<typename CG, typename Hash, typename Iterator = iterator>
+    __device__ Iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept;
 
     /**
      * @brief Given a slot `s`, returns the next slot.
@@ -221,15 +206,11 @@ class static_map {
      * @param s The slot to advance
      * @return The next slot after `s`
      */
-    __device__ iterator next_slot(iterator s) const noexcept {
-      return (++s < end()) ? s : slots_;
-    }
+     template<typename Iterator = iterator>
+    __device__ Iterator next_slot(Iterator s) const noexcept;
 
-    template<typename CG>
-    __device__ iterator next_slot(CG g, iterator s) const noexcept {
-      uint32_t index = s - slots_;
-      return &slots_[(index + g.size()) % capacity_];
-    }
+    template<typename CG, typename Iterator = iterator>
+    __device__ Iterator next_slot(CG g, Iterator s) const noexcept;
   }; // class device mutable view
 
   class device_view {
@@ -276,9 +257,7 @@ class static_map {
      * @brief Returns iterator to one past the last element.
      *
      */
-    __host__ __device__ const_iterator end() const noexcept {
-      return slots_ + capacity_;
-    }
+    __host__ __device__ const_iterator end() const noexcept { return slots_ + capacity_; }
 
     /**
      * @brief Returns iterator to one past the last element.
@@ -317,13 +296,9 @@ class static_map {
 
   Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
 
-  device_view get_device_view() const noexcept {
-    return device_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
-  }
+  device_view get_device_view() const noexcept;
 
-  device_mutable_view get_device_mutable_view() const noexcept {
-    return device_mutable_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
-  }
+  device_mutable_view get_device_mutable_view() const noexcept;
 
   std::size_t get_capacity();
 
