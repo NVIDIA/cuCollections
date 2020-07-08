@@ -22,6 +22,7 @@
 #include "cudf/concurrent_unordered_map.cuh"
 #include "cudf_chain/concurrent_unordered_map_chain.cuh"
 #include "SlabHash/src/gpu_hash_table.cuh"
+#include <simt/atomic>
 
 #include <thrust/for_each.h>
 #include <iostream>
