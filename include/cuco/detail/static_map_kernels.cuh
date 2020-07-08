@@ -1,5 +1,7 @@
 namespace cg = cooperative_groups;
 
+
+
 template<typename atomic_key_type, typename atomic_mapped_type, typename Key, typename Value, typename pair_atomic_type>
 __global__ void initializeKernel(
     pair_atomic_type* const __restrict__ slots, Key k,
@@ -11,6 +13,8 @@ __global__ void initializeKernel(
     tid += gridDim.x * blockDim.x;
   }
 }
+
+
 
 // insert kernel
 template<uint32_t block_size,
@@ -48,6 +52,8 @@ __global__ void insertKernel(InputIt first,
     *num_successes += block_num_successes;
   }
 }
+
+
 
 // insert kernel
 template<uint32_t block_size,
@@ -88,7 +94,9 @@ __global__ void insertKernel(InputIt first,
   }
 }
 
-// search kernel
+
+
+// find kernel
 template<typename InputIt, typename OutputIt, 
          typename viewT,
          typename Hash, 
@@ -110,7 +118,9 @@ __global__ void findKernel(InputIt first,
   }
 }
 
-// search kernel
+
+
+// find kernel
 template<uint32_t tile_size,
          typename InputIt, typename OutputIt, 
          typename viewT,
@@ -130,6 +140,56 @@ __global__ void findKernel(InputIt first,
     auto key = *(first + key_idx);
     auto found = view.find(tile, key, hash, key_equal);
     *(output_begin + key_idx) = found->second;
+    key_idx += (gridDim.x * blockDim.x) / tile_size;
+  }
+}
+
+
+
+// contains kernel
+template<typename InputIt, typename OutputIt, 
+         typename viewT,
+         typename Hash, 
+         typename KeyEqual>
+__global__ void containsKernel(InputIt first,
+                               InputIt last,
+                               OutputIt output_begin,
+                               viewT view,
+                               Hash hash,
+                               KeyEqual key_equal) {
+  auto tid = blockDim.x * blockIdx.x + threadIdx.x;
+  auto key_idx = tid;
+  
+  while(first + key_idx < last) {
+    auto key = *(first + key_idx);
+    auto found = view.contains(key, hash, key_equal);
+    *(output_begin + key_idx) = found;
+    key_idx += gridDim.x * blockDim.x;
+  }
+}
+
+
+
+// contains kernel
+template<uint32_t tile_size,
+         typename InputIt, typename OutputIt, 
+         typename viewT,
+         typename Hash, 
+         typename KeyEqual>
+__global__ void containsKernel(InputIt first,
+                               InputIt last,
+                               OutputIt output_begin,
+                               viewT view,
+                               Hash hash,
+                               KeyEqual key_equal) {
+  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid = blockDim.x * blockIdx.x + threadIdx.x;
+  auto key_idx = tid / tile_size;
+  
+  while(first + key_idx < last) {
+    auto key = *(first + key_idx);
+    auto found = view.contains(tile, key, hash, key_equal);
+    *(output_begin + key_idx) = found;
     key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
 }

@@ -26,53 +26,16 @@
 #include <cuda/std/atomic>
 #include <atomic>
 #include <cooperative_groups.h>
-#include <cub/cub/cub.cuh>
+#include <../thirdparty/cub/cub/cub.cuh>
 
-#include "static_map_kernels.cuh"
+#include <cuco/detail/static_map_kernels.cuh>
+#include <cuco/detail/cuda_memcmp.cuh>
+#include <cuco/detail/pair.cuh>
 
 namespace cuco {
 
-/**
- * @brief Gives a power of 2 value equal to or greater than `v`.
- *
- */
-constexpr std::size_t next_pow2(std::size_t v) noexcept;
-
-/**
- * @brief Gives value to use as alignment for a pair type that is at least the
- * size of the sum of the size of the first type and second type, or 16,
- * whichever is smaller.
- */
-template <typename First, typename Second>
-constexpr std::size_t pair_alignment();
-
-/**
- * @brief Custom pair type
- *
- * This is necessary because `thrust::pair` is under aligned.
- *
- * @tparam First
- * @tparam Second
- */
-template <typename First, typename Second>
-struct alignas(pair_alignment<First, Second>()) pair {
-  using first_type = First;
-  using second_type = Second;
-  First first{};
-  Second second{};
-  pair() = default;
-  __host__ __device__ constexpr pair(First f, Second s) noexcept
-      : first{f}, second{s} {}
-};
-
-template <typename K, typename V>
-using pair_type = cuco::pair<K, V>;
-
-template <typename F, typename S>
-__host__ __device__ pair_type<F, S> make_pair(F f, S s) noexcept {
-  return pair_type<F, S>{f, s};
-}
   
+
 /**---------------------------------------------------------------------------*
   * @brief Enumeration of the possible results of attempting to insert into
   *a hash bucket
@@ -84,7 +47,8 @@ enum class insert_result {
   DUPLICATE  ///< Insert did not succeed, key is already present
 };
 
-// TODO: Allocator
+
+
 template <typename Key, typename Value, cuda::thread_scope Scope = cuda::thread_scope_device>
 class static_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
@@ -96,6 +60,7 @@ class static_map {
   using atomic_key_type    = cuda::atomic<key_type, Scope>;
   using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
   using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
   
   static_map(static_map const&) = delete;
   static_map(static_map&&)      = delete;
@@ -138,11 +103,15 @@ class static_map {
   public:
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
-
+    
     device_mutable_view(pair_atomic_type* slots,
                         std::size_t capacity,
                         Key empty_key_sentinel,
-                        Value empty_value_sentinel) noexcept; 
+                        Value empty_value_sentinel) noexcept :
+      slots_{slots},
+      capacity_{capacity},
+      empty_key_sentinel_{empty_key_sentinel},
+      empty_value_sentinel_{empty_value_sentinel} {}
 
     template <typename Iterator = iterator,
               typename Hash = MurmurHash3_32<key_type>,
@@ -160,7 +129,7 @@ class static_map {
                                                    Hash hash,
                                                    KeyEqual key_equal) noexcept;
 
-    std::size_t capacity() const noexcept { return capacity_; }
+    std::size_t get_capacity() const noexcept { return capacity_; }
 
     Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
@@ -221,7 +190,12 @@ class static_map {
     device_view(pair_atomic_type* slots,
                 std::size_t capacity,
                 Key empty_key_sentinel,
-                Value empty_value_sentinel) noexcept;
+                Value empty_value_sentinel) noexcept :
+      slots_{slots},
+      capacity_{capacity},
+      empty_key_sentinel_{empty_key_sentinel},
+      empty_value_sentinel_{empty_value_sentinel} {}
+
 
     template <typename Iterator = iterator,
               typename Hash = MurmurHash3_32<key_type>,
@@ -247,7 +221,8 @@ class static_map {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool contains(CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept;
 
-    std::size_t capacity();
+
+    std::size_t get_capacity() const noexcept { return capacity_; }
 
     Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
@@ -296,20 +271,26 @@ class static_map {
 
   Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
 
-  device_view get_device_view() const noexcept;
+  device_view get_device_view() const noexcept {
+    return device_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
+  }
 
-  device_mutable_view get_device_mutable_view() const noexcept;
+  device_mutable_view get_device_mutable_view() const noexcept {
+    return device_mutable_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
+  }
 
-  std::size_t get_capacity();
+  std::size_t get_capacity() const noexcept { return capacity_; }
+  
+  float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; } 
 
- private:
+  private:
   pair_atomic_type* slots_{nullptr};    ///< Pointer to flat slots storage
   std::size_t capacity_{};              ///< Total number of slots
   std::size_t size_{};                  ///< number of keys in map
   Key const empty_key_sentinel_{};      ///< Key value that represents an empty slot
   Value const empty_value_sentinel_{};  ///< Initial value of empty slot
-  cuda::std::atomic<std::size_t> *d_num_successes_{};
+  atomic_ctr_type *d_num_successes_{};
 };
 }  // namespace cuco 
 
-#include "static_map.inl"
+#include <cuco/detail/static_map.inl>
