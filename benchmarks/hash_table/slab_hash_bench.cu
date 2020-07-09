@@ -17,7 +17,6 @@
 #include <benchmark/benchmark.h>
 
 //#include <cuco/insert_only_hash_array.cuh>
-#include <cuco/static_map.cuh>
 #include "../nvtx3.hpp"
 #include "cudf/concurrent_unordered_map.cuh"
 #include "cudf_chain/concurrent_unordered_map_chain.cuh"
@@ -217,9 +216,9 @@ template <typename Key, typename Value>
 static void cudf_chain_search_all() {
   using map_type = concurrent_unordered_map_chain<Key, Value>;
 
-  auto occupancy = 0.55;
-  auto numKeys = 2 * 10'000'000;
-  auto capacity = (numKeys / 2) / occupancy;
+  auto occupancy = 0.40;
+  auto numKeys = 100'000'000;
+  uint32_t capacity = numKeys / occupancy;
   
   auto map = map_type::create(capacity);
   auto view = *map;
@@ -255,41 +254,7 @@ static void cudf_chain_search_all() {
 }
 
 
-template <typename Key, typename Value>
-static void init_static_map() {
-  using map_type = cuco::static_map<Key, Value>;
-  map_type map{1 << 27, -1, -1};
-  auto view = map.get_device_mutable_view();
-  auto num_keys = 1<<25;
 
-
-  std::vector<int> h_keys( num_keys );
-  std::vector<int> h_values( num_keys );
-  std::vector<cuco::pair_type<int, int>> h_pairs ( num_keys );
-  std::vector<int> h_results (num_keys);
-  
-  for(auto i = 0; i < num_keys; ++i) {
-    h_keys[i] = i;
-    h_values[i] = i;
-    h_pairs[i] = cuco::make_pair(i, i);
-  }
-
-  thrust::device_vector<int> d_keys( h_keys ); 
-  thrust::device_vector<int> d_results( num_keys);
-  thrust::device_vector<cuco::pair_type<int, int>> d_pairs( h_pairs );
-
-  map.insert(d_pairs.begin(), d_pairs.end());
-  map.find(d_keys.begin(), d_keys.end(), d_results.begin());
-
-  thrust::copy(d_results.begin(), d_results.end(), h_results.begin());
-
-  for(auto i = 0; i < num_keys; ++i) {
-    if(h_results[i] != h_values[i]) {
-      std::cout << "key-value mismatch at index " << i << std::endl;
-      break;
-    }
-  }
-}
 
 int main() {
   
@@ -298,9 +263,7 @@ int main() {
     //cuco_search_all<int32_t, int32_t>();
     //slabhash_search_all<int32_t, int32_t>();
     //slabhash_insert_resize<int32_t, int32_t>();
-    //cudf_chain_search_all<int32_t, int32_t>();
-    init_static_map<int32_t, int32_t>();
-
+    cudf_chain_search_all<int32_t, int32_t>();
   }
 
   return 0;

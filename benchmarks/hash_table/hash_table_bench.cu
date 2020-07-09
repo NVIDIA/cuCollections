@@ -17,7 +17,6 @@
 #include <benchmark/benchmark.h>
 
 //#include <cuco/insert_only_hash_array.cuh>
-#include "cuco/static_map.cuh"
 #include "../nvtx3.hpp"
 #include "cudf/concurrent_unordered_map.cuh"
 #include "cudf_chain/concurrent_unordered_map_chain.cuh"
@@ -47,8 +46,8 @@ static void cuSweepLoad(benchmark::internal::Benchmark* b) {
  *
  */
 static void cuSweepSize(benchmark::internal::Benchmark* b) {
-  for (auto occupancy = 55; occupancy <= 55; occupancy += 10) {
-    for (auto size = 100'000; size <= 100'000'000; size *= 2) {
+  for (auto size = 100'000; size <= 100'000'000; size *= 10) {
+    for (auto occupancy = 40; occupancy <= 90; occupancy += 10) {
       b->Args({size, occupancy});
     }
   }
@@ -884,7 +883,6 @@ static void BM_cudfChain_search_resize(::benchmark::State& state) {
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = int32_t(rng() & 0x7FFFFFFF);
     h_values[i] = ~h_keys[i];
-
   }
   //*/
 
@@ -992,12 +990,46 @@ static void BM_cudfChain_search_none(::benchmark::State& state) {
 
 
 template <typename Key, typename Value>
+static void BM_cudfChain_insert(::benchmark::State& state) {
+  using map_type = concurrent_unordered_map_chain<Key, Value>;
+
+  uint32_t numKeys = state.range(0);
+  auto occupancy = (float)state.range(1) / 100;
+  uint32_t capacity = (float)numKeys / occupancy;
+  
+  std::vector<Key> h_keys(numKeys);
+  std::vector<Value> h_values(numKeys);
+  
+  std::mt19937 rng(12);
+  for(auto i = 0; i < numKeys; ++i) {
+    h_keys[i] = i;
+    h_values[i] = i;
+  }
+  
+  float buildTime = 0.0f;
+  
+  for(auto _ : state) {
+    auto map = map_type::create(capacity);
+    auto view = *map;
+    buildTime = view.bulkInsert(h_keys, h_values, numKeys);
+    state.SetIterationTime(buildTime / 1000);
+  
+    view.freeSubmaps();
+  }
+
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                          int64_t(state.iterations()) *
+                          int64_t(numKeys));
+}
+
+
+
+template <typename Key, typename Value>
 static void BM_cudfChain_search_all(::benchmark::State& state) {
   using map_type = concurrent_unordered_map_chain<Key, Value>;
 
-  uint32_t numKeys = 100'000'000;
-  auto numQueries = 100'000'000;
-  auto occupancy = (float)state.range(0) / 100;
+  uint32_t numKeys = state.range(0);
+  auto occupancy = (float)state.range(1) / 100;
   uint32_t capacity = (float)numKeys / occupancy;
   
   auto map = map_type::create(capacity);
@@ -1005,39 +1037,28 @@ static void BM_cudfChain_search_all(::benchmark::State& state) {
   
   std::vector<Key> h_keys(numKeys);
   std::vector<Value> h_values(numKeys);
-  ///*
+  std::vector<Value> h_results(numKeys);
+  
   std::mt19937 rng(12);
   for(auto i = 0; i < numKeys; ++i) {
     h_keys[i] = i;
     h_values[i] = i;
 
   }
-
-  std::vector<Key> h_search_keys(numQueries);
-  for(auto i = 0; i < numQueries; ++i) {
-    h_search_keys[i] = i;
-  }
   
-  // insert keys
-  auto batchSize = 1e6;
-  for(auto i = 0; i < numKeys / batchSize; ++i) {
-    std::vector<Key> keyBatch (h_keys.begin() + i * batchSize, h_keys.begin() + (i + 1) * batchSize);
-    std::vector<Value> valueBatch (h_values.begin() + i * batchSize, h_values.begin() + (i + 1) * batchSize);
-    view.bulkInsert(keyBatch, valueBatch, batchSize);
-  }
+  view.bulkInsert(h_keys, h_values, numKeys);
 
   // search for keys
-  std::vector<Value> h_results(numQueries);
   float searchTime = 0.0f;
 
   for(auto _ : state) {
-    searchTime = view.bulkSearch(h_search_keys, h_results, numQueries);
+    searchTime = view.bulkSearch(h_keys, h_results, numKeys);
     state.SetIterationTime(searchTime / 1000);
   }
 
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
                           int64_t(state.iterations()) *
-                          int64_t(numQueries));
+                          int64_t(numKeys));
   // cleanup 
   view.freeSubmaps();
 }
@@ -1116,18 +1137,28 @@ BENCHMARK_TEMPLATE(BM_cudfChain_insert_resize, int32_t, int32_t)
     ->UseManualTime()
     ->Apply(ResizeSweep);
 */
+
+/*
 BENCHMARK_TEMPLATE(BM_cudfChain_search_resize, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(ResizeSweep);
+*/
+
 /*
 BENCHMARK_TEMPLATE(BM_cudfChain_search_none, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
     ->Apply(OccupancySweep);
+*/
+
+
+BENCHMARK_TEMPLATE(BM_cudfChain_insert, int32_t, int32_t)
+    ->Unit(benchmark::kMillisecond)
+    ->UseManualTime()
+    ->Apply(cuSweepSize);
 
 BENCHMARK_TEMPLATE(BM_cudfChain_search_all, int32_t, int32_t)
     ->Unit(benchmark::kMillisecond)
     ->UseManualTime()
-    ->Apply(OccupancySweep);
-*/
+    ->Apply(cuSweepSize);

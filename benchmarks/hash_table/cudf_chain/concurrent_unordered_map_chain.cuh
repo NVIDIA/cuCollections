@@ -27,7 +27,7 @@
 //#include <utilities/legacy/device_atomics.cuh>
 #include "../cudf_include/helper_functions.cuh"
 #include "../cudf_include/allocator.cuh"
-#include <cub/cub/cub.cuh>
+#include "../thirdparty/cub/cub/cub.cuh"
 #include <cooperative_groups.h>
 #include "chain_kernels.cuh"
 #include <cu_collections/hash_functions.cuh>
@@ -123,7 +123,7 @@ class concurrent_unordered_map_chain {
   using const_iterator = const cycle_iterator_adapter<value_type*>;
 
   static constexpr uint32_t m_max_num_submaps = 8;
-  static constexpr float m_max_load_factor = 0.8;
+  static constexpr float m_max_load_factor = 1;
   static constexpr uint32_t insertGran = 1;
   static constexpr uint32_t minKernelSize = 10'000;
 
@@ -322,6 +322,7 @@ class concurrent_unordered_map_chain {
     for(auto i = 0; i < m_num_submaps; ++i) {
       uint64_t maxNumElements = m_submap_caps[i] * m_capacity * m_max_load_factor;
       uint64_t numElementsToInsert = std::min(maxNumElements - m_num_elements[i], numElementsRemaining);
+
       if(numElementsToInsert < minKernelSize) {
         continue;
       }
@@ -375,7 +376,7 @@ class concurrent_unordered_map_chain {
     cudaEventRecord(start, 0);
     
     constexpr uint32_t blockSize = 128;
-    constexpr uint32_t tileSize = 8;
+    constexpr uint32_t tileSize = 4;
     uint32_t numBlocks = (tileSize * numKeys + blockSize - 1) / blockSize;
     auto view = *this;
     searchKeySetCG<tileSize>

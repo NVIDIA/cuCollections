@@ -94,7 +94,7 @@ __global__ void searchKeySet(thrust::device_ptr<key_type> keys,
     }
     auto key = keys[idx];
     auto found = view.find(key);
-    //results[idx] = found->second;
+    results[idx] = found->second;
   }
 }
 
@@ -115,6 +115,6 @@ __global__ void searchKeySetCG(thrust::device_ptr<key_type> keys,
   uint64_t keyIdx = tid / tileSize;
   auto found = view.findCG( tile, keys[keyIdx]);
   if(tile.thread_rank() == 0 && found != view.end()) {
-    //results[keyIdx] = found->second;
+    results[keyIdx] = found->second;
   }
 }
