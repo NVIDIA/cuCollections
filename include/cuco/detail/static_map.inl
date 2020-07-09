@@ -37,8 +37,8 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
 
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 4;
-  auto const tile_size = 4;
+  auto const stride = 1;
+  auto const tile_size = 8;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
   auto view = get_device_mutable_view();
@@ -101,7 +101,7 @@ template <typename Iterator, typename Hash, typename KeyEqual>
 __device__ thrust::pair<Iterator, bool> static_map<Key, Value, Scope>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept {
 
-  Iterator current_slot{initial_slot(insert_pair.first, hash)};
+  auto current_slot{initial_slot(insert_pair.first, hash)};
 
   while (true) {
     using cuda::std::memory_order_relaxed;
@@ -148,7 +148,7 @@ template <typename CG, typename Iterator, typename Hash, typename KeyEqual>
 __device__ thrust::pair<Iterator, bool> static_map<Key, Value, Scope>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept {
 
-  Iterator current_slot = initial_slot(g, insert_pair.first, hash);
+  auto current_slot = initial_slot(g, insert_pair.first, hash);
   
   while(true) {
     key_type const existing_key = current_slot->first;
@@ -184,7 +184,7 @@ __device__ thrust::pair<Iterator, bool> static_map<Key, Value, Scope>::device_mu
         bool value_success = slot_value.compare_exchange_strong(expected_value,
                                                                 insert_pair.second,
                                                                 memory_order_relaxed);
-
+        
         if(key_success) {
           while(not value_success) {
             value_success = slot_value.compare_exchange_strong(expected_value = empty_value_sentinel_,
@@ -278,7 +278,7 @@ template <typename Iterator, typename Hash, typename KeyEqual>
 __device__ Iterator static_map<Key, Value, Scope>::device_view::find(
   Key const& k, Hash hash, KeyEqual key_equal) noexcept {
 
-  Iterator current_slot = initial_slot(k, hash);
+  auto current_slot = initial_slot(k, hash);
 
   while (true) {
     auto const existing_key =
@@ -304,7 +304,7 @@ template <typename CG, typename Iterator, typename Hash, typename KeyEqual>
 __device__ Iterator static_map<Key, Value, Scope>::device_view::find(
   CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept {
   
-  Iterator current_slot = initial_slot(g, k, hash);
+  auto current_slot = initial_slot(g, k, hash);
 
   while(true) {
     key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);

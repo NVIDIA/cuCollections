@@ -31,8 +31,8 @@
  *
  */
 static void SweepLoadSize(benchmark::internal::Benchmark* b) {
-  for (auto occupancy = 40; occupancy <= 90; occupancy += 10) {
-    for (auto size = 10'000'000; size <= 10'000'000; size *= 2) {
+  for (auto size = 100'000'000; size <= 100'000'000; size *= 10) {
+    for (auto occupancy = 40; occupancy <= 90; occupancy += 10) {
       b->Args({size, occupancy});
     }
   }
@@ -97,7 +97,6 @@ static void BM_cuco_search_all(::benchmark::State& state) {
   
   for(auto i = 0; i < num_keys; ++i) {
     h_keys[i] = i;
-    h_values[i] = i;
     h_pairs[i] = cuco::make_pair(i, i);
   }
 
