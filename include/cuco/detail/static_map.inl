@@ -364,13 +364,10 @@ template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope>::device_view::contains(
   CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept {
 
-  uint32_t const key_hash = hash(k);
-  uint32_t window_idx = 0;
+  auto current_slot = initial_slot(g, k, hash);
 
   while(true) {
-    uint32_t index = (key_hash + window_idx * g.size() + g.thread_rank()) % capacity_;
-    auto const current_bucket = &slots_[index];
-    key_type const existing_key = current_bucket->first.load(cuda::std::memory_order_relaxed);
+    key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     uint32_t existing = g.ballot(key_equal(existing_key, k));
     
     // the key we were searching for was found by one of the threads,
@@ -388,7 +385,7 @@ __device__ bool static_map<Key, Value, Scope>::device_view::contains(
 
     // otherwise, all slots in the current window are full with other keys,
     // so we move onto the next window in the current submap
-    window_idx++;
+    current_slot = next_slot(current_slot);
   }
 }
 

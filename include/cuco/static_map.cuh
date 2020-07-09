@@ -95,9 +95,13 @@ class static_map {
     Hash hash = Hash{}, 
     KeyEqual key_equal = KeyEqual{}) noexcept;
   
-  template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
+  template <typename InputIt, typename OutputIt, 
+            typename Hash = MurmurHash3_32<key_type>,
+            typename KeyEqual = thrust::equal_to<key_type>>
   void contains(
-    InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept;
+    InputIt first, InputIt last, OutputIt output_begin,
+    Hash hash = Hash{}, 
+    KeyEqual key_equal = KeyEqual{}) noexcept;
 
   class device_mutable_view {
   public:

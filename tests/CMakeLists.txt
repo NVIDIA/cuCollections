@@ -132,10 +132,10 @@ endfunction(ConfigureTest)
 ###################################################################################################
 ### test sources ##################################################################################
 ###################################################################################################
-set(EXAMPLE_TEST_SRC 
-    "${CMAKE_CURRENT_SOURCE_DIR}/example/example.cpp")
+set(STATIC_MAP_TEST_SRC 
+    "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_test.cu")
 
-ConfigureTest(EXAMPLE_TEST "${EXAMPLE_TEST_SRC}")
+ConfigureTest(STATIC_MAP_TEST "${STATIC_MAP_TEST_SRC}")
 ####################################################################################################
 #set(EXAMPLE_CUDA_TEST_SRC 
 #    "${CMAKE_CURRENT_SOURCE_DIR}/example/example.cu")
