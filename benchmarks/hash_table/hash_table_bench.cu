@@ -40,10 +40,44 @@ static void SweepLoadSize(benchmark::internal::Benchmark* b) {
 
 
 
-/**
- * @brief Benchmark inserting all unique keys of a given number with specified
- * hash table occupancy
- */
+template <typename Key, typename Value>
+static void BM_cuco_insert(::benchmark::State& state) {
+  using map_type = cuco::static_map<Key, Value>;
+  
+  std::size_t num_keys = state.range(0);
+  float occupancy = state.range(1) / float{100};
+  std::size_t size = num_keys / occupancy;
+
+  map_type map{size, -1, -1};
+  auto view = map.get_device_mutable_view();
+
+  std::vector<cuco::pair_type<int, int>> h_pairs ( num_keys );
+  
+  for(auto i = 0; i < num_keys; ++i) {
+    h_pairs[i] = cuco::make_pair(i, i);
+  }
+
+  thrust::device_vector<cuco::pair_type<int, int>> d_pairs( h_pairs );
+
+  for(auto _ : state) {
+    state.ResumeTiming();
+    state.PauseTiming();
+    map_type map{size, -1, -1};
+    auto view = map.get_device_mutable_view();
+    state.ResumeTiming();
+
+    map.insert(d_pairs.begin(), d_pairs.end());
+
+    state.PauseTiming();
+  }
+
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                          int64_t(state.iterations()) *
+                          int64_t(state.range(0)));
+}
+
+
+
 template <typename Key, typename Value>
 static void BM_cuco_search_all(::benchmark::State& state) {
   using map_type = cuco::static_map<Key, Value>;
@@ -82,6 +116,10 @@ static void BM_cuco_search_all(::benchmark::State& state) {
                           int64_t(state.range(0)));
 }
 
+BENCHMARK_TEMPLATE(BM_cuco_insert, int32_t, int32_t)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(SweepLoadSize);
+
 BENCHMARK_TEMPLATE(BM_cuco_search_all, int32_t, int32_t)
-    ->Unit(benchmark::kMillisecond)
-    ->Apply(SweepLoadSize);
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(SweepLoadSize);
