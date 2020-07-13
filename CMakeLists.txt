@@ -92,6 +92,7 @@ if("${GPU_ARCHS}" STREQUAL "ALL")
   endif()
 endif()
 
+
 foreach(arch ${GPU_ARCHS})
   message(STATUS ${arch})
   set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_${arch},code=sm_${arch}")
