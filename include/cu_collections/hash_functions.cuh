@@ -16,8 +16,11 @@
 
 #pragma once
 
-#include <cu_collections/cu_collections.h>
-#include <cu_collections/utilities/error.hpp>
+#ifndef HASH_FUNC
+#define HASH_FUNC
+
+#include "cu_collections.h"
+#include "utilities/error.hpp"
 
 using hash_value_type = uint32_t;
 
@@ -96,3 +99,5 @@ struct MurmurHash3_32 {
   }
   uint32_t m_seed;
 };
+
+#endif

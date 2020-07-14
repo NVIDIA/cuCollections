@@ -1,5 +1,8 @@
 #pragma once
 
+#ifndef ERROR_HPP
+#define ERROR_HPP
+
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <stdexcept>
@@ -44,3 +47,5 @@ inline void throw_cuda_error(cudaError_t error, const char* file,
       cuCollections::detail::throw_cuda_error(status, __FILE__, __LINE__); \
     }                                                                      \
   } while (0);
+
+#endif

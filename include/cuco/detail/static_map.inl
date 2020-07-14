@@ -38,7 +38,7 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
   auto const stride = 1;
-  auto const tile_size = 8;
+  auto const tile_size = 1;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
   auto view = get_device_mutable_view();
@@ -47,7 +47,7 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
   *d_num_successes_ = 0;
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(d_num_successes_, sizeof(atomic_ctr_type), 0));
 
-  insertKernel<block_size, tile_size>
+  insertKernel<tile_size>
   <<<grid_size, block_size>>>(first, first + num_keys, d_num_successes_, view, 
                               hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
@@ -66,11 +66,11 @@ void static_map<Key, Value, Scope>::find(
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
   auto const stride = 1;
-  auto const tile_size = 4;
+  auto const tile_size = 1;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
   auto view = get_device_view();
-  findKernel<tile_size><<<grid_size, block_size>>>(first, last, output_begin,
+  findKernel<><<<grid_size, block_size>>>(first, last, output_begin,
                                                     view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());    
 }
