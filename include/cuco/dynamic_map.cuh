@@ -21,8 +21,7 @@
 #include <thrust/pair.h>
 #include <thrust/transform.h>
 
-#include "../cu_collections/hash_functions.cuh"
-#include "detail/error.hpp"
+#include <cuco/detail/error.hpp>
 #include <cuda/std/atomic>
 #include <atomic>
 #include <cooperative_groups.h>
@@ -58,6 +57,8 @@ class dynamic_map {
   dynamic_map(std::size_t capacity, Key empty_key_sentinel, Value empty_value_sentinel);
 
   ~dynamic_map();
+
+  void resize(std::size_t num_to_insert);
 
   template <typename InputIt,
             typename Hash = MurmurHash3_32<key_type>,
@@ -95,6 +96,17 @@ class dynamic_map {
   float get_load_factor() const noexcept;
 
   private:
-  static_map<key_type, mapped_type, Scope>* submaps_{nullptr};    ///< Pointer to flat slots storage
+  key_type empty_key_sentinel_{};
+  mapped_type empty_value_sentinel_{};
+    
+  static constexpr std::size_t MAX_NUM_SUBMAPS_ = 16;
+  static_map<key_type, mapped_type, Scope>* submaps_[MAX_NUM_SUBMAPS_];
+  std::size_t submap_caps_[MAX_NUM_SUBMAPS_];
+  std::size_t num_submaps_{};
+  std::size_t num_elements_{};
+  std::size_t min_insert_size_{}
+  float max_load_factor_{};
 };
-}  // namespace cuco 
+}  // namespace cuco
+
+#include <cuco/detail/dynamic_map.inl>

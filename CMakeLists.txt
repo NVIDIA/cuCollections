@@ -42,6 +42,9 @@ endif(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_C_COMPILER $ENV{CC})
 set(CMAKE_CXX_COMPILER $ENV{CXX})
+
+message(STATUS "${CMAKE_CXX_COMPILER}")
+
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_CUDA_STANDARD 14)
@@ -75,7 +78,7 @@ message(STATUS "CUDA_VERSION: ${CUDA_VERSION}")
 set(CUDA_VERSION_STRING "${CUDA_VERSION}")
 
 # Auto-detect available GPU compute architectures
-set(GPU_ARCHS "70")# CACHE STRING "List of GPU architectures (semicolon-separated) to be compiled for. Pass 'ALL' if you want to compile for all supported GPU architectures. Empty string means to auto-detect the GPUs on the current system")
+set(GPU_ARCHS "" CACHE STRING "List of GPU architectures (semicolon-separated) to be compiled for. Pass 'ALL' if you want to compile for all supported GPU architectures. Empty string means to auto-detect the GPUs on the current system")
 
 if("${GPU_ARCHS}" STREQUAL "")
   include(cmake/EvalGpuArchs.cmake)

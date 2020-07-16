@@ -16,15 +16,15 @@
 
 #include <benchmark/benchmark.h>
 
-#include "cuco/static_map.cuh"
+#include <cuco/static_map.cuh>
+#include <cuco/dynamic_map.cuh>
+
 #include "../nvtx3.hpp"
 #include <simt/atomic>
 
 #include <thrust/for_each.h>
 #include <iostream>
 #include <fstream>
-
-#include <cuco/dynamic_map.cuh>
 
 
 
@@ -117,10 +117,28 @@ static void BM_cuco_search_all(::benchmark::State& state) {
                           int64_t(state.range(0)));
 }
 
+
+
+template <typename Key, typename Value>
+static void BM_dynamic_insert(::benchmark::State& state) {
+  using map_type = cuco::dynamic_map<Key, Value>;
+  
+  for(auto _ : state) {
+    map_type map{1<<27, -1, -1};
+  }
+}
+
+
+/*
 BENCHMARK_TEMPLATE(BM_cuco_insert, int32_t, int32_t)
   ->Unit(benchmark::kMillisecond)
   ->Apply(SweepLoadSize);
 
 BENCHMARK_TEMPLATE(BM_cuco_search_all, int32_t, int32_t)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(SweepLoadSize);
+*/
+
+BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t)
   ->Unit(benchmark::kMillisecond)
   ->Apply(SweepLoadSize);
