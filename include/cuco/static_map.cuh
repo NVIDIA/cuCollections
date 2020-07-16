@@ -21,16 +21,16 @@
 #include <thrust/pair.h>
 #include <thrust/transform.h>
 
-#include "../cu_collections/hash_functions.cuh"
-#include "detail/error.hpp"
+#include <cuco/hash_functions.cuh>
+#include <cuco/detail/error.hpp>
 #include <cuda/std/atomic>
 #include <atomic>
 #include <cooperative_groups.h>
 #include <../thirdparty/cub/cub/cub.cuh>
 
-#include "detail/static_map_kernels.cuh"
-#include "detail/cuda_memcmp.cuh"
-#include "detail/pair.cuh"
+#include <cuco/detail/static_map_kernels.cuh>
+#include <cuco/detail/cuda_memcmp.cuh>
+#include <cuco/detail/pair.cuh>
 
 namespace cuco {
 
