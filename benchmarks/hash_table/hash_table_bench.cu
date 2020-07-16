@@ -24,6 +24,8 @@
 #include <iostream>
 #include <fstream>
 
+#include <cuco/dynamic_map.cuh>
+
 
 
 /**
