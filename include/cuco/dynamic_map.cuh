@@ -70,10 +70,9 @@ class dynamic_map {
             typename Hash = MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void insertReduce(InputIt first, InputIt last, 
-                    mapped_type f(mapped_type, mapped_type),                
+                    mapped_type f(mapped_type, mapped_type),
                     Hash hash = Hash{},
                     KeyEqual key_equal = KeyEqual{});
-
 
   template <typename InputIt, typename OutputIt, 
             typename Hash = MurmurHash3_32<key_type>,
@@ -90,7 +89,6 @@ class dynamic_map {
     InputIt first, InputIt last, OutputIt output_begin,
     Hash hash = Hash{}, 
     KeyEqual key_equal = KeyEqual{}) noexcept;
-
 
   std::size_t get_capacity() const noexcept;
 
