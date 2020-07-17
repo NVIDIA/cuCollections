@@ -68,13 +68,16 @@ void dynamic_map<Key, Value, Scope>::insert(
   while(num_to_insert > 0) {
     auto& submap = submaps_[submap_idx];
     auto capacity_remaining = max_load_factor_ * submap.get_capacity() - submap.get_size();
+    // If we are tying to insert some of the remaining keys into this submap, we can insert 
+    // only if we meet the minimum insert size.
     if(capacity_remaining >= min_insert_size_) {
-     // insert into submap submap_idx 
+      auto n = std::min(capacity_remaining, num_to_insert);
+      // insert n elemennts into submap submap_idx
+      num_to_insert -= n;
     }
     
     submap_idx++;
   }
-
 }
 
 
