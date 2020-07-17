@@ -113,7 +113,7 @@ __global__ void findKernel(InputIt first,
   while(first + key_idx < last) {
     auto key = *(first + key_idx);
     auto found = view.find(key, hash, key_equal);
-    *(output_begin + key_idx) = found->second;
+    *(output_begin + key_idx) = found->second.load(cuda::std::memory_order_relaxed);
     key_idx += gridDim.x * blockDim.x;
   }
 }
@@ -139,7 +139,7 @@ __global__ void findKernel(InputIt first,
   while(first + key_idx < last) {
     auto key = *(first + key_idx);
     auto found = view.find(tile, key, hash, key_equal);
-    *(output_begin + key_idx) = found->second;
+    *(output_begin + key_idx) = found->second.load(cuda::std::memory_order_relaxed);
     key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
 }
