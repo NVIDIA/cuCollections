@@ -57,3 +57,8 @@ set(HASH_BENCH_SRC
 
 ConfigureBench(HASH_TABLE_BENCH "${HASH_BENCH_SRC}")
 ###################################################################################################
+set(PROFILE_SRC
+  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/profile.cu")
+
+ConfigureBench(PROFILE "${PROFILE_SRC}")
+###################################################################################################

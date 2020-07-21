@@ -18,8 +18,10 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/iterator/discard_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 #include <thrust/pair.h>
 #include <thrust/transform.h>
+#include <thrust/remove.h>
 
 #include <cuco/detail/error.hpp>
 #include <cuda/std/atomic>
@@ -28,6 +30,7 @@
 #include <../thirdparty/cub/cub/cub.cuh>
 
 #include <cuco/static_map.cuh>
+#include <cuco/detail/dynamic_map_kernels.cuh>
 
 namespace cuco {
 
@@ -40,10 +43,21 @@ class dynamic_map {
   public:
   using key_type           = Key;
   using mapped_type        = Value;
+  using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;
+  using view_type = typename static_map<Key, Value, Scope>::device_view;
+  using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view;
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
   dynamic_map& operator=(dynamic_map const&) = delete;
   dynamic_map& operator=(dynamic_map&&) = delete;
+
+  // used for insert, not too sure where to put it
+  struct already_exists {
+    __host__ __device__ 
+    bool operator()(thrust::tuple<bool, cuco::pair_type<Key, Value>> x) {
+      return thrust::get<0>(x);
+    }
+  };
 
   /**
   * @brief Construct a fixed-size map with the specified capacity and sentinel values.
@@ -96,16 +110,21 @@ class dynamic_map {
   float get_load_factor() const noexcept;
 
   private:
+
+  
+  
   key_type empty_key_sentinel_{};
   mapped_type empty_value_sentinel_{};
     
   static constexpr std::size_t MAX_NUM_SUBMAPS_ = 16;
-  static_map<key_type, mapped_type, Scope>* submaps_[MAX_NUM_SUBMAPS_];
-  std::size_t submap_caps_[MAX_NUM_SUBMAPS_];
-  std::size_t num_submaps_{};
+  std::vector<static_map<key_type, mapped_type, Scope> *> submaps_;
+  std::vector<std::size_t> submap_caps_;
+  std::vector<view_type> submap_views_;
+  std::vector<mutable_view_type> submap_mutable_views_;
   std::size_t num_elements_{};
-  std::size_t min_insert_size_{}
+  std::size_t min_insert_size_{};
   float max_load_factor_{};
+  atomic_ctr_type *num_successes_;
 };
 }  // namespace cuco
 

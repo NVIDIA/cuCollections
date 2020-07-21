@@ -108,6 +108,8 @@ class static_map {
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
     
+    device_mutable_view() noexcept {}
+    
     device_mutable_view(pair_atomic_type* slots,
                         std::size_t capacity,
                         Key empty_key_sentinel,
@@ -133,11 +135,11 @@ class static_map {
                                                    Hash hash,
                                                    KeyEqual key_equal) noexcept;
 
-    std::size_t get_capacity() const noexcept { return capacity_; }
+    __host__ __device__ std::size_t get_capacity() const noexcept { return capacity_; }
 
-    Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+    __host__ __device__ Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
-    Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
+    __host__ __device__ Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
     
     /**
      * @brief Returns iterator to one past the last element.
@@ -191,6 +193,8 @@ class static_map {
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
 
+    device_view() noexcept {}
+
     device_view(pair_atomic_type* slots,
                 std::size_t capacity,
                 Key empty_key_sentinel,
@@ -226,11 +230,11 @@ class static_map {
     __device__ bool contains(CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept;
 
 
-    std::size_t get_capacity() const noexcept { return capacity_; }
+    __host__ __device__ std::size_t get_capacity() const noexcept { return capacity_; }
 
-    Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+    __host__ __device__ Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
-    Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
+    __host__ __device__ Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
     
     /**
      * @brief Returns iterator to one past the last element.
@@ -278,14 +282,18 @@ class static_map {
   device_view get_device_view() const noexcept {
     return device_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }
-
+  
   device_mutable_view get_device_mutable_view() const noexcept {
     return device_mutable_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }
-
-  std::size_t get_capacity() const noexcept { return capacity_; }
   
-  float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; } 
+  std::size_t get_capacity() const noexcept { return capacity_; }
+
+  std::size_t get_size() const noexcept { return size_; }
+
+  void incr_size(std::size_t n) { size_ += n; }
+  
+  float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; }
 
   private:
   pair_atomic_type* slots_{nullptr};    ///< Pointer to flat slots storage
@@ -293,7 +301,7 @@ class static_map {
   std::size_t size_{};                  ///< number of keys in map
   Key const empty_key_sentinel_{};      ///< Key value that represents an empty slot
   Value const empty_value_sentinel_{};  ///< Initial value of empty slot
-  atomic_ctr_type *d_num_successes_{};
+  atomic_ctr_type *num_successes_{};
 };
 }  // namespace cuco 
 
