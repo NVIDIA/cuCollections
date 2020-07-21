@@ -72,7 +72,7 @@ class dynamic_map {
 
   ~dynamic_map();
 
-  void resize(std::size_t num_to_insert);
+  void reserve(std::size_t num_to_insert);
 
   template <typename InputIt,
             typename Hash = MurmurHash3_32<key_type>,

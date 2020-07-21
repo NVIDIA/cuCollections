@@ -18,7 +18,6 @@ dynamic_map<Key, Value, Scope>::dynamic_map(std::size_t capacity, Key empty_key_
   submaps_.push_back(submap);
 
   // initialize device views
-  
   submap_views_.push_back(submap->get_device_view());
   submap_mutable_views_.push_back(submap->get_device_mutable_view());
     
@@ -39,10 +38,9 @@ dynamic_map<Key, Value, Scope>::~dynamic_map() {
 
 
 template<typename Key, typename Value, cuda::thread_scope Scope>
-void dynamic_map<Key, Value, Scope>::resize(std::size_t num_to_insert) {
+void dynamic_map<Key, Value, Scope>::reserve(std::size_t n) {
 
-  auto final_num_elements = num_elements_ + num_to_insert;
-  auto num_elements_remaining = final_num_elements;
+  auto num_elements_remaining = n;
   auto submap_idx = 0;
   while(num_elements_remaining > 0) {
     auto submap_cap = submap_caps_[submap_idx];
@@ -70,7 +68,7 @@ void dynamic_map<Key, Value, Scope>::insert(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal) {
   
   std::size_t num_to_insert = std::distance(first, last);
-  resize(num_to_insert);
+  reserve(num_elements_ + num_to_insert);
 
   thrust::device_vector<view_type> d_submap_views( submap_views_ );
   thrust::device_vector<mutable_view_type> d_submap_mutable_views( submap_mutable_views_ );
