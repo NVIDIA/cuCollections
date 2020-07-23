@@ -13,14 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include <benchmark/benchmark.h>
-
 #include "cuco/static_map.cuh"
-#include "../nvtx3.hpp"
-
 #include <thrust/for_each.h>
 #include <iostream>
 #include <fstream>
+
 
 
 /**
@@ -112,6 +111,8 @@ static void BM_cuco_search_all(::benchmark::State& state) {
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
                           int64_t(state.range(0)));
 }
+
+
 
 BENCHMARK_TEMPLATE(BM_cuco_insert, int32_t, int32_t)
   ->Unit(benchmark::kMillisecond)
