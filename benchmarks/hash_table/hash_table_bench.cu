@@ -13,12 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #include <benchmark/benchmark.h>
 
 #include "cuco/static_map.cuh"
 #include "../nvtx3.hpp"
-#include <simt/atomic>
 
 #include <thrust/for_each.h>
 #include <iostream>
@@ -30,7 +28,7 @@
  * @brief Generates input sizes and hash table occupancies
  *
  */
-static void SweepLoadSize(benchmark::internal::Benchmark* b) {
+static void generate_size_and_occupancy(benchmark::internal::Benchmark* b) {
   for (auto size = 100'000'000; size <= 100'000'000; size *= 10) {
     for (auto occupancy = 40; occupancy <= 90; occupancy += 10) {
       b->Args({size, occupancy});
@@ -54,7 +52,8 @@ static void BM_cuco_insert(::benchmark::State& state) {
   std::vector<cuco::pair_type<int, int>> h_pairs ( num_keys );
   
   for(auto i = 0; i < num_keys; ++i) {
-    h_pairs[i] = cuco::make_pair(i, i);
+    h_pairs[i].first = i;
+    h_pairs[i].second = i;
   }
 
   thrust::device_vector<cuco::pair_type<int, int>> d_pairs( h_pairs );
@@ -97,7 +96,8 @@ static void BM_cuco_search_all(::benchmark::State& state) {
   
   for(auto i = 0; i < num_keys; ++i) {
     h_keys[i] = i;
-    h_pairs[i] = cuco::make_pair(i, i);
+    h_pairs[i].first = i;
+    h_pairs[i].second = i;
   }
 
   thrust::device_vector<int> d_keys( h_keys ); 
@@ -117,8 +117,8 @@ static void BM_cuco_search_all(::benchmark::State& state) {
 
 BENCHMARK_TEMPLATE(BM_cuco_insert, int32_t, int32_t)
   ->Unit(benchmark::kMillisecond)
-  ->Apply(SweepLoadSize);
+  ->Apply(generate_size_and_occupancy);
 
 BENCHMARK_TEMPLATE(BM_cuco_search_all, int32_t, int32_t)
   ->Unit(benchmark::kMillisecond)
-  ->Apply(SweepLoadSize);
+  ->Apply(generate_size_and_occupancy);

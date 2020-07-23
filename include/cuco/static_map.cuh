@@ -36,19 +36,6 @@ namespace cuco {
 
   
 
-/**---------------------------------------------------------------------------*
-  * @brief Enumeration of the possible results of attempting to insert into
-  *a hash bucket
-  *---------------------------------------------------------------------------**/
-enum class insert_result {
-  CONTINUE,  ///< Insert did not succeed, continue trying to insert
-              ///< (collision)
-  SUCCESS,   ///< New pair inserted successfully
-  DUPLICATE  ///< Insert did not succeed, key is already present
-};
-
-
-
 template <typename Key, typename Value, cuda::thread_scope Scope = cuda::thread_scope_device>
 class static_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
@@ -152,7 +139,7 @@ class static_map {
     __host__ __device__ iterator end() noexcept { return slots_ + capacity_; }
 
   private:
-    pair_atomic_type* __restrict__ slots_{};
+    pair_atomic_type* slots_{};
     std::size_t const capacity_{};
     Key const empty_key_sentinel_{};
     Value const empty_value_sentinel_{};
@@ -245,7 +232,7 @@ class static_map {
     __host__ __device__ iterator end() noexcept { return slots_ + capacity_; }
 
   private:
-    pair_atomic_type* __restrict__ slots_{};
+    pair_atomic_type* slots_{};
     std::size_t const capacity_{};
     Key const empty_key_sentinel_{};
     Value const empty_value_sentinel_{};

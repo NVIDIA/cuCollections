@@ -1,4 +1,33 @@
+/*
+ * Copyright (c) 2020, NVIDIA CORPORATION.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */ 
+
 namespace cuco {
+
+
+
+/**---------------------------------------------------------------------------*
+  * @brief Enumeration of the possible results of attempting to insert into
+  *a hash bucket
+  *---------------------------------------------------------------------------**/
+enum class insert_result {
+  CONTINUE,  ///< Insert did not succeed, continue trying to insert
+              ///< (collision)
+  SUCCESS,   ///< New pair inserted successfully
+  DUPLICATE  ///< Insert did not succeed, key is already present
+};
 
 
 
@@ -12,7 +41,7 @@ static_map<Key, Value, Scope>::static_map(std::size_t capacity, Key empty_key_se
     auto constexpr block_size = 256;
     auto constexpr stride = 4;
     auto const grid_size = (capacity + stride * block_size - 1) / (stride * block_size);
-    initializeKernel
+    detail::initialize
     <atomic_key_type, atomic_mapped_type>
     <<<grid_size, block_size>>>(slots_, empty_key_sentinel,
                                           empty_value_sentinel, capacity);
@@ -47,7 +76,7 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
   *d_num_successes_ = 0;
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(d_num_successes_, sizeof(atomic_ctr_type), 0));
 
-  insertKernel<tile_size>
+  detail::insert<block_size>
   <<<grid_size, block_size>>>(first, first + num_keys, d_num_successes_, view, 
                               hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
@@ -70,8 +99,10 @@ void static_map<Key, Value, Scope>::find(
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
   auto view = get_device_view();
-  findKernel<><<<grid_size, block_size>>>(first, last, output_begin,
-                                                    view, hash, key_equal);
+  
+  detail::find<>
+  <<<grid_size, block_size>>>
+  (first, last, output_begin, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());    
 }
 
@@ -89,8 +120,10 @@ void static_map<Key, Value, Scope>::contains(
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
   auto view = get_device_view();
-  containsKernel<tile_size><<<grid_size, block_size>>>(first, last, output_begin,
-                                                       view, hash, key_equal);
+  
+  detail::contains<>
+  <<<grid_size, block_size>>>
+  (first, last, output_begin, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
 

@@ -1,4 +1,21 @@
+/*
+ * Copyright (c) 2020, NVIDIA CORPORATION.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */ 
+
 namespace cuco {
+namespace detail {
 
 
 
@@ -23,7 +40,7 @@ template <typename First, typename Second>
 constexpr std::size_t pair_alignment() {
   return std::min(std::size_t{16}, next_pow2(sizeof(First) + sizeof(Second)));
 }
-
+} // namespace detail
 
 
 
@@ -36,13 +53,13 @@ constexpr std::size_t pair_alignment() {
  * @tparam Second
  */
 template <typename First, typename Second>
-struct alignas(pair_alignment<First, Second>()) pair {
+struct alignas(detail::pair_alignment<First, Second>()) pair {
   using first_type = First;
   using second_type = Second;
   First first{};
   Second second{};
   pair() = default;
-  __host__ __device__ constexpr pair(First f, Second s) noexcept
+  __host__ __device__ constexpr pair(First const& f, Second const& s) noexcept
       : first{f}, second{s} {}
 };
 
@@ -55,7 +72,7 @@ using pair_type = cuco::pair<K, V>;
 
 
 template <typename F, typename S>
-__host__ __device__ pair_type<F, S> make_pair(F f, S s) noexcept {
-  return pair_type<F, S>{f, s};
+__host__ __device__ pair_type<F, S> make_pair(F&& f, S&& s) noexcept {
+  return pair_type<F, S>{std::forward<F>(f), std::forward<S>(s)};
 }
-}
+} // namespace cuco

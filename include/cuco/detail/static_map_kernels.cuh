@@ -1,11 +1,31 @@
+/*
+ * Copyright (c) 2020, NVIDIA CORPORATION.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */ 
+
+namespace cuco{
+namespace detail {
+
 namespace cg = cooperative_groups;
 
 
 
 template<typename atomic_key_type, typename atomic_mapped_type, typename Key, typename Value, typename pair_atomic_type>
-__global__ void initializeKernel(
-    pair_atomic_type* const __restrict__ slots, Key k,
-    Value v, std::size_t size) {
+__global__ void initialize(
+  pair_atomic_type* const __restrict__ slots, Key k,
+  Value v, std::size_t size) {
+  
   auto tid = threadIdx.x + blockIdx.x * blockDim.x;
   while (tid < size) {
     new (&slots[tid].first) atomic_key_type{k};
@@ -23,12 +43,12 @@ template<uint32_t block_size,
          typename viewT,
          typename Hash, 
          typename KeyEqual>
-__global__ void insertKernel(InputIt first,
-                             InputIt last,
-                             atomicT* num_successes,
-                             viewT view,
-                             Hash hash,
-                             KeyEqual key_equal) {
+__global__ void insert(InputIt first,
+                       InputIt last,
+                       atomicT* num_successes,
+                       viewT view,
+                       Hash hash,
+                       KeyEqual key_equal) {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
@@ -63,12 +83,12 @@ template<uint32_t block_size,
          typename viewT,
          typename Hash, 
          typename KeyEqual>
-__global__ void insertKernel(InputIt first,
-                             InputIt last,
-                             atomicT* num_successes,
-                             viewT view,
-                             Hash hash,
-                             KeyEqual key_equal) {
+__global__ void insert(InputIt first,
+                       InputIt last,
+                       atomicT* num_successes,
+                       viewT view,
+                       Hash hash,
+                       KeyEqual key_equal) {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
@@ -101,12 +121,12 @@ template<typename InputIt, typename OutputIt,
          typename viewT,
          typename Hash, 
          typename KeyEqual>
-__global__ void findKernel(InputIt first,
-                           InputIt last,
-                           OutputIt output_begin,
-                           viewT view,
-                           Hash hash,
-                           KeyEqual key_equal) {
+__global__ void find(InputIt first,
+                     InputIt last,
+                     OutputIt output_begin,
+                     viewT view,
+                     Hash hash,
+                     KeyEqual key_equal) {
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid;
   
@@ -126,12 +146,12 @@ template<uint32_t tile_size,
          typename viewT,
          typename Hash, 
          typename KeyEqual>
-__global__ void findKernel(InputIt first,
-                           InputIt last,
-                           OutputIt output_begin,
-                           viewT view,
-                           Hash hash,
-                           KeyEqual key_equal) {
+__global__ void find(InputIt first,
+                     InputIt last,
+                     OutputIt output_begin,
+                     viewT view,
+                     Hash hash,
+                     KeyEqual key_equal) {
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
@@ -151,12 +171,12 @@ template<typename InputIt, typename OutputIt,
          typename viewT,
          typename Hash, 
          typename KeyEqual>
-__global__ void containsKernel(InputIt first,
-                               InputIt last,
-                               OutputIt output_begin,
-                               viewT view,
-                               Hash hash,
-                               KeyEqual key_equal) {
+__global__ void contains(InputIt first,
+                         InputIt last,
+                         OutputIt output_begin,
+                         viewT view,
+                         Hash hash,
+                         KeyEqual key_equal) {
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid;
   
@@ -176,12 +196,12 @@ template<uint32_t tile_size,
          typename viewT,
          typename Hash, 
          typename KeyEqual>
-__global__ void containsKernel(InputIt first,
-                               InputIt last,
-                               OutputIt output_begin,
-                               viewT view,
-                               Hash hash,
-                               KeyEqual key_equal) {
+__global__ void contains(InputIt first,
+                         InputIt last,
+                         OutputIt output_begin,
+                         viewT view,
+                         Hash hash,
+                         KeyEqual key_equal) {
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
@@ -193,3 +213,6 @@ __global__ void containsKernel(InputIt first,
     key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
 }
+
+} // namespace detail
+} // namespace cuco
