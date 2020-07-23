@@ -23,7 +23,6 @@
 #include <fstream>
 
 
-
 /**
  * @brief Generates input sizes and hash table occupancies
  *
@@ -110,8 +109,7 @@ static void BM_cuco_search_all(::benchmark::State& state) {
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
   }
 
-  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
-                          int64_t(state.iterations()) *
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
                           int64_t(state.range(0)));
 }
 

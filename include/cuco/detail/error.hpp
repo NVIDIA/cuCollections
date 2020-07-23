@@ -59,16 +59,14 @@ struct cuda_error : public std::runtime_error {
   GET_CUCO_CUDA_TRY_MACRO(__VA_ARGS__, CUCO_CUDA_TRY_2, CUCO_CUDA_TRY_1) \
   (__VA_ARGS__)
 #define GET_CUCO_CUDA_TRY_MACRO(_1, _2, NAME, ...) NAME
-#define CUCO_CUDA_TRY_2(_call, _exception_type)                         \
-  do {                                                                  \
-    cudaError_t const error = (_call);                                  \
-    if (cudaSuccess != error) {                                         \
-      cudaGetLastError();                                               \
-      throw _exception_type{std::string{"CUDA error at: "} + __FILE__ + \
-                            CUCO_STRINGIFY(__LINE__) + ": " +           \
-                            cudaGetErrorName(error) + " " +             \
-                            cudaGetErrorString(error)};                 \
-    }                                                                   \
+#define CUCO_CUDA_TRY_2(_call, _exception_type)                                                    \
+  do {                                                                                             \
+    cudaError_t const error = (_call);                                                             \
+    if (cudaSuccess != error) {                                                                    \
+      cudaGetLastError();                                                                          \
+      throw _exception_type{std::string{"CUDA error at: "} + __FILE__ + CUCO_STRINGIFY(__LINE__) + \
+                            ": " + cudaGetErrorName(error) + " " + cudaGetErrorString(error)};     \
+    }                                                                                              \
   } while (0);
 #define CUCO_CUDA_TRY_1(_call) CUCO_CUDA_TRY_2(_call, cuco::cuda_error)
 
