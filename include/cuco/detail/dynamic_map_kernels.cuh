@@ -71,7 +71,7 @@ __global__ void findKernel(InputIt first,
 
   while(first + tid < last) {
     auto key = first[tid];
-    auto found_value = empty_key_sentinel;
+    auto found_value = empty_value_sentinel;
     for(auto i = 0; i < num_submaps; ++i) {
       auto submap_view = submap_views[i];
       auto found = submap_view.find(key, hash, key_equal);

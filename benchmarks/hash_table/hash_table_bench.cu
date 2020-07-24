@@ -20,7 +20,6 @@
 #include <cuco/dynamic_map.cuh>
 
 #include "../nvtx3.hpp"
-#include <simt/atomic>
 
 #include <thrust/for_each.h>
 #include <iostream>
