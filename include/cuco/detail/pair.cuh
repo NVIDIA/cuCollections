@@ -17,8 +17,12 @@
 namespace cuco {
 namespace detail {
 
-
-
+/**
+ * @brief Rounds `v` to the nearest power of 2 greater than or equal to `v`. 
+ * 
+ * @param v 
+ * @return The nearest power of 2 greater than or equal to `v`.
+ */
 constexpr std::size_t next_pow2(std::size_t v) noexcept {
   --v;
   v |= v >> 1;
@@ -28,8 +32,6 @@ constexpr std::size_t next_pow2(std::size_t v) noexcept {
   v |= v >> 16;
   return ++v;
 }
-
-
 
 /**
  * @brief Gives value to use as alignment for a pair type that is at least the
@@ -41,8 +43,6 @@ constexpr std::size_t pair_alignment() {
   return std::min(std::size_t{16}, next_pow2(sizeof(First) + sizeof(Second)));
 }
 } // namespace detail
-
-
 
 /**
  * @brief Custom pair type
@@ -63,14 +63,18 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
       : first{f}, second{s} {}
 };
 
-
-
 template <typename K, typename V>
 using pair_type = cuco::pair<K, V>;
 
-
-
-
+/**
+ * @brief Creates a pair of type `pair_type`
+ * 
+ * @tparam F 
+ * @tparam S 
+ * @param f 
+ * @param s 
+ * @return pair_type with first element `f` and second element `s`.
+ */
 template <typename F, typename S>
 __host__ __device__ pair_type<F, S> make_pair(F&& f, S&& s) noexcept {
   return pair_type<F, S>{std::forward<F>(f), std::forward<S>(s)};

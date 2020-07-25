@@ -16,14 +16,27 @@
 
 namespace cuco{
 namespace detail {
-
 namespace cg = cooperative_groups;
 
-
-
+/**
+ * @brief Initializes each slot in the flat `slots` storage to contain `k` and `v`.
+ *
+ * Each space in `slots` that can hold a key value pair is initialized to a
+ * `pair_atomic_type` containing the key `k` and the value `v`.
+ * 
+ * @tparam atomic_key_type Type of the `Key` atomic container
+ * @tparam atomic_mapped_type Type of the `Value` atomic container
+ * @tparam Key key type
+ * @tparam Value value type
+ * @tparam pair_atomic_type key/value pair type
+ * @param slots Pointer to flat storage for the map's key/value pairs
+ * @param k Key to which all keys in `slots` are initialized
+ * @param v Value to which all values in `slots` are initialized
+ * @param size Size of the storage pointed to by `slots`
+ */
 template<typename atomic_key_type, typename atomic_mapped_type, typename Key, typename Value, typename pair_atomic_type>
 __global__ void initialize(
-  pair_atomic_type* const __restrict__ slots, Key k,
+  pair_atomic_type* const slots, Key k,
   Value v, std::size_t size) {
   
   auto tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -34,9 +47,26 @@ __global__ void initialize(
   }
 }
 
-
-
-// insert kernel
+/**
+ * @brief Inserts all key/value pairs in the range `[first, last)`. 
+ *  
+ * If multiple keys in `[first, last)` compare equal, it is unspecified which
+ * element is inserted.
+ * 
+ * @tparam block_size 
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+* convertible to the map's `value_type`
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of key/value pairs
+ * @param last End of the sequence of key/value pairs
+ * @param num_successes The number of successfully inserted key/value pairs
+ * @param view Mutable device view used to access the hash map's slot storage
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function used to compare two keys for equality
+ */
 template<uint32_t block_size,
          typename InputIt,
          typename atomicT,
@@ -73,9 +103,29 @@ __global__ void insert(InputIt first,
   }
 }
 
-
-
-// insert kernel
+/**
+ * @brief Inserts all key/value pairs in the range `[first, last)`. 
+ *  
+ * If multiple keys in `[first, last)` compare equal, it is unspecified which
+ * element is inserted. Uses the CUDA Cooperative Groups API to leverage groups
+ * of multiple threads to perform each key/value insertion.
+ * 
+ * @tparam block_size 
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform
+ * inserts
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+* convertible to the map's `value_type`
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of key/value pairs
+ * @param last End of the sequence of key/value pairs
+ * @param num_successes The number of successfully inserted key/value pairs
+ * @param view Mutable device view used to access the hash map's slot storage
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function used to compare two keys for equality
+ */
 template<uint32_t block_size,
          uint32_t tile_size,
          typename InputIt,
@@ -114,9 +164,27 @@ __global__ void insert(InputIt first,
   }
 }
 
-
-
-// find kernel
+/**
+ * @brief Finds the values corresponding to all keys in the range `[first, last)`.
+ * 
+ * Suppose `k` is `i`th key in the range `[first, last)`. If `k` was inserted along with a value `v`
+ * into the map, then `v` will be stored at the `i'th position from `output_begin`. If `k` was 
+ * never inserted, `empty_value_sentinel_` will be stored at the `i`th position from `output_begin`.
+ * 
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is 
+ * convertible to the map's `mapped_type`
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param output_begin Beginning of the sequence of booleans for the presence of each key
+ * @param view Device view used to access the hash map's slot storage
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
 template<typename InputIt, typename OutputIt, 
          typename viewT,
          typename Hash, 
@@ -138,9 +206,30 @@ __global__ void find(InputIt first,
   }
 }
 
-
-
-// find kernel
+/**
+ * @brief Finds the values corresponding to all keys in the range `[first, last)`.
+ * 
+ * Suppose `k` is `i`th key in the range `[first, last)`. If `k` was inserted along with a value `v`
+ * into the map, then `v` will be stored at the `i'th position from `output_begin`. If `k` was 
+ * never inserted, `empty_value_sentinel_` will be stored at the `i`th position from `output_begin`.
+ * Uses the CUDA Cooperative Groups API to leverage groups of multiple threads to find each key.
+ *
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform
+ * inserts
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is 
+ * convertible to the map's `mapped_type`
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param output_begin Beginning of the sequence of booleans for the presence of each key
+ * @param view Device view used to access the hash map's slot storage
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
 template<uint32_t tile_size,
          typename InputIt, typename OutputIt, 
          typename viewT,
@@ -164,9 +253,27 @@ __global__ void find(InputIt first,
   }
 }
 
-
-
-// contains kernel
+/**
+ * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+ * 
+ * Suppose `k` is `i`th key in the range `[first, last)`. If `k` was inserted along with a value `v`
+ * into the map, then `true` will be stored at the `i'th position from `output_begin`. If `k` was 
+ * never inserted, `false` will be stored at the `i`th position from `output_begin`.
+ *
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is
+ * convertible to the map's `mapped_type`
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type 
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param output_begin Beginning of the sequence of booleans for the presence of each key
+ * @param view Device view used to access the hash map's slot storage
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
 template<typename InputIt, typename OutputIt, 
          typename viewT,
          typename Hash, 
@@ -188,9 +295,31 @@ __global__ void contains(InputIt first,
   }
 }
 
-
-
-// contains kernel
+/**
+ * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+ * 
+ * Suppose `k` is `i`th key in the range `[first, last)`. If `k` was inserted along with a value `v`
+ * into the map, then `true` will be stored at the `i'th position from `output_begin`. If `k` was 
+ * never inserted, `false` will be stored at the `i`th position from `output_begin`. Uses the
+ * CUDA Cooperative Groups API to leverage groups of multiple threads to perform the contains
+ * operation for each key.
+ *
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform
+ * inserts
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is
+ * convertible to the map's `mapped_type`
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type 
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param output_begin Beginning of the sequence of booleans for the presence of each key
+ * @param view Device view used to access the hash map's slot storage
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
 template<uint32_t tile_size,
          typename InputIt, typename OutputIt, 
          typename viewT,
