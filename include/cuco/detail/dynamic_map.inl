@@ -40,7 +40,7 @@ dynamic_map<Key, Value, Scope>::~dynamic_map() {
 template<typename Key, typename Value, cuda::thread_scope Scope>
 void dynamic_map<Key, Value, Scope>::reserve(std::size_t n) {
 
-  auto num_elements_remaining = n;
+  int64_t num_elements_remaining = n;
   auto submap_idx = 0;
   while(num_elements_remaining > 0) {
     auto submap_cap = submap_caps_[submap_idx];
@@ -92,11 +92,12 @@ void dynamic_map<Key, Value, Scope>::insert(
 
       insertKernel<block_size, cuco::pair_type<key_type, mapped_type>>
       <<<grid_size, block_size>>>
-      (first, last,
+      (first, first + n,
        d_submap_views.data().get(),
        d_submap_mutable_views.data().get(),
        num_successes_, submap_idx, hash, key_equal);
-      
+      CUCO_CUDA_TRY(cudaDeviceSynchronize());
+
       std::size_t h_num_successes = num_successes_->load(cuda::std::memory_order_relaxed);
       submap->incr_size(h_num_successes);
       num_elements_ += h_num_successes;
@@ -125,7 +126,7 @@ void dynamic_map<Key, Value, Scope>::find(
   auto const tile_size = 1;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
-  
+
   findKernel<>
   <<<grid_size, block_size>>>
   (first, last, output_begin,

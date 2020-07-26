@@ -110,9 +110,6 @@ class dynamic_map {
   float get_load_factor() const noexcept;
 
   private:
-
-  
-  
   key_type empty_key_sentinel_{};
   mapped_type empty_value_sentinel_{};
     

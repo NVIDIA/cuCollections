@@ -137,9 +137,8 @@ set(STATIC_MAP_TEST_SRC
 
 ConfigureTest(STATIC_MAP_TEST "${STATIC_MAP_TEST_SRC}")
 ####################################################################################################
-#set(EXAMPLE_CUDA_TEST_SRC 
-#    "${CMAKE_CURRENT_SOURCE_DIR}/example/example.cu")
+set(DYNAMIC_MAP_TEST_SRC 
+    "${CMAKE_CURRENT_SOURCE_DIR}/dynamic_map/dynamic_map_test.cu")
 
-#ConfigureTest(EXAMPLE_CUDA_TEST "${EXAMPLE_CUDA_TEST_SRC}")
-###################################################################################################
-###################################################################################################
+ConfigureTest(DYNAMIC_MAP_TEST "${DYNAMIC_MAP_TEST_SRC}")
+####################################################################################################

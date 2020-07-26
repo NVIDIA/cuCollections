@@ -27,6 +27,7 @@ __global__ void insertKernel(InputIt first,
   while(first + tid < last) {
     pair_type insert_pair = first[tid];
     auto exists = false;
+    
     for(auto i = 0; i < insert_idx; ++i) {
       auto submap_view = submap_views[i];
       exists = submap_view.contains(insert_pair.first, hash, key_equal);
@@ -64,7 +65,6 @@ __global__ void findKernel(InputIt first,
                            uint32_t num_submaps,
                            Hash hash,
                            KeyEqual key_equal) {
-  
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto empty_key_sentinel = submap_views[0].get_empty_key_sentinel();                          
   auto empty_value_sentinel = submap_views[0].get_empty_value_sentinel();                          
@@ -75,7 +75,7 @@ __global__ void findKernel(InputIt first,
     for(auto i = 0; i < num_submaps; ++i) {
       auto submap_view = submap_views[i];
       auto found = submap_view.find(key, hash, key_equal);
-      if(found->first != empty_key_sentinel) {
+      if(found != submap_view.end()) {
         found_value = found->second;
         break;
       }
@@ -110,7 +110,7 @@ __global__ void containsKernel(InputIt first,
     auto found = false;
     for(auto i = 0; i < num_submaps; ++i) {
       auto submap_view = submap_views[i];
-      auto found = submap_view.contains(key, hash, key_equal);
+      found = submap_view.contains(key, hash, key_equal);
       if(found) {
         break;
       }
