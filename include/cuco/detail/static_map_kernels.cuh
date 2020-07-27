@@ -108,7 +108,9 @@ __global__ void insert(InputIt first,
  *  
  * If multiple keys in `[first, last)` compare equal, it is unspecified which
  * element is inserted. Uses the CUDA Cooperative Groups API to leverage groups
- * of multiple threads to perform each key/value insertion.
+ * of multiple threads to perform each key/value insertion. This provides a 
+ * significant boost in throughput compared to the non Cooperative Group
+ * `insert` at moderate to high load factors.
  * 
  * @tparam block_size 
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
@@ -167,9 +169,8 @@ __global__ void insert(InputIt first,
 /**
  * @brief Finds the values corresponding to all keys in the range `[first, last)`.
  * 
- * Suppose `k` is `i`th key in the range `[first, last)`. If `k` was inserted along with a value `v`
- * into the map, then `v` will be stored at the `i'th position from `output_begin`. If `k` was 
- * never inserted, `empty_value_sentinel_` will be stored at the `i`th position from `output_begin`.
+ * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`. 
+ * Else, copies the empty value sentinel. 
  * 
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
@@ -209,10 +210,10 @@ __global__ void find(InputIt first,
 /**
  * @brief Finds the values corresponding to all keys in the range `[first, last)`.
  * 
- * Suppose `k` is `i`th key in the range `[first, last)`. If `k` was inserted along with a value `v`
- * into the map, then `v` will be stored at the `i'th position from `output_begin`. If `k` was 
- * never inserted, `empty_value_sentinel_` will be stored at the `i`th position from `output_begin`.
- * Uses the CUDA Cooperative Groups API to leverage groups of multiple threads to find each key.
+ * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`. 
+ * Else, copies the empty value sentinel. Uses the CUDA Cooperative Groups API to leverage groups
+ * of multiple threads to find each key. This provides a significant boost in throughput compared 
+ * to the non Cooperative Group `find` at moderate to high load factors.
  *
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
  * inserts
@@ -256,9 +257,7 @@ __global__ void find(InputIt first,
 /**
  * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
  * 
- * Suppose `k` is `i`th key in the range `[first, last)`. If `k` was inserted along with a value `v`
- * into the map, then `true` will be stored at the `i'th position from `output_begin`. If `k` was 
- * never inserted, `false` will be stored at the `i`th position from `output_begin`.
+ * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
  *
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
@@ -298,11 +297,10 @@ __global__ void contains(InputIt first,
 /**
  * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
  * 
- * Suppose `k` is `i`th key in the range `[first, last)`. If `k` was inserted along with a value `v`
- * into the map, then `true` will be stored at the `i'th position from `output_begin`. If `k` was 
- * never inserted, `false` will be stored at the `i`th position from `output_begin`. Uses the
- * CUDA Cooperative Groups API to leverage groups of multiple threads to perform the contains
- * operation for each key.
+ * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
+ * Uses the CUDA Cooperative Groups API to leverage groups of multiple threads to perform the 
+ * contains operation for each key. This provides a significant boost in throughput compared 
+ * to the non Cooperative Group `contains` at moderate to high load factors.
  *
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
  * inserts

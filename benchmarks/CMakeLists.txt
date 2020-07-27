@@ -33,6 +33,7 @@ endfunction(ConfigureBench)
 
 include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
                     "${CMAKE_SOURCE_DIR}/include"
+                    "${CMAKE_SOURCE_DIR}/thirdparty/cub"
                     "${GBENCH_INCLUDE_DIR}"
                     "${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -49,8 +50,8 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT
 ###################################################################################################
 
 ###################################################################################################
-set(HASH_BENCH_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/hash_table_bench.cu")
+set(STATIC_MAP_BENCH_SRC
+  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
 
-ConfigureBench(HASH_TABLE_BENCH "${HASH_BENCH_SRC}")
+ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
 ###################################################################################################

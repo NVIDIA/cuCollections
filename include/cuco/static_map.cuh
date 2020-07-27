@@ -26,7 +26,7 @@
 #include <cuda/std/atomic>
 #include <atomic>
 #include <cooperative_groups.h>
-#include <../thirdparty/cub/cub/cub.cuh>
+#include <cub/cub.cuh>
 
 #include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/detail/cuda_memcmp.cuh>
@@ -173,9 +173,8 @@ class static_map {
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
    * 
-   * Suppose `k` is `i`th key in the range `[first, last)`. If `k` was inserted along with a value `v`
-   * into the map, then `v` will be stored at the `i'th position from `output_begin`. If `k` was 
-   * never inserted, `empty_value_sentinel_` will be stored at the `i`th position from `output_begin`.
+   * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`. 
+   * Else, copies the empty value sentinel. 
    * 
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `key_type`
@@ -200,9 +199,7 @@ class static_map {
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
    * 
-   * Suppose `k` is `i`th key in the range `[first, last)`. If `k` was inserted along with a value `v`
-   * into the map, then `true` will be stored at the `i'th position from `output_begin`. If `k` was 
-   * never inserted, `false` will be stored at the `i`th position from `output_begin`.
+   * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `key_type`
@@ -229,8 +226,20 @@ class static_map {
    * perform singular inserts into the map.
    *
    * `device_mutable_view` is trivially-copyable and is intended to be passed by
-   * value.
+   * value.   
    *
+   * Example:
+   * \code{.cpp}
+   * cuco::static_map<int,int> m{100'000, -1, -1};
+   *
+   * // Inserts a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
+   * thrust::for_each(thrust::make_counting_iterator(0),
+   *                  thrust::make_counting_iterator(50'000),
+   *                  [map = m.get_mutable_device_view()]
+   *                  __device__ (auto i) mutable {
+   *                     map.insert(thrust::make_pair(i,i));
+   *                  });
+   * \endcode
    */
   class device_mutable_view {
   public:
@@ -284,7 +293,9 @@ class static_map {
      * Returns a pair consisting of an iterator to the inserted element (or to
      * the element that prevented the insertion) and a `bool` denoting whether
      * the insertion took place. Uses the CUDA Cooperative Groups API to 
-     * to leverage multiple threads to perform a single insert.
+     * to leverage multiple threads to perform a single insert. This provides a 
+     * significant boost in throughput compared to the non Cooperative Group
+     * `insert` at moderate to high load factors.
      *
      * @tparam Cooperative Group type
      * @tparam Hash Unary callable type
@@ -434,9 +445,8 @@ class static_map {
     /**
      * @brief Finds the value corresponding to the key `k`.
      * 
-     * If the key `k` was inserted along with value `v` into the map, find returns
-     * an iterator to the position in the map where the pair `(k, v)` was
-     * inserted. Otherwise, find returns an iterator to the end of the map.
+     * Returns an iterator to the pair whose key is equivalent to `k`. 
+     * If no such pair exists, returns `end()`.  
      *
      * @tparam Hash Unary callable type 
      * @tparam KeyEqual Binary callable type 
@@ -456,11 +466,11 @@ class static_map {
     /**
      * @brief Finds the value corresponding to the key `k`.
      * 
-     * If the key `k` was inserted along with value `v` into the map, find returns
-     * an iterator to the position in the map where the pair `(k, v)` was
-     * inserted. Otherwise, find returns an iterator to the end of the map.
-     * Utilizes the CUDA Cooperative Groups API to leverage multiple threads to
-     * perform the find.
+     * Returns an iterator to the pair whose key is equivalent to `k`. 
+     * If no such pair exists, returns `end()`. Uses the CUDA Cooperative Groups API to 
+     * to leverage multiple threads to perform a single find. This provides a 
+     * significant boost in throughput compared to the non Cooperative Group
+     * `find` at moderate to high load factors.
      *
      * @tparam CG Cooperative Group type
      * @tparam Hash Unary callable type 
@@ -503,8 +513,10 @@ class static_map {
      * @brief Indicates whether the key `k` was inserted into the map.
      *
      * If the key `k` was inserted into the map, find returns
-     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API
-     * to leverage multiple threads to check for containment.
+     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to 
+     * to leverage multiple threads to perform a single contains operation. This provides a 
+     * significant boost in throughput compared to the non Cooperative Group
+     * `contains` at moderate to high load factors.
      * 
      * @tparam CG Cooperative Group type
      * @tparam Hash Unary callable type 

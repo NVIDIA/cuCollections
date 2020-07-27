@@ -130,7 +130,7 @@ void static_map<Key, Value, Scope>::contains(
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
 template <typename Hash, typename KeyEqual>
-__device__ thrust::pair<typename static_map<Key, Value, Scope>::device_mutable_view::iterator, bool> 
+__device__ thrust::pair<typename static_map<Key, Value, Scope>::device_mutable_view::iterator, bool>
 static_map<Key, Value, Scope>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept {
 
