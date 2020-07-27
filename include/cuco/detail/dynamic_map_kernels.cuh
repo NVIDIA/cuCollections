@@ -1,7 +1,48 @@
+/*
+ * Copyright (c) 2020, NVIDIA CORPORATION.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+ 
 namespace detail {
 namespace cg = cooperative_groups;
 
-// insert kernel
+/**
+ * @brief Inserts all key/value pairs in the range `[first, last)`. 
+ *  
+ * If multiple keys in `[first, last)` compare equal, it is unspecified which
+ * element is inserted.
+ * 
+ * @tparam block_size 
+ * @tparam pair_type Type of the pairs contained in the map
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `value_type`
+ * @tparam viewT Type of the `static_map` device views
+ * @tparam mutableViewT Type of the `static_map` device mutable views 
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of key/value pairs
+ * @param last End of the sequence of key/value pairs
+ * @param submap_views Array of `static_map::device_view` objects used to
+ * perform `contains` operations on each underlying `static_map`
+ * @param submap_mutable_views Array of `static_map::device_mutable_view` objects 
+ * used to perform an `insert` into the target `static_map` submap
+ * @param num_successes The number of successfully inserted key/value pairs
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function used to compare two keys for equality
+ */
 template<uint32_t block_size,
          typename pair_type,
          typename InputIt,
@@ -53,9 +94,37 @@ __global__ void insert(InputIt first,
   }
 }
 
-
-
-// insert kernel
+/**
+ * @brief Inserts all key/value pairs in the range `[first, last)`. 
+ *  
+ * If multiple keys in `[first, last)` compare equal, it is unspecified which
+ * element is inserted. Uses the CUDA Cooperative Groups API to leverage groups
+ * of multiple threads to perform each key/value insertion. This provides a 
+ * significant boost in throughput compared to the non Cooperative Group
+ * `insert` at moderate to high load factors.
+ * 
+ * @tparam block_size 
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform
+ * inserts
+ * @tparam pair_type Type of the pairs contained in the map
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `value_type`
+ * @tparam viewT Type of the `static_map` device views
+ * @tparam mutableViewT Type of the `static_map` device mutable views 
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of key/value pairs
+ * @param last End of the sequence of key/value pairs
+ * @param submap_views Array of `static_map::device_view` objects used to
+ * perform `contains` operations on each underlying `static_map`
+ * @param submap_mutable_views Array of `static_map::device_mutable_view` objects 
+ * used to perform an `insert` into the target `static_map` submap
+ * @param num_successes The number of successfully inserted key/value pairs
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function used to compare two keys for equality
+ */
 template<uint32_t block_size,
          uint32_t tile_size,
          typename pair_type,
@@ -110,9 +179,28 @@ __global__ void insert(InputIt first,
   }
 }
 
-
-
-// find kernel
+/**
+ * @brief Finds the values corresponding to all keys in the range `[first, last)`.
+ * 
+ * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`. 
+ * Else, copies the empty value sentinel. 
+ * 
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is 
+ * convertible to the map's `mapped_type`
+ * @tparam viewT Type of `static_map` device view
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param output_begin Beginning of the sequence of values retrieved for each key
+ * @param submap_views Array of `static_map::device_view` objects used to
+ * perform `find` operations on each underlying `static_map`
+ * @param num_submaps The number of submaps in the map
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
 template<typename InputIt, typename OutputIt, 
          typename viewT,
          typename Hash, 
@@ -145,9 +233,32 @@ __global__ void find(InputIt first,
   }
 }
 
-
-
-// find kernel
+/**
+ * @brief Finds the values corresponding to all keys in the range `[first, last)`.
+ * 
+ * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`. 
+ * Else, copies the empty value sentinel. Uses the CUDA Cooperative Groups API to leverage groups
+ * of multiple threads to find each key. This provides a significant boost in throughput compared 
+ * to the non Cooperative Group `find` at moderate to high load factors.
+ *
+ * @tparam tile_size The number of threads in the Cooperative Groups used to
+ * perform find operations
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is 
+ * convertible to the map's `mapped_type`
+ * @tparam viewT Type of `static_map` device view
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param output_begin Beginning of the sequence of values retrieved for each key
+ * @param submap_views Array of `static_map::device_view` objects used to
+ * perform `find` operations on each underlying `static_map`
+ * @param num_submaps The number of submaps in the map
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
 template<uint32_t tile_size,
          typename InputIt, typename OutputIt, 
          typename viewT,
@@ -185,9 +296,27 @@ __global__ void find(InputIt first,
   }
 }
 
-
-
-// contains kernel
+/**
+ * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+ * 
+ * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
+ *
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is 
+ * convertible to the map's `mapped_type`
+ * @tparam viewT Type of `static_map` device view
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param output_begin Beginning of the sequence of booleans for the presence of each key
+ * @param submap_views Array of `static_map::device_view` objects used to
+ * perform `contains` operations on each underlying `static_map`
+ * @param num_submaps The number of submaps in the map
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
 template<typename InputIt, typename OutputIt, 
          typename viewT,
          typename Hash, 
@@ -218,9 +347,32 @@ __global__ void contains(InputIt first,
   }
 }
 
-
-
-// contains kernel
+/**
+ * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+ * 
+ * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
+ * Uses the CUDA Cooperative Groups API to leverage groups of multiple threads to perform the 
+ * contains operation for each key. This provides a significant boost in throughput compared 
+ * to the non Cooperative Group `contains` at moderate to high load factors.
+ *
+ * @tparam tile_size The number of threads in the Cooperative Groups used to
+ * perform find operations
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is 
+ * convertible to the map's `mapped_type`
+ * @tparam viewT Type of `static_map` device view
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param output_begin Beginning of the sequence of booleans for the presence of each key
+ * @param submap_views Array of `static_map::device_view` objects used to
+ * perform `contains` operations on each underlying `static_map`
+ * @param num_submaps The number of submaps in the map
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
 template<uint32_t tile_size,
          typename InputIt, typename OutputIt, 
          typename viewT,
