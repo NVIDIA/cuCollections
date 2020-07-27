@@ -52,8 +52,8 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT
 ###################################################################################################
 
 ###################################################################################################
-set(HASH_BENCH_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/hash_table_bench.cu")
+set(DYNAMIC_MAP_BENCH_SRC
+  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/dynamic_map_bench.cu")
 
-ConfigureBench(HASH_TABLE_BENCH "${HASH_BENCH_SRC}")
+ConfigureBench(DYNAMIC_MAP_BENCH "${DYNAMIC_MAP_BENCH_SRC}")
 ###################################################################################################

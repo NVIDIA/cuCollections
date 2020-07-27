@@ -7,7 +7,7 @@ dynamic_map<Key, Value, Scope>::dynamic_map(std::size_t capacity, Key empty_key_
   empty_key_sentinel_(empty_key_sentinel),
   empty_value_sentinel_(empty_value_sentinel),
   num_elements_(0),
-  min_insert_size_(10'000),
+  min_insert_size_(1E4),
   max_load_factor_(0.60) {
   for(auto i = 0; i < MAX_NUM_SUBMAPS_; ++i) {
     submap_caps_.push_back(capacity);
@@ -85,12 +85,12 @@ void dynamic_map<Key, Value, Scope>::insert(
       
       auto n = std::min(capacity_remaining, num_to_insert);
       auto const block_size = 128;
-      auto const stride = 1;
-      auto const tile_size = 1;
+      auto const stride = 2;
+      auto const tile_size = 8;
       auto const grid_size = (tile_size * n + stride * block_size - 1) /
                              (stride * block_size);
 
-      insertKernel<block_size, cuco::pair_type<key_type, mapped_type>>
+      detail::insert<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
       <<<grid_size, block_size>>>
       (first, first + n,
        d_submap_views.data().get(),
@@ -122,12 +122,12 @@ void dynamic_map<Key, Value, Scope>::find(
   
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 1;
-  auto const tile_size = 1;
+  auto const stride = 2;
+  auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
 
-  findKernel<>
+  detail::find<tile_size>
   <<<grid_size, block_size>>>
   (first, last, output_begin,
    d_submap_views.data().get(), submaps_.size(), hash, key_equal);
@@ -147,12 +147,12 @@ void dynamic_map<Key, Value, Scope>::contains(
   
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 1;
-  auto const tile_size = 1;
+  auto const stride = 2;
+  auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
   
-  containsKernel<>
+  detail::contains<tile_size>
   <<<grid_size, block_size>>>
   (first, last, output_begin,
    d_submap_views.data().get(), submaps_.size(), hash, key_equal);

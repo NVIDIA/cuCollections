@@ -84,10 +84,9 @@ class dynamic_map {
   template <typename InputIt,
             typename Hash = MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insertReduce(InputIt first, InputIt last, 
-                    mapped_type f(mapped_type, mapped_type),
-                    Hash hash = Hash{},
-                    KeyEqual key_equal = KeyEqual{});
+  void insertAdd(InputIt first, InputIt last, 
+                 Hash hash = Hash{},
+                 KeyEqual key_equal = KeyEqual{});
 
   template <typename InputIt, typename OutputIt, 
             typename Hash = MurmurHash3_32<key_type>,
