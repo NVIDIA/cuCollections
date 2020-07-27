@@ -181,7 +181,7 @@ __global__ void insert(InputIt first,
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
- * @param output_begin Beginning of the sequence of booleans for the presence of each key
+ * @param output_begin Beginning of the sequence of values retrieved for each key
  * @param view Device view used to access the hash map's slot storage
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
@@ -226,7 +226,7 @@ __global__ void find(InputIt first,
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
- * @param output_begin Beginning of the sequence of booleans for the presence of each key
+ * @param output_begin Beginning of the sequence of values retrieved for each key
  * @param view Device view used to access the hash map's slot storage
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality

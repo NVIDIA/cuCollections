@@ -19,8 +19,40 @@
 #include <thrust/for_each.h>
 #include <iostream>
 #include <fstream>
+#include <random>
 
+enum class dist_type {
+  UNIQUE,
+  UNIFORM,
+  GAUSSIAN
+};
 
+template<dist_type Dist, typename Key, typename OutputIt>
+static void generate_keys(OutputIt output_begin, OutputIt output_end) {
+  auto num_keys = std::distance(output_begin, output_end);
+  
+  std::random_device rd;
+  std::mt19937 gen{rd()};
+
+  switch(Dist) {
+    case dist_type::UNIQUE:
+      for(auto i = 0; i < num_keys; ++i) {
+        output_begin[i] = i;
+      }
+      break;
+    case dist_type::UNIFORM:
+      for(auto i = 0; i < num_keys; ++i) {
+        output_begin[i] = std::abs(static_cast<Key>(gen()));
+      }
+      break;
+    case dist_type::GAUSSIAN:
+      std::normal_distribution<> dg{1e9, 1e7};
+      for(auto i = 0; i < num_keys; ++i) {
+        output_begin[i] = std::abs(static_cast<Key>(dg(gen)));
+      }
+      break;
+  }
+}
 
 /**
  * @brief Generates input sizes and hash table occupancies
@@ -36,7 +68,7 @@ static void generate_size_and_occupancy(benchmark::internal::Benchmark* b) {
 
 
 
-template <typename Key, typename Value>
+template <typename Key, typename Value, dist_type Dist>
 static void BM_cuco_insert(::benchmark::State& state) {
   using map_type = cuco::static_map<Key, Value>;
   
@@ -47,11 +79,16 @@ static void BM_cuco_insert(::benchmark::State& state) {
   map_type map{size, -1, -1};
   auto view = map.get_device_mutable_view();
 
-  std::vector<cuco::pair_type<int, int>> h_pairs ( num_keys );
+  std::vector<Key> h_keys( num_keys );
+  std::vector<cuco::pair_type<Key, Value>> h_pairs( num_keys );
+  
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
   
   for(auto i = 0; i < num_keys; ++i) {
-    h_pairs[i].first = i;
-    h_pairs[i].second = i;
+    Key key = h_keys[i];
+    Value val = h_keys[i];
+    h_pairs[i].first = key;
+    h_pairs[i].second = val;
   }
 
   thrust::device_vector<cuco::pair_type<int, int>> d_pairs( h_pairs );
@@ -75,7 +112,7 @@ static void BM_cuco_insert(::benchmark::State& state) {
 
 
 
-template <typename Key, typename Value>
+template <typename Key, typename Value, dist_type Dist>
 static void BM_cuco_search_all(::benchmark::State& state) {
   using map_type = cuco::static_map<Key, Value>;
   
@@ -91,11 +128,14 @@ static void BM_cuco_search_all(::benchmark::State& state) {
   std::vector<int> h_values( num_keys );
   std::vector<cuco::pair_type<int, int>> h_pairs ( num_keys );
   std::vector<int> h_results (num_keys);
+
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
   
   for(auto i = 0; i < num_keys; ++i) {
-    h_keys[i] = i;
-    h_pairs[i].first = i;
-    h_pairs[i].second = i;
+    Key key = h_keys[i];
+    Value val = h_keys[i];
+    h_pairs[i].first = key;
+    h_pairs[i].second = val;
   }
 
   thrust::device_vector<int> d_keys( h_keys ); 
@@ -114,10 +154,26 @@ static void BM_cuco_search_all(::benchmark::State& state) {
 
 
 
-BENCHMARK_TEMPLATE(BM_cuco_insert, int32_t, int32_t)
+BENCHMARK_TEMPLATE(BM_cuco_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
 
-BENCHMARK_TEMPLATE(BM_cuco_search_all, int32_t, int32_t)
+BENCHMARK_TEMPLATE(BM_cuco_search_all, int32_t, int32_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_cuco_insert, int32_t, int32_t, dist_type::UNIFORM)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_cuco_search_all, int32_t, int32_t, dist_type::UNIFORM)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_cuco_insert, int32_t, int32_t, dist_type::GAUSSIAN)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_cuco_search_all, int32_t, int32_t, dist_type::GAUSSIAN)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);

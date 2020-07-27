@@ -502,7 +502,7 @@ class static_map {
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys
      * for equality
-     * @return A bool indicating whether the key/value pair
+     * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted 
      */
     template<typename Hash = MurmurHash3_32<key_type>,
@@ -526,7 +526,7 @@ class static_map {
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys
      * for equality
-     * @return A bool indicating whether the key/value pair
+     * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted 
      */
     template <typename CG, 
