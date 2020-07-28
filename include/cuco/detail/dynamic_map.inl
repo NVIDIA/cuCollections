@@ -19,21 +19,20 @@ namespace cuco {
 
 
 template<typename Key, typename Value, cuda::thread_scope Scope>
-dynamic_map<Key, Value, Scope>::dynamic_map(std::size_t capacity, Key empty_key_sentinel, Value empty_value_sentinel) :
+dynamic_map<Key, Value, Scope>::dynamic_map(
+  std::size_t initial_capacity, Key empty_key_sentinel, Value empty_value_sentinel) :
   empty_key_sentinel_(empty_key_sentinel),
   empty_value_sentinel_(empty_value_sentinel),
-  num_elements_(0),
+  size_(0),
+  capacity_(0),
   min_insert_size_(1E4),
   max_load_factor_(0.60) {
-  for(auto i = 0; i < MAX_NUM_SUBMAPS_; ++i) {
-    submap_caps_.push_back(capacity);
-  }
+  
+  capacity_ = initial_capacity;
 
-  // initialize and place first submap
-  auto submap = new static_map<Key, Value, Scope>{submap_caps_[0], empty_key_sentinel, empty_value_sentinel};
+  auto submap = 
+    new static_map<Key, Value, Scope>{initial_capacity, empty_key_sentinel, empty_value_sentinel};
   submaps_.push_back(submap);
-
-  // initialize device views
   submap_views_.push_back(submap->get_device_view());
   submap_mutable_views_.push_back(submap->get_device_mutable_view());
     
@@ -59,19 +58,24 @@ void dynamic_map<Key, Value, Scope>::reserve(std::size_t n) {
   int64_t num_elements_remaining = n;
   auto submap_idx = 0;
   while(num_elements_remaining > 0) {
-    auto submap_cap = submap_caps_[submap_idx];
-    
+    std::size_t submap_capacity;
+
+    // if the submap already exists
+    if(submap_idx < submaps_.size()) {
+      submap_capacity = submaps_[submap_idx]->get_size();
+    }
     // if the submap does not exist yet, create it
-    if(submap_idx >= submaps_.size()) {
+    else {
+      submap_capacity = capacity_;
       auto submap =  
-        new static_map<Key, Value, Scope>{submap_cap, empty_key_sentinel_, empty_value_sentinel_};
+        new static_map<Key, Value, Scope>{submap_capacity, empty_key_sentinel_, empty_value_sentinel_};
       submaps_.push_back(submap);
-      
       submap_views_.push_back(submap->get_device_view());
       submap_mutable_views_.push_back(submap->get_device_mutable_view());
+      capacity_ *= 2;      
     }
 
-    num_elements_remaining -= max_load_factor_ * submap_cap - min_insert_size_;
+    num_elements_remaining -= max_load_factor_ * submap_capacity - min_insert_size_;
     submap_idx++;
   }
 }
@@ -84,7 +88,7 @@ void dynamic_map<Key, Value, Scope>::insert(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal) {
   
   std::size_t num_to_insert = std::distance(first, last);
-  reserve(num_elements_ + num_to_insert);
+  reserve(size_ + num_to_insert);
 
   thrust::device_vector<view_type> d_submap_views( submap_views_ );
   thrust::device_vector<mutable_view_type> d_submap_mutable_views( submap_mutable_views_ );
@@ -115,23 +119,14 @@ void dynamic_map<Key, Value, Scope>::insert(
       CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
       std::size_t h_num_successes = num_successes_->load(cuda::std::memory_order_relaxed);
-      submap->incr_size(h_num_successes);
-      num_elements_ += h_num_successes;
+      submap->size_ += h_num_successes;
+      size_ += h_num_successes;
       first += n;
       num_to_insert -= n;
     }
     
     submap_idx++;
   }
-}
-
-
-
-template<typename Key, typename Value, cuda::thread_scope Scope>
-template <typename InputIt, typename Hash, typename KeyEqual>
-void dynamic_map<Key, Value, Scope>::insertAdd(
-  InputIt first, InputIt last, Hash hash, KeyEqual key_equal) {
-  // not yet implemented
 }
 
 

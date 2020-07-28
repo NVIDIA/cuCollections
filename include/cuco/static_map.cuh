@@ -34,7 +34,6 @@
 
 namespace cuco {
 
-  
 
 /**---------------------------------------------------------------------------*
   * @brief Enumeration of the possible results of attempting to insert into
@@ -47,11 +46,14 @@ enum class insert_result {
   DUPLICATE  ///< Insert did not succeed, key is already present
 };
 
-
+template<typename Key, typename Value, cuda::thread_scope Scope>
+class dynamic_map;
 
 template <typename Key, typename Value, cuda::thread_scope Scope = cuda::thread_scope_device>
 class static_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
+
+  friend class dynamic_map<Key, Value, Scope>;
 
   public:
   using value_type         = cuco::pair_type<Key, Value>;

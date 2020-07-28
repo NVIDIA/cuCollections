@@ -16,19 +16,10 @@
 
 #pragma once
 
-#include <thrust/device_vector.h>
-#include <thrust/iterator/discard_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
-#include <thrust/pair.h>
-#include <thrust/transform.h>
-#include <thrust/remove.h>
-
 #include <cuco/detail/error.hpp>
 #include <cuda/std/atomic>
-#include <atomic>
 #include <cooperative_groups.h>
-#include <../thirdparty/cub/cub/cub.cuh>
-
+#include <cub/cub.cuh>
 #include <cuco/static_map.cuh>
 #include <cuco/detail/dynamic_map_kernels.cuh>
 
@@ -38,7 +29,7 @@ namespace cuco {
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs with unique keys
  *
- * Automatically grows capacity as necessary. 
+ * Automatically grows capacity as necessary until device memory runs out.
  *
  * Allows constant time concurrent inserts or concurrent find operations (not
  * concurrent insert and find) from threads in device code.
@@ -154,36 +145,6 @@ class dynamic_map {
               KeyEqual key_equal = KeyEqual{});
   
   /**
-   * @brief Inserts all key/value pairs in the range `[first, last)`. 
-   *
-   * If multiple keys in `[first, last)` compare equal, their
-   * corresponding values are summed together and mapped to that key.
-   *
-   * Example:
-   *
-   * Suppose we have a `static_map` m containing the pairs `{{2, 2}, {3, 1}}`
-   *
-   * If we have a sequence of `pairs` of `{{1,1}, {1,1}, {1,2}, {2, 1}}`, then
-   * performing `m.insertAdd(pairs.begin(), pairs.end())` results in 
-   * `m` containing the pairs `{{1, 4}, {2, 3}, {3, 1}}`.
-   *
-   * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the map's `value_type`
-   * @tparam Hash Unary callable type
-   * @tparam KeyEqual Binary callable type
-   * @param first Beginning of the sequence of key/value pairs
-   * @param last End of the sequence of key/value pairs
-   * @param hash The unary function to apply to hash each key
-   * @param key_equal The binary function to compare two keys for equality
-   */
-  template <typename InputIt,
-            typename Hash = MurmurHash3_32<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
-  void insertAdd(InputIt first, InputIt last, 
-                 Hash hash = Hash{},
-                 KeyEqual key_equal = KeyEqual{});
-  
-  /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
    * 
    * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`. 
@@ -233,30 +194,36 @@ class dynamic_map {
     InputIt first, InputIt last, OutputIt output_begin,
     Hash hash = Hash{}, 
     KeyEqual key_equal = KeyEqual{}) noexcept;
+  
+  /**
+   * @brief Gets the current number of elements in the map
+   * 
+   * @return The current number of elements in the map 
+   */
+  std::size_t get_size() const noexcept { return size_; }
 
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
    * 
    * @return The maximum number of elements the hash map can hold
    */
-  std::size_t get_capacity() const noexcept;
+  std::size_t get_capacity() const noexcept { return capacity_; }
   
   /**
    * @brief Gets the load factor of the hash map.
    * 
    * @return The load factor of the hash map
    */
-  float get_load_factor() const noexcept;
+  float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; }
 
   private:
   key_type empty_key_sentinel_{};                                   ///< Key value that represents an empty slot
   mapped_type empty_value_sentinel_{};                              ///< Initial value of empty slot
-  std::size_t num_elements_{};                                      ///< Number of keys in the map
+  std::size_t size_{};                                              ///< Number of keys in the map
+  std::size_t capacity_{};                                          ///< Maximum number of keys that can be inserted
   float max_load_factor_{};                                         ///< Max load factor before capacity growth
     
-  static constexpr std::size_t MAX_NUM_SUBMAPS_ = 16;
   std::vector<static_map<key_type, mapped_type, Scope> *> submaps_;
-  std::vector<std::size_t> submap_caps_;                            
   std::vector<view_type> submap_views_;
   std::vector<mutable_view_type> submap_mutable_views_;
   std::size_t min_insert_size_{};

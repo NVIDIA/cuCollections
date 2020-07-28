@@ -29,7 +29,7 @@ enum class dist_type {
 };
 
 template<dist_type Dist, typename Key, typename OutputIt>
-static void key_generator(OutputIt output_begin, OutputIt output_end) {
+static void generate_keys(OutputIt output_begin, OutputIt output_end) {
   auto num_keys = std::distance(output_begin, output_end);
   
   std::random_device rd;
@@ -55,10 +55,6 @@ static void key_generator(OutputIt output_begin, OutputIt output_end) {
   }
 }
 
-/**
- * @brief Generates input sizes and hash table occupancies
- *
- */
 static void gen_final_size(benchmark::internal::Benchmark* b) {
   for (auto size = 10'000'000; size <= 310'000'000; size += 50'000'000) {
     b->Args({size});
@@ -75,11 +71,13 @@ static void BM_dynamic_insert(::benchmark::State& state) {
   std::vector<Key> h_keys( num_keys );
   std::vector<cuco::pair_type<Key, Value>> h_pairs ( num_keys );
   
-  key_generator<Dist, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
 
   for(auto i = 0; i < num_keys; ++i) {
     Key key = h_keys[i];
-    h_pairs[i] = cuco::make_pair(key, ~key);
+    Value val = h_keys[i];
+    h_pairs[i].first = key;
+    h_pairs[i].second = val;
   }
 
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
@@ -110,7 +108,7 @@ static void BM_dynamic_search_all(::benchmark::State& state) {
   std::vector<Key> h_keys( num_keys );
   std::vector<cuco::pair_type<Key, Value>> h_pairs ( num_keys );
 
-  key_generator<Dist, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
   
   for(auto i = 0; i < num_keys; ++i) {
     Key key = h_keys[i];

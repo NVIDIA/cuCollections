@@ -95,8 +95,7 @@ include_directories("${CMAKE_BINARY_DIR}/include"
                     "${CMAKE_SOURCE_DIR}/include"
                     "${CMAKE_SOURCE_DIR}"
                     "${CMAKE_CURRENT_SOURCE_DIR}"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/cub"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/libcudacxx/include")
+                    "${CMAKE_SOURCE_DIR}/thirdparty/cub")
 
 ###################################################################################################
 # - library paths ---------------------------------------------------------------------------------
