@@ -30,11 +30,11 @@ dynamic_map<Key, Value, Scope>::dynamic_map(
   
   capacity_ = initial_capacity;
 
-  auto submap = 
-    new static_map<Key, Value, Scope>{initial_capacity, empty_key_sentinel, empty_value_sentinel};
-  submaps_.push_back(submap);
-  submap_views_.push_back(submap->get_device_view());
-  submap_mutable_views_.push_back(submap->get_device_mutable_view());
+  submaps_.push_back(
+    std::unique_ptr<static_map<Key, Value, Scope>>{
+    new static_map<Key, Value, Scope>{initial_capacity, empty_key_sentinel, empty_value_sentinel}});
+  submap_views_.push_back(submaps_[0]->get_device_view());
+  submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
     
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
 }
@@ -43,10 +43,6 @@ dynamic_map<Key, Value, Scope>::dynamic_map(
 
 template<typename Key, typename Value, cuda::thread_scope Scope>
 dynamic_map<Key, Value, Scope>::~dynamic_map() {
-  for(auto i = 0; i < submaps_.size(); ++i) {
-    delete submaps_[i];
-  }
-
   CUCO_CUDA_TRY(cudaFree(num_successes_));
 }
 
@@ -67,11 +63,11 @@ void dynamic_map<Key, Value, Scope>::reserve(std::size_t n) {
     // if the submap does not exist yet, create it
     else {
       submap_capacity = capacity_;
-      auto submap =  
-        new static_map<Key, Value, Scope>{submap_capacity, empty_key_sentinel_, empty_value_sentinel_};
-      submaps_.push_back(submap);
-      submap_views_.push_back(submap->get_device_view());
-      submap_mutable_views_.push_back(submap->get_device_mutable_view());
+      submaps_.push_back(
+        std::unique_ptr<static_map<Key, Value, Scope>>{
+        new static_map<Key, Value, Scope>{submap_capacity, empty_key_sentinel_, empty_value_sentinel_}});
+      submap_views_.push_back(submaps_[submap_idx]->get_device_view());
+      submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
       capacity_ *= 2;      
     }
 
@@ -95,8 +91,8 @@ void dynamic_map<Key, Value, Scope>::insert(
 
   uint32_t submap_idx = 0;
   while(num_to_insert > 0) {
-    auto submap = submaps_[submap_idx];
-    std::size_t capacity_remaining = max_load_factor_ * submap->get_capacity() - submap->get_size();
+    std::size_t capacity_remaining = max_load_factor_ * submaps_[submap_idx]->get_capacity() - 
+                                                        submaps_[submap_idx]->get_size();
     // If we are tying to insert some of the remaining keys into this submap, we can insert 
     // only if we meet the minimum insert size.
     if(capacity_remaining >= min_insert_size_) {
@@ -119,7 +115,7 @@ void dynamic_map<Key, Value, Scope>::insert(
       CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
       std::size_t h_num_successes = num_successes_->load(cuda::std::memory_order_relaxed);
-      submap->size_ += h_num_successes;
+      submaps_[submap_idx]->size_ += h_num_successes;
       size_ += h_num_successes;
       first += n;
       num_to_insert -= n;

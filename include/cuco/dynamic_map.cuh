@@ -52,21 +52,29 @@ namespace cuco {
  * int empty_key_sentinel = -1;
  * int empty_value_sentine = -1;
  *
- * // Constructs a map with 100,000 slots using -1 and -1 as the empty key/value
- * // sentinels. Note the capacity is chosen knowing we will insert 50,000 keys,
- * // for an load factor of 50%.
- * static_map<int, int> m{100'000, empty_key_sentinel, empty_value_sentinel};
+ * // Constructs a map with 100,000 initial slots using -1 and -1 as the empty key/value
+ * // sentinels. Performs one bulk insert of 50,000 keys and a second bulk insert of
+ * // 100,000 keys. The map automatically increases capacity to accomodate the excess keys
+ * // within the second insert.
+ *
+ * dynamic_map<int, int> m{100'000, empty_key_sentinel, empty_value_sentinel};
  *
  * // Create a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
- * thrust::device_vector<thrust::pair<int,int>> pairs(50,000);
+ * thrust::device_vector<thrust::pair<int,int>> pairs_0(50'000);
  * thrust::transform(thrust::make_counting_iterator(0),
- *                   thrust::make_counting_iterator(pairs.size()),
- *                   pairs.begin(),
+ *                   thrust::make_counting_iterator(pairs_0.size()),
+ *                   pairs_0.begin(),
  *                   []__device__(auto i){ return thrust::make_pair(i,i); };
  *
+ * thrust::device_vector<thrust::pair<int,int>> pairs_1(100'000);
+ * thrust::transform(thrust::make_counting_iterator(50'000),
+ *                   thrust::make_counting_iterator(pairs_1.size()),
+ *                   pairs_1.begin(),
+ *                   []__device__(auto i){ return thrust::make_pair(i,i); };
  *
  * // Inserts all pairs into the map
- * m.insert(pairs.begin(), pairs.end());
+ * m.insert(pairs_0.begin(), pairs_0.end());
+ * m.insert(pairs_1.begin(), pairs_1.end());
  * \endcode
  *
  * @tparam Key Arithmetic type used for key 
@@ -94,7 +102,7 @@ class dynamic_map {
   *
   * The capacity of the map will automatically increase as the user adds key/value pairs using `insert`.
   * 
-  * Capacity doubles each time the size of the map exceeds 60% occupancy. The performance
+  * Capacity doubles each time the size of the map exceeds a threshold occupancy. The performance
   * of `find` and `contains` decreases somewhat each time the map's capacity grows.
   * 
   * The `empty_key_sentinel` and `empty_value_sentinel` values are reserved and
@@ -223,7 +231,7 @@ class dynamic_map {
   std::size_t capacity_{};                                          ///< Maximum number of keys that can be inserted
   float max_load_factor_{};                                         ///< Max load factor before capacity growth
     
-  std::vector<static_map<key_type, mapped_type, Scope> *> submaps_;
+  std::vector<std::unique_ptr<static_map<key_type, mapped_type, Scope>>> submaps_;
   std::vector<view_type> submap_views_;
   std::vector<mutable_view_type> submap_mutable_views_;
   std::size_t min_insert_size_{};
