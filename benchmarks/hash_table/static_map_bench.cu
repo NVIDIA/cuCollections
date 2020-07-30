@@ -60,7 +60,7 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end) {
  */
 static void generate_size_and_occupancy(benchmark::internal::Benchmark* b) {
   for (auto size = 100'000'000; size <= 100'000'000; size *= 10) {
-    for (auto occupancy = 40; occupancy <= 90; occupancy += 10) {
+    for (auto occupancy = 10; occupancy <= 90; occupancy += 10) {
       b->Args({size, occupancy});
     }
   }
@@ -69,15 +69,12 @@ static void generate_size_and_occupancy(benchmark::internal::Benchmark* b) {
 
 
 template <typename Key, typename Value, dist_type Dist>
-static void BM_cuco_insert(::benchmark::State& state) {
+static void BM_static_map_insert(::benchmark::State& state) {
   using map_type = cuco::static_map<Key, Value>;
   
   std::size_t num_keys = state.range(0);
   float occupancy = state.range(1) / float{100};
   std::size_t size = num_keys / occupancy;
-
-  map_type map{size, -1, -1};
-  auto view = map.get_device_mutable_view();
 
   std::vector<Key> h_keys( num_keys );
   std::vector<cuco::pair_type<Key, Value>> h_pairs( num_keys );
@@ -97,7 +94,6 @@ static void BM_cuco_insert(::benchmark::State& state) {
     state.ResumeTiming();
     state.PauseTiming();
     map_type map{size, -1, -1};
-    auto view = map.get_device_mutable_view();
     state.ResumeTiming();
 
     map.insert(d_pairs.begin(), d_pairs.end());
@@ -113,7 +109,7 @@ static void BM_cuco_insert(::benchmark::State& state) {
 
 
 template <typename Key, typename Value, dist_type Dist>
-static void BM_cuco_search_all(::benchmark::State& state) {
+static void BM_static_map_search_all(::benchmark::State& state) {
   using map_type = cuco::static_map<Key, Value>;
   
   std::size_t num_keys = state.range(0);
@@ -122,7 +118,6 @@ static void BM_cuco_search_all(::benchmark::State& state) {
 
   map_type map{size, -1, -1};
   auto view = map.get_device_mutable_view();
-
 
   std::vector<int> h_keys( num_keys );
   std::vector<int> h_values( num_keys );
@@ -154,26 +149,26 @@ static void BM_cuco_search_all(::benchmark::State& state) {
 
 
 
-BENCHMARK_TEMPLATE(BM_cuco_insert, int32_t, int32_t, dist_type::UNIQUE)
+BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
 
-BENCHMARK_TEMPLATE(BM_cuco_search_all, int32_t, int32_t, dist_type::UNIQUE)
+BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
 
-BENCHMARK_TEMPLATE(BM_cuco_insert, int32_t, int32_t, dist_type::UNIFORM)
+BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
 
-BENCHMARK_TEMPLATE(BM_cuco_search_all, int32_t, int32_t, dist_type::UNIFORM)
+BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
 
-BENCHMARK_TEMPLATE(BM_cuco_insert, int32_t, int32_t, dist_type::GAUSSIAN)
+BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::GAUSSIAN)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
 
-BENCHMARK_TEMPLATE(BM_cuco_search_all, int32_t, int32_t, dist_type::GAUSSIAN)
+BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::GAUSSIAN)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);

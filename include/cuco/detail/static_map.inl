@@ -65,8 +65,8 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
 
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 1;
-  auto const tile_size = 1;
+  auto const stride = 2;
+  auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
   auto view = get_device_mutable_view();
@@ -75,7 +75,7 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
   *d_num_successes_ = 0;
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(d_num_successes_, sizeof(atomic_ctr_type), 0));
 
-  detail::insert<block_size>
+  detail::insert<block_size, tile_size>
   <<<grid_size, block_size>>>(first, first + num_keys, d_num_successes_, view, 
                               hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
@@ -93,13 +93,13 @@ void static_map<Key, Value, Scope>::find(
                                     Hash hash, KeyEqual key_equal) noexcept {
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 1;
-  auto const tile_size = 1;
+  auto const stride = 2;
+  auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
-                          (stride * block_size);
+                         (stride * block_size);
   auto view = get_device_view();
-  
-  detail::find<>
+
+  detail::find<block_size, tile_size, Value>
   <<<grid_size, block_size>>>
   (first, last, output_begin, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());    
@@ -114,13 +114,13 @@ void static_map<Key, Value, Scope>::contains(
   
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 1;
-  auto const tile_size = 1;
+  auto const stride = 2;
+  auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
   auto view = get_device_view();
   
-  detail::contains<>
+  detail::contains<block_size, tile_size>
   <<<grid_size, block_size>>>
   (first, last, output_begin, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
@@ -130,8 +130,7 @@ void static_map<Key, Value, Scope>::contains(
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
 template <typename Hash, typename KeyEqual>
-__device__ thrust::pair<typename static_map<Key, Value, Scope>::device_mutable_view::iterator, bool>
-static_map<Key, Value, Scope>::device_mutable_view::insert(
+__device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept {
 
   auto current_slot{initial_slot(insert_pair.first, hash)};
@@ -156,7 +155,7 @@ static_map<Key, Value, Scope>::device_mutable_view::insert(
                                                             insert_pair.second,
                                                             memory_order_relaxed);
       }
-      return thrust::make_pair(current_slot, true);
+      return true;
     }
     else if(value_success) {
       slot_value.store(empty_value_sentinel_, memory_order_relaxed);
@@ -165,7 +164,7 @@ static_map<Key, Value, Scope>::device_mutable_view::insert(
     // if the key was already inserted by another thread, than this instance is a
     // duplicate, so the insert fails
     if (key_equal(insert_pair.first, expected_key)) {
-      return thrust::make_pair(current_slot, false);
+      return false;
     }
     
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
@@ -178,8 +177,7 @@ static_map<Key, Value, Scope>::device_mutable_view::insert(
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ thrust::pair<typename static_map<Key, Value, Scope>::device_mutable_view::iterator, bool> 
-static_map<Key, Value, Scope>::device_mutable_view::insert(
+__device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept {
 
   auto current_slot = initial_slot(g, insert_pair.first, hash);
@@ -191,9 +189,7 @@ static_map<Key, Value, Scope>::device_mutable_view::insert(
     // the key we are trying to insert is already in the map, so we return
     // with failure to insert
     if(existing) {
-      uint32_t src_lane = __ffs(existing) - 1;
-      intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
-      return thrust::make_pair(reinterpret_cast<iterator>(res_slot), false);
+      return false;
     }
     
     uint32_t empty = g.ballot(existing_key == empty_key_sentinel_);
@@ -244,13 +240,11 @@ static_map<Key, Value, Scope>::device_mutable_view::insert(
 
       // successful insert
       if(status == insert_result::SUCCESS) {
-        intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
-        return thrust::make_pair(reinterpret_cast<iterator>(res_slot), true);
+        return true;
       }
       // duplicate present during insert
       if(status == insert_result::DUPLICATE) {
-        intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
-        return thrust::make_pair(reinterpret_cast<iterator>(res_slot), false);
+        return false;
       }
       // if we've gotten this far, a different key took our spot 
       // before we could insert. We need to retry the insert on the
@@ -346,7 +340,8 @@ static_map<Key, Value, Scope>::device_view::find(
   auto current_slot = initial_slot(g, k, hash);
 
   while(true) {
-    key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    auto const existing_key = 
+        current_slot->first.load(cuda::std::memory_order_relaxed);
     uint32_t existing = g.ballot(key_equal(existing_key, k));
     
     // the key we were searching for was found by one of the threads,

@@ -279,14 +279,13 @@ class static_map {
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys for
      * equality
-     * @return A pair containing an iterator and bool pair to the inserted
-     * element (or existing element) and whether the insert took place
+     * @return `true` if the insert was successful, `false` otherwise.
      */
     template <typename Hash = MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ thrust::pair<iterator, bool> insert(value_type const& insert_pair,
-                                                      Hash hash = Hash{},
-                                                      KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ bool insert(value_type const& insert_pair,
+                           Hash hash = Hash{},
+                           KeyEqual key_equal = KeyEqual{}) noexcept;
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
@@ -306,16 +305,15 @@ class static_map {
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys for
      * equality
-     * @return A pair containing an iterator and bool pair to the inserted
-     * element (or existing element) and whether the insert took place
+     * @return `true` if the insert was successful, `false` otherwise.
      */
     template <typename CG,
               typename Hash = MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ thrust::pair<iterator, bool> insert(CG g,
-                                                   value_type const& insert_pair,
-                                                   Hash hash,
-                                                   KeyEqual key_equal) noexcept;
+    __device__ bool insert(CG g,
+                           value_type const& insert_pair,
+                           Hash hash,
+                           KeyEqual key_equal) noexcept;
     
     /**
      * @brief Gets the maximum number of elements the hash map can hold.

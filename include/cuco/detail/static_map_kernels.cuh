@@ -88,8 +88,7 @@ __global__ void insert(InputIt first,
   
   while(it < last) {
     auto insert_pair = *it;
-    auto res = view.insert(insert_pair, hash, key_equal);
-    if(res.second) {
+    if(view.insert(insert_pair, hash, key_equal)) {
       thread_num_successes++;
     }
     it += gridDim.x * blockDim.x;
@@ -151,8 +150,7 @@ __global__ void insert(InputIt first,
   
   while(it < last) {
     auto insert_pair = *it;
-    auto res = view.insert(tile, insert_pair, hash, key_equal);
-    if(tile.thread_rank() == 0 && res.second) {
+    if(view.insert(tile, insert_pair, hash, key_equal) && tile.thread_rank() == 0) {
       thread_num_successes++;
     }
     it += (gridDim.x * blockDim.x) / tile_size;
@@ -171,7 +169,8 @@ __global__ void insert(InputIt first,
  * 
  * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`. 
  * Else, copies the empty value sentinel. 
- * 
+ * @tparam block_size The size of the thread block
+ * @tparam Value The type of the mapped value for the map
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is 
@@ -186,7 +185,9 @@ __global__ void insert(InputIt first,
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
-template<typename InputIt, typename OutputIt, 
+template<uint32_t block_size,
+         typename Value,
+         typename InputIt, typename OutputIt, 
          typename viewT,
          typename Hash, 
          typename KeyEqual>
@@ -198,11 +199,14 @@ __global__ void find(InputIt first,
                      KeyEqual key_equal) {
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid;
+  __shared__ Value writeBuffer[block_size];
   
   while(first + key_idx < last) {
     auto key = *(first + key_idx);
     auto found = view.find(key, hash, key_equal);
-    *(output_begin + key_idx) = found->second.load(cuda::std::memory_order_relaxed);
+    writeBuffer[threadIdx.x] = found->second.load(cuda::std::memory_order_relaxed);
+    __syncthreads();
+    output_begin[key_idx] = writeBuffer[threadIdx.x];
     key_idx += gridDim.x * blockDim.x;
   }
 }
@@ -215,8 +219,10 @@ __global__ void find(InputIt first,
  * of multiple threads to find each key. This provides a significant boost in throughput compared 
  * to the non Cooperative Group `find` at moderate to high load factors.
  *
+ * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
  * inserts
+ * @tparam Value The type of the mapped value for the map
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is 
@@ -231,7 +237,8 @@ __global__ void find(InputIt first,
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
-template<uint32_t tile_size,
+template<uint32_t block_size, uint32_t tile_size,
+         typename Value,
          typename InputIt, typename OutputIt, 
          typename viewT,
          typename Hash, 
@@ -245,11 +252,16 @@ __global__ void find(InputIt first,
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
+  __shared__ Value writeBuffer[block_size];
   
   while(first + key_idx < last) {
     auto key = *(first + key_idx);
     auto found = view.find(tile, key, hash, key_equal);
-    *(output_begin + key_idx) = found->second.load(cuda::std::memory_order_relaxed);
+    if(tile.thread_rank() == 0) {
+      writeBuffer[threadIdx.x / tile_size] = found->second.load(cuda::std::memory_order_relaxed);
+    }
+    __syncthreads();
+    *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
     key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
 }
@@ -259,6 +271,7 @@ __global__ void find(InputIt first,
  * 
  * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
  *
+ * @tparam block_size The size of the thread block
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
@@ -273,7 +286,8 @@ __global__ void find(InputIt first,
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
-template<typename InputIt, typename OutputIt, 
+template<uint32_t block_size,
+         typename InputIt, typename OutputIt, 
          typename viewT,
          typename Hash, 
          typename KeyEqual>
@@ -285,11 +299,13 @@ __global__ void contains(InputIt first,
                          KeyEqual key_equal) {
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid;
+  __shared__ bool writeBuffer[block_size];
   
   while(first + key_idx < last) {
     auto key = *(first + key_idx);
-    auto found = view.contains(key, hash, key_equal);
-    *(output_begin + key_idx) = found;
+    writeBuffer[threadIdx.x] = view.contains(key, hash, key_equal);
+    __syncthreads();
+    *(output_begin + key_idx) = writeBuffer[threadIdx.x];
     key_idx += gridDim.x * blockDim.x;
   }
 }
@@ -302,6 +318,7 @@ __global__ void contains(InputIt first,
  * contains operation for each key. This provides a significant boost in throughput compared 
  * to the non Cooperative Group `contains` at moderate to high load factors.
  *
+ * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
  * inserts
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -318,7 +335,7 @@ __global__ void contains(InputIt first,
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
-template<uint32_t tile_size,
+template<uint32_t block_size, uint32_t tile_size,
          typename InputIt, typename OutputIt, 
          typename viewT,
          typename Hash, 
@@ -332,11 +349,16 @@ __global__ void contains(InputIt first,
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
+  __shared__ bool writeBuffer[block_size];
   
   while(first + key_idx < last) {
     auto key = *(first + key_idx);
     auto found = view.contains(tile, key, hash, key_equal);
-    *(output_begin + key_idx) = found;
+    if(tile.thread_rank() == 0) {
+      writeBuffer[threadIdx.x / tile_size] = found;
+    }
+    __syncthreads();
+    *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
     key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
 }
