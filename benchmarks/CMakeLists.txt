@@ -55,3 +55,8 @@ set(DYNAMIC_MAP_BENCH_SRC
 
 ConfigureBench(DYNAMIC_MAP_BENCH "${DYNAMIC_MAP_BENCH_SRC}")
 ###################################################################################################
+set(STATIC_MAP_BENCH_SRC
+  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
+
+ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
+###################################################################################################

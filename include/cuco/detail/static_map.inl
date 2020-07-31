@@ -1,4 +1,32 @@
+/*
+ * Copyright (c) 2020, NVIDIA CORPORATION.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */ 
+
 namespace cuco {
+
+
+
+/**---------------------------------------------------------------------------*
+  * @brief Enumeration of the possible results of attempting to insert into
+  *a hash bucket
+  *---------------------------------------------------------------------------**/
+enum class insert_result {
+  CONTINUE,  ///< Insert did not succeed, continue trying to insert
+  SUCCESS,   ///< New pair inserted successfully
+  DUPLICATE  ///< Insert did not succeed, key is already present
+};
 
 
 
@@ -12,7 +40,7 @@ static_map<Key, Value, Scope>::static_map(std::size_t capacity, Key empty_key_se
     auto constexpr block_size = 256;
     auto constexpr stride = 4;
     auto const grid_size = (capacity + stride * block_size - 1) / (stride * block_size);
-    initializeKernel
+    detail::initialize
     <atomic_key_type, atomic_mapped_type>
     <<<grid_size, block_size>>>(slots_, empty_key_sentinel,
                                           empty_value_sentinel, capacity);
@@ -37,8 +65,8 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
 
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 1;
-  auto const tile_size = 1;
+  auto const stride = 2;
+  auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
   auto view = get_device_mutable_view();
@@ -46,8 +74,8 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
   *num_successes_ = 0;
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), 0));
 
-  insertKernel<tile_size>
-  <<<grid_size, block_size>>>(first, first + num_keys, num_successes_, view, 
+  detail::insert<block_size, tile_size>
+  <<<grid_size, block_size>>>(first, first + num_keys, d_num_successes_, view, 
                               hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
@@ -63,13 +91,15 @@ void static_map<Key, Value, Scope>::find(
                                     Hash hash, KeyEqual key_equal) noexcept {
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 1;
-  auto const tile_size = 1;
+  auto const stride = 2;
+  auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
-                          (stride * block_size);
+                         (stride * block_size);
   auto view = get_device_view();
-  findKernel<><<<grid_size, block_size>>>(first, last, output_begin,
-                                                    view, hash, key_equal);
+
+  detail::find<block_size, tile_size, Value>
+  <<<grid_size, block_size>>>
+  (first, last, output_begin, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());    
 }
 
@@ -83,20 +113,22 @@ void static_map<Key, Value, Scope>::contains(
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
   auto const stride = 1;
-  auto const tile_size = 1;
+  auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
   auto view = get_device_view();
-  containsKernel<><<<grid_size, block_size>>>(first, last, output_begin,
-                                                       view, hash, key_equal);
+  
+  detail::contains<block_size, tile_size>
+  <<<grid_size, block_size>>>
+  (first, last, output_begin, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
 
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename Iterator, typename Hash, typename KeyEqual>
-__device__ thrust::pair<Iterator, bool> static_map<Key, Value, Scope>::device_mutable_view::insert(
+template <typename Hash, typename KeyEqual>
+__device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept {
 
   auto current_slot{initial_slot(insert_pair.first, hash)};
@@ -121,7 +153,7 @@ __device__ thrust::pair<Iterator, bool> static_map<Key, Value, Scope>::device_mu
                                                             insert_pair.second,
                                                             memory_order_relaxed);
       }
-      return thrust::make_pair(current_slot, true);
+      return true;
     }
     else if(value_success) {
       slot_value.store(empty_value_sentinel_, memory_order_relaxed);
@@ -130,7 +162,7 @@ __device__ thrust::pair<Iterator, bool> static_map<Key, Value, Scope>::device_mu
     // if the key was already inserted by another thread, than this instance is a
     // duplicate, so the insert fails
     if (key_equal(insert_pair.first, expected_key)) {
-      return thrust::make_pair(current_slot, false);
+      return false;
     }
     
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
@@ -142,8 +174,8 @@ __device__ thrust::pair<Iterator, bool> static_map<Key, Value, Scope>::device_mu
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename CG, typename Iterator, typename Hash, typename KeyEqual>
-__device__ thrust::pair<Iterator, bool> static_map<Key, Value, Scope>::device_mutable_view::insert(
+template <typename CG, typename Hash, typename KeyEqual>
+__device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept {
 
   auto current_slot = initial_slot(g, insert_pair.first, hash);
@@ -155,9 +187,7 @@ __device__ thrust::pair<Iterator, bool> static_map<Key, Value, Scope>::device_mu
     // the key we are trying to insert is already in the map, so we return
     // with failure to insert
     if(existing) {
-      uint32_t src_lane = __ffs(existing) - 1;
-      intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
-      return thrust::make_pair(reinterpret_cast<Iterator>(res_slot), false);
+      return false;
     }
     
     uint32_t empty = g.ballot(existing_key == empty_key_sentinel_);
@@ -208,13 +238,11 @@ __device__ thrust::pair<Iterator, bool> static_map<Key, Value, Scope>::device_mu
 
       // successful insert
       if(status == insert_result::SUCCESS) {
-        intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
-        return thrust::make_pair(reinterpret_cast<Iterator>(res_slot), true);
+        return true;
       }
       // duplicate present during insert
       if(status == insert_result::DUPLICATE) {
-        intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
-        return thrust::make_pair(reinterpret_cast<Iterator>(res_slot), false);
+        return false;
       }
       // if we've gotten this far, a different key took our spot 
       // before we could insert. We need to retry the insert on the
@@ -231,8 +259,9 @@ __device__ thrust::pair<Iterator, bool> static_map<Key, Value, Scope>::device_mu
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename Hash, typename Iterator>
-__device__ Iterator static_map<Key, Value, Scope>::device_mutable_view::initial_slot(
+template <typename Hash>
+__device__ typename static_map<Key, Value, Scope>::device_mutable_view::iterator
+static_map<Key, Value, Scope>::device_mutable_view::initial_slot(
   Key const& k, Hash hash) const noexcept {
 
   return &slots_[hash(k) % capacity_];
@@ -241,8 +270,9 @@ __device__ Iterator static_map<Key, Value, Scope>::device_mutable_view::initial_
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename CG, typename Hash, typename Iterator>
-__device__ Iterator static_map<Key, Value, Scope>::device_mutable_view::initial_slot(
+template <typename CG, typename Hash>
+__device__ typename static_map<Key, Value, Scope>::device_mutable_view::iterator
+static_map<Key, Value, Scope>::device_mutable_view::initial_slot(
   CG g, Key const& k, Hash hash) const noexcept {
 
   return &slots_[(hash(k) + g.thread_rank()) % capacity_];
@@ -251,9 +281,9 @@ __device__ Iterator static_map<Key, Value, Scope>::device_mutable_view::initial_
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename Iterator>
-__device__ Iterator static_map<Key, Value, Scope>::device_mutable_view::next_slot(
-  Iterator s) const noexcept {
+__device__ typename static_map<Key, Value, Scope>::device_mutable_view::iterator
+static_map<Key, Value, Scope>::device_mutable_view::next_slot(
+  iterator s) const noexcept {
 
   return (++s < end()) ? s : slots_;
 }
@@ -261,9 +291,10 @@ __device__ Iterator static_map<Key, Value, Scope>::device_mutable_view::next_slo
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename CG, typename Iterator>
-__device__ Iterator static_map<Key, Value, Scope>::device_mutable_view::next_slot(
-  CG g, Iterator s) const noexcept {
+template <typename CG>
+__device__ typename static_map<Key, Value, Scope>::device_mutable_view::iterator
+static_map<Key, Value, Scope>::device_mutable_view::next_slot(
+  CG g, iterator s) const noexcept {
 
   uint32_t index = s - slots_;
   return &slots_[(index + g.size()) % capacity_];
@@ -272,8 +303,9 @@ __device__ Iterator static_map<Key, Value, Scope>::device_mutable_view::next_slo
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename Iterator, typename Hash, typename KeyEqual>
-__device__ Iterator static_map<Key, Value, Scope>::device_view::find(
+template <typename Hash, typename KeyEqual>
+__device__ typename static_map<Key, Value, Scope>::device_view::iterator
+static_map<Key, Value, Scope>::device_view::find(
   Key const& k, Hash hash, KeyEqual key_equal) noexcept {
 
   auto current_slot = initial_slot(k, hash);
@@ -298,14 +330,16 @@ __device__ Iterator static_map<Key, Value, Scope>::device_view::find(
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename CG, typename Iterator, typename Hash, typename KeyEqual>
-__device__ Iterator static_map<Key, Value, Scope>::device_view::find(
+template <typename CG, typename Hash, typename KeyEqual>
+__device__ typename static_map<Key, Value, Scope>::device_view::iterator
+static_map<Key, Value, Scope>::device_view::find(
   CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept {
   
   auto current_slot = initial_slot(g, k, hash);
 
   while(true) {
-    key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    auto const existing_key = 
+        current_slot->first.load(cuda::std::memory_order_relaxed);
     uint32_t existing = g.ballot(key_equal(existing_key, k));
     
     // the key we were searching for was found by one of the threads,
@@ -313,7 +347,7 @@ __device__ Iterator static_map<Key, Value, Scope>::device_view::find(
     if(existing) {
       uint32_t src_lane = __ffs(existing) - 1;
       intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
-      return reinterpret_cast<Iterator>(res_slot);
+      return reinterpret_cast<iterator>(res_slot);
     }
     
     // we found an empty slot, meaning that the key we're searching 
@@ -390,8 +424,9 @@ __device__ bool static_map<Key, Value, Scope>::device_view::contains(
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename Hash, typename Iterator>
-__device__ Iterator static_map<Key, Value, Scope>::device_view::initial_slot(
+template <typename Hash>
+__device__ typename static_map<Key, Value, Scope>::device_view::iterator
+static_map<Key, Value, Scope>::device_view::initial_slot(
   Key const& k, Hash hash) const noexcept {
 
   return &slots_[hash(k) % capacity_];
@@ -400,8 +435,9 @@ __device__ Iterator static_map<Key, Value, Scope>::device_view::initial_slot(
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename CG, typename Hash, typename Iterator>
-__device__ Iterator static_map<Key, Value, Scope>::device_view::initial_slot(
+template <typename CG, typename Hash>
+__device__ typename static_map<Key, Value, Scope>::device_view::iterator
+static_map<Key, Value, Scope>::device_view::initial_slot(
   CG g, Key const& k, Hash hash) const noexcept {
 
   return &slots_[(hash(k) + g.thread_rank()) % capacity_];
@@ -410,9 +446,9 @@ __device__ Iterator static_map<Key, Value, Scope>::device_view::initial_slot(
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename Iterator>
-__device__ Iterator static_map<Key, Value, Scope>::device_view::next_slot(
-  Iterator s) const noexcept {
+__device__ typename static_map<Key, Value, Scope>::device_view::iterator
+static_map<Key, Value, Scope>::device_view::next_slot(
+  iterator s) const noexcept {
 
   return (++s < end()) ? s : slots_;
 }
@@ -420,9 +456,10 @@ __device__ Iterator static_map<Key, Value, Scope>::device_view::next_slot(
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename CG, typename Iterator>
-__device__ Iterator static_map<Key, Value, Scope>::device_view::next_slot(
-  CG g, Iterator s) const noexcept {
+template <typename CG>
+__device__ typename static_map<Key, Value, Scope>::device_view::iterator
+static_map<Key, Value, Scope>::device_view::next_slot(
+  CG g, iterator s) const noexcept {
 
   uint32_t index = s - slots_;
   return &slots_[(index + g.size()) % capacity_];
