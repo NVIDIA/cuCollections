@@ -123,7 +123,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys", "",
         return thrust::get<0>(p) == thrust::get<1>(p);
       }));
   }
-
+  
   SECTION("All inserted keys-value pairs should be contained")
   {
     map.insert(d_pairs.begin(), d_pairs.end());

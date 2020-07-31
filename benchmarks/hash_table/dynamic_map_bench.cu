@@ -16,7 +16,6 @@
 
 #include <benchmark/benchmark.h>
 #include <cuco/dynamic_map.cuh>
-#include "../nvtx3.hpp"
 #include <thrust/for_each.h>
 #include <iostream>
 #include <fstream>
@@ -112,7 +111,9 @@ static void BM_dynamic_search_all(::benchmark::State& state) {
   
   for(auto i = 0; i < num_keys; ++i) {
     Key key = h_keys[i];
-    h_pairs[i] = cuco::make_pair(key, ~key);
+    Value val = h_keys[i];
+    h_pairs[i].first = key;
+    h_pairs[i].second = val;
   }
 
   thrust::device_vector<Key> d_keys( h_keys );

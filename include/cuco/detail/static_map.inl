@@ -65,7 +65,7 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
 
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 2;
+  auto const stride = 1;
   auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
@@ -75,7 +75,7 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), 0));
 
   detail::insert<block_size, tile_size>
-  <<<grid_size, block_size>>>(first, first + num_keys, d_num_successes_, view, 
+  <<<grid_size, block_size>>>(first, first + num_keys, num_successes_, view, 
                               hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
@@ -91,7 +91,7 @@ void static_map<Key, Value, Scope>::find(
                                     Hash hash, KeyEqual key_equal) noexcept {
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 2;
+  auto const stride = 1;
   auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                          (stride * block_size);

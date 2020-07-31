@@ -34,21 +34,6 @@
 
 namespace cuco {
 
-<<<<<<< HEAD
-
-/**---------------------------------------------------------------------------*
-  * @brief Enumeration of the possible results of attempting to insert into
-  *a hash bucket
-  *---------------------------------------------------------------------------**/
-enum class insert_result {
-  CONTINUE,  ///< Insert did not succeed, continue trying to insert
-              ///< (collision)
-  SUCCESS,   ///< New pair inserted successfully
-  DUPLICATE  ///< Insert did not succeed, key is already present
-};
-
-=======
->>>>>>> optimized_static_map
 template<typename Key, typename Value, cuda::thread_scope Scope>
 class dynamic_map;
 
@@ -558,21 +543,21 @@ class static_map {
      * 
      * @return The maximum number of elements the hash map can hold
      */
-    std::size_t get_capacity() const noexcept { return capacity_; }
+    __host__ __device__ std::size_t get_capacity() const noexcept { return capacity_; }
 
     /**
      * @brief Gets the sentinel value used to represent an empty key slot.
      *
      * @return The sentinel value used to represent an empty key slot
      */
-    Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+    __host__ __device__ Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
     
     /**
      * @brief Gets the sentinel value used to represent an empty value slot.
      *
      * @return The sentinel value used to represent an empty value slot
      */
-    Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
+    __host__ __device__ Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
     
     /**
      * @brief Returns a const_iterator to one past the last element.
@@ -651,6 +636,13 @@ class static_map {
    * @return The maximum number of elements the hash map can hold
    */
   std::size_t get_capacity() const noexcept { return capacity_; }
+
+  /**
+   * @brief Gets the number of elements in the hash map.
+   * 
+   * @return The number of elements in the map
+   */
+  std::size_t get_size() const noexcept { return size_; }
   
   /**
    * @brief Gets the load factor of the hash map.
