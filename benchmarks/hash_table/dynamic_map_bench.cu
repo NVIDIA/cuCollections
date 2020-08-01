@@ -15,10 +15,9 @@
  */
 
 #include <benchmark/benchmark.h>
+#include <synchronization.hpp>
 #include <cuco/dynamic_map.cuh>
-#include <thrust/for_each.h>
 #include <iostream>
-#include <fstream>
 #include <random>
 
 enum class dist_type {
@@ -55,7 +54,7 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end) {
 }
 
 static void gen_final_size(benchmark::internal::Benchmark* b) {
-  for (auto size = 10'000'000; size <= 310'000'000; size += 50'000'000) {
+  for(auto size = 10'000'000; size <= 310'000'000; size += 50'000'000) {
     b->Args({size});
   }
 }
@@ -81,15 +80,15 @@ static void BM_dynamic_insert(::benchmark::State& state) {
 
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
 
+  std::size_t batch_size = 1E6;
   for(auto _ : state) {
-    state.ResumeTiming();
-    state.PauseTiming();
     map_type map{initial_size, -1, -1};
-    state.ResumeTiming();
-
-    map.insert(d_pairs.begin(), d_pairs.end());
-
-    state.PauseTiming();
+    {
+      cuda_event_timer raii{state}; 
+      for(auto i = 0; i < num_keys; i += batch_size) {
+        map.insert(d_pairs.begin() + i, d_pairs.begin() + i + batch_size);
+      }
+    }
   }
 
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
@@ -124,6 +123,7 @@ static void BM_dynamic_search_all(::benchmark::State& state) {
   map.insert(d_pairs.begin(), d_pairs.end());
 
   for(auto _ : state) {
+    cuda_event_timer raii{state};
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
   }
 
@@ -134,24 +134,30 @@ static void BM_dynamic_search_all(::benchmark::State& state) {
 
 BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
-  ->Apply(gen_final_size);
-  
+  ->Apply(gen_final_size)
+  ->UseManualTime();
+
 BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
-  ->Apply(gen_final_size);
+  ->Apply(gen_final_size)
+  ->UseManualTime();
 
 BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
-  ->Apply(gen_final_size);
+  ->Apply(gen_final_size)
+  ->UseManualTime();
 
 BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
-  ->Apply(gen_final_size);
+  ->Apply(gen_final_size)
+  ->UseManualTime();
 
 BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::GAUSSIAN)
   ->Unit(benchmark::kMillisecond)
-  ->Apply(gen_final_size);
+  ->Apply(gen_final_size)
+  ->UseManualTime();
 
 BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::GAUSSIAN)
   ->Unit(benchmark::kMillisecond)
-  ->Apply(gen_final_size);
+  ->Apply(gen_final_size)
+  ->UseManualTime();

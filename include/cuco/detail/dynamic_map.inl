@@ -35,7 +35,7 @@ dynamic_map<Key, Value, Scope>::dynamic_map(
     new static_map<Key, Value, Scope>{initial_capacity, empty_key_sentinel, empty_value_sentinel}});
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
-    
+  
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
 }
 
@@ -58,7 +58,7 @@ void dynamic_map<Key, Value, Scope>::reserve(std::size_t n) {
 
     // if the submap already exists
     if(submap_idx < submaps_.size()) {
-      submap_capacity = submaps_[submap_idx]->get_size();
+      submap_capacity = submaps_[submap_idx]->get_capacity();
     }
     // if the submap does not exist yet, create it
     else {
@@ -68,7 +68,8 @@ void dynamic_map<Key, Value, Scope>::reserve(std::size_t n) {
         new static_map<Key, Value, Scope>{submap_capacity, empty_key_sentinel_, empty_value_sentinel_}});
       submap_views_.push_back(submaps_[submap_idx]->get_device_view());
       submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
-      capacity_ *= 2;      
+
+      capacity_ *= 2;
     }
 
     num_elements_remaining -= max_load_factor_ * submap_capacity - min_insert_size_;
@@ -120,7 +121,6 @@ void dynamic_map<Key, Value, Scope>::insert(
       first += n;
       num_to_insert -= n;
     }
-    
     submap_idx++;
   }
 }

@@ -261,7 +261,9 @@ __global__ void find(InputIt first,
       writeBuffer[threadIdx.x / tile_size] = found->second.load(cuda::std::memory_order_relaxed);
     }
     __syncthreads();
-    *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
+    if(tile.thread_rank() == 0) {
+      *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
+    }
     key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
 }
@@ -358,7 +360,9 @@ __global__ void contains(InputIt first,
       writeBuffer[threadIdx.x / tile_size] = found;
     }
     __syncthreads();
-    *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
+    if(tile.thread_rank() == 0) {
+      *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
+    }
     key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
 }

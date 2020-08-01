@@ -65,16 +65,13 @@ __global__ void insert(InputIt first,
   std::size_t thread_num_successes = 0;
   
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
-  auto empty_key_sentinel = submap_views[0].get_empty_key_sentinel();
-  auto empty_value_sentinel = submap_views[0].get_empty_value_sentinel();
 
   while(first + tid < last) {
     pair_type insert_pair = first[tid];
     auto exists = false;
     
     for(auto i = 0; i < insert_idx; ++i) {
-      auto submap_view = submap_views[i];
-      exists = submap_view.contains(insert_pair.first, hash, key_equal);
+      exists = submap_views[i].contains(insert_pair.first, hash, key_equal);
       if(exists) {
         break;
       }
@@ -125,8 +122,7 @@ __global__ void insert(InputIt first,
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function used to compare two keys for equality
  */
-template<uint32_t block_size,
-         uint32_t tile_size,
+template<uint32_t block_size, uint32_t tile_size,
          typename pair_type,
          typename InputIt,
          typename viewT,
@@ -149,16 +145,13 @@ __global__ void insert(InputIt first,
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto it = first + tid / tile_size;
-  auto empty_key_sentinel = submap_views[0].get_empty_key_sentinel();
-  auto empty_value_sentinel = submap_views[0].get_empty_value_sentinel();
 
   while(it < last) {
     pair_type insert_pair = *it;
     auto exists = false;
     
     for(auto i = 0; i < insert_idx; ++i) {
-      auto submap_view = submap_views[i];
-      exists = submap_view.contains(tile, insert_pair.first, hash, key_equal);
+      exists = submap_views[i].contains(tile, insert_pair.first, hash, key_equal);
       if(exists) {
         break;
       }
@@ -217,7 +210,6 @@ __global__ void find(InputIt first,
                      Hash hash,
                      KeyEqual key_equal) {
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
-  auto empty_key_sentinel = submap_views[0].get_empty_key_sentinel();
   auto empty_value_sentinel = submap_views[0].get_empty_value_sentinel();
   __shared__ Value writeBuffer[block_size];
 
@@ -283,7 +275,6 @@ __global__ void find(InputIt first,
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
-  auto empty_key_sentinel = submap_views[0].get_empty_key_sentinel();
   auto empty_value_sentinel = submap_views[0].get_empty_value_sentinel();
   __shared__ Value writeBuffer[block_size];
 
@@ -344,8 +335,6 @@ __global__ void contains(InputIt first,
                          Hash hash,
                          KeyEqual key_equal) {
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
-  auto empty_key_sentinel = submap_views[0].get_empty_key_sentinel();
-  auto empty_value_sentinel = submap_views[0].get_empty_value_sentinel();
   __shared__ bool writeBuffer[block_size];
 
   while(first + tid < last) {
@@ -406,8 +395,6 @@ __global__ void contains(InputIt first,
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
-  auto empty_key_sentinel = submap_views[0].get_empty_key_sentinel();
-  auto empty_value_sentinel = submap_views[0].get_empty_value_sentinel();
   __shared__ bool writeBuffer[block_size];
 
   while(first + key_idx < last) {
