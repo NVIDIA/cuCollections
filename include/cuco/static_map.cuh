@@ -252,6 +252,16 @@ class static_map {
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
     
+    __device__ device_mutable_view& operator=(device_mutable_view const& lhs) {
+      slots_ = lhs.slots_;
+      capacity_ = lhs.capacity_;
+      empty_key_sentinel_ = lhs.empty_key_sentinel_;
+      empty_value_sentinel_ = lhs.empty_value_sentinel_;
+      return *this;
+    }
+    
+    device_mutable_view() noexcept {}
+
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -358,9 +368,9 @@ class static_map {
 
   private:
     pair_atomic_type* slots_{};          ///< Pointer to flat slots storage
-    std::size_t const capacity_{};       ///< Total number of slots
-    Key const empty_key_sentinel_{};     ///< Key value that represents an empty slot
-    Value const empty_value_sentinel_{}; ///< Initial Value of empty slot
+    std::size_t capacity_{};       ///< Total number of slots
+    Key empty_key_sentinel_{};     ///< Key value that represents an empty slot
+    Value empty_value_sentinel_{}; ///< Initial Value of empty slot
     
     /**
      * @brief Returns the initial slot for a given key `k`
@@ -425,6 +435,16 @@ class static_map {
   public:
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
+
+    __device__ device_view& operator=(device_view const& lhs) {
+      slots_ = lhs.slots_;
+      capacity_ = lhs.capacity_;
+      empty_key_sentinel_ = lhs.empty_key_sentinel_;
+      empty_value_sentinel_ = lhs.empty_value_sentinel_;
+      return *this;
+    }
+    
+    device_view() noexcept {}
     
     /**
      * @brief Construct a view of the first `capacity` slots of the
@@ -575,9 +595,9 @@ class static_map {
 
   private:
     pair_atomic_type* slots_{};          ///< Pointer to flat slots storage
-    std::size_t const capacity_{};       ///< Total number of slots
-    Key const empty_key_sentinel_{};     ///< Key value that represents an empty slot
-    Value const empty_value_sentinel_{}; ///< Initial Value of empty slot
+    std::size_t capacity_{};       ///< Total number of slots
+    Key empty_key_sentinel_{};     ///< Key value that represents an empty slot
+    Value empty_value_sentinel_{}; ///< Initial Value of empty slot
     
     /**
      * @brief Returns the initial slot for a given key `k`

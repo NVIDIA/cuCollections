@@ -232,8 +232,8 @@ class dynamic_map {
   float max_load_factor_{};                                         ///< Max load factor before capacity growth
     
   std::vector<std::unique_ptr<static_map<key_type, mapped_type, Scope>>> submaps_;
-  std::vector<view_type> submap_views_;
-  std::vector<mutable_view_type> submap_mutable_views_;
+  thrust::device_vector<view_type> submap_views_;
+  thrust::device_vector<mutable_view_type> submap_mutable_views_;
   std::size_t min_insert_size_{};
   atomic_ctr_type *num_successes_;
 };
