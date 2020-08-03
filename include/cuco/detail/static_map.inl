@@ -150,8 +150,8 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
     if(key_success) {
       while(not value_success) {
         value_success = slot_value.compare_exchange_strong(expected_value = empty_value_sentinel_,
-                                                            insert_pair.second,
-                                                            memory_order_relaxed);
+                                                           insert_pair.second,
+                                                           memory_order_relaxed);
       }
       return true;
     }
@@ -209,9 +209,11 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
         bool key_success = slot_key.compare_exchange_strong(expected_key,
                                                             insert_pair.first,
                                                             memory_order_relaxed);
+        /*
         bool value_success = slot_value.compare_exchange_strong(expected_value,
                                                                 insert_pair.second,
                                                                 memory_order_relaxed);
+        
         
         if(key_success) {
           while(not value_success) {
@@ -224,9 +226,16 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
         else if(value_success) {
           slot_value.store(empty_value_sentinel_, memory_order_relaxed);
         }
-        
+        */
+
+        if(key_success) {
+          slot_value.store(insert_pair.second, cuda::std::memory_order_release);
+          status = insert_result::SUCCESS;
+        }
         // our key was already present in the slot, so our key is a duplicate
-        if(key_equal(insert_pair.first, expected_key)) {
+        else if(key_equal(insert_pair.first, expected_key)) {
+          // wait until the proper value is stored
+          while(slot_value.load(cuda::std::memory_order_relaxed) == empty_value_sentinel_) {}
           status = insert_result::DUPLICATE;
         }
         // another key was inserted in the slot we wanted to try
@@ -256,6 +265,45 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
   }
 }
 
+
+/*
+template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Hash, typename KeyEqual>
+__device__ void static_map<Key, Value, Scope>::device_mutable_view::insertSumReduce(
+  value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept {
+
+  auto current_slot{initial_slot(insert_pair.first, hash)};
+
+  while (true) {
+    using cuda::std::memory_order_relaxed;
+    auto expected_key = empty_key_sentinel_;
+    auto expected_value = empty_value_sentinel_;
+    auto& slot_key = current_slot->first;
+    auto& slot_value = current_slot->second;
+
+    bool key_success = slot_key.compare_exchange_strong(expected_key,
+                                                        insert_pair.first,
+                                                        memory_order_relaxed);
+
+    // we are the first thread to insert this key, so we just place the value
+    if(key_success) {
+      slot_value.store(insert_pair.second, cuda::std::memory_order_relaxed);
+      return;
+    }
+    
+    // if the key was already inserted by another thread, then we need to
+    // add insert_pair's value onto the existing value
+    if (key_equal(insert_pair.first, expected_key)) {
+      slot_value.fetch_add(insert_pair.second);
+      return;
+    }
+    
+    // if we couldn't insert the key, but it wasn't a duplicate, then there must
+    // have been some other key there, so we keep looking for a slot
+    current_slot = next_slot(current_slot);
+  }
+}
+*/
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>

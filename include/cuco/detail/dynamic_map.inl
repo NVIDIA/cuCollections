@@ -36,7 +36,6 @@ dynamic_map<Key, Value, Scope>::dynamic_map(
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
   
-  
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
 }
 
@@ -111,6 +110,53 @@ void dynamic_map<Key, Value, Scope>::insert(
        submap_views_.data().get(),
        submap_mutable_views_.data().get(),
        num_successes_, submap_idx, hash, key_equal);
+      CUCO_CUDA_TRY(cudaDeviceSynchronize());
+
+      std::size_t h_num_successes = num_successes_->load(cuda::std::memory_order_relaxed);
+      submaps_[submap_idx]->size_ += h_num_successes;
+      size_ += h_num_successes;
+      first += n;
+      num_to_insert -= n;
+    }
+    submap_idx++;
+  }
+}
+
+
+
+template<typename Key, typename Value, cuda::thread_scope Scope>
+template <typename InputIt, typename Hash, typename KeyEqual>
+void dynamic_map<Key, Value, Scope>::insertSumReduce(
+  InputIt first, InputIt last, Hash hash, KeyEqual key_equal) {
+  
+  std::size_t num_to_insert = std::distance(first, last);
+  reserve(size_ + num_to_insert);
+
+  uint32_t submap_idx = 0;
+  while(num_to_insert > 0) {
+    std::size_t capacity_remaining = max_load_factor_ * submaps_[submap_idx]->get_capacity() - 
+                                                        submaps_[submap_idx]->get_size();
+    // If we are tying to insert some of the remaining keys into this submap, we can insert 
+    // only if we meet the minimum insert size.
+    if(capacity_remaining >= min_insert_size_) {
+      *num_successes_ = 0;
+      CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), 0));
+      
+      auto n = std::min(capacity_remaining, num_to_insert);
+      auto const block_size = 128;
+      auto const stride = 1;
+      auto const tile_size = 4;
+      auto const grid_size = (tile_size * n + stride * block_size - 1) /
+                             (stride * block_size);
+
+      detail::insertSumReduce<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
+      <<<grid_size, block_size>>>
+      (first, first + n,
+       submap_views_.data().get(),
+       submap_mutable_views_.data().get(),
+       num_successes_, 
+       submap_idx, submaps_.size(),
+       hash, key_equal);
       CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
       std::size_t h_num_successes = num_successes_->load(cuda::std::memory_order_relaxed);

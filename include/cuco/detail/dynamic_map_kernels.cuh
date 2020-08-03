@@ -57,7 +57,7 @@ __global__ void insert(InputIt first,
                        viewT* submap_views,
                        mutableViewT* submap_mutable_views,
                        atomicT* num_successes,
-                       uint32_t insert_idx,
+                       std::size_t insert_idx,
                        Hash hash,
                        KeyEqual key_equal) {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
@@ -135,7 +135,7 @@ __global__ void insert(InputIt first,
                        viewT* submap_views,
                        mutableViewT* submap_mutable_views,
                        atomicT* num_successes,
-                       uint32_t insert_idx,
+                       std::size_t insert_idx,
                        Hash hash,
                        KeyEqual key_equal) {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
@@ -157,7 +157,6 @@ __global__ void insert(InputIt first,
       }
     }
     if(!exists) {
-      
       if(submap_mutable_views[insert_idx].insert(tile, insert_pair, hash, key_equal) && 
          tile.thread_rank() == 0) {
         thread_num_successes++;
@@ -165,6 +164,88 @@ __global__ void insert(InputIt first,
     }
 
     it += (gridDim.x * blockDim.x) / tile_size;
+  }
+  
+  std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
+  if(threadIdx.x == 0) {
+    *num_successes += block_num_successes;
+  }
+}
+
+/**
+ * @brief Inserts all key/value pairs in the range `[first, last)`. 
+ *  
+ * If multiple keys in `[first, last)` compare equal, it is unspecified which
+ * element is inserted. Uses the CUDA Cooperative Groups API to leverage groups
+ * of multiple threads to perform each key/value insertion. This provides a 
+ * significant boost in throughput compared to the non Cooperative Group
+ * `insert` at moderate to high load factors.
+ * 
+ * @tparam block_size 
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform
+ * inserts
+ * @tparam pair_type Type of the pairs contained in the map
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `value_type`
+ * @tparam viewT Type of the `static_map` device views
+ * @tparam mutableViewT Type of the `static_map` device mutable views 
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of key/value pairs
+ * @param last End of the sequence of key/value pairs
+ * @param submap_views Array of `static_map::device_view` objects used to
+ * perform `contains` operations on each underlying `static_map`
+ * @param submap_mutable_views Array of `static_map::device_mutable_view` objects 
+ * used to perform an `insert` into the target `static_map` submap
+ * @param num_successes The number of successfully inserted key/value pairs
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function used to compare two keys for equality
+ */
+template<uint32_t block_size,
+         typename pair_type,
+         typename InputIt,
+         typename viewT,
+         typename mutableViewT,
+         typename atomicT,
+         typename Hash, 
+         typename KeyEqual>
+__global__ void insertSumReduce(
+  InputIt first,
+  InputIt last,
+  viewT* submap_views,
+  mutableViewT* submap_mutable_views,
+  atomicT* num_successes,
+  std::size_t insert_idx,
+  std::size_t num_submaps,
+  Hash hash,
+  KeyEqual key_equal) {
+  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  std::size_t thread_num_successes = 0;
+
+  auto tid = blockDim.x * blockIdx.x + threadIdx.x;
+  auto it = first + tid;
+
+  while(it < last) {
+    pair_type insert_pair = *it;
+    auto exists = false; 
+    for(auto i = 0; i < num_submaps; ++i) {
+      if(i != insert_idx) {
+        auto found = submap_views[i].find(insert_pair.first, hash, key_equal);
+        if(found != submap_views[i].end()) {
+          found->second.fetch_add(insert_pair.second);
+          exists = true;
+        }
+      }
+    }
+    // 
+    if(!exists) {
+
+    }
+
+    it += gridDim.x * blockDim.x;
   }
   
   std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
@@ -269,7 +350,7 @@ __global__ void find(InputIt first,
                      InputIt last,
                      OutputIt output_begin,
                      viewT* submap_views,
-                     uint32_t num_submaps,
+                     std::size_t num_submaps,
                      Hash hash,
                      KeyEqual key_equal) {
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
@@ -331,7 +412,7 @@ __global__ void contains(InputIt first,
                          InputIt last,
                          OutputIt output_begin,
                          viewT* submap_views,
-                         uint32_t num_submaps,
+                         std::size_t num_submaps,
                          Hash hash,
                          KeyEqual key_equal) {
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
@@ -389,7 +470,7 @@ __global__ void contains(InputIt first,
                          InputIt last,
                          OutputIt output_begin,
                          viewT* submap_views,
-                         uint32_t num_submaps,
+                         std::size_t num_submaps,
                          Hash hash,
                          KeyEqual key_equal) {
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
