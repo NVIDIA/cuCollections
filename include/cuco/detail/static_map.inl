@@ -65,8 +65,8 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
 
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 2;
-  auto const tile_size = 4;
+  auto const stride = 1;
+  auto const tile_size = 1;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
   auto view = get_device_mutable_view();
@@ -75,7 +75,7 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
   *d_num_successes_ = 0;
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(d_num_successes_, sizeof(atomic_ctr_type), 0));
 
-  detail::insert<block_size, tile_size>
+  detail::insert<block_size>
   <<<grid_size, block_size>>>(first, first + num_keys, d_num_successes_, view, 
                               hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
@@ -93,7 +93,7 @@ void static_map<Key, Value, Scope>::find(
                                     Hash hash, KeyEqual key_equal) noexcept {
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 2;
+  auto const stride = 1;
   auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                          (stride * block_size);
@@ -114,7 +114,7 @@ void static_map<Key, Value, Scope>::contains(
   
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 2;
+  auto const stride = 1;
   auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
@@ -177,19 +177,28 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
+__device__ thrust::pair<typename static_map<Key, Value, Scope>::device_mutable_view::iterator, bool> 
+static_map<Key, Value, Scope>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept {
-
+  
+  using cuda::std::memory_order_relaxed;
   auto current_slot = initial_slot(g, insert_pair.first, hash);
   
   while(true) {
-    key_type const existing_key = current_slot->first;
+    auto slot_key = &current_slot->first;
+    auto slot_value = &current_slot->second;
+    key_type const existing_key = slot_key->load(cuda::std::memory_order_seq_cst);
     uint32_t existing = g.ballot(key_equal(existing_key, insert_pair.first));
     
     // the key we are trying to insert is already in the map, so we return
     // with failure to insert
     if(existing) {
-      return false;
+      uint32_t src_lane = __ffs(existing) - 1;
+      auto src_current_slot = reinterpret_cast<iterator>(
+        g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane));
+      auto src_slot_value = src_current_slot.second; 
+      while(src_slot_value->load(memory_order_relaxed) == empty_value_sentinel_) {}
+      return thrust::make_pair(src_current_slot, false);
     }
     
     uint32_t empty = g.ballot(existing_key == empty_key_sentinel_);
@@ -204,31 +213,16 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
       if(g.thread_rank() == src_lane) {
         using cuda::std::memory_order_relaxed;
         auto expected_key = empty_key_sentinel_;
-        auto expected_value = empty_value_sentinel_;
-        auto& slot_key = current_slot->first;
-        auto& slot_value = current_slot->second;
-
-        bool key_success = slot_key.compare_exchange_strong(expected_key,
+        bool key_success = slot_key->compare_exchange_strong(expected_key,
                                                             insert_pair.first,
                                                             memory_order_relaxed);
-        bool value_success = slot_value.compare_exchange_strong(expected_value,
-                                                                insert_pair.second,
-                                                                memory_order_relaxed);
-        
+              
         if(key_success) {
-          while(not value_success) {
-            value_success = slot_value.compare_exchange_strong(expected_value = empty_value_sentinel_,
-                                                                insert_pair.second,
-                                                                memory_order_relaxed);
-          }
+          slot_value->store(insert_pair.second, memory_order_relaxed);
           status = insert_result::SUCCESS;
         }
-        else if(value_success) {
-          slot_value.store(empty_value_sentinel_, memory_order_relaxed);
-        }
-        
         // our key was already present in the slot, so our key is a duplicate
-        if(key_equal(insert_pair.first, expected_key)) {
+        else if(key_equal(insert_pair.first, expected_key)) {
           status = insert_result::DUPLICATE;
         }
         // another key was inserted in the slot we wanted to try
@@ -240,11 +234,19 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
 
       // successful insert
       if(status == insert_result::SUCCESS) {
-        return true;
+        auto src_current_slot = reinterpret_cast<iterator>(
+          g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane));
+        auto src_slot_value = src_current_slot.second; 
+        while(src_slot_value->load(memory_order_relaxed) == empty_value_sentinel_) {}
+        return thrust::make_pair(src_current_slot, true);
       }
       // duplicate present during insert
       if(status == insert_result::DUPLICATE) {
-        return false;
+        auto src_current_slot = reinterpret_cast<iterator>(
+          g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane));
+        auto src_slot_value = src_current_slot.second; 
+        while(src_slot_value->load(memory_order_relaxed) == empty_value_sentinel_) {}
+        return thrust::make_pair(src_current_slot, false);
       }
       // if we've gotten this far, a different key took our spot 
       // before we could insert. We need to retry the insert on the
