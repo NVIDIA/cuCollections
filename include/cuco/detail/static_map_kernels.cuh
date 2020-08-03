@@ -150,7 +150,8 @@ __global__ void insert(InputIt first,
   
   while(it < last) {
     auto insert_pair = *it;
-    if(view.insert(tile, insert_pair, hash, key_equal) && tile.thread_rank() == 0) {
+    auto res = view.insert(tile, insert_pair, hash, key_equal);
+    if(res.second && tile.thread_rank() == 0) {
       thread_num_successes++;
     }
     it += (gridDim.x * blockDim.x) / tile_size;
