@@ -25,15 +25,17 @@
 enum class dist_type {
   UNIQUE,
   UNIFORM,
-  GAUSSIAN
+  GAUSSIAN,
+  SUM_TEST
 };
 
-template<dist_type Dist, typename Key, typename OutputIt>
+template<dist_type Dist, typename Key, std::size_t num_sum_duplicates = 1, typename OutputIt>
 static void generate_keys(OutputIt output_begin, OutputIt output_end) {
   auto num_keys = std::distance(output_begin, output_end);
   
   std::random_device rd;
   std::mt19937 gen{rd()};
+  std::normal_distribution<> dg{1e9, 1e7};
 
   switch(Dist) {
     case dist_type::UNIQUE:
@@ -47,11 +49,45 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end) {
       }
       break;
     case dist_type::GAUSSIAN:
-      std::normal_distribution<> dg{1e9, 1e7};
       for(auto i = 0; i < num_keys; ++i) {
         output_begin[i] = std::abs(static_cast<Key>(dg(gen)));
       }
       break;
+    case dist_type::SUM_TEST:
+      for(auto i = 0; i < num_keys; ++i) {
+        output_begin[i] = i / num_sum_duplicates;
+      }
+      break;
+  }
+}
+
+template<dist_type Dist, typename Value, typename InputIt, typename OutputIt>
+static void generate_values(InputIt first, InputIt last, OutputIt output_begin) {
+  auto num_keys = std::distance(first, last);
+
+  switch(Dist) {
+    case dist_type::SUM_TEST:
+      for(auto i = 0; i < num_keys; ++i) {
+        output_begin[i] = 1;
+      }
+      break;
+    case dist_type::UNIQUE:
+    case dist_type::UNIFORM:
+    case dist_type::GAUSSIAN:
+      for(auto i = 0; i < num_keys; ++i) {
+        output_begin[i] = first[i];
+      }
+      break;
+  }
+}
+
+template <typename KeyIt, typename ValueIt, typename OutputIt>
+static void generate_pairs(KeyIt keys_begin, KeyIt keys_end, ValueIt values_begin, OutputIt output_begin) {
+  auto num_keys = std::distance(keys_begin, keys_end);
+
+  for(auto i = 0; i < num_keys; ++i) {
+    output_begin[i].first = keys_begin[i];
+    output_begin[i].second = values_begin[i];
   }
 }
 
@@ -83,28 +119,24 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys", "",
   ((typename T, dist_type Dist), T, Dist), 
    (int32_t, dist_type::UNIQUE), (int64_t, dist_type::UNIQUE),
    (int32_t, dist_type::UNIFORM), (int64_t, dist_type::UNIFORM),
-   (int32_t, dist_type::GAUSSIAN), (int64_t, dist_type::GAUSSIAN))
+   (int32_t, dist_type::GAUSSIAN), (int64_t, dist_type::GAUSSIAN),
+   (int32_t, dist_type::SUM_TEST), (int64_t, dist_type::SUM_TEST))
 {
   using Key   = T;
   using Value = T;
 
   constexpr std::size_t num_keys{50'000'000};
+  constexpr std::size_t num_sum_duplicates{16};
   cuco::dynamic_map<Key, Value> map{30'000'000, -1, -1};
 
   std::vector<Key> h_keys( num_keys );
   std::vector<Value> h_values( num_keys );
   std::vector<cuco::pair_type<Key, Value>> h_pairs ( num_keys );
   
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Dist, Key, num_sum_duplicates>(h_keys.begin(), h_keys.end());
+  generate_values<Dist, Value>(h_keys.begin(), h_keys.end(), h_values.begin());
+  generate_pairs(h_keys.begin(), h_keys.end(), h_values.begin(), h_pairs.begin());
   
-  for(auto i = 0; i < num_keys; ++i) {
-    Key key = h_keys[i];
-    Value val = h_keys[i];
-    h_values[i] = val;
-    h_pairs[i].first = key;
-    h_pairs[i].second = val;
-  }
-
   thrust::device_vector<Key> d_keys( h_keys );
   thrust::device_vector<Value> d_values( h_values );
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
@@ -138,4 +170,15 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys", "",
     
     REQUIRE(none_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
   }
+  
+  SECTION("Insert sum reduce should work")
+  {
+    if(Dist == dist_type::SUM_TEST) {
+      map.insertSumReduce(d_pairs.begin(), d_pairs.end());
+      map.find(d_keys.begin(), d_keys.end(), d_results.begin());
+
+      REQUIRE(all_of(d_results.begin(), d_results.end(), [] __device__(auto const& p) { return p == num_sum_duplicates; }));
+    }
+  }
+
 }

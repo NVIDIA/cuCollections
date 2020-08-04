@@ -337,6 +337,7 @@ __device__ typename static_map<Key, Value, Scope>::device_view::iterator
 static_map<Key, Value, Scope>::device_view::find(
   Key const& k, Hash hash, KeyEqual key_equal) noexcept {
 
+  using cuda::std::memory_order_relaxed;
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
@@ -344,6 +345,7 @@ static_map<Key, Value, Scope>::device_view::find(
         current_slot->first.load(cuda::std::memory_order_relaxed);
     // Key exists, return iterator to location
     if (key_equal(existing_key, k)) {
+      while(current_slot->second.load(memory_order_relaxed) == empty_value_sentinel_) {}
       return current_slot;
     }
 
@@ -364,6 +366,7 @@ __device__ typename static_map<Key, Value, Scope>::device_view::iterator
 static_map<Key, Value, Scope>::device_view::find(
   CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept {
   
+  using cuda::std::memory_order_relaxed;
   auto current_slot = initial_slot(g, k, hash);
 
   while(true) {
@@ -375,8 +378,11 @@ static_map<Key, Value, Scope>::device_view::find(
     // so we return an iterator to the entry
     if(existing) {
       uint32_t src_lane = __ffs(existing) - 1;
-      intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
-      return reinterpret_cast<iterator>(res_slot);
+      auto src_current_slot = reinterpret_cast<iterator>(
+        g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane));
+      auto& src_slot_value = src_current_slot->second;
+      while(src_slot_value.load(memory_order_relaxed) == empty_value_sentinel_) {}
+      return src_current_slot;
     }
     
     // we found an empty slot, meaning that the key we're searching 

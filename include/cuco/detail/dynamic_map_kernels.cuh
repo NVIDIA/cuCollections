@@ -77,7 +77,8 @@ __global__ void insert(InputIt first,
       }
     }
     if(!exists) {
-      if(submap_mutable_views[insert_idx].insert(insert_pair, hash, key_equal)) {
+      auto res = submap_mutable_views[insert_idx].insert(insert_pair, hash, key_equal);
+      if(res.second) {
         thread_num_successes++;
       }
     }
@@ -157,8 +158,8 @@ __global__ void insert(InputIt first,
       }
     }
     if(!exists) {
-      if(submap_mutable_views[insert_idx].insert(tile, insert_pair, hash, key_equal) && 
-         tile.thread_rank() == 0) {
+      auto res = submap_mutable_views[insert_idx].insert(tile, insert_pair, hash, key_equal);
+      if(res.second && tile.thread_rank() == 0) {
         thread_num_successes++;
       }
     }
@@ -204,7 +205,7 @@ __global__ void insert(InputIt first,
  * @param key_equal The binary function used to compare two keys for equality
  */
 template<uint32_t block_size,
-         typename pair_type,
+         typename Key, typename Value,
          typename InputIt,
          typename viewT,
          typename mutableViewT,
@@ -221,6 +222,7 @@ __global__ void insertSumReduce(
   std::size_t num_submaps,
   Hash hash,
   KeyEqual key_equal) {
+
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
@@ -229,20 +231,29 @@ __global__ void insertSumReduce(
   auto it = first + tid;
 
   while(it < last) {
-    pair_type insert_pair = *it;
-    auto exists = false; 
+    cuco::pair_type<Key, Value> insert_pair = *it;
+    auto exists = false;
+    // if the key already exists, we atomically increment its value
     for(auto i = 0; i < num_submaps; ++i) {
       if(i != insert_idx) {
         auto found = submap_views[i].find(insert_pair.first, hash, key_equal);
         if(found != submap_views[i].end()) {
-          found->second.fetch_add(insert_pair.second);
+          found->second.fetch_add(insert_pair.second, cuda::std::memory_order_relaxed);
           exists = true;
+          break;
         }
       }
     }
-    // 
+    // if the key does not yet exist, we insert it into the submap designated
+    // for insertion
     if(!exists) {
-
+      auto found = submap_views[insert_idx].find(insert_pair.first, hash, key_equal);
+      if(found == submap_views[insert_idx].end()) {
+        auto base_pair = cuco::make_pair(static_cast<Key>(insert_pair.first), static_cast<Value>(0));
+        auto res = submap_mutable_views[insert_idx].insert(base_pair, hash, key_equal);
+        found = res.first;
+      }
+      found->second.fetch_add(insert_pair.second, cuda::std::memory_order_relaxed);
     }
 
     it += gridDim.x * blockDim.x;
