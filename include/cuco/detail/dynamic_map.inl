@@ -132,8 +132,6 @@ void dynamic_map<Key, Value, Scope>::find(
   InputIt first, InputIt last, OutputIt output_begin,
   Hash hash, KeyEqual key_equal) noexcept {
   
-  thrust::device_vector<view_type> d_submap_views( submap_views_ );
-  
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
   auto const stride = 1;
@@ -144,7 +142,7 @@ void dynamic_map<Key, Value, Scope>::find(
   detail::find<block_size, tile_size, Value>
   <<<grid_size, block_size>>>
   (first, last, output_begin,
-   d_submap_views.data().get(), submaps_.size(), hash, key_equal);
+   submap_views_.data().get(), submaps_.size(), hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());    
 }
 
@@ -157,8 +155,6 @@ void dynamic_map<Key, Value, Scope>::contains(
   InputIt first, InputIt last, OutputIt output_begin,
   Hash hash, KeyEqual key_equal) noexcept {
   
-  thrust::device_vector<view_type> d_submap_views( submap_views_ );
-  
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
   auto const stride = 1;
@@ -169,7 +165,7 @@ void dynamic_map<Key, Value, Scope>::contains(
   detail::contains<block_size, tile_size>
   <<<grid_size, block_size>>>
   (first, last, output_begin,
-   d_submap_views.data().get(), submaps_.size(), hash, key_equal);
+   submap_views_.data().get(), submaps_.size(), hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());    
 }
 
