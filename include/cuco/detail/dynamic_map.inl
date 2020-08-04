@@ -145,11 +145,11 @@ void dynamic_map<Key, Value, Scope>::insertSumReduce(
       auto n = std::min(capacity_remaining, num_to_insert);
       auto const block_size = 128;
       auto const stride = 1;
-      auto const tile_size = 1;
+      auto const tile_size = 4;
       auto const grid_size = (tile_size * n + stride * block_size - 1) /
                              (stride * block_size);
 
-      detail::insertSumReduce<block_size, Key, Value>
+      detail::insertSumReduce<block_size, tile_size, Key, Value>
       <<<grid_size, block_size>>>
       (first, first + n,
        submap_views_.data().get(),

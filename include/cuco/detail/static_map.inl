@@ -222,8 +222,6 @@ static_map<Key, Value, Scope>::device_mutable_view::insert(
       if(status == insert_result::SUCCESS) {
         auto src_current_slot = reinterpret_cast<iterator>(
           g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane));
-        auto& src_slot_value = src_current_slot->second; 
-        while(src_slot_value.load(memory_order_relaxed) == empty_value_sentinel_) {}
         return thrust::make_pair(src_current_slot, true);
       }
       // duplicate present during insert
@@ -246,45 +244,6 @@ static_map<Key, Value, Scope>::device_mutable_view::insert(
   }
 }
 
-
-/*
-template <typename Key, typename Value, cuda::thread_scope Scope>
-template <typename Hash, typename KeyEqual>
-__device__ void static_map<Key, Value, Scope>::device_mutable_view::insertSumReduce(
-  value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept {
-
-  auto current_slot{initial_slot(insert_pair.first, hash)};
-
-  while (true) {
-    using cuda::std::memory_order_relaxed;
-    auto expected_key = empty_key_sentinel_;
-    auto expected_value = empty_value_sentinel_;
-    auto& slot_key = current_slot->first;
-    auto& slot_value = current_slot->second;
-
-    bool key_success = slot_key.compare_exchange_strong(expected_key,
-                                                        insert_pair.first,
-                                                        memory_order_relaxed);
-
-    // we are the first thread to insert this key, so we just place the value
-    if(key_success) {
-      slot_value.store(insert_pair.second, cuda::std::memory_order_relaxed);
-      return;
-    }
-    
-    // if the key was already inserted by another thread, then we need to
-    // add insert_pair's value onto the existing value
-    if (key_equal(insert_pair.first, expected_key)) {
-      slot_value.fetch_add(insert_pair.second);
-      return;
-    }
-    
-    // if we couldn't insert the key, but it wasn't a duplicate, then there must
-    // have been some other key there, so we keep looking for a slot
-    current_slot = next_slot(current_slot);
-  }
-}
-*/
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>

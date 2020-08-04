@@ -295,7 +295,8 @@ class static_map {
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys for
      * equality
-     * @return `true` if the insert was successful, `false` otherwise.
+     * @return A pair containing an iterator to the inserted key and a bool indicating if
+     * the insertion was successful
      */
     template <typename Hash = MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
@@ -303,6 +304,7 @@ class static_map {
       value_type const& insert_pair,
       Hash hash = Hash{},
       KeyEqual key_equal = KeyEqual{}) noexcept;
+    
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
@@ -322,7 +324,8 @@ class static_map {
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys for
      * equality
-     * @return `true` if the insert was successful, `false` otherwise.
+     * @return A pair containing an iterator to the inserted key and a bool indicating if
+     * the insertion was successful
      */
     template <typename CG,
               typename Hash = MurmurHash3_32<key_type>,
