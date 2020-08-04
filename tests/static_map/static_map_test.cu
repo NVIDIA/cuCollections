@@ -147,7 +147,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys", "",
     if(Dist == dist_type::UNIQUE) {
       REQUIRE(all_of(
         d_pairs.begin(), d_pairs.end(), [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-          return m_view.insert(pair);
+          auto const result = m_view.insert(pair);
+          return (result.first != m_view.end()) and (result.second == true);
         }));
     }
   }
@@ -176,6 +177,42 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys", "",
         auto const found = view.find(pair.first);
         return (found != view.end()) and
                (found->first.load() == pair.first and found->second.load() == pair.second);
+      }));
+  }
+  
+  SECTION("Dereferenced iterator should equal inserted pair.")
+  {
+    REQUIRE(all_of(
+      d_pairs.begin(), d_pairs.end(), [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+        auto const result = m_view.insert(pair);
+        auto const iter   = result.first;
+        return iter->first.load() == pair.first and iter->second.load() == pair.second;
+      }));
+  }
+  
+  SECTION("Inserting same key twice.")
+  {
+    REQUIRE(all_of(
+      d_pairs.begin(), d_pairs.end(), [m_view, view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+        auto const first_insert  = m_view.insert(pair);
+        auto const second_insert = m_view.insert(pair);
+        auto const find_result   = view.find(pair.first);
+        bool const same_iterator = (first_insert.first == second_insert.first);
+
+        // Inserting the same key twice should return the same
+        // iterator and false for the insert result
+        return same_iterator and (second_insert.second == false);
+      }));
+  }
+  
+  SECTION("Key is found immediately after insertion.")
+  {
+    REQUIRE(all_of(
+      d_pairs.begin(), d_pairs.end(), [m_view, view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+        auto const insert_result = m_view.insert(pair);
+        auto const find_result   = view.find(pair.first);
+        bool const same_iterator = (insert_result.first == find_result);
+        return same_iterator;
       }));
   }
 }

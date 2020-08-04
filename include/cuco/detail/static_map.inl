@@ -128,7 +128,8 @@ void static_map<Key, Value, Scope>::contains(
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
 template <typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
+__device__ thrust::pair<typename static_map<Key, Value, Scope>::device_mutable_view::iterator, bool> 
+static_map<Key, Value, Scope>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept {
 
   auto current_slot{initial_slot(insert_pair.first, hash)};
@@ -136,33 +137,21 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
   while (true) {
     using cuda::std::memory_order_relaxed;
     auto expected_key = empty_key_sentinel_;
-    auto expected_value = empty_value_sentinel_;
     auto& slot_key = current_slot->first;
     auto& slot_value = current_slot->second;
 
     bool key_success = slot_key.compare_exchange_strong(expected_key,
                                                         insert_pair.first,
                                                         memory_order_relaxed);
-    bool value_success = slot_value.compare_exchange_strong(expected_value,
-                                                            insert_pair.second,
-                                                            memory_order_relaxed);
 
     if(key_success) {
-      while(not value_success) {
-        value_success = slot_value.compare_exchange_strong(expected_value = empty_value_sentinel_,
-                                                           insert_pair.second,
-                                                           memory_order_relaxed);
-      }
-      return true;
+      slot_value.store(insert_pair.second, memory_order_relaxed);
+      return thrust::make_pair(current_slot, true);
     }
-    else if(value_success) {
-      slot_value.store(empty_value_sentinel_, memory_order_relaxed);
-    }
-    
-    // if the key was already inserted by another thread, than this instance is a
-    // duplicate, so the insert fails
-    if (key_equal(insert_pair.first, expected_key)) {
-      return false;
+    // our key was already present in the slot, so our key is a duplicate
+    else if(key_equal(insert_pair.first, expected_key)) {
+      while(slot_value.load(memory_order_relaxed) == empty_value_sentinel_) {}
+      return thrust::make_pair(current_slot, false);
     }
     
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
@@ -175,19 +164,28 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
+__device__ thrust::pair<typename static_map<Key, Value, Scope>::device_mutable_view::iterator, bool> 
+static_map<Key, Value, Scope>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept {
-
+  
+  using cuda::std::memory_order_relaxed;
   auto current_slot = initial_slot(g, insert_pair.first, hash);
   
   while(true) {
-    key_type const existing_key = current_slot->first;
+    auto& slot_key = current_slot->first;
+    auto& slot_value = current_slot->second;
+    key_type const existing_key = slot_key.load(cuda::std::memory_order_seq_cst);
     uint32_t existing = g.ballot(key_equal(existing_key, insert_pair.first));
     
     // the key we are trying to insert is already in the map, so we return
     // with failure to insert
     if(existing) {
-      return false;
+      uint32_t src_lane = __ffs(existing) - 1;
+      auto src_current_slot = reinterpret_cast<iterator>(
+        g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane));
+      auto& src_slot_value = src_current_slot->second; 
+      while(src_slot_value.load(memory_order_relaxed) == empty_value_sentinel_) {}
+      return thrust::make_pair(src_current_slot, false);
     }
     
     uint32_t empty = g.ballot(existing_key == empty_key_sentinel_);
@@ -200,42 +198,17 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
       uint32_t src_lane = __ffs(empty) - 1;
 
       if(g.thread_rank() == src_lane) {
-        using cuda::std::memory_order_relaxed;
         auto expected_key = empty_key_sentinel_;
-        auto expected_value = empty_value_sentinel_;
-        auto& slot_key = current_slot->first;
-        auto& slot_value = current_slot->second;
-
         bool key_success = slot_key.compare_exchange_strong(expected_key,
                                                             insert_pair.first,
                                                             memory_order_relaxed);
-        /*
-        bool value_success = slot_value.compare_exchange_strong(expected_value,
-                                                                insert_pair.second,
-                                                                memory_order_relaxed);
-        
-        
+              
         if(key_success) {
-          while(not value_success) {
-            value_success = slot_value.compare_exchange_strong(expected_value = empty_value_sentinel_,
-                                                                insert_pair.second,
-                                                                memory_order_relaxed);
-          }
-          status = insert_result::SUCCESS;
-        }
-        else if(value_success) {
-          slot_value.store(empty_value_sentinel_, memory_order_relaxed);
-        }
-        */
-
-        if(key_success) {
-          slot_value.store(insert_pair.second, cuda::std::memory_order_release);
+          slot_value.store(insert_pair.second, memory_order_relaxed);
           status = insert_result::SUCCESS;
         }
         // our key was already present in the slot, so our key is a duplicate
         else if(key_equal(insert_pair.first, expected_key)) {
-          // wait until the proper value is stored
-          while(slot_value.load(cuda::std::memory_order_relaxed) == empty_value_sentinel_) {}
           status = insert_result::DUPLICATE;
         }
         // another key was inserted in the slot we wanted to try
@@ -247,11 +220,19 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
 
       // successful insert
       if(status == insert_result::SUCCESS) {
-        return true;
+        auto src_current_slot = reinterpret_cast<iterator>(
+          g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane));
+        auto& src_slot_value = src_current_slot->second; 
+        while(src_slot_value.load(memory_order_relaxed) == empty_value_sentinel_) {}
+        return thrust::make_pair(src_current_slot, true);
       }
       // duplicate present during insert
       if(status == insert_result::DUPLICATE) {
-        return false;
+        auto src_current_slot = reinterpret_cast<iterator>(
+          g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane));
+        auto& src_slot_value = src_current_slot->second; 
+        while(src_slot_value.load(memory_order_relaxed) == empty_value_sentinel_) {}
+        return thrust::make_pair(src_current_slot, false);
       }
       // if we've gotten this far, a different key took our spot 
       // before we could insert. We need to retry the insert on the
