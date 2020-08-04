@@ -126,6 +126,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys", "",
   using Value = T;
 
   constexpr std::size_t num_keys{50'000'000};
+  constexpr std::size_t batch_size{1'000'000};
   constexpr std::size_t num_sum_duplicates{16};
   cuco::dynamic_map<Key, Value> map{30'000'000, -1, -1};
 
@@ -171,10 +172,22 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys", "",
     REQUIRE(none_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
   }
   
-  SECTION("Insert sum reduce should work")
+  SECTION("Bulk insert sum reduce should work")
   {
     if(Dist == dist_type::SUM_TEST) {
       map.insertSumReduce(d_pairs.begin(), d_pairs.end());
+      map.find(d_keys.begin(), d_keys.end(), d_results.begin());
+
+      REQUIRE(all_of(d_results.begin(), d_results.end(), [] __device__(auto const& p) { return p == num_sum_duplicates; }));
+    }
+  }
+  
+  SECTION("Batched insert sum reduce should work")
+  {
+    if(Dist == dist_type::SUM_TEST) {
+      for(auto i = 0; i < num_keys; i += batch_size) {
+        map.insertSumReduce(d_pairs.begin() + i, d_pairs.begin() + i + batch_size);
+      }
       map.find(d_keys.begin(), d_keys.end(), d_results.begin());
 
       REQUIRE(all_of(d_results.begin(), d_results.end(), [] __device__(auto const& p) { return p == num_sum_duplicates; }));

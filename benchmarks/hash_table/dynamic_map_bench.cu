@@ -23,15 +23,17 @@
 enum class dist_type {
   UNIQUE,
   UNIFORM,
-  GAUSSIAN
+  GAUSSIAN,
+  SUM_TEST
 };
 
-template<dist_type Dist, typename Key, typename OutputIt>
+template<dist_type Dist, typename Key, std::size_t num_sum_duplicates = 1, typename OutputIt>
 static void generate_keys(OutputIt output_begin, OutputIt output_end) {
   auto num_keys = std::distance(output_begin, output_end);
   
   std::random_device rd;
   std::mt19937 gen{rd()};
+  std::normal_distribution<> dg{1e9, 1e7};
 
   switch(Dist) {
     case dist_type::UNIQUE:
@@ -45,9 +47,13 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end) {
       }
       break;
     case dist_type::GAUSSIAN:
-      std::normal_distribution<> dg{1e9, 1e7};
       for(auto i = 0; i < num_keys; ++i) {
         output_begin[i] = std::abs(static_cast<Key>(dg(gen)));
+      }
+      break;
+    case dist_type::SUM_TEST:
+      for(auto i = 0; i < num_keys; ++i) {
+        output_begin[i] = i / num_sum_duplicates;
       }
       break;
   }
@@ -59,24 +65,61 @@ static void gen_final_size(benchmark::internal::Benchmark* b) {
   }
 }
 
+template<dist_type Dist, typename Value, typename InputIt, typename OutputIt>
+static void generate_values(InputIt first, InputIt last, OutputIt output_begin) {
+  auto num_keys = std::distance(first, last);
+
+  switch(Dist) {
+    case dist_type::SUM_TEST:
+      for(auto i = 0; i < num_keys; ++i) {
+        output_begin[i] = 1;
+      }
+      break;
+    case dist_type::UNIQUE:
+    case dist_type::UNIFORM:
+    case dist_type::GAUSSIAN:
+      for(auto i = 0; i < num_keys; ++i) {
+        output_begin[i] = first[i];
+      }
+      break;
+  }
+}
+
+template <typename KeyIt, typename ValueIt, typename OutputIt>
+static void generate_pairs(KeyIt keys_begin, KeyIt keys_end, ValueIt values_begin, OutputIt output_begin) {
+  auto num_keys = std::distance(keys_begin, keys_end);
+
+  for(auto i = 0; i < num_keys; ++i) {
+    output_begin[i].first = keys_begin[i];
+    output_begin[i].second = values_begin[i];
+  }
+}
+
+template <typename KeyIt, typename OutputIt>
+static void generate_pairs(KeyIt keys_begin, KeyIt keys_end, OutputIt output_begin) {
+  auto num_keys = std::distance(keys_begin, keys_end);
+
+  for(auto i = 0; i < num_keys; ++i) {
+    output_begin[i].first = keys_begin[i];
+    output_begin[i].second = keys_begin[i];
+  }
+}
+
+
+
 template <typename Key, typename Value, dist_type Dist>
 static void BM_dynamic_insert(::benchmark::State& state) {
   using map_type = cuco::dynamic_map<Key, Value>;
   
-  std::size_t num_keys = state.range(0);
-  std::size_t initial_size = 1<<27;
+  std::size_t const num_keys = state.range(0);
+  std::size_t const initial_size = 1<<27;
+  std::size_t const num_sum_duplicates = 16;
   
   std::vector<Key> h_keys( num_keys );
   std::vector<cuco::pair_type<Key, Value>> h_pairs ( num_keys );
   
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
-
-  for(auto i = 0; i < num_keys; ++i) {
-    Key key = h_keys[i];
-    Value val = h_keys[i];
-    h_pairs[i].first = key;
-    h_pairs[i].second = val;
-  }
+  generate_keys<Dist, Key, num_sum_duplicates>(h_keys.begin(), h_keys.end());
+  generate_pairs(h_keys.begin(), h_keys.end(), h_pairs.begin());
 
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
 
@@ -96,6 +139,46 @@ static void BM_dynamic_insert(::benchmark::State& state) {
                           int64_t(state.range(0)));
 }
 
+
+
+template <typename Key, typename Value, dist_type Dist>
+static void BM_dynamic_insertSumReduce(::benchmark::State& state) {
+  using map_type = cuco::dynamic_map<Key, Value>;
+  
+  std::size_t num_keys = state.range(0);
+  std::size_t initial_size = 1<<27;
+  
+  std::vector<Key> h_keys( num_keys );
+  std::vector<cuco::pair_type<Key, Value>> h_pairs ( num_keys );
+  
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+  generate_pairs(h_keys.begin(), h_keys.end(), h_pairs.begin());
+
+  thrust::device_vector<Key> d_keys( h_keys );
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
+  thrust::device_vector<Value> d_results( num_keys );  
+  auto d_unique_keys_begin = d_keys.begin();
+  auto d_unique_keys_end = thrust::unique(thrust::device, d_keys.begin(), d_keys.end());
+
+  std::size_t batch_size = 1E6;
+  for(auto _ : state) {
+    map_type map{initial_size, -1, -1};
+    {
+      cuda_event_timer raii{state}; 
+      for(auto i = 0; i < num_keys; i += batch_size) {
+        map.insertSumReduce(d_pairs.begin() + i, d_pairs.begin() + i + batch_size);
+      }
+      map.find(d_unique_keys_begin, d_unique_keys_end, d_results.begin());
+    }
+  }
+
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
+                          int64_t(state.iterations()) *
+                          int64_t(state.range(0)));
+}
+
+
+
 template <typename Key, typename Value, dist_type Dist>
 static void BM_dynamic_search_all(::benchmark::State& state) {
   using map_type = cuco::dynamic_map<Key, Value>;
@@ -107,14 +190,8 @@ static void BM_dynamic_search_all(::benchmark::State& state) {
   std::vector<cuco::pair_type<Key, Value>> h_pairs ( num_keys );
 
   generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+  generate_pairs(h_keys.begin(), h_keys.end(), h_pairs.begin());
   
-  for(auto i = 0; i < num_keys; ++i) {
-    Key key = h_keys[i];
-    Value val = h_keys[i];
-    h_pairs[i].first = key;
-    h_pairs[i].second = val;
-  }
-
   thrust::device_vector<Key> d_keys( h_keys );
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
   thrust::device_vector<Value> d_results( num_keys );
@@ -132,12 +209,13 @@ static void BM_dynamic_search_all(::benchmark::State& state) {
                           int64_t(state.range(0)));
 }
 
+
+/*
 BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
 
-/*
 BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
@@ -163,3 +241,8 @@ BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::GAUSSIAN)
   ->Apply(gen_final_size)
   ->UseManualTime();
 */
+
+BENCHMARK_TEMPLATE(BM_dynamic_insertSumReduce, int32_t, int32_t, dist_type::SUM_TEST)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(gen_final_size)
+  ->UseManualTime();
