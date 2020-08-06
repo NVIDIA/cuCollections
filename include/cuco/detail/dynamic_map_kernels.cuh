@@ -41,6 +41,8 @@ namespace cg = cooperative_groups;
  * @param submap_mutable_views Array of `static_map::device_mutable_view` objects 
  * used to perform an `insert` into the target `static_map` submap
  * @param num_successes The number of successfully inserted key/value pairs
+ * @param insert_idx The index of the submap we are inserting into
+ * @param num_submaps The total number of submaps in the map
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function used to compare two keys for equality
  */
@@ -58,6 +60,7 @@ __global__ void insert(InputIt first,
                        mutableViewT* submap_mutable_views,
                        atomicT* num_successes,
                        uint32_t insert_idx,
+                       uint32_t num_submaps,
                        Hash hash,
                        KeyEqual key_equal) {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
@@ -70,10 +73,13 @@ __global__ void insert(InputIt first,
     pair_type insert_pair = first[tid];
     auto exists = false;
     
-    for(auto i = 0; i < insert_idx; ++i) {
-      exists = submap_views[i].contains(insert_pair.first, hash, key_equal);
-      if(exists) {
-        break;
+    // manually check for duplicates in those submaps we are not inserting into
+    for(auto i = 0; i < num_submaps; ++i) {
+      if(i != insert_idx) {
+        exists = submap_views[i].contains(insert_pair.first, hash, key_equal);
+        if(exists) {
+          break;
+        }
       }
     }
     if(!exists) {
