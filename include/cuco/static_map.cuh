@@ -28,9 +28,9 @@
 #include <cooperative_groups.h>
 #include <cub/cub.cuh>
 
+#include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/detail/cuda_memcmp.cuh>
-#include <cuco/detail/pair.cuh>
 
 namespace cuco {
 
@@ -175,6 +175,14 @@ class static_map {
   void insert(InputIt first, InputIt last, 
               Hash hash = Hash{},
               KeyEqual key_equal = KeyEqual{});
+              
+  template <typename InputIt,
+            typename Hash = MurmurHash3_32<key_type>,
+            typename KeyEqual = thrust::equal_to<key_type>>
+  void insertSumReduce(InputIt first, InputIt last, 
+              Hash hash = Hash{},
+              KeyEqual key_equal = KeyEqual{});
+
   
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -335,7 +343,7 @@ class static_map {
       value_type const& insert_pair,
       Hash hash,
       KeyEqual key_equal) noexcept;
-    
+      
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
      * 

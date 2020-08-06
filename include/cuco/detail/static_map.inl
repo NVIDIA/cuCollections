@@ -85,6 +85,33 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename InputIt, typename Hash, typename KeyEqual>
+void static_map<Key, Value, Scope>::insertSumReduce(InputIt first, InputIt last, 
+                                           Hash hash, KeyEqual key_equal) {
+
+  auto num_keys = std::distance(first, last);
+  auto const block_size = 128;
+  auto const stride = 1;
+  auto const tile_size = 4;
+  auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
+                          (stride * block_size);
+  auto view = get_device_view();
+  auto m_view = get_device_mutable_view();
+
+  *num_successes_ = 0;
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), 0));
+
+  detail::insertSumReduce<block_size, tile_size, Key, Value>
+  <<<grid_size, block_size>>>(first, first + num_keys, num_successes_, view, m_view,
+                              hash, key_equal);
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+
+  size_ += num_successes_->load(cuda::std::memory_order_relaxed);
+}
+
+
+
+template <typename Key, typename Value, cuda::thread_scope Scope>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope>::find(
                                     InputIt first, InputIt last, OutputIt output_begin, 

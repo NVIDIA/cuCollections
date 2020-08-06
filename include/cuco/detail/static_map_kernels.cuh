@@ -165,6 +165,56 @@ __global__ void insert(InputIt first,
   }
 }
 
+template<uint32_t block_size,
+         uint32_t tile_size,
+         typename Key, typename Value,
+         typename InputIt,
+         typename atomicT,
+         typename viewT,
+         typename mutableViewT,
+         typename Hash, 
+         typename KeyEqual>
+__global__ void insertSumReduce(
+  InputIt first,
+  InputIt last,
+  atomicT* num_successes,
+  viewT view,
+  mutableViewT m_view,
+  Hash hash,
+  KeyEqual key_equal) {
+
+  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  std::size_t thread_num_successes = 0;
+
+  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid = blockDim.x * blockIdx.x + threadIdx.x;
+  auto it = first + tid / tile_size;
+  
+  while(it < last) {
+    cuco::pair_type<Key, Value> insert_pair = *it;
+    Key k = insert_pair.first;
+    auto found = view.find(k);
+
+    if (view.end() == found) {
+      auto result = m_view.insert(cuco::make_pair(static_cast<Key>(k), static_cast<Value>(0)));
+      found       = result.first;
+      thread_num_successes++;
+    }
+
+    found->second.fetch_add(insert_pair.second, cuda::std::memory_order_relaxed);
+    
+    it += (gridDim.x * blockDim.x) / tile_size;
+  }
+  
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
+  if(threadIdx.x == 0) {
+    *num_successes += block_num_successes;
+  }
+}
+
 /**
  * @brief Finds the values corresponding to all keys in the range `[first, last)`.
  * 
