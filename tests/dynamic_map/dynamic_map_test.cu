@@ -124,6 +124,13 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys", "",
       }));
   }
   
+  SECTION("All non-inserted keys-value pairs should have the empty sentinel value recovered")
+  {
+    map.find(d_keys.begin(), d_keys.end(), d_results.begin());
+   
+    REQUIRE(all_of(d_results.begin(), d_results.end(), [] __device__(auto const& p) { return p == -1; }));
+  }
+  
   SECTION("All inserted keys-value pairs should be contained")
   {
     map.insert(d_pairs.begin(), d_pairs.end());

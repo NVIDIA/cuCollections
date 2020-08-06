@@ -36,7 +36,6 @@ dynamic_map<Key, Value, Scope>::dynamic_map(
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
   
-  
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
 }
 
@@ -110,7 +109,9 @@ void dynamic_map<Key, Value, Scope>::insert(
       (first, first + n,
        submap_views_.data().get(),
        submap_mutable_views_.data().get(),
-       num_successes_, submap_idx, hash, key_equal);
+       num_successes_, 
+       submap_idx, submaps_.size(),
+       hash, key_equal);
       CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
       std::size_t h_num_successes = num_successes_->load(cuda::std::memory_order_relaxed);
