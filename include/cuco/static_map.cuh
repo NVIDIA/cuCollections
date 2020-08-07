@@ -16,21 +16,17 @@
 
 #pragma once
 
-#include <thrust/device_vector.h>
-#include <thrust/iterator/discard_iterator.h>
-#include <thrust/pair.h>
-#include <thrust/transform.h>
+#include <thrust/functional.h>
 
 #include <cuco/hash_functions.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuda/std/atomic>
-#include <atomic>
 #include <cooperative_groups.h>
 #include <cub/cub.cuh>
 
-#include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/detail/cuda_memcmp.cuh>
 #include <cuco/detail/pair.cuh>
+#include <cuco/detail/static_map_kernels.cuh>
 
 namespace cuco {
 

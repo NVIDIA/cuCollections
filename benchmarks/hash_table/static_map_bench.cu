@@ -17,6 +17,7 @@
 #include <benchmark/benchmark.h>
 #include "cuco/static_map.cuh"
 #include <thrust/for_each.h>
+#include <thrust/device_vector.h>
 #include <iostream>
 #include <fstream>
 #include <random>
