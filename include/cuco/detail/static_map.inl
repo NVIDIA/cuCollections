@@ -65,7 +65,7 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
 
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 2;
+  auto const stride = 1;
   auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
@@ -93,7 +93,7 @@ void static_map<Key, Value, Scope>::find(
                                     Hash hash, KeyEqual key_equal) noexcept {
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 2;
+  auto const stride = 1;
   auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                          (stride * block_size);
@@ -114,7 +114,7 @@ void static_map<Key, Value, Scope>::contains(
   
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
-  auto const stride = 2;
+  auto const stride = 1;
   auto const tile_size = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
@@ -419,7 +419,7 @@ __device__ bool static_map<Key, Value, Scope>::device_view::contains(
 
     // otherwise, all slots in the current window are full with other keys,
     // so we move onto the next window in the current submap
-    current_slot = next_slot(current_slot);
+    current_slot = next_slot(g, current_slot);
   }
 }
 
