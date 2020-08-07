@@ -316,8 +316,8 @@ class static_map {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool insert(CG g,
                            value_type const& insert_pair,
-                           Hash hash,
-                           KeyEqual key_equal) noexcept;
+                           Hash hash = Hash{},
+                           KeyEqual key_equal = KeyEqual{}) noexcept;
     
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
@@ -509,7 +509,9 @@ class static_map {
      */
     template<typename Hash = MurmurHash3_32<key_type>,
              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(Key const& k, Hash hash, KeyEqual key_equal) noexcept;
+    __device__ bool contains(Key const& k, 
+                             Hash hash = Hash{},
+                             KeyEqual key_equal = KeyEqual{}) noexcept;
     
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
@@ -534,7 +536,9 @@ class static_map {
     template <typename CG, 
               typename Hash = MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept;
+    __device__ bool contains(CG g, Key const& k, 
+                             Hash hash = Hash{},
+                             KeyEqual key_equal = KeyEqual{}) noexcept;
     
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
