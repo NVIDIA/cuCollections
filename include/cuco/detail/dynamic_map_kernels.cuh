@@ -181,7 +181,7 @@ __global__ void insert(InputIt first,
  *
  * Example:
  *
- * Suppose we have a `static_map` m containing the pairs `{{2, 2}, {3, 1}}`
+ * Suppose we have a `dynamic_map` m containing the pairs `{{2, 2}, {3, 1}}`
  *
  * If we have a sequence of `pairs` of `{{1,1}, {1,1}, {1,2}, {2, 1}}`, then
  * performing `m.insertAdd(pairs.begin(), pairs.end())` results in 
@@ -282,7 +282,7 @@ __global__ void insertSumReduce(
  *
  * Example:
  *
- * Suppose we have a `static_map` m containing the pairs `{{2, 2}, {3, 1}}`
+ * Suppose we have a `dynamic_map` m containing the pairs `{{2, 2}, {3, 1}}`
  *
  * If we have a sequence of `pairs` of `{{1,1}, {1,1}, {1,2}, {2, 1}}`, then
  * performing `m.insertAdd(pairs.begin(), pairs.end())` results in 
@@ -297,7 +297,6 @@ __global__ void insertSumReduce(
  * @tparam viewT Type of the `static_map` device views
  * @tparam mutableViewT Type of the `static_map` device mutable views 
  * @tparam atomicT Type of atomic storage
- * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of key/value pairs

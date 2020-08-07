@@ -164,6 +164,12 @@ class static_map {
    */
   ~static_map();
 
+  /**
+   * @brief Doubles the capacity of the hash map by allocating a new
+   * slots_ array of twice the size as before, and initializing it to 
+   * pairs of empty_key_value and empty_key_sentinel. Any previously
+   * inserted key/value pairs will need to be reinserted.
+   */
   void resize();
   
   /**
@@ -187,7 +193,30 @@ class static_map {
   void insert(InputIt first, InputIt last, 
               Hash hash = Hash{},
               KeyEqual key_equal = KeyEqual{});
-              
+  
+  /**
+   * @brief Inserts all key/value pairs in the range `[first, last)`. 
+   *
+   * If multiple keys in `[first, last)` compare equal, their 
+   * corresponding values are summed together and mapped to that key.
+   *
+   * Example:
+   *
+   * Suppose we have a `static_map` m containing the pairs `{{2, 2}, {3, 1}}`
+   *
+   * If we have a sequence of `pairs` of `{{1,1}, {1,1}, {1,2}, {2, 1}}`, then
+   * performing `m.insertAdd(pairs.begin(), pairs.end())` results in 
+   * `m` containing the pairs `{{1, 4}, {2, 3}, {3, 1}}`.
+   * 
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the map's `value_type`
+   * @tparam Hash Unary callable type
+   * @tparam KeyEqual Binary callable type
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param hash The unary function to apply to hash each key
+   * @param key_equal The binary function used to compare two keys for equality
+   */
   template <typename InputIt,
             typename Hash = MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
@@ -195,7 +224,6 @@ class static_map {
               Hash hash = Hash{},
               KeyEqual key_equal = KeyEqual{});
 
-  
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
    * 

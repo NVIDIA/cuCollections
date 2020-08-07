@@ -116,14 +116,14 @@ void static_map<Key, Value, Scope>::insertSumReduce(InputIt first, InputIt last,
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
   auto view = get_device_view();
-  auto m_view = get_device_mutable_view();
+  auto mutable_view = get_device_mutable_view();
 
   *num_successes_ = 0;
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), 0));
 
   detail::insertSumReduce<block_size, tile_size, Key, Value>
-  <<<grid_size, block_size>>>(first, first + num_keys, num_successes_, view, m_view,
-                              hash, key_equal);
+  <<<grid_size, block_size>>>(first, first + num_keys, view, mutable_view,
+                              num_successes_, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   size_ += num_successes_->load(cuda::std::memory_order_relaxed);

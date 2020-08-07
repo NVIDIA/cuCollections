@@ -204,7 +204,6 @@ static void BM_static_insertSumReduce(::benchmark::State& state) {
         if(map.get_size() + batch_size > resize_thresh * map.get_capacity()) {
           map.resize();
           map.insertSumReduce(d_pairs.begin(), d_pairs.begin() + i * batch_size);
-          //std::cout << "resizing at " << map.get_size() << " and reinserting " << i * batch_size << " keys" << std::endl;
         }
         map.insertSumReduce(d_pairs.begin() + i * batch_size, d_pairs.begin() + (i + 1) * batch_size);
       }
