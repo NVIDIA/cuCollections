@@ -127,7 +127,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys", "",
 
   constexpr std::size_t num_keys{50'000'000};
   constexpr std::size_t batch_size{1'000'000};
-  constexpr std::size_t num_sum_duplicates{16};
+  constexpr std::size_t num_sum_duplicates{16}; /* should divide num_keys */
   cuco::dynamic_map<Key, Value> map{30'000'000, -1, -1};
 
   std::vector<Key> h_keys( num_keys );

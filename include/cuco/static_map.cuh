@@ -120,8 +120,18 @@ class static_map {
   
   static_map(static_map const&) = delete;
   static_map(static_map&&)      = delete;
-  static_map& operator=(static_map const&) = delete;
-  static_map& operator=(static_map&&) = delete;
+  //static_map& operator=(static_map const&) = delete;
+  //static_map& operator=(static_map&&) = delete;
+
+  static_map& operator=(static_map const& lhs) {
+    slots_ = lhs.slots_;
+    capacity_ = lhs.capacity_;
+    size_ = lhs.size_;
+    empty_key_sentinel_ = lhs.empty_key_sentinel_;
+    empty_value_sentinel_ = lhs.empty_value_sentinel_;
+    num_successes_ = lhs.num_successes_;
+    return *this;
+  }
   
   /**
    * @brief Construct a fixed-size map with the specified capacity and sentinel values.
@@ -153,6 +163,8 @@ class static_map {
    *
    */
   ~static_map();
+
+  void resize();
   
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
@@ -341,8 +353,8 @@ class static_map {
     __device__ thrust::pair<iterator, bool> insert(
       CG g,
       value_type const& insert_pair,
-      Hash hash,
-      KeyEqual key_equal) noexcept;
+      Hash hash = Hash{},
+      KeyEqual key_equal = KeyEqual{}) noexcept;
       
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
@@ -721,8 +733,8 @@ class static_map {
   pair_atomic_type* slots_{nullptr};    ///< Pointer to flat slots storage
   std::size_t capacity_{};              ///< Total number of slots
   std::size_t size_{};                  ///< Number of keys in map
-  Key const empty_key_sentinel_{};      ///< Key value that represents an empty slot
-  Value const empty_value_sentinel_{};  ///< Initial value of empty slot
+  Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};  ///< Initial value of empty slot
   atomic_ctr_type *num_successes_{};
 };
 }  // namespace cuco 

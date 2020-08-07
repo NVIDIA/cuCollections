@@ -194,15 +194,19 @@ __global__ void insertSumReduce(
   while(it < last) {
     cuco::pair_type<Key, Value> insert_pair = *it;
     Key k = insert_pair.first;
-    auto found = view.find(k);
+    auto found = view.find(tile, k, hash, key_equal);
 
     if (view.end() == found) {
-      auto result = m_view.insert(cuco::make_pair(static_cast<Key>(k), static_cast<Value>(0)));
+      auto result = m_view.insert(tile, cuco::make_pair(static_cast<Key>(k), static_cast<Value>(0)), hash, key_equal);
       found       = result.first;
-      thread_num_successes++;
+      if(tile.thread_rank() == 0 && result.second) {
+        thread_num_successes++;
+      }
     }
 
-    found->second.fetch_add(insert_pair.second, cuda::std::memory_order_relaxed);
+    if(tile.thread_rank() == 0) {
+      found->second.fetch_add(insert_pair.second, cuda::std::memory_order_relaxed);
+    }
     
     it += (gridDim.x * blockDim.x) / tile_size;
   }

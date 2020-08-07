@@ -113,12 +113,11 @@ static void BM_dynamic_insert(::benchmark::State& state) {
   
   std::size_t const num_keys = state.range(0);
   std::size_t const initial_size = 1<<27;
-  std::size_t const num_sum_duplicates = 16;
   
   std::vector<Key> h_keys( num_keys );
   std::vector<cuco::pair_type<Key, Value>> h_pairs ( num_keys );
   
-  generate_keys<Dist, Key, num_sum_duplicates>(h_keys.begin(), h_keys.end());
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
   generate_pairs(h_keys.begin(), h_keys.end(), h_pairs.begin());
 
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
@@ -146,25 +145,26 @@ static void BM_dynamic_insertSumReduce(::benchmark::State& state) {
   using map_type = cuco::dynamic_map<Key, Value>;
   
   std::size_t num_keys = state.range(0);
-  std::size_t initial_size = 1<<27;
+  std::size_t initial_size = 1<<26;
+  std::size_t const num_sum_duplicates = 1;
   
   std::vector<Key> h_keys( num_keys );
   std::vector<cuco::pair_type<Key, Value>> h_pairs ( num_keys );
   
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Dist, Key, num_sum_duplicates>(h_keys.begin(), h_keys.end());
   generate_pairs(h_keys.begin(), h_keys.end(), h_pairs.begin());
 
   thrust::device_vector<Key> d_keys( h_keys );
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
   thrust::device_vector<Value> d_results( num_keys );  
 
-  std::size_t batch_size = 1E6;
+  std::size_t batch_size = 1E7;
   for(auto _ : state) {
     map_type map{initial_size, -1, -1};
     {
       cuda_event_timer raii{state}; 
-      for(auto i = 0; i < num_keys; i += batch_size) {
-        map.insertSumReduce(d_pairs.begin() + i, d_pairs.begin() + i + batch_size);
+      for(auto i = 0; i < num_keys / batch_size; ++i) {
+        map.insertSumReduce(d_pairs.begin() + i * batch_size, d_pairs.begin() + (i + 1) * batch_size);
       }
     }
   }
@@ -181,24 +181,33 @@ static void BM_static_insertSumReduce(::benchmark::State& state) {
   using map_type = cuco::static_map<Key, Value>;
   
   std::size_t num_keys = state.range(0);
-  std::size_t initial_size = 1<<27;
+  std::size_t initial_size = 1<<26;
+  std::size_t const num_sum_duplicates = 1;
   
   std::vector<Key> h_keys( num_keys );
   std::vector<cuco::pair_type<Key, Value>> h_pairs ( num_keys );
   
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Dist, Key, num_sum_duplicates>(h_keys.begin(), h_keys.end());
   generate_pairs(h_keys.begin(), h_keys.end(), h_pairs.begin());
-
+  
   thrust::device_vector<Key> d_keys( h_keys );
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
   thrust::device_vector<Value> d_results( num_keys );  
 
-  std::size_t batch_size = 1E6;
+  float resize_thresh = 0.60;
+  std::size_t batch_size = 1E7;
   for(auto _ : state) {
     map_type map{initial_size, -1, -1};
     {
       cuda_event_timer raii{state};
-      map.insertSumReduce(d_pairs.begin(), d_pairs.end());
+      for(auto i = 0; i < num_keys / batch_size; ++i) {
+        if(map.get_size() + batch_size > resize_thresh * map.get_capacity()) {
+          map.resize();
+          map.insertSumReduce(d_pairs.begin(), d_pairs.begin() + i * batch_size);
+          //std::cout << "resizing at " << map.get_size() << " and reinserting " << i * batch_size << " keys" << std::endl;
+        }
+        map.insertSumReduce(d_pairs.begin() + i * batch_size, d_pairs.begin() + (i + 1) * batch_size);
+      }
     } 
   }
 

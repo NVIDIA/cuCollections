@@ -46,7 +46,7 @@ static_map<Key, Value, Scope>::static_map(std::size_t capacity, Key empty_key_se
                                           empty_value_sentinel, capacity);
 
     CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
-  }
+}
 
 
 
@@ -54,6 +54,26 @@ template <typename Key, typename Value, cuda::thread_scope Scope>
 static_map<Key, Value, Scope>::~static_map() {
   CUCO_CUDA_TRY(cudaFree(slots_));
   CUCO_CUDA_TRY(cudaFree(num_successes_));
+}
+
+
+
+template <typename Key, typename Value, cuda::thread_scope Scope>
+void static_map<Key, Value, Scope>::resize() {
+  CUCO_CUDA_TRY(cudaFree(slots_));
+  
+  capacity_ *= 2;
+  size_ = 0;
+  CUCO_CUDA_TRY(cudaMalloc(&slots_, capacity_ * sizeof(pair_atomic_type)));
+  
+  auto constexpr block_size = 256;
+  auto constexpr stride = 4;
+  auto const grid_size = (capacity_ + stride * block_size - 1) / (stride * block_size);
+  detail::initialize
+  <atomic_key_type, atomic_mapped_type>
+  <<<grid_size, block_size>>>(slots_, empty_key_sentinel_,
+                                        empty_value_sentinel_, capacity_);
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
 
 

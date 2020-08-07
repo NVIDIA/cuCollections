@@ -361,7 +361,7 @@ __global__ void insertSumReduce(
         auto base_pair = cuco::make_pair(static_cast<Key>(insert_pair.first), static_cast<Value>(0));
         auto res = submap_mutable_views[insert_idx].insert(tile, base_pair, hash, key_equal);
         found = res.first;
-        if(tile.thread_rank() == 0) {
+        if(tile.thread_rank() == 0 && res.second) {
           thread_num_successes++;
         }
       }
