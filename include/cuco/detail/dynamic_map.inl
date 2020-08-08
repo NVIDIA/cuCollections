@@ -26,7 +26,7 @@ dynamic_map<Key, Value, Scope>::dynamic_map(
   size_(0),
   capacity_(0),
   min_insert_size_(1E4),
-  max_load_factor_(0.60) {
+  max_load_factor_(0.50) {
   
   capacity_ = initial_capacity;
 

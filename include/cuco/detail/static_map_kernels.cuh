@@ -47,6 +47,27 @@ __global__ void initialize(
   }
 }
 
+template<typename Key, typename Value, typename slot_type, typename mutableViewT,
+         typename Hash, typename KeyEqual>
+__global__ void rehash(
+  slot_type* slots, std::size_t capacity, 
+  mutableViewT mutable_view, Key empty_key_sentinel,
+  Hash hash,
+  KeyEqual key_equal) {
+  auto tid = blockDim.x * blockIdx.x + threadIdx.x;
+
+  while(tid < capacity) {
+    auto &slot_key = slots[tid].first;
+    Key key = slot_key.load(cuda::std::memory_order_relaxed);
+    auto &slot_value = slots[tid].second;
+    if(key != empty_key_sentinel) {
+      Value value = slot_value.load(cuda::std::memory_order_relaxed);
+      mutable_view.insert(cuco::make_pair(static_cast<Key>(key), static_cast<Value>(value)), hash, key_equal);
+    }
+    tid += gridDim.x * blockDim.x;
+  }
+}
+
 /**
  * @brief Inserts all key/value pairs in the range `[first, last)`. 
  *  

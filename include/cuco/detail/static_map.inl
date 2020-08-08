@@ -79,6 +79,45 @@ void static_map<Key, Value, Scope>::resize() {
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Hash, typename KeyEqual>
+void static_map<Key, Value, Scope>::rehash(Hash hash, KeyEqual key_equal) {
+
+  pair_atomic_type* old_slots;
+  pair_atomic_type* new_slots;
+  auto old_capacity = capacity_;
+  auto new_capacity = 2 * capacity_;
+  CUCO_CUDA_TRY(cudaMalloc(&new_slots, new_capacity * sizeof(pair_atomic_type)));
+  
+  auto constexpr block_size = 256;
+  auto constexpr stride = 4;
+  auto grid_size = (new_capacity + stride * block_size - 1) / (stride * block_size);
+  detail::initialize
+  <atomic_key_type, atomic_mapped_type>
+  <<<grid_size, block_size>>>(new_slots, empty_key_sentinel_,
+                                          empty_value_sentinel_, new_capacity);
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+
+  old_slots = slots_;
+  slots_ = new_slots;
+
+  capacity_ = new_capacity;
+
+  grid_size = (old_capacity + stride * block_size - 1) / (stride * block_size);
+  auto view = get_device_view();
+  auto mutable_view = get_device_mutable_view();
+  detail::rehash<Key, Value>
+  <<<grid_size, block_size>>>
+  (old_slots, old_capacity, mutable_view,
+   empty_key_sentinel_,
+   hash, key_equal);
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+
+  CUCO_CUDA_TRY(cudaFree(old_slots));
+}
+
+
+
+template <typename Key, typename Value, cuda::thread_scope Scope>
 template <typename InputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last, 
                                            Hash hash, KeyEqual key_equal) {

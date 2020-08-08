@@ -120,18 +120,8 @@ class static_map {
   
   static_map(static_map const&) = delete;
   static_map(static_map&&)      = delete;
-  //static_map& operator=(static_map const&) = delete;
-  //static_map& operator=(static_map&&) = delete;
-
-  static_map& operator=(static_map const& lhs) {
-    slots_ = lhs.slots_;
-    capacity_ = lhs.capacity_;
-    size_ = lhs.size_;
-    empty_key_sentinel_ = lhs.empty_key_sentinel_;
-    empty_value_sentinel_ = lhs.empty_value_sentinel_;
-    num_successes_ = lhs.num_successes_;
-    return *this;
-  }
+  static_map& operator=(static_map const&) = delete;
+  static_map& operator=(static_map&&) = delete;
   
   /**
    * @brief Construct a fixed-size map with the specified capacity and sentinel values.
@@ -171,6 +161,11 @@ class static_map {
    * inserted key/value pairs will need to be reinserted.
    */
   void resize();
+
+  template <typename Hash = MurmurHash3_32<key_type>,
+            typename KeyEqual = thrust::equal_to<key_type>>
+  void rehash(Hash hash = Hash{},
+              KeyEqual key_equal = KeyEqual{});
   
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
