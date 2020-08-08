@@ -158,10 +158,20 @@ class static_map {
    * @brief Doubles the capacity of the hash map by allocating a new
    * slots_ array of twice the size as before, and initializing it to 
    * pairs of empty_key_value and empty_key_sentinel. Any previously
-   * inserted key/value pairs will need to be reinserted.
+   * inserted key/value pairs will not be present in the new slots_ array.
    */
   void resize();
-
+  
+  /**
+   * @brief Doubles the capacity of the hash map by allocating a new
+   * slots_ array twice the size as before and initializing it appropriately.
+   * All preexisting key/value pairs are reinserted into the new slots_ array.
+   * 
+   * @tparam Hash Unary callable type
+   * @tparam KeyEqual Binary callable type
+   * @param hash The unary function to apply to hash each key
+   * @param key_equal The binary function to compare two keys for equality
+   */
   template <typename Hash = MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void rehash(Hash hash = Hash{},
