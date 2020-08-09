@@ -109,7 +109,8 @@ __global__ void insert(InputIt first,
   
   while(it < last) {
     auto insert_pair = *it;
-    if(view.insert(insert_pair, hash, key_equal)) {
+    auto res = view.insert(insert_pair, hash, key_equal);
+    if(res.second) {
       thread_num_successes++;
     }
     it += gridDim.x * blockDim.x;

@@ -100,11 +100,11 @@ void dynamic_map<Key, Value, Scope>::insert(
       auto n = std::min(capacity_remaining, num_to_insert);
       auto const block_size = 128;
       auto const stride = 1;
-      auto const tile_size = 4;
+      auto const tile_size = 1;
       auto const grid_size = (tile_size * n + stride * block_size - 1) /
                              (stride * block_size);
 
-      detail::insert<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
+      detail::insert<block_size, cuco::pair_type<key_type, mapped_type>>
       <<<grid_size, block_size>>>
       (first, first + n,
        submap_views_.data().get(),
@@ -183,11 +183,11 @@ void dynamic_map<Key, Value, Scope>::find(
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
   auto const stride = 1;
-  auto const tile_size = 4;
+  auto const tile_size = 1;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
                           (stride * block_size);
 
-  detail::find<block_size, tile_size, Value>
+  detail::find<block_size, Value>
   <<<grid_size, block_size>>>
   (first, last, output_begin,
    d_submap_views.data().get(), submaps_.size(), hash, key_equal);

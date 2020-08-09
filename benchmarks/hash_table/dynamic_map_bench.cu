@@ -36,7 +36,7 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end) {
   
   std::random_device rd;
   std::mt19937 gen{12};
-  std::normal_distribution<> dg{1e9, 1e7};
+  std::normal_distribution<> dg{1e9, 3e7};
 
   switch(Dist) {
     case dist_type::UNIQUE:
@@ -348,8 +348,13 @@ static void BM_static_search_all(::benchmark::State& state) {
 }
 
 
-/*
+
 BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(gen_final_size)
+  ->UseManualTime();
+
+BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
@@ -358,30 +363,8 @@ BENCHMARK_TEMPLATE(BM_static_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
-*/
-
-BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::UNIQUE)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(gen_final_size)
-  ->UseManualTime();
-
+ 
 BENCHMARK_TEMPLATE(BM_static_search_all, int32_t, int32_t, dist_type::UNIQUE)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(gen_final_size)
-  ->UseManualTime();
-
-/*
-BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::UNIFORM)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(gen_final_size)
-  ->UseManualTime();
-  
-BENCHMARK_TEMPLATE(BM_static_insert, int32_t, int32_t, dist_type::UNIFORM)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(gen_final_size)
-  ->UseManualTime();
-
-BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
@@ -390,13 +373,18 @@ BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::GAUSSIAN)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
-  
+
+BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::GAUSSIAN)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(gen_final_size)
+  ->UseManualTime();
+
 BENCHMARK_TEMPLATE(BM_static_insert, int32_t, int32_t, dist_type::GAUSSIAN)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
 
-BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::GAUSSIAN)
+BENCHMARK_TEMPLATE(BM_static_search_all, int32_t, int32_t, dist_type::GAUSSIAN)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
@@ -411,7 +399,7 @@ BENCHMARK_TEMPLATE(BM_static_insertSumReduce, int32_t, int32_t, dist_type::SUM_T
   ->Apply(gen_final_size)
   ->UseManualTime();
 
-BENCHMARK_TEMPLATE(BM_dynamic_insertSumReduce, int32_t, int32_t, dist_type::SUM_TEST)
+BENCHMARK_TEMPLATE(BM_dynamic_insertSumReduce, int64_t, int64_t, dist_type::SUM_TEST)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
@@ -420,4 +408,3 @@ BENCHMARK_TEMPLATE(BM_static_insertSumReduce, int64_t, int64_t, dist_type::SUM_T
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
-*/
