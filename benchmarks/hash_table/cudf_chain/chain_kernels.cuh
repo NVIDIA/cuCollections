@@ -86,6 +86,7 @@ __global__ void searchKeySet(thrust::device_ptr<key_type> keys,
   constexpr uint32_t BLOCK_SIZE = 128;
   constexpr uint32_t TILE_SIZE = BLOCK_SIZE * view.insertGran;
   uint32_t tid = TILE_SIZE * blockIdx.x + threadIdx.x;
+  __shared__ mapped_type writeBuffer[BLOCK_SIZE];
 
   for(auto i = 0; i < TILE_SIZE; i += BLOCK_SIZE) {
     auto idx = tid + i;

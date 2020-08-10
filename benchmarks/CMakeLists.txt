@@ -66,12 +66,6 @@ set(HASH_BENCH_SRC
 
 ConfigureBench(HASH_TABLE_BENCH "${HASH_BENCH_SRC}")
 
-# - rbk benchmark --------------------------------------------------------------------------------
-set(RBK_BENCH_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/reduce_by_key/reduce_by_key.cu")
-
-ConfigureBench(RBK_BENCH "${RBK_BENCH_SRC}")
-
 # individual benchmarks 
 set(SLAB_BENCH_SRC
   "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/slab_hash_bench.cu")

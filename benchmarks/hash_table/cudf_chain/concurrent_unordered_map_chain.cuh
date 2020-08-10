@@ -123,7 +123,7 @@ class concurrent_unordered_map_chain {
   using const_iterator = const cycle_iterator_adapter<value_type*>;
 
   static constexpr uint32_t m_max_num_submaps = 8;
-  static constexpr float m_max_load_factor = 1;
+  static constexpr float m_max_load_factor = 0.5;
   static constexpr uint32_t insertGran = 1;
   static constexpr uint32_t minKernelSize = 10'000;
 
@@ -335,10 +335,10 @@ class concurrent_unordered_map_chain {
       
       // perform insertions into the current submap
       constexpr uint32_t blockSize = 128;
-      constexpr uint32_t tileSize = 8;
+      constexpr uint32_t tileSize = 1;
       uint32_t numBlocks = (tileSize * numElementsToInsert + blockSize - 1) / blockSize;
       auto view = *this;
-      insertKeySetCG<tileSize, value_type>
+      insertKeySet<key_type, mapped_type, value_type>
       <<<numBlocks, blockSize>>>
       (&d_keys[numElementsInserted], &d_values[numElementsInserted], 
        d_totalNumSuccesses, numElementsToInsert, i, view);
@@ -376,10 +376,10 @@ class concurrent_unordered_map_chain {
     cudaEventRecord(start, 0);
     
     constexpr uint32_t blockSize = 128;
-    constexpr uint32_t tileSize = 4;
+    constexpr uint32_t tileSize = 1;
     uint32_t numBlocks = (tileSize * numKeys + blockSize - 1) / blockSize;
     auto view = *this;
-    searchKeySetCG<tileSize>
+    searchKeySet<>
     <<<numBlocks, blockSize>>>
     (&d_keys[0], &d_results[0], numKeys, view);
     
