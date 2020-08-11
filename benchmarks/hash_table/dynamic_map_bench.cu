@@ -363,7 +363,7 @@ BENCHMARK_TEMPLATE(BM_static_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
- 
+
 BENCHMARK_TEMPLATE(BM_static_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
