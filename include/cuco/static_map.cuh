@@ -16,21 +16,17 @@
 
 #pragma once
 
-#include <thrust/device_vector.h>
-#include <thrust/iterator/discard_iterator.h>
-#include <thrust/pair.h>
-#include <thrust/transform.h>
+#include <thrust/functional.h>
 
 #include <cuco/hash_functions.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuda/std/atomic>
-#include <atomic>
 #include <cooperative_groups.h>
 #include <cub/cub.cuh>
 
-#include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/detail/cuda_memcmp.cuh>
 #include <cuco/detail/pair.cuh>
+#include <cuco/detail/static_map_kernels.cuh>
 
 namespace cuco {
 
@@ -328,8 +324,8 @@ class static_map {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool insert(CG g,
                            value_type const& insert_pair,
-                           Hash hash,
-                           KeyEqual key_equal) noexcept;
+                           Hash hash = Hash{},
+                           KeyEqual key_equal = KeyEqual{}) noexcept;
     
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
@@ -531,7 +527,9 @@ class static_map {
      */
     template<typename Hash = MurmurHash3_32<key_type>,
              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(Key const& k, Hash hash, KeyEqual key_equal) noexcept;
+    __device__ bool contains(Key const& k, 
+                             Hash hash = Hash{},
+                             KeyEqual key_equal = KeyEqual{}) noexcept;
     
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
@@ -556,7 +554,9 @@ class static_map {
     template <typename CG, 
               typename Hash = MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept;
+    __device__ bool contains(CG g, Key const& k, 
+                             Hash hash = Hash{},
+                             KeyEqual key_equal = KeyEqual{}) noexcept;
     
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
@@ -710,7 +710,7 @@ class static_map {
   std::size_t size_{};                  ///< Number of keys in map
   Key const empty_key_sentinel_{};      ///< Key value that represents an empty slot
   Value const empty_value_sentinel_{};  ///< Initial value of empty slot
-  atomic_ctr_type *num_successes_{};
+  atomic_ctr_type *d_num_successes_{};  ///< Counter used internally to record number of successes in bulk insert
 };
 }  // namespace cuco 
 

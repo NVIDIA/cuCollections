@@ -417,7 +417,7 @@ __device__ bool static_map<Key, Value, Scope>::device_view::contains(
 
     // otherwise, all slots in the current window are full with other keys,
     // so we move onto the next window in the current submap
-    current_slot = next_slot(current_slot);
+    current_slot = next_slot(g, current_slot);
   }
 }
 
