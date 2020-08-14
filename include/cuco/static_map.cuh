@@ -681,7 +681,7 @@ class static_map {
   std::size_t size_{};                  ///< Number of keys in map
   Key const empty_key_sentinel_{};      ///< Key value that represents an empty slot
   Value const empty_value_sentinel_{};  ///< Initial value of empty slot
-  atomic_ctr_type* num_successes_{};  ///< Number of successfully inserted keys on insert
+  atomic_ctr_type* num_successes_{};    ///< Number of successfully inserted keys on insert
 };
 }  // namespace cuco 
 
