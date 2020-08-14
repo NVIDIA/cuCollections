@@ -115,8 +115,7 @@ class dynamic_map {
   * @param empty_key_sentinel The reserved key value for empty slots
   * @param empty_value_sentinel The reserved mapped value for empty slots
   */
-  dynamic_map(std::size_t initial_capacity, 
-              Key empty_key_sentinel, Value empty_value_sentinel, float growth_factor = 2);
+  dynamic_map(std::size_t initial_capacity, Key empty_key_sentinel, Value empty_value_sentinel);
   
   /**
    * @brief Destroy the map and frees its contents
@@ -232,7 +231,6 @@ class dynamic_map {
   mapped_type empty_value_sentinel_{};                              ///< Initial value of empty slot
   std::size_t size_{};                                              ///< Number of keys in the map
   std::size_t capacity_{};                                          ///< Maximum number of keys that can be inserted
-  float growth_factor_{};                                           ///< Factor by which total capacity grows when resizing
   float max_load_factor_{};                                         ///< Max load factor before capacity growth
     
   std::vector<std::unique_ptr<static_map<key_type, mapped_type, Scope>>> submaps_; ///< vector of pointers to each submap

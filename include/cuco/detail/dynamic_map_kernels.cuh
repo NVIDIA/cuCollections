@@ -70,7 +70,7 @@ __global__ void insert(InputIt first,
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
 
   while(first + tid < last) {
-    pair_type insert_pair = first[tid];
+    pair_type insert_pair = *(first + tid);
     auto exists = false;
     
     // manually check for duplicates in those submaps we are not inserting into
@@ -225,7 +225,7 @@ __global__ void find(InputIt first,
   __shared__ Value writeBuffer[block_size];
 
   while(first + tid < last) {
-    auto key = first[tid];
+    auto key = *(first + tid);
     auto found_value = empty_value_sentinel;
     for(auto i = 0; i < num_submaps; ++i) {
       auto submap_view = submap_views[i];
@@ -237,15 +237,15 @@ __global__ void find(InputIt first,
     }
 
     /* 
-     * The ld.relaxed.gpu instruction used in view.find causes the L1 write coalescer to 
+     * The ld.relaxed.gpu instruction used in view.find causes L1 to 
      * flush more frequently, causing increased sector stores from L2 to global memory.
-     * By writing results to shared memory and then synchronizing before writing back to global,
-     * we no longer rely on the L1 write coalescer, preventing the increase in sector stores from
+     * By writing results to shared memory and then synchronizing before writing back
+     * to global, we no longer rely on L1, preventing the increase in sector stores from
      * L2 to global and improving performance.
      */
     writeBuffer[threadIdx.x] = found_value;
     __syncthreads();
-    output_begin[tid] = writeBuffer[threadIdx.x];
+    *(output_begin + tid) = writeBuffer[threadIdx.x];
     tid += gridDim.x * blockDim.x;
   }
 }
@@ -298,7 +298,7 @@ __global__ void find(InputIt first,
   __shared__ Value writeBuffer[block_size];
 
   while(first + key_idx < last) {
-    auto key = first[key_idx];
+    auto key = *(first + key_idx);
     auto found_value = empty_value_sentinel;
     for(auto i = 0; i < num_submaps; ++i) {
       auto submap_view = submap_views[i];
@@ -310,10 +310,10 @@ __global__ void find(InputIt first,
     }
 
     /* 
-     * The ld.relaxed.gpu instruction used in view.find causes the L1 write coalescer to 
+     * The ld.relaxed.gpu instruction used in view.find causes L1 to 
      * flush more frequently, causing increased sector stores from L2 to global memory.
-     * By writing results to shared memory and then synchronizing before writing back to global,
-     * we no longer rely on the L1 write coalescer, preventing the increase in sector stores from
+     * By writing results to shared memory and then synchronizing before writing back
+     * to global, we no longer rely on L1, preventing the increase in sector stores from
      * L2 to global and improving performance.
      */
     if(tile.thread_rank() == 0) {
@@ -321,7 +321,7 @@ __global__ void find(InputIt first,
     }
     __syncthreads();
     if(tile.thread_rank() == 0) {
-      output_begin[key_idx] = writeBuffer[threadIdx.x / tile_size];
+      *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
     }
     key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
@@ -365,7 +365,7 @@ __global__ void contains(InputIt first,
   __shared__ bool writeBuffer[block_size];
 
   while(first + tid < last) {
-    auto key = first[tid];
+    auto key = *(first + tid);
     auto found = false;
     for(auto i = 0; i < num_submaps; ++i) {
       found = submap_views[i].contains(key, hash, key_equal);
@@ -375,15 +375,15 @@ __global__ void contains(InputIt first,
     }
     
     /* 
-     * The ld.relaxed.gpu instruction used in view.find causes the L1 write coalescer to 
+     * The ld.relaxed.gpu instruction used in view.find causes L1 to 
      * flush more frequently, causing increased sector stores from L2 to global memory.
-     * By writing results to shared memory and then synchronizing before writing back to global,
-     * we no longer rely on the L1 write coalescer, preventing the increase in sector stores from
+     * By writing results to shared memory and then synchronizing before writing back
+     * to global, we no longer rely on L1, preventing the increase in sector stores from
      * L2 to global and improving performance.
      */
     writeBuffer[threadIdx.x] = found;
     __syncthreads();
-    output_begin[tid] = writeBuffer[threadIdx.x];
+    *(output_begin + tid) = writeBuffer[threadIdx.x];
     tid += gridDim.x * blockDim.x;
   }
 }
@@ -433,7 +433,7 @@ __global__ void contains(InputIt first,
   __shared__ bool writeBuffer[block_size];
 
   while(first + key_idx < last) {
-    auto key = first[key_idx];
+    auto key = *(first + key_idx);
     auto found = false;
     for(auto i = 0; i < num_submaps; ++i) {
       found = submap_views[i].contains(tile, key, hash, key_equal);
@@ -443,10 +443,10 @@ __global__ void contains(InputIt first,
     }
 
     /* 
-     * The ld.relaxed.gpu instruction used in view.find causes the L1 write coalescer to 
+     * The ld.relaxed.gpu instruction used in view.find causes L1 to 
      * flush more frequently, causing increased sector stores from L2 to global memory.
-     * By writing results to shared memory and then synchronizing before writing back to global,
-     * we no longer rely on the L1 write coalescer, preventing the increase in sector stores from
+     * By writing results to shared memory and then synchronizing before writing back
+     * to global, we no longer rely on L1, preventing the increase in sector stores from
      * L2 to global and improving performance.
      */
     if(tile.thread_rank() == 0) {
@@ -454,7 +454,7 @@ __global__ void contains(InputIt first,
     }
     __syncthreads();
     if(tile.thread_rank() == 0) {
-      output_begin[key_idx] = writeBuffer[threadIdx.x / tile_size];
+      *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
     }
     key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
