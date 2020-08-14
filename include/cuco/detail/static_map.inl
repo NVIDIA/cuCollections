@@ -72,7 +72,13 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
   auto view = get_device_mutable_view();
 
   *num_successes_ = 0;
+<<<<<<< HEAD
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), 0));
+=======
+  int device_id;
+  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
+>>>>>>> optimized_static_map
 
   detail::insert<block_size, tile_size>
   <<<grid_size, block_size>>>(first, first + num_keys, num_successes_, view, 
