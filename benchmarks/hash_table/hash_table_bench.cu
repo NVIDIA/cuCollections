@@ -331,7 +331,7 @@ static void BM_cudf_insert_resize(::benchmark::State& state) {
 
   auto numKeys = state.range(0);
   auto resizeOccupancy = 0.5;
-  auto initSize = 134'217'728;
+  auto initSize = 1<<27;
 
   
   std::vector<Key> h_keys(numKeys);
@@ -440,7 +440,7 @@ static void BM_cudf_insert_resize_search(::benchmark::State& state) {
 
   auto numKeys = state.range(0);
   auto resizeOccupancy = 0.5;
-  auto initSize = 134'217'728;
+  auto initSize = 1<<27;
   
   std::vector<Key> h_keys(numKeys);
   std::vector<Value> h_values(numKeys);
@@ -675,7 +675,7 @@ static void BM_slabhash_insert_resize(::benchmark::State& state) {
   uint32_t numKeysPerSlab = 15u;
   uint32_t numKeysPerBucketAvg = numSlabsPerBucketAvg * numKeysPerSlab;
   */
-  uint32_t numBuckets = 4'194'304;
+  uint32_t numBuckets = 1<<22;
     /*(numKeys + numKeysPerBucketAvg - 1) / numKeysPerBucketAvg; */
   const uint32_t deviceIdx = 0;
   const int64_t seed = 1;
@@ -750,7 +750,7 @@ static void BM_slabhash_insert_resize_search(::benchmark::State& state) {
   uint32_t numKeysPerSlab = 15u;
   uint32_t numKeysPerBucketAvg = numSlabsPerBucketAvg * numKeysPerSlab;
   */
-  uint32_t numBuckets = 4'194'304;
+  uint32_t numBuckets = 1<<22;
     /*(numKeys + numKeysPerBucketAvg - 1) / numKeysPerBucketAvg; */
   const uint32_t deviceIdx = 0;
   const int64_t seed = 1;
@@ -859,7 +859,7 @@ static void BM_cudfChain_insert_resize(::benchmark::State& state) {
   auto batchSize = 1e6;
   for (auto _ : state) {
     auto buildTime = 0.0f;
-    auto map = map_type::create(134'217'728);
+    auto map = map_type::create(1<<27);
     auto view = *map;
 
     for(auto i = 0; i < numKeys / batchSize; ++i) {
