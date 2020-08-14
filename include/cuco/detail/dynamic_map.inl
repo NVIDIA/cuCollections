@@ -62,7 +62,7 @@ void dynamic_map<Key, Value, Scope>::reserve(std::size_t n) {
     }
     // if the submap does not exist yet, create it
     else {
-      submap_capacity = capacity_;
+      submap_capacity = (growth_factor_ - 1) * capacity_;
       submaps_.push_back(
         std::unique_ptr<static_map<Key, Value, Scope>>{
         new static_map<Key, Value, Scope>{submap_capacity, empty_key_sentinel_, empty_value_sentinel_}});
