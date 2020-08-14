@@ -89,7 +89,7 @@ static void BM_static_map_insert(::benchmark::State& state) {
     h_pairs[i].second = val;
   }
 
-  thrust::device_vector<cuco::pair_type<int, int>> d_pairs( h_pairs );
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
 
   for(auto _ : state) {
     state.ResumeTiming();
@@ -120,10 +120,10 @@ static void BM_static_map_search_all(::benchmark::State& state) {
   map_type map{size, -1, -1};
   auto view = map.get_device_mutable_view();
 
-  std::vector<int> h_keys( num_keys );
-  std::vector<int> h_values( num_keys );
-  std::vector<cuco::pair_type<int, int>> h_pairs ( num_keys );
-  std::vector<int> h_results (num_keys);
+  std::vector<Key> h_keys( num_keys );
+  std::vector<Value> h_values( num_keys );
+  std::vector<cuco::pair_type<Key, Value>> h_pairs ( num_keys );
+  std::vector<Value> h_results (num_keys);
 
   generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
   
@@ -134,9 +134,9 @@ static void BM_static_map_search_all(::benchmark::State& state) {
     h_pairs[i].second = val;
   }
 
-  thrust::device_vector<int> d_keys( h_keys ); 
-  thrust::device_vector<int> d_results( num_keys);
-  thrust::device_vector<cuco::pair_type<int, int>> d_pairs( h_pairs );
+  thrust::device_vector<Key> d_keys( h_keys ); 
+  thrust::device_vector<Value> d_results( num_keys);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
 
   map.insert(d_pairs.begin(), d_pairs.end());
   
