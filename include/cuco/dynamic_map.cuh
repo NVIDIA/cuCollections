@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <thrust/device_vector.h>
 #include <cuco/detail/error.hpp>
 #include <cuda/std/atomic>
 #include <cooperative_groups.h>
@@ -98,22 +99,24 @@ class dynamic_map {
   dynamic_map& operator=(dynamic_map&&) = delete;
 
   /**
-  * @brief Construct a dynamically-sized map with the specified initial capacity and sentinel values.
+  * @brief Construct a dynamically-sized map with the specified initial capacity, growth factor and sentinel values.
   *
   * The capacity of the map will automatically increase as the user adds key/value pairs using `insert`.
   * 
-  * Capacity doubles each time the size of the map exceeds a threshold occupancy. The performance
-  * of `find` and `contains` decreases somewhat each time the map's capacity grows.
+  * Capacity increases by a factor of growth_factor each time the size of the map exceeds a threshold occupancy. 
+  * The performance of `find` and `contains` decreases somewhat each time the map's capacity grows.
   * 
   * The `empty_key_sentinel` and `empty_value_sentinel` values are reserved and
   * undefined behavior results from attempting to insert any key/value pair
   * that contains either.
   *
   * @param initial_capacity The initial number of slots in the map
+  * @param growth_factor The factor by which the capacity increases when resizing
   * @param empty_key_sentinel The reserved key value for empty slots
   * @param empty_value_sentinel The reserved mapped value for empty slots
   */
-  dynamic_map(std::size_t initial_capacity, Key empty_key_sentinel, Value empty_value_sentinel);
+  dynamic_map(std::size_t initial_capacity, 
+              Key empty_key_sentinel, Value empty_value_sentinel, float growth_factor = 2);
   
   /**
    * @brief Destroy the map and frees its contents
@@ -229,13 +232,14 @@ class dynamic_map {
   mapped_type empty_value_sentinel_{};                              ///< Initial value of empty slot
   std::size_t size_{};                                              ///< Number of keys in the map
   std::size_t capacity_{};                                          ///< Maximum number of keys that can be inserted
+  float growth_factor_{};                                           ///< Factor by which total capacity grows when resizing
   float max_load_factor_{};                                         ///< Max load factor before capacity growth
     
-  std::vector<std::unique_ptr<static_map<key_type, mapped_type, Scope>>> submaps_;
-  thrust::device_vector<view_type> submap_views_;
-  thrust::device_vector<mutable_view_type> submap_mutable_views_;
-  std::size_t min_insert_size_{};
-  atomic_ctr_type *num_successes_;
+  std::vector<std::unique_ptr<static_map<key_type, mapped_type, Scope>>> submaps_; ///< vector of pointers to each submap
+  thrust::device_vector<view_type> submap_views_;                                  ///< vector of device views for each submap
+  thrust::device_vector<mutable_view_type> submap_mutable_views_;                  ///< vector of mutable device views for each submap
+  std::size_t min_insert_size_{};                                                  ///< min remaining capacity of submap for insert
+  atomic_ctr_type *num_successes_;                                                 ///< number of successfully inserted keys on insert
 };
 }  // namespace cuco
 

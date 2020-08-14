@@ -20,15 +20,15 @@ namespace cuco {
 
 template<typename Key, typename Value, cuda::thread_scope Scope>
 dynamic_map<Key, Value, Scope>::dynamic_map(
-  std::size_t initial_capacity, Key empty_key_sentinel, Value empty_value_sentinel) :
+  std::size_t initial_capacity, Key empty_key_sentinel, Value empty_value_sentinel, 
+  float growth_factor) :
   empty_key_sentinel_(empty_key_sentinel),
   empty_value_sentinel_(empty_value_sentinel),
   size_(0),
-  capacity_(0),
+  capacity_(initial_capacity),
+  growth_factor_(growth_factor),
   min_insert_size_(1E4),
   max_load_factor_(0.60) {
-  
-  capacity_ = initial_capacity;
 
   submaps_.push_back(
     std::unique_ptr<static_map<Key, Value, Scope>>{
@@ -69,7 +69,7 @@ void dynamic_map<Key, Value, Scope>::reserve(std::size_t n) {
       submap_views_.push_back(submaps_[submap_idx]->get_device_view());
       submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
 
-      capacity_ *= 2;
+      capacity_ *= growth_factor_;
     }
 
     num_elements_remaining -= max_load_factor_ * submap_capacity - min_insert_size_;
@@ -95,7 +95,9 @@ void dynamic_map<Key, Value, Scope>::insert(
     // only if we meet the minimum insert size.
     if(capacity_remaining >= min_insert_size_) {
       *num_successes_ = 0;
-      CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), 0));
+      int device_id;
+      CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+      CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
       
       auto n = std::min(capacity_remaining, num_to_insert);
       auto const block_size = 128;

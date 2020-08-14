@@ -235,6 +235,14 @@ __global__ void find(InputIt first,
         break;
       }
     }
+
+    /* 
+     * The ld.relaxed.gpu instruction used in view.find causes the L1 write coalescer to 
+     * flush more frequently, causing increased sector stores from L2 to global memory.
+     * By writing results to shared memory and then synchronizing before writing back to global,
+     * we no longer rely on the L1 write coalescer, preventing the increase in sector stores from
+     * L2 to global and improving performance.
+     */
     writeBuffer[threadIdx.x] = found_value;
     __syncthreads();
     output_begin[tid] = writeBuffer[threadIdx.x];
@@ -300,6 +308,14 @@ __global__ void find(InputIt first,
         break;
       }
     }
+
+    /* 
+     * The ld.relaxed.gpu instruction used in view.find causes the L1 write coalescer to 
+     * flush more frequently, causing increased sector stores from L2 to global memory.
+     * By writing results to shared memory and then synchronizing before writing back to global,
+     * we no longer rely on the L1 write coalescer, preventing the increase in sector stores from
+     * L2 to global and improving performance.
+     */
     if(tile.thread_rank() == 0) {
       writeBuffer[threadIdx.x / tile_size] = found_value;
     }
@@ -357,6 +373,14 @@ __global__ void contains(InputIt first,
         break;
       }
     }
+    
+    /* 
+     * The ld.relaxed.gpu instruction used in view.find causes the L1 write coalescer to 
+     * flush more frequently, causing increased sector stores from L2 to global memory.
+     * By writing results to shared memory and then synchronizing before writing back to global,
+     * we no longer rely on the L1 write coalescer, preventing the increase in sector stores from
+     * L2 to global and improving performance.
+     */
     writeBuffer[threadIdx.x] = found;
     __syncthreads();
     output_begin[tid] = writeBuffer[threadIdx.x];
@@ -417,6 +441,14 @@ __global__ void contains(InputIt first,
         break;
       }
     }
+
+    /* 
+     * The ld.relaxed.gpu instruction used in view.find causes the L1 write coalescer to 
+     * flush more frequently, causing increased sector stores from L2 to global memory.
+     * By writing results to shared memory and then synchronizing before writing back to global,
+     * we no longer rely on the L1 write coalescer, preventing the increase in sector stores from
+     * L2 to global and improving performance.
+     */
     if(tile.thread_rank() == 0) {
       writeBuffer[threadIdx.x / tile_size] = found;
     }
