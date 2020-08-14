@@ -45,7 +45,7 @@ static_map<Key, Value, Scope>::static_map(std::size_t capacity, Key empty_key_se
     <<<grid_size, block_size>>>(slots_, empty_key_sentinel,
                                           empty_value_sentinel, capacity);
 
-    CUCO_CUDA_TRY(cudaMallocManaged(&d_num_successes_, sizeof(atomic_ctr_type)));
+    CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
   }
 
 
@@ -53,7 +53,7 @@ static_map<Key, Value, Scope>::static_map(std::size_t capacity, Key empty_key_se
 template <typename Key, typename Value, cuda::thread_scope Scope>
 static_map<Key, Value, Scope>::~static_map() {
   CUCO_CUDA_TRY(cudaFree(slots_));
-  CUCO_CUDA_TRY(cudaFree(d_num_successes_));
+  CUCO_CUDA_TRY(cudaFree(num_successes_));
 }
 
 
@@ -71,17 +71,17 @@ void static_map<Key, Value, Scope>::insert(InputIt first, InputIt last,
                           (stride * block_size);
   auto view = get_device_mutable_view();
 
-  atomic_ctr_type h_num_successes{};
-  *d_num_successes_ = 0;
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(d_num_successes_, sizeof(atomic_ctr_type), 0));
+  *num_successes_ = 0;
+  int device_id;
+  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
 
   detail::insert<block_size, tile_size>
-  <<<grid_size, block_size>>>(first, first + num_keys, d_num_successes_, view, 
+  <<<grid_size, block_size>>>(first, first + num_keys, num_successes_, view, 
                               hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  h_num_successes = d_num_successes_->load(cuda::std::memory_order_relaxed);
-  size_ += h_num_successes;
+  size_ += num_successes_->load(cuda::std::memory_order_relaxed);
 }
 
 
