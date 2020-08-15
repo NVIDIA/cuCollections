@@ -33,7 +33,8 @@ endfunction(ConfigureBench)
 
 include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
                     "${CMAKE_SOURCE_DIR}/include"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/libcudacxx/include"
+                    "${CMAKE_SOURCE_DIR}/thirdparty"
+                    "${CMAKE_SOURCE_DIR}/thirdparty/cub"
                     "${GBENCH_INCLUDE_DIR}"
                     "${CMAKE_CURRENT_SOURCE_DIR}")
 
@@ -50,23 +51,13 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT
 ###################################################################################################
 
 ###################################################################################################
-# - test benchmark --------------------------------------------------------------------------------
+set(DYNAMIC_MAP_BENCH_SRC
+  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/dynamic_map_bench.cu")
 
-set(TEST_BENCH_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/test/test_benchmark.cpp")
+ConfigureBench(DYNAMIC_MAP_BENCH "${DYNAMIC_MAP_BENCH_SRC}")
+###################################################################################################
+set(STATIC_MAP_BENCH_SRC
+  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
 
-ConfigureBench(TEST_BENCH "${TEST_BENCH_SRC}")
-# - test benchmark --------------------------------------------------------------------------------
-
-set(HASH_BENCH_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/hash_table_bench.cu")
-
-ConfigureBench(HASH_TABLE_BENCH "${HASH_BENCH_SRC}")
-
-# - rbk benchmark --------------------------------------------------------------------------------
-set(RBK_BENCH_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/reduce_by_key/reduce_by_key.cu")
-
-ConfigureBench(RBK_BENCH "${RBK_BENCH_SRC}")
-
+ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
 ###################################################################################################

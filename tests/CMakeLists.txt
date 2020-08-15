@@ -95,8 +95,7 @@ include_directories("${CMAKE_BINARY_DIR}/include"
                     "${CMAKE_SOURCE_DIR}/include"
                     "${CMAKE_SOURCE_DIR}"
                     "${CMAKE_CURRENT_SOURCE_DIR}"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/cub"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/libcudacxx/include")
+                    "${CMAKE_SOURCE_DIR}/thirdparty/cub")
 
 ###################################################################################################
 # - library paths ---------------------------------------------------------------------------------
@@ -132,20 +131,13 @@ endfunction(ConfigureTest)
 ###################################################################################################
 ### test sources ##################################################################################
 ###################################################################################################
-set(EXAMPLE_TEST_SRC 
-    "${CMAKE_CURRENT_SOURCE_DIR}/example/example.cpp")
+set(STATIC_MAP_TEST_SRC 
+    "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_test.cu")
 
-ConfigureTest(EXAMPLE_TEST "${EXAMPLE_TEST_SRC}")
+ConfigureTest(STATIC_MAP_TEST "${STATIC_MAP_TEST_SRC}")
 ####################################################################################################
-#set(EXAMPLE_CUDA_TEST_SRC 
-#    "${CMAKE_CURRENT_SOURCE_DIR}/example/example.cu")
+set(DYNAMIC_MAP_TEST_SRC 
+    "${CMAKE_CURRENT_SOURCE_DIR}/dynamic_map/dynamic_map_test.cu")
 
-#ConfigureTest(EXAMPLE_CUDA_TEST "${EXAMPLE_CUDA_TEST_SRC}")
-###################################################################################################
-###################################################################################################
-set(INSERT_ONLY_HASH_ARRAY_TEST_SRC
-    "${CMAKE_CURRENT_SOURCE_DIR}/insert_only_hash_array/insert_only_hash_array_test.cu")
-
-ConfigureTest(INSERT_ONLY_HASH_ARRAY_TEST "${INSERT_ONLY_HASH_ARRAY_TEST_SRC}")
-###################################################################################################
-
+ConfigureTest(DYNAMIC_MAP_TEST "${DYNAMIC_MAP_TEST_SRC}")
+####################################################################################################
