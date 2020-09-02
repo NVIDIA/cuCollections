@@ -225,6 +225,14 @@ class static_map {
                 Hash hash          = Hash{},
                 KeyEqual key_equal = KeyEqual{}) noexcept;
 
+ private:
+  class device_view_base {
+   public:
+    using iterator       = pair_atomic_type*;
+    using const_iterator = pair_atomic_type const*;
+  };
+
+ public:
   /**
    * @brief Mutable, non-owning view-type that may be used in device code to
    * perform singular inserts into the map.
@@ -245,11 +253,10 @@ class static_map {
    *                  });
    * \endcode
    */
-  class device_mutable_view {
+  class device_mutable_view : public device_view_base {
    public:
-    using iterator       = pair_atomic_type*;
-    using const_iterator = pair_atomic_type const*;
-
+    using iterator       = typename device_view_base::iterator;
+    using const_iterator = typename device_view_base::const_iterator;
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -421,11 +428,10 @@ class static_map {
    * value.
    *
    */
-  class device_view {
+  class device_view : public device_view_base {
    public:
-    using iterator       = pair_atomic_type*;
-    using const_iterator = pair_atomic_type const*;
-
+    using iterator       = typename device_view_base::iterator;
+    using const_iterator = typename device_view_base::const_iterator;
     /**
      * @brief Construct a view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
