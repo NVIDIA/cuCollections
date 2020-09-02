@@ -18,11 +18,11 @@
 
 #include <thrust/functional.h>
 
-#include <cuco/hash_functions.cuh>
-#include <cuco/detail/error.hpp>
-#include <cuda/std/atomic>
 #include <cooperative_groups.h>
 #include <cub/cub.cuh>
+#include <cuco/detail/error.hpp>
+#include <cuco/hash_functions.cuh>
+#include <cuda/std/atomic>
 
 #include <cuco/detail/cuda_memcmp.cuh>
 #include <cuco/detail/pair.cuh>
@@ -30,7 +30,7 @@
 
 namespace cuco {
 
-template<typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope>
 class dynamic_map;
 
 /**
@@ -105,7 +105,7 @@ class static_map {
 
   friend class dynamic_map<Key, Value, Scope>;
 
-  public:
+ public:
   using value_type         = cuco::pair_type<Key, Value>;
   using key_type           = Key;
   using mapped_type        = Value;
@@ -113,12 +113,12 @@ class static_map {
   using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
   using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
   using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
-  
+
   static_map(static_map const&) = delete;
   static_map(static_map&&)      = delete;
   static_map& operator=(static_map const&) = delete;
   static_map& operator=(static_map&&) = delete;
-  
+
   /**
    * @brief Construct a fixed-size map with the specified capacity and sentinel values.
    * @brief Construct a statically sized map with the specified number of slots
@@ -143,13 +143,13 @@ class static_map {
    * @param empty_value_sentinel The reserved mapped value for empty slots
    */
   static_map(std::size_t capacity, Key empty_key_sentinel, Value empty_value_sentinel);
-  
+
   /**
    * @brief Destroys the map and frees its contents.
    *
    */
   ~static_map();
-  
+
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
    *
@@ -166,69 +166,71 @@ class static_map {
    * @param key_equal The binary function to compare two keys for equality
    */
   template <typename InputIt,
-            typename Hash = MurmurHash3_32<key_type>,
+            typename Hash     = MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first, InputIt last, 
-              Hash hash = Hash{},
-              KeyEqual key_equal = KeyEqual{});
-  
+  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
+
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
-   * 
-   * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`. 
-   * Else, copies the empty value sentinel. 
-   * 
+   *
+   * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin +
+   * i)`. Else, copies the empty value sentinel.
+   *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `key_type`
-   * @tparam OutputIt Device accessible output iterator whose `value_type` is 
+   * @tparam OutputIt Device accessible output iterator whose `value_type` is
    * convertible to the map's `mapped_type`
    * @tparam Hash Unary callable type
-   * @tparam KeyEqual Binary callable type 
+   * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of values retrieved for each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    */
-  template <typename InputIt, typename OutputIt, 
-            typename Hash = MurmurHash3_32<key_type>,
+  template <typename InputIt,
+            typename OutputIt,
+            typename Hash     = MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void find(
-    InputIt first, InputIt last, OutputIt output_begin,
-    Hash hash = Hash{}, 
-    KeyEqual key_equal = KeyEqual{}) noexcept;
-  
+  void find(InputIt first,
+            InputIt last,
+            OutputIt output_begin,
+            Hash hash          = Hash{},
+            KeyEqual key_equal = KeyEqual{}) noexcept;
+
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
-   * 
+   *
    * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `key_type`
-   * @tparam OutputIt Device accessible output iterator whose `value_type` is 
+   * @tparam OutputIt Device accessible output iterator whose `value_type` is
    * convertible to the map's `mapped_type`
    * @tparam Hash Unary callable type
-   * @tparam KeyEqual Binary callable type 
+   * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    */
-  template <typename InputIt, typename OutputIt, 
-            typename Hash = MurmurHash3_32<key_type>,
+  template <typename InputIt,
+            typename OutputIt,
+            typename Hash     = MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void contains(
-    InputIt first, InputIt last, OutputIt output_begin,
-    Hash hash = Hash{}, 
-    KeyEqual key_equal = KeyEqual{}) noexcept;
-  
+  void contains(InputIt first,
+                InputIt last,
+                OutputIt output_begin,
+                Hash hash          = Hash{},
+                KeyEqual key_equal = KeyEqual{}) noexcept;
+
   /**
    * @brief Mutable, non-owning view-type that may be used in device code to
    * perform singular inserts into the map.
    *
    * `device_mutable_view` is trivially-copyable and is intended to be passed by
-   * value.   
+   * value.
    *
    * Example:
    * \code{.cpp}
@@ -244,19 +246,9 @@ class static_map {
    * \endcode
    */
   class device_mutable_view {
-  public:
+   public:
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
-    
-    __device__ device_mutable_view& operator=(device_mutable_view const& lhs) {
-      slots_ = lhs.slots_;
-      capacity_ = lhs.capacity_;
-      empty_key_sentinel_ = lhs.empty_key_sentinel_;
-      empty_value_sentinel_ = lhs.empty_value_sentinel_;
-      return *this;
-    }
-    
-    device_mutable_view() noexcept {}
 
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
@@ -272,12 +264,14 @@ class static_map {
     device_mutable_view(pair_atomic_type* slots,
                         std::size_t capacity,
                         Key empty_key_sentinel,
-                        Value empty_value_sentinel) noexcept :
-      slots_{slots},
-      capacity_{capacity},
-      empty_key_sentinel_{empty_key_sentinel},
-      empty_value_sentinel_{empty_value_sentinel} {}
-    
+                        Value empty_value_sentinel) noexcept
+      : slots_{slots},
+        capacity_{capacity},
+        empty_key_sentinel_{empty_key_sentinel},
+        empty_value_sentinel_{empty_value_sentinel}
+    {
+    }
+
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
@@ -293,18 +287,18 @@ class static_map {
      * equality
      * @return `true` if the insert was successful, `false` otherwise.
      */
-    template <typename Hash = MurmurHash3_32<key_type>,
+    template <typename Hash     = MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool insert(value_type const& insert_pair,
-                           Hash hash = Hash{},
+                           Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
      * Returns a pair consisting of an iterator to the inserted element (or to
      * the element that prevented the insertion) and a `bool` denoting whether
-     * the insertion took place. Uses the CUDA Cooperative Groups API to 
-     * to leverage multiple threads to perform a single insert. This provides a 
+     * the insertion took place. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single insert. This provides a
      * significant boost in throughput compared to the non Cooperative Group
      * `insert` at moderate to high load factors.
      *
@@ -320,16 +314,16 @@ class static_map {
      * @return `true` if the insert was successful, `false` otherwise.
      */
     template <typename CG,
-              typename Hash = MurmurHash3_32<key_type>,
+              typename Hash     = MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool insert(CG g,
                            value_type const& insert_pair,
-                           Hash hash = Hash{},
+                           Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
-    
+
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
-     * 
+     *
      * @return The maximum number of elements the hash map can hold
      */
     std::size_t get_capacity() const noexcept { return capacity_; }
@@ -340,20 +334,20 @@ class static_map {
      * @return The sentinel value used to represent an empty key slot
      */
     Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
-    
+
     /**
      * @brief Gets the sentinel value used to represent an empty value slot.
      *
      * @return The sentinel value used to represent an empty value slot
      */
     Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
-    
+
     /**
      * @brief Returns a const_iterator to one past the last element.
      *
      * @return A const_iterator to one past the last element
      */
-    __host__ __device__ const_iterator end() const noexcept { return slots_ + capacity_; } 
+    __host__ __device__ const_iterator end() const noexcept { return slots_ + capacity_; }
 
     /**
      * @brief Returns an iterator to one past the last element.
@@ -362,12 +356,12 @@ class static_map {
      */
     __host__ __device__ iterator end() noexcept { return slots_ + capacity_; }
 
-  private:
-    pair_atomic_type* slots_{};          ///< Pointer to flat slots storage
-    std::size_t capacity_{};       ///< Total number of slots
-    Key empty_key_sentinel_{};     ///< Key value that represents an empty slot
-    Value empty_value_sentinel_{}; ///< Initial Value of empty slot
-    
+   private:
+    pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
+    std::size_t capacity_{};        ///< Total number of slots
+    Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
+    Value empty_value_sentinel_{};  ///< Initial Value of empty slot
+
     /**
      * @brief Returns the initial slot for a given key `k`
      *
@@ -378,10 +372,10 @@ class static_map {
      */
     template <typename Hash>
     __device__ iterator initial_slot(Key const& k, Hash hash) const noexcept;
-    
+
     /**
      * @brief Returns the initial slot for a given key `k`
-     * 
+     *
      * To be used for Cooperative Group based probing.
      *
      * @tparam CG Cooperative Group type
@@ -391,7 +385,7 @@ class static_map {
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template<typename CG, typename Hash>
+    template <typename CG, typename Hash>
     __device__ iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept;
 
     /**
@@ -403,7 +397,7 @@ class static_map {
      * @return The next slot after `s`
      */
     __device__ iterator next_slot(iterator s) const noexcept;
-    
+
     /**
      * @brief Given a slot `s`, returns the next slot.
      *
@@ -415,10 +409,10 @@ class static_map {
      * @param s The slot to advance
      * @return The next slot after `s`
      */
-    template<typename CG>
+    template <typename CG>
     __device__ iterator next_slot(CG g, iterator s) const noexcept;
-  }; // class device mutable view
-  
+  };  // class device mutable view
+
   /**
    * @brief Non-owning view-type that may be used in device code to
    * perform singular find and contains operations for the map.
@@ -428,20 +422,10 @@ class static_map {
    *
    */
   class device_view {
-  public:
+   public:
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
 
-    __device__ device_view& operator=(device_view const& lhs) {
-      slots_ = lhs.slots_;
-      capacity_ = lhs.capacity_;
-      empty_key_sentinel_ = lhs.empty_key_sentinel_;
-      empty_value_sentinel_ = lhs.empty_value_sentinel_;
-      return *this;
-    }
-    
-    device_view() noexcept {}
-    
     /**
      * @brief Construct a view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -456,44 +440,46 @@ class static_map {
     device_view(pair_atomic_type* slots,
                 std::size_t capacity,
                 Key empty_key_sentinel,
-                Value empty_value_sentinel) noexcept :
-      slots_{slots},
-      capacity_{capacity},
-      empty_key_sentinel_{empty_key_sentinel},
-      empty_value_sentinel_{empty_value_sentinel} {}
+                Value empty_value_sentinel) noexcept
+      : slots_{slots},
+        capacity_{capacity},
+        empty_key_sentinel_{empty_key_sentinel},
+        empty_value_sentinel_{empty_value_sentinel}
+    {
+    }
 
     /**
      * @brief Finds the value corresponding to the key `k`.
-     * 
-     * Returns an iterator to the pair whose key is equivalent to `k`. 
-     * If no such pair exists, returns `end()`.  
      *
-     * @tparam Hash Unary callable type 
-     * @tparam KeyEqual Binary callable type 
+     * Returns an iterator to the pair whose key is equivalent to `k`.
+     * If no such pair exists, returns `end()`.
+     *
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
      * @param k The key to search for
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys
      * for equality
      * @return An iterator to the position at which the key/value pair
-     * containing `k` was inserted 
+     * containing `k` was inserted
      */
-    template <typename Hash = MurmurHash3_32<key_type>,
+    template <typename Hash     = MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ iterator find(Key const& k,
-                             Hash hash = Hash{},
+                             Hash hash          = Hash{},
                              KeyEqual key_equal = KeyEqual{}) noexcept;
-    
+
     /**
      * @brief Finds the value corresponding to the key `k`.
-     * 
-     * Returns an iterator to the pair whose key is equivalent to `k`. 
-     * If no such pair exists, returns `end()`. Uses the CUDA Cooperative Groups API to 
-     * to leverage multiple threads to perform a single find. This provides a 
+     *
+     * Returns an iterator to the pair whose key is equivalent to `k`.
+     * If no such pair exists, returns `end()`. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single find. This provides a
      * significant boost in throughput compared to the non Cooperative Group
      * `find` at moderate to high load factors.
      *
      * @tparam CG Cooperative Group type
-     * @tparam Hash Unary callable type 
+     * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the find
      * @param k The key to search for
@@ -501,47 +487,46 @@ class static_map {
      * @param key_equal The binary callable used to compare two keys
      * for equality
      * @return An iterator to the position at which the key/value pair
-     * containing `k` was inserted 
+     * containing `k` was inserted
      */
     template <typename CG,
-              typename Hash = MurmurHash3_32<key_type>,
+              typename Hash     = MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ iterator find(CG g, Key const& k,
-                             Hash hash = Hash{},
-                             KeyEqual key_equal = KeyEqual{}) noexcept;
-    
+    __device__ iterator
+    find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
+
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
-     * 
+     *
      * If the key `k` was inserted into the map, find returns
      * true. Otherwise, it returns false.
      *
-     * @tparam Hash Unary callable type 
-     * @tparam KeyEqual Binary callable type 
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
      * @param k The key to search for
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys
      * for equality
      * @return A boolean indicating whether the key/value pair
-     * containing `k` was inserted 
+     * containing `k` was inserted
      */
-    template<typename Hash = MurmurHash3_32<key_type>,
-             typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(Key const& k, 
-                             Hash hash = Hash{},
+    template <typename Hash     = MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ bool contains(Key const& k,
+                             Hash hash          = Hash{},
                              KeyEqual key_equal = KeyEqual{}) noexcept;
-    
+
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
      *
      * If the key `k` was inserted into the map, find returns
-     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to 
-     * to leverage multiple threads to perform a single contains operation. This provides a 
+     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single contains operation. This provides a
      * significant boost in throughput compared to the non Cooperative Group
      * `contains` at moderate to high load factors.
-     * 
+     *
      * @tparam CG Cooperative Group type
-     * @tparam Hash Unary callable type 
+     * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The key to search for
@@ -549,18 +534,19 @@ class static_map {
      * @param key_equal The binary callable used to compare two keys
      * for equality
      * @return A boolean indicating whether the key/value pair
-     * containing `k` was inserted 
+     * containing `k` was inserted
      */
-    template <typename CG, 
-              typename Hash = MurmurHash3_32<key_type>,
+    template <typename CG,
+              typename Hash     = MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(CG g, Key const& k, 
-                             Hash hash = Hash{},
+    __device__ bool contains(CG g,
+                             Key const& k,
+                             Hash hash          = Hash{},
                              KeyEqual key_equal = KeyEqual{}) noexcept;
-    
+
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
-     * 
+     *
      * @return The maximum number of elements the hash map can hold
      */
     __host__ __device__ std::size_t get_capacity() const noexcept { return capacity_; }
@@ -571,20 +557,23 @@ class static_map {
      * @return The sentinel value used to represent an empty key slot
      */
     __host__ __device__ Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
-    
+
     /**
      * @brief Gets the sentinel value used to represent an empty value slot.
      *
      * @return The sentinel value used to represent an empty value slot
      */
-    __host__ __device__ Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
-    
+    __host__ __device__ Value get_empty_value_sentinel() const noexcept
+    {
+      return empty_value_sentinel_;
+    }
+
     /**
      * @brief Returns a const_iterator to one past the last element.
      *
      * @return A const_iterator to one past the last element
      */
-    __host__ __device__ const_iterator end() const noexcept { return slots_ + capacity_; } 
+    __host__ __device__ const_iterator end() const noexcept { return slots_ + capacity_; }
 
     /**
      * @brief Returns an iterator to one past the last element.
@@ -593,12 +582,12 @@ class static_map {
      */
     __host__ __device__ iterator end() noexcept { return slots_ + capacity_; }
 
-  private:
-    pair_atomic_type* slots_{};          ///< Pointer to flat slots storage
-    std::size_t capacity_{};       ///< Total number of slots
-    Key empty_key_sentinel_{};     ///< Key value that represents an empty slot
-    Value empty_value_sentinel_{}; ///< Initial Value of empty slot
-    
+   private:
+    pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
+    std::size_t capacity_{};        ///< Total number of slots
+    Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
+    Value empty_value_sentinel_{};  ///< Initial Value of empty slot
+
     /**
      * @brief Returns the initial slot for a given key `k`
      *
@@ -609,10 +598,10 @@ class static_map {
      */
     template <typename Hash>
     __device__ iterator initial_slot(Key const& k, Hash hash) const noexcept;
-    
+
     /**
      * @brief Returns the initial slot for a given key `k`
-     * 
+     *
      * To be used for Cooperative Group based probing.
      *
      * @tparam CG Cooperative Group type
@@ -622,7 +611,7 @@ class static_map {
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template<typename CG, typename Hash>
+    template <typename CG, typename Hash>
     __device__ iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept;
 
     /**
@@ -634,7 +623,7 @@ class static_map {
      * @return The next slot after `s`
      */
     __device__ iterator next_slot(iterator s) const noexcept;
-    
+
     /**
      * @brief Given a slot `s`, returns the next slot.
      *
@@ -646,30 +635,30 @@ class static_map {
      * @param s The slot to advance
      * @return The next slot after `s`
      */
-    template<typename CG>
+    template <typename CG>
     __device__ iterator next_slot(CG g, iterator s) const noexcept;
-  }; // class device_view
-  
+  };  // class device_view
+
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
-   * 
+   *
    * @return The maximum number of elements the hash map can hold
    */
   std::size_t get_capacity() const noexcept { return capacity_; }
 
   /**
    * @brief Gets the number of elements in the hash map.
-   * 
+   *
    * @return The number of elements in the map
    */
   std::size_t get_size() const noexcept { return size_; }
-  
+
   /**
    * @brief Gets the load factor of the hash map.
-   * 
+   *
    * @return The load factor of the hash map
    */
-  float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; } 
+  float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; }
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
@@ -687,31 +676,32 @@ class static_map {
 
   /**
    * @brief Constructs a device_view object based on the members of the `static_map` object.
-   * 
+   *
    * @return A device_view object based on the members of the `static_map` object
    */
-  device_view get_device_view() const noexcept {
+  device_view get_device_view() const noexcept
+  {
     return device_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }
 
   /**
    * @brief Constructs a device_mutable_view object based on the members of the `static_map` object
-   * 
+   *
    * @return A device_mutable_view object based on the members of the `static_map` object
    */
-  device_mutable_view get_device_mutable_view() const noexcept {
+  device_mutable_view get_device_mutable_view() const noexcept
+  {
     return device_mutable_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }
 
-
-  private:
-  pair_atomic_type* slots_{nullptr};    ///< Pointer to flat slots storage
-  std::size_t capacity_{};              ///< Total number of slots
-  std::size_t size_{};                  ///< Number of keys in map
-  Key const empty_key_sentinel_{};      ///< Key value that represents an empty slot
-  Value const empty_value_sentinel_{};  ///< Initial value of empty slot
-  atomic_ctr_type* num_successes_{};    ///< Number of successfully inserted keys on insert
+ private:
+  pair_atomic_type* slots_{nullptr};  ///< Pointer to flat slots storage
+  std::size_t capacity_{};            ///< Total number of slots
+  std::size_t size_{};                ///< Number of keys in map
+  Key empty_key_sentinel_{};          ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};      ///< Initial value of empty slot
+  atomic_ctr_type* num_successes_{};  ///< Number of successfully inserted keys on insert
 };
-}  // namespace cuco 
+}  // namespace cuco
 
 #include <cuco/detail/static_map.inl>
