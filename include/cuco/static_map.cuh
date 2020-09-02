@@ -227,9 +227,124 @@ class static_map {
 
  private:
   class device_view_base {
-   public:
+   protected:
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
+
+    pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
+    std::size_t capacity_{};        ///< Total number of slots
+    Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
+    Value empty_value_sentinel_{};  ///< Initial Value of empty slot
+
+    device_view_base(pair_atomic_type* slots,
+                     std::size_t capacity,
+                     Key empty_key_sentinel,
+                     Value empty_value_sentinel) noexcept
+      : slots_{slots},
+        capacity_{capacity},
+        empty_key_sentinel_{empty_key_sentinel},
+        empty_value_sentinel_{empty_value_sentinel}
+    {
+    }
+
+    /**
+     * @brief Returns the initial slot for a given key `k`
+     *
+     * @tparam Hash Unary callable type
+     * @param k The key to get the slot for
+     * @param hash The unary callable used to hash the key
+     * @return Pointer to the initial slot for `k`
+     */
+    template <typename Hash>
+    __device__ iterator initial_slot(Key const& k, Hash hash) const noexcept
+    {
+      return &slots_[hash(k) % capacity_];
+    }
+
+    /**
+     * @brief Returns the initial slot for a given key `k`
+     *
+     * To be used for Cooperative Group based probing.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam Hash Unary callable type
+     * @param g the Cooperative Group for which the initial slot is needed
+     * @param k The key to get the slot for
+     * @param hash The unary callable used to hash the key
+     * @return Pointer to the initial slot for `k`
+     */
+    template <typename CG, typename Hash>
+    __device__ iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
+    {
+      return &slots_[(hash(k) + g.thread_rank()) % capacity_];
+    }
+
+    /**
+     * @brief Given a slot `s`, returns the next slot.
+     *
+     * If `s` is the last slot, wraps back around to the first slot.
+     *
+     * @param s The slot to advance
+     * @return The next slot after `s`
+     */
+    __device__ iterator next_slot(iterator s) const noexcept { return (++s < end()) ? s : slots_; }
+
+    /**
+     * @brief Given a slot `s`, returns the next slot.
+     *
+     * If `s` is the last slot, wraps back around to the first slot. To
+     * be used for Cooperative Group based probing.
+     *
+     * @tparam CG The Cooperative Group type
+     * @param g The Cooperative Group for which the next slot is needed
+     * @param s The slot to advance
+     * @return The next slot after `s`
+     */
+    template <typename CG>
+    __device__ iterator next_slot(CG g, iterator s) const noexcept
+    {
+      uint32_t index = s - slots_;
+      return &slots_[(index + g.size()) % capacity_];
+    }
+
+   public:
+    /**
+     * @brief Gets the maximum number of elements the hash map can hold.
+     *
+     * @return The maximum number of elements the hash map can hold
+     */
+    __host__ __device__ std::size_t get_capacity() const noexcept { return capacity_; }
+
+    /**
+     * @brief Gets the sentinel value used to represent an empty key slot.
+     *
+     * @return The sentinel value used to represent an empty key slot
+     */
+    __host__ __device__ Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+
+    /**
+     * @brief Gets the sentinel value used to represent an empty value slot.
+     *
+     * @return The sentinel value used to represent an empty value slot
+     */
+    __host__ __device__ Value get_empty_value_sentinel() const noexcept
+    {
+      return empty_value_sentinel_;
+    }
+
+    /**
+     * @brief Returns a const_iterator to one past the last element.
+     *
+     * @return A const_iterator to one past the last element
+     */
+    __host__ __device__ const_iterator end() const noexcept { return slots_ + capacity_; }
+
+    /**
+     * @brief Returns an iterator to one past the last element.
+     *
+     * @return An iterator to one past the last element
+     */
+    __host__ __device__ iterator end() noexcept { return slots_ + capacity_; }
   };
 
  public:
@@ -272,10 +387,7 @@ class static_map {
                         std::size_t capacity,
                         Key empty_key_sentinel,
                         Value empty_value_sentinel) noexcept
-      : slots_{slots},
-        capacity_{capacity},
-        empty_key_sentinel_{empty_key_sentinel},
-        empty_value_sentinel_{empty_value_sentinel}
+      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
     }
 
@@ -328,96 +440,6 @@ class static_map {
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
 
-    /**
-     * @brief Gets the maximum number of elements the hash map can hold.
-     *
-     * @return The maximum number of elements the hash map can hold
-     */
-    std::size_t get_capacity() const noexcept { return capacity_; }
-
-    /**
-     * @brief Gets the sentinel value used to represent an empty key slot.
-     *
-     * @return The sentinel value used to represent an empty key slot
-     */
-    Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
-
-    /**
-     * @brief Gets the sentinel value used to represent an empty value slot.
-     *
-     * @return The sentinel value used to represent an empty value slot
-     */
-    Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
-
-    /**
-     * @brief Returns a const_iterator to one past the last element.
-     *
-     * @return A const_iterator to one past the last element
-     */
-    __host__ __device__ const_iterator end() const noexcept { return slots_ + capacity_; }
-
-    /**
-     * @brief Returns an iterator to one past the last element.
-     *
-     * @return An iterator to one past the last element
-     */
-    __host__ __device__ iterator end() noexcept { return slots_ + capacity_; }
-
-   private:
-    pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
-    std::size_t capacity_{};        ///< Total number of slots
-    Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
-    Value empty_value_sentinel_{};  ///< Initial Value of empty slot
-
-    /**
-     * @brief Returns the initial slot for a given key `k`
-     *
-     * @tparam Hash Unary callable type
-     * @param k The key to get the slot for
-     * @param hash The unary callable used to hash the key
-     * @return Pointer to the initial slot for `k`
-     */
-    template <typename Hash>
-    __device__ iterator initial_slot(Key const& k, Hash hash) const noexcept;
-
-    /**
-     * @brief Returns the initial slot for a given key `k`
-     *
-     * To be used for Cooperative Group based probing.
-     *
-     * @tparam CG Cooperative Group type
-     * @tparam Hash Unary callable type
-     * @param g the Cooperative Group for which the initial slot is needed
-     * @param k The key to get the slot for
-     * @param hash The unary callable used to hash the key
-     * @return Pointer to the initial slot for `k`
-     */
-    template <typename CG, typename Hash>
-    __device__ iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept;
-
-    /**
-     * @brief Given a slot `s`, returns the next slot.
-     *
-     * If `s` is the last slot, wraps back around to the first slot.
-     *
-     * @param s The slot to advance
-     * @return The next slot after `s`
-     */
-    __device__ iterator next_slot(iterator s) const noexcept;
-
-    /**
-     * @brief Given a slot `s`, returns the next slot.
-     *
-     * If `s` is the last slot, wraps back around to the first slot. To
-     * be used for Cooperative Group based probing.
-     *
-     * @tparam CG The Cooperative Group type
-     * @param g The Cooperative Group for which the next slot is needed
-     * @param s The slot to advance
-     * @return The next slot after `s`
-     */
-    template <typename CG>
-    __device__ iterator next_slot(CG g, iterator s) const noexcept;
   };  // class device mutable view
 
   /**
@@ -447,10 +469,7 @@ class static_map {
                 std::size_t capacity,
                 Key empty_key_sentinel,
                 Value empty_value_sentinel) noexcept
-      : slots_{slots},
-        capacity_{capacity},
-        empty_key_sentinel_{empty_key_sentinel},
-        empty_value_sentinel_{empty_value_sentinel}
+      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
     }
 
@@ -549,100 +568,6 @@ class static_map {
                              Key const& k,
                              Hash hash          = Hash{},
                              KeyEqual key_equal = KeyEqual{}) noexcept;
-
-    /**
-     * @brief Gets the maximum number of elements the hash map can hold.
-     *
-     * @return The maximum number of elements the hash map can hold
-     */
-    __host__ __device__ std::size_t get_capacity() const noexcept { return capacity_; }
-
-    /**
-     * @brief Gets the sentinel value used to represent an empty key slot.
-     *
-     * @return The sentinel value used to represent an empty key slot
-     */
-    __host__ __device__ Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
-
-    /**
-     * @brief Gets the sentinel value used to represent an empty value slot.
-     *
-     * @return The sentinel value used to represent an empty value slot
-     */
-    __host__ __device__ Value get_empty_value_sentinel() const noexcept
-    {
-      return empty_value_sentinel_;
-    }
-
-    /**
-     * @brief Returns a const_iterator to one past the last element.
-     *
-     * @return A const_iterator to one past the last element
-     */
-    __host__ __device__ const_iterator end() const noexcept { return slots_ + capacity_; }
-
-    /**
-     * @brief Returns an iterator to one past the last element.
-     *
-     * @return An iterator to one past the last element
-     */
-    __host__ __device__ iterator end() noexcept { return slots_ + capacity_; }
-
-   private:
-    pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
-    std::size_t capacity_{};        ///< Total number of slots
-    Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
-    Value empty_value_sentinel_{};  ///< Initial Value of empty slot
-
-    /**
-     * @brief Returns the initial slot for a given key `k`
-     *
-     * @tparam Hash Unary callable type
-     * @param k The key to get the slot for
-     * @param hash The unary callable used to hash the key
-     * @return Pointer to the initial slot for `k`
-     */
-    template <typename Hash>
-    __device__ iterator initial_slot(Key const& k, Hash hash) const noexcept;
-
-    /**
-     * @brief Returns the initial slot for a given key `k`
-     *
-     * To be used for Cooperative Group based probing.
-     *
-     * @tparam CG Cooperative Group type
-     * @tparam Hash Unary callable type
-     * @param g the Cooperative Group for which the initial slot is needed
-     * @param k The key to get the slot for
-     * @param hash The unary callable used to hash the key
-     * @return Pointer to the initial slot for `k`
-     */
-    template <typename CG, typename Hash>
-    __device__ iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept;
-
-    /**
-     * @brief Given a slot `s`, returns the next slot.
-     *
-     * If `s` is the last slot, wraps back around to the first slot.
-     *
-     * @param s The slot to advance
-     * @return The next slot after `s`
-     */
-    __device__ iterator next_slot(iterator s) const noexcept;
-
-    /**
-     * @brief Given a slot `s`, returns the next slot.
-     *
-     * If `s` is the last slot, wraps back around to the first slot. To
-     * be used for Cooperative Group based probing.
-     *
-     * @tparam CG The Cooperative Group type
-     * @param g The Cooperative Group for which the next slot is needed
-     * @param s The slot to advance
-     * @return The next slot after `s`
-     */
-    template <typename CG>
-    __device__ iterator next_slot(CG g, iterator s) const noexcept;
   };  // class device_view
 
   /**
