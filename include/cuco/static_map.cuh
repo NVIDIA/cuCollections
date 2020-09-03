@@ -231,6 +231,7 @@ class static_map {
    protected:
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
+    using slot_type      = slot_type;
 
    private:
     pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
@@ -240,9 +241,9 @@ class static_map {
 
    protected:
     __host__ __device__ device_view_base(pair_atomic_type* slots,
-                     std::size_t capacity,
-                     Key empty_key_sentinel,
-                     Value empty_value_sentinel) noexcept
+                                         std::size_t capacity,
+                                         Key empty_key_sentinel,
+                                         Value empty_value_sentinel) noexcept
       : slots_{slots},
         capacity_{capacity},
         empty_key_sentinel_{empty_key_sentinel},
@@ -499,11 +500,23 @@ class static_map {
      * represent empty slots
      */
     __host__ __device__ device_mutable_view(pair_atomic_type* slots,
-                        std::size_t capacity,
-                        Key empty_key_sentinel,
-                        Value empty_value_sentinel) noexcept
+                                            std::size_t capacity,
+                                            Key empty_key_sentinel,
+                                            Value empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
+    }
+
+    template <typename CG>
+    __device__ static device_mutable_view initialize_and_view(CG g,
+                                                              pair_atomic_type* slots,
+                                                              std::size_t capacity,
+                                                              Key empty_key_sentinel,
+                                                              Value empty_value_sentinel) noexcept
+    {
+      device_view_base::initialize_slots(
+        g, slots, capacity, empty_key_sentinel, empty_value_sentinel);
+      return device_mutable_view{slots, capacity, empty_key_sentinel, empty_value_sentinel};
     }
 
     /**
