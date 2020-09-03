@@ -248,6 +248,25 @@ class static_map {
     }
 
     /**
+     * @brief Returns iterator to the first slot.
+     *
+     * @note Unlike `std::map`, the `begin()` iterator does _not_ point to the first occupied slot.
+     * Instead, it simply refers to the first slot in the array of contiguous slot storage.
+     *
+     * @return Iterator to the first slot
+     */
+    __device__ iterator begin() noexcept { return slots_; }
+
+    /**
+     * @brief Returns iterator to the first slot.
+     *
+     * @note Unlike `std::map`, the `begin()` iterator does _not_ point to the first occupied slot.
+     * Instead, it simply refers to the first slot in the array of contiguous slot storage.
+     *
+     * @return Iterator to the first slot
+     */
+    __device__ const_iterator begin() const noexcept { return slots_; }
+    /**
      * @brief Returns the initial slot for a given key `k`
      *
      * @tparam Hash Unary callable type
