@@ -268,6 +268,7 @@ class static_map {
      * @return Iterator to the first slot
      */
     __device__ const_iterator begin() const noexcept { return slots_; }
+
     /**
      * @brief Returns the initial slot for a given key `k`
      *
@@ -277,7 +278,21 @@ class static_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename Hash>
-    __device__ iterator initial_slot(Key const& k, Hash hash) const noexcept
+    __device__ iterator initial_slot(Key const& k, Hash hash) noexcept
+    {
+      return &slots_[hash(k) % capacity_];
+    }
+
+    /**
+     * @brief Returns the initial slot for a given key `k`
+     *
+     * @tparam Hash Unary callable type
+     * @param k The key to get the slot for
+     * @param hash The unary callable used to hash the key
+     * @return Pointer to the initial slot for `k`
+     */
+    template <typename Hash>
+    __device__ const_iterator initial_slot(Key const& k, Hash hash) const noexcept
     {
       return &slots_[hash(k) % capacity_];
     }
@@ -295,7 +310,25 @@ class static_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename CG, typename Hash>
-    __device__ iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
+    __device__ iterator initial_slot(CG g, Key const& k, Hash hash) noexcept
+    {
+      return &slots_[(hash(k) + g.thread_rank()) % capacity_];
+    }
+
+    /**
+     * @brief Returns the initial slot for a given key `k`
+     *
+     * To be used for Cooperative Group based probing.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam Hash Unary callable type
+     * @param g the Cooperative Group for which the initial slot is needed
+     * @param k The key to get the slot for
+     * @param hash The unary callable used to hash the key
+     * @return Pointer to the initial slot for `k`
+     */
+    template <typename CG, typename Hash>
+    __device__ const_iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -308,7 +341,20 @@ class static_map {
      * @param s The slot to advance
      * @return The next slot after `s`
      */
-    __device__ iterator next_slot(iterator s) const noexcept { return (++s < end()) ? s : slots_; }
+    __device__ iterator next_slot(iterator s) noexcept { return (++s < end()) ? s : begin(); }
+
+    /**
+     * @brief Given a slot `s`, returns the next slot.
+     *
+     * If `s` is the last slot, wraps back around to the first slot.
+     *
+     * @param s The slot to advance
+     * @return The next slot after `s`
+     */
+    __device__ const_iterator next_slot(const_iterator s) const noexcept
+    {
+      return (++s < end()) ? s : begin();
+    }
 
     /**
      * @brief Given a slot `s`, returns the next slot.
@@ -322,7 +368,22 @@ class static_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ iterator next_slot(CG g, iterator s) const noexcept
+    __device__ iterator next_slot(CG g, iterator s) noexcept
+    {
+
+    /**
+     * @brief Given a slot `s`, returns the next slot.
+     *
+     * If `s` is the last slot, wraps back around to the first slot. To
+     * be used for Cooperative Group based probing.
+     *
+     * @tparam CG The Cooperative Group type
+     * @param g The Cooperative Group for which the next slot is needed
+     * @param s The slot to advance
+     * @return The next slot after `s`
+     */
+    template <typename CG>
+    __device__ const_iterator next_slot(CG g, const_iterator s) const noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];
