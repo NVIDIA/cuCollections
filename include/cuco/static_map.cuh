@@ -239,7 +239,7 @@ class static_map {
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
 
    protected:
-    device_view_base(pair_atomic_type* slots,
+    __host__ __device__ device_view_base(pair_atomic_type* slots,
                      std::size_t capacity,
                      Key empty_key_sentinel,
                      Value empty_value_sentinel) noexcept
