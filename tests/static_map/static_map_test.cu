@@ -50,7 +50,7 @@ template <dist_type Dist, typename Key, typename OutputIt>
 static void generate_keys(OutputIt output_begin, OutputIt output_end)
 {
   auto num_keys = std::distance(output_begin, output_end);
-  
+
   std::random_device rd;
   std::mt19937 gen{rd()};
 
@@ -76,7 +76,7 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
 
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        "",
-  ((typename T, dist_type Dist), T, Dist), 
+                       ((typename T, dist_type Dist), T, Dist),
                        (int32_t, dist_type::UNIQUE),
                        (int64_t, dist_type::UNIQUE),
                        (int32_t, dist_type::UNIFORM),
@@ -98,7 +98,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
   std::vector<Value> h_results(num_keys);
   std::vector<bool> h_contained(num_keys);
-  
+
   generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
 
   for (auto i = 0; i < num_keys; ++i) {
@@ -114,17 +114,17 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);
-  
+
   // bulk function test cases
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
   {
     map.insert(d_pairs.begin(), d_pairs.end());
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), d_values.begin()));
-   
+
     REQUIRE(all_of(zip, zip + num_keys, [] __device__(auto const& p) {
-        return thrust::get<0>(p) == thrust::get<1>(p);
-      }));
+      return thrust::get<0>(p) == thrust::get<1>(p);
+    }));
   }
 
   SECTION("All inserted keys-value pairs should be contained")
@@ -135,7 +135,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     REQUIRE(
       all_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
   }
-  
+
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
@@ -143,44 +143,58 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     REQUIRE(
       none_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
   }
-  
+
   SECTION("Inserting unique keys should return insert success.")
   {
     if (Dist == dist_type::UNIQUE) {
       REQUIRE(all_of(d_pairs.begin(),
                      d_pairs.end(),
                      [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-          return m_view.insert(pair);
-        }));
+                       return m_view.insert(pair);
+                     }));
     }
   }
-  
+
   SECTION("Cannot find any key in an empty hash map")
   {
     REQUIRE(all_of(d_pairs.begin(),
                    d_pairs.end(),
                    [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-        return view.find(pair.first) == view.end();
-      }));
+                     return view.find(pair.first) == view.end();
+                   }));
   }
 
   SECTION("Keys are all found after inserting many keys.")
   {
     // Bulk insert keys
-    thrust::for_each(thrust::device, 
+    thrust::for_each(thrust::device,
                      d_pairs.begin(),
-                     d_pairs.end(), 
+                     d_pairs.end(),
                      [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-      m_view.insert(pair);
-    });
+                       m_view.insert(pair);
+                     });
 
     // All keys should be found
     REQUIRE(all_of(d_pairs.begin(),
                    d_pairs.end(),
                    [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-        auto const found = view.find(pair.first);
+                     auto const found = view.find(pair.first);
                      return (found != view.end()) and (found->first.load() == pair.first and
                                                        found->second.load() == pair.second);
-      }));
+                   }));
   }
+}
+
+template <typename K, typename V, std::size_t N>
+__global__ void kernel()
+{
+  namespace cg   = cooperative_groups;
+  using map_type = typename cuco::static_map<K, V, cuda::thread_scope_block>::device_mutable_view;
+  __shared__ typename map_type::slot_type slots[N];
+  auto map = map_type::initialize_and_view(cg::this_thread_block(), &slots[0], N, -1, -1);
+}
+
+TEMPLATE_TEST_CASE("Shared memory slots.", "", int32_t)
+{
+  kernel<TestType, TestType, 256><<<1, 1>>>();
 }
