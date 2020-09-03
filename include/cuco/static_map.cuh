@@ -370,6 +370,9 @@ class static_map {
     template <typename CG>
     __device__ iterator next_slot(CG g, iterator s) noexcept
     {
+      uint32_t index = s - slots_;
+      return &slots_[(index + g.size()) % capacity_];
+    }
 
     /**
      * @brief Given a slot `s`, returns the next slot.
