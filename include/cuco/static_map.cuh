@@ -16,17 +16,17 @@
 
 #pragma once
 
-#include <thrust/functional.h>
-
 #include <cooperative_groups.h>
+#include <thrust/distance.h>
+#include <thrust/functional.h>
 #include <cub/cub.cuh>
-#include <cuco/detail/error.hpp>
-#include <cuco/hash_functions.cuh>
 #include <cuda/std/atomic>
 
 #include <cuco/detail/cuda_memcmp.cuh>
+#include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
+#include <cuco/hash_functions.cuh>
 
 namespace cuco {
 
