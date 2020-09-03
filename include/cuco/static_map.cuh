@@ -231,11 +231,13 @@ class static_map {
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
 
+   private:
     pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
     std::size_t capacity_{};        ///< Total number of slots
     Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
 
+   protected:
     device_view_base(pair_atomic_type* slots,
                      std::size_t capacity,
                      Key empty_key_sentinel,
