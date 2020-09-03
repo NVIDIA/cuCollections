@@ -498,7 +498,7 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-    device_mutable_view(pair_atomic_type* slots,
+    __host__ __device__ device_mutable_view(pair_atomic_type* slots,
                         std::size_t capacity,
                         Key empty_key_sentinel,
                         Value empty_value_sentinel) noexcept
