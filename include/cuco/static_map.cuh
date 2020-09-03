@@ -112,6 +112,7 @@ class static_map {
   using atomic_key_type    = cuda::atomic<key_type, Scope>;
   using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
   using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  using slot_type          = pair_atomic_type;
   using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
 
   static_map(static_map const&) = delete;
@@ -457,6 +458,8 @@ class static_map {
    public:
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
+    using slot_type      = typename device_view_base::slot_type;
+
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -539,6 +542,8 @@ class static_map {
    public:
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
+    using slot_type      = typename device_view_base::slot_type;
+
     /**
      * @brief Construct a view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
