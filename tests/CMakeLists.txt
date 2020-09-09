@@ -2,6 +2,30 @@
 
 project(CUCO_TESTS LANGUAGES C CXX CUDA)
 
+
+include(CTest)
+
+###################################################################################################
+# - Fetch Catch   ---------------------------------------------------------------------------------
+
+include(FetchContent)
+
+FetchContent_Declare(
+  catch
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG        v2.11.1
+)
+
+FetchContent_GetProperties(catch)
+
+if(NOT catch_POPULATED)
+  FetchContent_Populate(catch)
+  add_subdirectory(${catch_SOURCE_DIR} ${catch_BINARY_DIR})
+endif()
+message(STATUS "Catch source dir: " ${catch_SOURCE_DIR})
+set(CATCH_INCLUDE_DIR "${catch_SOURCE_DIR}/single_include" )
+message(STATUS "Catch include directory: " ${CATCH_INCLUDE_DIR})
+
 ###################################################################################################
 # - include paths ---------------------------------------------------------------------------------
 
@@ -13,7 +37,8 @@ include_directories("${CMAKE_BINARY_DIR}/include"
                     "${CMAKE_SOURCE_DIR}/include"
                     "${CMAKE_SOURCE_DIR}"
                     "${CMAKE_CURRENT_SOURCE_DIR}"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/cub")
+                    "${CMAKE_SOURCE_DIR}/thirdparty/cub"
+                    "${CATCH_INCLUDE_DIR}")
 
 ###################################################################################################
 # - library paths ---------------------------------------------------------------------------------
@@ -22,16 +47,9 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}"
                  "${CMAKE_BINARY_DIR}/lib"
                  "${CMAKE_BINARY_DIR}")
 
-
-###################################################################################################
-# - compile catch main()---------------------------------------------------------------------------
-
 # catch_main.cpp defines `CATCH_CONFIG_MAIN` which provides main() 
 # Compiles it to be linked into test executables
-set(CATCH_MAIN_SOURCE 
-    catch_main.cpp)                 
-
-add_library(CatchMain OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/${CATCH_MAIN_SOURCE})
+add_library(CatchMain OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/catch_main.cpp ${CATCH_INCLUDE_DIR}/catch2/catch.hpp)
 
 
 ###################################################################################################
@@ -39,11 +57,11 @@ function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
     add_executable(${CMAKE_TEST_NAME}
                    ${CMAKE_TEST_SRC}
                    $<TARGET_OBJECTS:CatchMain>
-                   "${CMAKE_SOURCE_DIR}/tests/catch.hpp")
+                   "${CATCH_INCLUDE_DIR}/catch2/catch.hpp")
     set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
                             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     add_test(NAME ${CMAKE_TEST_NAME} COMMAND ${CMAKE_TEST_NAME})
-    set(CU_COLLECTIONS_TEST_LIST ${CU_COLLECTIONS_TEST_LIST} ${CMAKE_TEST_NAME} CACHE INTERNAL "CU_COLLECTIONS_TEST_LIST")
+    #set(CU_COLLECTIONS_TEST_LIST ${CU_COLLECTIONS_TEST_LIST} ${CMAKE_TEST_NAME} CACHE INTERNAL "CU_COLLECTIONS_TEST_LIST")
 endfunction(ConfigureTest)
 
 ###################################################################################################
