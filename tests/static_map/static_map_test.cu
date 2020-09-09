@@ -191,7 +191,7 @@ __global__ void kernel()
   namespace cg   = cooperative_groups;
   using map_type = typename cuco::static_map<K, V, cuda::thread_scope_block>::device_mutable_view;
   __shared__ typename map_type::slot_type slots[N];
-  auto map = map_type::initialize_and_view(cg::this_thread_block(), &slots[0], N, -1, -1);
+  auto map = map_type::make_from_uninitialized_slots(cg::this_thread_block(), &slots[0], N, -1, -1);
 }
 
 TEMPLATE_TEST_CASE("Shared memory slots.", "", int32_t)

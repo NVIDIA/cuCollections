@@ -508,11 +508,12 @@ class static_map {
     }
 
     template <typename CG>
-    __device__ static device_mutable_view initialize_and_view(CG g,
-                                                              pair_atomic_type* slots,
-                                                              std::size_t capacity,
-                                                              Key empty_key_sentinel,
-                                                              Value empty_value_sentinel) noexcept
+    __device__ static device_mutable_view make_from_uninitialized_slots(
+      CG g,
+      pair_atomic_type* slots,
+      std::size_t capacity,
+      Key empty_key_sentinel,
+      Value empty_value_sentinel) noexcept
     {
       device_view_base::initialize_slots(
         g, slots, capacity, empty_key_sentinel, empty_value_sentinel);
