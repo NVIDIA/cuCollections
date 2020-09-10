@@ -2,26 +2,32 @@
 
 project(CUCO_TESTS LANGUAGES C CXX CUDA)
 
-
 include(CTest)
+
+include(CPM)
 
 ###################################################################################################
 # - Fetch Catch   ---------------------------------------------------------------------------------
 
-include(FetchContent)
-
-FetchContent_Declare(
-  catch
-  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  GIT_TAG        v2.11.1
+CPMAddPackage(
+  NAME Catch2
+  GITHUB_REPOSITORY catchorg/Catch2
+  VERSION 2.11.1
 )
 
-FetchContent_GetProperties(catch)
+#FetchContent_Declare(
+#  catch
+#  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+#  GIT_TAG        v2.11.1
+#)
+#
+#FetchContent_GetProperties(catch)
+#
+#if(NOT catch_POPULATED)
+#  FetchContent_Populate(catch)
+#  add_subdirectory(${catch_SOURCE_DIR} ${catch_BINARY_DIR})
+#endif()
 
-if(NOT catch_POPULATED)
-  FetchContent_Populate(catch)
-  add_subdirectory(${catch_SOURCE_DIR} ${catch_BINARY_DIR})
-endif()
 set(CATCH_INCLUDE_DIR "${catch_SOURCE_DIR}/single_include" )
 
 ###################################################################################################
