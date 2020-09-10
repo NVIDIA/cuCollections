@@ -22,9 +22,7 @@ if(NOT catch_POPULATED)
   FetchContent_Populate(catch)
   add_subdirectory(${catch_SOURCE_DIR} ${catch_BINARY_DIR})
 endif()
-message(STATUS "Catch source dir: " ${catch_SOURCE_DIR})
 set(CATCH_INCLUDE_DIR "${catch_SOURCE_DIR}/single_include" )
-message(STATUS "Catch include directory: " ${CATCH_INCLUDE_DIR})
 
 ###################################################################################################
 # - include paths ---------------------------------------------------------------------------------
