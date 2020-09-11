@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
+﻿cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
 
 project(CUCO_BENCHS LANGUAGES C CXX CUDA)
 
@@ -47,13 +47,11 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT
 ###################################################################################################
 
 ###################################################################################################
-set(DYNAMIC_MAP_BENCH_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/dynamic_map_bench.cu")
+set(DYNAMIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/dynamic_map_bench.cu")
 
 ConfigureBench(DYNAMIC_MAP_BENCH "${DYNAMIC_MAP_BENCH_SRC}")
 ###################################################################################################
-set(STATIC_MAP_BENCH_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
+set(STATIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
 
 ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
 ###################################################################################################
