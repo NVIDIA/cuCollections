@@ -111,20 +111,11 @@ include(FeatureSummary)
 include(CheckIncludeFiles)
 include(CheckLibraryExists)
 
-# If the project is used as a submodule, don't spend time building libraries or tests
-if(NOT "^${CMAKE_SOURCE_DIR}$" STREQUAL "^${PROJECT_SOURCE_DIR}$")
-  set(CU_COLLECTIONS_ENABLE_BUILD FALSE)
-else()
-  set(CU_COLLECTIONS_ENABLE_BUILD TRUE)
-endif()
-
-if (CU_COLLECTIONS_ENABLE_BUILD)
 if(BUILD_TESTS)
     add_subdirectory(${CMAKE_SOURCE_DIR}/tests)
 endif(BUILD_TESTS)
 
 message(STATUS "CU_COLLECTIONS_TEST_LIST set to: ${CU_COLLECTIONS_TEST_LIST}")
-endif(CU_COLLECTIONS_ENABLE_BUILD)  
 
 ###################################################################################################
 ###################################################################################################
