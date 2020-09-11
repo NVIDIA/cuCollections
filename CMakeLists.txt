@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #=============================================================================
-cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
 project(cuCollections VERSION 0.0.1 LANGUAGES C CXX CUDA)
 
@@ -94,6 +94,19 @@ endif(CMAKE_BUILD_TYPE MATCHES Debug)
 # Build options
 option(BUILD_TESTS "Configure CMake to build tests" ON)
 option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ON)
+
+###################################################################################################
+# - find packages we depend on --------------------------------------------------------------------
+
+find_package(CUDAToolkit REQUIRED)
+
+###################################################################################################
+# - cuco target   ---------------------------------------------------------------------------------
+add_library(cuco INTERFACE)
+target_include_directories(cuco INTERFACE 
+                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+                           $<INSTALL_INTERFACE:include>)
+target_link_libraries(cuco INTERFACE CUDA::cudart)
 
 ###################################################################################################
 # - cmake modules ---------------------------------------------------------------------------------
