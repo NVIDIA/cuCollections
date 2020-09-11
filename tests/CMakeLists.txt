@@ -15,21 +15,6 @@ CPMAddPackage(
   VERSION 2.11.1
 )
 
-#FetchContent_Declare(
-#  catch
-#  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-#  GIT_TAG        v2.11.1
-#)
-#
-#FetchContent_GetProperties(catch)
-#
-#if(NOT catch_POPULATED)
-#  FetchContent_Populate(catch)
-#  add_subdirectory(${catch_SOURCE_DIR} ${catch_BINARY_DIR})
-#endif()
-
-set(CATCH_INCLUDE_DIR "${catch_SOURCE_DIR}/single_include" )
-
 ###################################################################################################
 # - include paths ---------------------------------------------------------------------------------
 
@@ -41,8 +26,7 @@ include_directories("${CMAKE_BINARY_DIR}/include"
                     "${CMAKE_SOURCE_DIR}/include"
                     "${CMAKE_SOURCE_DIR}"
                     "${CMAKE_CURRENT_SOURCE_DIR}"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/cub"
-                    "${CATCH_INCLUDE_DIR}")
+                    "${CMAKE_SOURCE_DIR}/thirdparty/cub")
 
 ###################################################################################################
 # - library paths ---------------------------------------------------------------------------------
@@ -53,15 +37,16 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}"
 
 # catch_main.cpp defines `CATCH_CONFIG_MAIN` which provides main() 
 # Compiles it to be linked into test executables
-add_library(CatchMain OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/catch_main.cpp ${CATCH_INCLUDE_DIR}/catch2/catch.hpp)
+add_library(CatchMain OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/catch_main.cpp)
+target_link_libraries(CatchMain Catch2)
 
 
 ###################################################################################################
 function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
     add_executable(${CMAKE_TEST_NAME}
                    ${CMAKE_TEST_SRC}
-                   $<TARGET_OBJECTS:CatchMain>
-                   "${CATCH_INCLUDE_DIR}/catch2/catch.hpp")
+                   $<TARGET_OBJECTS:CatchMain>) # Link in the CatchMain object file
+    target_link_libraries(${CMAKE_TEST_NAME} Catch2)
     set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
                             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     add_test(NAME ${CMAKE_TEST_NAME} COMMAND ${CMAKE_TEST_NAME})
