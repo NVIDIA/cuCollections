@@ -67,8 +67,6 @@ endif(CMAKE_BUILD_TYPE MATCHES Debug)
 option(BUILD_TESTS "Configure CMake to build tests" ON)
 option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ON)
 
-
-
 ###################################################################################################
 # - cmake modules ---------------------------------------------------------------------------------
 
@@ -83,9 +81,6 @@ if(BUILD_TESTS)
     add_subdirectory(${CMAKE_SOURCE_DIR}/tests)
 endif(BUILD_TESTS)
 
-message(STATUS "CU_COLLECTIONS_TEST_LIST set to: ${CU_COLLECTIONS_TEST_LIST}")
-
-###################################################################################################
 ###################################################################################################
 # - add google benchmark --------------------------------------------------------------------------
 
