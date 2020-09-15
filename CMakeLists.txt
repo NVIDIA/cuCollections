@@ -54,7 +54,6 @@ target_include_directories(cuco INTERFACE
                            $<INSTALL_INTERFACE:include>)
 target_link_libraries(cuco INTERFACE CUDA::cudart)
 
-#set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
 
 # Debug options
 if(CMAKE_BUILD_TYPE MATCHES Debug)
@@ -93,12 +92,3 @@ if(BUILD_BENCHMARKS)
     message(AUTHOR_WARNING "Google C++ Benchmarking Framework (Google Benchmark) not found: automated tests are disabled.")
   endif(GBENCH_FOUND)
 endif(BUILD_BENCHMARKS)
-# - saving cmake configs --------------------------------------------------------------------------
-# Configs that simplify using this project as a submodule.
-
-get_property(DIRS DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
-set(CU_COLLECTIONS_INCLUDE_DIRS ${DIRS} "${CMAKE_CURRENT_SOURCE_DIR}"
-CACHE INTERNAL "${PROJECT_NAME}: Include Directories" FORCE)
-
-set(CMAKE_CUDA_FLAGS ${CMAKE_CUDA_FLAGS} CACHE STRING "CMAKE CUDA flags for cuCollections" FORCE)
-###################################################################################################
