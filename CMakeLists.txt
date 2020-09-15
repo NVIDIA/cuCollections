@@ -35,6 +35,14 @@ endif()
 
 find_package(CUDAToolkit REQUIRED)
 
+include(cmake/Modules/CPM.cmake)
+
+CPMFindPackage(
+    NAME Cub
+    GITHUB_REPOSITORY thrust/cub
+    GIT_TAG 1.9.10
+)
+
 ###################################################################################################
 # - compiler options ------------------------------------------------------------------------------
 
@@ -52,7 +60,7 @@ add_library(cuco INTERFACE)
 target_include_directories(cuco INTERFACE 
                            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
                            $<INSTALL_INTERFACE:include>)
-target_link_libraries(cuco INTERFACE CUDA::cudart)
+target_link_libraries(cuco INTERFACE CUDA::cudart Cub)
 
 
 # Debug options
