@@ -28,28 +28,15 @@ function(ConfigureBench CMAKE_BENCH_NAME CMAKE_BENCH_SRC)
                    ${CMAKE_BENCH_SRC})
     set_target_properties(${CMAKE_BENCH_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
     set_property(TARGET ${CMAKE_BENCH_NAME} PROPERTY CUDA_ARCHITECTURES ${GPU_ARCHS})
-    target_link_libraries(${CMAKE_BENCH_NAME} benchmark benchmark_main pthread)
+    target_link_libraries(${CMAKE_BENCH_NAME} benchmark benchmark_main pthread cuco)
     set_target_properties(${CMAKE_BENCH_NAME} PROPERTIES
                             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
 endfunction(ConfigureBench)
 
-###################################################################################################
-# - include paths ---------------------------------------------------------------------------------
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}"
+                    "${GBENCH_INCLUDE_DIR}")
 
-include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
-                    "${CMAKE_SOURCE_DIR}/include"
-                    "${CMAKE_SOURCE_DIR}/thirdparty"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/cub"
-                    "${GBENCH_INCLUDE_DIR}"
-                    "${CMAKE_CURRENT_SOURCE_DIR}")
-
-###################################################################################################
-# - library paths ---------------------------------------------------------------------------------
-
-link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES is an undocumented/unsupported variable containing the link directories for nvcc
-                 "${CMAKE_BINARY_DIR}/lib"
-                 "${CMAKE_BINARY_DIR}"
-                 "${GBENCH_LIBRARY_DIR}")
+link_directories("${GBENCH_LIBRARY_DIR}")
 
 ###################################################################################################
 ### test sources ##################################################################################
