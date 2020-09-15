@@ -1,6 +1,6 @@
 ﻿cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
-project(CUCO_BENCHS LANGUAGES C CXX CUDA)
+project(CUCO_BENCHS LANGUAGES CXX CUDA)
 
 ###################################################################################################
 # - compiler options ------------------------------------------------------------------------------
