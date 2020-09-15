@@ -46,31 +46,14 @@ message(STATUS "${CMAKE_CXX_COMPILER}")
 set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
-# Auto-detect available GPU compute architectures
-set(GPU_ARCHS "" CACHE STRING "List of GPU architectures (semicolon-separated) to be compiled for. Pass 'ALL' if you want to compile for all supported GPU architectures. Empty string means to auto-detect the GPUs on the current system")
+###################################################################################################
+# - cuco target   ---------------------------------------------------------------------------------
+add_library(cuco INTERFACE)
+target_include_directories(cuco INTERFACE 
+                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+                           $<INSTALL_INTERFACE:include>)
+target_link_libraries(cuco INTERFACE CUDA::cudart)
 
-if("${GPU_ARCHS}" STREQUAL "")
-  include(cmake/EvalGpuArchs.cmake)
-  evaluate_gpu_archs(GPU_ARCHS)
-endif()
-
-if("${GPU_ARCHS}" STREQUAL "ALL")
-  set(GPU_ARCHS "60")
-  if((CUDAToolkit_VERSION_MAJOR EQUAL 9) OR (CUDAToolkit_VERSION_MAJOR GREATER 9))
-    set(GPU_ARCHS "${GPU_ARCHS};70")
-  endif()
-  if((CUDAToolkit_VERSION_MAJOR EQUAL 10) OR (CUDAToolkit_VERSION_MAJOR GREATER 10))
-    set(GPU_ARCHS "${GPU_ARCHS};75")
-  endif()
-endif()
-
-foreach(arch ${GPU_ARCHS})
-  message(STATUS ${arch})
-  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_${arch},code=sm_${arch}")
-endforeach()
-
-list(GET GPU_ARCHS -1 ptx)
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -gencode arch=compute_${ptx},code=compute_${ptx}")
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
 
@@ -85,13 +68,6 @@ option(BUILD_TESTS "Configure CMake to build tests" ON)
 option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ON)
 
 
-###################################################################################################
-# - cuco target   ---------------------------------------------------------------------------------
-add_library(cuco INTERFACE)
-target_include_directories(cuco INTERFACE 
-                           $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-                           $<INSTALL_INTERFACE:include>)
-target_link_libraries(cuco INTERFACE CUDA::cudart)
 
 ###################################################################################################
 # - cmake modules ---------------------------------------------------------------------------------

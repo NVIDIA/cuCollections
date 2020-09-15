@@ -40,6 +40,15 @@ link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}"
 add_library(CatchMain OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/catch_main.cpp)
 target_link_libraries(CatchMain Catch2)
 
+###################################################################################################
+# Auto-detect available GPU compute architectures
+set(GPU_ARCHS "" CACHE STRING "List of GPU architectures (semicolon-separated) to be compiled for. Empty string means to auto-detect the GPUs on the current system")
+
+if("${GPU_ARCHS}" STREQUAL "")
+  include(../cmake/EvalGpuArchs.cmake)
+  evaluate_gpu_archs(GPU_ARCHS)
+endif()
+
 
 ###################################################################################################
 function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
@@ -49,6 +58,7 @@ function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
     target_link_libraries(${CMAKE_TEST_NAME} Catch2)
     set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
                             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+    set_property(TARGET ${CMAKE_TEST_NAME} PROPERTY CUDA_ARCHITECTURES ${GPU_ARCHS})
     add_test(NAME ${CMAKE_TEST_NAME} COMMAND ${CMAKE_TEST_NAME})
     #set(CU_COLLECTIONS_TEST_LIST ${CU_COLLECTIONS_TEST_LIST} ${CMAKE_TEST_NAME} CACHE INTERNAL "CU_COLLECTIONS_TEST_LIST")
 endfunction(ConfigureTest)
