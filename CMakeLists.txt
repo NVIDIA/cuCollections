@@ -37,15 +37,29 @@ find_package(CUDAToolkit REQUIRED)
 
 include(cmake/Modules/CPM.cmake)
 
-CPMFindPackage(
+#CPMAddPackage(
+#    NAME CUB
+#    GITHUB_REPOSITORY thrust/cub
+#    GIT_TAG main # TODO: Update to a tagged version of CUB that incorporates their cmake overhaul
+#    OPTIONS
+#      "CUB_ENABLE_HEADER_TESTING Off"
+#      "CUB_ENABLE_TESTING Off"
+#      "CUB_ENABLE_EXAMPLES Off"
+#      "CUB_DISABLE_ARCH_BY_DEFAULT On"
+#)
+
+# TODO: Work around for the fact that the above doesn't work due to issues with CPM/CUB
+CPMAddPackage(
     NAME CUB
     GITHUB_REPOSITORY thrust/cub
-    GIT_TAG main # TODO: Update to a tagged version of CUB that incorporates their cmake overhaul
-    OPTIONS
-      "CUB_ENABLE_HEADER_TESTING Off"
-      "CUB_ENABLE_TESTING Off"
-      "CUB_ENABLE_EXAMPLES Off"
-      "CUB_DISABLE_ARCH_BY_DEFAULT On"
+    GIT_TAG main 
+    DOWNLOAD_ONLY YES
+)
+find_package(CUB
+    REQUIRED
+    NO_DEFAULT_PATH
+    HINTS
+        ${CUB_SOURCE_DIR}
 )
 
 ###################################################################################################
@@ -65,7 +79,7 @@ add_library(cuco INTERFACE)
 target_include_directories(cuco INTERFACE 
                            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
                            $<INSTALL_INTERFACE:include>)
-target_link_libraries(cuco INTERFACE CUDA::cudart CUB)
+target_link_libraries(cuco INTERFACE CUDA::cudart CUB::CUB)
 
 
 # Debug options
