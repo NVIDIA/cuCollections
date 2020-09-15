@@ -15,26 +15,6 @@ CPMAddPackage(
   VERSION 2.11.1
 )
 
-###################################################################################################
-# - include paths ---------------------------------------------------------------------------------
-
-if(CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES)
-	include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
-endif()
-
-include_directories("${CMAKE_BINARY_DIR}/include"
-                    "${CMAKE_SOURCE_DIR}/include"
-                    "${CMAKE_SOURCE_DIR}"
-                    "${CMAKE_CURRENT_SOURCE_DIR}"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/cub")
-
-###################################################################################################
-# - library paths ---------------------------------------------------------------------------------
-
-link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" 
-                 "${CMAKE_BINARY_DIR}/lib"
-                 "${CMAKE_BINARY_DIR}")
-
 # catch_main.cpp defines `CATCH_CONFIG_MAIN` which provides main() 
 # Compiles it to be linked into test executables
 add_library(CatchMain OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/catch_main.cpp)
@@ -49,13 +29,12 @@ if("${GPU_ARCHS}" STREQUAL "")
   evaluate_gpu_archs(GPU_ARCHS)
 endif()
 
-
 ###################################################################################################
 function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
     add_executable(${CMAKE_TEST_NAME}
                    ${CMAKE_TEST_SRC}
                    $<TARGET_OBJECTS:CatchMain>) # Link in the CatchMain object file
-    target_link_libraries(${CMAKE_TEST_NAME} Catch2)
+    target_link_libraries(${CMAKE_TEST_NAME} Catch2 cuco)
     set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
                             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     set_property(TARGET ${CMAKE_TEST_NAME} PROPERTY CUDA_ARCHITECTURES ${GPU_ARCHS})
