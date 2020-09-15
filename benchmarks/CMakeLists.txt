@@ -5,8 +5,6 @@ project(CUCO_BENCHS LANGUAGES C CXX CUDA)
 ###################################################################################################
 # - compiler options ------------------------------------------------------------------------------
 set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_C_COMPILER $ENV{tCC})
-set(CMAKE_CXX_COMPILER $ENV{CXX})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_CUDA_STANDARD 14)
