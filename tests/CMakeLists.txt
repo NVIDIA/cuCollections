@@ -15,10 +15,15 @@ CPMAddPackage(
   VERSION 2.11.1
 )
 
+if(Catch2_ADDED)
+    include(${Catch2_SOURCE_DIR}/contrib/Catch.cmake)
+endif()
+
 # catch_main.cpp defines `CATCH_CONFIG_MAIN` which provides main() 
 # Compiles it to be linked into test executables
 add_library(CatchMain OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/catch_main.cpp)
-target_link_libraries(CatchMain Catch2)
+target_link_libraries(CatchMain Catch2::Catch2)
+
 
 ###################################################################################################
 # Auto-detect available GPU compute architectures
@@ -34,11 +39,12 @@ function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
     add_executable(${CMAKE_TEST_NAME}
                    ${CMAKE_TEST_SRC}
                    $<TARGET_OBJECTS:CatchMain>) # Link in the CatchMain object file
-    target_link_libraries(${CMAKE_TEST_NAME} Catch2 cuco)
+    target_link_libraries(${CMAKE_TEST_NAME} Catch2::Catch2 cuco)
     set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
                             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     set_property(TARGET ${CMAKE_TEST_NAME} PROPERTY CUDA_ARCHITECTURES ${GPU_ARCHS})
     target_compile_options(${CMAKE_TEST_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
+    catch_discover_tests(${CMAKE_TEST_NAME})
 endfunction(ConfigureTest)
 
 ###################################################################################################
