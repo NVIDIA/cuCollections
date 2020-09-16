@@ -82,12 +82,6 @@ target_include_directories(cuco INTERFACE
 target_link_libraries(cuco INTERFACE CUDA::cudart CUB::CUB)
 
 
-# Debug options
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-    message(STATUS "Building with debugging flags")
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -G -Xcompiler -rdynamic")
-endif(CMAKE_BUILD_TYPE MATCHES Debug)
-
 # Build options
 option(BUILD_TESTS "Configure CMake to build tests" ON)
 option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ON)
