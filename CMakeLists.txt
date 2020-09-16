@@ -52,7 +52,7 @@ include(cmake/Modules/CPM.cmake)
 CPMAddPackage(
     NAME CUB
     GITHUB_REPOSITORY thrust/cub
-    GIT_TAG main 
+    GIT_TAG 1.10.0
     DOWNLOAD_ONLY YES
 )
 find_package(CUB
