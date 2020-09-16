@@ -89,17 +89,16 @@ option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ON)
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/" ${CMAKE_MODULE_PATH})
 
-include(FeatureSummary)
 
-include(CheckIncludeFiles)
-include(CheckLibraryExists)
+###################################################################################################
+# - optionally build tests ------------------------------------------------------------------------
 
 if(BUILD_TESTS)
     add_subdirectory(${CMAKE_SOURCE_DIR}/tests)
 endif(BUILD_TESTS)
 
 ###################################################################################################
-# - add google benchmark --------------------------------------------------------------------------
+# - Optionally build google benchmarks ------------------------------------------------------------
 
 if(BUILD_BENCHMARKS)
   include(ConfigureGoogleBenchmark)
