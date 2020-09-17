@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
-project(CUCO_TESTS LANGUAGES CXX CUDA)
-
 include(CTest)
 
 include(CPM)
