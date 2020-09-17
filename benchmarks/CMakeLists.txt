@@ -36,19 +36,19 @@ endif()
 ###################################################################################################
 # - compiler function -----------------------------------------------------------------------------
 
-function(ConfigureBench CMAKE_BENCH_NAME CMAKE_BENCH_SRC)
-    add_executable(${CMAKE_BENCH_NAME}
-                   ${CMAKE_BENCH_SRC})
-    set_target_properties(${CMAKE_BENCH_NAME} PROPERTIES 
+function(ConfigureBench BENCH_NAME BENCH_SRC)
+    add_executable(${BENCH_NAME}
+                   ${BENCH_SRC})
+    set_target_properties(${BENCH_NAME} PROPERTIES 
                                               POSITION_INDEPENDENT_CODE ON
                                               CUDA_ARCHITECTURES ${GPU_ARCHS}
                                               RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
-    target_include_directories( ${CMAKE_BENCH_NAME} PRIVATE
-                                                    ${CMAKE_CURRENT_SOURCE_DIR})
-    target_link_libraries(${CMAKE_BENCH_NAME} PRIVATE 
-                                              benchmark benchmark_main 
-                                              pthread 
-                                              cuco)
+    target_include_directories(${BENCH_NAME} PRIVATE
+                                             ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(${BENCH_NAME} PRIVATE 
+                                        benchmark benchmark_main 
+                                        pthread 
+                                        cuco)
 endfunction(ConfigureBench)
 
 ###################################################################################################

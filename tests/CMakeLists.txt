@@ -35,16 +35,16 @@ if("${GPU_ARCHS}" STREQUAL "")
 endif()
 
 ###################################################################################################
-function(ConfigureTest CMAKE_TEST_NAME CMAKE_TEST_SRC)
-    add_executable(${CMAKE_TEST_NAME}
-                   ${CMAKE_TEST_SRC}
+function(ConfigureTest TEST_NAME TEST_SRC)
+    add_executable(${TEST_NAME}
+                   ${TEST_SRC}
                    $<TARGET_OBJECTS:CatchMain>) # Link in the CatchMain object file
-    target_link_libraries(${CMAKE_TEST_NAME} Catch2::Catch2 cuco)
-    set_target_properties(${CMAKE_TEST_NAME} PROPERTIES
-                            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
-    set_property(TARGET ${CMAKE_TEST_NAME} PROPERTY CUDA_ARCHITECTURES ${GPU_ARCHS})
-    target_compile_options(${CMAKE_TEST_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
-    catch_discover_tests(${CMAKE_TEST_NAME})
+    target_link_libraries(${TEST_NAME} Catch2::Catch2 cuco)
+    set_target_properties(${TEST_NAME} PROPERTIES
+                                       RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+    set_property(TARGET ${TEST_NAME} PROPERTY CUDA_ARCHITECTURES ${GPU_ARCHS})
+    target_compile_options(${TEST_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
+    catch_discover_tests(${TEST_NAME})
 endfunction(ConfigureTest)
 
 ###################################################################################################
