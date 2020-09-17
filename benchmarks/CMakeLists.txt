@@ -10,6 +10,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 14)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
+include(CPM)
+
+CPMAddPackage(
+  NAME benchmark
+  GITHUB_REPOSITORY google/benchmark
+  VERSION 1.5.2
+  OPTIONS
+    "BENCHMARK_ENABLE_TESTING Off"
+    # The REGEX feature test fails when gbench's cmake is run under CPM w/ gcc5.4 because it doesn't assume C++11
+    # Additionally, attempting to set the CMAKE_CXX_VERSION here doesn't propogate to the feature test build
+    # Therefore, we just disable the feature test and assume platforms we care about have a regex impl available
+    "RUN_HAVE_STD_REGEX 0" #
+)
+
 ###################################################################################################
 # Auto-detect available GPU compute architectures
 set(GPU_ARCHS "" CACHE STRING "List of GPU architectures (semicolon-separated) to be compiled for. Empty string means to auto-detect the GPUs on the current system")
@@ -19,24 +33,24 @@ if("${GPU_ARCHS}" STREQUAL "")
   evaluate_gpu_archs(GPU_ARCHS)
 endif()
 
-
 ###################################################################################################
 # - compiler function -----------------------------------------------------------------------------
 
 function(ConfigureBench CMAKE_BENCH_NAME CMAKE_BENCH_SRC)
     add_executable(${CMAKE_BENCH_NAME}
                    ${CMAKE_BENCH_SRC})
-    set_target_properties(${CMAKE_BENCH_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    set_property(TARGET ${CMAKE_BENCH_NAME} PROPERTY CUDA_ARCHITECTURES ${GPU_ARCHS})
-    target_link_libraries(${CMAKE_BENCH_NAME} benchmark benchmark_main pthread cuco)
+    set_target_properties(${CMAKE_BENCH_NAME} PROPERTIES 
+                                              POSITION_INDEPENDENT_CODE ON
+                                              CUDA_ARCHITECTURES ${GPU_ARCHS})
+    target_include_directories( ${CMAKE_BENCH_NAME} PRIVATE
+                                                    ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(${CMAKE_BENCH_NAME} PRIVATE 
+                                              benchmark benchmark_main 
+                                              pthread 
+                                              cuco)
     set_target_properties(${CMAKE_BENCH_NAME} PROPERTIES
-                            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
+                                              RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
 endfunction(ConfigureBench)
-
-include_directories("${CMAKE_CURRENT_SOURCE_DIR}"
-                    "${GBENCH_INCLUDE_DIR}")
-
-link_directories("${GBENCH_LIBRARY_DIR}")
 
 ###################################################################################################
 ### test sources ##################################################################################
