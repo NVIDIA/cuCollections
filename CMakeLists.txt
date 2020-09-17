@@ -33,7 +33,9 @@ endif()
 ###################################################################################################
 # - find packages we depend on --------------------------------------------------------------------
 
-find_package(CUDAToolkit REQUIRED)
+# Note: CUDA 10.2 debian packages are broken for cuda/std/atomic header as it is located in
+# cuda/std/std/atomic
+find_package(CUDAToolkit 10.2 REQUIRED)
 
 include(cmake/Modules/CPM.cmake)
 
