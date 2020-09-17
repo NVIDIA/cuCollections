@@ -1,13 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
-###################################################################################################
-# - compiler options ------------------------------------------------------------------------------
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-set(CMAKE_CUDA_STANDARD 14)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-
 include(CPM)
 
 CPMAddPackage(
@@ -21,6 +13,11 @@ CPMAddPackage(
     # Therefore, we just disable the feature test and assume platforms we care about have a regex impl available
     "RUN_HAVE_STD_REGEX 0" #
 )
+
+if (benchmark_ADDED)
+  # patch google benchmark target
+  set_target_properties(benchmark PROPERTIES CXX_STANDARD 14)
+endif()
 
 ###################################################################################################
 # Auto-detect available GPU compute architectures
