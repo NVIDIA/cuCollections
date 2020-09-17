@@ -94,12 +94,12 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/" ${CMAKE_MODUL
 # - optionally build tests ------------------------------------------------------------------------
 
 if(BUILD_TESTS)
-    add_subdirectory(${CMAKE_SOURCE_DIR}/tests)
+    add_subdirectory(tests)
 endif(BUILD_TESTS)
 
 ###################################################################################################
 # - Optionally build google benchmarks ------------------------------------------------------------
 
 if(BUILD_BENCHMARKS)
-    add_subdirectory(${CMAKE_SOURCE_DIR}/benchmarks)
+    add_subdirectory(benchmarks)
 endif(BUILD_BENCHMARKS)
