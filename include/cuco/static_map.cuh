@@ -250,26 +250,6 @@ class static_map {
     }
 
     /**
-     * @brief Returns iterator to the first slot.
-     *
-     * @note Unlike `std::map`, the `begin()` iterator does _not_ point to the first occupied slot.
-     * Instead, it simply refers to the first slot in the array of contiguous slot storage.
-     *
-     * @return Iterator to the first slot
-     */
-    __device__ iterator begin() noexcept { return slots_; }
-
-    /**
-     * @brief Returns iterator to the first slot.
-     *
-     * @note Unlike `std::map`, the `begin()` iterator does _not_ point to the first occupied slot.
-     * Instead, it simply refers to the first slot in the array of contiguous slot storage.
-     *
-     * @return Iterator to the first slot
-     */
-    __device__ const_iterator begin() const noexcept { return slots_; }
-
-    /**
      * @brief Returns the initial slot for a given key `k`
      *
      * @tparam Hash Unary callable type
@@ -341,7 +321,7 @@ class static_map {
      * @param s The slot to advance
      * @return The next slot after `s`
      */
-    __device__ iterator next_slot(iterator s) noexcept { return (++s < end()) ? s : begin(); }
+    __device__ iterator next_slot(iterator s) noexcept { return (++s < end()) ? s : begin_slot(); }
 
     /**
      * @brief Given a slot `s`, returns the next slot.
@@ -353,7 +333,7 @@ class static_map {
      */
     __device__ const_iterator next_slot(const_iterator s) const noexcept
     {
-      return (++s < end()) ? s : begin();
+      return (++s < end()) ? s : begin_slot();
     }
 
     /**
@@ -418,18 +398,68 @@ class static_map {
     }
 
     /**
-     * @brief Returns a const_iterator to one past the last element.
+     * @brief Returns iterator to the first slot.
      *
-     * @return A const_iterator to one past the last element
+     * @note Unlike `std::map::begin()`, the `begin_slot()` iterator does _not_ point to the first
+     * occupied slot. Instead, it refers to the first slot in the array of contiguous slot storage.
+     * Iterating from `begin_slot()` to `end_slot()` will iterate over all slots, including those
+     * both empty and filled.
+     *
+     * There is no `begin()` iterator to avoid confusion as it is not possible to provide an
+     * iterator over only the filled slots.
+     *
+     * @return Iterator to the first slot
      */
-    __host__ __device__ const_iterator end() const noexcept { return slots_ + capacity_; }
+    __device__ iterator begin_slot() noexcept { return slots_; }
 
     /**
-     * @brief Returns an iterator to one past the last element.
+     * @brief Returns iterator to the first slot.
      *
-     * @return An iterator to one past the last element
+     * @note Unlike `std::map::begin()`, the `begin_slot()` iterator does _not_ point to the first
+     * occupied slot. Instead, it refers to the first slot in the array of contiguous slot storage.
+     * Iterating from `begin_slot()` to `end_slot()` will iterate over all slots, including those
+     * both empty and filled.
+     *
+     * There is no `begin()` iterator to avoid confusion as it is not possible to provide an
+     * iterator over only the filled slots.
+     *
+     * @return Iterator to the first slot
      */
-    __host__ __device__ iterator end() noexcept { return slots_ + capacity_; }
+    __device__ const_iterator begin_slot() const noexcept { return slots_; }
+
+    /**
+     * @brief Returns a const_iterator to one past the last slot.
+     *
+     * @return A const_iterator to one past the last slot
+     */
+    __host__ __device__ const_iterator end_slot() const noexcept { return slots_ + capacity_; }
+
+    /**
+     * @brief Returns an iterator to one past the last slot.
+     *
+     * @return An iterator to one past the last slot
+     */
+    __host__ __device__ iterator end_slot() noexcept { return slots_ + capacity_; }
+
+    /**
+     * @brief Returns a const_iterator to one past the last slot.
+     *
+     * `end()` calls `end_slot()` and is provided for convenience for those familiar with checking
+     * an iterator returned from `find()` against the `end()` iterator.
+     *
+     * @return A const_iterator to one past the last slot
+     */
+    __host__ __device__ const_iterator end() const noexcept { return end_slot(); }
+
+    /**
+     * @brief Returns an iterator to one past the last slot.
+     *
+     * `end()` calls `end_slot()` and is provided for convenience for those familiar with checking
+     * an iterator returned from `find()` against the `end()` iterator.
+     *
+     * @return An iterator to one past the last slot
+     */
+    __host__ __device__ iterator end() noexcept { return end_slot(); }
   };
 
  public:
