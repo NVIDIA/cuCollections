@@ -248,6 +248,26 @@ static_map<Key, Value, Scope>::device_view::find(Key const& k,
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Hash, typename KeyEqual>
+__device__ typename static_map<Key, Value, Scope>::device_view::const_iterator
+static_map<Key, Value, Scope>::device_view::find(Key const& k, Hash hash, KeyEqual key_equal) const
+  noexcept
+{
+  auto current_slot = initial_slot(k, hash);
+
+  while (true) {
+    auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    // Key exists, return iterator to location
+    if (key_equal(existing_key, k)) { return current_slot; }
+
+    // Key doesn't exist, return end()
+    if (existing_key == this->get_empty_key_sentinel()) { return this->end(); }
+
+    current_slot = next_slot(current_slot);
+  }
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope>
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ typename static_map<Key, Value, Scope>::device_view::iterator
 static_map<Key, Value, Scope>::device_view::find(CG g,
@@ -265,8 +285,46 @@ static_map<Key, Value, Scope>::device_view::find(CG g,
     // so we return an iterator to the entry
     if (existing) {
       uint32_t src_lane = __ffs(existing) - 1;
+      // TODO: This shouldn't cast an iterator to an int to shuffle. Instead, get the index of the
+      // current_slot and shuffle that instead.
       intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
       return reinterpret_cast<iterator>(res_slot);
+    }
+
+    // we found an empty slot, meaning that the key we're searching
+    // for isn't in this submap, so we should move onto the next one
+    uint32_t empty = g.ballot(existing_key == this->get_empty_key_sentinel());
+    if (empty) { return this->end(); }
+
+    // otherwise, all slots in the current window are full with other keys,
+    // so we move onto the next window in the current submap
+
+    current_slot = next_slot(g, current_slot);
+  }
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename CG, typename Hash, typename KeyEqual>
+__device__ typename static_map<Key, Value, Scope>::device_view::const_iterator
+static_map<Key, Value, Scope>::device_view::find(CG g,
+                                                 Key const& k,
+                                                 Hash hash,
+                                                 KeyEqual key_equal) const noexcept
+{
+  auto current_slot = initial_slot(g, k, hash);
+
+  while (true) {
+    auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    uint32_t existing       = g.ballot(key_equal(existing_key, k));
+
+    // the key we were searching for was found by one of the threads,
+    // so we return an iterator to the entry
+    if (existing) {
+      uint32_t src_lane = __ffs(existing) - 1;
+      // TODO: This shouldn't cast an iterator to an int to shuffle. Instead, get the index of the
+      // current_slot and shuffle that instead.
+      intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
+      return reinterpret_cast<const_iterator>(res_slot);
     }
 
     // we found an empty slot, meaning that the key we're searching
