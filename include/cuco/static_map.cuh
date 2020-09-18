@@ -611,7 +611,7 @@ class static_map {
 
     /** @brief Finds the value corresponding to the key `k`.
      *
-     * Returns an iterator to the pair whose key is equivalent to `k`.
+     * Returns a const_iterator to the pair whose key is equivalent to `k`.
      * If no such pair exists, returns `end()`.
      *
      * @tparam Hash Unary callable type
@@ -658,7 +658,7 @@ class static_map {
     /**
      * @brief Finds the value corresponding to the key `k`.
      *
-     * Returns an iterator to the pair whose key is equivalent to `k`.
+     * Returns a const_iterator to the pair whose key is equivalent to `k`.
      * If no such pair exists, returns `end()`. Uses the CUDA Cooperative Groups API to
      * to leverage multiple threads to perform a single find. This provides a
      * significant boost in throughput compared to the non Cooperative Group
