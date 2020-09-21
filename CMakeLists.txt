@@ -77,6 +77,7 @@ target_compile_features(cuco INTERFACE cxx_std_14 cuda_std_14)
 # Build options
 option(BUILD_TESTS "Configure CMake to build tests" ON)
 option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ON)
+option(BUILD_EXAMPLES "Configure CMake to build examples" ON)
 
 ###################################################################################################
 # - cmake modules ---------------------------------------------------------------------------------
@@ -97,3 +98,10 @@ endif(BUILD_TESTS)
 if(BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)
 endif(BUILD_BENCHMARKS)
+
+###################################################################################################
+# - Optionally build examples ---------------------------------------------------------------------
+
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif(BUILD_EXAMPLES)
