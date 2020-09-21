@@ -25,7 +25,6 @@ int main(void)
   int empty_value_sentinel = std::numeric_limits<int>::max();
   cuco::static_map<int, int> my_map{100'000, empty_key_sentinel, empty_value_sentinel};
   thrust::device_vector<thrust::pair<int, int>> pairs(50'000);
-  my_map.get_device_view();
   my_map.insert(pairs.begin(), pairs.end());
   return 0;
 }
