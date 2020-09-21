@@ -41,13 +41,29 @@ This will take care of downloading `cuCollections` from GitHub and making the he
 
 [1] `cuCollections` is header-only and therefore there is no binary component to "link" against. The linking terminology comes from CMake's `target_link_libraries` which is still used even for header-only library targets. 
 
-## **Dependencies**
+## Dependencies
 - [libcu++](https://github.com/NVIDIA/libcudacxx)
 - [CUB](https://github.com/thrust/cub)
 - Pascal+ GPU Architecture
    - Volta+ is required for some instantiations of `cuco` types
 
 ## Building cuCollections
+
+Since `cuCollections` is header-only, there is nothing to build to use it. 
+
+To build the tests, benchmarks, and examples:
+
+```
+cd $CUCO_ROOT
+mkdir -p build
+cd build
+cmake .. 
+make
+```
+Binaries will be built into:
+- `build/tests/`
+- `build/gbenchmarks/`
+- `build/examples/`
 
 
 ## Data Structures
