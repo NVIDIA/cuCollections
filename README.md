@@ -68,11 +68,14 @@ Binaries will be built into:
 
 ## Data Structures
 
+We plan to add many GPU-accelerated, concurrent data structures to `cuCollections`. As of now, the two flagships are variants of hash tables. 
+
 ### `static_map`
 
-TODO
+`cuco::static_map` is a fixed-size hash table using open addressing with linear probing. See the Doxygen documentation in `static_map.cuh` for more detailed information.
+
 
 ### `dynamic_map`
 
-TODO
+`cuco::dynamic_map` links together multiple `cuco::static_map`s to provide a hash table that can grow as keys are inserted. See the Doxygen documentation in `dynamic_map.cuh` for more detailed information.
 
