@@ -44,8 +44,8 @@ This will take care of downloading `cuCollections` from GitHub and making the he
 ## Dependencies
 - [libcu++](https://github.com/NVIDIA/libcudacxx)
 - [CUB](https://github.com/thrust/cub)
-- Pascal+ GPU Architecture
-   - Volta+ is required for some instantiations of `cuco` types
+- Volta+ 
+    - Pascal is partially supported. Any data structures that require blocking algorithms are not supported. See [libcu++](https://nvidia.github.io/libcudacxx/setup/requirements.html#device-architectures) documentation for more details.
 
 ## Building cuCollections
 
