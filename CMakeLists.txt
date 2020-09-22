@@ -76,7 +76,8 @@ target_compile_features(cuco INTERFACE cxx_std_14 cuda_std_14)
 
 # Build options
 option(BUILD_TESTS "Configure CMake to build tests" ON)
-option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ON)
+option(BUILD_BENCHMARKS "Configure CMake to build cuCollections benchmarks" ON)
+option(BUILD_THIRDPARTY_BENCHMARKS "Configure CMake to build bencharks of thirdparty libraries. Thirdparty benchmarks are only built when BUILD_BENCHMARKS is ON." OFF)
 
 ###################################################################################################
 # - cmake modules ---------------------------------------------------------------------------------
