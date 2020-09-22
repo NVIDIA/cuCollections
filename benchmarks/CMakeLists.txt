@@ -29,6 +29,13 @@ if("${GPU_ARCHS}" STREQUAL "")
 endif()
 
 ###################################################################################################
+# - Optionally build thirdparty benchmarks --------------------------------------------------------
+if(BUILD_THIRDPARTY_BENCHMARKS)
+    add_subdirectory(thirdparty)
+endif(BUILD_THIRDPARTY_BENCHMARKS)
+
+
+###################################################################################################
 # - compiler function -----------------------------------------------------------------------------
 
 function(ConfigureBench BENCH_NAME BENCH_SRC)
