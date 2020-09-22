@@ -42,6 +42,7 @@ This will take care of downloading `cuCollections` from GitHub and making the he
 [1] `cuCollections` is header-only and therefore there is no binary component to "link" against. The linking terminology comes from CMake's `target_link_libraries` which is still used even for header-only library targets. 
 
 ## Dependencies
+- C++14
 - [libcu++](https://github.com/NVIDIA/libcudacxx)
 - [CUB](https://github.com/thrust/cub)
 - Volta+ 
