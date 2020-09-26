@@ -27,7 +27,7 @@ dynamic_map<Key, Value, Scope, submap_type>::dynamic_map(
   size_(0),
   capacity_(initial_capacity),
   min_insert_size_(1E4),
-  max_load_factor_(0.60) {
+  max_load_factor_(0.80) {
 
   submaps_.push_back(
     std::unique_ptr<submap_type<Key, Value, Scope>>{
@@ -101,21 +101,37 @@ void dynamic_map<Key, Value, Scope, submap_type>::insert(
       CUCO_CUDA_TRY(cudaGetDevice(&device_id));
       CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
       
+      auto const thresh_lf = 0.35;
       auto n = std::min(capacity_remaining, num_to_insert);
       auto const block_size = 128;
       auto const stride = 1;
-      auto const tile_size = 4;
-      auto const grid_size = (tile_size * n + stride * block_size - 1) /
-                             (stride * block_size);
 
-      detail::insert<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
-      <<<grid_size, block_size>>>
-      (first, first + n,
-       submap_views_.data().get(),
-       submap_mutable_views_.data().get(),
-       num_successes_, 
-       submap_idx, submaps_.size(),
-       hash, key_equal);
+      if(submaps_[submap_idx]->get_load_factor() > thresh_lf) {
+        auto const tile_size = 4;
+        auto const grid_size = (tile_size * n + stride * block_size - 1) /
+                              (stride * block_size);
+        detail::insert<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
+        <<<grid_size, block_size>>>
+        (first, first + n,
+        submap_views_.data().get(),
+        submap_mutable_views_.data().get(),
+        num_successes_, 
+        submap_idx, submaps_.size(),
+        hash, key_equal);
+      }
+      else {
+        auto const tile_size = 1;
+        auto const grid_size = (tile_size * n + stride * block_size - 1) /
+                              (stride * block_size);
+        detail::insert<block_size, cuco::pair_type<key_type, mapped_type>>
+        <<<grid_size, block_size>>>
+        (first, first + n,
+        submap_views_.data().get(),
+        submap_mutable_views_.data().get(),
+        num_successes_, 
+        submap_idx, submaps_.size(),
+        hash, key_equal);
+      }
       CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
       std::size_t h_num_successes = num_successes_->load(cuda::std::memory_order_relaxed);

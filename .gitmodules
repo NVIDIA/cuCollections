@@ -1,0 +1,3 @@
+[submodule "benchmarks/hash_table/cudf"]
+	path = benchmarks/hash_table/cudf
+	url = https://github.com/rapidsai/cudf.git

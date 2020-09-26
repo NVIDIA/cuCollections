@@ -58,3 +58,7 @@ set(DYNAMIC_MAP_TEST_SRC
 
 ConfigureTest(DYNAMIC_MAP_TEST "${DYNAMIC_MAP_TEST_SRC}")
 ####################################################################################################
+set(LEGACY_STATIC_MAP_TEST_SRC 
+    "${CMAKE_CURRENT_SOURCE_DIR}/legacy_static_map/legacy_static_map_test.cu")
+
+ConfigureTest(LEGACY_STATIC_MAP_TEST "${LEGACY_STATIC_MAP_TEST_SRC}")

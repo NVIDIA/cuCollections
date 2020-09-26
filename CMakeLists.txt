@@ -93,6 +93,7 @@ if(BUILD_TESTS)
     add_subdirectory(tests)
 endif(BUILD_TESTS)
 
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-extended-lambda --expt-relaxed-constexpr")
 ###################################################################################################
 # - Optionally build google benchmarks ------------------------------------------------------------
 

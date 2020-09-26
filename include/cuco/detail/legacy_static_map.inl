@@ -117,16 +117,24 @@ __device__ bool legacy_static_map<Key, Value, Scope>::device_mutable_view::inser
   while (true) {
     auto expected_key   = this->get_empty_key_sentinel();
     auto expected_value = this->get_empty_value_sentinel();
-    auto expected_pair = cuco::make_pair(expected_key, expected_value);
-    auto& slot_key      = current_slot->first;
-    auto& slot_value    = current_slot->second;
+    auto expected_pair  = static_cast<unsigned long long int>(
+                                  static_cast<uint64_t>(expected_key) << 32 |
+                                  static_cast<uint64_t>(expected_value));
 
-    auto& existing_pair = atomicCAS(current_slot, expected_pair, insert_pair);
-    if(existing_pair.first == expected_key) { return true; }
+    auto old_pair = atomicCAS(reinterpret_cast<unsigned long long int*>(current_slot),
+                              expected_pair, 
+                              static_cast<unsigned long long int>(
+                                static_cast<uint64_t>(insert_pair.first) << 32 |
+                                static_cast<uint64_t>(insert_pair.second)));
+
+
+    if(old_pair == expected_pair) { return true; }
 
     // if the key was already inserted by another thread, than this instance is a
     // duplicate, so the insert fails
-    if (key_equal(insert_pair.first, existing_pair.first)) { return false; }
+    if ( key_equal(insert_pair.first, static_cast<Key>((old_pair >> 32) & 0x0000FFFF)) ) {
+      return false;
+    }
 
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
     // have been some other key there, so we keep looking for a slot
@@ -159,7 +167,6 @@ __device__ bool legacy_static_map<Key, Value, Scope>::device_mutable_view::inser
       uint32_t src_lane = __ffs(empty) - 1;
 
       if (g.thread_rank() == src_lane) {
-        using cuda::std::memory_order_relaxed;
         auto expected_key   = this->get_empty_key_sentinel();
         auto expected_value = this->get_empty_value_sentinel();
         auto expected_pair  = static_cast<unsigned long long int>(
@@ -327,7 +334,7 @@ __device__ bool legacy_static_map<Key, Value, Scope>::device_view::contains(Key 
 
     if (key_equal(existing_key, k)) { return true; }
 
-    if (existing_key == empty_key_sentinel_) { return false; }
+    if (existing_key == this->get_empty_key_sentinel()) { return false; }
 
     current_slot = next_slot(current_slot);
   }

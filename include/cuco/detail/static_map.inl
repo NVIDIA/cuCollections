@@ -352,7 +352,7 @@ __device__ bool static_map<Key, Value, Scope>::device_view::contains(Key const& 
 
     if (key_equal(existing_key, k)) { return true; }
 
-    if (existing_key == empty_key_sentinel_) { return false; }
+    if (existing_key == this->get_empty_key_sentinel()) { return false; }
 
     current_slot = next_slot(current_slot);
   }

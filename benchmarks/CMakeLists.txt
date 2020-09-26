@@ -19,10 +19,11 @@ if (benchmark_ADDED)
   set_target_properties(benchmark PROPERTIES CXX_STANDARD 14)
 endif()
 
+
 CPMAddPackage(
     NAME SLABALLOC
     GITHUB_REPOSITORY Nicolas-Iskos/SlabAlloc
-    GIT_TAG origin/master
+    GIT_TAG origin/grow_superblocks
     DOWNLOAD_ONLY YES
 )
 
@@ -32,7 +33,7 @@ target_include_directories(SLABALLOC INTERFACE "${SLABALLOC_SOURCE_DIR}/src")
 CPMAddPackage(
     NAME SLABHASH
     GITHUB_REPOSITORY Nicolas-Iskos/SlabHash
-    GIT_TAG origin/master
+    GIT_TAG origin/grow_superblocks
     DOWNLOAD_ONLY YES
 )
 
@@ -78,6 +79,10 @@ ConfigureBench(DYNAMIC_MAP_BENCH "${DYNAMIC_MAP_BENCH_SRC}")
 ###################################################################################################
 set(STATIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
 ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
+
+###################################################################################################
+set(LEGACY_STATIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/legacy_static_map_bench.cu")
+ConfigureBench(LEGACY_STATIC_MAP_BENCH "${LEGACY_STATIC_MAP_BENCH_SRC}")
 
 ###################################################################################################
 set(HEAD_TO_HEAD_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/head_to_head_bench.cu")
