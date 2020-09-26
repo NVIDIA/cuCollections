@@ -22,16 +22,15 @@
 #include <cub/cub.cuh>
 #include <cuda/std/atomic>
 
-#include <cuco/detail/cuda_memcmp.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
-#include <cuco/detail/static_map_kernels.cuh>
+#include <cuco/detail/legacy_static_map_kernels.cuh>
 #include <cuco/hash_functions.cuh>
 
 namespace cuco {
 
-template <typename Key, typename Value, cuda::thread_scope Scope, 
-          template<typename, typename, cuda::thread_scope> typename submap_type>
+template <typename Key, typename Value, cuda::thread_scope Scope,
+          template <typename, typename, cuda::thread_scope> typename submap_type>
 class dynamic_map;
 
 /**
@@ -100,9 +99,9 @@ class dynamic_map;
  * individual threads.
  */
 template <typename Key, typename Value, cuda::thread_scope Scope = cuda::thread_scope_device>
-class static_map {
+class legacy_static_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
-  friend class dynamic_map<Key, Value, Scope, static_map>;
+  friend class dynamic_map<Key, Value, Scope, legacy_static_map>;
 
  public:
   using value_type         = cuco::pair_type<Key, Value>;
@@ -113,10 +112,16 @@ class static_map {
   using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
   using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
 
-  static_map(static_map const&) = delete;
-  static_map(static_map&&)      = delete;
-  static_map& operator=(static_map const&) = delete;
-  static_map& operator=(static_map&&) = delete;
+  legacy_static_map(legacy_static_map const&) = delete;
+  legacy_static_map(legacy_static_map&&)      = delete;
+  legacy_static_map& operator=(legacy_static_map const&) = delete;
+  legacy_static_map& operator=(legacy_static_map&&) = delete;
+
+  enum class insert_result {
+    CONTINUE,  ///< Insert did not succeed, continue trying to insert
+    SUCCESS,   ///< New pair inserted successfully
+    DUPLICATE  ///< Insert did not succeed, key is already present
+  };
 
   /**
    * @brief Construct a fixed-size map with the specified capacity and sentinel values.
@@ -141,13 +146,13 @@ class static_map {
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
    */
-  static_map(std::size_t capacity, Key empty_key_sentinel, Value empty_value_sentinel);
+  legacy_static_map(std::size_t capacity, Key empty_key_sentinel, Value empty_value_sentinel);
 
   /**
    * @brief Destroys the map and frees its contents.
    *
    */
-  ~static_map();
+  ~legacy_static_map();
 
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
@@ -227,17 +232,17 @@ class static_map {
  private:
   class device_view_base {
    protected:
-    using iterator       = pair_atomic_type*;
-    using const_iterator = pair_atomic_type const*;
+    using iterator       = value_type*;
+    using const_iterator = value_type const*;
 
    private:
-    pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
+    value_type* slots_{};     ///< Pointer to flat slots storage
     std::size_t capacity_{};        ///< Total number of slots
     Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
 
    protected:
-    device_view_base(pair_atomic_type* slots,
+    device_view_base(value_type* slots,
                      std::size_t capacity,
                      Key empty_key_sentinel,
                      Value empty_value_sentinel) noexcept
@@ -497,7 +502,7 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-    device_mutable_view(pair_atomic_type* slots,
+    device_mutable_view(value_type* slots,
                         std::size_t capacity,
                         Key empty_key_sentinel,
                         Value empty_value_sentinel) noexcept
@@ -553,7 +558,6 @@ class static_map {
                            value_type const& insert_pair,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
-
   };  // class device mutable view
 
   /**
@@ -579,7 +583,7 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-    device_view(pair_atomic_type* slots,
+    device_view(value_type* slots,
                 std::size_t capacity,
                 Key empty_key_sentinel,
                 Value empty_value_sentinel) noexcept
@@ -730,6 +734,7 @@ class static_map {
                              KeyEqual key_equal = KeyEqual{}) noexcept;
   };  // class device_view
 
+
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
    *
@@ -786,7 +791,7 @@ class static_map {
   }
 
  private:
-  pair_atomic_type* slots_{nullptr};  ///< Pointer to flat slots storage
+  value_type* slots_{nullptr};  ///< Pointer to flat slots storage
   std::size_t capacity_{};            ///< Total number of slots
   std::size_t size_{};                ///< Number of keys in map
   Key empty_key_sentinel_{};          ///< Key value that represents an empty slot
@@ -795,4 +800,4 @@ class static_map {
 };
 }  // namespace cuco
 
-#include <cuco/detail/static_map.inl>
+#include <cuco/detail/legacy_static_map.inl>

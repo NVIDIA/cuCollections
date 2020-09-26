@@ -83,7 +83,8 @@ namespace cuco {
  * @tparam Scope The scope in which insert/find/contains will be performed by
  * individual threads.
  */
-template <typename Key, typename Value, cuda::thread_scope Scope = cuda::thread_scope_device>
+template <typename Key, typename Value, cuda::thread_scope Scope = cuda::thread_scope_device, 
+          template<typename, typename, cuda::thread_scope> typename submap_type = static_map>
 class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
@@ -91,8 +92,8 @@ class dynamic_map {
   using key_type           = Key;
   using mapped_type        = Value;
   using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;
-  using view_type = typename static_map<Key, Value, Scope>::device_view;
-  using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view;
+  using view_type = typename submap_type<Key, Value, Scope>::device_view;
+  using mutable_view_type = typename submap_type<Key, Value, Scope>::device_mutable_view;
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
   dynamic_map& operator=(dynamic_map const&) = delete;
@@ -233,7 +234,7 @@ class dynamic_map {
   std::size_t capacity_{};                                          ///< Maximum number of keys that can be inserted
   float max_load_factor_{};                                         ///< Max load factor before capacity growth
     
-  std::vector<std::unique_ptr<static_map<key_type, mapped_type, Scope>>> submaps_; ///< vector of pointers to each submap
+  std::vector<std::unique_ptr<submap_type<key_type, mapped_type, Scope>>> submaps_; ///< vector of pointers to each submap
   thrust::device_vector<view_type> submap_views_;                                  ///< vector of device views for each submap
   thrust::device_vector<mutable_view_type> submap_mutable_views_;                  ///< vector of mutable device views for each submap
   std::size_t min_insert_size_{};                                                  ///< min remaining capacity of submap for insert

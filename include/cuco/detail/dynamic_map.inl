@@ -18,8 +18,9 @@ namespace cuco {
 
 
 
-template<typename Key, typename Value, cuda::thread_scope Scope>
-dynamic_map<Key, Value, Scope>::dynamic_map(
+template<typename Key, typename Value, cuda::thread_scope Scope,
+         template<typename, typename, cuda::thread_scope> typename submap_type>
+dynamic_map<Key, Value, Scope, submap_type>::dynamic_map(
   std::size_t initial_capacity, Key empty_key_sentinel, Value empty_value_sentinel) :
   empty_key_sentinel_(empty_key_sentinel),
   empty_value_sentinel_(empty_value_sentinel),
@@ -29,8 +30,8 @@ dynamic_map<Key, Value, Scope>::dynamic_map(
   max_load_factor_(0.60) {
 
   submaps_.push_back(
-    std::unique_ptr<static_map<Key, Value, Scope>>{
-    new static_map<Key, Value, Scope>{initial_capacity, empty_key_sentinel, empty_value_sentinel}});
+    std::unique_ptr<submap_type<Key, Value, Scope>>{
+    new submap_type<Key, Value, Scope>{initial_capacity, empty_key_sentinel, empty_value_sentinel}});
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
   
@@ -39,15 +40,17 @@ dynamic_map<Key, Value, Scope>::dynamic_map(
 
 
 
-template<typename Key, typename Value, cuda::thread_scope Scope>
-dynamic_map<Key, Value, Scope>::~dynamic_map() {
+template<typename Key, typename Value, cuda::thread_scope Scope,
+         template<typename, typename, cuda::thread_scope> typename submap_type>
+dynamic_map<Key, Value, Scope, submap_type>::~dynamic_map() {
   CUCO_CUDA_TRY(cudaFree(num_successes_));
 }
 
 
 
-template<typename Key, typename Value, cuda::thread_scope Scope>
-void dynamic_map<Key, Value, Scope>::reserve(std::size_t n) {
+template<typename Key, typename Value, cuda::thread_scope Scope,
+         template<typename, typename, cuda::thread_scope> typename submap_type>
+void dynamic_map<Key, Value, Scope, submap_type>::reserve(std::size_t n) {
 
   int64_t num_elements_remaining = n;
   auto submap_idx = 0;
@@ -62,8 +65,8 @@ void dynamic_map<Key, Value, Scope>::reserve(std::size_t n) {
     else {
       submap_capacity = capacity_;
       submaps_.push_back(
-        std::unique_ptr<static_map<Key, Value, Scope>>{
-        new static_map<Key, Value, Scope>{submap_capacity, empty_key_sentinel_, empty_value_sentinel_}});
+        std::unique_ptr<submap_type<Key, Value, Scope>>{
+        new submap_type<Key, Value, Scope>{submap_capacity, empty_key_sentinel_, empty_value_sentinel_}});
       submap_views_.push_back(submaps_[submap_idx]->get_device_view());
       submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
 
@@ -77,9 +80,10 @@ void dynamic_map<Key, Value, Scope>::reserve(std::size_t n) {
 
 
 
-template<typename Key, typename Value, cuda::thread_scope Scope>
+template<typename Key, typename Value, cuda::thread_scope Scope,
+         template<typename, typename, cuda::thread_scope> typename submap_type>
 template <typename InputIt, typename Hash, typename KeyEqual>
-void dynamic_map<Key, Value, Scope>::insert(
+void dynamic_map<Key, Value, Scope, submap_type>::insert(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal) {
   
   std::size_t num_to_insert = std::distance(first, last);
@@ -126,10 +130,11 @@ void dynamic_map<Key, Value, Scope>::insert(
 
 
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template<typename Key, typename Value, cuda::thread_scope Scope,
+         template<typename, typename, cuda::thread_scope> typename submap_type>
 template <typename InputIt, typename OutputIt, 
           typename Hash, typename KeyEqual>
-void dynamic_map<Key, Value, Scope>::find(
+void dynamic_map<Key, Value, Scope, submap_type>::find(
   InputIt first, InputIt last, OutputIt output_begin,
   Hash hash, KeyEqual key_equal) noexcept {
   
@@ -149,10 +154,11 @@ void dynamic_map<Key, Value, Scope>::find(
 
 
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template<typename Key, typename Value, cuda::thread_scope Scope,
+         template<typename, typename, cuda::thread_scope> typename submap_type>
 template <typename InputIt, typename OutputIt, 
           typename Hash, typename KeyEqual>
-void dynamic_map<Key, Value, Scope>::contains(
+void dynamic_map<Key, Value, Scope, submap_type>::contains(
   InputIt first, InputIt last, OutputIt output_begin,
   Hash hash, KeyEqual key_equal) noexcept {
   

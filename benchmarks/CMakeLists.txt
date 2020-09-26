@@ -19,6 +19,26 @@ if (benchmark_ADDED)
   set_target_properties(benchmark PROPERTIES CXX_STANDARD 14)
 endif()
 
+CPMAddPackage(
+    NAME SLABALLOC
+    GITHUB_REPOSITORY Nicolas-Iskos/SlabAlloc
+    GIT_TAG origin/master
+    DOWNLOAD_ONLY YES
+)
+
+add_library(SLABALLOC INTERFACE)
+target_include_directories(SLABALLOC INTERFACE "${SLABALLOC_SOURCE_DIR}/src")
+
+CPMAddPackage(
+    NAME SLABHASH
+    GITHUB_REPOSITORY Nicolas-Iskos/SlabHash
+    GIT_TAG origin/master
+    DOWNLOAD_ONLY YES
+)
+
+add_library(SLABHASH INTERFACE)
+target_include_directories(SLABHASH INTERFACE "${SLABHASH_SOURCE_DIR}/src")
+
 ###################################################################################################
 # Auto-detect available GPU compute architectures
 set(GPU_ARCHS "" CACHE STRING "List of GPU architectures (semicolon-separated) to be compiled for. Empty string means to auto-detect the GPUs on the current system")
@@ -42,7 +62,9 @@ function(ConfigureBench BENCH_NAME BENCH_SRC)
     target_link_libraries(${BENCH_NAME} PRIVATE 
                                         benchmark benchmark_main 
                                         pthread 
-                                        cuco)
+                                        cuco
+                                        SLABALLOC
+                                        SLABHASH)
 endfunction(ConfigureBench)
 
 ###################################################################################################
@@ -56,5 +78,9 @@ ConfigureBench(DYNAMIC_MAP_BENCH "${DYNAMIC_MAP_BENCH_SRC}")
 ###################################################################################################
 set(STATIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
 ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
+
+###################################################################################################
+set(HEAD_TO_HEAD_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/head_to_head_bench.cu")
+ConfigureBench(HEAD_TO_HEAD_MAP_BENCH "${HEAD_TO_HEAD_BENCH_SRC}")
 
 ###################################################################################################

@@ -36,15 +36,14 @@ namespace cg = cooperative_groups;
  * @param v Value to which all values in `slots` are initialized
  * @param size Size of the storage pointed to by `slots`
  */
-template<typename atomic_key_type, typename atomic_mapped_type, typename Key, typename Value, typename pair_atomic_type>
-__global__ void initialize(
-  pair_atomic_type* const slots, Key k,
+template<typename Key, typename Value, typename value_type>
+__global__ void legacy_initialize(
+  value_type* const slots, Key k,
   Value v, std::size_t size) {
   
   auto tid = threadIdx.x + blockIdx.x * blockDim.x;
   while (tid < size) {
-    new (&slots[tid].first) atomic_key_type{k};
-    new (&slots[tid].second) atomic_mapped_type{v};
+    new (&slots[tid]) value_type{k, v};
     tid += gridDim.x * blockDim.x;
   }
 }
@@ -75,7 +74,7 @@ template<uint32_t block_size,
          typename viewT,
          typename Hash, 
          typename KeyEqual>
-__global__ void insert(InputIt first,
+__global__ void legacy_insert(InputIt first,
                        InputIt last,
                        atomicT* num_successes,
                        viewT view,
@@ -136,7 +135,7 @@ template<uint32_t block_size,
          typename viewT,
          typename Hash, 
          typename KeyEqual>
-__global__ void insert(InputIt first,
+__global__ void legacy_insert(InputIt first,
                        InputIt last,
                        atomicT* num_successes,
                        viewT view,
@@ -193,7 +192,7 @@ template<uint32_t block_size,
          typename viewT,
          typename Hash, 
          typename KeyEqual>
-__global__ void find(InputIt first,
+__global__ void legacy_find(InputIt first,
                      InputIt last,
                      OutputIt output_begin,
                      viewT view,
@@ -201,22 +200,12 @@ __global__ void find(InputIt first,
                      KeyEqual key_equal) {
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid;
-  __shared__ Value writeBuffer[block_size];
   
   while(first + key_idx < last) {
     auto key = *(first + key_idx);
     auto found = view.find(key, hash, key_equal);
 
-    /* 
-     * The ld.relaxed.gpu instruction used in view.find causes L1 to 
-     * flush more frequently, causing increased sector stores from L2 to global memory.
-     * By writing results to shared memory and then synchronizing before writing back
-     * to global, we no longer rely on L1, preventing the increase in sector stores from
-     * L2 to global and improving performance.
-     */
-    writeBuffer[threadIdx.x] = found->second.load(cuda::std::memory_order_relaxed);
-    __syncthreads();
-    *(output_begin + key_idx) = writeBuffer[threadIdx.x];
+    *(output_begin + key_idx) = found->second;
     key_idx += gridDim.x * blockDim.x;
   }
 }
@@ -253,7 +242,7 @@ template<uint32_t block_size, uint32_t tile_size,
          typename viewT,
          typename Hash, 
          typename KeyEqual>
-__global__ void find(InputIt first,
+__global__ void legacy_find(InputIt first,
                      InputIt last,
                      OutputIt output_begin,
                      viewT view,
@@ -262,25 +251,13 @@ __global__ void find(InputIt first,
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
-  __shared__ Value writeBuffer[block_size];
   
   while(first + key_idx < last) {
     auto key = *(first + key_idx);
     auto found = view.find(tile, key, hash, key_equal);
     
-    /* 
-     * The ld.relaxed.gpu instruction used in view.find causes L1 to 
-     * flush more frequently, causing increased sector stores from L2 to global memory.
-     * By writing results to shared memory and then synchronizing before writing back
-     * to global, we no longer rely on L1, preventing the increase in sector stores from
-     * L2 to global and improving performance.
-     */
     if(tile.thread_rank() == 0) {
-      writeBuffer[threadIdx.x / tile_size] = found->second.load(cuda::std::memory_order_relaxed);
-    }
-    __syncthreads();
-    if(tile.thread_rank() == 0) {
-      *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
+      *(output_begin + key_idx) = found->second;
     }
     key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
@@ -311,7 +288,7 @@ template<uint32_t block_size,
          typename viewT,
          typename Hash, 
          typename KeyEqual>
-__global__ void contains(InputIt first,
+__global__ void legacy_contains(InputIt first,
                          InputIt last,
                          OutputIt output_begin,
                          viewT view,
@@ -319,21 +296,11 @@ __global__ void contains(InputIt first,
                          KeyEqual key_equal) {
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid;
-  __shared__ bool writeBuffer[block_size];
   
   while(first + key_idx < last) {
     auto key = *(first + key_idx);
     
-    /* 
-     * The ld.relaxed.gpu instruction used in view.find causes L1 to 
-     * flush more frequently, causing increased sector stores from L2 to global memory.
-     * By writing results to shared memory and then synchronizing before writing back
-     * to global, we no longer rely on L1, preventing the increase in sector stores from
-     * L2 to global and improving performance.
-     */
-    writeBuffer[threadIdx.x] = view.contains(key, hash, key_equal);
-    __syncthreads();
-    *(output_begin + key_idx) = writeBuffer[threadIdx.x];
+    *(output_begin + key_idx) = view.contains(key, hash, key_equal);
     key_idx += gridDim.x * blockDim.x;
   }
 }
@@ -368,7 +335,7 @@ template<uint32_t block_size, uint32_t tile_size,
          typename viewT,
          typename Hash, 
          typename KeyEqual>
-__global__ void contains(InputIt first,
+__global__ void legacy_contains(InputIt first,
                          InputIt last,
                          OutputIt output_begin,
                          viewT view,
@@ -377,25 +344,13 @@ __global__ void contains(InputIt first,
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
-  __shared__ bool writeBuffer[block_size];
   
   while(first + key_idx < last) {
     auto key = *(first + key_idx);
     auto found = view.contains(tile, key, hash, key_equal);
     
-    /* 
-     * The ld.relaxed.gpu instruction used in view.find causes L1 to 
-     * flush more frequently, causing increased sector stores from L2 to global memory.
-     * By writing results to shared memory and then synchronizing before writing back
-     * to global, we no longer rely on L1, preventing the increase in sector stores from
-     * L2 to global and improving performance.
-     */
     if(tile.thread_rank() == 0) {
-      writeBuffer[threadIdx.x / tile_size] = found;
-    }
-    __syncthreads();
-    if(tile.thread_rank() == 0) {
-      *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
+      *(output_begin + key_idx) = found;
     }
     key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
