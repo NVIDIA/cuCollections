@@ -228,6 +228,10 @@ class static_map {
  private:
   class device_view_base {
    protected:
+    // Import member type definitions from `static_map`
+    using value_type     = value_type;
+    using key_type       = Key;
+    using mapped_type    = Value;
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
 
@@ -248,26 +252,6 @@ class static_map {
         empty_value_sentinel_{empty_value_sentinel}
     {
     }
-
-    /**
-     * @brief Returns iterator to the first slot.
-     *
-     * @note Unlike `std::map`, the `begin()` iterator does _not_ point to the first occupied slot.
-     * Instead, it simply refers to the first slot in the array of contiguous slot storage.
-     *
-     * @return Iterator to the first slot
-     */
-    __device__ iterator begin() noexcept { return slots_; }
-
-    /**
-     * @brief Returns iterator to the first slot.
-     *
-     * @note Unlike `std::map`, the `begin()` iterator does _not_ point to the first occupied slot.
-     * Instead, it simply refers to the first slot in the array of contiguous slot storage.
-     *
-     * @return Iterator to the first slot
-     */
-    __device__ const_iterator begin() const noexcept { return slots_; }
 
     /**
      * @brief Returns the initial slot for a given key `k`
@@ -341,7 +325,7 @@ class static_map {
      * @param s The slot to advance
      * @return The next slot after `s`
      */
-    __device__ iterator next_slot(iterator s) noexcept { return (++s < end()) ? s : begin(); }
+    __device__ iterator next_slot(iterator s) noexcept { return (++s < end()) ? s : begin_slot(); }
 
     /**
      * @brief Given a slot `s`, returns the next slot.
@@ -353,7 +337,7 @@ class static_map {
      */
     __device__ const_iterator next_slot(const_iterator s) const noexcept
     {
-      return (++s < end()) ? s : begin();
+      return (++s < end()) ? s : begin_slot();
     }
 
     /**
@@ -418,18 +402,68 @@ class static_map {
     }
 
     /**
-     * @brief Returns a const_iterator to one past the last element.
+     * @brief Returns iterator to the first slot.
      *
-     * @return A const_iterator to one past the last element
+     * @note Unlike `std::map::begin()`, the `begin_slot()` iterator does _not_ point to the first
+     * occupied slot. Instead, it refers to the first slot in the array of contiguous slot storage.
+     * Iterating from `begin_slot()` to `end_slot()` will iterate over all slots, including those
+     * both empty and filled.
+     *
+     * There is no `begin()` iterator to avoid confusion as it is not possible to provide an
+     * iterator over only the filled slots.
+     *
+     * @return Iterator to the first slot
      */
-    __host__ __device__ const_iterator end() const noexcept { return slots_ + capacity_; }
+    __device__ iterator begin_slot() noexcept { return slots_; }
 
     /**
-     * @brief Returns an iterator to one past the last element.
+     * @brief Returns iterator to the first slot.
      *
-     * @return An iterator to one past the last element
+     * @note Unlike `std::map::begin()`, the `begin_slot()` iterator does _not_ point to the first
+     * occupied slot. Instead, it refers to the first slot in the array of contiguous slot storage.
+     * Iterating from `begin_slot()` to `end_slot()` will iterate over all slots, including those
+     * both empty and filled.
+     *
+     * There is no `begin()` iterator to avoid confusion as it is not possible to provide an
+     * iterator over only the filled slots.
+     *
+     * @return Iterator to the first slot
      */
-    __host__ __device__ iterator end() noexcept { return slots_ + capacity_; }
+    __device__ const_iterator begin_slot() const noexcept { return slots_; }
+
+    /**
+     * @brief Returns a const_iterator to one past the last slot.
+     *
+     * @return A const_iterator to one past the last slot
+     */
+    __host__ __device__ const_iterator end_slot() const noexcept { return slots_ + capacity_; }
+
+    /**
+     * @brief Returns an iterator to one past the last slot.
+     *
+     * @return An iterator to one past the last slot
+     */
+    __host__ __device__ iterator end_slot() noexcept { return slots_ + capacity_; }
+
+    /**
+     * @brief Returns a const_iterator to one past the last slot.
+     *
+     * `end()` calls `end_slot()` and is provided for convenience for those familiar with checking
+     * an iterator returned from `find()` against the `end()` iterator.
+     *
+     * @return A const_iterator to one past the last slot
+     */
+    __host__ __device__ const_iterator end() const noexcept { return end_slot(); }
+
+    /**
+     * @brief Returns an iterator to one past the last slot.
+     *
+     * `end()` calls `end_slot()` and is provided for convenience for those familiar with checking
+     * an iterator returned from `find()` against the `end()` iterator.
+     *
+     * @return An iterator to one past the last slot
+     */
+    __host__ __device__ iterator end() noexcept { return end_slot(); }
   };
 
  public:
@@ -455,6 +489,9 @@ class static_map {
    */
   class device_mutable_view : public device_view_base {
    public:
+    using value_type     = typename device_view_base::value_type;
+    using key_type       = typename device_view_base::key_type;
+    using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
     /**
@@ -537,6 +574,9 @@ class static_map {
    */
   class device_view : public device_view_base {
    public:
+    using value_type     = typename device_view_base::value_type;
+    using key_type       = typename device_view_base::key_type;
+    using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
     /**
@@ -579,6 +619,26 @@ class static_map {
                              Hash hash          = Hash{},
                              KeyEqual key_equal = KeyEqual{}) noexcept;
 
+    /** @brief Finds the value corresponding to the key `k`.
+     *
+     * Returns a const_iterator to the pair whose key is equivalent to `k`.
+     * If no such pair exists, returns `end()`.
+     *
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     * @param k The key to search for
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     * @return An iterator to the position at which the key/value pair
+     * containing `k` was inserted
+     */
+    template <typename Hash     = MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ const_iterator find(Key const& k,
+                                   Hash hash          = Hash{},
+                                   KeyEqual key_equal = KeyEqual{}) const noexcept;
+
     /**
      * @brief Finds the value corresponding to the key `k`.
      *
@@ -604,6 +664,32 @@ class static_map {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ iterator
     find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Finds the value corresponding to the key `k`.
+     *
+     * Returns a const_iterator to the pair whose key is equivalent to `k`.
+     * If no such pair exists, returns `end()`. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single find. This provides a
+     * significant boost in throughput compared to the non Cooperative Group
+     * `find` at moderate to high load factors.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to perform the find
+     * @param k The key to search for
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     * @return An iterator to the position at which the key/value pair
+     * containing `k` was inserted
+     */
+    template <typename CG,
+              typename Hash     = MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ const_iterator
+    find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.

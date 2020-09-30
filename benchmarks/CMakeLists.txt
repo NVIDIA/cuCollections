@@ -1,63 +1,60 @@
-﻿cmake_minimum_required(VERSION 3.12 FATAL_ERROR)
+﻿cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
-project(CUCO_BENCHS LANGUAGES C CXX CUDA)
+include(CPM)
+
+CPMAddPackage(
+  NAME benchmark
+  GITHUB_REPOSITORY google/benchmark
+  VERSION 1.5.2
+  OPTIONS
+    "BENCHMARK_ENABLE_TESTING Off"
+    # The REGEX feature test fails when gbench's cmake is run under CPM w/ gcc5.4 because it doesn't assume C++11
+    # Additionally, attempting to set the CMAKE_CXX_VERSION here doesn't propogate to the feature test build
+    # Therefore, we just disable the feature test and assume platforms we care about have a regex impl available
+    "RUN_HAVE_STD_REGEX 0" #
+)
+
+if (benchmark_ADDED)
+  # patch google benchmark target
+  set_target_properties(benchmark PROPERTIES CXX_STANDARD 14)
+endif()
 
 ###################################################################################################
-# - compiler options ------------------------------------------------------------------------------
-set(CMAKE_CXX_STANDARD 14)
-set(CMAKE_C_COMPILER $ENV{tCC})
-set(CMAKE_CXX_COMPILER $ENV{CXX})
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# Auto-detect available GPU compute architectures
+set(GPU_ARCHS "" CACHE STRING "List of GPU architectures (semicolon-separated) to be compiled for. Empty string means to auto-detect the GPUs on the current system")
 
-set(CMAKE_CUDA_STANDARD 14)
-set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-
-###################################################################################################
-# - find nvtx  ------------------------------------------------------------------------------------
-find_library(NVTX_LIBRARY nvToolsExt PATH ${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES})
+if("${GPU_ARCHS}" STREQUAL "")
+  include(../cmake/EvalGpuArchs.cmake)
+  evaluate_gpu_archs(GPU_ARCHS)
+endif()
 
 ###################################################################################################
 # - compiler function -----------------------------------------------------------------------------
 
-function(ConfigureBench CMAKE_BENCH_NAME CMAKE_BENCH_SRC)
-    add_executable(${CMAKE_BENCH_NAME}
-                   ${CMAKE_BENCH_SRC})
-    set_target_properties(${CMAKE_BENCH_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    target_link_libraries(${CMAKE_BENCH_NAME} benchmark benchmark_main pthread ${NVTX_LIBRARY})
-    set_target_properties(${CMAKE_BENCH_NAME} PROPERTIES
-                            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
+function(ConfigureBench BENCH_NAME BENCH_SRC)
+    add_executable(${BENCH_NAME} "${BENCH_SRC}")
+    set_target_properties(${BENCH_NAME} PROPERTIES 
+                                        POSITION_INDEPENDENT_CODE ON
+                                        CUDA_ARCHITECTURES ${GPU_ARCHS}
+                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
+    target_include_directories(${BENCH_NAME} PRIVATE
+                                             "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_link_libraries(${BENCH_NAME} PRIVATE 
+                                        benchmark benchmark_main 
+                                        pthread 
+                                        cuco)
 endfunction(ConfigureBench)
-
-###################################################################################################
-# - include paths ---------------------------------------------------------------------------------
-
-include_directories("${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}"
-                    "${CMAKE_SOURCE_DIR}/include"
-                    "${CMAKE_SOURCE_DIR}/thirdparty"
-                    "${CMAKE_SOURCE_DIR}/thirdparty/cub"
-                    "${GBENCH_INCLUDE_DIR}"
-                    "${CMAKE_CURRENT_SOURCE_DIR}")
-
-###################################################################################################
-# - library paths ---------------------------------------------------------------------------------
-
-link_directories("${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}" # CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES is an undocumented/unsupported variable containing the link directories for nvcc
-                 "${CMAKE_BINARY_DIR}/lib"
-                 "${CMAKE_BINARY_DIR}"
-                 "${GBENCH_LIBRARY_DIR}")
 
 ###################################################################################################
 ### test sources ##################################################################################
 ###################################################################################################
 
 ###################################################################################################
-set(DYNAMIC_MAP_BENCH_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/dynamic_map_bench.cu")
-
+set(DYNAMIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/dynamic_map_bench.cu")
 ConfigureBench(DYNAMIC_MAP_BENCH "${DYNAMIC_MAP_BENCH_SRC}")
-###################################################################################################
-set(STATIC_MAP_BENCH_SRC
-  "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
 
+###################################################################################################
+set(STATIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
 ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
+
 ###################################################################################################
