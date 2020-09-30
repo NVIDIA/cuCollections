@@ -228,6 +228,10 @@ class static_map {
  private:
   class device_view_base {
    protected:
+    // Import member type definitions from `static_map`
+    using value_type     = value_type;
+    using key_type       = Key;
+    using mapped_type    = Value;
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
 
@@ -485,6 +489,9 @@ class static_map {
    */
   class device_mutable_view : public device_view_base {
    public:
+    using value_type     = typename device_view_base::value_type;
+    using key_type       = typename device_view_base::key_type;
+    using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
     /**
@@ -567,6 +574,9 @@ class static_map {
    */
   class device_view : public device_view_base {
    public:
+    using value_type     = typename device_view_base::value_type;
+    using key_type       = typename device_view_base::key_type;
+    using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
     /**

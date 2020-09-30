@@ -86,11 +86,9 @@ __global__ void insert(InputIt first,
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto it = first + tid;
   
-  while(it < last) {
-    auto insert_pair = *it;
-    if(view.insert(insert_pair, hash, key_equal)) {
-      thread_num_successes++;
-    }
+  while (it < last) {
+    typename viewT::value_type const insert_pair{*it};
+    if (view.insert(insert_pair, hash, key_equal)) { thread_num_successes++; }
     it += gridDim.x * blockDim.x;
   }
 
@@ -148,9 +146,10 @@ __global__ void insert(InputIt first,
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto it = first + tid / tile_size;
   
-  while(it < last) {
-    auto insert_pair = *it;
-    if(view.insert(tile, insert_pair, hash, key_equal) && tile.thread_rank() == 0) {
+  while (it < last) {
+    // force conversion to value_type
+    typename viewT::value_type const insert_pair{*it};
+    if (view.insert(tile, insert_pair, hash, key_equal) && tile.thread_rank() == 0) {
       thread_num_successes++;
     }
     it += (gridDim.x * blockDim.x) / tile_size;
