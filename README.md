@@ -41,12 +41,21 @@ This will take care of downloading `cuCollections` from GitHub and making the he
 
 [1] `cuCollections` is header-only and therefore there is no binary component to "link" against. The linking terminology comes from CMake's `target_link_libraries` which is still used even for header-only library targets. 
 
-## Dependencies
+## Requirements
+- `nvcc 10.2+`
 - C++14
-- [libcu++](https://github.com/NVIDIA/libcudacxx)
-- [CUB](https://github.com/thrust/cub)
 - Volta+ 
     - Pascal is partially supported. Any data structures that require blocking algorithms are not supported. See [libcu++](https://nvidia.github.io/libcudacxx/setup/requirements.html#device-architectures) documentation for more details.
+
+## Dependencies
+
+`cuCollections` depends on the following libraries:
+
+- [libcu++](https://github.com/NVIDIA/libcudacxx)
+- [CUB](https://github.com/thrust/cub)
+
+No action is required from the user to satisfy these dependencies. `cuCollections`'s CMake script is configured to first search the system for these libraries, and if they are not found, to automatically fetch them from GitHub.
+
 
 ## Building cuCollections
 
