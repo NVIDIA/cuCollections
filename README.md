@@ -1,5 +1,10 @@
 # cuCollections
 
+<table><tr>
+<th><b><a href="https://github.com/NVIDIA/cuCollections/tree/dev/examples">Examples</a></b></th>
+<th><b><a href="">Doxygen Documentation (TODO)</a></b></th>
+</tr></table>
+
 `cuCollections` (`cuco`) is an open-source, header-only library of GPU-accelerated, concurrent data structures. 
 
 Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://github.com/thrust/cub) provide STL-like, GPU accelerated algorithms and primitives, `cuCollections` provides STL-like concurrent data structures. `cuCollections` is not a one-to-one, drop-in replacement for STL data structures like `std::unordered_map`. Instead, it provides functionally similar data structures tailored for efficient use with GPUs. 
@@ -82,10 +87,17 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 
 ### `static_map`
 
-`cuco::static_map` is a fixed-size hash table using open addressing with linear probing. See the Doxygen documentation in `static_map.cuh` for more detailed information.
+`cuco::static_map` is a fixed-size hash table using open addressing with linear probing. 
 
+It provides both host, bulk APIs ([example](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/static_map_example.cu)) as well as device APIs for individual operations ([example]()).
+
+See the Doxygen documentation in `static_map.cuh` for more detailed information.
 
 ### `dynamic_map`
 
-`cuco::dynamic_map` links together multiple `cuco::static_map`s to provide a hash table that can grow as keys are inserted. See the Doxygen documentation in `dynamic_map.cuh` for more detailed information.
+`cuco::dynamic_map` links together multiple `cuco::static_map`s to provide a hash table that can grow as keys are inserted. 
+
+It currently only provides host, bulk APIs ([example]()).
+
+See the Doxygen documentation in `dynamic_map.cuh` for more detailed information.
 
