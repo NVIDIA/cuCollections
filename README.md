@@ -19,7 +19,10 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 
 ### Adding `cuCollections` to a CMake Project
 
-`cuCollections` is designed to make it easy to include within another CMake project. The `CMakeLists.txt` exports a `cuco` target that can be linked[1] into a target to setup include directories, dependencies, and compile flags necessary to use `cuCollections` in your project. 
+`cuCollections` is designed to make it easy to include within another CMake project.
+ The `CMakeLists.txt` exports a `cuco` target that can be linked<sup>[1](#link-footnote)</sup>
+ into a target to setup include directories, dependencies, and compile flags necessary to use `cuCollections` in your project. 
+
 
 We recommend using [CMake Package Manager (CPM)](https://github.com/TheLartians/CPM.cmake) to fetch `cuCollections` into your project.
 With CPM, getting `cuCollections` is easy:
@@ -44,7 +47,7 @@ target_link_libraries(my_library cuco)
 
 This will take care of downloading `cuCollections` from GitHub and making the headers available in a location that can be found by CMake. Linking against the `cuco` target will provide everything needed for `cuco` to be used by the `my_library` target.
 
-[1] `cuCollections` is header-only and therefore there is no binary component to "link" against. The linking terminology comes from CMake's `target_link_libraries` which is still used even for header-only library targets. 
+<a name="link-footnote">1</a>: `cuCollections` is header-only and therefore there is no binary component to "link" against. The linking terminology comes from CMake's `target_link_libraries` which is still used even for header-only library targets. 
 
 ## Requirements
 - `nvcc 10.2+`
