@@ -162,17 +162,21 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
 
   while (true) {
     key_type const existing_key = current_slot->first;
-    uint32_t existing           = g.ballot(key_equal(existing_key, insert_pair.first));
 
-    // the key we are trying to insert is already in the map, so we return
-    // with failure to insert
-    if (existing) { return false; }
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
+    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    auto const slot_is_empty = (existing_key == empty_key_sentinel);
 
-    uint32_t empty = g.ballot(existing_key == this->get_empty_key_sentinel());
+    // the key we are trying to insert is already in the map, so we return with failure to insert
+    if (g.ballot(not slot_is_empty and key_equal(existing_key, insert_pair.first))) {
+      return false;
+    }
+
+    auto const window_contains_empty = g.ballot(slot_is_empty);
 
     // we found an empty slot, but not the key we are inserting, so this must
     // be an empty slot into which we can insert the key
-    if (empty) {
+    if (window_contains_empty) {
       // the first lane in the group with an empty slot will attempt the insert
       insert_result status{insert_result::CONTINUE};
       uint32_t src_lane = __ffs(empty) - 1;
@@ -237,11 +241,11 @@ static_map<Key, Value, Scope>::device_view::find(Key const& k,
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
-    // Key exists, return iterator to location
-    if (key_equal(existing_key, k)) { return current_slot; }
-
     // Key doesn't exist, return end()
     if (existing_key == this->get_empty_key_sentinel()) { return this->end(); }
+
+    // Key exists, return iterator to location
+    if (key_equal(existing_key, k)) { return current_slot; }
 
     current_slot = next_slot(current_slot);
   }
@@ -257,11 +261,11 @@ static_map<Key, Value, Scope>::device_view::find(Key const& k, Hash hash, KeyEqu
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
-    // Key exists, return iterator to location
-    if (key_equal(existing_key, k)) { return current_slot; }
-
     // Key doesn't exist, return end()
     if (existing_key == this->get_empty_key_sentinel()) { return this->end(); }
+
+    // Key exists, return iterator to location
+    if (key_equal(existing_key, k)) { return current_slot; }
 
     current_slot = next_slot(current_slot);
   }
@@ -279,11 +283,14 @@ static_map<Key, Value, Scope>::device_view::find(CG g,
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
-    uint32_t existing       = g.ballot(key_equal(existing_key, k));
+
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
+    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    auto const slot_is_empty = (existing_key == empty_key_sentinel);
 
     // the key we were searching for was found by one of the threads,
     // so we return an iterator to the entry
-    if (existing) {
+    if (g.ballot(not slot_is_empty and key_equal(existing_key, k))) {
       uint32_t src_lane = __ffs(existing) - 1;
       // TODO: This shouldn't cast an iterator to an int to shuffle. Instead, get the index of the
       // current_slot and shuffle that instead.
@@ -291,14 +298,11 @@ static_map<Key, Value, Scope>::device_view::find(CG g,
       return reinterpret_cast<iterator>(res_slot);
     }
 
-    // we found an empty slot, meaning that the key we're searching
-    // for isn't in this submap, so we should move onto the next one
-    uint32_t empty = g.ballot(existing_key == this->get_empty_key_sentinel());
-    if (empty) { return this->end(); }
+    // we found an empty slot, meaning that the key we're searching for isn't present
+    if (g.ballot(slot_is_empty)) { return this->end(); }
 
-    // otherwise, all slots in the current window are full with other keys,
-    // so we move onto the next window in the current submap
-
+    // otherwise, all slots in the current window are full with other keys, so we move onto the
+    // next window
     current_slot = next_slot(g, current_slot);
   }
 }
@@ -315,11 +319,14 @@ static_map<Key, Value, Scope>::device_view::find(CG g,
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
-    uint32_t existing       = g.ballot(key_equal(existing_key, k));
 
-    // the key we were searching for was found by one of the threads,
-    // so we return an iterator to the entry
-    if (existing) {
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
+    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    auto const slot_is_empty = (existing_key == empty_key_sentinel);
+
+    // the key we were searching for was found by one of the threads, so we return an iterator to
+    // the entry
+    if (g.ballot(not slot_is_empty and key_equal(existing_key, k))) {
       uint32_t src_lane = __ffs(existing) - 1;
       // TODO: This shouldn't cast an iterator to an int to shuffle. Instead, get the index of the
       // current_slot and shuffle that instead.
@@ -329,8 +336,7 @@ static_map<Key, Value, Scope>::device_view::find(CG g,
 
     // we found an empty slot, meaning that the key we're searching
     // for isn't in this submap, so we should move onto the next one
-    uint32_t empty = g.ballot(existing_key == this->get_empty_key_sentinel());
-    if (empty) { return this->end(); }
+    if (g.ballot(slot_is_empty)) { return this->end(); }
 
     // otherwise, all slots in the current window are full with other keys,
     // so we move onto the next window in the current submap
@@ -350,9 +356,9 @@ __device__ bool static_map<Key, Value, Scope>::device_view::contains(Key const& 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    if (key_equal(existing_key, k)) { return true; }
-
     if (existing_key == empty_key_sentinel_) { return false; }
+
+    if (key_equal(existing_key, k)) { return true; }
 
     current_slot = next_slot(current_slot);
   }
@@ -369,19 +375,20 @@ __device__ bool static_map<Key, Value, Scope>::device_view::contains(CG g,
 
   while (true) {
     key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
-    uint32_t existing           = g.ballot(key_equal(existing_key, k));
 
-    // the key we were searching for was found by one of the threads,
-    // so we return an iterator to the entry
-    if (existing) { return true; }
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
+    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    auto const slot_is_empty = (existing_key == empty_key_sentinel);
 
-    // we found an empty slot, meaning that the key we're searching
-    // for isn't in this submap, so we should move onto the next one
-    uint32_t empty = g.ballot(existing_key == this->get_empty_key_sentinel());
-    if (empty) { return false; }
+    // the key we were searching for was found by one of the threads, so we return an iterator to
+    // the entry
+    if (g.ballot(not slot_is_empty and key_equal(existing_key, k))) { return true; }
 
-    // otherwise, all slots in the current window are full with other keys,
-    // so we move onto the next window in the current submap
+    // we found an empty slot, meaning that the key we're searching for isn't present
+    if (g.ballot(slot_is_empty)) { return false; }
+
+    // otherwise, all slots in the current window are full with other keys, so we move onto the next
+    // window
     current_slot = next_slot(g, current_slot);
   }
 }
