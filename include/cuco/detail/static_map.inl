@@ -165,7 +165,7 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == empty_key_sentinel);
+    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
     if (g.ballot(not slot_is_empty and key_equal(existing_key, insert_pair.first))) {
@@ -179,7 +179,7 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
     if (window_contains_empty) {
       // the first lane in the group with an empty slot will attempt the insert
       insert_result status{insert_result::CONTINUE};
-      uint32_t src_lane = __ffs(empty) - 1;
+      uint32_t src_lane = __ffs(window_contains_empty) - 1;
 
       if (g.thread_rank() == src_lane) {
         using cuda::std::memory_order_relaxed;
@@ -286,12 +286,13 @@ static_map<Key, Value, Scope>::device_view::find(CG g,
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == empty_key_sentinel);
+    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads,
     // so we return an iterator to the entry
-    if (g.ballot(not slot_is_empty and key_equal(existing_key, k))) {
-      uint32_t src_lane = __ffs(existing) - 1;
+    auto const exists = g.ballot(not slot_is_empty and key_equal(existing_key, k));
+    if (exists) {
+      uint32_t src_lane = __ffs(exists) - 1;
       // TODO: This shouldn't cast an iterator to an int to shuffle. Instead, get the index of the
       // current_slot and shuffle that instead.
       intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
@@ -322,12 +323,13 @@ static_map<Key, Value, Scope>::device_view::find(CG g,
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == empty_key_sentinel);
+    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
     // the entry
-    if (g.ballot(not slot_is_empty and key_equal(existing_key, k))) {
-      uint32_t src_lane = __ffs(existing) - 1;
+    auto const exists = g.ballot(not slot_is_empty and key_equal(existing_key, k));
+    if (exists) {
+      uint32_t src_lane = __ffs(exists) - 1;
       // TODO: This shouldn't cast an iterator to an int to shuffle. Instead, get the index of the
       // current_slot and shuffle that instead.
       intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
@@ -378,7 +380,7 @@ __device__ bool static_map<Key, Value, Scope>::device_view::contains(CG g,
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == empty_key_sentinel);
+    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
     // the entry
