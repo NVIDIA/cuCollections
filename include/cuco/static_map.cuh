@@ -26,7 +26,7 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
-#include <cuco/hash_functions.cuh>
+#include <cuco/detail/hash_functions.cuh>
 
 namespace cuco {
 
@@ -166,7 +166,7 @@ class static_map {
    * @param key_equal The binary function to compare two keys for equality
    */
   template <typename InputIt,
-            typename Hash     = MurmurHash3_32<key_type>,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
 
@@ -190,7 +190,7 @@ class static_map {
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash     = MurmurHash3_32<key_type>,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void find(InputIt first,
             InputIt last,
@@ -217,7 +217,7 @@ class static_map {
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash     = MurmurHash3_32<key_type>,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,
@@ -528,7 +528,7 @@ class static_map {
      * equality
      * @return `true` if the insert was successful, `false` otherwise.
      */
-    template <typename Hash     = MurmurHash3_32<key_type>,
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool insert(value_type const& insert_pair,
                            Hash hash          = Hash{},
@@ -555,7 +555,7 @@ class static_map {
      * @return `true` if the insert was successful, `false` otherwise.
      */
     template <typename CG,
-              typename Hash     = MurmurHash3_32<key_type>,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool insert(CG g,
                            value_type const& insert_pair,
@@ -613,7 +613,7 @@ class static_map {
      * @return An iterator to the position at which the key/value pair
      * containing `k` was inserted
      */
-    template <typename Hash     = MurmurHash3_32<key_type>,
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ iterator find(Key const& k,
                              Hash hash          = Hash{},
@@ -633,7 +633,7 @@ class static_map {
      * @return An iterator to the position at which the key/value pair
      * containing `k` was inserted
      */
-    template <typename Hash     = MurmurHash3_32<key_type>,
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ const_iterator find(Key const& k,
                                    Hash hash          = Hash{},
@@ -660,7 +660,7 @@ class static_map {
      * containing `k` was inserted
      */
     template <typename CG,
-              typename Hash     = MurmurHash3_32<key_type>,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ iterator
     find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -686,7 +686,7 @@ class static_map {
      * containing `k` was inserted
      */
     template <typename CG,
-              typename Hash     = MurmurHash3_32<key_type>,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ const_iterator
     find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
@@ -706,7 +706,7 @@ class static_map {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <typename Hash     = MurmurHash3_32<key_type>,
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool contains(Key const& k,
                              Hash hash          = Hash{},
@@ -733,7 +733,7 @@ class static_map {
      * containing `k` was inserted
      */
     template <typename CG,
-              typename Hash     = MurmurHash3_32<key_type>,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool contains(CG g,
                              Key const& k,
