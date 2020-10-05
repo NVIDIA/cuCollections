@@ -20,7 +20,6 @@ namespace cuco {
 
 namespace detail {
 
-using hash_value_type = uint32_t;
 
 // MurmurHash3_32 implementation from
 // https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp
@@ -34,7 +33,7 @@ using hash_value_type = uint32_t;
 template <typename Key>
 struct MurmurHash3_32 {
   using argument_type = Key;
-  using result_type   = hash_value_type;
+  using result_type   = uint32_t;
 
   __host__ __device__ constexpr MurmurHash3_32() : m_seed(0) {}
 
