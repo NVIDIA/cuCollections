@@ -64,13 +64,25 @@ find_package(CUB
         ${CUB_SOURCE_DIR}
 )
 
+CPMAddPackage(
+    NAME libcudacxx
+    GITHUB_REPOSITORY NVIDIA/libcudacxx
+    GIT_TAG 1.3.0-rc0
+    DOWNLOAD_ONLY YES
+)
+
+# TODO: Once libcu++ exports a target, use that instead
+add_library(libcudacxx INTERFACE)
+target_include_directories(libcudacxx INTERFACE "${libcudacxx_SOURCE_DIR}/include")
+
+
 ###################################################################################################
 # - cuco target   ---------------------------------------------------------------------------------
 add_library(cuco INTERFACE)
 target_include_directories(cuco INTERFACE 
                            "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
                            $<INSTALL_INTERFACE:include>)
-target_link_libraries(cuco INTERFACE CUDA::cudart CUB::CUB)
+target_link_libraries(cuco INTERFACE libcudacxx CUDA::cudart CUB::CUB)
 target_compile_features(cuco INTERFACE cxx_std_14 cuda_std_14)
 
 
