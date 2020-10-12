@@ -1,3 +1,0 @@
-[submodule "thirdparty/cub"]
-	path = thirdparty/cub
-	url = https://github.com/rapidsai/thirdparty-cub.git

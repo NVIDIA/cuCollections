@@ -18,8 +18,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
 #include <algorithm>
+#include <catch2/catch.hpp>
 #include <cuco/static_map.cuh>
-#include "catch.hpp"
 
 namespace {
 // Thrust logical algorithms (any_of/all_of/none_of) don't work with device
@@ -155,13 +155,23 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     }
   }
 
-  SECTION("Cannot find any key in an empty hash map")
+  SECTION("Cannot find any key in an empty hash map with non-const view")
   {
-    REQUIRE(all_of(d_pairs.begin(),
-                   d_pairs.end(),
-                   [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                     return view.find(pair.first) == view.end();
-                   }));
+    SECTION("non-const view")
+    {
+      REQUIRE(all_of(d_pairs.begin(),
+                     d_pairs.end(),
+                     [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+                       return view.find(pair.first) == view.end();
+                     }));
+    }
+    SECTION("const view")
+    {
+      REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+          return view.find(pair.first) == view.end();
+        }));
+    }
   }
 
   SECTION("Keys are all found after inserting many keys.")
@@ -174,14 +184,27 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        m_view.insert(pair);
                      });
 
-    // All keys should be found
-    REQUIRE(all_of(d_pairs.begin(),
-                   d_pairs.end(),
-                   [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                     auto const found = view.find(pair.first);
-                     return (found != view.end()) and (found->first.load() == pair.first and
-                                                       found->second.load() == pair.second);
-                   }));
+    SECTION("non-const view")
+    {
+      // All keys should be found
+      REQUIRE(all_of(d_pairs.begin(),
+                     d_pairs.end(),
+                     [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+                       auto const found = view.find(pair.first);
+                       return (found != view.end()) and (found->first.load() == pair.first and
+                                                         found->second.load() == pair.second);
+                     }));
+    }
+    SECTION("const view")
+    {
+      // All keys should be found
+      REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+          auto const found = view.find(pair.first);
+          return (found != view.end()) and
+                 (found->first.load() == pair.first and found->second.load() == pair.second);
+        }));
+    }
   }
 }
 
