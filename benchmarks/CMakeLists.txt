@@ -78,6 +78,9 @@ function(ConfigureBench BENCH_NAME BENCH_SRC)
                                         SLABHASH
                                         WARPCORE
                                         )
+
+    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
+
 endfunction(ConfigureBench)
 
 ###################################################################################################

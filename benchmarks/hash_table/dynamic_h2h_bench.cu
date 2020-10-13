@@ -1,9 +1,3 @@
-#include <gpu_hash_table.cuh>
-#include "cudf/concurrent_unordered_map.cuh"
-#include <cuco/legacy_static_map.cuh>
-#include <single_value_hash_table.cuh>
-
-
 /*
  * Copyright (c) 2020, NVIDIA CORPORATION.
  *
@@ -19,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#include <gpu_hash_table.cuh>
+#include <cuco/legacy_static_map.cuh>
+#include <single_value_hash_table.cuh>
 
 #include <benchmark/benchmark.h>
 #include <synchronization.hpp>
