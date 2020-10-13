@@ -46,6 +46,7 @@ function(ConfigureBench BENCH_NAME BENCH_SRC)
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
     target_link_libraries(${BENCH_NAME} PRIVATE 
                                         benchmark benchmark_main 
                                         pthread 
@@ -65,3 +66,5 @@ set(STATIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_benc
 ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
 
 ###################################################################################################
+set(RBK_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/reduce_by_key/reduce_by_key.cu")
+ConfigureBench(RBK_BENCH "${RBK_BENCH_SRC}")
