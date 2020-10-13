@@ -21,12 +21,14 @@
 #include <thrust/functional.h>
 #include <cub/cub.cuh>
 #include <cuda/std/atomic>
+#include <memory>
 
+#include <cuco/allocator.hpp>
 #include <cuco/detail/cuda_memcmp.cuh>
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
-#include <cuco/detail/hash_functions.cuh>
 
 namespace cuco {
 
@@ -97,8 +99,12 @@ class dynamic_map;
  * @tparam Value Type of the mapped values
  * @tparam Scope The scope in which insert/find operations will be performed by
  * individual threads.
+ * @tparam Allocator
  */
-template <typename Key, typename Value, cuda::thread_scope Scope = cuda::thread_scope_device>
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope = cuda::thread_scope_device,
+          typename Allocator       = cuco::cuda_allocator<char>>
 class static_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
   friend class dynamic_map<Key, Value, Scope>;
@@ -106,13 +112,15 @@ class static_map {
   friend class dynamic_map<Key, Value, Scope>;
 
  public:
-  using value_type         = cuco::pair_type<Key, Value>;
-  using key_type           = Key;
-  using mapped_type        = Value;
-  using atomic_key_type    = cuda::atomic<key_type, Scope>;
-  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
-  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
-  using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
+  using value_type          = cuco::pair_type<Key, Value>;
+  using key_type            = Key;
+  using mapped_type         = Value;
+  using atomic_key_type     = cuda::atomic<key_type, Scope>;
+  using atomic_mapped_type  = cuda::atomic<mapped_type, Scope>;
+  using pair_atomic_type    = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  using atomic_ctr_type     = cuda::atomic<std::size_t, Scope>;
+  using allocator_type      = Allocator;
+  using slot_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
 
   static_map(static_map const&) = delete;
   static_map(static_map&&)      = delete;
@@ -141,8 +149,12 @@ class static_map {
    * @param capacity The total number of slots in the map
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param alloc Allocator used for allocating device storage
    */
-  static_map(std::size_t capacity, Key empty_key_sentinel, Value empty_value_sentinel);
+  static_map(std::size_t capacity,
+             Key empty_key_sentinel,
+             Value empty_value_sentinel,
+             Allocator const& alloc = Allocator{});
 
   /**
    * @brief Destroys the map and frees its contents.
@@ -803,6 +815,7 @@ class static_map {
   Key empty_key_sentinel_{};          ///< Key value that represents an empty slot
   Value empty_value_sentinel_{};      ///< Initial value of empty slot
   atomic_ctr_type* num_successes_{};  ///< Number of successfully inserted keys on insert
+  slot_allocator_type slot_allocator_{};
 };
 }  // namespace cuco
 
