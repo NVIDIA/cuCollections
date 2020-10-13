@@ -39,6 +39,13 @@ find_package(CUDAToolkit 10.2 REQUIRED)
 
 include(cmake/Modules/CPM.cmake)
 
+CPMFindPackage(
+  NAME Thrust
+  GITHUB_REPOSITORY NVIDIA/thrust
+  GIT_TAG 1.10.0
+  GIT_SHALLOW TRUE
+)
+thrust_create_target(Thrust)
 
 CPMAddPackage(
     NAME libcudacxx
@@ -58,7 +65,7 @@ add_library(cuco INTERFACE)
 target_include_directories(cuco INTERFACE 
                            "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
                            $<INSTALL_INTERFACE:include>)
-target_link_libraries(cuco INTERFACE libcudacxx CUDA::cudart)
+target_link_libraries(cuco INTERFACE libcudacxx CUDA::cudart Thrust CUB::CUB)
 target_compile_features(cuco INTERFACE cxx_std_14 cuda_std_14)
 
 
