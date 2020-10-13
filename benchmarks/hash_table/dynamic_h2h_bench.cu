@@ -1,6 +1,7 @@
 #include <gpu_hash_table.cuh>
 #include "cudf/concurrent_unordered_map.cuh"
 #include <cuco/legacy_static_map.cuh>
+#include <single_value_hash_table.cuh>
 
 
 /*
@@ -46,13 +47,13 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end) {
       break;
     case dist_type::UNIFORM:
       for(auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = std::abs(static_cast<Key>(gen()));
+        output_begin[i] = std::abs(static_cast<long>(gen()));
       }
       break;
     case dist_type::GAUSSIAN:
       std::normal_distribution<> dg{1e9, 1e7};
       for(auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = std::abs(static_cast<Key>(dg(gen)));
+        output_begin[i] = std::abs(static_cast<long>(dg(gen)));
       }
       break;
   }
@@ -64,14 +65,11 @@ static void gen_final_size(benchmark::internal::Benchmark* b) {
   }
 }
 
-
-
-
 /**
  * @brief Generates input sizes and hash table occupancies
  *
  */
-static void generate_size_and_occupancy(benchmark::internal::Benchmark* b) {
+static void gen_size_and_occupancy(benchmark::internal::Benchmark* b) {
   for (auto size = 100'000'000; size <= 100'000'000; size *= 10) {
     for (auto occupancy = 10; occupancy <= 90; occupancy += 10) {
       b->Args({size, occupancy});
@@ -79,8 +77,13 @@ static void generate_size_and_occupancy(benchmark::internal::Benchmark* b) {
   }
 }
 
-
-
+static void gen_size_and_slab_count(benchmark::internal::Benchmark *b) {
+  for (auto size = 10'000'000; size <= 10'000'000; size *= 2) {
+    for(auto deciSPBAvg = 1; deciSPBAvg <= 20; ++deciSPBAvg) {
+      b->Args({size, deciSPBAvg});
+    }
+  }
+}
 
 template <typename Key, typename Value, dist_type Dist>
 static void BM_dynamic_insert(::benchmark::State& state) {
@@ -123,7 +126,7 @@ static void BM_dynamic_insert(::benchmark::State& state) {
 }
 
 template <typename Key, typename Value, dist_type Dist>
-static void BM_dynamic_search_all(::benchmark::State& state) {
+static void BM_dynamic_find(::benchmark::State& state) {
   using map_type = cuco::dynamic_map<Key, Value, 
                                      cuda::thread_scope_device, 
                                      cuco::legacy_static_map>;
@@ -166,7 +169,7 @@ static void BM_slabhash_insert(::benchmark::State& state) {
   using map_type = gpu_hash_table<Key, Value, SlabHashTypeT::ConcurrentMap>;
   
   std::size_t num_keys = state.range(0);
-  std::size_t num_buckets = 1<<22;
+  std::size_t num_buckets = 1<<21;//6'291'496; // 732 MB buckets + 268 MB pool
   int64_t device_idx = 0;
   int64_t seed = 12;
   
@@ -195,55 +198,55 @@ static void BM_slabhash_insert(::benchmark::State& state) {
 }
 
 template <typename Key, typename Value, dist_type Dist>
-static void BM_cudf_insert(::benchmark::State& state) {
-  using map_type = concurrent_unordered_map<Key, Value>;
+static void BM_slabhash_insert_lf(::benchmark::State& state) {
 
+  using map_type = gpu_hash_table<Key, Value, SlabHashTypeT::ConcurrentMap>;
+  
   std::size_t num_keys = state.range(0);
-  float occupancy = state.range(1) / float{100};
-  std::size_t size = num_keys / occupancy;
+  
+  float num_slabs_per_bucket_avg = state.range(1) / float{10};
+  uint32_t num_keys_per_slab = 15u;
+  uint32_t num_keys_per_bucket_avg = num_slabs_per_bucket_avg * num_keys_per_slab;
+  uint32_t num_buckets = 
+    (num_keys + num_keys_per_bucket_avg - 1) / num_keys_per_bucket_avg;
+
+  int64_t device_idx = 0;
+  int64_t seed = 12;
   
   std::vector<Key> h_keys( num_keys );
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
-
-  thrust::device_vector<Key> d_keys( h_keys );
-  thrust::device_vector<Key> d_values( h_keys );
-
-  auto key_iterator = d_keys.begin();
-  auto value_iterator = d_values.begin();
-  auto zip_counter = thrust::make_zip_iterator(
-      thrust::make_tuple(key_iterator, value_iterator));
+  std::vector<cuco::pair_type<Key, Value>> h_pairs ( num_keys );
   
-  for (auto _ : state) {
-    auto map = map_type::create(size);
-    auto view = *map;
-    {
-      cuda_event_timer raii{state};
-      thrust::for_each(
-          thrust::device, zip_counter, zip_counter + num_keys,
-          [view] __device__(auto const& p) mutable {
-            view.insert(thrust::make_pair(thrust::get<0>(p), thrust::get<1>(p)));
-          });
-      cudaDeviceSynchronize();
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+  std::vector<Value> h_values (h_keys);
+
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
+
+  bool lf_printed = false;
+
+  for(auto _ : state) {
+    auto build_time = 0.0f;
+    map_type map{num_keys, num_buckets, device_idx, seed};
+    build_time += map.hash_build_with_unique_keys(h_keys.data(), 
+                                                  h_values.data(), num_keys);
+    state.SetIterationTime((float)build_time / 1000);
+
+    if(!lf_printed) {
+      std::cout << "load_factor " << map.measureLoadFactor() << std::endl;
+      lf_printed = true;
     }
   }
-  
+
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) *
                           int64_t(state.iterations()) *
                           int64_t(state.range(0)));
-                          
 }
 
 /*
-BENCHMARK_TEMPLATE(BM_cudf_insert, int32_t, int32_t, dist_type::UNIQUE)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy)
-  ->UseManualTime();
-*/
-
 BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
+*/
 
 /*
 BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::UNIQUE)
@@ -264,7 +267,14 @@ BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::GAUSSIAN)
   ->UseManualTime();
 */
 
+/*
 BENCHMARK_TEMPLATE(BM_slabhash_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
+  ->UseManualTime();
+*/
+
+BENCHMARK_TEMPLATE(BM_slabhash_insert_lf, int32_t, int32_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(gen_size_and_slab_count)
   ->UseManualTime();

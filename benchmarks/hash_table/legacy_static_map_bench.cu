@@ -71,7 +71,7 @@ static void generate_size_and_occupancy(benchmark::internal::Benchmark* b) {
 
 
 template <typename Key, typename Value, dist_type Dist>
-static void BM_static_map_insert(::benchmark::State& state) {
+static void BM_legacy_static_map_insert(::benchmark::State& state) {
   using map_type = cuco::legacy_static_map<Key, Value>;
   
   std::size_t num_keys = state.range(0);
@@ -106,7 +106,7 @@ static void BM_static_map_insert(::benchmark::State& state) {
 }
 
 template <typename Key, typename Value, dist_type Dist>
-static void BM_static_map_insert_thrust(::benchmark::State& state) {
+static void BM_legacy_static_map_insert_thrust(::benchmark::State& state) {
   using map_type = cuco::legacy_static_map<Key, Value>;
   
   std::size_t num_keys = state.range(0);
@@ -150,7 +150,7 @@ static void BM_static_map_insert_thrust(::benchmark::State& state) {
 
 
 template <typename Key, typename Value, dist_type Dist>
-static void BM_static_map_search_all(::benchmark::State& state) {
+static void BM_legacy_static_map_find(::benchmark::State& state) {
   using map_type = cuco::legacy_static_map<Key, Value>;
   
   std::size_t num_keys = state.range(0);
@@ -163,7 +163,7 @@ static void BM_static_map_search_all(::benchmark::State& state) {
   std::vector<Key> h_keys( num_keys );
   std::vector<Value> h_values( num_keys );
   std::vector<cuco::pair_type<Key, Value>> h_pairs ( num_keys );
-  std::vector<Value> h_results (num_keys);
+  std::vector<Value> h_results( num_keys );
 
   generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
   
@@ -181,7 +181,10 @@ static void BM_static_map_search_all(::benchmark::State& state) {
   map.insert(d_pairs.begin(), d_pairs.end());
   
   for(auto _ : state) {
-    map.find(d_keys.begin(), d_keys.end(), d_results.begin());
+    {
+      cuda_event_timer raii{state};
+      map.find(d_keys.begin(), d_keys.end(), d_results.begin());
+    }
   }
 
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
@@ -195,16 +198,17 @@ BENCHMARK_TEMPLATE(BM_static_map_insert_thrust, int32_t, int32_t, dist_type::UNI
   ->UseManualTime();
 */
 
-BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIQUE)
+BENCHMARK_TEMPLATE(BM_legacy_static_map_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy)
   ->UseManualTime();
 
-/*
-BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::UNIQUE)
+BENCHMARK_TEMPLATE(BM_legacy_static_map_find, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy);
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
 
+/*  
 BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);

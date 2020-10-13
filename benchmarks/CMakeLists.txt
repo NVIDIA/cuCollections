@@ -22,8 +22,8 @@ endif()
 
 CPMAddPackage(
     NAME SLABALLOC
-    GITHUB_REPOSITORY Nicolas-Iskos/SlabAlloc
-    GIT_TAG origin/grow_superblocks
+    GITHUB_REPOSITORY owensgroup/SlabAlloc
+    GIT_TAG origin/master
     DOWNLOAD_ONLY YES
 )
 
@@ -32,13 +32,23 @@ target_include_directories(SLABALLOC INTERFACE "${SLABALLOC_SOURCE_DIR}/src")
 
 CPMAddPackage(
     NAME SLABHASH
-    GITHUB_REPOSITORY Nicolas-Iskos/SlabHash
-    GIT_TAG origin/grow_superblocks
+    GITHUB_REPOSITORY owensgroup/SlabHash
+    GIT_TAG origin/master
     DOWNLOAD_ONLY YES
 )
 
 add_library(SLABHASH INTERFACE)
 target_include_directories(SLABHASH INTERFACE "${SLABHASH_SOURCE_DIR}/src")
+
+CPMAddPackage(
+    NAME WARPCORE
+    GITHUB_REPOSITORY sleeepyjack/warpcore
+    GIT_TAG origin/master
+    DOWNLOAD_ONLY YES
+)
+
+add_library(WARPCORE INTERFACE)
+target_include_directories(WARPCORE INTERFACE "${WARPCORE_SOURCE_DIR}/include")
 
 ###################################################################################################
 # Auto-detect available GPU compute architectures
@@ -65,7 +75,9 @@ function(ConfigureBench BENCH_NAME BENCH_SRC)
                                         pthread 
                                         cuco
                                         SLABALLOC
-                                        SLABHASH)
+                                        SLABHASH
+                                        WARPCORE
+                                        )
 endfunction(ConfigureBench)
 
 ###################################################################################################
@@ -85,7 +97,11 @@ set(LEGACY_STATIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/legacy_s
 ConfigureBench(LEGACY_STATIC_MAP_BENCH "${LEGACY_STATIC_MAP_BENCH_SRC}")
 
 ###################################################################################################
-set(HEAD_TO_HEAD_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/head_to_head_bench.cu")
-ConfigureBench(HEAD_TO_HEAD_MAP_BENCH "${HEAD_TO_HEAD_BENCH_SRC}")
+set(DYNAMIC_H2H_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/dynamic_h2h_bench.cu")
+ConfigureBench(DYNAMIC_H2H_MAP_BENCH "${DYNAMIC_H2H_BENCH_SRC}")
+
+###################################################################################################
+set(STATIC_H2H_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_h2h_bench.cu")
+ConfigureBench(STATIC_H2H_MAP_BENCH "${STATIC_H2H_BENCH_SRC}")
 
 ###################################################################################################

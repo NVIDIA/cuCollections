@@ -139,25 +139,27 @@ static void BM_static_map_search_all(::benchmark::State& state) {
   map.insert(d_pairs.begin(), d_pairs.end());
   
   for(auto _ : state) {
-    map.find(d_keys.begin(), d_keys.end(), d_results.begin());
+    {
+      cuda_event_timer raii{state};
+      map.find(d_keys.begin(), d_keys.end(), d_results.begin());
+    }
   }
 
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
                           int64_t(state.range(0)));
 }
 
-
-
 BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy)
   ->UseManualTime();
 
-/*
 BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy);
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
 
+/*
 BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
