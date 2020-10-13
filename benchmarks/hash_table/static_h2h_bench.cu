@@ -69,7 +69,7 @@ static void gen_final_size(benchmark::internal::Benchmark* b) {
  *
  */
 static void gen_size_and_occupancy(benchmark::internal::Benchmark* b) {
-  for (auto size = 10'000'000; size <= 10'000'000; size *= 10) {
+  for (auto size = 100'000'000; size <= 100'000'000; size *= 10) {
     for (auto occupancy = 10; occupancy <= 90; occupancy += 10) {
       b->Args({size, occupancy});
     }
