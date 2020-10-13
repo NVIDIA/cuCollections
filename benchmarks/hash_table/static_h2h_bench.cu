@@ -595,3 +595,23 @@ BENCHMARK_TEMPLATE(BM_static_map_find, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_size_and_occupancy)
   ->UseManualTime();
+
+BENCHMARK_TEMPLATE(BM_warpcore_insert, std::uint64_t, std::uint64_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(gen_size_and_occupancy)
+  ->UseManualTime();
+  
+BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(gen_size_and_occupancy)
+  ->UseManualTime();
+  
+BENCHMARK_TEMPLATE(BM_warpcore_find, std::uint64_t, std::uint64_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(gen_size_and_occupancy)
+  ->UseManualTime();
+  
+BENCHMARK_TEMPLATE(BM_static_map_find, int64_t, int64_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(gen_size_and_occupancy)
+  ->UseManualTime();
