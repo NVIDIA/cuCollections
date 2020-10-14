@@ -99,7 +99,7 @@ class dynamic_map;
  * @tparam Value Type of the mapped values
  * @tparam Scope The scope in which insert/find operations will be performed by
  * individual threads.
- * @tparam Allocator
+ * @tparam Allocator Type of allocator used for device storage
  */
 template <typename Key,
           typename Value,
@@ -110,15 +110,16 @@ class static_map {
   friend class dynamic_map<Key, Value, Scope, Allocator>;
 
  public:
-  using value_type          = cuco::pair_type<Key, Value>;
-  using key_type            = Key;
-  using mapped_type         = Value;
-  using atomic_key_type     = cuda::atomic<key_type, Scope>;
-  using atomic_mapped_type  = cuda::atomic<mapped_type, Scope>;
-  using pair_atomic_type    = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
-  using atomic_ctr_type     = cuda::atomic<std::size_t, Scope>;
-  using allocator_type      = Allocator;
-  using slot_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
+  using value_type         = cuco::pair_type<Key, Value>;
+  using key_type           = Key;
+  using mapped_type        = Value;
+  using atomic_key_type    = cuda::atomic<key_type, Scope>;
+  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
+  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
+  using allocator_type     = Allocator;
+  using slot_allocator_type =
+    typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
 
   static_map(static_map const&) = delete;
   static_map(static_map&&)      = delete;
@@ -134,7 +135,6 @@ class static_map {
    * grow the map. Attempting to insert more unique keys than the capacity of
    * the map results in undefined behavior.
    *
-   * details here...
    * Performance begins to degrade significantly beyond a load factor of ~70%.
    * For best performance, choose a capacity that will keep the load factor
    * below 70%. E.g., if inserting `N` unique keys, choose a capacity of
@@ -807,13 +807,13 @@ class static_map {
   }
 
  private:
-  pair_atomic_type* slots_{nullptr};  ///< Pointer to flat slots storage
-  std::size_t capacity_{};            ///< Total number of slots
-  std::size_t size_{};                ///< Number of keys in map
-  Key empty_key_sentinel_{};          ///< Key value that represents an empty slot
-  Value empty_value_sentinel_{};      ///< Initial value of empty slot
-  atomic_ctr_type* num_successes_{};  ///< Number of successfully inserted keys on insert
-  slot_allocator_type slot_allocator_{};
+  pair_atomic_type* slots_{nullptr};      ///< Pointer to flat slots storage
+  std::size_t capacity_{};                ///< Total number of slots
+  std::size_t size_{};                    ///< Number of keys in map
+  Key empty_key_sentinel_{};              ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};          ///< Initial value of empty slot
+  atomic_ctr_type* num_successes_{};      ///< Number of successfully inserted keys on insert
+  slot_allocator_type slot_allocator_{};  ///< Allocator used to allocate slots
 };
 }  // namespace cuco
 

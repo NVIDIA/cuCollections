@@ -82,6 +82,7 @@ namespace cuco {
  * @tparam Value Type of the mapped values
  * @tparam Scope The scope in which insert/find/contains will be performed by
  * individual threads.
+ * @tparam Allocator Type of allocator used to allocate submap device storage
  */
 template <typename Key,
           typename Value,
@@ -120,6 +121,7 @@ class dynamic_map {
    * @param growth_factor The factor by which the capacity increases when resizing
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param alloc Allocator used to allocate submap device storage
    */
   dynamic_map(std::size_t initial_capacity,
               Key empty_key_sentinel,
@@ -251,7 +253,7 @@ class dynamic_map {
     submap_mutable_views_;          ///< vector of mutable device views for each submap
   std::size_t min_insert_size_{};   ///< min remaining capacity of submap for insert
   atomic_ctr_type* num_successes_;  ///< number of successfully inserted keys on insert
-  Allocator alloc_{};
+  Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
 };
 }  // namespace cuco
 
