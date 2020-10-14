@@ -32,7 +32,7 @@
 
 namespace cuco {
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;
 
 /**
@@ -107,9 +107,7 @@ template <typename Key,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
-  friend class dynamic_map<Key, Value, Scope>;
-
-  friend class dynamic_map<Key, Value, Scope>;
+  friend class dynamic_map<Key, Value, Scope, Allocator>;
 
  public:
   using value_type          = cuco::pair_type<Key, Value>;

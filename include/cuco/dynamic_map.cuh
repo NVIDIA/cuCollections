@@ -16,13 +16,13 @@
 
 #pragma once
 
-#include <thrust/device_vector.h>
-#include <cuco/detail/error.hpp>
-#include <cuda/std/atomic>
 #include <cooperative_groups.h>
+#include <thrust/device_vector.h>
 #include <cub/cub.cuh>
-#include <cuco/static_map.cuh>
 #include <cuco/detail/dynamic_map_kernels.cuh>
+#include <cuco/detail/error.hpp>
+#include <cuco/static_map.cuh>
+#include <cuda/std/atomic>
 
 namespace cuco {
 
@@ -78,60 +78,69 @@ namespace cuco {
  * m.insert(pairs_1.begin(), pairs_1.end());
  * \endcode
  *
- * @tparam Key Arithmetic type used for key 
+ * @tparam Key Arithmetic type used for key
  * @tparam Value Type of the mapped values
  * @tparam Scope The scope in which insert/find/contains will be performed by
  * individual threads.
  */
-template <typename Key, typename Value, cuda::thread_scope Scope = cuda::thread_scope_device>
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope = cuda::thread_scope_device,
+          typename Allocator       = cuco::cuda_allocator<char>>
 class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
-  public:
-  using key_type           = Key;
-  using mapped_type        = Value;
-  using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;
-  using view_type = typename static_map<Key, Value, Scope>::device_view;
-  using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view;
+ public:
+  using key_type                  = Key;
+  using mapped_type               = Value;
+  using atomic_ctr_type           = cuda::atomic<std::size_t, Scope>;
+  using view_type                 = typename static_map<Key, Value, Scope>::device_view;
+  using mutable_view_type         = typename static_map<Key, Value, Scope>::device_mutable_view;
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
   dynamic_map& operator=(dynamic_map const&) = delete;
   dynamic_map& operator=(dynamic_map&&) = delete;
 
   /**
-  * @brief Construct a dynamically-sized map with the specified initial capacity, growth factor and sentinel values.
-  *
-  * The capacity of the map will automatically increase as the user adds key/value pairs using `insert`.
-  * 
-  * Capacity increases by a factor of growth_factor each time the size of the map exceeds a threshold occupancy. 
-  * The performance of `find` and `contains` decreases somewhat each time the map's capacity grows.
-  * 
-  * The `empty_key_sentinel` and `empty_value_sentinel` values are reserved and
-  * undefined behavior results from attempting to insert any key/value pair
-  * that contains either.
-  *
-  * @param initial_capacity The initial number of slots in the map
-  * @param growth_factor The factor by which the capacity increases when resizing
-  * @param empty_key_sentinel The reserved key value for empty slots
-  * @param empty_value_sentinel The reserved mapped value for empty slots
-  */
-  dynamic_map(std::size_t initial_capacity, Key empty_key_sentinel, Value empty_value_sentinel);
-  
+   * @brief Construct a dynamically-sized map with the specified initial capacity, growth factor and
+   * sentinel values.
+   *
+   * The capacity of the map will automatically increase as the user adds key/value pairs using
+   * `insert`.
+   *
+   * Capacity increases by a factor of growth_factor each time the size of the map exceeds a
+   * threshold occupancy. The performance of `find` and `contains` decreases somewhat each time the
+   * map's capacity grows.
+   *
+   * The `empty_key_sentinel` and `empty_value_sentinel` values are reserved and
+   * undefined behavior results from attempting to insert any key/value pair
+   * that contains either.
+   *
+   * @param initial_capacity The initial number of slots in the map
+   * @param growth_factor The factor by which the capacity increases when resizing
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_value_sentinel The reserved mapped value for empty slots
+   */
+  dynamic_map(std::size_t initial_capacity,
+              Key empty_key_sentinel,
+              Value empty_value_sentinel,
+              Allocator const& alloc = Allocator{});
+
   /**
    * @brief Destroy the map and frees its contents
-   * 
+   *
    */
   ~dynamic_map();
-  
+
   /**
    * @brief Grows the capacity of the map so there is enough space for `n` key/value pairs.
-   * 
+   *
    * If there is already enough space for `n` key/value pairs, the capacity remains the same.
    *
    * @param n The number of key value pairs for which there must be space
    */
   void reserve(std::size_t n);
-  
+
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
    *
@@ -148,96 +157,101 @@ class dynamic_map {
    * @param key_equal The binary function to compare two keys for equality
    */
   template <typename InputIt,
-            typename Hash = cuco::detail::MurmurHash3_32<key_type>,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first, InputIt last, 
-              Hash hash = Hash{},
-              KeyEqual key_equal = KeyEqual{});
-  
+  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
+
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
-   * 
-   * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`. 
-   * Else, copies the empty value sentinel. 
-   * 
+   *
+   * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin +
+   * i)`. Else, copies the empty value sentinel.
+   *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `key_type`
-   * @tparam OutputIt Device accessible output iterator whose `value_type` is 
+   * @tparam OutputIt Device accessible output iterator whose `value_type` is
    * convertible to the map's `mapped_type`
    * @tparam Hash Unary callable type
-   * @tparam KeyEqual Binary callable type 
+   * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of values retrieved for each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    */
-  template <typename InputIt, typename OutputIt, 
-            typename Hash = cuco::detail::MurmurHash3_32<key_type>,
+  template <typename InputIt,
+            typename OutputIt,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void find(
-    InputIt first, InputIt last, OutputIt output_begin,
-    Hash hash = Hash{}, 
-    KeyEqual key_equal = KeyEqual{}) noexcept;
+  void find(InputIt first,
+            InputIt last,
+            OutputIt output_begin,
+            Hash hash          = Hash{},
+            KeyEqual key_equal = KeyEqual{}) noexcept;
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
-   * 
+   *
    * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `key_type`
-   * @tparam OutputIt Device accessible output iterator whose `value_type` is 
+   * @tparam OutputIt Device accessible output iterator whose `value_type` is
    * convertible to the map's `mapped_type`
    * @tparam Hash Unary callable type
-   * @tparam KeyEqual Binary callable type 
+   * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    */
-  template <typename InputIt, typename OutputIt, 
-            typename Hash = cuco::detail::MurmurHash3_32<key_type>,
+  template <typename InputIt,
+            typename OutputIt,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void contains(
-    InputIt first, InputIt last, OutputIt output_begin,
-    Hash hash = Hash{}, 
-    KeyEqual key_equal = KeyEqual{}) noexcept;
-  
+  void contains(InputIt first,
+                InputIt last,
+                OutputIt output_begin,
+                Hash hash          = Hash{},
+                KeyEqual key_equal = KeyEqual{}) noexcept;
+
   /**
    * @brief Gets the current number of elements in the map
-   * 
-   * @return The current number of elements in the map 
+   *
+   * @return The current number of elements in the map
    */
   std::size_t get_size() const noexcept { return size_; }
 
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
-   * 
+   *
    * @return The maximum number of elements the hash map can hold
    */
   std::size_t get_capacity() const noexcept { return capacity_; }
-  
+
   /**
    * @brief Gets the load factor of the hash map.
-   * 
+   *
    * @return The load factor of the hash map
    */
   float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; }
 
-  private:
-  key_type empty_key_sentinel_{};                                   ///< Key value that represents an empty slot
-  mapped_type empty_value_sentinel_{};                              ///< Initial value of empty slot
-  std::size_t size_{};                                              ///< Number of keys in the map
-  std::size_t capacity_{};                                          ///< Maximum number of keys that can be inserted
-  float max_load_factor_{};                                         ///< Max load factor before capacity growth
-    
-  std::vector<std::unique_ptr<static_map<key_type, mapped_type, Scope>>> submaps_; ///< vector of pointers to each submap
-  thrust::device_vector<view_type> submap_views_;                                  ///< vector of device views for each submap
-  thrust::device_vector<mutable_view_type> submap_mutable_views_;                  ///< vector of mutable device views for each submap
-  std::size_t min_insert_size_{};                                                  ///< min remaining capacity of submap for insert
-  atomic_ctr_type *num_successes_;                                                 ///< number of successfully inserted keys on insert
+ private:
+  key_type empty_key_sentinel_{};       ///< Key value that represents an empty slot
+  mapped_type empty_value_sentinel_{};  ///< Initial value of empty slot
+  std::size_t size_{};                  ///< Number of keys in the map
+  std::size_t capacity_{};              ///< Maximum number of keys that can be inserted
+  float max_load_factor_{};             ///< Max load factor before capacity growth
+
+  std::vector<std::unique_ptr<static_map<key_type, mapped_type, Scope>>>
+    submaps_;                                      ///< vector of pointers to each submap
+  thrust::device_vector<view_type> submap_views_;  ///< vector of device views for each submap
+  thrust::device_vector<mutable_view_type>
+    submap_mutable_views_;          ///< vector of mutable device views for each submap
+  std::size_t min_insert_size_{};   ///< min remaining capacity of submap for insert
+  atomic_ctr_type* num_successes_;  ///< number of successfully inserted keys on insert
+  Allocator alloc_{};
 };
 }  // namespace cuco
 
