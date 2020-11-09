@@ -99,8 +99,6 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   std::vector<Key> h_keys(num_keys);
   std::vector<Value> h_values(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
-  std::vector<Value> h_results(num_keys);
-  std::vector<bool> h_contained(num_keys);
 
   generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
 
