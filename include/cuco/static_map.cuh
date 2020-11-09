@@ -22,6 +22,12 @@
 #include <cub/cub.cuh>
 #include <cuda/std/atomic>
 
+#ifndef CUDART_VERSION
+#error CUDART_VERSION Undefined!
+#elif (CUDART_VERSION >= 11000) // including with CUDA 10.2 leads to compilation errors
+#include <cuda/barrier>
+#endif
+
 #include <cuco/detail/cuda_memcmp.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
@@ -242,16 +248,30 @@ class static_map {
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
 
    protected:
-    device_view_base(pair_atomic_type* slots,
-                     std::size_t capacity,
-                     Key empty_key_sentinel,
-                     Value empty_value_sentinel) noexcept
+    __host__ __device__ device_view_base(pair_atomic_type* slots,
+                                         std::size_t capacity,
+                                         Key empty_key_sentinel,
+                                         Value empty_value_sentinel) noexcept
       : slots_{slots},
         capacity_{capacity},
         empty_key_sentinel_{empty_key_sentinel},
         empty_value_sentinel_{empty_value_sentinel}
     {
     }
+
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
+
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
 
     /**
      * @brief Returns the initial slot for a given key `k`
@@ -505,10 +525,10 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-    device_mutable_view(pair_atomic_type* slots,
-                        std::size_t capacity,
-                        Key empty_key_sentinel,
-                        Value empty_value_sentinel) noexcept
+     __host__ __device__ device_mutable_view(pair_atomic_type* slots,
+                                             std::size_t capacity,
+                                             Key empty_key_sentinel,
+                                             Value empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
     }
@@ -590,12 +610,82 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-    device_view(pair_atomic_type* slots,
-                std::size_t capacity,
-                Key empty_key_sentinel,
-                Value empty_value_sentinel) noexcept
+     __host__ __device__ device_view(pair_atomic_type* slots,
+                                     std::size_t capacity,
+                                     Key empty_key_sentinel,
+                                     Value empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
+    }
+
+    /**
+     * @brief Makes a copy of this static map using non-owned memory.
+     *
+     * This function is intended to be used to create shared memory copies of small static maps, although global memory can be used as well.
+     *
+     * Example:
+     * @code{.cpp}
+     * template <typename MapType, int CAPACITY>
+     * __global__ void use_device_view(const typename MapType::device_view device_view,
+     *                                 map_key_t const* const keys_to_search,
+     *                                 map_value_t* const values_found,
+     *                                 const size_t number_of_elements)
+     * {
+     *     const size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+     *
+     *     __shared__ typename MapType::pair_atomic_type sm_buffer[CAPACITY];
+     *
+     *     auto g = cg::this_thread_block();
+     *
+     *     const map_t::device_view sm_static_map = device_view.make_copy(g,
+     *                                                                    sm_buffer);
+     *
+     *     for (size_t i = g.thread_rank(); i < number_of_elements; i += g.size())
+     *     {
+     *         values_found[i] = sm_static_map.find(keys_to_search[i])->second;
+     *     }
+     * }
+     * @endcode
+     *
+     * @tparam CG The type of the cooperative thread group
+     * @param g The ooperative thread group used to copy the slots
+     * @param memory_to_use Array large enough to support `capacity` elements. Object does not take the ownership of the memory
+     * @return Copy of static map
+     */
+    template <typename CG>
+    __device__ device_view make_copy(CG g,
+                                     pair_atomic_type* const memory_to_use) const noexcept
+    {
+#ifndef CUDART_VERSION
+#error CUDART_VERSION Undefined!
+#elif (CUDART_VERSION >= 11000)
+      __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
+      if (g.thread_rank() == 0) {
+        init(&barrier, g.size());
+      }
+      g.sync();
+
+      cuda::memcpy_async(g,
+                         memory_to_use,
+                         device_view_base::get_slots(),
+                         sizeof(pair_atomic_type) * device_view_base::get_capacity(),
+                         barrier);
+
+      barrier.arrive_and_wait();
+#else
+      pair_atomic_type const* const slots_ptr = device_view_base::get_slots();
+      for (std::size_t i = g.thread_rank(); i < device_view_base::get_capacity(); i += g.size())
+      {
+        memory_to_use[i].first.store(slots_ptr[i].first.load());
+        memory_to_use[i].second.store(slots_ptr[i].second.load());
+      }
+      g.sync();
+#endif
+
+      return device_view(memory_to_use,
+                         device_view_base::get_capacity(),
+                         device_view_base::get_empty_key_sentinel(),
+                         device_view_base::get_empty_value_sentinel());
     }
 
     /**
