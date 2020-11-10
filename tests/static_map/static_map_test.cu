@@ -225,8 +225,8 @@ __global__ void shared_memory_test_kernel(typename MapType::device_view const* c
 
     auto g = cg::this_thread_block();
     typename MapType::device_view sm_device_view = MapType::device_view::make_copy(g,
-                                                                                   device_views[map_id],
-                                                                                   sm_buffer);
+                                                                                   sm_buffer,
+                                                                                   device_views[map_id]);
 
     for (int i = g.thread_rank(); i < number_of_elements; i += g.size())
     {

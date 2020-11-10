@@ -655,8 +655,8 @@ class static_map {
      */
     template <typename CG>
     __device__ static device_view make_copy(CG g,
-                                            device_view source_device_view,
-                                            pair_atomic_type* const memory_to_use) noexcept
+                                            pair_atomic_type* const memory_to_use,
+                                            device_view source_device_view) noexcept
     {
 #ifndef CUDART_VERSION
 #error CUDART_VERSION Undefined!
