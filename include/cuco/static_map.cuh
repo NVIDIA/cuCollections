@@ -619,7 +619,7 @@ class static_map {
     }
 
     /**
-     * @brief Makes a copy of this static map using non-owned memory.
+     * @brief Makes a copy of given `device_view` using non-owned memory.
      *
      * This function is intended to be used to create shared memory copies of small static maps, although global memory can be used as well.
      *
@@ -649,12 +649,14 @@ class static_map {
      *
      * @tparam CG The type of the cooperative thread group
      * @param g The ooperative thread group used to copy the slots
+     * @param source_device_view `device_view` to copy from
      * @param memory_to_use Array large enough to support `capacity` elements. Object does not take the ownership of the memory
-     * @return Copy of static map
+     * @return Copy of passed `device_view`
      */
     template <typename CG>
-    __device__ device_view make_copy(CG g,
-                                     pair_atomic_type* const memory_to_use) const noexcept
+    __device__ static device_view make_copy(CG g,
+                                            device_view const& source_device_view,
+                                            pair_atomic_type* const memory_to_use) noexcept
     {
 #ifndef CUDART_VERSION
 #error CUDART_VERSION Undefined!
@@ -667,14 +669,14 @@ class static_map {
 
       cuda::memcpy_async(g,
                          memory_to_use,
-                         device_view_base::get_slots(),
-                         sizeof(pair_atomic_type) * device_view_base::get_capacity(),
+                         source_device_view.get_slots(),
+                         sizeof(pair_atomic_type) * source_device_view.get_capacity(),
                          barrier);
 
       barrier.arrive_and_wait();
 #else
-      pair_atomic_type const* const slots_ptr = device_view_base::get_slots();
-      for (std::size_t i = g.thread_rank(); i < device_view_base::get_capacity(); i += g.size())
+      pair_atomic_type const* const slots_ptr = source_device_view.get_slots();
+      for (std::size_t i = g.thread_rank(); i < source_device_view.get_capacity(); i += g.size())
       {
         memory_to_use[i].first.store(slots_ptr[i].first.load());
         memory_to_use[i].second.store(slots_ptr[i].second.load());
@@ -683,9 +685,9 @@ class static_map {
 #endif
 
       return device_view(memory_to_use,
-                         device_view_base::get_capacity(),
-                         device_view_base::get_empty_key_sentinel(),
-                         device_view_base::get_empty_value_sentinel());
+                         source_device_view.get_capacity(),
+                         source_device_view.get_empty_key_sentinel(),
+                         source_device_view.get_empty_value_sentinel());
     }
 
     /**

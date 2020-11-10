@@ -224,8 +224,9 @@ __global__ void shared_memory_test_kernel(typename MapType::device_view const* c
     __shared__ typename MapType::pair_atomic_type sm_buffer[CAPACITY];
 
     auto g = cg::this_thread_block();
-    typename MapType::device_view sm_device_view = device_views[map_id].make_copy(g,
-                                                                                  sm_buffer);
+    typename MapType::device_view sm_device_view = MapType::device_view::make_copy(g,
+                                                                                   device_views[map_id],
+                                                                                   sm_buffer);
 
     for (int i = g.thread_rank(); i < number_of_elements; i += g.size())
     {
