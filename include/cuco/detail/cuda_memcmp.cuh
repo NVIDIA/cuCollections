@@ -1,5 +1,5 @@
 __host__ __device__
-int __cuda_memcmp(void const * __lhs, void const * __rhs, size_t __count) {
+inline int cuda_memcmp(void const * __lhs, void const * __rhs, size_t __count) {
     auto __lhs_c = reinterpret_cast<unsigned char const *>(__lhs);
     auto __rhs_c = reinterpret_cast<unsigned char const *>(__rhs);
     while (__count--) {
