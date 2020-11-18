@@ -22,7 +22,6 @@
 #include <cub/cub.cuh>
 #include <cuda/std/atomic>
 
-#include <cuco/detail/cuda_memcmp.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
