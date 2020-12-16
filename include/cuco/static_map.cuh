@@ -21,7 +21,10 @@
 #include <thrust/functional.h>
 #include <cub/cub.cuh>
 #include <cuda/std/atomic>
+#include <memory>
 
+#include <cuco/allocator.hpp>
+#include <cuco/detail/cuda_memcmp.cuh>
 #ifndef CUDART_VERSION
 #error CUDART_VERSION Undefined!
 #elif (CUDART_VERSION >= 11000) // including with CUDA 10.2 leads to compilation errors
@@ -29,13 +32,13 @@
 #endif
 
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
-#include <cuco/detail/hash_functions.cuh>
 
 namespace cuco {
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;
 
 /**
@@ -102,13 +105,15 @@ class dynamic_map;
  * @tparam Value Type of the mapped values
  * @tparam Scope The scope in which insert/find operations will be performed by
  * individual threads.
+ * @tparam Allocator Type of allocator used for device storage
  */
-template <typename Key, typename Value, cuda::thread_scope Scope = cuda::thread_scope_device>
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope = cuda::thread_scope_device,
+          typename Allocator       = cuco::cuda_allocator<char>>
 class static_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
-  friend class dynamic_map<Key, Value, Scope>;
-
-  friend class dynamic_map<Key, Value, Scope>;
+  friend class dynamic_map<Key, Value, Scope, Allocator>;
 
  public:
   using value_type         = cuco::pair_type<Key, Value>;
@@ -118,6 +123,9 @@ class static_map {
   using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
   using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
   using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
+  using allocator_type     = Allocator;
+  using slot_allocator_type =
+    typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
 
   static_map(static_map const&) = delete;
   static_map(static_map&&)      = delete;
@@ -133,7 +141,6 @@ class static_map {
    * grow the map. Attempting to insert more unique keys than the capacity of
    * the map results in undefined behavior.
    *
-   * details here...
    * Performance begins to degrade significantly beyond a load factor of ~70%.
    * For best performance, choose a capacity that will keep the load factor
    * below 70%. E.g., if inserting `N` unique keys, choose a capacity of
@@ -146,8 +153,12 @@ class static_map {
    * @param capacity The total number of slots in the map
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param alloc Allocator used for allocating device storage
    */
-  static_map(std::size_t capacity, Key empty_key_sentinel, Value empty_value_sentinel);
+  static_map(std::size_t capacity,
+             Key empty_key_sentinel,
+             Value empty_value_sentinel,
+             Allocator const& alloc = Allocator{});
 
   /**
    * @brief Destroys the map and frees its contents.
@@ -888,12 +899,13 @@ class static_map {
   }
 
  private:
-  pair_atomic_type* slots_{nullptr};  ///< Pointer to flat slots storage
-  std::size_t capacity_{};            ///< Total number of slots
-  std::size_t size_{};                ///< Number of keys in map
-  Key empty_key_sentinel_{};          ///< Key value that represents an empty slot
-  Value empty_value_sentinel_{};      ///< Initial value of empty slot
-  atomic_ctr_type* num_successes_{};  ///< Number of successfully inserted keys on insert
+  pair_atomic_type* slots_{nullptr};      ///< Pointer to flat slots storage
+  std::size_t capacity_{};                ///< Total number of slots
+  std::size_t size_{};                    ///< Number of keys in map
+  Key empty_key_sentinel_{};              ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};          ///< Initial value of empty slot
+  atomic_ctr_type* num_successes_{};      ///< Number of successfully inserted keys on insert
+  slot_allocator_type slot_allocator_{};  ///< Allocator used to allocate slots
 };
 }  // namespace cuco
 
