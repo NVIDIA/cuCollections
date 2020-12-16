@@ -50,7 +50,7 @@ thrust_create_target(Thrust)
 CPMAddPackage(
     NAME libcudacxx
     GITHUB_REPOSITORY NVIDIA/libcudacxx
-    GIT_TAG 1.3.0-rc0
+    GIT_TAG 1.3.0
     DOWNLOAD_ONLY YES
 )
 
