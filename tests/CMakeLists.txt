@@ -48,13 +48,9 @@ endfunction(ConfigureTest)
 ###################################################################################################
 ### test sources ##################################################################################
 ###################################################################################################
-set(STATIC_MAP_TEST_SRC 
-    "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_test.cu")
 
-ConfigureTest(STATIC_MAP_TEST "${STATIC_MAP_TEST_SRC}")
-####################################################################################################
-set(DYNAMIC_MAP_TEST_SRC 
-    "${CMAKE_CURRENT_SOURCE_DIR}/dynamic_map/dynamic_map_test.cu")
+ConfigureTest(STATIC_MAP_TEST "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_test.cu")
 
-ConfigureTest(DYNAMIC_MAP_TEST "${DYNAMIC_MAP_TEST_SRC}")
-####################################################################################################
+ConfigureTest(STATIC_REDUCTION_MAP_TEST "${CMAKE_CURRENT_SOURCE_DIR}/static_reduction_map/static_reduction_map_test.cu")
+
+ConfigureTest(DYNAMIC_MAP_TEST "${CMAKE_CURRENT_SOURCE_DIR}/dynamic_map/dynamic_map_test.cu")
