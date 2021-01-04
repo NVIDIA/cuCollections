@@ -38,22 +38,16 @@
 
 namespace cuco {
 
-/**
- * @brief Possible reduction operations that can be performed by a `static_reduction_map`.
- *
- * `GENERIC` allows for any associative binary reduction operation, but may have worse performance
- * compared to one of the native operations.
- *
- */
-enum class reduction_op {
-  SUM,     ///< Addition
-  SUB,     ///< Subtraction
-  MIN,     ///< Minimum value
-  MAX,     ///< Maximum value
-  AND,     ///< Bitwise AND
-  OR,      ///< Bitwise OR
-  XOR,     ///< Bitwise XOR
-  GENERIC  ///< User-defined, associative binary operation
+template <typename T>
+struct reduce_add {
+  using value_type            = T;
+  static constexpr T identity = 0;
+
+  template <cuda::thread_scope Scope, typename T2>
+  T apply(cuda::atomic<T, Scope>& slot, T2 const& value)
+  {
+    return slot.fetch_add(value);
+  }
 };
 
 /**
@@ -122,7 +116,8 @@ enum class reduction_op {
  * individual threads.
  * @tparam Allocator Type of allocator used for device storage
  */
-template <typename Key,
+template <typename ReductionOp,
+          typename Key,
           typename Value,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>>
@@ -171,8 +166,8 @@ class static_reduction_map {
    */
   static_reduction_map(std::size_t capacity,
                        Key empty_key_sentinel,
-                       Value empty_value_sentinel,
-                       Allocator const& alloc = Allocator{});
+                       ReductionOp reduction_op = {},
+                       Allocator const& alloc   = Allocator{});
 
   /**
    * @brief Destroys the map and frees its contents.
@@ -270,16 +265,18 @@ class static_reduction_map {
     std::size_t capacity_{};        ///< Total number of slots
     Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
+    ReductionOp op_{};              ///< Binary operation reduction function object
 
    protected:
     __host__ __device__ device_view_base(pair_atomic_type* slots,
                                          std::size_t capacity,
                                          Key empty_key_sentinel,
-                                         Value empty_value_sentinel) noexcept
+                                         ReductionOp reduction_op) noexcept
       : slots_{slots},
         capacity_{capacity},
         empty_key_sentinel_{empty_key_sentinel},
-        empty_value_sentinel_{empty_value_sentinel}
+        empty_value_sentinel_{ReductionOp::identity},
+        op_{reduction_op}
     {
     }
 
@@ -552,8 +549,8 @@ class static_reduction_map {
     __host__ __device__ device_mutable_view(pair_atomic_type* slots,
                                             std::size_t capacity,
                                             Key empty_key_sentinel,
-                                            Value empty_value_sentinel) noexcept
-      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+                                            ReductionOp reduction_op = {}) noexcept
+      : device_view_base{slots, capacity, empty_key_sentinel, reduction_op}
     {
     }
 
@@ -574,9 +571,9 @@ class static_reduction_map {
      */
     template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool insert(value_type const& insert_pair,
-                           Hash hash          = Hash{},
-                           KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ Value insert(value_type const& insert_pair,
+                            Hash hash          = Hash{},
+                            KeyEqual key_equal = KeyEqual{}) noexcept;
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
@@ -637,8 +634,8 @@ class static_reduction_map {
     __host__ __device__ device_view(pair_atomic_type* slots,
                                     std::size_t capacity,
                                     Key empty_key_sentinel,
-                                    Value empty_value_sentinel) noexcept
-      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+                                    ReductionOp reduction_op = {}) noexcept
+      : device_view_base{slots, capacity, empty_key_sentinel, reduction_op}
     {
     }
 
@@ -922,6 +919,7 @@ class static_reduction_map {
   Key empty_key_sentinel_{};              ///< Key value that represents an empty slot
   Value empty_value_sentinel_{};          ///< Initial value of empty slot
   atomic_ctr_type* num_successes_{};      ///< Number of successfully inserted keys on insert
+  ReductionOp op_{};                      ///< Binary operation reduction function object
   slot_allocator_type slot_allocator_{};  ///< Allocator used to allocate slots
 };
 }  // namespace cuco
