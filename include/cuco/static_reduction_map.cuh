@@ -123,6 +123,8 @@ template <typename ReductionOp,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_reduction_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
+  static_assert(std::is_same<typename ReductionOp::value_type, Value>::value,
+                "Type mismatch between ReductionOp::value_type and Value");
 
  public:
   using value_type         = cuco::pair_type<Key, Value>;
