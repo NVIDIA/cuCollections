@@ -142,7 +142,10 @@ __global__ void insert(
 
   while (it < last) {
     // force conversion to value_type
-    typename viewT::value_type const insert_pair{*it};
+    typename viewT::value_type const insert_pair{
+      static_cast<typename viewT::key_type>(thrust::get<0>(*it)),
+      static_cast<typename viewT::mapped_type>(thrust::get<1>(*it))};
+
     if (view.insert(tile, insert_pair, hash, key_equal) && tile.thread_rank() == 0) {
       thread_num_successes++;
     }
