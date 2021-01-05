@@ -201,7 +201,7 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
       // the first lane in the group with an empty slot will attempt the insert
       auto const src_lane = __ffs(window_empty_mask) - 1;
 
-      auto const thread_success = [&]() {
+      auto const update_success = [&]() {
         if (g.thread_rank() == src_lane) {
           auto expected_key = this->get_empty_key_sentinel();
 
@@ -216,16 +216,12 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
         return false;
       }();
 
-      auto const src_success = g.shfl(thread_success, src_lane);
+      // If the update succeeded, the thread group exits
+      if (g.shfl(update_success, src_lane)) { return; }
 
-      if (src_success) { return; }
-
-      // if we've gotten this far, a different key took our spot
-      // before we could insert. We need to retry the insert on the
-      // same window
+      // A different key took the current slot. Look for an empty slot in the current window
     } else {
-      // if there are no empty slots in the current window,
-      // we move onto the next window
+      // No empty slots in the current window, move onto the next window
       current_slot = next_slot(g, current_slot);
     }
   }
