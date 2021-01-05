@@ -44,6 +44,7 @@ struct reduce_add {
   static constexpr T identity = 0;
 
   template <cuda::thread_scope Scope, typename T2>
+  __device__
   T apply(cuda::atomic<T, Scope>& slot, T2 const& value)
   {
     return slot.fetch_add(value);
