@@ -190,7 +190,9 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
     auto const key_exists = not slot_is_empty and key_equal(current_key, insert_pair.first);
 
     // Key already exists, aggregate with it's value
-    if (key_exists) { this->get_op().apply(slot_value, insert_pair.second); }
+    if (key_exists) {
+      this->get_op().apply(slot_value, insert_pair.second);
+    }
 
     // If key already exists in the CG window, all threads exit
     if (g.ballot(key_exists)) { return false; }
@@ -210,14 +212,16 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
 
           if (key_success or key_equal(insert_pair.first, expected_key)) {
             this->get_op().apply(slot_value, insert_pair.second);
-            return true;
+            return key_success; 
           }
         }
         return false;
       }();
 
       // If the update succeeded, the thread group exits
-      if (g.shfl(update_success, src_lane)) { return true; }
+      if (g.shfl(update_success, src_lane)) {
+        return true;
+      }
 
       // A different key took the current slot. Look for an empty slot in the current window
     } else {
