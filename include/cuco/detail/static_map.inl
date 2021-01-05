@@ -163,7 +163,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
   auto current_slot = initial_slot(g, insert_pair.first, hash);
 
   while (true) {
-    key_type const existing_key = current_slot->first;
+    key_type const existing_key = current_slot->first.load(cuda::memory_order_relaxed);
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
