@@ -156,7 +156,7 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
       slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
 
     if (key_success or key_equal(insert_pair.first, expected_key)) {
-      return op_.apply(slot_value, insert_pair.second);
+      return this->get_op().apply(slot_value, insert_pair.second);
     }
 
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
@@ -190,7 +190,7 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
     auto const key_exists = not slot_is_empty and key_equal(current_key, insert_pair.first);
 
     // Key already exists, aggregate with it's value
-    if (key_exists) { op_.apply(slot_value, insert_pair.second); }
+    if (key_exists) { this->get_op().apply(slot_value, insert_pair.second); }
 
     // If key already exists in the CG window, all threads exit
     if (g.ballot(key_exists)) { return; }
@@ -209,7 +209,7 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
             expected_key, insert_pair.first, cuda::memory_order_relaxed);
 
           if (key_success or key_equal(insert_pair.first, expected_key)) {
-            op_.apply(slot_value, insert_pair.second);
+            this->get_op().apply(slot_value, insert_pair.second);
             return true;
           }
         }
