@@ -156,7 +156,7 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
       slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
 
     if (key_success or key_equal(insert_pair.first, expected_key)) {
-      // return do_op<ReductionOp>{}(slot_value, insert_pair.second);
+      return op_.apply(slot_value, insert_pair.second);
     }
 
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
@@ -171,77 +171,61 @@ template <typename ReductionOp,
           cuda::thread_scope Scope,
           typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ bool
+__device__ void
 static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, insert_pair.first, hash);
+  auto& slot_key    = current_slot->first;
+  auto& slot_value  = current_slot->second;
 
   while (true) {
-    key_type const existing_key = current_slot->first;
+    auto const current_key = slot_key.load(cuda::std::memory_order_relaxed);
 
-    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
-    // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
+    // The user provided `key_equal` should never be used to compare against `empty_key_sentinel` as
+    // the sentinel is not a valid key value. Therefore, first check for the sentinel
+    // TODO: Use memcmp
+    auto const slot_is_empty = (current_key == this->get_empty_key_sentinel());
 
-    // the key we are trying to insert is already in the map, so we return with failure to insert
-    if (g.ballot(not slot_is_empty and key_equal(existing_key, insert_pair.first))) {
-      return false;
-    }
+    auto const key_exists = not slot_is_empty and key_equal(current_key, insert_pair.first);
 
-    auto const window_contains_empty = g.ballot(slot_is_empty);
+    // Key already exists, aggregate with it's value
+    if (key_exists) { op_.apply(slot_value, insert_pair.second); }
 
-    // we found an empty slot, but not the key we are inserting, so this must
-    // be an empty slot into which we can insert the key
-    if (window_contains_empty) {
+    // If key already exists in the CG window, all threads exit
+    if (g.ballot(key_exists)) { return; }
+
+    auto const window_empty_mask = g.ballot(slot_is_empty);
+
+    if (window_empty_mask) {
       // the first lane in the group with an empty slot will attempt the insert
-      insert_result status{insert_result::CONTINUE};
-      uint32_t src_lane = __ffs(window_contains_empty) - 1;
+      auto const src_lane = __ffs(window_empty_mask) - 1;
 
-      if (g.thread_rank() == src_lane) {
-        using cuda::std::memory_order_relaxed;
-        auto expected_key   = this->get_empty_key_sentinel();
-        auto expected_value = this->get_empty_value_sentinel();
-        auto& slot_key      = current_slot->first;
-        auto& slot_value    = current_slot->second;
+      auto const thread_success = [&]() {
+        if (g.thread_rank() == src_lane) {
+          auto expected_key = this->get_empty_key_sentinel();
 
-        bool key_success =
-          slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
-        bool value_success = slot_value.compare_exchange_strong(
-          expected_value, insert_pair.second, memory_order_relaxed);
+          auto const key_success = slot_key.compare_exchange_strong(
+            expected_key, insert_pair.first, cuda::memory_order_relaxed);
 
-        if (key_success) {
-          while (not value_success) {
-            value_success =
-              slot_value.compare_exchange_strong(expected_value = this->get_empty_value_sentinel(),
-                                                 insert_pair.second,
-                                                 memory_order_relaxed);
+          if (key_success or key_equal(insert_pair.first, expected_key)) {
+            op_.apply(slot_value, insert_pair.second);
+            return true;
           }
-          status = insert_result::SUCCESS;
-        } else if (value_success) {
-          slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
         }
+        return false;
+      }();
 
-        // our key was already present in the slot, so our key is a duplicate
-        if (key_equal(insert_pair.first, expected_key)) { status = insert_result::DUPLICATE; }
-        // another key was inserted in the slot we wanted to try
-        // so we need to try the next empty slot in the window
-      }
+      auto const src_success = g.shfl(thread_success, src_lane);
 
-      uint32_t res_status = g.shfl(static_cast<uint32_t>(status), src_lane);
-      status              = static_cast<insert_result>(res_status);
+      if (src_success) { return; }
 
-      // successful insert
-      if (status == insert_result::SUCCESS) { return true; }
-      // duplicate present during insert
-      if (status == insert_result::DUPLICATE) { return false; }
       // if we've gotten this far, a different key took our spot
       // before we could insert. We need to retry the insert on the
       // same window
-    }
-    // if there are no empty slots in the current window,
-    // we move onto the next window
-    else {
+    } else {
+      // if there are no empty slots in the current window,
+      // we move onto the next window
       current_slot = next_slot(g, current_slot);
     }
   }
@@ -313,8 +297,8 @@ __device__
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
-    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
+    // the sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads,
@@ -353,8 +337,8 @@ __device__ typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocat
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
-    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
+    // the sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
@@ -417,8 +401,8 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::co
   while (true) {
     key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
-    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
+    // the sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
@@ -428,8 +412,8 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::co
     // we found an empty slot, meaning that the key we're searching for isn't present
     if (g.ballot(slot_is_empty)) { return false; }
 
-    // otherwise, all slots in the current window are full with other keys, so we move onto the next
-    // window
+    // otherwise, all slots in the current window are full with other keys, so we move onto the
+    // next window
     current_slot = next_slot(g, current_slot);
   }
 }
