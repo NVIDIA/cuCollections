@@ -93,4 +93,12 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   constexpr std::size_t num_slots{50'000'000};
   cuco::static_reduction_map<cuco::reduce_add<Value>, Key, Value> map{num_slots, -1};
 
+  SECTION("Inserting all the same key should sum all of their corresponding values") {
+      thrust::device_vector<Key> keys(100, 42);
+      thrust::device_vector<Value> values(keys.size(), 1);
+      auto zip = thrust::make_zip_iterator(thrust::make_tuple(keys.begin(), values.begin()));
+      auto zip_end = zip + keys.size();
+      map.insert(zip, zip_end);
+      REQUIRE(map.get_size() == 1);
+  }
 }
