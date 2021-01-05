@@ -900,7 +900,7 @@ class static_reduction_map {
    */
   device_view get_device_view() const noexcept
   {
-    return device_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
+    return device_view(slots_, capacity_, empty_key_sentinel_, op_);
   }
 
   /**
@@ -911,7 +911,7 @@ class static_reduction_map {
    */
   device_mutable_view get_device_mutable_view() const noexcept
   {
-    return device_mutable_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
+    return device_mutable_view(slots_, capacity_, empty_key_sentinel_, op_);
   }
 
  private:
