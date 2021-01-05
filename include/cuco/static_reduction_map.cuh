@@ -284,6 +284,12 @@ class static_reduction_map {
     }
 
     /**
+     * @brief Gets the binary op
+     *
+     */
+    __device__ ReductionOp get_op() const { return op_; }
+
+    /**
      * @brief Gets slots array.
      *
      * @return Slots array
