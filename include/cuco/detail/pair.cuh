@@ -65,6 +65,10 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
     : first{p.first}, second{p.second}
   {
   }
+  __host__ __device__ constexpr pair(First const& f, Second const& s) noexcept
+    : first{f}, second{s}
+  {
+  }
 };
 
 template <typename K, typename V>
