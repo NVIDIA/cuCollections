@@ -171,7 +171,7 @@ template <typename ReductionOp,
           cuda::thread_scope Scope,
           typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ void
+__device__ bool
 static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
@@ -193,7 +193,7 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
     if (key_exists) { this->get_op().apply(slot_value, insert_pair.second); }
 
     // If key already exists in the CG window, all threads exit
-    if (g.ballot(key_exists)) { return; }
+    if (g.ballot(key_exists)) { return false; }
 
     auto const window_empty_mask = g.ballot(slot_is_empty);
 
@@ -217,7 +217,7 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
       }();
 
       // If the update succeeded, the thread group exits
-      if (g.shfl(update_success, src_lane)) { return; }
+      if (g.shfl(update_success, src_lane)) { return true; }
 
       // A different key took the current slot. Look for an empty slot in the current window
     } else {
