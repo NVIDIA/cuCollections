@@ -190,9 +190,7 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
     auto const key_exists = not slot_is_empty and key_equal(current_key, insert_pair.first);
 
     // Key already exists, aggregate with it's value
-    if (key_exists) {
-      this->get_op().apply(slot_value, insert_pair.second);
-    }
+    if (key_exists) { this->get_op().apply(slot_value, insert_pair.second); }
 
     // If key already exists in the CG window, all threads exit
     if (g.ballot(key_exists)) { return false; }
@@ -203,24 +201,27 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
       // the first lane in the group with an empty slot will attempt the insert
       auto const src_lane = __ffs(window_empty_mask) - 1;
 
-      auto const update_success = [&]() {
-        if (g.thread_rank() == src_lane) {
-          auto expected_key = this->get_empty_key_sentinel();
+      auto const attempt_update = [&]() {
+        auto expected_key = this->get_empty_key_sentinel();
 
-          auto const key_success = slot_key.compare_exchange_strong(
-            expected_key, insert_pair.first, cuda::memory_order_relaxed);
+        auto const key_success = slot_key.compare_exchange_strong(
+          expected_key, insert_pair.first, cuda::memory_order_relaxed);
 
-          if (key_success or key_equal(insert_pair.first, expected_key)) {
-            this->get_op().apply(slot_value, insert_pair.second);
-            return key_success; 
-          }
+        if (key_success or key_equal(insert_pair.first, expected_key)) {
+          this->get_op().apply(slot_value, insert_pair.second);
+          return key_success ? insert_result::SUCCESS : insert_result::DUPLICATE;
         }
-        return false;
-      }();
+        return insert_result::CONTINUE;
+      };
+
+      auto const update_result =
+        (g.thread_rank() == src_lane) ? attempt_update() : insert_result::CONTINUE;
+
+      auto const window_result = g.shfl(update_result, src_lane);
 
       // If the update succeeded, the thread group exits
-      if (g.shfl(update_success, src_lane)) {
-        return true;
+      if (window_result != insert_result::CONTINUE) {
+        return (window_result == insert_result::SUCCESS);
       }
 
       // A different key took the current slot. Look for an empty slot in the current window
