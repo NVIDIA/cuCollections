@@ -80,25 +80,41 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        "",
                        ((typename T, dist_type Dist), T, Dist),
-                       (int32_t, dist_type::UNIQUE),
-                       (int64_t, dist_type::UNIQUE),
-                       (int32_t, dist_type::UNIFORM),
-                       (int64_t, dist_type::UNIFORM),
-                       (int32_t, dist_type::GAUSSIAN),
-                       (int64_t, dist_type::GAUSSIAN))
+                       (int32_t, dist_type::UNIQUE))
 {
   using Key   = T;
   using Value = T;
 
-  constexpr std::size_t num_slots{50'000'000};
+  constexpr std::size_t num_slots{200};
   cuco::static_reduction_map<cuco::reduce_add<Value>, Key, Value> map{num_slots, -1};
 
-  SECTION("Inserting all the same key should sum all of their corresponding values") {
-      thrust::device_vector<Key> keys(100, 42);
-      thrust::device_vector<Value> values(keys.size(), 1);
-      auto zip = thrust::make_zip_iterator(thrust::make_tuple(keys.begin(), values.begin()));
-      auto zip_end = zip + keys.size();
-      map.insert(zip, zip_end);
-      REQUIRE(map.get_size() == 1);
+  SECTION("Inserting identical keys")
+  {
+    thrust::device_vector<Key> keys(100, 42);
+    thrust::device_vector<Value> values(keys.size(), 1);
+    auto zip     = thrust::make_zip_iterator(thrust::make_tuple(keys.begin(), values.begin()));
+    auto zip_end = zip + keys.size();
+    map.insert(zip, zip_end);
+
+    SECTION("There should only be one key in the map") { REQUIRE(map.get_size() == 1); }
+
+    SECTION("Map should contain the inserted key")
+    {
+      thrust::device_vector<bool> contained(keys.size());
+      map.contains(keys.begin(), keys.end(), contained.begin());
+      REQUIRE(all_of(contained.begin(), contained.end(), [] __device__(bool c) { return c; }));
+    }
+
+    SECTION("Found value should equal aggregate of inserted values")
+    {
+      thrust::device_vector<Value> found(keys.size());
+      map.find(keys.begin(), keys.end(), found.begin());
+      auto const expected_aggregate = keys.size();  // All keys inserted "1", so the
+                                                    // sum aggregate should be
+                                                    // equal to the number of keys inserted
+      REQUIRE(all_of(found.begin(), found.end(), [expected_aggregate] __device__(Value v) {
+        return v == expected_aggregate;
+      }));
+    }
   }
 }
