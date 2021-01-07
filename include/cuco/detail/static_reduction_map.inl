@@ -176,10 +176,10 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, insert_pair.first, hash);
-  auto& slot_key    = current_slot->first;
-  auto& slot_value  = current_slot->second;
 
   while (true) {
+    auto& slot_key         = current_slot->first;
+    auto& slot_value       = current_slot->second;
     auto const current_key = slot_key.load(cuda::std::memory_order_relaxed);
 
     // The user provided `key_equal` should never be used to compare against `empty_key_sentinel` as
