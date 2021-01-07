@@ -98,6 +98,7 @@ struct custom_op {
   {
     auto old = slot.load(cuda::memory_order_relaxed);
     while (not slot.compare_exchange_strong(old, op(old, value), cuda::memory_order_relaxed)) {}
+    return old;
   }
 };
 
