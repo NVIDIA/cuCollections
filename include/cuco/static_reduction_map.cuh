@@ -44,8 +44,7 @@ struct reduce_add {
   static constexpr T identity = 0;
 
   template <cuda::thread_scope Scope, typename T2>
-  __device__
-  T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
+  __device__ T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
   {
     return slot.fetch_add(value, cuda::memory_order_relaxed);
   }
@@ -57,8 +56,7 @@ struct reduce_sub {
   static constexpr T identity = 0;
 
   template <cuda::thread_scope Scope, typename T2>
-  __device__
-  T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
+  __device__ T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
   {
     return slot.fetch_sub(value, cuda::memory_order_relaxed);
   }
@@ -70,8 +68,7 @@ struct reduce_min {
   static constexpr T identity = std::numeric_limits<T>::max();
 
   template <cuda::thread_scope Scope, typename T2>
-  __device__
-  T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
+  __device__ T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
   {
     return slot.fetch_min(value, cuda::memory_order_relaxed);
   }
@@ -83,10 +80,24 @@ struct reduce_max {
   static constexpr T identity = std::numeric_limits<T>::lowest();
 
   template <cuda::thread_scope Scope, typename T2>
-  __device__
-  T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
+  __device__ T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
   {
     return slot.fetch_max(value, cuda::memory_order_relaxed);
+  }
+};
+
+template <typename T, T Identity, typename Op>
+struct custom_op {
+  using value_type            = T;
+  static constexpr T identity = Identity;
+
+  Op op;
+
+  template <cuda::thread_scope Scope, typename T2>
+  __device__ T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
+  {
+    auto old = slot.load(cuda::memory_order_relaxed);
+    while (not slot.compare_exchange_strong(old, op(old, value), cuda::memory_order_relaxed)) {}
   }
 };
 
