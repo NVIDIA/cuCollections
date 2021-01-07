@@ -86,8 +86,8 @@ TEMPLATE_TEST_CASE_SIG("Insert all unique keys",
                        ((typename Key, typename Value), Key, Value),
                        (int32_t, int32_t))
 {
-  constexpr std::size_t num_keys = 100;
-  constexpr std::size_t num_slots{num_keys * 3};
+  constexpr std::size_t num_keys = 10000;
+  constexpr std::size_t num_slots{num_keys * 2};
   cuco::static_reduction_map<cuco::reduce_add<Value>, Key, Value> map{num_slots, -1};
 
   auto keys_begin   = thrust::make_counting_iterator<Key>(0);
