@@ -47,7 +47,7 @@ struct reduce_add {
   __device__
   T apply(cuda::atomic<T, Scope>& slot, T2 const& value)
   {
-    return slot.fetch_add(value);
+    return slot.fetch_add(value, cuda::memory_order_relaxed);
   }
 };
 
