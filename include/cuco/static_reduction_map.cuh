@@ -45,9 +45,48 @@ struct reduce_add {
 
   template <cuda::thread_scope Scope, typename T2>
   __device__
-  T apply(cuda::atomic<T, Scope>& slot, T2 const& value)
+  T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
   {
     return slot.fetch_add(value, cuda::memory_order_relaxed);
+  }
+};
+
+template <typename T>
+struct reduce_sub {
+  using value_type            = T;
+  static constexpr T identity = 0;
+
+  template <cuda::thread_scope Scope, typename T2>
+  __device__
+  T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
+  {
+    return slot.fetch_sub(value, cuda::memory_order_relaxed);
+  }
+};
+
+template <typename T>
+struct reduce_min {
+  using value_type            = T;
+  static constexpr T identity = std::numeric_limits<T>::max();
+
+  template <cuda::thread_scope Scope, typename T2>
+  __device__
+  T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
+  {
+    return slot.fetch_min(value, cuda::memory_order_relaxed);
+  }
+};
+
+template <typename T>
+struct reduce_max {
+  using value_type            = T;
+  static constexpr T identity = std::numeric_limits<T>::lowest();
+
+  template <cuda::thread_scope Scope, typename T2>
+  __device__
+  T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
+  {
+    return slot.fetch_max(value, cuda::memory_order_relaxed);
   }
 };
 
