@@ -50,11 +50,12 @@ TEMPLATE_TEST_CASE_SIG("Insert all identical keys",
                        ((typename Key, typename Value), Key, Value),
                        (int32_t, int32_t))
 {
-  constexpr std::size_t num_slots{200};
-  cuco::static_reduction_map<cuco::reduce_add<Value>, Key, Value> map{num_slots, -1};
-
   thrust::device_vector<Key> keys(100, 42);
   thrust::device_vector<Value> values(keys.size(), 1);
+
+  auto const num_slots{keys.size() * 2};
+  cuco::static_reduction_map<cuco::reduce_add<Value>, Key, Value> map{num_slots, -1};
+
   auto zip     = thrust::make_zip_iterator(thrust::make_tuple(keys.begin(), values.begin()));
   auto zip_end = zip + keys.size();
   map.insert(zip, zip_end);
