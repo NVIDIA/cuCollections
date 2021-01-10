@@ -27,7 +27,7 @@ dynamic_map<Key, Value, Scope, submap_type>::dynamic_map(
   size_(0),
   capacity_(initial_capacity),
   min_insert_size_(1E4),
-  max_load_factor_(0.80) {
+  max_load_factor_(0.90) {
 
   submaps_.push_back(
     std::unique_ptr<submap_type<Key, Value, Scope>>{
@@ -69,7 +69,7 @@ void dynamic_map<Key, Value, Scope, submap_type>::reserve(std::size_t n) {
         new submap_type<Key, Value, Scope>{submap_capacity, empty_key_sentinel_, empty_value_sentinel_}});
       submap_views_.push_back(submaps_[submap_idx]->get_device_view());
       submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
-
+      
       capacity_ *= 2;
     }
 
@@ -101,7 +101,7 @@ void dynamic_map<Key, Value, Scope, submap_type>::insert(
       CUCO_CUDA_TRY(cudaGetDevice(&device_id));
       CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
       
-      auto const thresh_lf = 0.35;
+      auto const thresh_lf = 0.25;
       auto n = std::min(capacity_remaining, num_to_insert);
       auto const block_size = 128;
       auto const stride = 1;

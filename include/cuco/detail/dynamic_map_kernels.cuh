@@ -63,10 +63,11 @@ __global__ void insert(InputIt first,
                        uint32_t num_submaps,
                        Hash hash,
                        KeyEqual key_equal) {
+
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
-  
+
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
 
   while(first + tid < last) {
@@ -147,10 +148,11 @@ __global__ void insert(InputIt first,
                        uint32_t num_submaps,
                        Hash hash,
                        KeyEqual key_equal) {
+
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
-  
+
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto it = first + tid / tile_size;

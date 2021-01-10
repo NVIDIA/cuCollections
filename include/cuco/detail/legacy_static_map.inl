@@ -57,7 +57,7 @@ void legacy_static_map<Key, Value, Scope>::insert(InputIt first,
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
   auto const stride     = 1;
-  auto const tile_size  = 8;
+  auto const tile_size  = 4;
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 

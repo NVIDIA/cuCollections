@@ -22,8 +22,9 @@ endif()
 
 CPMAddPackage(
     NAME SLABALLOC
+    #GITHUB_REPOSITORY Nicolas-Iskos/SlabAlloc
     GITHUB_REPOSITORY owensgroup/SlabAlloc
-    GIT_TAG origin/master
+    GIT_TAG origin/main
     DOWNLOAD_ONLY YES
 )
 
@@ -32,8 +33,8 @@ target_include_directories(SLABALLOC INTERFACE "${SLABALLOC_SOURCE_DIR}/src")
 
 CPMAddPackage(
     NAME SLABHASH
-    GITHUB_REPOSITORY owensgroup/SlabHash
-    GIT_TAG origin/master
+    GITHUB_REPOSITORY Nicolas-Iskos/SlabHash
+    GIT_TAG origin/resize
     DOWNLOAD_ONLY YES
 )
 

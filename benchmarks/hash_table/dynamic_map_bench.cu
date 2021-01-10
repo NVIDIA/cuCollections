@@ -80,7 +80,7 @@ static void BM_dynamic_insert(::benchmark::State& state) {
 
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs( h_pairs );
 
-  std::size_t batch_size = 1E6;
+  std::size_t batch_size = 10E6;
   for(auto _ : state) {
     map_type map{initial_size, -1, -1};
     {
@@ -141,7 +141,7 @@ BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
-
+/*
 BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
@@ -191,3 +191,4 @@ BENCHMARK_TEMPLATE(BM_dynamic_search_all, int64_t, int64_t, dist_type::GAUSSIAN)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
+*/

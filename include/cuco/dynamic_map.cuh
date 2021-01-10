@@ -21,6 +21,7 @@
 #include <cuda/std/atomic>
 #include <cooperative_groups.h>
 #include <cub/cub.cuh>
+#include <cuco/legacy_static_map.cuh>
 #include <cuco/static_map.cuh>
 #include <cuco/detail/dynamic_map_kernels.cuh>
 
