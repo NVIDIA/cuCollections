@@ -27,7 +27,7 @@ dynamic_map<Key, Value, Scope, submap_type>::dynamic_map(
   size_(0),
   capacity_(initial_capacity),
   min_insert_size_(1E4),
-  max_load_factor_(0.90) {
+  max_load_factor_(0.75) {
 
   submaps_.push_back(
     std::unique_ptr<submap_type<Key, Value, Scope>>{
@@ -106,7 +106,10 @@ void dynamic_map<Key, Value, Scope, submap_type>::insert(
       auto const block_size = 128;
       auto const stride = 1;
 
-      if(submaps_[submap_idx]->get_load_factor() > thresh_lf) {
+      float final_lf = static_cast<float>(submaps_[submap_idx]->get_size() + n) / 
+                                           submaps_[submap_idx]->get_capacity();
+
+      if(final_lf > thresh_lf) {
         auto const tile_size = 4;
         auto const grid_size = (tile_size * n + stride * block_size - 1) /
                               (stride * block_size);

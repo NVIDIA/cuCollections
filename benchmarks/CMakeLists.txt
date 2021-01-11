@@ -22,9 +22,9 @@ endif()
 
 CPMAddPackage(
     NAME SLABALLOC
-    #GITHUB_REPOSITORY Nicolas-Iskos/SlabAlloc
-    GITHUB_REPOSITORY owensgroup/SlabAlloc
-    GIT_TAG origin/main
+    GITHUB_REPOSITORY Nicolas-Iskos/SlabAlloc
+    #GITHUB_REPOSITORY owensgroup/SlabAlloc
+    GIT_TAG origin/resize
     DOWNLOAD_ONLY YES
 )
 

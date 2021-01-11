@@ -15,7 +15,6 @@
  */
 
 #include <gpu_hash_table.cuh>
-#include "../../../SlabHashFork/SlabHash/src/gpu_hash_table.cuh"
 #include <cuco/legacy_static_map.cuh>
 #include <single_value_hash_table.cuh>
 
@@ -329,19 +328,19 @@ BENCHMARK_TEMPLATE(BM_dynamic_find, int32_t, int32_t, dist_type::UNIQUE)
   ->Apply(gen_final_size)
   ->UseManualTime();
 */
-/*
+///*
 BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
 //*/
-///*
+/*
 BENCHMARK_TEMPLATE(BM_dynamic_find_all, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
 //*/
-///*
+/*
 BENCHMARK_TEMPLATE(BM_dynamic_find_none, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
