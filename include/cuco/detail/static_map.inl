@@ -26,15 +26,17 @@ enum class insert_result {
   DUPLICATE  ///< Insert did not succeed, key is already present
 };
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
-static_map<Key, Value, Scope>::static_map(std::size_t capacity,
-                                          Key empty_key_sentinel,
-                                          Value empty_value_sentinel)
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
+                                                     Key empty_key_sentinel,
+                                                     Value empty_value_sentinel,
+                                                     Allocator const& alloc)
   : capacity_{capacity},
     empty_key_sentinel_{empty_key_sentinel},
-    empty_value_sentinel_{empty_value_sentinel}
+    empty_value_sentinel_{empty_value_sentinel},
+    slot_allocator_{alloc}
 {
-  CUCO_CUDA_TRY(cudaMalloc(&slots_, capacity * sizeof(pair_atomic_type)));
+  slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity);
 
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
@@ -45,19 +47,19 @@ static_map<Key, Value, Scope>::static_map(std::size_t capacity,
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
-static_map<Key, Value, Scope>::~static_map()
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+static_map<Key, Value, Scope, Allocator>::~static_map()
 {
-  CUCO_CUDA_TRY(cudaFree(slots_));
+  std::allocator_traits<slot_allocator_type>::deallocate(slot_allocator_, slots_, capacity_);
   CUCO_CUDA_TRY(cudaFree(num_successes_));
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
-void static_map<Key, Value, Scope>::insert(InputIt first,
-                                           InputIt last,
-                                           Hash hash,
-                                           KeyEqual key_equal)
+void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
+                                                      InputIt last,
+                                                      Hash hash,
+                                                      KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -78,9 +80,9 @@ void static_map<Key, Value, Scope>::insert(InputIt first,
   size_ += num_successes_->load(cuda::std::memory_order_relaxed);
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void static_map<Key, Value, Scope>::find(
+void static_map<Key, Value, Scope, Allocator>::find(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
 {
   auto num_keys         = std::distance(first, last);
@@ -95,9 +97,9 @@ void static_map<Key, Value, Scope>::find(
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void static_map<Key, Value, Scope>::contains(
+void static_map<Key, Value, Scope, Allocator>::contains(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
 {
   auto num_keys         = std::distance(first, last);
@@ -112,9 +114,9 @@ void static_map<Key, Value, Scope>::contains(
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
+__device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot{initial_slot(insert_pair.first, hash)};
@@ -153,29 +155,33 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
+__device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, insert_pair.first, hash);
 
   while (true) {
-    key_type const existing_key = current_slot->first;
-    uint32_t existing           = g.ballot(key_equal(existing_key, insert_pair.first));
+    key_type const existing_key = current_slot->first.load(cuda::memory_order_relaxed);
 
-    // the key we are trying to insert is already in the map, so we return
-    // with failure to insert
-    if (existing) { return false; }
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
+    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
 
-    uint32_t empty = g.ballot(existing_key == this->get_empty_key_sentinel());
+    // the key we are trying to insert is already in the map, so we return with failure to insert
+    if (g.ballot(not slot_is_empty and key_equal(existing_key, insert_pair.first))) {
+      return false;
+    }
+
+    auto const window_contains_empty = g.ballot(slot_is_empty);
 
     // we found an empty slot, but not the key we are inserting, so this must
     // be an empty slot into which we can insert the key
-    if (empty) {
+    if (window_contains_empty) {
       // the first lane in the group with an empty slot will attempt the insert
       insert_result status{insert_result::CONTINUE};
-      uint32_t src_lane = __ffs(empty) - 1;
+      uint32_t src_lane = __ffs(window_contains_empty) - 1;
 
       if (g.thread_rank() == src_lane) {
         using cuda::std::memory_order_relaxed;
@@ -226,101 +232,107 @@ __device__ bool static_map<Key, Value, Scope>::device_mutable_view::insert(
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ typename static_map<Key, Value, Scope>::device_view::iterator
-static_map<Key, Value, Scope>::device_view::find(Key const& k,
-                                                 Hash hash,
-                                                 KeyEqual key_equal) noexcept
+__device__ typename static_map<Key, Value, Scope, Allocator>::device_view::iterator
+static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
+                                                            Hash hash,
+                                                            KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
-    // Key exists, return iterator to location
-    if (key_equal(existing_key, k)) { return current_slot; }
-
     // Key doesn't exist, return end()
     if (existing_key == this->get_empty_key_sentinel()) { return this->end(); }
+
+    // Key exists, return iterator to location
+    if (key_equal(existing_key, k)) { return current_slot; }
 
     current_slot = next_slot(current_slot);
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ typename static_map<Key, Value, Scope>::device_view::const_iterator
-static_map<Key, Value, Scope>::device_view::find(Key const& k, Hash hash, KeyEqual key_equal) const
-  noexcept
+__device__ typename static_map<Key, Value, Scope, Allocator>::device_view::const_iterator
+static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
+                                                            Hash hash,
+                                                            KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
-    // Key exists, return iterator to location
-    if (key_equal(existing_key, k)) { return current_slot; }
-
     // Key doesn't exist, return end()
     if (existing_key == this->get_empty_key_sentinel()) { return this->end(); }
+
+    // Key exists, return iterator to location
+    if (key_equal(existing_key, k)) { return current_slot; }
 
     current_slot = next_slot(current_slot);
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ typename static_map<Key, Value, Scope>::device_view::iterator
-static_map<Key, Value, Scope>::device_view::find(CG g,
-                                                 Key const& k,
-                                                 Hash hash,
-                                                 KeyEqual key_equal) noexcept
+__device__ typename static_map<Key, Value, Scope, Allocator>::device_view::iterator
+static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
+                                                            Key const& k,
+                                                            Hash hash,
+                                                            KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
-    uint32_t existing       = g.ballot(key_equal(existing_key, k));
+
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
+    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads,
     // so we return an iterator to the entry
-    if (existing) {
-      uint32_t src_lane = __ffs(existing) - 1;
+    auto const exists = g.ballot(not slot_is_empty and key_equal(existing_key, k));
+    if (exists) {
+      uint32_t src_lane = __ffs(exists) - 1;
       // TODO: This shouldn't cast an iterator to an int to shuffle. Instead, get the index of the
       // current_slot and shuffle that instead.
       intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
       return reinterpret_cast<iterator>(res_slot);
     }
 
-    // we found an empty slot, meaning that the key we're searching
-    // for isn't in this submap, so we should move onto the next one
-    uint32_t empty = g.ballot(existing_key == this->get_empty_key_sentinel());
-    if (empty) { return this->end(); }
+    // we found an empty slot, meaning that the key we're searching for isn't present
+    if (g.ballot(slot_is_empty)) { return this->end(); }
 
-    // otherwise, all slots in the current window are full with other keys,
-    // so we move onto the next window in the current submap
-
+    // otherwise, all slots in the current window are full with other keys, so we move onto the
+    // next window
     current_slot = next_slot(g, current_slot);
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ typename static_map<Key, Value, Scope>::device_view::const_iterator
-static_map<Key, Value, Scope>::device_view::find(CG g,
-                                                 Key const& k,
-                                                 Hash hash,
-                                                 KeyEqual key_equal) const noexcept
+__device__ typename static_map<Key, Value, Scope, Allocator>::device_view::const_iterator
+static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
+                                                            Key const& k,
+                                                            Hash hash,
+                                                            KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
-    uint32_t existing       = g.ballot(key_equal(existing_key, k));
 
-    // the key we were searching for was found by one of the threads,
-    // so we return an iterator to the entry
-    if (existing) {
-      uint32_t src_lane = __ffs(existing) - 1;
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
+    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
+
+    // the key we were searching for was found by one of the threads, so we return an iterator to
+    // the entry
+    auto const exists = g.ballot(not slot_is_empty and key_equal(existing_key, k));
+    if (exists) {
+      uint32_t src_lane = __ffs(exists) - 1;
       // TODO: This shouldn't cast an iterator to an int to shuffle. Instead, get the index of the
       // current_slot and shuffle that instead.
       intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
@@ -329,8 +341,7 @@ static_map<Key, Value, Scope>::device_view::find(CG g,
 
     // we found an empty slot, meaning that the key we're searching
     // for isn't in this submap, so we should move onto the next one
-    uint32_t empty = g.ballot(existing_key == this->get_empty_key_sentinel());
-    if (empty) { return this->end(); }
+    if (g.ballot(slot_is_empty)) { return this->end(); }
 
     // otherwise, all slots in the current window are full with other keys,
     // so we move onto the next window in the current submap
@@ -339,49 +350,47 @@ static_map<Key, Value, Scope>::device_view::find(CG g,
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope>::device_view::contains(Key const& k,
-                                                                     Hash hash,
-                                                                     KeyEqual key_equal) noexcept
+__device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
+  Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    if (key_equal(existing_key, k)) { return true; }
-
     if (existing_key == empty_key_sentinel_) { return false; }
+
+    if (key_equal(existing_key, k)) { return true; }
 
     current_slot = next_slot(current_slot);
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope>::device_view::contains(CG g,
-                                                                     Key const& k,
-                                                                     Hash hash,
-                                                                     KeyEqual key_equal) noexcept
+__device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
+  CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
   while (true) {
     key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
-    uint32_t existing           = g.ballot(key_equal(existing_key, k));
 
-    // the key we were searching for was found by one of the threads,
-    // so we return an iterator to the entry
-    if (existing) { return true; }
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
+    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
 
-    // we found an empty slot, meaning that the key we're searching
-    // for isn't in this submap, so we should move onto the next one
-    uint32_t empty = g.ballot(existing_key == this->get_empty_key_sentinel());
-    if (empty) { return false; }
+    // the key we were searching for was found by one of the threads, so we return an iterator to
+    // the entry
+    if (g.ballot(not slot_is_empty and key_equal(existing_key, k))) { return true; }
 
-    // otherwise, all slots in the current window are full with other keys,
-    // so we move onto the next window in the current submap
+    // we found an empty slot, meaning that the key we're searching for isn't present
+    if (g.ballot(slot_is_empty)) { return false; }
+
+    // otherwise, all slots in the current window are full with other keys, so we move onto the next
+    // window
     current_slot = next_slot(g, current_slot);
   }
 }

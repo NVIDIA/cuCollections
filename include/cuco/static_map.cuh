@@ -21,16 +21,24 @@
 #include <thrust/functional.h>
 #include <cub/cub.cuh>
 #include <cuda/std/atomic>
+#include <memory>
 
+#include <cuco/allocator.hpp>
 #include <cuco/detail/cuda_memcmp.cuh>
+#ifndef CUDART_VERSION
+#error CUDART_VERSION Undefined!
+#elif (CUDART_VERSION >= 11000) // including with CUDA 10.2 leads to compilation errors
+#include <cuda/barrier>
+#endif
+
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
-#include <cuco/hash_functions.cuh>
 
 namespace cuco {
 
-template <typename Key, typename Value, cuda::thread_scope Scope>
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;
 
 /**
@@ -97,13 +105,15 @@ class dynamic_map;
  * @tparam Value Type of the mapped values
  * @tparam Scope The scope in which insert/find operations will be performed by
  * individual threads.
+ * @tparam Allocator Type of allocator used for device storage
  */
-template <typename Key, typename Value, cuda::thread_scope Scope = cuda::thread_scope_device>
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope = cuda::thread_scope_device,
+          typename Allocator       = cuco::cuda_allocator<char>>
 class static_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
-  friend class dynamic_map<Key, Value, Scope>;
-
-  friend class dynamic_map<Key, Value, Scope>;
+  friend class dynamic_map<Key, Value, Scope, Allocator>;
 
  public:
   using value_type         = cuco::pair_type<Key, Value>;
@@ -114,6 +124,9 @@ class static_map {
   using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
   using slot_type          = pair_atomic_type;
   using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
+  using allocator_type     = Allocator;
+  using slot_allocator_type =
+    typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
 
   static_map(static_map const&) = delete;
   static_map(static_map&&)      = delete;
@@ -129,7 +142,6 @@ class static_map {
    * grow the map. Attempting to insert more unique keys than the capacity of
    * the map results in undefined behavior.
    *
-   * details here...
    * Performance begins to degrade significantly beyond a load factor of ~70%.
    * For best performance, choose a capacity that will keep the load factor
    * below 70%. E.g., if inserting `N` unique keys, choose a capacity of
@@ -142,8 +154,12 @@ class static_map {
    * @param capacity The total number of slots in the map
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param alloc Allocator used for allocating device storage
    */
-  static_map(std::size_t capacity, Key empty_key_sentinel, Value empty_value_sentinel);
+  static_map(std::size_t capacity,
+             Key empty_key_sentinel,
+             Value empty_value_sentinel,
+             Allocator const& alloc = Allocator{});
 
   /**
    * @brief Destroys the map and frees its contents.
@@ -167,7 +183,7 @@ class static_map {
    * @param key_equal The binary function to compare two keys for equality
    */
   template <typename InputIt,
-            typename Hash     = MurmurHash3_32<key_type>,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
 
@@ -191,7 +207,7 @@ class static_map {
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash     = MurmurHash3_32<key_type>,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void find(InputIt first,
             InputIt last,
@@ -218,7 +234,7 @@ class static_map {
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash     = MurmurHash3_32<key_type>,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,
@@ -254,6 +270,20 @@ class static_map {
         empty_value_sentinel_{empty_value_sentinel}
     {
     }
+
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
+
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
 
     /**
      * @brief Returns the initial slot for a given key `k`
@@ -572,7 +602,7 @@ class static_map {
      * equality
      * @return `true` if the insert was successful, `false` otherwise.
      */
-    template <typename Hash     = MurmurHash3_32<key_type>,
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool insert(value_type const& insert_pair,
                            Hash hash          = Hash{},
@@ -599,7 +629,7 @@ class static_map {
      * @return `true` if the insert was successful, `false` otherwise.
      */
     template <typename CG,
-              typename Hash     = MurmurHash3_32<key_type>,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool insert(CG g,
                            value_type const& insert_pair,
@@ -636,12 +666,84 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-    device_view(pair_atomic_type* slots,
-                std::size_t capacity,
-                Key empty_key_sentinel,
-                Value empty_value_sentinel) noexcept
+     __host__ __device__ device_view(pair_atomic_type* slots,
+                                     std::size_t capacity,
+                                     Key empty_key_sentinel,
+                                     Value empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
+    }
+
+    /**
+     * @brief Makes a copy of given `device_view` using non-owned memory.
+     *
+     * This function is intended to be used to create shared memory copies of small static maps, although global memory can be used as well.
+     *
+     * Example:
+     * @code{.cpp}
+     * template <typename MapType, int CAPACITY>
+     * __global__ void use_device_view(const typename MapType::device_view device_view,
+     *                                 map_key_t const* const keys_to_search,
+     *                                 map_value_t* const values_found,
+     *                                 const size_t number_of_elements)
+     * {
+     *     const size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+     *
+     *     __shared__ typename MapType::pair_atomic_type sm_buffer[CAPACITY];
+     *
+     *     auto g = cg::this_thread_block();
+     *
+     *     const map_t::device_view sm_static_map = device_view.make_copy(g,
+     *                                                                    sm_buffer);
+     *
+     *     for (size_t i = g.thread_rank(); i < number_of_elements; i += g.size())
+     *     {
+     *         values_found[i] = sm_static_map.find(keys_to_search[i])->second;
+     *     }
+     * }
+     * @endcode
+     *
+     * @tparam CG The type of the cooperative thread group
+     * @param g The ooperative thread group used to copy the slots
+     * @param source_device_view `device_view` to copy from
+     * @param memory_to_use Array large enough to support `capacity` elements. Object does not take the ownership of the memory
+     * @return Copy of passed `device_view`
+     */
+    template <typename CG>
+    __device__ static device_view make_copy(CG g,
+                                            pair_atomic_type* const memory_to_use,
+                                            device_view source_device_view) noexcept
+    {
+#ifndef CUDART_VERSION
+#error CUDART_VERSION Undefined!
+#elif (CUDART_VERSION >= 11000)
+      __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
+      if (g.thread_rank() == 0) {
+        init(&barrier, g.size());
+      }
+      g.sync();
+
+      cuda::memcpy_async(g,
+                         memory_to_use,
+                         source_device_view.get_slots(),
+                         sizeof(pair_atomic_type) * source_device_view.get_capacity(),
+                         barrier);
+
+      barrier.arrive_and_wait();
+#else
+      pair_atomic_type const* const slots_ptr = source_device_view.get_slots();
+      for (std::size_t i = g.thread_rank(); i < source_device_view.get_capacity(); i += g.size())
+      {
+        new (&memory_to_use[i].first) atomic_key_type{slots_ptr[i].first.load(cuda::memory_order_relaxed)};
+        new (&memory_to_use[i].second) atomic_mapped_type{slots_ptr[i].second.load(cuda::memory_order_relaxed)};
+      }
+      g.sync();
+#endif
+
+      return device_view(memory_to_use,
+                         source_device_view.get_capacity(),
+                         source_device_view.get_empty_key_sentinel(),
+                         source_device_view.get_empty_value_sentinel());
     }
 
     /**
@@ -659,7 +761,7 @@ class static_map {
      * @return An iterator to the position at which the key/value pair
      * containing `k` was inserted
      */
-    template <typename Hash     = MurmurHash3_32<key_type>,
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ iterator find(Key const& k,
                              Hash hash          = Hash{},
@@ -679,7 +781,7 @@ class static_map {
      * @return An iterator to the position at which the key/value pair
      * containing `k` was inserted
      */
-    template <typename Hash     = MurmurHash3_32<key_type>,
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ const_iterator find(Key const& k,
                                    Hash hash          = Hash{},
@@ -706,7 +808,7 @@ class static_map {
      * containing `k` was inserted
      */
     template <typename CG,
-              typename Hash     = MurmurHash3_32<key_type>,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ iterator
     find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -732,7 +834,7 @@ class static_map {
      * containing `k` was inserted
      */
     template <typename CG,
-              typename Hash     = MurmurHash3_32<key_type>,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ const_iterator
     find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
@@ -752,7 +854,7 @@ class static_map {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <typename Hash     = MurmurHash3_32<key_type>,
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool contains(Key const& k,
                              Hash hash          = Hash{},
@@ -779,7 +881,7 @@ class static_map {
      * containing `k` was inserted
      */
     template <typename CG,
-              typename Hash     = MurmurHash3_32<key_type>,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool contains(CG g,
                              Key const& k,
@@ -843,12 +945,13 @@ class static_map {
   }
 
  private:
-  pair_atomic_type* slots_{nullptr};  ///< Pointer to flat slots storage
-  std::size_t capacity_{};            ///< Total number of slots
-  std::size_t size_{};                ///< Number of keys in map
-  Key empty_key_sentinel_{};          ///< Key value that represents an empty slot
-  Value empty_value_sentinel_{};      ///< Initial value of empty slot
-  atomic_ctr_type* num_successes_{};  ///< Number of successfully inserted keys on insert
+  pair_atomic_type* slots_{nullptr};      ///< Pointer to flat slots storage
+  std::size_t capacity_{};                ///< Total number of slots
+  std::size_t size_{};                    ///< Number of keys in map
+  Key empty_key_sentinel_{};              ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};          ///< Initial value of empty slot
+  atomic_ctr_type* num_successes_{};      ///< Number of successfully inserted keys on insert
+  slot_allocator_type slot_allocator_{};  ///< Allocator used to allocate slots
 };
 }  // namespace cuco
 
