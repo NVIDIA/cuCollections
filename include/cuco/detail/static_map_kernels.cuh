@@ -70,7 +70,7 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function used to compare two keys for equality
  */
-template <std::size_t block_size,
+template <uint32_t block_size,
           typename InputIt,
           typename atomicT,
           typename viewT,
@@ -123,7 +123,7 @@ __global__ void insert(
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function used to compare two keys for equality
  */
-template <std::size_t block_size,
+template <uint32_t block_size,
           uint32_t tile_size,
           typename InputIt,
           typename atomicT,
@@ -177,7 +177,7 @@ __global__ void insert(
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
-template <std::size_t block_size,
+template <uint32_t block_size,
           typename Value,
           typename InputIt,
           typename OutputIt,
@@ -237,7 +237,7 @@ __global__ void find(
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
-template <std::size_t block_size,
+template <uint32_t block_size,
           uint32_t tile_size,
           typename Value,
           typename InputIt,
@@ -297,7 +297,7 @@ __global__ void find(
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
-template <std::size_t block_size,
+template <uint32_t block_size,
           typename InputIt,
           typename OutputIt,
           typename viewT,
@@ -352,7 +352,7 @@ __global__ void contains(
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
-template <std::size_t block_size,
+template <uint32_t block_size,
           uint32_t tile_size,
           typename InputIt,
           typename OutputIt,
