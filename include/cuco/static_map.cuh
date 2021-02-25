@@ -83,7 +83,7 @@ class dynamic_map;
  * Example:
  * \code{.cpp}
  * int empty_key_sentinel = -1;
- * int empty_value_sentine = -1;
+ * int empty_value_sentinel = -1;
  *
  * // Constructs a map with 100,000 slots using -1 and -1 as the empty key/value
  * // sentinels. Note the capacity is chosen knowing we will insert 50,000 keys,

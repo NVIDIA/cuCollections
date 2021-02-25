@@ -35,7 +35,7 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
 
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
-}  // namespace cuco
+}
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 dynamic_map<Key, Value, Scope, Allocator>::~dynamic_map()
