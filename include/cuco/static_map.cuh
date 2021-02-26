@@ -37,9 +37,7 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
-#include <cuco/detail/static_kernels.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
-#include <cuco/detail/static_multimap_kernels.cuh>
 
 namespace cuco {
 
@@ -913,7 +911,7 @@ class static_map {
     return device_mutable_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }
 
- protected:
+ private:
   pair_atomic_type* slots_{nullptr};      ///< Pointer to flat slots storage
   std::size_t capacity_{};                ///< Total number of slots
   std::size_t size_{};                    ///< Number of keys in map

@@ -77,7 +77,7 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
 
-  detail::map::insert<block_size, tile_size>
+  detail::insert<block_size, tile_size>
     <<<grid_size, block_size>>>(first, first + num_keys, num_successes_, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
@@ -98,7 +98,7 @@ void static_map<Key, Value, Scope, Allocator>::find(
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_view();
 
-  detail::map::find<block_size, tile_size, Value>
+  detail::find<block_size, tile_size, Value>
     <<<grid_size, block_size>>>(first, last, output_begin, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
@@ -117,7 +117,7 @@ void static_map<Key, Value, Scope, Allocator>::contains(
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_view();
 
-  detail::map::contains<block_size, tile_size>
+  detail::contains<block_size, tile_size>
     <<<grid_size, block_size>>>(first, last, output_begin, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }

@@ -12,7 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */
+ */ 
 
 #include <thrust/device_reference.h>
 #include <thrust/pair.h>
@@ -24,13 +24,12 @@ namespace cuco {
 namespace detail {
 
 /**
- * @brief Rounds `v` to the nearest power of 2 greater than or equal to `v`.
- *
- * @param v
+ * @brief Rounds `v` to the nearest power of 2 greater than or equal to `v`. 
+ * 
+ * @param v 
  * @return The nearest power of 2 greater than or equal to `v`.
  */
-constexpr std::size_t next_pow2(std::size_t v) noexcept
-{
+constexpr std::size_t next_pow2(std::size_t v) noexcept {
   --v;
   v |= v >> 1;
   v |= v >> 2;
@@ -46,8 +45,7 @@ constexpr std::size_t next_pow2(std::size_t v) noexcept
  * whichever is smaller.
  */
 template <typename First, typename Second>
-constexpr std::size_t pair_alignment()
-{
+constexpr std::size_t pair_alignment() {
   return std::min(std::size_t{16}, next_pow2(sizeof(First) + sizeof(Second)));
 }
 
@@ -91,7 +89,7 @@ struct is_thrust_pair_like
  */
 template <typename First, typename Second>
 struct alignas(detail::pair_alignment<First, Second>()) pair {
-  using first_type  = First;
+  using first_type = First;
   using second_type = Second;
   First first;
   Second second;
@@ -123,16 +121,15 @@ using pair_type = cuco::pair<K, V>;
 
 /**
  * @brief Creates a pair of type `pair_type`
- *
- * @tparam F
- * @tparam S
- * @param f
- * @param s
+ * 
+ * @tparam F 
+ * @tparam S 
+ * @param f 
+ * @param s 
  * @return pair_type with first element `f` and second element `s`.
  */
 template <typename F, typename S>
-__host__ __device__ pair_type<F, S> make_pair(F&& f, S&& s) noexcept
-{
+__host__ __device__ pair_type<F, S> make_pair(F&& f, S&& s) noexcept {
   return pair_type<F, S>{std::forward<F>(f), std::forward<S>(s)};
 }
 }  // namespace cuco

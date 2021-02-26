@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2020, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,27 +16,50 @@
 
 namespace cuco {
 
+/**---------------------------------------------------------------------------*
+ * @brief Enumeration of the possible results of attempting to insert into
+ *a hash bucket
+ *---------------------------------------------------------------------------**/
+enum class insert_result {
+  CONTINUE,  ///< Insert did not succeed, continue trying to insert
+  SUCCESS,   ///< New pair inserted successfully
+  DUPLICATE  ///< Insert did not succeed, key is already present
+};
+
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_multimap<Key, Value, Scope, Allocator>::static_multimap(std::size_t capacity,
-                                                               Key empty_key_sentinel,
-                                                               Value empty_value_sentinel,
-                                                               Allocator const& alloc)
-  : static_map<Key, Value, Scope, Allocator>{
-      capacity, empty_key_sentinel, empty_value_sentinel, alloc}
+                                                     Key empty_key_sentinel,
+                                                     Value empty_value_sentinel,
+                                                     Allocator const& alloc)
+  : capacity_{capacity},
+    empty_key_sentinel_{empty_key_sentinel},
+    empty_value_sentinel_{empty_value_sentinel},
+    slot_allocator_{alloc}
 {
+  slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity);
+
+  auto constexpr block_size = 256;
+  auto constexpr stride     = 4;
+  auto const grid_size      = (capacity + stride * block_size - 1) / (stride * block_size);
+  detail::initialize<atomic_key_type, atomic_mapped_type>
+    <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, capacity);
+
+  CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_multimap<Key, Value, Scope, Allocator>::~static_multimap()
 {
+  std::allocator_traits<slot_allocator_type>::deallocate(slot_allocator_, slots_, capacity_);
+  CUCO_CUDA_TRY(cudaFree(num_successes_));
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
 void static_multimap<Key, Value, Scope, Allocator>::insert(InputIt first,
-                                                           InputIt last,
-                                                           Hash hash,
-                                                           KeyEqual key_equal)
+                                                      InputIt last,
+                                                      Hash hash,
+                                                      KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -50,17 +73,16 @@ void static_multimap<Key, Value, Scope, Allocator>::insert(InputIt first,
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
 
-  detail::multimap::insert<block_size, tile_size>
+  detail::insert<block_size, tile_size>
     <<<grid_size, block_size>>>(first, first + num_keys, num_successes_, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   size_ += num_successes_->load(cuda::std::memory_order_relaxed);
 }
 
-/*
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void static_map<Key, Value, Scope, Allocator>::find(
+void static_multimap<Key, Value, Scope, Allocator>::find(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
 {
   auto num_keys         = std::distance(first, last);
@@ -77,7 +99,7 @@ void static_map<Key, Value, Scope, Allocator>::find(
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void static_map<Key, Value, Scope, Allocator>::contains(
+void static_multimap<Key, Value, Scope, Allocator>::contains(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
 {
   auto num_keys         = std::distance(first, last);
@@ -94,7 +116,7 @@ void static_map<Key, Value, Scope, Allocator>::contains(
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(
+__device__ bool static_multimap<Key, Value, Scope, Allocator>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot{initial_slot(insert_pair.first, hash)};
@@ -125,7 +147,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
 
     // if the key was already inserted by another thread, than this instance is a
     // duplicate, so the insert fails
-    if (key_equal(insert_pair.first, expected_key)) { return false; }
+    //if (key_equal(insert_pair.first, expected_key)) { return false; }
 
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
     // have been some other key there, so we keep looking for a slot
@@ -135,7 +157,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(
+__device__ bool static_multimap<Key, Value, Scope, Allocator>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, insert_pair.first, hash);
@@ -148,9 +170,9 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
     auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
-    if (g.ballot(not slot_is_empty and key_equal(existing_key, insert_pair.first))) {
-      return false;
-    }
+    //if (g.ballot(not slot_is_empty and key_equal(existing_key, insert_pair.first))) {
+    //  return false;
+    //}
 
     auto const window_contains_empty = g.ballot(slot_is_empty);
 
@@ -186,7 +208,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
         }
 
         // our key was already present in the slot, so our key is a duplicate
-        if (key_equal(insert_pair.first, expected_key)) { status = insert_result::DUPLICATE; }
+        // if (key_equal(insert_pair.first, expected_key)) { status = insert_result::DUPLICATE; }
         // another key was inserted in the slot we wanted to try
         // so we need to try the next empty slot in the window
       }
@@ -196,8 +218,6 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
 
       // successful insert
       if (status == insert_result::SUCCESS) { return true; }
-      // duplicate present during insert
-      if (status == insert_result::DUPLICATE) { return false; }
       // if we've gotten this far, a different key took our spot
       // before we could insert. We need to retry the insert on the
       // same window
@@ -212,8 +232,8 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ typename static_map<Key, Value, Scope, Allocator>::device_view::iterator
-static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
+__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::iterator
+static_multimap<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
                                                             Hash hash,
                                                             KeyEqual key_equal) noexcept
 {
@@ -233,8 +253,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ typename static_map<Key, Value, Scope, Allocator>::device_view::const_iterator
-static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
+__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::const_iterator
+static_multimap<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
                                                             Hash hash,
                                                             KeyEqual key_equal) const noexcept
 {
@@ -254,8 +274,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ typename static_map<Key, Value, Scope, Allocator>::device_view::iterator
-static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
+__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::iterator
+static_multimap<Key, Value, Scope, Allocator>::device_view::find(CG g,
                                                             Key const& k,
                                                             Hash hash,
                                                             KeyEqual key_equal) noexcept
@@ -291,8 +311,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ typename static_map<Key, Value, Scope, Allocator>::device_view::const_iterator
-static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
+__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::const_iterator
+static_multimap<Key, Value, Scope, Allocator>::device_view::find(CG g,
                                                             Key const& k,
                                                             Hash hash,
                                                             KeyEqual key_equal) const noexcept
@@ -330,7 +350,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
+__device__ bool static_multimap<Key, Value, Scope, Allocator>::device_view::contains(
   Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(k, hash);
@@ -348,7 +368,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
+__device__ bool static_multimap<Key, Value, Scope, Allocator>::device_view::contains(
   CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
@@ -372,5 +392,4 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
     current_slot = next_slot(g, current_slot);
   }
 }
-*/
 }  // namespace cuco
