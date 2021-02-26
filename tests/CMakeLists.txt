@@ -58,3 +58,8 @@ set(DYNAMIC_MAP_TEST_SRC
 
 ConfigureTest(DYNAMIC_MAP_TEST "${DYNAMIC_MAP_TEST_SRC}")
 ####################################################################################################
+set(STATIC_MULTIMAP_TEST_SRC 
+    "${CMAKE_CURRENT_SOURCE_DIR}/static_multimap/static_multimap_test.cu")
+
+  ConfigureTest(STATIC_MULTIMAP_TEST "${STATIC_MULTIMAP_TEST_SRC}")
+####################################################################################################
