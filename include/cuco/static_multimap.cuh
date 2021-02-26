@@ -152,9 +152,9 @@ class static_multimap {
    * @param alloc Allocator used for allocating device storage
    */
   static_multimap(std::size_t capacity,
-             Key empty_key_sentinel,
-             Value empty_value_sentinel,
-             Allocator const& alloc = Allocator{});
+                  Key empty_key_sentinel,
+                  Value empty_value_sentinel,
+                  Allocator const& alloc = Allocator{});
 
   /**
    * @brief Destroys the map and frees its contents.
@@ -886,7 +886,8 @@ class static_multimap {
   }
 
   /**
-   * @brief Constructs a device_mutable_view object based on the members of the `static_multimap` object
+   * @brief Constructs a device_mutable_view object based on the members of the `static_multimap`
+   * object
    *
    * @return A device_mutable_view object based on the members of the `static_multimap` object
    */

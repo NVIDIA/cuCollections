@@ -28,9 +28,9 @@ enum class insert_result {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_multimap<Key, Value, Scope, Allocator>::static_multimap(std::size_t capacity,
-                                                     Key empty_key_sentinel,
-                                                     Value empty_value_sentinel,
-                                                     Allocator const& alloc)
+                                                               Key empty_key_sentinel,
+                                                               Value empty_value_sentinel,
+                                                               Allocator const& alloc)
   : capacity_{capacity},
     empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
@@ -57,9 +57,9 @@ static_multimap<Key, Value, Scope, Allocator>::~static_multimap()
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
 void static_multimap<Key, Value, Scope, Allocator>::insert(InputIt first,
-                                                      InputIt last,
-                                                      Hash hash,
-                                                      KeyEqual key_equal)
+                                                           InputIt last,
+                                                           Hash hash,
+                                                           KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -147,7 +147,7 @@ __device__ bool static_multimap<Key, Value, Scope, Allocator>::device_mutable_vi
 
     // if the key was already inserted by another thread, than this instance is a
     // duplicate, so the insert fails
-    //if (key_equal(insert_pair.first, expected_key)) { return false; }
+    // if (key_equal(insert_pair.first, expected_key)) { return false; }
 
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
     // have been some other key there, so we keep looking for a slot
@@ -170,7 +170,7 @@ __device__ bool static_multimap<Key, Value, Scope, Allocator>::device_mutable_vi
     auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
-    //if (g.ballot(not slot_is_empty and key_equal(existing_key, insert_pair.first))) {
+    // if (g.ballot(not slot_is_empty and key_equal(existing_key, insert_pair.first))) {
     //  return false;
     //}
 
@@ -234,8 +234,8 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 template <typename Hash, typename KeyEqual>
 __device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::iterator
 static_multimap<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
-                                                            Hash hash,
-                                                            KeyEqual key_equal) noexcept
+                                                                 Hash hash,
+                                                                 KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
@@ -255,8 +255,8 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 template <typename Hash, typename KeyEqual>
 __device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::const_iterator
 static_multimap<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
-                                                            Hash hash,
-                                                            KeyEqual key_equal) const noexcept
+                                                                 Hash hash,
+                                                                 KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
@@ -276,9 +276,9 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::iterator
 static_multimap<Key, Value, Scope, Allocator>::device_view::find(CG g,
-                                                            Key const& k,
-                                                            Hash hash,
-                                                            KeyEqual key_equal) noexcept
+                                                                 Key const& k,
+                                                                 Hash hash,
+                                                                 KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
@@ -313,9 +313,9 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::const_iterator
 static_multimap<Key, Value, Scope, Allocator>::device_view::find(CG g,
-                                                            Key const& k,
-                                                            Hash hash,
-                                                            KeyEqual key_equal) const noexcept
+                                                                 Key const& k,
+                                                                 Hash hash,
+                                                                 KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
