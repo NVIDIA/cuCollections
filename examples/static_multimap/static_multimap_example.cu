@@ -45,13 +45,13 @@ int main(void)
   map.insert(pairs.begin(), pairs.end());
 
   // Sequence of keys {0, 1, 2, ...}
-  // thrust::device_vector<int> keys_to_find(50'000);
-  // thrust::sequence(keys_to_find.begin(), keys_to_find.end(), 0);
-  // thrust::device_vector<int> found_values(50'000);
+  thrust::device_vector<int> keys_to_find(50'000);
+  thrust::sequence(keys_to_find.begin(), keys_to_find.end(), 0);
+  thrust::device_vector<int> found_values(50'000);
 
   // Finds all keys {0, 1, 2, ...} and stores associated values into `found_values`
   // If a key `keys_to_find[i]` doesn't exist, `found_values[i] == empty_value_sentinel`
-  // map.find(keys_to_find.begin(), keys_to_find.end(), found_values.begin());
+  map.find(keys_to_find.begin(), keys_to_find.end(), found_values.begin());
 
   return 0;
 }

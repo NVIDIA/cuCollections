@@ -145,12 +145,8 @@ __device__ bool static_multimap<Key, Value, Scope, Allocator>::device_mutable_vi
       slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
     }
 
-    // if the key was already inserted by another thread, than this instance is a
-    // duplicate, so the insert fails
-    // if (key_equal(insert_pair.first, expected_key)) { return false; }
-
-    // if we couldn't insert the key, but it wasn't a duplicate, then there must
-    // have been some other key there, so we keep looking for a slot
+    // If we couldn't insert the key, then there must have been some other key there. So we keep
+    // looking for a slot
     current_slot = next_slot(current_slot);
   }
 }
@@ -167,17 +163,9 @@ __device__ bool static_multimap<Key, Value, Scope, Allocator>::device_mutable_vi
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
-
-    // the key we are trying to insert is already in the map, so we return with failure to insert
-    // if (g.ballot(not slot_is_empty and key_equal(existing_key, insert_pair.first))) {
-    //  return false;
-    //}
-
+    auto const slot_is_empty         = (existing_key == this->get_empty_key_sentinel());
     auto const window_contains_empty = g.ballot(slot_is_empty);
 
-    // we found an empty slot, but not the key we are inserting, so this must
-    // be an empty slot into which we can insert the key
     if (window_contains_empty) {
       // the first lane in the group with an empty slot will attempt the insert
       insert_result status{insert_result::CONTINUE};
