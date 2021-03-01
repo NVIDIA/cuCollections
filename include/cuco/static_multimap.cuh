@@ -520,6 +520,7 @@ class static_multimap {
     using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
+
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -697,6 +698,48 @@ class static_multimap {
                          source_device_view.get_empty_value_sentinel());
     }
 
+    struct fancy_iterator {
+      __host__ __device__
+      fancy_iterator(pair_atomic_type* current,
+                     Key key,
+                     Value empty_value_sentinel = get_empty_value_sentinel()) noexcept
+        : current_{current}, key_{key}, empty_value_sentinel_{empty_value_sentinel}
+      {
+      }
+
+      __device__ fancy_iterator operator++()
+      {
+        auto next = ++current_;
+        while (next->first != key_) {
+          if (next->first == empty_value_sentinel_) {
+            return fancy_iterator{device_view::end(), key_, empty_value_sentinel_};
+            ++next;
+          }
+          return fancy_iterator{next, key_, empty_value_sentinel_};
+        }
+      }
+
+      __device__ fancy_iterator operator++(int)
+      {
+        auto next = ++current_;
+        while (next->first != key_) {
+          if (next->first == empty_value_sentinel_) {
+            return fancy_iterator{device_view::end(), key_, empty_value_sentinel_};
+            ++next;
+          }
+          return fancy_iterator{next, key_, empty_value_sentinel_};
+        }
+      }
+
+      __device__ pair_atomic_type operator*() { return *current_; }
+
+     private:
+      pair_atomic_type* current_;
+      Key key_;
+      Value empty_value_sentinel_;
+    };
+    using const_fancy_iterator = fancy_iterator const;
+
     /**
      * @brief Finds the value corresponding to the key `k`.
      *
@@ -789,6 +832,48 @@ class static_multimap {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ const_iterator
     find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
+
+    /**
+     * @brief Finds the first value corresponding to the key `k`.
+     *
+     * Returns a fancy iterator to the pair whose key is equivalent to `k`.
+     * If no such pair exists, returns `end()`.
+     *
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     * @param k The key to search for
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     * @return A fancy iterator to the position at which the key/value pair
+     * containing `k` was inserted
+     */
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ fancy_iterator find_all(Key const& k,
+                                       Hash hash          = Hash{},
+                                       KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Finds the first value corresponding to the key `k`.
+     *
+     * Returns a const fancy iterator to the pair whose key is equivalent to `k`.
+     * If no such pair exists, returns `end()`.
+     *
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     * @param k The key to search for
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     * @return A const fancy iterator to the position at which the key/value pair
+     * containing `k` was inserted
+     */
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ const_fancy_iterator find_all(Key const& k,
+                                             Hash hash          = Hash{},
+                                             KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.

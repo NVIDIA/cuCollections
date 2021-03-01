@@ -338,6 +338,55 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find(CG g,
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
+__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::fancy_iterator
+static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(Key const& k,
+                                                                     Hash hash,
+                                                                     KeyEqual key_equal) noexcept
+{
+  auto current_slot = initial_slot(k, hash);
+
+  while (true) {
+    auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    // Key doesn't exist, return end()
+    if (existing_key == this->get_empty_key_sentinel()) {
+      return fancy_iterator{this->end(), k, empty_value_sentinel_};
+    }
+
+    // Key exists, return iterator to location
+    if (key_equal(existing_key, k)) {
+      return fancy_iterator{current_slot, k, empty_value_sentinel_};
+    }
+
+    current_slot = next_slot(current_slot);
+  }
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Hash, typename KeyEqual>
+__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::const_fancy_iterator
+static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(
+  Key const& k, Hash hash, KeyEqual key_equal) const noexcept
+{
+  auto current_slot = initial_slot(k, hash);
+
+  while (true) {
+    auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    // Key doesn't exist, return end()
+    if (existing_key == this->get_empty_key_sentinel()) {
+      return fancy_iterator{this->end(), k, empty_value_sentinel_};
+    }
+
+    // Key exists, return iterator to location
+    if (key_equal(existing_key, k)) {
+      return fancy_iterator{current_slot, k, empty_value_sentinel_};
+    }
+
+    current_slot = next_slot(current_slot);
+  }
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Hash, typename KeyEqual>
 __device__ bool static_multimap<Key, Value, Scope, Allocator>::device_view::contains(
   Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
