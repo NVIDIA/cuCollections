@@ -509,4 +509,33 @@ __device__ bool static_multimap<Key, Value, Scope, Allocator>::device_view::cont
     current_slot = next_slot(g, current_slot);
   }
 }
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Hash, typename KeyEqual>
+__device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::count(
+  Key const& k, Hash hash, KeyEqual key_equal) noexcept
+{
+  auto found   = this->find_all(k, hash, key_equal);
+  size_t count = 0;
+  while (*found != this->end()) {
+    ++found;
+    ++count;
+  }
+  return count;
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename CG, typename Hash, typename KeyEqual>
+__device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::count(
+  CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
+{
+  auto found   = this->find_all(g, k, hash, key_equal);
+  size_t count = 0;
+  while (*found != this->end()) {
+    ++found;
+    ++count;
+  }
+  return count;
+}
+
 }  // namespace cuco
