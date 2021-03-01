@@ -834,9 +834,9 @@ class static_multimap {
     find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
-     * @brief Finds the first value corresponding to the key `k`.
+     * @brief Finds all values corresponding to the key `k`.
      *
-     * Returns a fancy iterator to the pair whose key is equivalent to `k`.
+     * Returns a fancy iterator to the first pair whose key is equivalent to `k`.
      * If no such pair exists, returns `end()`.
      *
      * @tparam Hash Unary callable type
@@ -845,7 +845,7 @@ class static_multimap {
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys
      * for equality
-     * @return A fancy iterator to the position at which the key/value pair
+     * @return A fancy iterator to the position at which the first key/value pair
      * containing `k` was inserted
      */
     template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
@@ -855,9 +855,9 @@ class static_multimap {
                                        KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
-     * @brief Finds the first value corresponding to the key `k`.
+     * @brief Finds all values corresponding to the key `k`.
      *
-     * Returns a const fancy iterator to the pair whose key is equivalent to `k`.
+     * Returns a const fancy iterator to the first pair whose key is equivalent to `k`.
      * If no such pair exists, returns `end()`.
      *
      * @tparam Hash Unary callable type
@@ -866,12 +866,66 @@ class static_multimap {
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys
      * for equality
-     * @return A const fancy iterator to the position at which the key/value pair
+     * @return A const fancy iterator to the position at which the first key/value pair
      * containing `k` was inserted
      */
     template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ const_fancy_iterator find_all(Key const& k,
+                                             Hash hash          = Hash{},
+                                             KeyEqual key_equal = KeyEqual{}) const noexcept;
+
+    /**
+     * @brief Finds all values corresponding to the key `k`.
+     *
+     * Returns a fancy iterator to the first pair whose key is equivalent to `k`.
+     * If no such pair exists, returns `end()`. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single find. This provides a
+     * significant boost in throughput compared to the non Cooperative Group
+     * `find_all` at moderate to high load factors.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to perform the find
+     * @param k The key to search for
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     * @return A fancy iterator to the position at which the first key/value pair
+     * containing `k` was inserted
+     */
+    template <typename CG,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ fancy_iterator
+    find_all(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Finds all values corresponding to the key `k`.
+     *
+     * Returns a const_iterator to the first pair whose key is equivalent to `k`.
+     * If no such pair exists, returns `end()`. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single find. This provides a
+     * significant boost in throughput compared to the non Cooperative Group
+     * `find_all` at moderate to high load factors.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to perform the find
+     * @param k The key to search for
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     * @return A const fancy iterator to the position at which the first key/value pair
+     * containing `k` was inserted
+     */
+    template <typename CG,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ const_fancy_iterator find_all(CG g,
+                                             Key const& k,
                                              Hash hash          = Hash{},
                                              KeyEqual key_equal = KeyEqual{}) const noexcept;
 
@@ -890,6 +944,7 @@ class static_multimap {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
+
     template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool contains(Key const& k,
