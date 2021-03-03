@@ -340,13 +340,11 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(Key const& 
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     // Key doesn't exist, return end()
     if (existing_key == this->get_empty_key_sentinel()) {
-      return fancy_iterator{this->end(), k, this->get_empty_key_sentinel()};
+      return fancy_iterator{this->end(), k, *this};
     }
 
     // Key exists, return iterator to location
-    if (key_equal(existing_key, k)) {
-      return fancy_iterator{current_slot, k, this->get_empty_key_sentinel()};
-    }
+    if (key_equal(existing_key, k)) { return fancy_iterator{current_slot, k, *this}; }
 
     current_slot = next_slot(current_slot);
   }
@@ -364,13 +362,11 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     // Key doesn't exist, return end()
     if (existing_key == this->get_empty_key_sentinel()) {
-      return const_fancy_iterator{this->end(), k, this->get_empty_key_sentinel()};
+      return const_fancy_iterator{this->end(), k, *this};
     }
 
     // Key exists, return iterator to location
-    if (key_equal(existing_key, k)) {
-      return const_fancy_iterator{current_slot, k, this->get_empty_key_sentinel()};
-    }
+    if (key_equal(existing_key, k)) { return const_fancy_iterator{current_slot, k, *this}; }
 
     current_slot = next_slot(current_slot);
   }
@@ -401,14 +397,11 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(CG g,
       // TODO: This shouldn't cast an iterator to an int to shuffle. Instead, get the index of the
       // current_slot and shuffle that instead.
       intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
-      return fancy_iterator{
-        reinterpret_cast<iterator>(res_slot), k, this->get_empty_value_sentinel()};
+      return fancy_iterator{reinterpret_cast<iterator>(res_slot), k, *this};
     }
 
     // we found an empty slot, meaning that the key we're searching for isn't present
-    if (g.ballot(slot_is_empty)) {
-      return fancy_iterator{this->end(), k, this->get_empty_value_sentinel()};
-    }
+    if (g.ballot(slot_is_empty)) { return fancy_iterator{this->end(), k, *this}; }
 
     // otherwise, all slots in the current window are full with other keys, so we move onto the
     // next window
@@ -439,15 +432,12 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(
       // TODO: This shouldn't cast an iterator to an int to shuffle. Instead, get the index of the
       // current_slot and shuffle that instead.
       intptr_t res_slot = g.shfl(reinterpret_cast<intptr_t>(current_slot), src_lane);
-      return const_fancy_iterator{
-        reinterpret_cast<iterator>(res_slot), k, this->get_empty_value_sentinel()};
+      return const_fancy_iterator{reinterpret_cast<iterator>(res_slot), k, *this};
     }
 
     // we found an empty slot, meaning that the key we're searching
     // for isn't in this submap, so we should move onto the next one
-    if (g.ballot(slot_is_empty)) {
-      return const_fancy_iterator{this->end(), k, this->get_empty_value_sentinel()};
-    }
+    if (g.ballot(slot_is_empty)) { return const_fancy_iterator{this->end(), k, *this}; }
 
     // otherwise, all slots in the current window are full with other keys,
     // so we move onto the next window in the current submap

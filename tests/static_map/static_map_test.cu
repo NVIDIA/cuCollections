@@ -285,6 +285,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
       none_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
+  // device funtion test cases
   SECTION("Inserting unique keys should return insert success.")
   {
     if (Dist == dist_type::UNIQUE) {

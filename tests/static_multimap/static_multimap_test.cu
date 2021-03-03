@@ -47,7 +47,7 @@ bool none_of(Iterator begin, Iterator end, Predicate p)
 }
 }  // namespace
 
-enum class dist_type { UNIQUE, UNIFORM, GAUSSIAN };
+enum class dist_type { UNIQUE, DUAL, UNIFORM, GAUSSIAN };
 
 template <dist_type Dist, typename Key, typename OutputIt>
 static void generate_keys(OutputIt output_begin, OutputIt output_end)
@@ -63,6 +63,11 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
         output_begin[i] = i;
       }
       break;
+    case dist_type::DUAL:
+      for (auto i = 0; i < num_keys; ++i) {
+        output_begin[i] = i % (num_keys / 2);
+      }
+      break;
     case dist_type::UNIFORM:
       for (auto i = 0; i < num_keys; ++i) {
         output_begin[i] = std::abs(static_cast<Key>(gen()));
@@ -75,6 +80,15 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
       }
       break;
   }
+}
+
+template <typename Iterator>
+static void print(Iterator it_begin, Iterator it_end)
+{
+  const int N = std::distance(it_begin, it_end);
+  for (int i = 0; i < N; i++)
+    std::cout << it_begin[i] << "\t";
+  std::cout << "\n### End of print\n\n";
 }
 
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
@@ -116,15 +130,87 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);
 
-  // bulk function test cases
-  SECTION("All inserted keys-value pairs should be correctly recovered during find")
+  SECTION("Keys are all found.")
   {
+    // Bulk insert keys
     map.insert(d_pairs.begin(), d_pairs.end());
-    map.find(d_keys.begin(), d_keys.end(), d_results.begin());
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), d_values.begin()));
 
-    REQUIRE(all_of(zip, zip + num_keys, [] __device__(auto const& p) {
-      return thrust::get<0>(p) == thrust::get<1>(p);
-    }));
+    SECTION("non-const view")
+    {
+      REQUIRE(all_of(d_pairs.begin(),
+                     d_pairs.end(),
+                     [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+                       return *(view.find_all(pair.first)) != view.end();
+                     }));
+    }
+  }
+}
+
+TEMPLATE_TEST_CASE_SIG("Each key appears twice",
+                       "",
+                       ((typename T, dist_type Dist), T, Dist),
+                       (int32_t, dist_type::DUAL),
+                       (int64_t, dist_type::DUAL))
+{
+  using Key   = T;
+  using Value = T;
+
+  constexpr std::size_t num_keys{50};
+  cuco::static_multimap<Key, Value> map{100, -1, -1};
+
+  auto m_view = map.get_device_mutable_view();
+  auto view   = map.get_device_view();
+
+  std::vector<Key> h_keys(num_keys);
+  std::vector<Value> h_values(num_keys);
+  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
+
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+
+  for (auto i = 0; i < num_keys; ++i) {
+    Key key           = h_keys[i];
+    Value val         = i;
+    h_pairs[i].first  = key;
+    h_pairs[i].second = val;
+    h_values[i]       = val;
+  }
+
+  thrust::device_vector<Key> d_keys(h_keys);
+  thrust::device_vector<Value> d_values(h_values);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+  thrust::device_vector<Value> d_results(num_keys);
+  thrust::device_vector<bool> d_contained(num_keys);
+
+  std::cout << "################ begin\n";
+  for (auto it : h_pairs)
+    std::cout << it.first << ":" << it.second << "\t";
+  std::cout << "\n################ end\n\n";
+
+  SECTION("Cannot find any key in an empty hash map with non-const view")
+  {
+    SECTION("non-const view")
+    {
+      REQUIRE(all_of(d_pairs.begin(),
+                     d_pairs.end(),
+                     [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+                       return *(view.find_all(pair.first)) == view.end();
+                     }));
+    }
+  }
+
+
+  SECTION("Counting the number of key/value pairs should return 2 all the time.")
+  {
+    // Bulk insert keys
+    map.insert(d_pairs.begin(), d_pairs.end());
+
+    SECTION("non-const view")
+    {
+      REQUIRE(all_of(d_pairs.begin(),
+                     d_pairs.end(),
+                     [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+                       return view.count(pair.first) == 2;
+                     }));
+    }
   }
 }

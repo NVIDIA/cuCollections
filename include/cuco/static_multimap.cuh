@@ -688,44 +688,36 @@ class static_multimap {
     }
 
     struct fancy_iterator {
-      __host__ __device__
-      fancy_iterator(pair_atomic_type* current,
-                     Key key,
-                     Value empty_value_sentinel = get_empty_value_sentinel()) noexcept
-        : current_{current}, key_{key}, empty_value_sentinel_{empty_value_sentinel}
+      __host__ __device__ fancy_iterator(pair_atomic_type* current,
+                                         Key key,
+                                         device_view& view) noexcept
+        : current_{current},
+          key_{key},
+          end_{view.end()},
+          empty_key_sentinel_{view.get_empty_key_sentinel()}
       {
       }
 
       __device__ fancy_iterator operator++()
       {
-        auto next = ++current_;
-        while (next->first != key_) {
-          if (next->first == empty_value_sentinel_) {
-            return fancy_iterator{device_view::end(), key_, empty_value_sentinel_};
-            ++next;
+        ++current_;
+        while (current_->first != key_) {
+          if (current_->first == this->empty_key_sentinel_) {
+            current_ = this->end_;
+            return *this;
           }
-          return fancy_iterator{next, key_, empty_value_sentinel_};
+          ++current_;
         }
+        return *this;
       }
 
-      __device__ fancy_iterator operator++(int)
-      {
-        auto next = ++current_;
-        while (next->first != key_) {
-          if (next->first == empty_value_sentinel_) {
-            return fancy_iterator{device_view::end(), key_, empty_value_sentinel_};
-            ++next;
-          }
-          return fancy_iterator{next, key_, empty_value_sentinel_};
-        }
-      }
-
-      __device__ pair_atomic_type operator*() { return *current_; }
+      __device__ pair_atomic_type* operator*() { return current_; }
 
      private:
       pair_atomic_type* current_;
       Key key_;
-      Value empty_value_sentinel_;
+      pair_atomic_type* const end_;
+      Key const empty_key_sentinel_;
     };
     using const_fancy_iterator = fancy_iterator const;
 
@@ -1002,7 +994,6 @@ class static_multimap {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ size_t
     count(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
-
   };  // class device_view
 
   /**
@@ -1068,7 +1059,7 @@ class static_multimap {
   Key empty_key_sentinel_{};              ///< Key value that represents an empty slot
   Value empty_value_sentinel_{};          ///< Initial value of empty slot
   slot_allocator_type slot_allocator_{};  ///< Allocator used to allocate slots
-};
+};                                        // class static_multimap
 }  // namespace cuco
 
 #include <cuco/detail/static_multimap.inl>
