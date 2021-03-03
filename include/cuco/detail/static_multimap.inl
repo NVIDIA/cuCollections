@@ -498,7 +498,7 @@ __device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::co
 {
   auto found   = this->find_all(k, hash, key_equal);
   size_t count = 0;
-  while (*found != this->end()) {
+  while (found != this->end()) {
     ++found;
     ++count;
   }
@@ -512,7 +512,7 @@ __device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::co
 {
   auto found   = this->find_all(g, k, hash, key_equal);
   size_t count = 0;
-  while (*found != this->end()) {
+  while (found != this->end()) {
     ++found;
     ++count;
   }

@@ -711,7 +711,11 @@ class static_multimap {
         return *this;
       }
 
-      __device__ pair_atomic_type* operator*() { return current_; }
+      __device__ bool operator==(const iterator& it) { return (this->current_ == it); }
+
+      __device__ bool operator!=(const iterator& it) { return this->current_ != it; }
+
+      __device__ pair_atomic_type& operator*() { return *current_; }
 
      private:
       pair_atomic_type* current_;

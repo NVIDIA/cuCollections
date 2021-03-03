@@ -140,7 +140,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
       REQUIRE(all_of(d_pairs.begin(),
                      d_pairs.end(),
                      [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                       return *(view.find_all(pair.first)) != view.end();
+                       return view.find_all(pair.first) != view.end();
                      }));
     }
   }
@@ -193,11 +193,10 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
       REQUIRE(all_of(d_pairs.begin(),
                      d_pairs.end(),
                      [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                       return *(view.find_all(pair.first)) == view.end();
+                       return view.find_all(pair.first) == view.end();
                      }));
     }
   }
-
 
   SECTION("Counting the number of key/value pairs should return 2 all the time.")
   {
