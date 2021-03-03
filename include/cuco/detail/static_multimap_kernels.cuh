@@ -58,43 +58,26 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  * @tparam block_size
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `value_type`
- * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
- * @param num_successes The number of successfully inserted key/value pairs
  * @param view Mutable device view used to access the hash map's slot storage
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function used to compare two keys for equality
  */
-template <uint32_t block_size,
-          typename InputIt,
-          typename atomicT,
-          typename viewT,
-          typename Hash,
-          typename KeyEqual>
-__global__ void insert(
-  InputIt first, InputIt last, atomicT* num_successes, viewT view, Hash hash, KeyEqual key_equal)
+template <uint32_t block_size, typename InputIt, typename viewT, typename Hash, typename KeyEqual>
+__global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEqual key_equal)
 {
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
-  __shared__ typename BlockReduce::TempStorage temp_storage;
-  std::size_t thread_num_successes = 0;
-
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   auto it  = first + tid;
 
   while (it < last) {
     typename viewT::value_type const insert_pair{*it};
-    if (view.insert(insert_pair, hash, key_equal)) { thread_num_successes++; }
+    view.insert(insert_pair, hash, key_equal);
     it += gridDim.x * blockDim.x;
   }
-
-  // compute number of successfully inserted elements for each block
-  // and atomically add to the grand total
-  std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
-  if (threadIdx.x == 0) { *num_successes += block_num_successes; }
 }
 
 /**
@@ -111,13 +94,11 @@ __global__ void insert(
  * inserts
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `value_type`
- * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
- * @param num_successes The number of successfully inserted key/value pairs
  * @param view Mutable device view used to access the hash map's slot storage
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function used to compare two keys for equality
@@ -125,17 +106,11 @@ __global__ void insert(
 template <uint32_t block_size,
           uint32_t tile_size,
           typename InputIt,
-          typename atomicT,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void insert(
-  InputIt first, InputIt last, atomicT* num_successes, viewT view, Hash hash, KeyEqual key_equal)
+__global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEqual key_equal)
 {
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
-  __shared__ typename BlockReduce::TempStorage temp_storage;
-  std::size_t thread_num_successes = 0;
-
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid  = blockDim.x * blockIdx.x + threadIdx.x;
   auto it   = first + tid / tile_size;
@@ -143,16 +118,9 @@ __global__ void insert(
   while (it < last) {
     // force conversion to value_type
     typename viewT::value_type const insert_pair{*it};
-    if (view.insert(tile, insert_pair, hash, key_equal) && tile.thread_rank() == 0) {
-      thread_num_successes++;
-    }
+    view.insert(tile, insert_pair, hash, key_equal);
     it += (gridDim.x * blockDim.x) / tile_size;
   }
-
-  // compute number of successfully inserted elements for each block
-  // and atomically add to the grand total
-  std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
-  if (threadIdx.x == 0) { *num_successes += block_num_successes; }
 }
 
 /**

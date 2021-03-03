@@ -43,15 +43,12 @@ static_multimap<Key, Value, Scope, Allocator>::static_multimap(std::size_t capac
   auto const grid_size      = (capacity + stride * block_size - 1) / (stride * block_size);
   detail::initialize<atomic_key_type, atomic_mapped_type>
     <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, capacity);
-
-  CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_multimap<Key, Value, Scope, Allocator>::~static_multimap()
 {
   std::allocator_traits<slot_allocator_type>::deallocate(slot_allocator_, slots_, capacity_);
-  CUCO_CUDA_TRY(cudaFree(num_successes_));
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -68,16 +65,12 @@ void static_multimap<Key, Value, Scope, Allocator>::insert(InputIt first,
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 
-  *num_successes_ = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
 
   detail::insert<block_size, tile_size>
-    <<<grid_size, block_size>>>(first, first + num_keys, num_successes_, view, hash, key_equal);
+    <<<grid_size, block_size>>>(first, first + num_keys, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
-
-  size_ += num_successes_->load(cuda::std::memory_order_relaxed);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -116,7 +109,7 @@ void static_multimap<Key, Value, Scope, Allocator>::contains(
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ bool static_multimap<Key, Value, Scope, Allocator>::device_mutable_view::insert(
+__device__ void static_multimap<Key, Value, Scope, Allocator>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot{initial_slot(insert_pair.first, hash)};
@@ -140,7 +133,7 @@ __device__ bool static_multimap<Key, Value, Scope, Allocator>::device_mutable_vi
                                              insert_pair.second,
                                              memory_order_relaxed);
       }
-      return true;
+      return;
     } else if (value_success) {
       slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
     }
@@ -153,7 +146,7 @@ __device__ bool static_multimap<Key, Value, Scope, Allocator>::device_mutable_vi
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ bool static_multimap<Key, Value, Scope, Allocator>::device_mutable_view::insert(
+__device__ void static_multimap<Key, Value, Scope, Allocator>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, insert_pair.first, hash);
@@ -195,8 +188,6 @@ __device__ bool static_multimap<Key, Value, Scope, Allocator>::device_mutable_vi
           slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
         }
 
-        // our key was already present in the slot, so our key is a duplicate
-        // if (key_equal(insert_pair.first, expected_key)) { status = insert_result::DUPLICATE; }
         // another key was inserted in the slot we wanted to try
         // so we need to try the next empty slot in the window
       }
@@ -205,7 +196,7 @@ __device__ bool static_multimap<Key, Value, Scope, Allocator>::device_mutable_vi
       status              = static_cast<insert_result>(res_status);
 
       // successful insert
-      if (status == insert_result::SUCCESS) { return true; }
+      if (status == insert_result::SUCCESS) { return; }
       // if we've gotten this far, a different key took our spot
       // before we could insert. We need to retry the insert on the
       // same window

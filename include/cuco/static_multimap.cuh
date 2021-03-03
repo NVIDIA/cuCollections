@@ -543,32 +543,21 @@ class static_multimap {
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
-     * Returns a pair consisting of an iterator to the inserted element (or to
-     * the element that prevented the insertion) and a `bool` denoting whether
-     * the insertion took place.
-     *
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param insert_pair The pair to insert
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys for
      * equality
-     * @return `true` if the insert was successful, `false` otherwise.
+     * @return void.
      */
     template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool insert(value_type const& insert_pair,
+    __device__ void insert(value_type const& insert_pair,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
     /**
      * @brief Inserts the specified key/value pair into the map.
-     *
-     * Returns a pair consisting of an iterator to the inserted element (or to
-     * the element that prevented the insertion) and a `bool` denoting whether
-     * the insertion took place. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single insert. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `insert` at moderate to high load factors.
      *
      * @tparam Cooperative Group type
      * @tparam Hash Unary callable type
@@ -579,12 +568,12 @@ class static_multimap {
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys for
      * equality
-     * @return `true` if the insert was successful, `false` otherwise.
+     * @return void.
      */
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool insert(CG g,
+    __device__ void insert(CG g,
                            value_type const& insert_pair,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -1078,7 +1067,6 @@ class static_multimap {
   std::size_t size_{};                    ///< Number of keys in map
   Key empty_key_sentinel_{};              ///< Key value that represents an empty slot
   Value empty_value_sentinel_{};          ///< Initial value of empty slot
-  atomic_ctr_type* num_successes_{};      ///< Number of successfully inserted keys on insert
   slot_allocator_type slot_allocator_{};  ///< Allocator used to allocate slots
 };
 }  // namespace cuco
