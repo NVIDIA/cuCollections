@@ -595,6 +595,52 @@ class static_multimap {
     using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
+
+    template <typename DataType>
+    struct FancyIterator {
+     public:
+      using data_type      = DataType;
+      using pointer_type   = DataType*;
+      using data_reference = DataType&;
+
+     public:
+      __host__ __device__ FancyIterator(pointer_type current, Key key, device_view& view) noexcept
+        : current_{current},
+          key_{key},
+          end_{view.end()},
+          empty_key_sentinel_{view.get_empty_key_sentinel()}
+      {
+      }
+      __host__ __device__ ~FancyIterator() {}
+
+      __device__ FancyIterator<data_type>& operator++()
+      {
+        ++current_;
+        while (current_->first != key_) {
+          if (current_->first == this->empty_key_sentinel_) {
+            current_ = this->end_;
+            return *this;
+          }
+          ++current_;
+        }
+        return *this;
+      }
+
+      __device__ bool operator==(const pointer_type& it) { return (this->current_ == it); }
+
+      __device__ bool operator!=(const pointer_type& it) { return this->current_ != it; }
+
+      __device__ data_reference operator*() { return *current_; }
+
+     private:
+      pointer_type current_;
+      Key key_;
+      pointer_type end_;
+      Key empty_key_sentinel_;
+    };
+    using fancy_iterator       = FancyIterator<pair_atomic_type>;
+    using const_fancy_iterator = FancyIterator<const pair_atomic_type>;
+
     /**
      * @brief Construct a view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -686,44 +732,6 @@ class static_multimap {
                          source_device_view.get_empty_key_sentinel(),
                          source_device_view.get_empty_value_sentinel());
     }
-
-    struct fancy_iterator {
-      __host__ __device__ fancy_iterator(pair_atomic_type* current,
-                                         Key key,
-                                         device_view& view) noexcept
-        : current_{current},
-          key_{key},
-          end_{view.end()},
-          empty_key_sentinel_{view.get_empty_key_sentinel()}
-      {
-      }
-
-      __device__ fancy_iterator operator++()
-      {
-        ++current_;
-        while (current_->first != key_) {
-          if (current_->first == this->empty_key_sentinel_) {
-            current_ = this->end_;
-            return *this;
-          }
-          ++current_;
-        }
-        return *this;
-      }
-
-      __device__ bool operator==(const iterator& it) { return (this->current_ == it); }
-
-      __device__ bool operator!=(const iterator& it) { return this->current_ != it; }
-
-      __device__ pair_atomic_type& operator*() { return *current_; }
-
-     private:
-      pair_atomic_type* current_;
-      Key key_;
-      pair_atomic_type* const end_;
-      Key const empty_key_sentinel_;
-    };
-    using const_fancy_iterator = fancy_iterator const;
 
     /**
      * @brief Finds the value corresponding to the key `k`.

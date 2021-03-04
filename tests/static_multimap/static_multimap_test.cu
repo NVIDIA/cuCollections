@@ -133,7 +133,12 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   SECTION("Keys are all found.")
   {
     // Bulk insert keys
-    map.insert(d_pairs.begin(), d_pairs.end());
+    thrust::for_each(thrust::device,
+                     d_pairs.begin(),
+                     d_pairs.end(),
+                     [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+                       m_view.insert(pair);
+                     });
 
     SECTION("non-const view")
     {
@@ -142,6 +147,13 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                      [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
                        return view.find_all(pair.first) != view.end();
                      }));
+    }
+    SECTION("const view")
+    {
+      REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+          return view.find_all(pair.first) != view.end();
+        }));
     }
   }
 }
@@ -196,8 +208,17 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
                        return view.find_all(pair.first) == view.end();
                      }));
     }
+    /*
+    SECTION("const view")
+    {
+      REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+          return view.find_all(pair.first) == view.end();
+        }));
+    }
+    */
   }
-
+  /*
   SECTION("Counting the number of key/value pairs should return 2 all the time.")
   {
     // Bulk insert keys
@@ -212,4 +233,5 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
                      }));
     }
   }
+  */
 }
