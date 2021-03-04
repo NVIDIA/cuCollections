@@ -208,7 +208,6 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
                        return view.find_all(pair.first) == view.end();
                      }));
     }
-    /*
     SECTION("const view")
     {
       REQUIRE(all_of(
@@ -216,7 +215,6 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
           return view.find_all(pair.first) == view.end();
         }));
     }
-    */
   }
   /*
   SECTION("Counting the number of key/value pairs should return 2 all the time.")

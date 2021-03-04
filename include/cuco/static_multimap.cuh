@@ -611,6 +611,15 @@ class static_multimap {
           empty_key_sentinel_{view.get_empty_key_sentinel()}
       {
       }
+      __host__ __device__ FancyIterator(pointer_type current,
+                                        const Key key,
+                                        const device_view& view) noexcept
+        : current_{current},
+          key_{key},
+          end_{view.end()},
+          empty_key_sentinel_{view.get_empty_key_sentinel()}
+      {
+      }
       __host__ __device__ ~FancyIterator() {}
 
       __device__ FancyIterator<data_type>& operator++()
