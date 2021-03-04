@@ -635,11 +635,13 @@ class static_multimap {
         return *this;
       }
 
-      __device__ bool operator==(const pointer_type& it) { return (this->current_ == it); }
-
-      __device__ bool operator!=(const pointer_type& it) { return this->current_ != it; }
+      __device__ bool operator==(const pointer_type& it) const { return (this->current_ == it); }
+      __device__ bool operator!=(const pointer_type& it) const { return this->current_ != it; }
 
       __device__ data_reference operator*() { return *current_; }
+      __device__ data_reference operator*() const { return *current_; }
+      __device__ pointer_type operator->() { return current_; }
+      __device__ pointer_type operator->() const { return current_; }
 
      private:
       pointer_type current_;
