@@ -58,27 +58,32 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
   std::mt19937 gen{rd()};
 
   switch (Dist) {
-    case dist_type::UNIQUE:
+    case dist_type::UNIQUE: {
       for (auto i = 0; i < num_keys; ++i) {
         output_begin[i] = i;
       }
       break;
-    case dist_type::DUAL:
+    }
+    case dist_type::DUAL: {
       for (auto i = 0; i < num_keys; ++i) {
         output_begin[i] = i % (num_keys / 2);
       }
       break;
-    case dist_type::UNIFORM:
+    }
+    case dist_type::UNIFORM: {
+      std::uniform_int_distribution<Key> distribution{0, std::numeric_limits<Key>::max()};
       for (auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = std::abs(static_cast<Key>(gen()));
+        output_begin[i] = distribution(gen);
       }
       break;
-    case dist_type::GAUSSIAN:
+    }
+    case dist_type::GAUSSIAN: {
       std::normal_distribution<> dg{1e9, 1e7};
       for (auto i = 0; i < num_keys; ++i) {
         output_begin[i] = std::abs(static_cast<Key>(dg(gen)));
       }
       break;
+    }
   }
 }
 
