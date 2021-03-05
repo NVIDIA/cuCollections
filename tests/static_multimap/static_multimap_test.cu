@@ -87,15 +87,6 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
   }
 }
 
-template <typename Iterator>
-static void print(Iterator it_begin, Iterator it_end)
-{
-  const int N = std::distance(it_begin, it_end);
-  for (int i = 0; i < N; i++)
-    std::cout << it_begin[i] << "\t";
-  std::cout << "\n### End of print\n\n";
-}
-
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        "",
                        ((typename T, dist_type Dist), T, Dist),
@@ -172,8 +163,8 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
   using Key   = T;
   using Value = T;
 
-  constexpr std::size_t num_keys{50};
-  cuco::static_multimap<Key, Value> map{100, -1, -1};
+  constexpr std::size_t num_keys{50'000'000};
+  cuco::static_multimap<Key, Value> map{100'000'000, -1, -1};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();
@@ -198,31 +189,8 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);
 
-  std::cout << "################ begin\n";
-  for (auto it : h_pairs)
-    std::cout << it.first << ":" << it.second << "\t";
-  std::cout << "\n################ end\n\n";
-
-  SECTION("Cannot find any key in an empty hash map with non-const view")
-  {
-    SECTION("non-const view")
-    {
-      REQUIRE(all_of(d_pairs.begin(),
-                     d_pairs.end(),
-                     [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                       return view.find_all(pair.first) == view.end();
-                     }));
-    }
-    SECTION("const view")
-    {
-      REQUIRE(all_of(
-        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
-          return view.find_all(pair.first) == view.end();
-        }));
-    }
-  }
-  /*
-  SECTION("Counting the number of key/value pairs should return 2 all the time.")
+  SECTION(
+    "Counting the number of key/value pairs corresponding to each key should always return two.")
   {
     // Bulk insert keys
     map.insert(d_pairs.begin(), d_pairs.end());
@@ -235,6 +203,12 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
                        return view.count(pair.first) == 2;
                      }));
     }
+    SECTION("const view")
+    {
+      REQUIRE(all_of(
+        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+          return view.count(pair.first) == 2;
+        }));
+    }
   }
-  */
 }
