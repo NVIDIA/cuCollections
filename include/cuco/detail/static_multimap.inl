@@ -65,9 +65,6 @@ void static_multimap<Key, Value, Scope, Allocator>::insert(InputIt first,
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 
-  int device_id;
-  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-
   detail::insert<block_size, tile_size>
     <<<grid_size, block_size>>>(first, first + num_keys, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
@@ -105,6 +102,54 @@ void static_multimap<Key, Value, Scope, Allocator>::contains(
   detail::contains<block_size, tile_size>
     <<<grid_size, block_size>>>(first, last, output_begin, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
+void static_multimap<Key, Value, Scope, Allocator>::find_all(InputIt first,
+                                                             InputIt last,
+                                                             OutputIt output_begin,
+                                                             OutputIt output_end,
+                                                             Hash hash,
+                                                             KeyEqual key_equal) noexcept
+{
+  auto num_keys         = std::distance(first, last);
+  auto const block_size = 128;
+  auto const stride     = 1;
+  auto const tile_size  = 4;
+  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view             = get_device_view();
+
+  detail::find_all<block_size, tile_size, Value>
+    <<<grid_size, block_size>>>(first, last, output_begin, output_end, view, hash, key_equal);
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename InputIt, typename Hash, typename KeyEqual>
+std::size_t static_multimap<Key, Value, Scope, Allocator>::count(InputIt first,
+                                                                 InputIt last,
+                                                                 Hash hash,
+                                                                 KeyEqual key_equal)
+{
+  auto num_keys         = std::distance(first, last);
+  auto const block_size = 128;
+  auto const stride     = 1;
+  auto const tile_size  = 4;
+  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view             = get_device_view();
+
+  atomic_ctr_type* num_items;
+  CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
+  *num_items = 0;
+  int device_id;
+  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
+
+  detail::count<block_size, tile_size, Value>
+    <<<grid_size, block_size>>>(first, last, num_items, view, hash, key_equal);
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  return *num_items;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>

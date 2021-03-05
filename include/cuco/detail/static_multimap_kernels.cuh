@@ -350,5 +350,119 @@ __global__ void contains(
   }
 }
 
+/**
+ * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
+ *
+ * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
+ * unspecified locations in `[output_begin, output_end)`. Else, copies `k` and the empty value
+ * sentinel.
+ *
+ * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
+ * output_end)`. Use `count()` to determine the number of matching keys.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam Value The type of the mapped value for the map
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is
+ * convertible to the map's `mapped_type`
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param output_begin Beginning of the sequence of values retrieved for each key
+ * @param output_end End of the sequence of values retrieved for each key
+ * @param view Device view used to access the hash map's slot storage
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
+template <uint32_t block_size,
+          typename Value,
+          typename InputIt,
+          typename OutputIt,
+          typename viewT,
+          typename Hash,
+          typename KeyEqual>
+__global__ void find_all(InputIt first,
+                         InputIt last,
+                         OutputIt output_begin,
+                         OutputIt output_end,
+                         viewT view,
+                         Hash hash,
+                         KeyEqual key_equal)
+{
+  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto key_idx = tid;
+  __shared__ Value writeBuffer[block_size];
+
+  while (first + key_idx < last) {
+    auto key   = *(first + key_idx);
+    auto found = view.find(key, hash, key_equal);
+
+    /*
+     * The ld.relaxed.gpu instruction used in view.find causes L1 to
+     * flush more frequently, causing increased sector stores from L2 to global memory.
+     * By writing results to shared memory and then synchronizing before writing back
+     * to global, we no longer rely on L1, preventing the increase in sector stores from
+     * L2 to global and improving performance.
+     */
+    writeBuffer[threadIdx.x] = found->second.load(cuda::std::memory_order_relaxed);
+    __syncthreads();
+    *(output_begin + key_idx) = writeBuffer[threadIdx.x];
+    key_idx += gridDim.x * blockDim.x;
+  }
+}
+
+/**
+ * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform
+ * inserts
+ * @tparam Value The type of the mapped value for the map
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable
+ * @tparam KeyEqual Binary callable
+ * @param first Beginning of the sequence of keys to count
+ * @param last End of the sequence of keys to count
+ * @param num_items The number of all the matches for a sequence of keys
+ * @param view Device view used to access the hash map's slot storage
+ * @param hash Unary function to apply to hash each key
+ * @param key_equal Binary function to compare two keys for equality
+ */
+template <uint32_t block_size,
+          uint32_t tile_size,
+          typename Value,
+          typename InputIt,
+          typename atomicT,
+          typename viewT,
+          typename Hash,
+          typename KeyEqual>
+__global__ void count(
+  InputIt first, InputIt last, atomicT* num_items, viewT view, Hash hash, KeyEqual key_equal)
+{
+  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  std::size_t thread_num_items = 0;
+
+  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid  = blockDim.x * blockIdx.x + threadIdx.x;
+  auto it   = first + tid / tile_size;
+
+  while (it < last) {
+    thread_num_items = count(tile, *it, hash, key_equal);
+    it += (gridDim.x * blockDim.x) / tile_size;
+  }
+
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  std::size_t block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
+  if (threadIdx.x == 0) { *num_items += block_num_items; }
+}
+
 }  // namespace detail
 }  // namespace cuco

@@ -237,6 +237,58 @@ class static_multimap {
                 Hash hash          = Hash{},
                 KeyEqual key_equal = KeyEqual{}) noexcept;
 
+  /**
+   * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
+   *
+   * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
+   * unspecified locations in `[output_begin, output_end)`. Else, copies `k` and the empty value
+   * sentinel.
+   *
+   * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
+   * output_end)`. Use `count()` to determine the number of matching keys.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the map's `key_type`
+   * @tparam OutputIt Device accessible output iterator whose `value_type` is
+   * convertible to the map's `value_type`
+   * @tparam Hash Unary callable type
+   * @tparam KeyEqual Binary callable type
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of values retrieved for each key
+   * @param output_begin End of the sequence of values retrieved for each key
+   * @param hash The unary function to apply to hash each key
+   * @param key_equal The binary function to compare two keys for equality
+   */
+  template <typename InputIt,
+            typename OutputIt,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+            typename KeyEqual = thrust::equal_to<key_type>>
+  void find_all(InputIt first,
+                InputIt last,
+                OutputIt output_begin,
+                OutputIt output_end,
+                Hash hash          = Hash{},
+                KeyEqual key_equal = KeyEqual{}) noexcept;
+
+  /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
+   *
+   * @tparam Input Device accesible input iterator whose `value_type` is convertible to `key_type`
+   * @tparam Hash Unary callable
+   * @tparam KeyEqual Binary callable
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param hash Unary function to apply to hash each key
+   * @param key_equal Binary function to compare two keys for equality
+   * @return The sum of total occurrences of all keys in `[first,last)`
+   */
+  template <typename InputIt, typename Hash, typename KeyEqual>
+  std::size_t count(InputIt first,
+                    InputIt last,
+                    Hash hash          = Hash{},
+                    KeyEqual key_equal = KeyEqual{});
+
  private:
   class device_view_base {
    protected:
