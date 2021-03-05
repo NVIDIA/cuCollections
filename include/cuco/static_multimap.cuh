@@ -607,6 +607,7 @@ class static_multimap {
       __host__ __device__ FancyIterator(pointer_type current, Key key, device_view& view) noexcept
         : current_{current},
           key_{key},
+          view_{view},
           end_{view.end()},
           empty_key_sentinel_{view.get_empty_key_sentinel()}
       {
@@ -616,6 +617,7 @@ class static_multimap {
                                         const device_view& view) noexcept
         : current_{current},
           key_{key},
+          view_{view},
           end_{view.end()},
           empty_key_sentinel_{view.get_empty_key_sentinel()}
       {
@@ -624,13 +626,13 @@ class static_multimap {
 
       __device__ FancyIterator<data_type>& operator++()
       {
-        ++current_;
+        current_ = view_.next_slot(current_);
         while (current_->first != key_) {
           if (current_->first == this->empty_key_sentinel_) {
             current_ = this->end_;
             return *this;
           }
-          ++current_;
+          current_ = view_.next_slot(current_);
         }
         return *this;
       }
@@ -646,6 +648,7 @@ class static_multimap {
      private:
       pointer_type current_;
       Key key_;
+      device_view& view_;
       pointer_type end_;
       Key empty_key_sentinel_;
     };
@@ -1003,6 +1006,23 @@ class static_multimap {
     /**
      * @brief Counts the number of matching key/value pairs contained in the multimap.
      *
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     * @param k The key to count for
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys
+     * @return The total number of the matching key/value pairs
+     * in the multimap
+     */
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ size_t count(Key const& k,
+                            Hash hash          = Hash{},
+                            KeyEqual key_equal = KeyEqual{}) const noexcept;
+
+    /**
+     * @brief Counts the number of matching key/value pairs contained in the multimap.
+     *
      * @tparam CG Cooperative Group type
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
@@ -1017,6 +1037,24 @@ class static_multimap {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ size_t
     count(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Counts the number of matching key/value pairs contained in the multimap.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     * @param k The key to count for
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys
+     * @return The total number of the matching key/value pairs
+     * in the multimap
+     */
+    template <typename CG,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ size_t
+    count(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
   };  // class device_view
 
   /**

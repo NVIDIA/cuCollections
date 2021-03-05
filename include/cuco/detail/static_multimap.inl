@@ -506,9 +506,37 @@ __device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::co
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Hash, typename KeyEqual>
+__device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::count(
+  Key const& k, Hash hash, KeyEqual key_equal) const noexcept
+{
+  auto found   = this->find_all(k, hash, key_equal);
+  size_t count = 0;
+  while (found != this->end()) {
+    ++found;
+    ++count;
+  }
+  return count;
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::count(
   CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
+{
+  auto found   = this->find_all(g, k, hash, key_equal);
+  size_t count = 0;
+  while (found != this->end()) {
+    ++found;
+    ++count;
+  }
+  return count;
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename CG, typename Hash, typename KeyEqual>
+__device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::count(
+  CG g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto found   = this->find_all(g, k, hash, key_equal);
   size_t count = 0;
