@@ -418,11 +418,56 @@ __global__ void find_all(InputIt first,
  * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
  *
  * @tparam block_size The size of the thread block
- * @tparam tile_size The number of threads in the Cooperative Groups used to perform
- * inserts
  * @tparam Value The type of the mapped value for the map
- * @tparam InputIt Device accessible input iterator whose `value_type` is
- * convertible to the map's `key_type`
+ * @tparam InputIt Device accessible input iterator whose `value_type` is convertible to the map's
+ * `key_type`
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable
+ * @tparam KeyEqual Binary callable
+ * @param first Beginning of the sequence of keys to count
+ * @param last End of the sequence of keys to count
+ * @param num_items The number of all the matches for a sequence of keys
+ * @param view Device view used to access the hash map's slot storage
+ * @param hash Unary function to apply to hash each key
+ * @param key_equal Binary function to compare two keys for equality
+ */
+template <uint32_t block_size,
+          typename Value,
+          typename InputIt,
+          typename atomicT,
+          typename viewT,
+          typename Hash,
+          typename KeyEqual>
+__global__ void count(
+  InputIt first, InputIt last, atomicT* num_items, viewT view, Hash hash, KeyEqual key_equal)
+{
+  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  std::size_t thread_num_items = 0;
+
+  auto tid = blockDim.x * blockIdx.x + threadIdx.x;
+  auto it  = first + tid;
+
+  while (it < last) {
+    thread_num_items += view.count(*it, hash, key_equal);
+    it += gridDim.x * blockDim.x;
+  }
+
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  std::size_t block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
+  if (threadIdx.x == 0) { *num_items += block_num_items; }
+}
+
+/**
+ * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform inserts
+ * @tparam Value The type of the mapped value for the map
+ * @tparam InputIt Device accessible input iterator whose `value_type` is convertible to the map's
+ * `key_type`
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable
@@ -454,7 +499,8 @@ __global__ void count(
   auto it   = first + tid / tile_size;
 
   while (it < last) {
-    thread_num_items = view.count(tile, *it, hash, key_equal);
+    auto temp_num = view.count(tile, *it, hash, key_equal);
+    if (tile.thread_rank() == 0) { thread_num_items += temp_num; }
     it += (gridDim.x * blockDim.x) / tile_size;
   }
 

@@ -52,34 +52,34 @@ enum class dist_type { UNIQUE, DUAL, UNIFORM, GAUSSIAN };
 template <dist_type Dist, typename Key, typename OutputIt>
 static void generate_keys(OutputIt output_begin, OutputIt output_end)
 {
-  auto num_keys = std::distance(output_begin, output_end);
+  auto num_items = std::distance(output_begin, output_end);
 
   std::random_device rd;
   std::mt19937 gen{rd()};
 
   switch (Dist) {
     case dist_type::UNIQUE: {
-      for (auto i = 0; i < num_keys; ++i) {
+      for (auto i = 0; i < num_items; ++i) {
         output_begin[i] = i;
       }
       break;
     }
     case dist_type::DUAL: {
-      for (auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = i % (num_keys / 2);
+      for (auto i = 0; i < num_items; ++i) {
+        output_begin[i] = i % (num_items / 2);
       }
       break;
     }
     case dist_type::UNIFORM: {
       std::uniform_int_distribution<Key> distribution{0, std::numeric_limits<Key>::max()};
-      for (auto i = 0; i < num_keys; ++i) {
+      for (auto i = 0; i < num_items; ++i) {
         output_begin[i] = distribution(gen);
       }
       break;
     }
     case dist_type::GAUSSIAN: {
       std::normal_distribution<> dg{1e9, 1e7};
-      for (auto i = 0; i < num_keys; ++i) {
+      for (auto i = 0; i < num_items; ++i) {
         output_begin[i] = std::abs(static_cast<Key>(dg(gen)));
       }
       break;
@@ -126,7 +126,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);
 
-  SECTION("Keys are all found.")
+  SECTION("All keys should be found.")
   {
     // Bulk insert keys
     thrust::for_each(thrust::device,
@@ -163,19 +163,19 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
   using Key   = T;
   using Value = T;
 
-  constexpr std::size_t num_keys{50'000'000};
+  constexpr std::size_t num_items{50'000'000};
   cuco::static_multimap<Key, Value> map{100'000'000, -1, -1};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();
 
-  std::vector<Key> h_keys(num_keys);
-  std::vector<Value> h_values(num_keys);
-  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
+  std::vector<Key> h_keys(num_items);
+  std::vector<Value> h_values(num_items);
+  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_items);
 
   generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
 
-  for (auto i = 0; i < num_keys; ++i) {
+  for (auto i = 0; i < num_items; ++i) {
     Key key           = h_keys[i];
     Value val         = i;
     h_pairs[i].first  = key;
@@ -186,8 +186,21 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
   thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<Value> d_values(h_values);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
-  thrust::device_vector<Value> d_results(num_keys);
-  thrust::device_vector<bool> d_contained(num_keys);
+  thrust::device_vector<Value> d_results(num_items);
+  thrust::device_vector<bool> d_contained(num_items);
+
+  std::set<Key> temp_set(h_keys.begin(), h_keys.end());
+  std::vector<Key> h_unique_keys(temp_set.begin(), temp_set.end());
+  thrust::device_vector<Key> d_unique_keys(h_unique_keys);
+
+  // bulk function test cases
+  SECTION("Total count should be equal to the number of inserted pairs.")
+  {
+    map.insert(d_pairs.begin(), d_pairs.end());
+    size_t num = map.count(d_unique_keys.begin(), d_unique_keys.end());
+
+    REQUIRE(num == num_items);
+  }
 
   SECTION(
     "Counting the number of key/value pairs corresponding to each key should always return two.")
