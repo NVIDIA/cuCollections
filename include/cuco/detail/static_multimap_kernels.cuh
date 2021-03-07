@@ -454,7 +454,7 @@ __global__ void count(
   auto it   = first + tid / tile_size;
 
   while (it < last) {
-    thread_num_items = count(tile, *it, hash, key_equal);
+    thread_num_items = view.count(tile, *it, hash, key_equal);
     it += (gridDim.x * blockDim.x) / tile_size;
   }
 

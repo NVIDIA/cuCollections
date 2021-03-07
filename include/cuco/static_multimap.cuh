@@ -283,7 +283,9 @@ class static_multimap {
    * @param key_equal Binary function to compare two keys for equality
    * @return The sum of total occurrences of all keys in `[first,last)`
    */
-  template <typename InputIt, typename Hash, typename KeyEqual>
+  template <typename InputIt,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+            typename KeyEqual = thrust::equal_to<key_type>>
   std::size_t count(InputIt first,
                     InputIt last,
                     Hash hash          = Hash{},
@@ -656,11 +658,22 @@ class static_multimap {
       using data_reference = DataType&;
 
      public:
-      __host__ __device__ FancyIterator(pointer_type current, Key key, device_view view) noexcept
+      __host__ __device__ FancyIterator(pointer_type current, Key key, device_view& view) noexcept
         : current_{current},
           key_{key},
-          view_{view},
-          end_{view.end()},
+          begin_{view.begin_slot()},
+          end_{view.end_slot()},
+          empty_key_sentinel_{view.get_empty_key_sentinel()}
+      {
+      }
+
+      __host__ __device__ FancyIterator(pointer_type current,
+                                        Key key,
+                                        const device_view& view) noexcept
+        : current_{current},
+          key_{key},
+          begin_{view.begin_slot()},
+          end_{view.end_slot()},
           empty_key_sentinel_{view.get_empty_key_sentinel()}
       {
       }
@@ -669,15 +682,24 @@ class static_multimap {
 
       __device__ FancyIterator<data_type>& operator++()
       {
-        current_ = view_.next_slot(current_);
+        current_ = next_slot(current_);
         while (current_->first != key_) {
           if (current_->first == this->empty_key_sentinel_) {
             current_ = this->end_;
             return *this;
           }
-          current_ = view_.next_slot(current_);
+          current_ = next_slot(current_);
         }
         return *this;
+      }
+
+      __device__ pointer_type next_slot(pointer_type it) noexcept
+      {
+        return (++it < end_) ? it : begin_;
+      }
+      __device__ pointer_type next_slot(pointer_type it) const noexcept
+      {
+        return (++it < end_) ? it : begin_;
       }
 
       __device__ bool operator==(const pointer_type& it) const { return (this->current_ == it); }
@@ -691,7 +713,7 @@ class static_multimap {
      private:
       pointer_type current_;
       Key key_;
-      device_view view_;
+      pointer_type begin_;
       pointer_type end_;
       Key empty_key_sentinel_;
     };
