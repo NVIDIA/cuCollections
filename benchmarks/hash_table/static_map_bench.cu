@@ -89,14 +89,11 @@ static void BM_static_map_insert(::benchmark::State& state)
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
 
   for (auto _ : state) {
-    state.ResumeTiming();
     state.PauseTiming();
     map_type map{size, -1, -1};
     state.ResumeTiming();
 
     map.insert(d_pairs.begin(), d_pairs.end());
-
-    state.PauseTiming();
   }
 
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
