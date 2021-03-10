@@ -188,6 +188,7 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
   thrust::device_vector<Value> d_results(num_items);
   thrust::device_vector<bool> d_contained(num_items);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_outputs(num_items);
 
   std::set<Key> temp_set(h_keys.begin(), h_keys.end());
   std::vector<Key> h_unique_keys(temp_set.begin(), temp_set.end());
@@ -200,6 +201,8 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
     size_t num = map.count(d_unique_keys.begin(), d_unique_keys.end());
 
     REQUIRE(num == num_items);
+
+    map.find_all(d_unique_keys.begin(), d_unique_keys.end(), d_outputs.begin(), d_outputs.end());
   }
 
   SECTION(

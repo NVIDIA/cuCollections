@@ -120,8 +120,15 @@ void static_multimap<Key, Value, Scope, Allocator>::find_all(InputIt first,
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_view();
 
-  detail::find_all<block_size, tile_size, Value>
-    <<<grid_size, block_size>>>(first, last, output_begin, output_end, view, hash, key_equal);
+  atomic_ctr_type* num_items;
+  CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
+  *num_items = 0;
+  int device_id;
+  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
+
+  detail::find_all<block_size, tile_size, Key, Value><<<grid_size, block_size>>>(
+    first, last, output_begin, output_end, num_items, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
 

@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <cuco/detail/pair.cuh>
+
 namespace cuco {
 namespace detail {
 namespace cg = cooperative_groups;
@@ -361,11 +363,13 @@ __global__ void contains(
  * output_end)`. Use `count()` to determine the number of matching keys.
  *
  * @tparam block_size The size of the thread block
+ * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
  * convertible to the map's `mapped_type`
+ * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
@@ -373,14 +377,17 @@ __global__ void contains(
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of values retrieved for each key
  * @param output_end End of the sequence of values retrieved for each key
+ * @param num_items Size of the output sequence
  * @param view Device view used to access the hash map's slot storage
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
 template <uint32_t block_size,
+          typename Key,
           typename Value,
           typename InputIt,
           typename OutputIt,
+          typename atomicT,
           typename viewT,
           typename Hash,
           typename KeyEqual>
@@ -388,29 +395,106 @@ __global__ void find_all(InputIt first,
                          InputIt last,
                          OutputIt output_begin,
                          OutputIt output_end,
+                         atomicT* num_items,
                          viewT view,
                          Hash hash,
                          KeyEqual key_equal)
 {
   auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid;
-  __shared__ Value writeBuffer[block_size];
 
   while (first + key_idx < last) {
-    auto key   = *(first + key_idx);
-    auto found = view.find(key, hash, key_equal);
+    auto key     = *(first + key_idx);
+    auto found   = view.find_all(key, hash, key_equal);
+    size_t count = 0;
 
-    /*
-     * The ld.relaxed.gpu instruction used in view.find causes L1 to
-     * flush more frequently, causing increased sector stores from L2 to global memory.
-     * By writing results to shared memory and then synchronizing before writing back
-     * to global, we no longer rely on L1, preventing the increase in sector stores from
-     * L2 to global and improving performance.
-     */
-    writeBuffer[threadIdx.x] = found->second.load(cuda::std::memory_order_relaxed);
-    __syncthreads();
-    *(output_begin + key_idx) = writeBuffer[threadIdx.x];
+    while (found != view.end()) {
+      size_t index            = (*num_items)++;
+      *(output_begin + index) = cuco::make_pair<Key, Value>(key, (*found).second);
+      ++found;
+      ++count;
+    }
+    if (count == 0) {
+      size_t index            = (*num_items)++;
+      *(output_begin + index) = cuco::make_pair<Key, Value>(key, view.get_empty_value_sentinel());
+    }
     key_idx += gridDim.x * blockDim.x;
+  }
+}
+
+/**
+ * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
+ *
+ * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
+ * unspecified locations in `[output_begin, output_end)`. Else, copies `k` and the empty value
+ * sentinel.
+ *
+ * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
+ * output_end)`. Use `count()` to determine the number of matching keys.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform
+ * inserts
+ * @tparam Key key type
+ * @tparam Value The type of the mapped value for the map
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is
+ * convertible to the map's `mapped_type`
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param output_begin Beginning of the sequence of values retrieved for each key
+ * @param output_end End of the sequence of values retrieved for each key
+ * @param num_items Size of the output sequence
+ * @param view Device view used to access the hash map's slot storage
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
+template <uint32_t block_size,
+          uint32_t tile_size,
+          typename Key,
+          typename Value,
+          typename InputIt,
+          typename OutputIt,
+          typename atomicT,
+          typename viewT,
+          typename Hash,
+          typename KeyEqual>
+__global__ void find_all(InputIt first,
+                         InputIt last,
+                         OutputIt output_begin,
+                         OutputIt output_end,
+                         atomicT* num_items,
+                         viewT view,
+                         Hash hash,
+                         KeyEqual key_equal)
+{
+  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto key_idx = tid / tile_size;
+
+  while (first + key_idx < last) {
+    auto key     = *(first + key_idx);
+    auto found   = view.find_all(tile, key, hash, key_equal);
+    size_t count = 0;
+
+    if (tile.thread_rank() == 0) {
+      while (found != view.end()) {
+        size_t index            = (*num_items)++;
+        *(output_begin + index) = cuco::make_pair<Key, Value>(key, (*found).second);
+        ++found;
+        ++count;
+      }
+      if (count == 0) {
+        size_t index            = (*num_items)++;
+        *(output_begin + index) = cuco::make_pair<Key, Value>(key, view.get_empty_value_sentinel());
+      }
+    }
+    key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
 }
 
