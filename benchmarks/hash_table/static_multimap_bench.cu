@@ -19,6 +19,7 @@
 
 #include <thrust/device_vector.h>
 #include <random>
+#include <type_traits>
 
 #include "cuco/static_multimap.cuh"
 
@@ -50,6 +51,11 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end, const std:
 template <typename Key, typename Value>
 void nvbench_static_multimap_insert(nvbench::state& state, nvbench::type_list<Key, Value>)
 {
+  if (not std::is_same<Key, Value>::value) {
+    state.skip("Key should be the same type as Value.");
+    return;
+  }
+
   using map_type = cuco::static_multimap<Key, Value>;
 
   const std::size_t num_keys = state.get_int64("NumInputs");
@@ -97,8 +103,8 @@ void nvbench_static_multimap_insert(nvbench::state& state, nvbench::type_list<Ke
              });
 }
 
-using key_type   = nvbench::type_list<nvbench::int32_t>;
-using value_type = nvbench::type_list<nvbench::int32_t>;
+using key_type   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
+using value_type = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_insert, NVBENCH_TYPE_AXES(key_type, value_type))
   .set_type_axes_names({"Key", "Value"})
   .add_int64_axis("NumInputs", {100'000'000})
