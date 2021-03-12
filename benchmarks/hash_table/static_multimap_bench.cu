@@ -53,7 +53,7 @@ void nvbench_static_multimap_insert(nvbench::state& state, nvbench::type_list<Ke
   using map_type = cuco::static_multimap<Key, Value>;
 
   const std::size_t num_keys = state.get_int64("NumInputs");
-  float occupancy            = state.get_int64("Occupancy");
+  auto occupancy             = state.get_float64("Occupancy");
   std::size_t size           = num_keys / occupancy;
   const auto dist            = state.get_string("Distribution");
 
@@ -102,5 +102,5 @@ using value_type = nvbench::type_list<nvbench::int32_t>;
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_insert, NVBENCH_TYPE_AXES(key_type, value_type))
   .set_type_axes_names({"Key", "Value"})
   .add_int64_axis("NumInputs", {100'000'000})
-  .add_int64_axis("Occupancy", nvbench::range(10, 90, 10))
+  .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1))
   .add_string_axis("Distribution", {"UNIQUE", "UNIFORM", "GAUSSIAN"});
