@@ -77,6 +77,9 @@ void nvbench_static_multimap_insert(nvbench::state& state, nvbench::type_list<Ke
 
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
 
+  state.add_element_count(num_keys, "NumKeys");
+  state.add_global_memory_writes<Key>(num_keys * 2);
+
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                map_type map{size, -1, -1};
@@ -98,7 +101,7 @@ void nvbench_static_multimap_insert(nvbench::state& state, nvbench::type_list<Ke
                cuco::detail::insert<block_size, tile_size>
                  <<<grid_size, block_size, 0, launch.get_stream()>>>(
                    d_pairs.begin(), d_pairs.end(), m_view, hash, key_equal);
-               // CUCO_CUDA_TRY(cudaDeviceSynchronize());
+               CUCO_CUDA_TRY(cudaDeviceSynchronize());
                timer.stop();
              });
 }
@@ -108,16 +111,8 @@ using value_type = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_insert, NVBENCH_TYPE_AXES(key_type, value_type))
   .set_type_axes_names({"Key", "Value"})
-  .set_timeout(100)                        // Custom timeout: 100 s. By default: 15 s.
-  .set_max_noise(3)                        // Custom timeout: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {2 << 27})  // Total number of key/value pairs: 2^28
-  .add_float64_axis("Occupancy", {0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95})
-  .add_string_axis("Distribution", {"UNIQUE", "UNIFORM", "GAUSSIAN"});
-
-NVBENCH_BENCH_TYPES(nvbench_static_multimap_insert, NVBENCH_TYPE_AXES(key_type, value_type))
-  .set_type_axes_names({"Key", "Value"})
-  .set_timeout(1'500)                      // Custom timeout: 1500 s. By default: 15 s.
-  .set_max_noise(3)                        // Custom timeout: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {2 << 27})  // Total number of key/value pairs: 2^28
-  .add_float64_axis("Occupancy", {1.})
+  .set_timeout(100)                            // Custom timeout: 100 s. By default: 15 s.
+  .set_max_noise(3)                            // Custom timeout: 3%. By default: 0.5%.
+  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 2^28
+  .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1))
   .add_string_axis("Distribution", {"UNIQUE", "UNIFORM", "GAUSSIAN"});
