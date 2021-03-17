@@ -48,25 +48,27 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end, const std:
   }
 }
 
-template <typename Key, typename Value>
-void nvbench_static_multimap_insert(nvbench::state& state, nvbench::type_list<Key, Value>)
+template <typename Key, typename OutputIt>
+static void generate_multikeys(OutputIt output_begin, OutputIt output_end, const size_t num_reps)
 {
-  if (not std::is_same<Key, Value>::value) {
-    state.skip("Key should be the same type as Value.");
-    return;
+  auto num_keys = std::distance(output_begin, output_end);
+
+  std::random_device rd;
+  std::mt19937 gen{rd()};
+
+  std::uniform_int_distribution<Key> distribution{1, static_cast<Key>(num_keys / num_reps)};
+  for (auto i = 0; i < num_keys; ++i) {
+    output_begin[i] = distribution(gen);
   }
+}
 
-  using map_type = cuco::static_multimap<Key, Value>;
-
-  const std::size_t num_keys = state.get_int64("NumInputs");
-  auto occupancy             = state.get_float64("Occupancy");
-  std::size_t size           = num_keys / occupancy;
-  const auto dist            = state.get_string("Distribution");
-
-  std::vector<Key> h_keys(num_keys);
+template <typename Key, typename Value>
+void launch_nvbench_insert(nvbench::state& state,
+                           std::vector<Key> const& h_keys,
+                           const std::size_t num_keys,
+                           const std::size_t size)
+{
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
-
-  generate_keys<Key>(h_keys.begin(), h_keys.end(), dist);
 
   for (auto i = 0; i < num_keys; ++i) {
     Key key           = h_keys[i];
@@ -82,7 +84,7 @@ void nvbench_static_multimap_insert(nvbench::state& state, nvbench::type_list<Ke
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               map_type map{size, -1, -1};
+               cuco::static_multimap<Key, Value> map{size, -1, -1};
                auto m_view = map.get_device_mutable_view();
 
                auto const block_size = 128;
@@ -106,13 +108,62 @@ void nvbench_static_multimap_insert(nvbench::state& state, nvbench::type_list<Ke
              });
 }
 
+template <typename Key, typename Value>
+void nvbench_static_multimap_single_insert(nvbench::state& state, nvbench::type_list<Key, Value>)
+{
+  if (not std::is_same<Key, Value>::value) {
+    state.skip("Key should be the same type as Value.");
+    return;
+  }
+
+  const std::size_t num_keys = state.get_int64("NumInputs");
+  auto occupancy             = state.get_float64("Occupancy");
+  std::size_t size           = num_keys / occupancy;
+  const auto dist            = state.get_string("Distribution");
+
+  std::vector<Key> h_keys(num_keys);
+
+  generate_keys<Key>(h_keys.begin(), h_keys.end(), dist);
+
+  launch_nvbench_insert<Key, Value>(state, h_keys, num_keys, size);
+}
+
+template <typename Key, typename Value>
+void nvbench_static_multimap_multi_insert(nvbench::state& state, nvbench::type_list<Key, Value>)
+{
+  if (not std::is_same<Key, Value>::value) {
+    state.skip("Key should be the same type as Value.");
+    return;
+  }
+
+  using map_type = cuco::static_multimap<Key, Value>;
+
+  const std::size_t num_keys = state.get_int64("NumInputs");
+  auto occupancy             = state.get_float64("Occupancy");
+  const std::size_t size     = num_keys / occupancy;
+  const std::size_t num_reps = state.get_int64("NumReps");
+
+  std::vector<Key> h_keys(num_keys);
+  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
+
+  generate_multikeys<Key>(h_keys.begin(), h_keys.end(), num_reps);
+
+  launch_nvbench_insert<Key, Value>(state, h_keys, num_keys, size);
+}
+
 using key_type   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using value_type = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 
-NVBENCH_BENCH_TYPES(nvbench_static_multimap_insert, NVBENCH_TYPE_AXES(key_type, value_type))
+NVBENCH_BENCH_TYPES(nvbench_static_multimap_single_insert, NVBENCH_TYPE_AXES(key_type, value_type))
   .set_type_axes_names({"Key", "Value"})
-  .set_timeout(100)                            // Custom timeout: 100 s. By default: 15 s.
   .set_max_noise(3)                            // Custom timeout: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 2^28
+  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
   .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1))
   .add_string_axis("Distribution", {"UNIQUE", "UNIFORM", "GAUSSIAN"});
+
+NVBENCH_BENCH_TYPES(nvbench_static_multimap_multi_insert, NVBENCH_TYPE_AXES(key_type, value_type))
+  .set_type_axes_names({"Key", "Value"})
+  .set_max_noise(3)                            // Custom timeout: 3%. By default: 0.5%.
+  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
+  .add_float64_axis("Occupancy", {0.8})
+  .add_int64_power_of_two_axis("NumReps", nvbench::range(0, 8, 1));
