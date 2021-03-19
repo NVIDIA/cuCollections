@@ -202,7 +202,7 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
 
     REQUIRE(num == num_items);
 
-    map.find_all(d_unique_keys.begin(), d_unique_keys.end(), d_outputs.begin(), d_outputs.end());
+    auto output_end = map.find_all(d_unique_keys.begin(), d_unique_keys.end(), d_outputs.begin());
   }
 
   SECTION(
