@@ -235,52 +235,47 @@ void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<
   }
 
   thrust::device_vector<Key> d_keys(h_keys);
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num_keys);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(2 * num_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
 
   state.add_element_count(num_keys, "NumKeys");
   state.add_global_memory_writes<Key>(num_keys * 2);
 
-  state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
-             [&](nvbench::launch& launch, auto& timer) {
-               cuco::static_multimap<Key, Value> map{size, -1, -1};
-               map.insert(d_pairs.begin(), d_pairs.end());
+  state.exec(
+    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+      cuco::static_multimap<Key, Value> map{size, -1, -1};
+      map.insert(d_pairs.begin(), d_pairs.end());
 
-               auto view = map.get_device_view();
+      auto view = map.get_device_view();
 
-               auto const block_size = 128;
-               auto const stride     = 1;
-               auto const tile_size  = 4;
-               auto const grid_size =
-                 (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+      auto const block_size = 128;
+      auto const stride     = 1;
+      auto const tile_size  = 4;
+      auto const grid_size =
+        (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
-               using Hash     = cuco::detail::MurmurHash3_32<Key>;
-               using KeyEqual = thrust::equal_to<Key>;
+      using Hash     = cuco::detail::MurmurHash3_32<Key>;
+      using KeyEqual = thrust::equal_to<Key>;
 
-               Hash hash;
-               KeyEqual key_equal;
+      Hash hash;
+      KeyEqual key_equal;
 
-               using atomic_ctr_type = typename cuco::static_multimap<Key, Value>::atomic_ctr_type;
-               atomic_ctr_type* num_items;
-               CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
-               *num_items = 0;
-               int device_id;
-               CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-               CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
+      using atomic_ctr_type = typename cuco::static_multimap<Key, Value>::atomic_ctr_type;
+      atomic_ctr_type* num_items;
+      CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
+      *num_items = 0;
+      int device_id;
+      CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+      CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
 
-               timer.start();
-               cuco::detail::find_all<block_size, tile_size, Key, Value>
-                 <<<grid_size, block_size, 0, launch.get_stream()>>>(d_keys.begin(),
-                                                                     d_keys.end(),
-                                                                     d_results.begin(),
-                                                                     d_results.end(),
-                                                                     num_items,
-                                                                     view,
-                                                                     hash,
-                                                                     key_equal);
-               CUCO_CUDA_TRY(cudaDeviceSynchronize());
-               timer.stop();
-             });
+      timer.start();
+      cuco::detail::find_all<block_size, tile_size, Key, Value>
+        <<<grid_size, block_size, 0, launch.get_stream()>>>(
+          d_keys.begin(), d_keys.end(), d_results.begin(), num_items, view, hash, key_equal);
+      CUCO_CUDA_TRY(cudaDeviceSynchronize());
+      timer.stop();
+      std::cout << "Output size: " << *num_items << std::endl;
+    });
 }
 
 using key_type   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
@@ -288,27 +283,28 @@ using value_type = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_single_insert, NVBENCH_TYPE_AXES(key_type, value_type))
   .set_type_axes_names({"Key", "Value"})
-  .set_max_noise(3)                            // Custom timeout: 3%. By default: 0.5%.
+  .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
   .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1))
   .add_string_axis("Distribution", {"UNIQUE", "UNIFORM", "GAUSSIAN"});
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_multi_insert, NVBENCH_TYPE_AXES(key_type, value_type))
   .set_type_axes_names({"Key", "Value"})
-  .set_max_noise(3)                            // Custom timeout: 3%. By default: 0.5%.
+  .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
   .add_float64_axis("Occupancy", {0.8})
   .add_int64_power_of_two_axis("NumReps", nvbench::range(0, 8, 1));
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_find, NVBENCH_TYPE_AXES(key_type, value_type))
   .set_type_axes_names({"Key", "Value"})
-  .set_max_noise(3)                            // Custom timeout: 3%. By default: 0.5%.
+  .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
   .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1));
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_find_all, NVBENCH_TYPE_AXES(key_type, value_type))
   .set_type_axes_names({"Key", "Value"})
-  .set_max_noise(3)                            // Custom timeout: 3%. By default: 0.5%.
+  .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
+  .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
   .add_float64_axis("Occupancy", {0.4})
   .add_int64_power_of_two_axis("NumReps", nvbench::range(0, 8, 1));

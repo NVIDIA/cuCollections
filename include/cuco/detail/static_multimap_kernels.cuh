@@ -356,11 +356,11 @@ __global__ void contains(
  * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
  *
  * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
- * unspecified locations in `[output_begin, output_end)`. Else, copies `k` and the empty value
- * sentinel.
+ * unspecified locations in `[output_begin, output_begin + *num_items - 1)`. Else, copies `k` and
+ * the empty value sentinel.
  *
  * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
- * output_end)`. Use `count()` to determine the number of matching keys.
+ * output_begin + *num_items - 1)`. Use `count()` to determine the number of matching keys.
  *
  * @tparam block_size The size of the thread block
  * @tparam Key key type
@@ -376,7 +376,6 @@ __global__ void contains(
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of values retrieved for each key
- * @param output_end End of the sequence of values retrieved for each key
  * @param num_items Size of the output sequence
  * @param view Device view used to access the hash map's slot storage
  * @param hash The unary function to apply to hash each key
@@ -394,7 +393,6 @@ template <uint32_t block_size,
 __global__ void find_all(InputIt first,
                          InputIt last,
                          OutputIt output_begin,
-                         OutputIt output_end,
                          atomicT* num_items,
                          viewT view,
                          Hash hash,
@@ -426,11 +424,11 @@ __global__ void find_all(InputIt first,
  * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
  *
  * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
- * unspecified locations in `[output_begin, output_end)`. Else, copies `k` and the empty value
- * sentinel.
+ * unspecified locations in `[output_begin, output_begin + *num_items - 1)`. Else, copies `k` and
+ * the empty value sentinel.
  *
  * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
- * output_end)`. Use `count()` to determine the number of matching keys.
+ * output_begin + *num_items - 1)`. Use `count()` to determine the number of matching keys.
  *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
@@ -448,7 +446,6 @@ __global__ void find_all(InputIt first,
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of values retrieved for each key
- * @param output_end End of the sequence of values retrieved for each key
  * @param num_items Size of the output sequence
  * @param view Device view used to access the hash map's slot storage
  * @param hash The unary function to apply to hash each key
@@ -467,7 +464,6 @@ template <uint32_t block_size,
 __global__ void find_all(InputIt first,
                          InputIt last,
                          OutputIt output_begin,
-                         OutputIt output_end,
                          atomicT* num_items,
                          viewT view,
                          Hash hash,

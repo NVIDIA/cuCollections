@@ -255,21 +255,20 @@ class static_multimap {
    * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param output_begin Beginning of the sequence of values retrieved for each key
-   * @param output_begin End of the sequence of values retrieved for each key
+   * @param output_begin Beginning of the sequence of key/value pairs retrieved for each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
+   * @return The iterator indicating the last valid key/value pairs in the output
    */
   template <typename InputIt,
             typename OutputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void find_all(InputIt first,
-                InputIt last,
-                OutputIt output_begin,
-                OutputIt output_end,
-                Hash hash          = Hash{},
-                KeyEqual key_equal = KeyEqual{}) noexcept;
+  OutputIt find_all(InputIt first,
+                    InputIt last,
+                    OutputIt output_begin,
+                    Hash hash          = Hash{},
+                    KeyEqual key_equal = KeyEqual{}) noexcept;
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.

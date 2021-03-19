@@ -106,12 +106,8 @@ void static_multimap<Key, Value, Scope, Allocator>::contains(
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void static_multimap<Key, Value, Scope, Allocator>::find_all(InputIt first,
-                                                             InputIt last,
-                                                             OutputIt output_begin,
-                                                             OutputIt output_end,
-                                                             Hash hash,
-                                                             KeyEqual key_equal) noexcept
+OutputIt static_multimap<Key, Value, Scope, Allocator>::find_all(
+  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -127,9 +123,10 @@ void static_multimap<Key, Value, Scope, Allocator>::find_all(InputIt first,
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
 
-  detail::find_all<block_size, tile_size, Key, Value><<<grid_size, block_size>>>(
-    first, last, output_begin, output_end, num_items, view, hash, key_equal);
+  detail::find_all<block_size, tile_size, Key, Value>
+    <<<grid_size, block_size>>>(first, last, output_begin, num_items, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  return output_begin + (*num_items - 1);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
