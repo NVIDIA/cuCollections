@@ -478,11 +478,11 @@ __global__ void find_all(InputIt first,
   auto key_idx = tid / tile_size;
 
   while (first + key_idx < last) {
-    auto key     = *(first + key_idx);
-    auto found   = view.find_all(tile, key, hash, key_equal);
-    size_t count = 0;
+    auto key   = *(first + key_idx);
+    auto found = view.find_all(tile, key, hash, key_equal);
 
     if (tile.thread_rank() == 0) {
+      size_t count = 0;
       while (found != view.end()) {
         size_t index            = (*num_items)++;
         *(output_begin + index) = cuco::make_pair<Key, Value>(key, (*found).second);
