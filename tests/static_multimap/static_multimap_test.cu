@@ -107,7 +107,6 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   auto view   = map.get_device_view();
 
   std::vector<Key> h_keys(num_keys);
-  std::vector<Value> h_values(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
 
   generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
@@ -117,14 +116,9 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     Value val         = h_keys[i];
     h_pairs[i].first  = key;
     h_pairs[i].second = val;
-    h_values[i]       = val;
   }
 
-  thrust::device_vector<Key> d_keys(h_keys);
-  thrust::device_vector<Value> d_values(h_values);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
-  thrust::device_vector<Value> d_results(num_keys);
-  thrust::device_vector<bool> d_contained(num_keys);
 
   SECTION("All keys should be found.")
   {
@@ -170,7 +164,6 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
   auto view   = map.get_device_view();
 
   std::vector<Key> h_keys(num_items);
-  std::vector<Value> h_values(num_items);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_items);
 
   generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
@@ -180,29 +173,28 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
     Value val         = i;
     h_pairs[i].first  = key;
     h_pairs[i].second = val;
-    h_values[i]       = val;
   }
-
-  thrust::device_vector<Key> d_keys(h_keys);
-  thrust::device_vector<Value> d_values(h_values);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
-  thrust::device_vector<Value> d_results(num_items);
-  thrust::device_vector<bool> d_contained(num_items);
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_outputs(num_items);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num_items);
 
-  std::set<Key> temp_set(h_keys.begin(), h_keys.end());
-  std::vector<Key> h_unique_keys(temp_set.begin(), temp_set.end());
+  // Get array of unique keys
+  std::set<Key> key_set(h_keys.begin(), h_keys.end());
+  std::vector<Key> h_unique_keys(key_set.begin(), key_set.end());
   thrust::device_vector<Key> d_unique_keys(h_unique_keys);
 
-  // bulk function test cases
+  // Bulk function test cases
   SECTION("Total count should be equal to the number of inserted pairs.")
   {
     map.insert(d_pairs.begin(), d_pairs.end());
+    // Count matching keys
     size_t num = map.count(d_unique_keys.begin(), d_unique_keys.end());
 
     REQUIRE(num == num_items);
 
-    auto output_end = map.find_all(d_unique_keys.begin(), d_unique_keys.end(), d_outputs.begin());
+    auto output_end = map.find_all(d_unique_keys.begin(), d_unique_keys.end(), d_results.begin());
+    auto size       = thrust::distance(d_results.begin(), output_end);
+
+    REQUIRE(size == num_items);
   }
 
   SECTION(

@@ -126,7 +126,7 @@ OutputIt static_multimap<Key, Value, Scope, Allocator>::find_all(
   detail::find_all<block_size, tile_size, Key, Value>
     <<<grid_size, block_size>>>(first, last, output_begin, num_items, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
-  return output_begin + (*num_items - 1);
+  return output_begin + *num_items;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>

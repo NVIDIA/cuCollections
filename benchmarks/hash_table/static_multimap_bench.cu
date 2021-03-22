@@ -15,11 +15,9 @@
  */
 
 #include <nvbench/nvbench.cuh>
-#include <nvbench/test_kernels.cuh>
 
 #include <thrust/device_vector.h>
 #include <random>
-#include <type_traits>
 
 #include "cuco/static_multimap.cuh"
 
@@ -198,6 +196,7 @@ void nvbench_static_multimap_find(nvbench::state& state, nvbench::type_list<Key,
                Hash hash;
                KeyEqual key_equal;
 
+               // Use timers to explicitly mark the target region
                timer.start();
                cuco::detail::find<block_size, tile_size, Value>
                  <<<grid_size, block_size, 0, launch.get_stream()>>>(
@@ -268,13 +267,13 @@ void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<
       CUCO_CUDA_TRY(cudaGetDevice(&device_id));
       CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
 
+      // Use timers to explicitly mark the target region
       timer.start();
       cuco::detail::find_all<block_size, tile_size, Key, Value>
         <<<grid_size, block_size, 0, launch.get_stream()>>>(
           d_keys.begin(), d_keys.end(), d_results.begin(), num_items, view, hash, key_equal);
       CUCO_CUDA_TRY(cudaDeviceSynchronize());
       timer.stop();
-      std::cout << "Output size: " << *num_items << std::endl;
     });
 }
 
