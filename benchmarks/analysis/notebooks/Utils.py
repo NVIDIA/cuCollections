@@ -7,21 +7,21 @@ import matplotlib
 colors = ['b','r','g','m','y','c']
 styles = ['o','s','v','^','D',">"]
 
-def plot_insert(bm, df, s, unique_labels, flag = False):
+def plot_insert(bm, df, xaxis, unique_labels, flag = False):
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
     fig.suptitle(bm)
     
     marker_handles = []
     
-    ax1.set_xlabel(s)
+    ax1.set_xlabel(xaxis)
     ax1.set_ylabel('Performance (number of operations per second)')
 
-    ax2.set_xlabel(s)
+    ax2.set_xlabel(xaxis)
     ax2.set_ylabel('Bandwidth (GB/s)')
     
     lax = [ax1, ax2]
     if flag:
-        lnum = list(df[s])
+        lnum = list(df[xaxis])
         
         for item in lax:
             item.set_xscale('log')
@@ -33,7 +33,7 @@ def plot_insert(bm, df, s, unique_labels, flag = False):
     for lindex, lbl in enumerate(unique_labels):
         tmpdf = df.loc[df['Label'] == lbl]
 
-        x = tmpdf[s]
+        x = tmpdf[xaxis]
         perf = tmpdf["Elem/s (elem/sec)"]
         bw   = tmpdf['Bandwidth (GB/s)']
 
@@ -63,3 +63,4 @@ def plot_insert(bm, df, s, unique_labels, flag = False):
                                           mfc='none', linestyle="--", label=lbl)[0])
     
     leg = plt.legend(handles = marker_handles, loc="lower left", ncol=2, frameon=False)
+    plt.savefig(bm+'.eps')
