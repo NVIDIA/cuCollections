@@ -21,6 +21,10 @@
 
 #include "cuco/static_multimap.cuh"
 
+/**
+ * @brief Generates input keys with a specific distribution.
+ *
+ */
 template <typename Key, typename OutputIt>
 static void generate_keys(OutputIt output_begin, OutputIt output_end, const std::string& dist)
 {
@@ -46,6 +50,10 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end, const std:
   }
 }
 
+/**
+ * @brief Generates input keys by a given number of repetitions per key.
+ *
+ */
 template <typename Key, typename OutputIt>
 static void generate_multikeys(OutputIt output_begin, OutputIt output_end, size_t const num_reps)
 {
@@ -60,11 +68,15 @@ static void generate_multikeys(OutputIt output_begin, OutputIt output_end, size_
   }
 }
 
-template <typename Key, typename Value>
+/**
+ * @brief Helper function to launch insertion benchmark.
+ *
+ */
+template <typename Key, typename Value, size_t cg_size>
 void launch_nvbench_insert(nvbench::state& state,
                            std::vector<Key> const& h_keys,
-                           const std::size_t num_keys,
-                           const std::size_t size)
+                           std::size_t const num_keys,
+                           std::size_t const size)
 {
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
 
@@ -87,7 +99,7 @@ void launch_nvbench_insert(nvbench::state& state,
 
                auto const block_size = 128;
                auto const stride     = 1;
-               auto const tile_size  = 4;
+               auto const tile_size  = cg_size;
                auto const grid_size =
                  (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
@@ -106,6 +118,14 @@ void launch_nvbench_insert(nvbench::state& state,
              });
 }
 
+/**
+ * @brief A benchmark evaluating single-value insertion performance by varying occupancy:
+ * - Total number of insertions is fixed at 100'000'000
+ * - Map occupancy: 0.1, ... , 0.8, 0.9
+ * - CG size is fixed at 4
+ * - Three different key distributions are tested: Unique, Uniform and Gaussian
+ *
+ */
 template <typename Key, typename Value>
 void nvbench_static_multimap_single_insert(nvbench::state& state, nvbench::type_list<Key, Value>)
 {
@@ -118,16 +138,59 @@ void nvbench_static_multimap_single_insert(nvbench::state& state, nvbench::type_
   auto const occupancy       = state.get_float64("Occupancy");
   std::size_t const size     = num_keys / occupancy;
   auto const dist            = state.get_string("Distribution");
+  std::size_t const cg_size  = 4;
 
   std::vector<Key> h_keys(num_keys);
 
   generate_keys<Key>(h_keys.begin(), h_keys.end(), dist);
 
-  launch_nvbench_insert<Key, Value>(state, h_keys, num_keys, size);
+  launch_nvbench_insert<Key, Value, cg_size>(state, h_keys, num_keys, size);
 }
 
+/**
+ * @brief A benchmark evaluating multi-value insertion performance by varing number of repetitions
+ * per key:
+ * - Total number of insertions is fixed at 100'000'000
+ * - Map occupancy is fixed at 0.7
+ * - CG size is fixed at 4
+ * - Unique key distributions is tested
+ * - Number of repetitions per key: 1, ... , 128, 256
+ *
+ */
 template <typename Key, typename Value>
 void nvbench_static_multimap_multi_insert(nvbench::state& state, nvbench::type_list<Key, Value>)
+{
+  if (not std::is_same<Key, Value>::value) {
+    state.skip("Key should be the same type as Value.");
+    return;
+  }
+
+  std::size_t const num_keys = state.get_int64("NumInputs");
+  auto const occupancy       = state.get_float64("Occupancy");
+  std::size_t const size     = num_keys / occupancy;
+  std::size_t const num_reps = state.get_int64("NumReps");
+  std::size_t const cg_size  = 4;
+
+  std::vector<Key> h_keys(num_keys);
+
+  generate_multikeys<Key>(h_keys.begin(), h_keys.end(), num_reps);
+
+  launch_nvbench_insert<Key, Value, cg_size>(state, h_keys, num_keys, size);
+}
+
+/**
+ * @brief A benchmark evaluating multi-value insertion performance by varing number of repetitions
+ * per key and CUDA CG size:
+ * - Total number of insertions is fixed at 100'000'000
+ * - Map occupancy is fixed at 0.7
+ * - Unique key distributions is tested
+ * - Number of repetitions per key: 1, ... , 128, 256
+ * - CG size: 1, ... , 16, 32
+ *
+ */
+template <typename Key, typename Value, nvbench::int32_t CGSize>
+void nvbench_static_multimap_insert_cgsize(
+  nvbench::state& state, nvbench::type_list<Key, Value, nvbench::enum_type<CGSize>>)
 {
   if (not std::is_same<Key, Value>::value) {
     state.skip("Key should be the same type as Value.");
@@ -143,9 +206,16 @@ void nvbench_static_multimap_multi_insert(nvbench::state& state, nvbench::type_l
 
   generate_multikeys<Key>(h_keys.begin(), h_keys.end(), num_reps);
 
-  launch_nvbench_insert<Key, Value>(state, h_keys, num_keys, size);
+  launch_nvbench_insert<Key, Value, CGSize>(state, h_keys, num_keys, size);
 }
 
+/**
+ * @brief A benchmark evaluating single-value retrieval performance by varing occupancy:
+ * - 100'000'000 uniformed keys are inserted
+ * - Map occupancy: 0.1, ... , 0.8, 0.9
+ * - CG size is fixed at 4
+ *
+ */
 template <typename Key, typename Value>
 void nvbench_static_multimap_find(nvbench::state& state, nvbench::type_list<Key, Value>)
 {
@@ -206,6 +276,15 @@ void nvbench_static_multimap_find(nvbench::state& state, nvbench::type_list<Key,
              });
 }
 
+/**
+ * @brief A benchmark evaluating multi-value retrieval performance by varing number of repetitions
+ * per key:
+ * - 100'000'000 keys are inserted
+ * - Map occupancy is fixed at 0.3
+ * - CG size is fixed at 4
+ * - Number of repetitions per key: 1, ... , 128, 256
+ *
+ */
 template <typename Key, typename Value>
 void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<Key, Value>)
 {
@@ -279,6 +358,7 @@ void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<
 
 using key_type   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using value_type = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
+using cg_size    = nvbench::enum_type_list<1, 2, 4, 8, 16, 32>;
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_single_insert, NVBENCH_TYPE_AXES(key_type, value_type))
   .set_type_axes_names({"Key", "Value"})
@@ -291,7 +371,7 @@ NVBENCH_BENCH_TYPES(nvbench_static_multimap_multi_insert, NVBENCH_TYPE_AXES(key_
   .set_type_axes_names({"Key", "Value"})
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {0.8})
+  .add_float64_axis("Occupancy", {0.7})
   .add_int64_power_of_two_axis("NumReps", nvbench::range(0, 8, 1));
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_find, NVBENCH_TYPE_AXES(key_type, value_type))
@@ -306,4 +386,13 @@ NVBENCH_BENCH_TYPES(nvbench_static_multimap_find_all, NVBENCH_TYPE_AXES(key_type
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
   .add_float64_axis("Occupancy", {0.4})
+  .add_int64_power_of_two_axis("NumReps", nvbench::range(0, 8, 1));
+
+NVBENCH_BENCH_TYPES(nvbench_static_multimap_insert_cgsize,
+                    NVBENCH_TYPE_AXES(key_type, value_type, cg_size))
+  .set_type_axes_names({"Key", "Value", "CGSize"})
+  .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
+  .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
+  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
+  .add_float64_axis("Occupancy", {0.7})
   .add_int64_power_of_two_axis("NumReps", nvbench::range(0, 8, 1));
