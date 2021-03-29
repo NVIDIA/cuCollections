@@ -326,9 +326,10 @@ void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<
 
       auto view = map.get_device_view();
 
-      auto const block_size = 128;
-      auto const stride     = 1;
-      auto const tile_size  = 4;
+      auto const block_size  = 128;
+      auto const buffer_size = block_size * 16;
+      auto const stride      = 1;
+      auto const tile_size   = 4;
       auto const grid_size =
         (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
@@ -348,7 +349,7 @@ void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<
 
       // Use timers to explicitly mark the target region
       timer.start();
-      cuco::detail::find_all<block_size, tile_size, Key, Value>
+      cuco::detail::find_all<block_size, tile_size, buffer_size, Key, Value>
         <<<grid_size, block_size, 0, launch.get_stream()>>>(
           d_keys.begin(), d_keys.end(), d_results.begin(), num_items, view, hash, key_equal);
       CUCO_CUDA_TRY(cudaDeviceSynchronize());

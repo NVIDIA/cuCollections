@@ -89,8 +89,12 @@ set(STATIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_benc
 ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
 
 ###################################################################################################
-set(STATIC_MULTIMAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_multimap_bench.cu")
+set(STATIC_MULTIMAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_multimap/static_multimap_bench.cu")
 ConfigureNVBench(STATIC_MULTIMAP_BENCH "${STATIC_MULTIMAP_BENCH_SRC}")
+
+###################################################################################################
+set(FIND_ALL_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_multimap/find_all_bench.cu")
+ConfigureNVBench(FIND_ALL_BENCH "${FIND_ALL_BENCH_SRC}")
 
 ###################################################################################################
 set(RBK_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/reduce_by_key/reduce_by_key.cu")
