@@ -34,7 +34,7 @@ namespace cg = cooperative_groups;
  * @param output_begin Beginning of the output sequence of key/value pairs
  */
 template <typename Key, typename Value, typename atomicT, typename OutputIt>
-__inline__ __device__ void flush_output_buffer(size_t output_size,
+__inline__ __device__ void flush_output_buffer(uint32_t output_size,
                                                cuco::pair_type<Key, Value>* output_buffer,
                                                atomicT* num_items,
                                                OutputIt output_begin)

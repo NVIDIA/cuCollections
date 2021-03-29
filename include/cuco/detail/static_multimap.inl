@@ -127,7 +127,11 @@ OutputIt static_multimap<Key, Value, Scope, Allocator>::find_all(
   detail::find_all<block_size, tile_size, buffer_size, Key, Value>
     <<<grid_size, block_size>>>(first, last, output_begin, num_items, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
-  return output_begin + *num_items;
+
+  auto output_end = output_begin + *num_items;
+  CUCO_CUDA_TRY(cudaFree(num_items));
+
+  return output_end;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -154,7 +158,11 @@ std::size_t static_multimap<Key, Value, Scope, Allocator>::count(InputIt first,
   detail::count<block_size, tile_size, Value>
     <<<grid_size, block_size>>>(first, last, num_items, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
-  return *num_items;
+
+  size_t result = *num_items;
+  CUCO_CUDA_TRY(cudaFree(num_items));
+
+  return result;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>

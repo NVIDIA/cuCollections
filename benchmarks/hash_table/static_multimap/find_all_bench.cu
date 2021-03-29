@@ -117,6 +117,8 @@ void nvbench_find_all(
           d_keys.begin(), d_keys.end(), d_results.begin(), num_items, view, hash, key_equal);
       CUCO_CUDA_TRY(cudaDeviceSynchronize());
       timer.stop();
+
+      CUCO_CUDA_TRY(cudaFree(num_items));
     });
 }
 
