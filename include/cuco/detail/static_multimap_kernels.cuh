@@ -21,6 +21,34 @@ namespace detail {
 namespace cg = cooperative_groups;
 
 /**
+ * @brief Flushes shared memory buffer into the output sequence.
+ *
+ * @tparam Key key type
+ * @tparam Value value type
+ * @tparam atomicT Type of atomic storage
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is
+ * convertible to the map's `mapped_type`
+ * @param output_size Number of valid output in the buffer
+ * @param output_buffer Shared memory buffer of the key/value pair sequence
+ * @param num_items Size of the output sequence
+ * @param output_begin Beginning of the output sequence of key/value pairs
+ */
+template <typename Key, typename Value, typename atomicT, typename OutputIt>
+__inline__ __device__ void flush_output_buffer(size_t output_size,
+                                               cuco::pair_type<Key, Value>* output_buffer,
+                                               atomicT* num_items,
+                                               OutputIt output_begin)
+{
+  __shared__ size_t offset;
+  if (threadIdx.x == 0) { offset = (*num_items += output_size); }
+  __syncthreads();
+
+  for (auto index = threadIdx.x; index < output_size; index += blockDim.x) {
+    *(output_begin + offset + index) = output_buffer[index];
+  }
+}
+
+/**
  * @brief Initializes each slot in the flat `slots` storage to contain `k` and `v`.
  *
  * Each space in `slots` that can hold a key value pair is initialized to a
@@ -401,22 +429,57 @@ __global__ void find_all(InputIt first,
   auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid;
 
-  while (first + key_idx < last) {
-    auto key     = *(first + key_idx);
-    auto found   = view.find_all(key, hash, key_equal);
-    size_t count = 0;
+  constexpr uint32_t step        = 1;
+  constexpr uint32_t buffer_size = block_size * 16;
+  auto const end                 = view.end();
 
-    while (found != view.end()) {
-      size_t index            = (*num_items)++;
-      *(output_begin + index) = cuco::make_pair<Key, Value>(key, (*found).second);
-      ++found;
-      ++count;
-    }
-    if (count == 0) {
-      size_t index            = (*num_items)++;
-      *(output_begin + index) = cuco::make_pair<Key, Value>(key, view.get_empty_value_sentinel());
-    }
-    key_idx += gridDim.x * blockDim.x;
+  __shared__ cuco::pair_type<Key, Value> output_buffer[buffer_size];
+  __shared__ uint32_t block_counter;  // TODO: do we really need uint32_t?
+
+  if (0 == threadIdx.x) { block_counter = 0; }
+
+  if (first + key_idx < last) {
+    auto key   = *(first + key_idx);
+    auto found = view.find_all(key, hash, key_equal);
+
+    bool running     = true;
+    bool found_match = false;
+
+    while (__syncthreads_or(running)) {
+      if (running) {
+        if (found == end) {
+          running = false;
+        } else {
+          found_match = true;
+
+          auto index           = atomicAdd_block(&block_counter, step);
+          output_buffer[index] = cuco::make_pair<Key, Value>(key, (*found).second);
+
+          ++found;
+        }
+
+        if ((not running) && (not found_match)) {
+          auto index           = atomicAdd_block(&block_counter, step);
+          output_buffer[index] = cuco::make_pair<Key, Value>(key, view.get_empty_value_sentinel());
+        }
+      }  // if (running)
+
+      __syncthreads();
+
+      if ((block_counter + block_size) > buffer_size) {
+        flush_output_buffer<Key, Value, atomicT, OutputIt>(
+          block_counter, output_buffer, num_items, output_begin);
+        __syncthreads();
+        if (0 == threadIdx.x) { block_counter = 0; }
+        __syncthreads();
+      }
+    }  // while syncthreads_or
+  }
+
+  // Final flush of output cache
+  if (block_counter > 0) {
+    flush_output_buffer<Key, Value, atomicT, OutputIt>(
+      block_counter, output_buffer, num_items, output_begin);
   }
 }
 
@@ -451,6 +514,7 @@ __global__ void find_all(InputIt first,
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
+
 template <uint32_t block_size,
           uint32_t tile_size,
           typename Key,
@@ -473,24 +537,65 @@ __global__ void find_all(InputIt first,
   auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
 
-  while (first + key_idx < last) {
+  constexpr uint32_t step        = 1;
+  constexpr uint32_t buffer_size = block_size * 16;
+  auto const end                 = view.end();
+
+  __shared__ cuco::pair_type<Key, Value> output_buffer[buffer_size];
+  __shared__ uint32_t block_counter;  // TODO: do we really need uint32_t?
+
+  if (0 == threadIdx.x) { block_counter = 0; }
+
+  if (first + key_idx < last) {
     auto key   = *(first + key_idx);
     auto found = view.find_all(tile, key, hash, key_equal);
 
-    if (tile.thread_rank() == 0) {
-      size_t count = 0;
-      while (found != view.end()) {
-        size_t index            = (*num_items)++;
-        *(output_begin + index) = cuco::make_pair<Key, Value>(key, (*found).second);
-        ++found;
-        ++count;
+    bool running     = true;
+    bool found_match = false;
+
+    // Loop over all matches for each key
+    while (__syncthreads_or(running)) {
+      if (running) {
+        if (found == end) {
+          running = false;
+        } else {
+          found_match = true;
+
+          // First lane of each CG performs scalar retrieval
+          if (tile.thread_rank() == 0) {
+            auto index           = atomicAdd_block(&block_counter, step);
+            output_buffer[index] = cuco::make_pair<Key, Value>(key, (*found).second);
+
+            ++found;
+          }
+          // Stall other lanes
+          else {
+            running = false;
+          }
+        }
+
+        if ((not running) && (not found_match) && (tile.thread_rank() == 0)) {
+          auto index           = atomicAdd_block(&block_counter, step);
+          output_buffer[index] = cuco::make_pair<Key, Value>(key, view.get_empty_value_sentinel());
+        }
+      }  // if (running)
+
+      __syncthreads();
+
+      if ((block_counter + block_size / tile_size) > buffer_size) {
+        flush_output_buffer<Key, Value, atomicT, OutputIt>(
+          block_counter, output_buffer, num_items, output_begin);
+        __syncthreads();
+        if (0 == threadIdx.x) { block_counter = 0; }
+        __syncthreads();
       }
-      if (count == 0) {
-        size_t index            = (*num_items)++;
-        *(output_begin + index) = cuco::make_pair<Key, Value>(key, view.get_empty_value_sentinel());
-      }
-    }
-    key_idx += (gridDim.x * blockDim.x) / tile_size;
+    }  // while sync_or
+  }
+
+  // Final flush of output cache
+  if (block_counter > 0) {
+    flush_output_buffer<Key, Value, atomicT, OutputIt>(
+      block_counter, output_buffer, num_items, output_begin);
   }
 }
 
