@@ -391,6 +391,7 @@ __global__ void contains(
  * output_begin + *num_items - 1)`. Use `count()` to determine the number of matching keys.
  *
  * @tparam block_size The size of the thread block
+ * @tparam buffer_size Size of the output buffer
  * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -410,6 +411,7 @@ __global__ void contains(
  * @param key_equal The binary function to compare two keys for equality
  */
 template <uint32_t block_size,
+          uint32_t buffer_size,
           typename Key,
           typename Value,
           typename InputIt,
@@ -429,9 +431,8 @@ __global__ void find_all(InputIt first,
   auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid;
 
-  constexpr uint32_t step        = 1;
-  constexpr uint32_t buffer_size = block_size * 16;
-  auto const end                 = view.end();
+  constexpr uint32_t step = 1;
+  auto const end          = view.end();
 
   __shared__ cuco::pair_type<Key, Value> output_buffer[buffer_size];
   __shared__ uint32_t block_counter;  // TODO: do we really need uint32_t?
@@ -496,6 +497,7 @@ __global__ void find_all(InputIt first,
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
  * inserts
+ * @tparam buffer_size Size of the output buffer
  * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -517,6 +519,7 @@ __global__ void find_all(InputIt first,
 
 template <uint32_t block_size,
           uint32_t tile_size,
+          uint32_t buffer_size,
           typename Key,
           typename Value,
           typename InputIt,
@@ -537,9 +540,8 @@ __global__ void find_all(InputIt first,
   auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
 
-  constexpr uint32_t step        = 1;
-  constexpr uint32_t buffer_size = block_size * 16;
-  auto const end                 = view.end();
+  constexpr uint32_t step = 1;
+  auto const end          = view.end();
 
   __shared__ cuco::pair_type<Key, Value> output_buffer[buffer_size];
   __shared__ uint32_t block_counter;  // TODO: do we really need uint32_t?
