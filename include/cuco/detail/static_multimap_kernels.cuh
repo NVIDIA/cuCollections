@@ -40,7 +40,9 @@ __inline__ __device__ void flush_output_buffer(uint32_t output_size,
                                                OutputIt output_begin)
 {
   __shared__ size_t offset;
-  if (threadIdx.x == 0) { offset = (*num_items += output_size); }
+  if (threadIdx.x == 0) {
+    offset = num_items->fetch_add(output_size, cuda::std::memory_order_relaxed);
+  }
   __syncthreads();
 
   for (auto index = threadIdx.x; index < output_size; index += blockDim.x) {
