@@ -211,7 +211,10 @@ __global__ void find(InputIt first,
      * to global, we no longer rely on L1, preventing the increase in sector stores from
      * L2 to global and improving performance.
      */
-    writeBuffer[threadIdx.x] = found->second.load(cuda::std::memory_order_relaxed);
+    writeBuffer[threadIdx.x] =
+      found == view.end()
+        ? view.get_empty_value_sentinel()
+        : found->second.load(cuda::std::memory_order_relaxed);
     __syncthreads();
     *(output_begin + key_idx) = writeBuffer[threadIdx.x];
     key_idx += gridDim.x * blockDim.x;
@@ -273,7 +276,10 @@ __global__ void find(InputIt first,
      * L2 to global and improving performance.
      */
     if(tile.thread_rank() == 0) {
-      writeBuffer[threadIdx.x / tile_size] = found->second.load(cuda::std::memory_order_relaxed);
+      writeBuffer[threadIdx.x / tile_size] =
+        found == view.end()
+          ? view.get_empty_value_sentinel()
+          : found->second.load(cuda::std::memory_order_relaxed);
     }
     __syncthreads();
     if(tile.thread_rank() == 0) {
