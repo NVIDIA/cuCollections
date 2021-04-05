@@ -65,7 +65,7 @@ class dynamic_map;
  * in the map. For example, given a range of keys specified by device-accessible
  * iterators, the bulk `insert` function will insert all keys into the map.
  *
- * The singular device-side operations allow individual threads to to perform
+ * The singular device-side operations allow individual threads to perform
  * independent insert or find/contains operations from device code. These
  * operations are accessed through non-owning, trivially copyable "view" types:
  * `device_view` and `mutable_device_view`. The `device_view` class is an
