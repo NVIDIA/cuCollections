@@ -62,6 +62,8 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
                                                       KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
+  if (num_keys == 0) { return };
+
   auto const block_size = 128;
   auto const stride     = 1;
   auto const tile_size  = 4;
@@ -86,6 +88,8 @@ void static_map<Key, Value, Scope, Allocator>::find(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
 {
   auto num_keys         = std::distance(first, last);
+  if (num_keys == 0) { return };
+
   auto const block_size = 128;
   auto const stride     = 1;
   auto const tile_size  = 4;
@@ -103,6 +107,8 @@ void static_map<Key, Value, Scope, Allocator>::contains(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
 {
   auto num_keys         = std::distance(first, last);
+  if (num_keys == 0) { return };
+
   auto const block_size = 128;
   auto const stride     = 1;
   auto const tile_size  = 4;
