@@ -138,8 +138,8 @@ class static_map {
    * and sentinel values.
    *
    * The capacity of the map is fixed. Insert operations will not automatically
-   * grow the map. Attempting to insert more unique keys than the capacity of
-   * the map results in undefined behavior.
+   * grow the map. Attempting to insert equal to or more unique keys than the capacity
+   * of the map results in undefined behavior (there should be at least one empty slot).
    *
    * Performance begins to degrade significantly beyond a load factor of ~70%.
    * For best performance, choose a capacity that will keep the load factor
