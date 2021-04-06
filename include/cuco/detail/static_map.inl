@@ -245,6 +245,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
                                                             Hash hash,
                                                             KeyEqual key_equal) noexcept
 {
+  if (this->get_capacity() == 0) { return this->end(); }
+
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
@@ -266,6 +268,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
                                                             Hash hash,
                                                             KeyEqual key_equal) const noexcept
 {
+  if (this->get_capacity() == 0) { return this->end(); }
+
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
@@ -288,6 +292,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
                                                             Hash hash,
                                                             KeyEqual key_equal) noexcept
 {
+  if (this->get_capacity() == 0) { return this->end(); }
+
   auto current_slot = initial_slot(g, k, hash);
 
   while (true) {
@@ -325,6 +331,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
                                                             Hash hash,
                                                             KeyEqual key_equal) const noexcept
 {
+  if (this->get_capacity() == 0) { return this->end(); }
+
   auto current_slot = initial_slot(g, k, hash);
 
   while (true) {
@@ -361,6 +369,8 @@ template <typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
   Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
+  if (this->get_capacity() == 0) { return false; }
+
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
@@ -379,6 +389,8 @@ template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
   CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
+  if (this->get_capacity() == 0) { return false; }
+
   auto current_slot = initial_slot(g, k, hash);
 
   while (true) {
