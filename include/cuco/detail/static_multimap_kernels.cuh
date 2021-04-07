@@ -554,10 +554,14 @@ __global__ void find_all(InputIt first,
     bool found_match = false;
 
     while (tile.any(running)) {
-      auto const existing_key  = current_slot->first.load(cuda::std::memory_order_relaxed);
-      auto existing_value      = current_slot->second.load(cuda::std::memory_order_relaxed);
-      auto const slot_is_empty = (existing_key == view.get_empty_key_sentinel());
-      auto const equals        = key_equal(existing_key, key);
+      // TODO: Replace reinterpret_cast with atomic ref when it's available. The current
+      // implementation is unsafe!
+      static_assert(sizeof(Key) == sizeof(cuda::atomic<Key>));
+      static_assert(sizeof(Value) == sizeof(cuda::atomic<Value>));
+      pair<Key, Value> slot_contents = *reinterpret_cast<pair<Key, Value> const*>(current_slot);
+
+      auto const slot_is_empty = (slot_contents.first == view.get_empty_key_sentinel());
+      auto const equals        = key_equal(slot_contents.first, key);
       auto const exists        = tile.ballot(not slot_is_empty and equals);
 
       if (exists) {
@@ -572,7 +576,7 @@ __global__ void find_all(InputIt first,
           auto lane_offset = __popc(exists & ((1 << lane_id) - 1));
           Key k            = key;
           *(output_begin + output_idx + lane_offset) =
-            cuco::make_pair<Key, Value>(std::move(k), std::move(existing_value));
+            cuco::make_pair<Key, Value>(std::move(k), std::move(slot_contents.second));
         }
       } else if (tile.any(slot_is_empty)) {
         running = false;
@@ -583,8 +587,7 @@ __global__ void find_all(InputIt first,
         }
       }
       current_slot = view.next_slot(tile, current_slot);
-    }
-
+    }  // while running
     key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
 }
