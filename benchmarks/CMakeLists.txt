@@ -39,7 +39,7 @@ function(ConfigureBench BENCH_NAME BENCH_SRC)
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
-    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
+    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)
     target_link_libraries(${BENCH_NAME} PRIVATE 
                                         benchmark benchmark_main 
                                         pthread 
