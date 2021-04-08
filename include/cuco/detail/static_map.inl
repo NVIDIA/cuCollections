@@ -41,7 +41,7 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
   auto const grid_size      = (capacity_ + stride * block_size - 1) / (stride * block_size);
-  detail::initialize<atomic_key_type, atomic_mapped_type>
+  detail::initialize<block_size, atomic_key_type, atomic_mapped_type>
     <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, capacity_);
 
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));

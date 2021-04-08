@@ -34,12 +34,17 @@ namespace cg = cooperative_groups;
  * @param v Value to which all values in `slots` are initialized
  * @param size Size of the storage pointed to by `slots`
  */
-template<typename atomic_key_type, typename atomic_mapped_type, typename Key, typename Value, typename pair_atomic_type>
+template<std::size_t block_size,
+         typename atomic_key_type,
+         typename atomic_mapped_type,
+         typename Key,
+         typename Value,
+         typename pair_atomic_type>
 __global__ void initialize(
   pair_atomic_type* const slots, Key k,
   Value v, std::size_t size) {
   
-  auto tid = static_cast<std::size_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  auto tid = block_size * blockIdx.x + threadIdx.x;
   while (tid < size) {
     new (&slots[tid].first) atomic_key_type{k};
     new (&slots[tid].second) atomic_mapped_type{v};
