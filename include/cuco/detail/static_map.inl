@@ -51,7 +51,7 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 static_map<Key, Value, Scope, Allocator>::~static_map()
 {
   std::allocator_traits<slot_allocator_type>::deallocate(slot_allocator_, slots_, capacity_);
-  CUCO_CUDA_TRY(cudaFree(num_successes_));
+  CUCO_ASSERT_CUDA_SUCCESS(cudaFree(num_successes_));
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -83,7 +83,7 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::find(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
+  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) 
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -100,7 +100,7 @@ void static_map<Key, Value, Scope, Allocator>::find(
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
+  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;

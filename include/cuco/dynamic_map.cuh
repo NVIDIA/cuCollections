@@ -189,7 +189,7 @@ class dynamic_map {
             InputIt last,
             OutputIt output_begin,
             Hash hash          = Hash{},
-            KeyEqual key_equal = KeyEqual{}) noexcept;
+            KeyEqual key_equal = KeyEqual{});
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -216,7 +216,7 @@ class dynamic_map {
                 InputIt last,
                 OutputIt output_begin,
                 Hash hash          = Hash{},
-                KeyEqual key_equal = KeyEqual{}) noexcept;
+                KeyEqual key_equal = KeyEqual{});
 
   /**
    * @brief Gets the current number of elements in the map
