@@ -83,7 +83,7 @@ __global__ void insert(InputIt first,
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
   
-  auto tid = static_cast<uint64_t>(blockDim.x) * blockIdx.x + threadIdx.x;
+  auto tid = block_size * blockIdx.x + threadIdx.x;
   auto it = first + tid;
   
   while (it < last) {
