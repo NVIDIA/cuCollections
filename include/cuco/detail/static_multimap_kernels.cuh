@@ -561,8 +561,9 @@ __global__ void find_all(InputIt first,
       pair<Key, Value> slot_contents = *reinterpret_cast<pair<Key, Value> const*>(current_slot);
 
       auto const slot_is_empty = (slot_contents.first == view.get_empty_key_sentinel());
-      auto const equals        = key_equal(slot_contents.first, key);
-      auto const exists        = tile.ballot(not slot_is_empty and equals);
+      auto equals              = false;
+      if (not slot_is_empty and key_equal(slot_contents.first, key)) { equals = true; }
+      auto const exists = tile.ballot(not slot_is_empty and equals);
 
       if (exists) {
         found_match      = true;
