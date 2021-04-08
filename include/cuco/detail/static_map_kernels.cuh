@@ -39,7 +39,7 @@ __global__ void initialize(
   pair_atomic_type* const slots, Key k,
   Value v, std::size_t size) {
   
-  auto tid = block_size * blockIdx.x + threadIdx.x;
+  auto tid = static_cast<std::size_t>(blockDim.x) * blockIdx.x + threadIdx.x;
   while (tid < size) {
     new (&slots[tid].first) atomic_key_type{k};
     new (&slots[tid].second) atomic_mapped_type{v};
