@@ -65,7 +65,7 @@ class dynamic_map;
  * in the map. For example, given a range of keys specified by device-accessible
  * iterators, the bulk `insert` function will insert all keys into the map.
  *
- * The singular device-side operations allow individual threads to to perform
+ * The singular device-side operations allow individual threads to perform
  * independent insert or find/contains operations from device code. These
  * operations are accessed through non-owning, trivially copyable "view" types:
  * `device_view` and `mutable_device_view`. The `device_view` class is an
@@ -138,8 +138,8 @@ class static_map {
    * and sentinel values.
    *
    * The capacity of the map is fixed. Insert operations will not automatically
-   * grow the map. Attempting to insert more unique keys than the capacity of
-   * the map results in undefined behavior.
+   * grow the map. Attempting to insert equal to or more unique keys than the capacity
+   * of the map results in undefined behavior (there should be at least one empty slot).
    *
    * Performance begins to degrade significantly beyond a load factor of ~70%.
    * For best performance, choose a capacity that will keep the load factor

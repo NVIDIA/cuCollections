@@ -31,18 +31,18 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
                                                      Key empty_key_sentinel,
                                                      Value empty_value_sentinel,
                                                      Allocator const& alloc)
-  : capacity_{capacity},
+  : capacity_{std::max(capacity, std::size_t{1})},  // to avoid dereferencing a nullptr (Issue #72)
     empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
     slot_allocator_{alloc}
 {
-  slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity);
+  slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
 
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
-  auto const grid_size      = (capacity + stride * block_size - 1) / (stride * block_size);
-  detail::initialize<atomic_key_type, atomic_mapped_type>
-    <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, capacity);
+  auto const grid_size      = (capacity_ + stride * block_size - 1) / (stride * block_size);
+  detail::initialize<block_size, atomic_key_type, atomic_mapped_type>
+    <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, capacity_);
 
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
 }
@@ -62,6 +62,8 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
                                                       KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
+  if (num_keys == 0) { return; }
+
   auto const block_size = 128;
   auto const stride     = 1;
   auto const tile_size  = 4;
@@ -86,6 +88,8 @@ void static_map<Key, Value, Scope, Allocator>::find(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) 
 {
   auto num_keys         = std::distance(first, last);
+  if (num_keys == 0) { return; }
+
   auto const block_size = 128;
   auto const stride     = 1;
   auto const tile_size  = 4;
@@ -103,6 +107,8 @@ void static_map<Key, Value, Scope, Allocator>::contains(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
+  if (num_keys == 0) { return; }
+
   auto const block_size = 128;
   auto const stride     = 1;
   auto const tile_size  = 4;
