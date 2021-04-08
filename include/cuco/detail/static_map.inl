@@ -31,18 +31,18 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
                                                      Key empty_key_sentinel,
                                                      Value empty_value_sentinel,
                                                      Allocator const& alloc)
-  : capacity_{capacity},
+  : capacity_{std::max(capacity, std::size_t{1}},  // to avoid dereferencing a nullptr (Issue #72)
     empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
     slot_allocator_{alloc}
 {
-  slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity);
+  slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
 
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
-  auto const grid_size      = (capacity + stride * block_size - 1) / (stride * block_size);
+  auto const grid_size      = (capacity_ + stride * block_size - 1) / (stride * block_size);
   detail::initialize<atomic_key_type, atomic_mapped_type>
-    <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, capacity);
+    <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, capacity_);
 
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
 }
@@ -245,8 +245,6 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
                                                             Hash hash,
                                                             KeyEqual key_equal) noexcept
 {
-  if (this->get_capacity() == 0) { return this->end(); }
-
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
@@ -268,8 +266,6 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
                                                             Hash hash,
                                                             KeyEqual key_equal) const noexcept
 {
-  if (this->get_capacity() == 0) { return this->end(); }
-
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
@@ -292,8 +288,6 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
                                                             Hash hash,
                                                             KeyEqual key_equal) noexcept
 {
-  if (this->get_capacity() == 0) { return this->end(); }
-
   auto current_slot = initial_slot(g, k, hash);
 
   while (true) {
@@ -331,8 +325,6 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
                                                             Hash hash,
                                                             KeyEqual key_equal) const noexcept
 {
-  if (this->get_capacity() == 0) { return this->end(); }
-
   auto current_slot = initial_slot(g, k, hash);
 
   while (true) {
@@ -369,8 +361,6 @@ template <typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
   Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
-  if (this->get_capacity() == 0) { return false; }
-
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
@@ -389,8 +379,6 @@ template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
   CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
-  if (this->get_capacity() == 0) { return false; }
-
   auto current_slot = initial_slot(g, k, hash);
 
   while (true) {
