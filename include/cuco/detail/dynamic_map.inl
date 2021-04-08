@@ -40,7 +40,7 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 dynamic_map<Key, Value, Scope, Allocator>::~dynamic_map()
 {
-  CUCO_CUDA_TRY(cudaFree(num_successes_));
+  CUCO_ASSERT_CUDA_SUCCESS(cudaFree(num_successes_));
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
