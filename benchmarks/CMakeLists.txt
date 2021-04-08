@@ -28,6 +28,8 @@ if("${GPU_ARCHS}" STREQUAL "")
   evaluate_gpu_archs(GPU_ARCHS)
 endif()
 
+message("GPU_ARCHS = ${GPU_ARCHS}")
+
 ###################################################################################################
 # - compiler function -----------------------------------------------------------------------------
 
@@ -35,7 +37,7 @@ function(ConfigureBench BENCH_NAME BENCH_SRC)
     add_executable(${BENCH_NAME} "${BENCH_SRC}")
     set_target_properties(${BENCH_NAME} PROPERTIES 
                                         POSITION_INDEPENDENT_CODE ON
-                                        CUDA_ARCHITECTURES ${GPU_ARCHS}
+                                        CUDA_ARCHITECTURES "${GPU_ARCHS}"
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
@@ -57,6 +59,9 @@ ConfigureBench(DYNAMIC_MAP_BENCH "${DYNAMIC_MAP_BENCH_SRC}")
 ###################################################################################################
 set(STATIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
 ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
+
+###################################################################################################
+ConfigureBench(STATIC_REDUCTION_MAP_BENCH "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_reduction_map_bench.cu")
 
 ###################################################################################################
 set(RBK_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/reduce_by_key/reduce_by_key.cu")
