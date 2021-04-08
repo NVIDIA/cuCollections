@@ -51,7 +51,7 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 static_map<Key, Value, Scope, Allocator>::~static_map()
 {
   std::allocator_traits<slot_allocator_type>::deallocate(slot_allocator_, slots_, capacity_);
-  CUCO_CUDA_TRY(cudaFree(num_successes_));
+  CUCO_ASSERT_CUDA_SUCCESS(cudaFree(num_successes_));
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
