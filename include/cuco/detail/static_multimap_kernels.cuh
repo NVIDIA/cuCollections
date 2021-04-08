@@ -554,8 +554,8 @@ __global__ void find_all(InputIt first,
     bool found_match = false;
 
     while (tile.any(running)) {
-      // TODO: Replace reinterpret_cast with atomic ref when it's available. The current
-      // implementation is unsafe!
+      // TODO: Replace reinterpret_cast with atomic ref when possible. The current implementation is
+      // unsafe!
       static_assert(sizeof(Key) == sizeof(cuda::atomic<Key>));
       static_assert(sizeof(Value) == sizeof(cuda::atomic<Value>));
       pair<Key, Value> slot_contents = *reinterpret_cast<pair<Key, Value> const*>(current_slot);
@@ -569,11 +569,13 @@ __global__ void find_all(InputIt first,
         found_match      = true;
         auto num_matches = __popc(exists);
         uint32_t output_idx;
+        // First lane gets the CG-level offset
         if (0 == lane_id) {
           output_idx = num_items->fetch_add(num_matches, cuda::std::memory_order_relaxed);
         }
         output_idx = tile.shfl(output_idx, 0);
         if (equals) {
+          // Each match computes its lane-level offset
           auto lane_offset = __popc(exists & ((1 << lane_id) - 1));
           Key k            = key;
           *(output_begin + output_idx + lane_offset) =

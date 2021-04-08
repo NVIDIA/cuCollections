@@ -26,17 +26,22 @@ enum class insert_result {
   DUPLICATE  ///< Insert did not succeed, key is already present
 };
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-static_multimap<Key, Value, Scope, Allocator>::static_multimap(std::size_t capacity,
-                                                               Key empty_key_sentinel,
-                                                               Value empty_value_sentinel,
-                                                               Allocator const& alloc)
-  : capacity_{capacity},
-    empty_key_sentinel_{empty_key_sentinel},
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
+static_multimap<Key, Value, CGSize, Scope, Allocator>::static_multimap(std::size_t capacity,
+                                                                       Key empty_key_sentinel,
+                                                                       Value empty_value_sentinel,
+                                                                       Allocator const& alloc)
+  : empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
     slot_allocator_{alloc}
 {
-  slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity);
+  auto min_prime  = cuco::detail::compute_prime(capacity / CGSize);
+  this->capacity_ = min_prime * CGSize;
+  slots_          = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity);
 
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
@@ -45,76 +50,92 @@ static_multimap<Key, Value, Scope, Allocator>::static_multimap(std::size_t capac
     <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, capacity);
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-static_multimap<Key, Value, Scope, Allocator>::~static_multimap()
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
+static_multimap<Key, Value, CGSize, Scope, Allocator>::~static_multimap()
 {
   std::allocator_traits<slot_allocator_type>::deallocate(slot_allocator_, slots_, capacity_);
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
-void static_multimap<Key, Value, Scope, Allocator>::insert(InputIt first,
-                                                           InputIt last,
-                                                           Hash hash,
-                                                           KeyEqual key_equal)
+void static_multimap<Key, Value, CGSize, Scope, Allocator>::insert(InputIt first,
+                                                                   InputIt last,
+                                                                   Hash hash,
+                                                                   KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
   auto const stride     = 1;
-  auto const tile_size  = 4;
-  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto const grid_size  = (CGSize * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 
-  detail::insert<block_size, tile_size>
+  detail::insert<block_size, CGSize>
     <<<grid_size, block_size>>>(first, first + num_keys, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void static_multimap<Key, Value, Scope, Allocator>::find(
+void static_multimap<Key, Value, CGSize, Scope, Allocator>::find(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
   auto const stride     = 1;
-  auto const tile_size  = 4;
-  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto const grid_size  = (CGSize * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_view();
 
-  detail::find<block_size, tile_size, Value>
+  detail::find<block_size, CGSize, Value>
     <<<grid_size, block_size>>>(first, last, output_begin, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void static_multimap<Key, Value, Scope, Allocator>::contains(
+void static_multimap<Key, Value, CGSize, Scope, Allocator>::contains(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
   auto const stride     = 1;
-  auto const tile_size  = 4;
-  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto const grid_size  = (CGSize * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_view();
 
-  detail::contains<block_size, tile_size>
+  detail::contains<block_size, CGSize>
     <<<grid_size, block_size>>>(first, last, output_begin, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-OutputIt static_multimap<Key, Value, Scope, Allocator>::find_all(
+OutputIt static_multimap<Key, Value, CGSize, Scope, Allocator>::find_all(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
 {
   auto num_keys          = std::distance(first, last);
   auto const block_size  = 128;
   auto const buffer_size = block_size * 16;
   auto const stride      = 1;
-  auto const tile_size   = 4;
-  auto const grid_size   = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto const grid_size   = (CGSize * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view              = get_device_view();
 
   atomic_ctr_type* num_items;
@@ -124,7 +145,7 @@ OutputIt static_multimap<Key, Value, Scope, Allocator>::find_all(
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
 
-  detail::find_all<block_size, tile_size, buffer_size, Key, Value>
+  detail::find_all<block_size, CGSize, buffer_size, Key, Value>
     <<<grid_size, block_size>>>(first, last, output_begin, num_items, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
@@ -134,18 +155,21 @@ OutputIt static_multimap<Key, Value, Scope, Allocator>::find_all(
   return output_end;
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
-std::size_t static_multimap<Key, Value, Scope, Allocator>::count(InputIt first,
-                                                                 InputIt last,
-                                                                 Hash hash,
-                                                                 KeyEqual key_equal)
+std::size_t static_multimap<Key, Value, CGSize, Scope, Allocator>::count(InputIt first,
+                                                                         InputIt last,
+                                                                         Hash hash,
+                                                                         KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
   auto const stride     = 1;
-  auto const tile_size  = 4;
-  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto const grid_size  = (CGSize * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_view();
 
   atomic_ctr_type* num_items;
@@ -155,7 +179,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator>::count(InputIt first,
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
 
-  detail::count<block_size, tile_size, Value>
+  detail::count<block_size, CGSize, Value>
     <<<grid_size, block_size>>>(first, last, num_items, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
@@ -165,9 +189,13 @@ std::size_t static_multimap<Key, Value, Scope, Allocator>::count(InputIt first,
   return result;
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ void static_multimap<Key, Value, Scope, Allocator>::device_mutable_view::insert(
+__device__ void static_multimap<Key, Value, CGSize, Scope, Allocator>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot{initial_slot(insert_pair.first, hash)};
@@ -202,9 +230,13 @@ __device__ void static_multimap<Key, Value, Scope, Allocator>::device_mutable_vi
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ void static_multimap<Key, Value, Scope, Allocator>::device_mutable_view::insert(
+__device__ void static_multimap<Key, Value, CGSize, Scope, Allocator>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, insert_pair.first, hash);
@@ -267,12 +299,15 @@ __device__ void static_multimap<Key, Value, Scope, Allocator>::device_mutable_vi
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::iterator
-static_multimap<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
-                                                                 Hash hash,
-                                                                 KeyEqual key_equal) noexcept
+__device__ typename static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::iterator
+static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::find(
+  Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
@@ -288,12 +323,16 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::const_iterator
-static_multimap<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
-                                                                 Hash hash,
-                                                                 KeyEqual key_equal) const noexcept
+__device__
+  typename static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::const_iterator
+  static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::find(
+    Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
@@ -309,13 +348,15 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::iterator
-static_multimap<Key, Value, Scope, Allocator>::device_view::find(CG g,
-                                                                 Key const& k,
-                                                                 Hash hash,
-                                                                 KeyEqual key_equal) noexcept
+__device__ typename static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::iterator
+static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::find(
+  CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
@@ -346,13 +387,16 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find(CG g,
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::const_iterator
-static_multimap<Key, Value, Scope, Allocator>::device_view::find(CG g,
-                                                                 Key const& k,
-                                                                 Hash hash,
-                                                                 KeyEqual key_equal) const noexcept
+__device__
+  typename static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::const_iterator
+  static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::find(
+    CG g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
@@ -385,12 +429,16 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find(CG g,
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::fancy_iterator
-static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(Key const& k,
-                                                                     Hash hash,
-                                                                     KeyEqual key_equal) noexcept
+__device__
+  typename static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::fancy_iterator
+  static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::find_all(
+    Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
@@ -408,11 +456,16 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(Key const& 
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::const_fancy_iterator
-static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(
-  Key const& k, Hash hash, KeyEqual key_equal) const noexcept
+__device__
+  typename static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::const_fancy_iterator
+  static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::find_all(
+    Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
@@ -430,13 +483,16 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::fancy_iterator
-static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(CG g,
-                                                                     Key const& k,
-                                                                     Hash hash,
-                                                                     KeyEqual key_equal) noexcept
+__device__
+  typename static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::fancy_iterator
+  static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::find_all(
+    CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
@@ -467,11 +523,16 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(CG g,
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ typename static_multimap<Key, Value, Scope, Allocator>::device_view::const_fancy_iterator
-static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(
-  CG g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
+__device__
+  typename static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::const_fancy_iterator
+  static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::find_all(
+    CG g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
@@ -504,9 +565,13 @@ static_multimap<Key, Value, Scope, Allocator>::device_view::find_all(
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ bool static_multimap<Key, Value, Scope, Allocator>::device_view::contains(
+__device__ bool static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::contains(
   Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(k, hash);
@@ -522,9 +587,13 @@ __device__ bool static_multimap<Key, Value, Scope, Allocator>::device_view::cont
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ bool static_multimap<Key, Value, Scope, Allocator>::device_view::contains(
+__device__ bool static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::contains(
   CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
@@ -549,9 +618,13 @@ __device__ bool static_multimap<Key, Value, Scope, Allocator>::device_view::cont
   }
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::count(
+__device__ size_t static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::count(
   Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto found   = this->find_all(k, hash, key_equal);
@@ -563,9 +636,13 @@ __device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::co
   return count;
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::count(
+__device__ size_t static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::count(
   Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto found   = this->find_all(k, hash, key_equal);
@@ -577,9 +654,13 @@ __device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::co
   return count;
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::count(
+__device__ size_t static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::count(
   CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto found   = this->find_all(g, k, hash, key_equal);
@@ -591,9 +672,13 @@ __device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::co
   return count;
 }
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Key,
+          typename Value,
+          std::size_t CGSize,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ size_t static_multimap<Key, Value, Scope, Allocator>::device_view::count(
+__device__ size_t static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::count(
   CG g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto found   = this->find_all(g, k, hash, key_equal);

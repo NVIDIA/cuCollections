@@ -34,6 +34,7 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
+#include <cuco/detail/prime.cuh>
 #include <cuco/detail/static_multimap_kernels.cuh>
 
 namespace cuco {
@@ -106,6 +107,7 @@ namespace cuco {
  */
 template <typename Key,
           typename Value,
+          std::size_t CGSize       = 16,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_multimap {
@@ -305,6 +307,7 @@ class static_multimap {
     std::size_t capacity_{};        ///< Total number of slots
     Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
+    std::size_t step_size_{};
 
    public:
     __host__ __device__ device_view_base(pair_atomic_type* slots,
@@ -375,6 +378,7 @@ class static_multimap {
     template <typename CG, typename Hash>
     __device__ iterator initial_slot(CG g, Key const& k, Hash hash) noexcept
     {
+      step_size_ = (hash(k) % (capacity_ / g.size() - 1) + 1) * g.size();
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
 
@@ -393,6 +397,7 @@ class static_multimap {
     template <typename CG, typename Hash>
     __device__ const_iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
     {
+      step_size_ = (hash(k) % (capacity_ / g.size() - 1) + 1) * g.size();
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
 
@@ -434,7 +439,7 @@ class static_multimap {
     __device__ iterator next_slot(CG g, iterator s) noexcept
     {
       uint32_t index = s - slots_;
-      return &slots_[(index + g.size()) % capacity_];
+      return &slots_[(index + step_size_) % capacity_];
     }
 
     /**
@@ -452,7 +457,7 @@ class static_multimap {
     __device__ const_iterator next_slot(CG g, const_iterator s) const noexcept
     {
       uint32_t index = s - slots_;
-      return &slots_[(index + g.size()) % capacity_];
+      return &slots_[(index + step_size_) % capacity_];
     }
 
    public:
