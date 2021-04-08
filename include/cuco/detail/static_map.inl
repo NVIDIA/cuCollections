@@ -100,7 +100,7 @@ void static_map<Key, Value, Scope, Allocator>::find(
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
+  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
