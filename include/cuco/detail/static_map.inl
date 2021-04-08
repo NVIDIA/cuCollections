@@ -31,7 +31,7 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
                                                      Key empty_key_sentinel,
                                                      Value empty_value_sentinel,
                                                      Allocator const& alloc)
-  : capacity_{std::max(capacity, std::size_t{1}},  // to avoid dereferencing a nullptr (Issue #72)
+  : capacity_{std::max(capacity, std::size_t{1})},  // to avoid dereferencing a nullptr (Issue #72)
     empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
     slot_allocator_{alloc}
