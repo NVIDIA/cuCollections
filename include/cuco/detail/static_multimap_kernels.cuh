@@ -33,19 +33,24 @@ namespace cg = cooperative_groups;
  * @param num_items Size of the output sequence
  * @param output_begin Beginning of the output sequence of key/value pairs
  */
-template <typename Key, typename Value, typename atomicT, typename OutputIt>
-__inline__ __device__ void flush_output_buffer(uint32_t output_size,
+template <uint32_t cg_size,
+          typename CG,
+          typename Key,
+          typename Value,
+          typename atomicT,
+          typename OutputIt>
+__inline__ __device__ void flush_output_buffer(CG const& cg,
+                                               uint32_t const output_size,
                                                cuco::pair_type<Key, Value>* output_buffer,
                                                atomicT* num_items,
                                                OutputIt output_begin)
 {
-  __shared__ size_t offset;
-  if (threadIdx.x == 0) {
-    offset = num_items->fetch_add(output_size, cuda::std::memory_order_relaxed);
-  }
-  __syncthreads();
+  std::size_t offset;
+  const auto lane_id = cg.thread_rank();
+  if (0 == lane_id) { offset = num_items->fetch_add(output_size, cuda::std::memory_order_relaxed); }
+  cg.shfl(offset, 0);
 
-  for (auto index = threadIdx.x; index < output_size; index += blockDim.x) {
+  for (auto index = lane_id; index < output_size; index += cg_size) {
     *(output_begin + offset + index) = output_buffer[index];
   }
 }
@@ -542,9 +547,14 @@ __global__ void find_all(InputIt first,
   auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
 
-  constexpr uint32_t step = 1;
+  constexpr uint32_t num_cgs = block_size / tile_size;
+  const uint32_t cg_id       = threadIdx.x / tile_size;
+  const uint32_t lane_id     = tile.thread_rank();
 
-  const int lane_id = tile.thread_rank();
+  __shared__ cuco::pair_type<Key, Value> output_buffer[num_cgs][buffer_size];
+  __shared__ uint32_t cg_counter[num_cgs];
+
+  if (lane_id == 0) { cg_counter[cg_id] = 0; }
 
   while (first + key_idx < last) {
     auto key          = *(first + key_idx);
@@ -566,32 +576,44 @@ __global__ void find_all(InputIt first,
       auto const exists = tile.ballot(not slot_is_empty and equals);
 
       if (exists) {
-        found_match      = true;
-        auto num_matches = __popc(exists);
-        uint32_t output_idx;
-        // First lane gets the CG-level offset
-        if (0 == lane_id) {
-          output_idx = num_items->fetch_add(num_matches, cuda::std::memory_order_relaxed);
-        }
-        output_idx = tile.shfl(output_idx, 0);
+        found_match         = true;
+        auto num_matches    = __popc(exists);
+        uint32_t output_idx = cg_counter[cg_id];
         if (equals) {
           // Each match computes its lane-level offset
           auto lane_offset = __popc(exists & ((1 << lane_id) - 1));
           Key k            = key;
-          *(output_begin + output_idx + lane_offset) =
+          output_buffer[cg_id][output_idx + lane_offset] =
             cuco::make_pair<Key, Value>(std::move(k), std::move(slot_contents.second));
         }
+        if (0 == lane_id) { cg_counter[cg_id] += num_matches; }
       } else if (tile.any(slot_is_empty)) {
         running = false;
         if ((not found_match) && (lane_id == 0)) {
-          auto output_idx = num_items->fetch_add(step, cuda::std::memory_order_relaxed);
-          *(output_begin + output_idx) =
+          auto output_idx = cg_counter[cg_id]++;
+          output_buffer[cg_id][output_idx] =
             cuco::make_pair<Key, Value>(key, view.get_empty_key_sentinel());
         }
+      }
+
+      tile.sync();
+
+      // Flush it the next iteration won't fit into buffer
+      if ((cg_counter[cg_id] + tile_size) > buffer_size) {
+        flush_output_buffer<tile_size>(
+          tile, cg_counter[cg_id], output_buffer[cg_id], num_items, output_begin);
+        // First lane reset CG-level counter
+        if (lane_id == 0) { cg_counter[cg_id] = 0; }
       }
       current_slot = view.next_slot(tile, current_slot);
     }  // while running
     key_idx += (gridDim.x * blockDim.x) / tile_size;
+  }
+
+  // Final flush of output buffer
+  if (cg_counter[cg_id] > 0) {
+    flush_output_buffer<tile_size>(
+      tile, cg_counter[cg_id], output_buffer[cg_id], num_items, output_begin);
   }
 }
 
