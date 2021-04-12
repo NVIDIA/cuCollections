@@ -702,7 +702,7 @@ __global__ void count(
     auto key          = *(first + key_idx);
     auto current_slot = view.initial_slot(tile, key, hash);
 
-    bool running     = true;
+    bool running = true;
 
     while (tile.any(running)) {
       auto const current_key = current_slot->first.load(cuda::std::memory_order_relaxed);
@@ -715,6 +715,8 @@ __global__ void count(
         auto num_matches = __popc(exists);
         // First lane gets the CG-level offset
         if (0 == lane_id) { num_items->fetch_add(num_matches, cuda::std::memory_order_relaxed); }
+      } else if (tile.any(slot_is_empty)) {
+        running = false;
       }
       current_slot = view.next_slot(tile, current_slot);
     }  // while running
