@@ -571,9 +571,8 @@ __global__ void find_all(InputIt first,
       pair<Key, Value> slot_contents = *reinterpret_cast<pair<Key, Value> const*>(current_slot);
 
       auto const slot_is_empty = (slot_contents.first == view.get_empty_key_sentinel());
-      auto equals              = false;
-      if (not slot_is_empty and key_equal(slot_contents.first, key)) { equals = true; }
-      auto const exists = tile.ballot(not slot_is_empty and equals);
+      auto const equals        = (not slot_is_empty and key_equal(slot_contents.first, key));
+      auto const exists        = tile.ballot(equals);
 
       if (exists) {
         found_match         = true;
@@ -693,24 +692,36 @@ template <uint32_t block_size,
 __global__ void count(
   InputIt first, InputIt last, atomicT* num_items, viewT view, Hash hash, KeyEqual key_equal)
 {
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
-  __shared__ typename BlockReduce::TempStorage temp_storage;
-  std::size_t thread_num_items = 0;
+  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto key_idx = tid / tile_size;
 
-  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid  = blockDim.x * blockIdx.x + threadIdx.x;
-  auto it   = first + tid / tile_size;
+  const int lane_id = tile.thread_rank();
 
-  while (it < last) {
-    auto temp_num = view.count(tile, *it, hash, key_equal);
-    if (tile.thread_rank() == 0) { thread_num_items += temp_num; }
-    it += (gridDim.x * blockDim.x) / tile_size;
+  while (first + key_idx < last) {
+    auto key          = *(first + key_idx);
+    auto current_slot = view.initial_slot(tile, key, hash);
+
+    bool running     = true;
+    bool found_match = false;
+
+    while (tile.any(running)) {
+      auto const current_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+
+      auto const slot_is_empty = (current_key == view.get_empty_key_sentinel());
+      auto const equals        = (not slot_is_empty and key_equal(current_key, key));
+      auto const exists        = tile.ballot(equals);
+
+      if (exists) {
+        found_match      = true;
+        auto num_matches = __popc(exists);
+        // First lane gets the CG-level offset
+        if (0 == lane_id) { num_items->fetch_add(num_matches, cuda::std::memory_order_relaxed); }
+      }
+      current_slot = view.next_slot(tile, current_slot);
+    }  // while running
+    key_idx += (gridDim.x * blockDim.x) / tile_size;
   }
-
-  // compute number of successfully inserted elements for each block
-  // and atomically add to the grand total
-  std::size_t block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
-  if (threadIdx.x == 0) { *num_items += block_num_items; }
 }
 
 }  // namespace detail
