@@ -196,27 +196,4 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
 
     REQUIRE(size == num_items);
   }
-
-  SECTION(
-    "Counting the number of key/value pairs corresponding to each key should always return two.")
-  {
-    // Bulk insert keys
-    map.insert(d_pairs.begin(), d_pairs.end());
-
-    SECTION("non-const view")
-    {
-      REQUIRE(all_of(d_pairs.begin(),
-                     d_pairs.end(),
-                     [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                       return view.count(pair.first) == 2;
-                     }));
-    }
-    SECTION("const view")
-    {
-      REQUIRE(all_of(
-        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
-          return view.count(pair.first) == 2;
-        }));
-    }
-  }
 }
