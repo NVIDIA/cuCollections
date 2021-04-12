@@ -379,7 +379,7 @@ class static_multimap {
     __device__ iterator initial_slot(CG g, Key const& k, Hash hash) noexcept
     {
       step_size_ = (hash(k) % (capacity_ / g.size() - 1) + 1) * g.size();
-      return &slots_[(hash(k) + g.thread_rank()) % capacity_];
+      return &slots_[(hash(k + 1) + g.thread_rank()) % capacity_];
     }
 
     /**
@@ -398,7 +398,7 @@ class static_multimap {
     __device__ const_iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
     {
       step_size_ = (hash(k) % (capacity_ / g.size() - 1) + 1) * g.size();
-      return &slots_[(hash(k) + g.thread_rank()) % capacity_];
+      return &slots_[(hash(k + 1) + g.thread_rank()) % capacity_];
     }
 
     /**
