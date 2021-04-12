@@ -94,14 +94,13 @@ void launch_nvbench_insert(nvbench::state& state,
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               cuco::static_multimap<Key, Value> map{size, -1, -1};
+               cuco::static_multimap<Key, Value, cg_size> map{size, -1, -1};
                auto m_view = map.get_device_mutable_view();
 
                auto const block_size = 128;
                auto const stride     = 1;
-               auto const tile_size  = cg_size;
                auto const grid_size =
-                 (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+                 (cg_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
                using Hash     = cuco::detail::MurmurHash3_32<Key>;
                using KeyEqual = thrust::equal_to<Key>;
@@ -110,7 +109,7 @@ void launch_nvbench_insert(nvbench::state& state,
                KeyEqual key_equal;
 
                timer.start();
-               cuco::detail::insert<block_size, tile_size>
+               cuco::detail::insert<block_size, cg_size>
                  <<<grid_size, block_size, 0, launch.get_stream()>>>(
                    d_pairs.begin(), d_pairs.end(), m_view, hash, key_equal);
                CUCO_CUDA_TRY(cudaDeviceSynchronize());
@@ -249,14 +248,14 @@ void nvbench_static_multimap_find(nvbench::state& state, nvbench::type_list<Key,
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               cuco::static_multimap<Key, Value> map{size, -1, -1};
+               auto const tile_size  = 16;
+               cuco::static_multimap<Key, Value, tile_size> map{size, -1, -1};
                map.insert(d_pairs.begin(), d_pairs.end());
 
                auto view = map.get_device_view();
 
                auto const block_size = 128;
                auto const stride     = 1;
-               auto const tile_size  = 4;
                auto const grid_size =
                  (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
@@ -321,15 +320,15 @@ void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<
 
   state.exec(
     nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      cuco::static_multimap<Key, Value> map{size, -1, -1};
+      auto const tile_size   = 4;
+      cuco::static_multimap<Key, Value, tile_size> map{size, -1, -1};
       map.insert(d_pairs.begin(), d_pairs.end());
 
       auto view = map.get_device_view();
 
       auto const block_size  = 128;
-      auto const buffer_size = block_size * 16;
+      auto const buffer_size = tile_size * 2;
       auto const stride      = 1;
-      auto const tile_size   = 4;
       auto const grid_size =
         (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 

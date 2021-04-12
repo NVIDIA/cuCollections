@@ -86,13 +86,13 @@ void nvbench_find_all(
 
   state.exec(
     nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      cuco::static_multimap<Key, Value> map{size, -1, -1};
+      cuco::static_multimap<Key, Value, CGSize> map{size, -1, -1};
       map.insert(d_pairs.begin(), d_pairs.end());
 
       auto view = map.get_device_view();
 
       auto const block_size  = 128;
-      auto const buffer_size = block_size * BufferSize;
+      auto const buffer_size = CGSize * BufferSize;
       auto const stride      = 1;
       auto const grid_size = (CGSize * num_keys + stride * block_size - 1) / (stride * block_size);
 
