@@ -703,7 +703,6 @@ __global__ void count(
     auto current_slot = view.initial_slot(tile, key, hash);
 
     bool running     = true;
-    bool found_match = false;
 
     while (tile.any(running)) {
       auto const current_key = current_slot->first.load(cuda::std::memory_order_relaxed);
@@ -713,7 +712,6 @@ __global__ void count(
       auto const exists        = tile.ballot(equals);
 
       if (exists) {
-        found_match      = true;
         auto num_matches = __popc(exists);
         // First lane gets the CG-level offset
         if (0 == lane_id) { num_items->fetch_add(num_matches, cuda::std::memory_order_relaxed); }
