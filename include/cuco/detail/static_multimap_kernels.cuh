@@ -48,7 +48,7 @@ __inline__ __device__ void flush_output_buffer(CG const& cg,
   std::size_t offset;
   const auto lane_id = cg.thread_rank();
   if (0 == lane_id) { offset = num_items->fetch_add(output_size, cuda::std::memory_order_relaxed); }
-  cg.shfl(offset, 0);
+  offset = cg.shfl(offset, 0);
 
   for (auto index = lane_id; index < output_size; index += cg_size) {
     *(output_begin + offset + index) = output_buffer[index];
