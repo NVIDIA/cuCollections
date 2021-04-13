@@ -19,6 +19,15 @@
 namespace cuco {
 namespace detail {
 
+// safe division
+#define SDIV(x, y) (((x) + (y)-1) / (y))
+
+/**
+ * @brief Indicates whether the input `num` is a prime number.
+ *
+ * @param num
+ * @return A boolean indicating whether the input `num` is a prime number
+ */
 constexpr bool is_prime(std::size_t num) noexcept
 {
   bool flag = true;
@@ -40,7 +49,7 @@ constexpr bool is_prime(std::size_t num) noexcept
  * @brief Computes the smallest prime number greater than or equal to `num`.
  *
  * @param num
- * @return The smallest prime number greater than or equal to `num`.
+ * @return The smallest prime number greater than or equal to `num`
  */
 constexpr std::size_t compute_prime(std::size_t num) noexcept
 {
@@ -48,6 +57,20 @@ constexpr std::size_t compute_prime(std::size_t num) noexcept
     num++;
   }
   return num;
+}
+
+/**
+ * @brief Calculates the adjusted/valid capacity based on `CGSize` and the initial `capacity`.
+ *
+ * @tparam CGSize Cooperative Group size
+ * @param capacity The initially requested capacity
+ * @return An adjusted capacity greater than or equal to `capacity`
+ */
+template <std::size_t CGSize>
+constexpr std::size_t get_valid_capacity(std::size_t capacity) noexcept
+{
+  auto const min_prime = compute_prime(SDIV(capacity, CGSize));
+  return min_prime * CGSize;
 }
 
 }  // namespace detail

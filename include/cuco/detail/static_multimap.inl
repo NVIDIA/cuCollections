@@ -35,13 +35,12 @@ static_multimap<Key, Value, CGSize, Scope, Allocator>::static_multimap(std::size
                                                                        Key empty_key_sentinel,
                                                                        Value empty_value_sentinel,
                                                                        Allocator const& alloc)
-  : empty_key_sentinel_{empty_key_sentinel},
+  : capacity_{cuco::detail::get_valid_capacity<CGSize>(capacity)},
+    empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
     slot_allocator_{alloc}
 {
-  auto min_prime  = cuco::detail::compute_prime(capacity / CGSize);
-  this->capacity_ = min_prime * CGSize;
-  slots_          = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity);
+  slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, get_capacity());
 
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
