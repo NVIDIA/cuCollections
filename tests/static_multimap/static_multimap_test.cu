@@ -191,8 +191,9 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
 
     REQUIRE(num == num_items);
 
-    auto output_end = map.find_all(d_unique_keys.begin(), d_unique_keys.end(), d_results.begin());
-    auto size       = thrust::distance(d_results.begin(), output_end);
+    auto output_begin = d_results.data().get();
+    auto output_end   = map.find_all(d_unique_keys.begin(), d_unique_keys.end(), output_begin);
+    auto size         = thrust::distance(output_begin, output_end);
 
     REQUIRE(size == num_items);
   }

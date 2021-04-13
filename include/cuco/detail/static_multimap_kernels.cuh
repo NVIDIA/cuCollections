@@ -16,6 +16,8 @@
 
 #include <cuco/detail/pair.cuh>
 
+#include <cooperative_groups/memcpy_async.h>
+
 namespace cuco {
 namespace detail {
 namespace cg = cooperative_groups;
@@ -39,18 +41,56 @@ template <uint32_t cg_size,
           typename Value,
           typename atomicT,
           typename OutputIt>
-__inline__ __device__ void flush_output_buffer(CG const& cg,
-                                               uint32_t const output_size,
-                                               cuco::pair_type<Key, Value>* output_buffer,
-                                               atomicT* num_items,
-                                               OutputIt output_begin)
+__inline__ __device__ std::enable_if_t<std::is_pointer<OutputIt>::value, void> flush_output_buffer(
+  CG const& g,
+  uint32_t const num_outputs,
+  cuco::pair_type<Key, Value>* output_buffer,
+  atomicT* num_items,
+  OutputIt output_begin)
 {
   std::size_t offset;
-  const auto lane_id = cg.thread_rank();
-  if (0 == lane_id) { offset = num_items->fetch_add(output_size, cuda::std::memory_order_relaxed); }
-  offset = cg.shfl(offset, 0);
+  const auto lane_id = g.thread_rank();
+  if (0 == lane_id) { offset = num_items->fetch_add(num_outputs, cuda::std::memory_order_relaxed); }
+  offset = g.shfl(offset, 0);
 
-  for (auto index = lane_id; index < output_size; index += cg_size) {
+  cg::memcpy_async(g,
+                   output_begin + offset,
+                   output_buffer,
+                   cuda::aligned_size_t<16>(sizeof(cuco::pair_type<Key, Value>) * num_outputs));
+}
+
+/**
+ * @brief Flushes shared memory buffer into the output sequence.
+ *
+ * @tparam Key key type
+ * @tparam Value value type
+ * @tparam atomicT Type of atomic storage
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is
+ * convertible to the map's `mapped_type`
+ * @param output_size Number of valid output in the buffer
+ * @param output_buffer Shared memory buffer of the key/value pair sequence
+ * @param num_items Size of the output sequence
+ * @param output_begin Beginning of the output sequence of key/value pairs
+ */
+template <uint32_t cg_size,
+          typename CG,
+          typename Key,
+          typename Value,
+          typename atomicT,
+          typename OutputIt>
+__inline__ __device__ std::enable_if_t<not std::is_pointer<OutputIt>::value, void>
+flush_output_buffer(CG const& g,
+                    uint32_t const num_outputs,
+                    cuco::pair_type<Key, Value>* output_buffer,
+                    atomicT* num_items,
+                    OutputIt output_begin)
+{
+  std::size_t offset;
+  const auto lane_id = g.thread_rank();
+  if (0 == lane_id) { offset = num_items->fetch_add(num_outputs, cuda::std::memory_order_relaxed); }
+  offset = g.shfl(offset, 0);
+
+  for (auto index = lane_id; index < num_outputs; index += cg_size) {
     *(output_begin + offset + index) = output_buffer[index];
   }
 }

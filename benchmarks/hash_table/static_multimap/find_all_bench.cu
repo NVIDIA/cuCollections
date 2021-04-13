@@ -114,7 +114,7 @@ void nvbench_find_all(
       timer.start();
       cuco::detail::find_all<block_size, CGSize, buffer_size, Key, Value>
         <<<grid_size, block_size, 0, launch.get_stream()>>>(
-          d_keys.begin(), d_keys.end(), d_results.begin(), num_items, view, hash, key_equal);
+          d_keys.begin(), d_keys.end(), d_results.data().get(), num_items, view, hash, key_equal);
       CUCO_CUDA_TRY(cudaDeviceSynchronize());
       timer.stop();
 
