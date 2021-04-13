@@ -25,6 +25,7 @@ CPMAddPackage(
     GITHUB_REPOSITORY Nicolas-Iskos/SlabAlloc
     #GITHUB_REPOSITORY owensgroup/SlabAlloc
     GIT_TAG origin/resize
+    #GIT_TAG origin/master
     DOWNLOAD_ONLY YES
 )
 
@@ -107,5 +108,9 @@ ConfigureBench(DYNAMIC_H2H_MAP_BENCH "${DYNAMIC_H2H_BENCH_SRC}")
 ###################################################################################################
 set(STATIC_H2H_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_h2h_bench.cu")
 ConfigureBench(STATIC_H2H_MAP_BENCH "${STATIC_H2H_BENCH_SRC}")
+
+###################################################################################################
+set(SLABHASH_MAX_LF_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/slabhash_max_lf.cu")
+ConfigureBench(SLABHASH_MAX_LF "${SLABHASH_MAX_LF_SRC}")
 
 ###################################################################################################

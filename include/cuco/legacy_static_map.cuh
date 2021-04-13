@@ -114,8 +114,25 @@ class legacy_static_map {
 
   legacy_static_map(legacy_static_map const&) = delete;
   legacy_static_map(legacy_static_map&&)      = delete;
-  legacy_static_map& operator=(legacy_static_map const&) = delete;
-  legacy_static_map& operator=(legacy_static_map&&) = delete;
+  //legacy_static_map& operator=(legacy_static_map const&) = delete;
+  //legacy_static_map& operator=(legacy_static_map&&) = delete;
+  legacy_static_map& operator=(legacy_static_map&& rhs) {
+    CUCO_CUDA_TRY(cudaFree(slots_));
+    CUCO_CUDA_TRY(cudaFree(num_successes_));
+
+    capacity_ = rhs.capacity_;
+    size_ = rhs.size_;
+    empty_key_sentinel_ = rhs.empty_key_sentinel_;
+    empty_value_sentinel_ = rhs.empty_value_sentinel_;
+    slots_ = rhs.slots_;
+    num_successes_ = rhs.num_successes_;
+
+    rhs.slots_ = NULL;
+    rhs.num_successes_ = NULL;
+    
+    return *this;
+  }
+
 
   enum class insert_result {
     CONTINUE,  ///< Insert did not succeed, continue trying to insert

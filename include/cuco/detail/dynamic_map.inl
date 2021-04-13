@@ -27,7 +27,7 @@ dynamic_map<Key, Value, Scope, submap_type>::dynamic_map(
   size_(0),
   capacity_(initial_capacity),
   min_insert_size_(1E4),
-  max_load_factor_(0.75) {
+  max_load_factor_(1) {
 
   submaps_.push_back(
     std::unique_ptr<submap_type<Key, Value, Scope>>{
@@ -160,14 +160,31 @@ void dynamic_map<Key, Value, Scope, submap_type>::find(
   auto num_keys = std::distance(first, last);
   auto const block_size = 128;
   auto const stride = 1;
-  auto const tile_size = 4;
-  auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
-                          (stride * block_size);
-
-  detail::find<block_size, tile_size, Value>
-  <<<grid_size, block_size>>>
-  (first, last, output_begin,
-   submap_views_.data().get(), submaps_.size(), hash, key_equal);
+    
+  float final_lf = static_cast<float>(submaps_[0]->get_size()) / 
+                                      submaps_[0]->get_capacity();
+  
+  // If there is only one submap, larger load factors can benefit from 
+  // larger CG sizes
+  if((submaps_.size() == 1) && (final_lf >= 0.75)) {
+    auto const tile_size = 8;
+    auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
+                            (stride * block_size);
+    detail::find<block_size, tile_size, Value>
+    <<<grid_size, block_size>>>
+    (first, last, output_begin,
+    submap_views_.data().get(), submaps_.size(), hash, key_equal);
+  }
+  else {
+    auto const tile_size = 4;
+    auto const grid_size = (tile_size * num_keys + stride * block_size - 1) /
+                            (stride * block_size);
+    detail::find<block_size, tile_size, Value>
+    <<<grid_size, block_size>>>
+    (first, last, output_begin,
+    submap_views_.data().get(), submaps_.size(), hash, key_equal);
+  }
+      
   CUCO_CUDA_TRY(cudaDeviceSynchronize());    
 }
 
