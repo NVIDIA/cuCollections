@@ -56,7 +56,8 @@ __inline__ __device__ std::enable_if_t<std::is_pointer<OutputIt>::value, void> f
   cg::memcpy_async(g,
                    output_begin + offset,
                    output_buffer,
-                   cuda::aligned_size_t<16>(sizeof(cuco::pair_type<Key, Value>) * num_outputs));
+                   cuda::aligned_size_t<alignof(cuco::pair_type<Key, Value>)>(
+                     sizeof(cuco::pair_type<Key, Value>) * num_outputs));
 }
 
 /**
