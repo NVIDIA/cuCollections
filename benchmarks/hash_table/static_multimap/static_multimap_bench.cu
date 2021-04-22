@@ -353,7 +353,7 @@ void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<
       // Use timers to explicitly mark the target region
       timer.start();
       map.find_all(
-        d_unique_keys.begin(), d_unique_keys.end(), d_results.begin(), launch.get_stream());
+        d_unique_keys.begin(), d_unique_keys.end(), d_results.data().get(), launch.get_stream());
       timer.stop();
     });
 }

@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-#include <cuco/detail/pair.cuh>
-
 #include <cooperative_groups/memcpy_async.h>
+#include <thrust/type_traits/is_contiguous_iterator.h>
+
+#include <cuco/detail/pair.cuh>
 
 namespace cuco {
 namespace detail {
@@ -41,12 +42,12 @@ template <uint32_t cg_size,
           typename Value,
           typename atomicT,
           typename OutputIt>
-__inline__ __device__ std::enable_if_t<std::is_pointer<OutputIt>::value, void> flush_output_buffer(
-  CG const& g,
-  uint32_t const num_outputs,
-  cuco::pair_type<Key, Value>* output_buffer,
-  atomicT* num_items,
-  OutputIt output_begin)
+__inline__ __device__ std::enable_if_t<thrust::is_contiguous_iterator<OutputIt>::value, void>
+flush_output_buffer(CG const& g,
+                    uint32_t const num_outputs,
+                    cuco::pair_type<Key, Value>* output_buffer,
+                    atomicT* num_items,
+                    OutputIt output_begin)
 {
   std::size_t offset;
   const auto lane_id = g.thread_rank();
@@ -79,7 +80,7 @@ template <uint32_t cg_size,
           typename Value,
           typename atomicT,
           typename OutputIt>
-__inline__ __device__ std::enable_if_t<not std::is_pointer<OutputIt>::value, void>
+__inline__ __device__ std::enable_if_t<not thrust::is_contiguous_iterator<OutputIt>::value, void>
 flush_output_buffer(CG const& g,
                     uint32_t const num_outputs,
                     cuco::pair_type<Key, Value>* output_buffer,
