@@ -178,7 +178,7 @@ std::size_t static_multimap<Key, Value, CGSize, Scope, Allocator>::count(InputIt
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
 
-  detail::count<block_size, CGSize, Value>
+  detail::count<block_size, CGSize, Key, Value>
     <<<grid_size, block_size>>>(first, last, num_items, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 

@@ -638,7 +638,7 @@ __global__ void find_all(InputIt first,
 
       tile.sync();
 
-      // Flush it the next iteration won't fit into buffer
+      // Flush if the next iteration won't fit into buffer
       if ((cg_counter[cg_id] + tile_size) > buffer_size) {
         flush_output_buffer<tile_size>(
           tile, cg_counter[cg_id], output_buffer[cg_id], num_items, output_begin);
@@ -724,6 +724,7 @@ __global__ void count(
  */
 template <uint32_t block_size,
           uint32_t tile_size,
+          typename Key,
           typename Value,
           typename InputIt,
           typename atomicT,
@@ -746,11 +747,11 @@ __global__ void count(
     bool running = true;
 
     while (tile.any(running)) {
-      auto const current_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+      pair<Key, Value> slot_contents = *reinterpret_cast<pair<Key, Value> const*>(current_slot);
+      auto const& current_key        = slot_contents.first;
 
       auto const slot_is_empty = (current_key == view.get_empty_key_sentinel());
-      auto const equals        = (not slot_is_empty and key_equal(current_key, key));
-      auto const exists        = tile.ballot(equals);
+      auto const exists        = tile.ballot(not slot_is_empty and key_equal(current_key, key));
 
       if (exists) {
         auto num_matches = __popc(exists);
