@@ -182,7 +182,11 @@ class static_multimap {
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
+  void insert(InputIt first,
+              InputIt last,
+              Hash hash           = Hash{},
+              KeyEqual key_equal  = KeyEqual{},
+              cudaStream_t stream = 0);
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -209,8 +213,9 @@ class static_multimap {
   void find(InputIt first,
             InputIt last,
             OutputIt output_begin,
-            Hash hash          = Hash{},
-            KeyEqual key_equal = KeyEqual{}) noexcept;
+            Hash hash           = Hash{},
+            KeyEqual key_equal  = KeyEqual{},
+            cudaStream_t stream = 0);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -236,8 +241,9 @@ class static_multimap {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                Hash hash          = Hash{},
-                KeyEqual key_equal = KeyEqual{}) noexcept;
+                Hash hash           = Hash{},
+                KeyEqual key_equal  = KeyEqual{},
+                cudaStream_t stream = 0);
 
   /**
    * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
@@ -269,8 +275,9 @@ class static_multimap {
   OutputIt find_all(InputIt first,
                     InputIt last,
                     OutputIt output_begin,
-                    Hash hash          = Hash{},
-                    KeyEqual key_equal = KeyEqual{}) noexcept;
+                    Hash hash           = Hash{},
+                    KeyEqual key_equal  = KeyEqual{},
+                    cudaStream_t stream = 0);
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
@@ -289,8 +296,9 @@ class static_multimap {
             typename KeyEqual = thrust::equal_to<key_type>>
   std::size_t count(InputIt first,
                     InputIt last,
-                    Hash hash          = Hash{},
-                    KeyEqual key_equal = KeyEqual{});
+                    Hash hash           = Hash{},
+                    KeyEqual key_equal  = KeyEqual{},
+                    cudaStream_t stream = 0);
 
  private:
   class device_view_base {
