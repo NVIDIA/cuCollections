@@ -30,12 +30,8 @@ static void generate_multikeys(OutputIt output_begin, OutputIt output_end, size_
 {
   auto num_keys = std::distance(output_begin, output_end);
 
-  std::random_device rd;
-  std::mt19937 gen{rd()};
-
-  std::uniform_int_distribution<Key> distribution{1, static_cast<Key>(num_keys / num_reps)};
   for (auto i = 0; i < num_keys; ++i) {
-    output_begin[i] = distribution(gen);
+    output_begin[i] = (i % (num_keys / num_reps)) + 1;
   }
 }
 
@@ -43,8 +39,7 @@ static void generate_multikeys(OutputIt output_begin, OutputIt output_end, size_
  * @brief A benchmark evaluating multi-value retrieval performance by varing number of repetitions
  * per key:
  * - 100'000'000 keys are inserted
- * - Map occupancy is fixed at 0.3
- * - CG size is fixed at 4
+ * - Map occupancy is fixed at 0.4
  * - Number of repetitions per key: 1, ... , 128, 256
  *
  */
@@ -73,11 +68,13 @@ void nvbench_find_all(
     Value val         = h_keys[i];
     h_pairs[i].first  = key;
     h_pairs[i].second = val;
-
-    h_keys[i] = i;
   }
 
-  thrust::device_vector<Key> d_keys(h_keys);
+  // Get an array of unique keys
+  std::set<Key> key_set(h_keys.begin(), h_keys.end());
+  std::vector<Key> h_unique_keys(key_set.begin(), key_set.end());
+  thrust::device_vector<Key> d_unique_keys(h_unique_keys);
+
   thrust::device_vector<cuco::pair_type<Key, Value>> d_results(2 * num_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
 
@@ -89,6 +86,7 @@ void nvbench_find_all(
       cuco::static_multimap<Key, Value, CGSize> map{size, -1, -1};
       map.insert(d_pairs.begin(), d_pairs.end());
 
+      timer.start();
       auto view = map.get_device_view();
 
       auto const block_size  = 128;
@@ -111,10 +109,14 @@ void nvbench_find_all(
       CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
 
       // Use timers to explicitly mark the target region
-      timer.start();
       cuco::detail::find_all<block_size, CGSize, buffer_size, Key, Value>
-        <<<grid_size, block_size, 0, launch.get_stream()>>>(
-          d_keys.begin(), d_keys.end(), d_results.data().get(), num_items, view, hash, key_equal);
+        <<<grid_size, block_size, 0, launch.get_stream()>>>(d_unique_keys.begin(),
+                                                            d_unique_keys.end(),
+                                                            d_results.data().get(),
+                                                            num_items,
+                                                            view,
+                                                            hash,
+                                                            key_equal);
       CUCO_CUDA_TRY(cudaDeviceSynchronize());
       timer.stop();
 
@@ -128,7 +130,7 @@ using cg_size     = nvbench::enum_type_list<1, 2, 4, 8, 16, 32>;
 using buffer_size = nvbench::enum_type_list<1, 2, 4, 8, 16>;
 
 NVBENCH_BENCH_TYPES(nvbench_find_all,
-                    NVBENCH_TYPE_AXES(key_type, value_type, cg_size, nvbench::enum_type_list<16>))
+                    NVBENCH_TYPE_AXES(key_type, value_type, cg_size, nvbench::enum_type_list<2>))
   .set_type_axes_names({"Key", "Value", "CGSize", "BufferSize"})
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.

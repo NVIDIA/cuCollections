@@ -184,9 +184,9 @@ class static_multimap {
             typename KeyEqual = thrust::equal_to<key_type>>
   void insert(InputIt first,
               InputIt last,
+              cudaStream_t stream = 0,
               Hash hash           = Hash{},
-              KeyEqual key_equal  = KeyEqual{},
-              cudaStream_t stream = 0);
+              KeyEqual key_equal  = KeyEqual{});
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -213,9 +213,9 @@ class static_multimap {
   void find(InputIt first,
             InputIt last,
             OutputIt output_begin,
+            cudaStream_t stream = 0,
             Hash hash           = Hash{},
-            KeyEqual key_equal  = KeyEqual{},
-            cudaStream_t stream = 0);
+            KeyEqual key_equal  = KeyEqual{});
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -241,9 +241,9 @@ class static_multimap {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
+                cudaStream_t stream = 0,
                 Hash hash           = Hash{},
-                KeyEqual key_equal  = KeyEqual{},
-                cudaStream_t stream = 0);
+                KeyEqual key_equal  = KeyEqual{});
 
   /**
    * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
@@ -275,9 +275,9 @@ class static_multimap {
   OutputIt find_all(InputIt first,
                     InputIt last,
                     OutputIt output_begin,
+                    cudaStream_t stream = 0,
                     Hash hash           = Hash{},
-                    KeyEqual key_equal  = KeyEqual{},
-                    cudaStream_t stream = 0);
+                    KeyEqual key_equal  = KeyEqual{});
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
@@ -296,9 +296,9 @@ class static_multimap {
             typename KeyEqual = thrust::equal_to<key_type>>
   std::size_t count(InputIt first,
                     InputIt last,
+                    cudaStream_t stream = 0,
                     Hash hash           = Hash{},
-                    KeyEqual key_equal  = KeyEqual{},
-                    cudaStream_t stream = 0);
+                    KeyEqual key_equal  = KeyEqual{});
 
  private:
   class device_view_base {

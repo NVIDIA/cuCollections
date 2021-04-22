@@ -66,7 +66,7 @@ template <typename Key,
           typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
 void static_multimap<Key, Value, CGSize, Scope, Allocator>::insert(
-  InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
+  InputIt first, InputIt last, cudaStream_t stream, Hash hash, KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -88,9 +88,9 @@ template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_multimap<Key, Value, CGSize, Scope, Allocator>::find(InputIt first,
                                                                  InputIt last,
                                                                  OutputIt output_begin,
+                                                                 cudaStream_t stream,
                                                                  Hash hash,
-                                                                 KeyEqual key_equal,
-                                                                 cudaStream_t stream)
+                                                                 KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -112,9 +112,9 @@ template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_multimap<Key, Value, CGSize, Scope, Allocator>::contains(InputIt first,
                                                                      InputIt last,
                                                                      OutputIt output_begin,
+                                                                     cudaStream_t stream,
                                                                      Hash hash,
-                                                                     KeyEqual key_equal,
-                                                                     cudaStream_t stream)
+                                                                     KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -136,9 +136,9 @@ template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 OutputIt static_multimap<Key, Value, CGSize, Scope, Allocator>::find_all(InputIt first,
                                                                          InputIt last,
                                                                          OutputIt output_begin,
+                                                                         cudaStream_t stream,
                                                                          Hash hash,
-                                                                         KeyEqual key_equal,
-                                                                         cudaStream_t stream)
+                                                                         KeyEqual key_equal)
 {
   auto num_keys          = std::distance(first, last);
   auto const block_size  = 128;
@@ -172,7 +172,7 @@ template <typename Key,
           typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
 std::size_t static_multimap<Key, Value, CGSize, Scope, Allocator>::count(
-  InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
+  InputIt first, InputIt last, cudaStream_t stream, Hash hash, KeyEqual key_equal)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;

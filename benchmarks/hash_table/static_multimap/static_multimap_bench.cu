@@ -59,12 +59,8 @@ static void generate_multikeys(OutputIt output_begin, OutputIt output_end, size_
 {
   auto num_keys = std::distance(output_begin, output_end);
 
-  std::random_device rd;
-  std::mt19937 gen{rd()};
-
-  std::uniform_int_distribution<Key> distribution{1, static_cast<Key>(num_keys / num_reps)};
   for (auto i = 0; i < num_keys; ++i) {
-    output_begin[i] = distribution(gen);
+    output_begin[i] = (i % (num_keys / num_reps)) + 1;
   }
 }
 
@@ -97,22 +93,8 @@ void launch_nvbench_insert(nvbench::state& state,
                cuco::static_multimap<Key, Value, cg_size> map{size, -1, -1};
                auto m_view = map.get_device_mutable_view();
 
-               auto const block_size = 128;
-               auto const stride     = 1;
-               auto const grid_size =
-                 (cg_size * num_keys + stride * block_size - 1) / (stride * block_size);
-
-               using Hash     = cuco::detail::MurmurHash3_32<Key>;
-               using KeyEqual = thrust::equal_to<Key>;
-
-               Hash hash;
-               KeyEqual key_equal;
-
                timer.start();
-               cuco::detail::insert<block_size, cg_size>
-                 <<<grid_size, block_size, 0, launch.get_stream()>>>(
-                   d_pairs.begin(), d_pairs.end(), m_view, hash, key_equal);
-               CUCO_CUDA_TRY(cudaDeviceSynchronize());
+               map.insert(d_pairs.begin(), d_pairs.end(), launch.get_stream());
                timer.stop();
              });
 }
@@ -121,7 +103,7 @@ void launch_nvbench_insert(nvbench::state& state,
  * @brief A benchmark evaluating single-value insertion performance by varying occupancy:
  * - Total number of insertions is fixed at 100'000'000
  * - Map occupancy: 0.1, ... , 0.8, 0.9
- * - CG size is fixed at 4
+ * - CG size is fixed at 8
  * - Three different key distributions are tested: Unique, Uniform and Gaussian
  *
  */
@@ -137,7 +119,7 @@ void nvbench_static_multimap_single_insert(nvbench::state& state, nvbench::type_
   auto const occupancy       = state.get_float64("Occupancy");
   std::size_t const size     = num_keys / occupancy;
   auto const dist            = state.get_string("Distribution");
-  std::size_t const cg_size  = 4;
+  std::size_t const cg_size  = 8;
 
   std::vector<Key> h_keys(num_keys);
 
@@ -151,7 +133,7 @@ void nvbench_static_multimap_single_insert(nvbench::state& state, nvbench::type_
  * per key:
  * - Total number of insertions is fixed at 100'000'000
  * - Map occupancy is fixed at 0.7
- * - CG size is fixed at 4
+ * - CG size is fixed at 8
  * - Unique key distributions is tested
  * - Number of repetitions per key: 1, ... , 128, 256
  *
@@ -168,7 +150,7 @@ void nvbench_static_multimap_multi_insert(nvbench::state& state, nvbench::type_l
   auto const occupancy       = state.get_float64("Occupancy");
   std::size_t const size     = num_keys / occupancy;
   std::size_t const num_reps = state.get_int64("NumReps");
-  std::size_t const cg_size  = 4;
+  std::size_t const cg_size  = 8;
 
   std::vector<Key> h_keys(num_keys);
 
@@ -212,7 +194,7 @@ void nvbench_static_multimap_insert_cgsize(
  * @brief A benchmark evaluating single-value retrieval performance by varing occupancy:
  * - 100'000'000 uniformed keys are inserted
  * - Map occupancy: 0.1, ... , 0.8, 0.9
- * - CG size is fixed at 4
+ * - CG size is fixed at 8
  *
  */
 template <typename Key, typename Value>
@@ -248,39 +230,81 @@ void nvbench_static_multimap_find(nvbench::state& state, nvbench::type_list<Key,
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               auto const tile_size  = 16;
-               cuco::static_multimap<Key, Value, tile_size> map{size, -1, -1};
+               auto const cg_size = 8;
+               cuco::static_multimap<Key, Value, cg_size> map{size, -1, -1};
                map.insert(d_pairs.begin(), d_pairs.end());
-
-               auto view = map.get_device_view();
-
-               auto const block_size = 128;
-               auto const stride     = 1;
-               auto const grid_size =
-                 (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-
-               using Hash     = cuco::detail::MurmurHash3_32<Key>;
-               using KeyEqual = thrust::equal_to<Key>;
-
-               Hash hash;
-               KeyEqual key_equal;
 
                // Use timers to explicitly mark the target region
                timer.start();
-               cuco::detail::find<block_size, tile_size, Value>
-                 <<<grid_size, block_size, 0, launch.get_stream()>>>(
-                   d_keys.begin(), d_keys.end(), d_results.begin(), view, hash, key_equal);
-               CUCO_CUDA_TRY(cudaDeviceSynchronize());
+               map.find(d_keys.begin(), d_keys.end(), d_results.begin(), launch.get_stream());
                timer.stop();
              });
+}
+
+/**
+ * @brief A benchmark evaluating multi-value count performance by varing number of repetitions
+ * per key:
+ * - 100'000'000 keys are inserted
+ * - Map occupancy is fixed at 0.4
+ * - CG size is fixed at 8
+ * - Number of repetitions per key: 1, ... , 128, 256
+ *
+ */
+template <typename Key, typename Value>
+void nvbench_static_multimap_count(nvbench::state& state, nvbench::type_list<Key, Value>)
+{
+  if (not std::is_same<Key, Value>::value) {
+    state.skip("Key should be the same type as Value.");
+    return;
+  }
+
+  std::size_t const num_keys = state.get_int64("NumInputs");
+  auto const occupancy       = state.get_float64("Occupancy");
+  std::size_t const size     = num_keys / occupancy;
+  std::size_t const num_reps = state.get_int64("NumReps");
+
+  std::vector<Key> h_keys(num_keys);
+  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
+
+  generate_multikeys<Key>(h_keys.begin(), h_keys.end(), num_reps);
+
+  for (auto i = 0; i < num_keys; ++i) {
+    Key key           = h_keys[i];
+    Value val         = h_keys[i];
+    h_pairs[i].first  = key;
+    h_pairs[i].second = val;
+  }
+
+  // Get an array of unique keys
+  std::set<Key> key_set(h_keys.begin(), h_keys.end());
+  std::vector<Key> h_unique_keys(key_set.begin(), key_set.end());
+  thrust::device_vector<Key> d_unique_keys(h_unique_keys);
+
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(2 * num_keys);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+
+  state.add_element_count(num_keys, "NumKeys");
+  state.add_global_memory_writes<Key>(num_keys * 2);
+
+  state.exec(
+    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+      auto const cg_size = 8;
+      cuco::static_multimap<Key, Value, cg_size> map{size, -1, -1};
+      map.insert(d_pairs.begin(), d_pairs.end());
+
+      // Use timers to explicitly mark the target region
+      timer.start();
+      auto count = map.count(d_unique_keys.begin(), d_unique_keys.end(), launch.get_stream());
+      timer.stop();
+    });
 }
 
 /**
  * @brief A benchmark evaluating multi-value retrieval performance by varing number of repetitions
  * per key:
  * - 100'000'000 keys are inserted
- * - Map occupancy is fixed at 0.3
- * - CG size is fixed at 4
+ * - Map occupancy is fixed at 0.4
+ * - CG size is fixed at 8
  * - Number of repetitions per key: 1, ... , 128, 256
  *
  */
@@ -307,11 +331,13 @@ void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<
     Value val         = h_keys[i];
     h_pairs[i].first  = key;
     h_pairs[i].second = val;
-
-    h_keys[i] = i;
   }
 
-  thrust::device_vector<Key> d_keys(h_keys);
+  // Get an array of unique keys
+  std::set<Key> key_set(h_keys.begin(), h_keys.end());
+  std::vector<Key> h_unique_keys(key_set.begin(), key_set.end());
+  thrust::device_vector<Key> d_unique_keys(h_unique_keys);
+
   thrust::device_vector<cuco::pair_type<Key, Value>> d_results(2 * num_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
 
@@ -320,41 +346,15 @@ void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<
 
   state.exec(
     nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      auto const tile_size   = 4;
-      cuco::static_multimap<Key, Value, tile_size> map{size, -1, -1};
+      auto const cg_size = 8;
+      cuco::static_multimap<Key, Value, cg_size> map{size, -1, -1};
       map.insert(d_pairs.begin(), d_pairs.end());
-
-      auto view = map.get_device_view();
-
-      auto const block_size  = 128;
-      auto const buffer_size = tile_size * 2;
-      auto const stride      = 1;
-      auto const grid_size =
-        (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-
-      using Hash     = cuco::detail::MurmurHash3_32<Key>;
-      using KeyEqual = thrust::equal_to<Key>;
-
-      Hash hash;
-      KeyEqual key_equal;
-
-      using atomic_ctr_type = typename cuco::static_multimap<Key, Value>::atomic_ctr_type;
-      atomic_ctr_type* num_items;
-      CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
-      *num_items = 0;
-      int device_id;
-      CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-      CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
 
       // Use timers to explicitly mark the target region
       timer.start();
-      cuco::detail::find_all<block_size, tile_size, buffer_size, Key, Value>
-        <<<grid_size, block_size, 0, launch.get_stream()>>>(
-          d_keys.begin(), d_keys.end(), d_results.begin(), num_items, view, hash, key_equal);
-      CUCO_CUDA_TRY(cudaDeviceSynchronize());
+      map.find_all(
+        d_unique_keys.begin(), d_unique_keys.end(), d_results.begin(), launch.get_stream());
       timer.stop();
-
-      CUCO_CUDA_TRY(cudaFree(num_items));
     });
 }
 
@@ -381,6 +381,14 @@ NVBENCH_BENCH_TYPES(nvbench_static_multimap_find, NVBENCH_TYPE_AXES(key_type, va
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
   .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1));
+
+NVBENCH_BENCH_TYPES(nvbench_static_multimap_count, NVBENCH_TYPE_AXES(key_type, value_type))
+  .set_type_axes_names({"Key", "Value"})
+  .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
+  .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
+  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
+  .add_float64_axis("Occupancy", {0.4})
+  .add_int64_power_of_two_axis("NumReps", nvbench::range(0, 8, 1));
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_find_all, NVBENCH_TYPE_AXES(key_type, value_type))
   .set_type_axes_names({"Key", "Value"})
