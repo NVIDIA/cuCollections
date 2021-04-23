@@ -628,7 +628,8 @@ __global__ void find_all(InputIt first,
             cuco::make_pair<Key, Value>(std::move(k), std::move(slot_contents.second));
         }
         if (0 == lane_id) { cg_counter[cg_id] += num_matches; }
-      } else if (tile.any(slot_is_empty)) {
+      }
+      if (tile.any(slot_is_empty)) {
         running = false;
         if ((not found_match) && (lane_id == 0)) {
           auto output_idx = cg_counter[cg_id]++;
