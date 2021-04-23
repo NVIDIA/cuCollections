@@ -736,35 +736,35 @@ __global__ void count(
   InputIt first, InputIt last, atomicT* num_items, viewT view, Hash hash, KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto tid     = block_size * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
 
-  const int lane_id = tile.thread_rank();
+  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  std::size_t thread_num_items = 0;
 
   while (first + key_idx < last) {
     auto key          = *(first + key_idx);
     auto current_slot = view.initial_slot(tile, key, hash);
 
-    bool running = true;
-
-    while (tile.any(running)) {
-      pair<Key, Value> slot_contents = *reinterpret_cast<pair<Key, Value> const*>(current_slot);
-      auto const& current_key        = slot_contents.first;
+    while (true) {
+      pair<Key, Value> slot_contents =
+        *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
+      auto const& current_key = slot_contents.first;
 
       auto const slot_is_empty = (current_key == view.get_empty_key_sentinel());
-      auto const exists        = tile.ballot(not slot_is_empty and key_equal(current_key, key));
+      auto const equals        = not slot_is_empty and key_equal(current_key, key);
 
-      if (exists) {
-        auto num_matches = __popc(exists);
-        // First lane gets the CG-level offset
-        if (0 == lane_id) { num_items->fetch_add(num_matches, cuda::std::memory_order_relaxed); }
-      } else if (tile.any(slot_is_empty)) {
-        running = false;
-      }
+      if (equals) { thread_num_items++; }
+
+      if (tile.any(slot_is_empty)) { break; }
+
       current_slot = view.next_slot(tile, current_slot);
-    }  // while running
-    key_idx += (gridDim.x * blockDim.x) / tile_size;
+    }  // while true
+    key_idx += (gridDim.x * block_size) / tile_size;
   }
+  auto const block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
+  if (threadIdx.x == 0) { num_items->fetch_add(block_num_items, cuda::std::memory_order_relaxed); }
 }
 
 }  // namespace detail
