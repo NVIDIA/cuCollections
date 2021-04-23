@@ -605,7 +605,7 @@ __global__ void find_all(InputIt first,
     bool running     = true;
     bool found_match = false;
 
-    while (tile.any(running)) {
+    while (running) {
       // TODO: Replace reinterpret_cast with atomic ref when possible. The current implementation is
       // unsafe!
       static_assert(sizeof(Key) == sizeof(cuda::atomic<Key>));
