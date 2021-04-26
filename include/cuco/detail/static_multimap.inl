@@ -44,9 +44,9 @@ static_multimap<Key, Value, CGSize, Scope, Allocator>::static_multimap(std::size
 
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
-  auto const grid_size      = (capacity + stride * block_size - 1) / (stride * block_size);
+  auto const grid_size      = (get_capacity() + stride * block_size - 1) / (stride * block_size);
   detail::initialize<atomic_key_type, atomic_mapped_type>
-    <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, capacity);
+    <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, get_capacity());
 }
 
 template <typename Key,
