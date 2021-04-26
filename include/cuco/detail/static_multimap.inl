@@ -290,11 +290,8 @@ __device__ void static_multimap<Key, Value, CGSize, Scope, Allocator>::device_mu
         // so we need to try the next empty slot in the window
       }
 
-      uint32_t res_status = g.shfl(static_cast<uint32_t>(status), src_lane);
-      status              = static_cast<insert_result>(res_status);
-
       // successful insert
-      if (status == insert_result::SUCCESS) { return; }
+      if (g.any(status == insert_result::SUCCESS)) { return; }
       // if we've gotten this far, a different key took our spot
       // before we could insert. We need to retry the insert on the
       // same window
