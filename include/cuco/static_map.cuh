@@ -25,9 +25,12 @@
 
 #include <cuco/allocator.hpp>
 #include <cuco/detail/cuda_memcmp.cuh>
-#ifndef CUDART_VERSION
-#error CUDART_VERSION Undefined!
-#elif (CUDART_VERSION >= 11000) // including with CUDA 10.2 leads to compilation errors
+
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 700)
+#define CUCO_HAS_CUDA_BARRIER
+#endif
+
+#if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
 #endif
 
@@ -668,9 +671,7 @@ class static_map {
                                             pair_atomic_type* const memory_to_use,
                                             device_view source_device_view) noexcept
     {
-#ifndef CUDART_VERSION
-#error CUDART_VERSION Undefined!
-#elif (CUDART_VERSION >= 11000)
+#if defined(CUDA_HAS_CUDA_BARRIER)
       __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
       if (g.thread_rank() == 0) {
         init(&barrier, g.size());
