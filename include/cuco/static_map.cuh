@@ -51,7 +51,10 @@ class dynamic_map;
  * concurrent insert and find) from threads in device code.
  *
  * Current limitations:
- * - Requires keys that are Arithmetic
+ * - Requires keys and values that are trivially copyable and have unique object representations
+ *    - Comparisons against the "sentinel" values will always be done with bitwise comparisons.
+ *      Therefore, the objects must have unique, bitwise object representations (e.g., no padding
+ *      bits).
  * - Does not support erasing keys
  * - Capacity is fixed and will not grow automatically
  * - Requires the user to specify sentinel values for both key and mapped value
