@@ -115,6 +115,15 @@ template <typename Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_map {
+  template <typename T>
+  static constexpr bool is_CAS_safe =
+    std::is_trivially_copyable_v<T>and std::has_unique_object_representations_v<Key>;
+
+  static_assert(is_CAS_safe<Key>,
+                "Key type must be trivially copyable and have unique object representation.");
+  static_assert(is_CAS_safe<Value>,
+                "Value type must be trivially copyable and have unique object representation.");
+
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
   friend class dynamic_map<Key, Value, Scope, Allocator>;
 
