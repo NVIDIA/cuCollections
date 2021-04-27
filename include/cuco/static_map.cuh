@@ -119,7 +119,7 @@ template <typename Key,
 class static_map {
   template <typename T>
   static constexpr bool is_CAS_safe =
-    std::is_trivially_copyable_v<T>and std::has_unique_object_representations_v<Key>;
+    std::is_trivially_copyable_v<T>and std::has_unique_object_representations_v<T>;
 
   static_assert(is_CAS_safe<Key>,
                 "Key type must be trivially copyable and have unique object representation.");
