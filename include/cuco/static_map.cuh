@@ -126,7 +126,6 @@ class static_map {
   static_assert(is_CAS_safe<Value>,
                 "Value type must be trivially copyable and have unique object representation.");
 
-  static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
   friend class dynamic_map<Key, Value, Scope, Allocator>;
 
  public:
