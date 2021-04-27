@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <cuco/detail/bitwise_compare.cuh>
+
 namespace cuco {
 
 /**---------------------------------------------------------------------------*
@@ -173,7 +175,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
+    auto const slot_is_empty = detail::bitwise_compare(existing_key,this->get_empty_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
     if (g.ballot(not slot_is_empty and key_equal(existing_key, insert_pair.first))) {
@@ -250,7 +252,9 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     // Key doesn't exist, return end()
-    if (existing_key == this->get_empty_key_sentinel()) { return this->end(); }
+    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
+      return this->end();
+    }
 
     // Key exists, return iterator to location
     if (key_equal(existing_key, k)) { return current_slot; }
@@ -271,7 +275,9 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     // Key doesn't exist, return end()
-    if (existing_key == this->get_empty_key_sentinel()) { return this->end(); }
+    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
+      return this->end();
+    }
 
     // Key exists, return iterator to location
     if (key_equal(existing_key, k)) { return current_slot; }
@@ -295,7 +301,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads,
     // so we return an iterator to the entry
@@ -332,7 +339,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
     // the entry
@@ -366,7 +374,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    if (existing_key == empty_key_sentinel_) { return false; }
+    if (detail::bitwise_compare(existing_key,empty_key_sentinel_)) { return false; }
 
     if (key_equal(existing_key, k)) { return true; }
 
@@ -386,7 +394,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
+    auto const slot_is_empty = detail::bitwise_compare(existing_key,this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
     // the entry

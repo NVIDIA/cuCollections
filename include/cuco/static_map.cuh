@@ -24,7 +24,6 @@
 #include <memory>
 
 #include <cuco/allocator.hpp>
-#include <cuco/detail/cuda_memcmp.cuh>
 
 #if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 700)
 #define CUCO_HAS_CUDA_BARRIER
