@@ -36,7 +36,7 @@ template <std::size_t TypeSize>
 struct bitwise_compare_impl {
   __host__ __device__ static constexpr bool compare(char const* lhs, char const* rhs)
   {
-    return memcmp(lhs, rhs, TypeSize) == 0;
+    return cuda_memcmp(lhs, rhs, TypeSize) == 0;
   }
 };
 
