@@ -248,32 +248,32 @@ __device__ void static_multimap<Key, Value, CGSize, Scope, Allocator>::device_mu
   CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, insert_pair.first, hash);
-
   while (true) {
-    key_type const existing_key = current_slot->first.load(cuda::memory_order_relaxed);
-
+    // key_type const existing_key = current_slot->first.load(cuda::memory_order_relaxed);
+    auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
+    pair<Key, Value> arr[2];
+    memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty         = (existing_key == this->get_empty_key_sentinel());
-    auto const window_contains_empty = g.ballot(slot_is_empty);
-
+    auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
+    auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
+    // auto const slot_is_empty         = (existing_key == this->get_empty_key_sentinel());
+    auto const window_contains_empty = g.ballot(first_slot_is_empty or second_slot_is_empty);
     if (window_contains_empty) {
       // the first lane in the group with an empty slot will attempt the insert
       insert_result status{insert_result::CONTINUE};
       uint32_t src_lane = __ffs(window_contains_empty) - 1;
-
       if (g.thread_rank() == src_lane) {
         using cuda::std::memory_order_relaxed;
-        auto expected_key   = this->get_empty_key_sentinel();
-        auto expected_value = this->get_empty_value_sentinel();
-        auto& slot_key      = current_slot->first;
-        auto& slot_value    = current_slot->second;
-
+        auto expected_key    = this->get_empty_key_sentinel();
+        auto expected_value  = this->get_empty_value_sentinel();
+        auto insert_location = current_slot + !(first_slot_is_empty);
+        auto& slot_key       = insert_location->first;
+        auto& slot_value     = insert_location->second;
         bool key_success =
           slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
         bool value_success = slot_value.compare_exchange_strong(
           expected_value, insert_pair.second, memory_order_relaxed);
-
         if (key_success) {
           while (not value_success) {
             value_success =
@@ -285,9 +285,8 @@ __device__ void static_multimap<Key, Value, CGSize, Scope, Allocator>::device_mu
         } else if (value_success) {
           slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
         }
-
-        // another key was inserted in the slot we wanted to try
-        // so we need to try the next empty slot in the window
+        // another key was inserted in both slots we wanted to try
+        // so we need to try the next empty slots in the window
       }
 
       // successful insert
