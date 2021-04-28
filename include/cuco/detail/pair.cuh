@@ -52,23 +52,32 @@ constexpr std::size_t pair_alignment()
 }
 
 template <typename T, typename = void>
-struct is_pair_like_impl : std::false_type {
+struct is_std_pair_like : std::false_type {
 };
 
 template <typename T>
-struct is_pair_like_impl<T,
-                         std::void_t<decltype(thrust::get<0>(std::declval<T>())),
-                                     decltype(thrust::get<1>(std::declval<T>()))>>
-  : std::true_type {
+struct is_std_pair_like<
+  T,
+  std::void_t<decltype(std::get<0>(std::declval<T>())), decltype(std::get<1>(std::declval<T>()))>>
+  : std::conditional_t<std::tuple_size<T>::value == 2, std::true_type, std::false_type> {
+};
+
+template <typename T, typename = void>
+struct is_thrust_pair_like_impl : std::false_type {
 };
 
 template <typename T>
-constexpr bool is_pair_like()
-{
-  using raw_value_type =
-    std::remove_reference_t<decltype(thrust::raw_reference_cast(std::declval<T>()))>;
-  return is_pair_like_impl<raw_value_type>::value;
-}
+struct is_thrust_pair_like_impl<T,
+                           std::void_t<decltype(thrust::get<0>(std::declval<T>())),
+                                       decltype(thrust::get<1>(std::declval<T>()))>>
+  : std::conditional_t<thrust::tuple_size<T>::value == 2, std::true_type, std::false_type> {
+};
+
+template <typename T>
+struct is_thrust_pair_like
+  : is_thrust_pair_like_impl<
+      std::remove_reference_t<decltype(thrust::raw_reference_cast(std::declval<T>()))>> {
+};
 
 }  // namespace detail
 
@@ -95,12 +104,13 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
 
   __host__ __device__ constexpr pair(First const& f, Second const& s) : first{f}, second{s} {}
 
-  __host__ __device__ constexpr pair(thrust::pair<First, Second> const& p) noexcept
-    : first{p.first}, second{p.second}
+  template <typename T, std::enable_if_t<detail::is_std_pair_like<T>::value>* = nullptr>
+  __host__ __device__ constexpr pair(T const& t)
+    : pair{std::get<0>(thrust::raw_reference_cast(t)), std::get<1>(thrust::raw_reference_cast(t))}
   {
   }
 
-  template <typename T, std::enable_if_t<detail::is_pair_like<T>()>* = nullptr>
+  template <typename T, std::enable_if_t<detail::is_thrust_pair_like<T>::value>* = nullptr>
   __host__ __device__ constexpr pair(T const& t)
     : pair{thrust::get<0>(thrust::raw_reference_cast(t)),
            thrust::get<1>(thrust::raw_reference_cast(t))}
