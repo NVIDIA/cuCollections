@@ -98,8 +98,8 @@ struct key_pair_equals {
 };
 
 struct alignas(8) value_pair {
-  float f;
-  int i;
+  int32_t f;
+  int32_t s;
 };
 
 TEST_CASE("User defined key and value type", "")
@@ -108,7 +108,7 @@ TEST_CASE("User defined key and value type", "")
   using Value = value_pair;
 
   auto constexpr sentinel_key   = Key{-1, -1};
-  auto constexpr sentinel_value = Value{-1.0, -1};
+  auto constexpr sentinel_value = Value{-1, -1};
 
   constexpr std::size_t num_pairs = 100;
   constexpr std::size_t capacity  = num_pairs * 2;
@@ -130,7 +130,7 @@ TEST_CASE("User defined key and value type", "")
                     thrust::counting_iterator<int>(num_pairs),
                     insert_values.begin(),
                     [] __device__(auto i) {
-                      return Value{(float)i, i};
+                      return Value{i, i};
                     });
 
   auto insert_pairs =
@@ -154,7 +154,7 @@ TEST_CASE("User defined key and value type", "")
                           insert_values.end(),
                           found_values.begin(),
                           [] __device__(value_pair lhs, value_pair rhs) {
-                            return std::tie(lhs.f, lhs.i) == std::tie(rhs.f, rhs.i);
+                            return std::tie(lhs.f, lhs.s) == std::tie(rhs.f, rhs.s);
                           }));
   }
   SECTION("All inserted keys-value pairs should be contained")
