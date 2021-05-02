@@ -68,8 +68,8 @@ struct is_thrust_pair_like_impl : std::false_type {
 
 template <typename T>
 struct is_thrust_pair_like_impl<T,
-                           std::void_t<decltype(thrust::get<0>(std::declval<T>())),
-                                       decltype(thrust::get<1>(std::declval<T>()))>>
+                                std::void_t<decltype(thrust::get<0>(std::declval<T>())),
+                                            decltype(thrust::get<1>(std::declval<T>()))>>
   : std::conditional_t<thrust::tuple_size<T>::value == 2, std::true_type, std::false_type> {
 };
 

@@ -63,7 +63,7 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
                                                       Hash hash,
                                                       KeyEqual key_equal)
 {
-  auto num_keys         = std::distance(first, last);
+  auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const block_size = 128;
@@ -87,9 +87,9 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::find(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) 
+  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
 {
-  auto num_keys         = std::distance(first, last);
+  auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const block_size = 128;
@@ -108,7 +108,7 @@ template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::contains(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
 {
-  auto num_keys         = std::distance(first, last);
+  auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const block_size = 128;
@@ -175,7 +175,8 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = detail::bitwise_compare(existing_key,this->get_empty_key_sentinel());
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
     if (g.ballot(not slot_is_empty and key_equal(existing_key, insert_pair.first))) {
@@ -374,7 +375,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    if (detail::bitwise_compare(existing_key,empty_key_sentinel_)) { return false; }
+    if (detail::bitwise_compare(existing_key, empty_key_sentinel_)) { return false; }
 
     if (key_equal(existing_key, k)) { return true; }
 
@@ -394,7 +395,8 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = detail::bitwise_compare(existing_key,this->get_empty_key_sentinel());
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
     // the entry

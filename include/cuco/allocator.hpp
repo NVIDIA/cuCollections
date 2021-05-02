@@ -29,7 +29,8 @@ class cuda_allocator {
 
   template <class U>
   cuda_allocator(cuda_allocator<U> const&) noexcept
-  { }
+  {
+  }
 
   value_type* allocate(std::size_t n)
   {
