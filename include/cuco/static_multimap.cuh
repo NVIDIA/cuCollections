@@ -39,6 +39,16 @@
 
 namespace cuco {
 
+/**---------------------------------------------------------------------------*
+ * @brief Enumeration of the possible results of attempting to insert into
+ *a hash bucket
+ *---------------------------------------------------------------------------**/
+enum class insert_result {
+  CONTINUE,  ///< Insert did not succeed, continue trying to insert
+  SUCCESS,   ///< New pair inserted successfully
+  DUPLICATE  ///< Insert did not succeed, key is already present
+};
+
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs with unique keys.
@@ -386,10 +396,10 @@ class static_multimap {
     template <typename CG, typename Hash>
     __device__ iterator initial_slot(CG g, Key const& k, Hash hash) noexcept
     {
-      auto const cg_size = g.size();
+      auto const cg_size    = g.size();
       step_size_            = (hash(k + 1) % (capacity_ / (cg_size * 2) - 1) + 1) * cg_size * 2;
       auto const h          = hash(k);
-      auto const slot_index = h  % (capacity_ / (cg_size * 2)) * cg_size * 2 + g.thread_rank() * 2;
+      auto const slot_index = h % (capacity_ / (cg_size * 2)) * cg_size * 2 + g.thread_rank() * 2;
       auto const p          = begin_slot() + slot_index;
       return p;
     }
@@ -409,10 +419,10 @@ class static_multimap {
     template <typename CG, typename Hash>
     __device__ const_iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
     {
-      auto const cg_size = g.size();
+      auto const cg_size    = g.size();
       step_size_            = (hash(k + 1) % (capacity_ / (cg_size * 2) - 1) + 1) * cg_size * 2;
       auto const h          = hash(k);
-      auto const slot_index = h  % (capacity_ / (cg_size * 2)) * cg_size * 2 + g.thread_rank() * 2;
+      auto const slot_index = h % (capacity_ / (cg_size * 2)) * cg_size * 2 + g.thread_rank() * 2;
       auto const p          = begin_slot() + slot_index;
       return p;
     }
@@ -646,11 +656,135 @@ class static_multimap {
      */
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
+              typename KeyEqual = thrust::equal_to<key_type>,
+              typename U        = Key,
+              typename std::enable_if<sizeof(U) == 4>::type* = nullptr>
     __device__ void insert(CG g,
                            value_type const& insert_pair,
                            Hash hash          = Hash{},
-                           KeyEqual key_equal = KeyEqual{}) noexcept;
+                           KeyEqual key_equal = KeyEqual{})
+    {
+      auto current_slot = initial_slot(g, insert_pair.first, hash);
+      while (true) {
+        // key_type const existing_key = current_slot->first.load(cuda::memory_order_relaxed);
+        auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
+        pair<Key, Value> arr[2];
+        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+        // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
+        // the sentinel is not a valid key value. Therefore, first check for the sentinel
+        auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
+        auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
+        // auto const slot_is_empty         = (existing_key == this->get_empty_key_sentinel());
+        auto const window_contains_empty = g.ballot(first_slot_is_empty or second_slot_is_empty);
+        if (window_contains_empty) {
+          // the first lane in the group with an empty slot will attempt the insert
+          insert_result status{insert_result::CONTINUE};
+          uint32_t src_lane = __ffs(window_contains_empty) - 1;
+          if (g.thread_rank() == src_lane) {
+            using cuda::std::memory_order_relaxed;
+            auto expected_key    = this->get_empty_key_sentinel();
+            auto expected_value  = this->get_empty_value_sentinel();
+            auto insert_location = current_slot + !(first_slot_is_empty);
+            auto& slot_key       = insert_location->first;
+            auto& slot_value     = insert_location->second;
+            bool key_success     = slot_key.compare_exchange_strong(
+              expected_key, insert_pair.first, memory_order_relaxed);
+            bool value_success = slot_value.compare_exchange_strong(
+              expected_value, insert_pair.second, memory_order_relaxed);
+            if (key_success) {
+              while (not value_success) {
+                value_success = slot_value.compare_exchange_strong(
+                  expected_value = this->get_empty_value_sentinel(),
+                  insert_pair.second,
+                  memory_order_relaxed);
+              }
+              status = insert_result::SUCCESS;
+            } else if (value_success) {
+              slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
+            }
+            // another key was inserted in both slots we wanted to try
+            // so we need to try the next empty slots in the window
+          }
+
+          // successful insert
+          if (g.any(status == insert_result::SUCCESS)) { return; }
+          // if we've gotten this far, a different key took our spot
+          // before we could insert. We need to retry the insert on the
+          // same window
+        }
+        // if there are no empty slots in the current window,
+        // we move onto the next window
+        else {
+          current_slot = next_slot(g, current_slot);
+        }
+      }
+    }
+
+    template <typename CG,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>,
+              typename U        = Key,
+              typename std::enable_if<sizeof(U) == 8>::type* = nullptr>
+    __device__ void insert(CG g,
+                           value_type const& insert_pair,
+                           Hash hash          = Hash{},
+                           KeyEqual key_equal = KeyEqual{})
+    {
+      auto current_slot = initial_slot(g, insert_pair.first, hash);
+      while (true) {
+        // key_type const existing_key = current_slot->first.load(cuda::memory_order_relaxed);
+        auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
+        pair<Key, Value> arr[2];
+        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+        // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
+        // the sentinel is not a valid key value. Therefore, first check for the sentinel
+        auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
+        auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
+        // auto const slot_is_empty         = (existing_key == this->get_empty_key_sentinel());
+        auto const window_contains_empty = g.ballot(first_slot_is_empty or second_slot_is_empty);
+        if (window_contains_empty) {
+          // the first lane in the group with an empty slot will attempt the insert
+          insert_result status{insert_result::CONTINUE};
+          uint32_t src_lane = __ffs(window_contains_empty) - 1;
+          if (g.thread_rank() == src_lane) {
+            using cuda::std::memory_order_relaxed;
+            auto expected_key    = this->get_empty_key_sentinel();
+            auto expected_value  = this->get_empty_value_sentinel();
+            auto insert_location = current_slot + !(first_slot_is_empty);
+            auto& slot_key       = insert_location->first;
+            auto& slot_value     = insert_location->second;
+            bool key_success     = slot_key.compare_exchange_strong(
+              expected_key, insert_pair.first, memory_order_relaxed);
+            bool value_success = slot_value.compare_exchange_strong(
+              expected_value, insert_pair.second, memory_order_relaxed);
+            if (key_success) {
+              while (not value_success) {
+                value_success = slot_value.compare_exchange_strong(
+                  expected_value = this->get_empty_value_sentinel(),
+                  insert_pair.second,
+                  memory_order_relaxed);
+              }
+              status = insert_result::SUCCESS;
+            } else if (value_success) {
+              slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
+            }
+            // another key was inserted in both slots we wanted to try
+            // so we need to try the next empty slots in the window
+          }
+
+          // successful insert
+          if (g.any(status == insert_result::SUCCESS)) { return; }
+          // if we've gotten this far, a different key took our spot
+          // before we could insert. We need to retry the insert on the
+          // same window
+        }
+        // if there are no empty slots in the current window,
+        // we move onto the next window
+        else {
+          current_slot = next_slot(g, current_slot);
+        }
+      }
+    }
 
   };  // class device mutable view
 

@@ -201,10 +201,10 @@ __global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEq
     it += (gridDim.x * blockDim.x) / tile_size;
   }
   if (threadIdx.x == 0 && blockIdx.x == 0) {
-    for(auto i = 0; i < view.get_capacity(); i++){
+    for (auto i = 0; i < view.get_capacity(); i++) {
       auto slot = view.get_slots() + i;
-      //if (slot->first != -1)
-        //printf("%ld:\t%ld\n", long(slot->first), long(slot->second));
+      // if (slot->first != -1)
+      // printf("%ld:\t%ld\n", long(slot->first), long(slot->second));
     }
   }
 }
@@ -621,13 +621,13 @@ __global__ void find_all(InputIt first,
       auto const second_slot_is_empty = (arr[1].first == view.get_empty_key_sentinel());
       auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, key));
       auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, key));
-      auto const first_exists = tile.ballot(first_equals);
-      auto const second_exists = tile.ballot(second_equals);
+      auto const first_exists         = tile.ballot(first_equals);
+      auto const second_exists        = tile.ballot(second_equals);
 
       if (first_exists or second_exists) {
-        found_match         = true;
+        found_match = true;
 
-        auto num_first_matches = __popc(first_exists);
+        auto num_first_matches  = __popc(first_exists);
         auto num_second_matches = __popc(second_exists);
 
         uint32_t output_idx = cg_counter[cg_id];
@@ -644,7 +644,7 @@ __global__ void find_all(InputIt first,
           output_buffer[cg_id][output_idx + num_first_matches + lane_offset] =
             cuco::make_pair<Key, Value>(std::move(k), std::move(arr[1].second));
         }
-        if (0 == lane_id) {cg_counter[cg_id] += (num_first_matches + num_second_matches);}
+        if (0 == lane_id) { cg_counter[cg_id] += (num_first_matches + num_second_matches); }
       }
       if (tile.any(first_slot_is_empty or second_slot_is_empty)) {
         running = false;
@@ -657,10 +657,10 @@ __global__ void find_all(InputIt first,
 
       tile.sync();
 
-        flush_output_buffer<tile_size>(
-          tile, cg_counter[cg_id], output_buffer[cg_id], num_items, output_begin);
-        // First lane reset CG-level counter
-        if (lane_id == 0) { cg_counter[cg_id] = 0; }
+      flush_output_buffer<tile_size>(
+        tile, cg_counter[cg_id], output_buffer[cg_id], num_items, output_begin);
+      // First lane reset CG-level counter
+      if (lane_id == 0) { cg_counter[cg_id] = 0; }
 
       current_slot = view.next_slot(tile, current_slot);
     }  // while running
@@ -747,13 +747,14 @@ template <uint32_t block_size,
           typename atomicT,
           typename viewT,
           typename Hash,
-          typename KeyEqual>
+          typename KeyEqual,
+          typename std::enable_if<sizeof(Key) == 4>::type* = nullptr>
 __global__ void count(
   InputIt first, InputIt last, atomicT* num_items, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tile         = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid          = blockDim.x * blockIdx.x + threadIdx.x;
-  auto key_idx      = tid / tile_size;
+  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto key_idx = tid / tile_size;
 
   using BlockReduce = cub::BlockReduce<int, block_size>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
@@ -779,7 +780,54 @@ __global__ void count(
 
       current_slot = view.next_slot(tile, current_slot);
     }
-    key_idx += (gridDim.x * blockDim.x) / tile_size;
+    key_idx += (gridDim.x * block_size) / tile_size;
+  }
+  auto const block_count = BlockReduce(temp_storage).Sum(thread_counter);
+  if (threadIdx.x == 0) { num_items->fetch_add(block_count, cuda::std::memory_order_relaxed); }
+}
+
+template <uint32_t block_size,
+          uint32_t tile_size,
+          typename Key,
+          typename Value,
+          typename InputIt,
+          typename atomicT,
+          typename viewT,
+          typename Hash,
+          typename KeyEqual,
+          typename std::enable_if<sizeof(Key) == 8>::type* = nullptr>
+__global__ void count(
+  InputIt first, InputIt last, atomicT* num_items, viewT view, Hash hash, KeyEqual key_equal)
+{
+  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto key_idx = tid / tile_size;
+
+  using BlockReduce = cub::BlockReduce<int, block_size>;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+
+  int thread_counter{0};
+
+  while (first + key_idx < last) {
+    auto key          = *(first + key_idx);
+    auto current_slot = view.initial_slot(tile, key, hash);
+
+    while (true) {
+      auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
+      pair<Key, Value> arr[2];
+      memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+
+      auto const first_slot_is_empty  = (arr[0].first == view.get_empty_key_sentinel());
+      auto const second_slot_is_empty = (arr[1].first == view.get_empty_key_sentinel());
+      auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, key));
+      auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, key));
+      thread_counter += (first_equals + second_equals);
+
+      if (tile.any(first_slot_is_empty or second_slot_is_empty)) { break; }
+
+      current_slot = view.next_slot(tile, current_slot);
+    }
+    key_idx += (gridDim.x * block_size) / tile_size;
   }
   auto const block_count = BlockReduce(temp_storage).Sum(thread_counter);
   if (threadIdx.x == 0) { num_items->fetch_add(block_count, cuda::std::memory_order_relaxed); }
