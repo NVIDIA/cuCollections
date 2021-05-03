@@ -44,15 +44,10 @@ static void generate_multikeys(OutputIt output_begin, OutputIt output_end, size_
  *
  */
 template <typename Key, typename Value, nvbench::int32_t CGSize, nvbench::int32_t BufferSize>
-void nvbench_find_all(
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
   nvbench::state& state,
   nvbench::type_list<Key, Value, nvbench::enum_type<CGSize>, nvbench::enum_type<BufferSize>>)
 {
-  if (not std::is_same<Key, Value>::value) {
-    state.skip("Key should be the same type as Value.");
-    return;
-  }
-
   std::size_t const num_keys = state.get_int64("NumInputs");
   auto const occupancy       = state.get_float64("Occupancy");
   std::size_t const size     = num_keys / occupancy;
@@ -122,6 +117,14 @@ void nvbench_find_all(
 
       CUCO_CUDA_TRY(cudaFree(num_items));
     });
+}
+
+template <typename Key, typename Value, nvbench::int32_t CGSize, nvbench::int32_t BufferSize>
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_find_all(
+  nvbench::state& state,
+  nvbench::type_list<Key, Value, nvbench::enum_type<CGSize>, nvbench::enum_type<BufferSize>>)
+{
+  state.skip("Key should be the same type as Value.");
 }
 
 using key_type    = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;

@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#include <thrust/device_reference.h>
+#pragma once
 
+#include <thrust/device_reference.h>
 #include <thrust/pair.h>
 #include <thrust/tuple.h>
 #include <tuple>
@@ -115,9 +116,6 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
   __host__ __device__ constexpr pair(T const& t)
     : pair{thrust::get<0>(thrust::raw_reference_cast(t)),
            thrust::get<1>(thrust::raw_reference_cast(t))}
-  {
-  }
-  __host__ __device__ constexpr pair(First const& f, Second const& s) noexcept : first{f}, second{s}
   {
   }
 };

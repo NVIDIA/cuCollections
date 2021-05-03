@@ -24,10 +24,13 @@
 #include <memory>
 
 #include <cuco/allocator.hpp>
-#include <cuco/detail/cuda_memcmp.cuh>
-#ifndef CUDART_VERSION
-#error CUDART_VERSION Undefined!
-#elif (CUDART_VERSION >= 11000)  // including with CUDA 10.2 leads to compilation errors
+
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
+  (__CUDA_ARCH__ >= 700)
+#define CUCO_HAS_CUDA_BARRIER
+#endif
+
+#if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
 #endif
 
@@ -39,16 +42,6 @@
 
 namespace cuco {
 
-/**---------------------------------------------------------------------------*
- * @brief Enumeration of the possible results of attempting to insert into
- *a hash bucket
- *---------------------------------------------------------------------------**/
-enum class insert_result {
-  CONTINUE,  ///< Insert did not succeed, continue trying to insert
-  SUCCESS,   ///< New pair inserted successfully
-  DUPLICATE  ///< Insert did not succeed, key is already present
-};
-
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs with unique keys.
@@ -57,7 +50,9 @@ enum class insert_result {
  * concurrent insert and find) from threads in device code.
  *
  * Current limitations:
- * - Requires keys that are Arithmetic
+ * - Requires keys and values that are trivially copyable and have unique object representations
+ * - Comparisons against the "sentinel" values will always be done with bitwise comparisons
+ * Therefore, the objects must have unique, bitwise object representations (e.g., no padding bits).
  * - Does not support erasing keys
  * - Capacity is fixed and will not grow automatically
  * - Requires the user to specify sentinel values for both key and mapped value
@@ -121,7 +116,14 @@ template <typename Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_multimap {
-  static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
+  template <typename T>
+  static constexpr bool is_CAS_safe =
+    std::is_trivially_copyable_v<T>and std::has_unique_object_representations_v<T>;
+
+  static_assert(is_CAS_safe<Key>,
+                "Key type must be trivially copyable and have unique object representation.");
+  static_assert(is_CAS_safe<Value>,
+                "Value type must be trivially copyable and have unique object representation.");
 
  public:
   using value_type         = cuco::pair_type<Key, Value>;
@@ -656,135 +658,11 @@ class static_multimap {
      */
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>,
-              typename U        = Key,
-              typename std::enable_if<sizeof(U) == 4>::type* = nullptr>
+              typename KeyEqual = thrust::equal_to<key_type>>
     __device__ void insert(CG g,
                            value_type const& insert_pair,
                            Hash hash          = Hash{},
-                           KeyEqual key_equal = KeyEqual{})
-    {
-      auto current_slot = initial_slot(g, insert_pair.first, hash);
-      while (true) {
-        // key_type const existing_key = current_slot->first.load(cuda::memory_order_relaxed);
-        auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-        pair<Key, Value> arr[2];
-        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-        // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
-        // the sentinel is not a valid key value. Therefore, first check for the sentinel
-        auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
-        auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
-        // auto const slot_is_empty         = (existing_key == this->get_empty_key_sentinel());
-        auto const window_contains_empty = g.ballot(first_slot_is_empty or second_slot_is_empty);
-        if (window_contains_empty) {
-          // the first lane in the group with an empty slot will attempt the insert
-          insert_result status{insert_result::CONTINUE};
-          uint32_t src_lane = __ffs(window_contains_empty) - 1;
-          if (g.thread_rank() == src_lane) {
-            using cuda::std::memory_order_relaxed;
-            auto expected_key    = this->get_empty_key_sentinel();
-            auto expected_value  = this->get_empty_value_sentinel();
-            auto insert_location = current_slot + !(first_slot_is_empty);
-            auto& slot_key       = insert_location->first;
-            auto& slot_value     = insert_location->second;
-            bool key_success     = slot_key.compare_exchange_strong(
-              expected_key, insert_pair.first, memory_order_relaxed);
-            bool value_success = slot_value.compare_exchange_strong(
-              expected_value, insert_pair.second, memory_order_relaxed);
-            if (key_success) {
-              while (not value_success) {
-                value_success = slot_value.compare_exchange_strong(
-                  expected_value = this->get_empty_value_sentinel(),
-                  insert_pair.second,
-                  memory_order_relaxed);
-              }
-              status = insert_result::SUCCESS;
-            } else if (value_success) {
-              slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
-            }
-            // another key was inserted in both slots we wanted to try
-            // so we need to try the next empty slots in the window
-          }
-
-          // successful insert
-          if (g.any(status == insert_result::SUCCESS)) { return; }
-          // if we've gotten this far, a different key took our spot
-          // before we could insert. We need to retry the insert on the
-          // same window
-        }
-        // if there are no empty slots in the current window,
-        // we move onto the next window
-        else {
-          current_slot = next_slot(g, current_slot);
-        }
-      }
-    }
-
-    template <typename CG,
-              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>,
-              typename U        = Key,
-              typename std::enable_if<sizeof(U) == 8>::type* = nullptr>
-    __device__ void insert(CG g,
-                           value_type const& insert_pair,
-                           Hash hash          = Hash{},
-                           KeyEqual key_equal = KeyEqual{})
-    {
-      auto current_slot = initial_slot(g, insert_pair.first, hash);
-      while (true) {
-        // key_type const existing_key = current_slot->first.load(cuda::memory_order_relaxed);
-        auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
-        pair<Key, Value> arr[2];
-        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-        // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
-        // the sentinel is not a valid key value. Therefore, first check for the sentinel
-        auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
-        auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
-        // auto const slot_is_empty         = (existing_key == this->get_empty_key_sentinel());
-        auto const window_contains_empty = g.ballot(first_slot_is_empty or second_slot_is_empty);
-        if (window_contains_empty) {
-          // the first lane in the group with an empty slot will attempt the insert
-          insert_result status{insert_result::CONTINUE};
-          uint32_t src_lane = __ffs(window_contains_empty) - 1;
-          if (g.thread_rank() == src_lane) {
-            using cuda::std::memory_order_relaxed;
-            auto expected_key    = this->get_empty_key_sentinel();
-            auto expected_value  = this->get_empty_value_sentinel();
-            auto insert_location = current_slot + !(first_slot_is_empty);
-            auto& slot_key       = insert_location->first;
-            auto& slot_value     = insert_location->second;
-            bool key_success     = slot_key.compare_exchange_strong(
-              expected_key, insert_pair.first, memory_order_relaxed);
-            bool value_success = slot_value.compare_exchange_strong(
-              expected_value, insert_pair.second, memory_order_relaxed);
-            if (key_success) {
-              while (not value_success) {
-                value_success = slot_value.compare_exchange_strong(
-                  expected_value = this->get_empty_value_sentinel(),
-                  insert_pair.second,
-                  memory_order_relaxed);
-              }
-              status = insert_result::SUCCESS;
-            } else if (value_success) {
-              slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
-            }
-            // another key was inserted in both slots we wanted to try
-            // so we need to try the next empty slots in the window
-          }
-
-          // successful insert
-          if (g.any(status == insert_result::SUCCESS)) { return; }
-          // if we've gotten this far, a different key took our spot
-          // before we could insert. We need to retry the insert on the
-          // same window
-        }
-        // if there are no empty slots in the current window,
-        // we move onto the next window
-        else {
-          current_slot = next_slot(g, current_slot);
-        }
-      }
-    }
+                           KeyEqual key_equal = KeyEqual{}) noexcept;
 
   };  // class device mutable view
 
@@ -803,76 +681,6 @@ class static_multimap {
     using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
-
-    template <typename DataType>
-    struct FancyIterator {
-     public:
-      using data_type      = DataType;
-      using pointer_type   = DataType*;
-      using data_reference = DataType&;
-
-     public:
-      __host__ __device__ FancyIterator(pointer_type current, Key key, device_view& view) noexcept
-        : current_{current},
-          key_{key},
-          begin_{view.begin_slot()},
-          end_{view.end_slot()},
-          empty_key_sentinel_{view.get_empty_key_sentinel()}
-      {
-      }
-
-      __host__ __device__ FancyIterator(pointer_type current,
-                                        Key key,
-                                        const device_view& view) noexcept
-        : current_{current},
-          key_{key},
-          begin_{view.begin_slot()},
-          end_{view.end_slot()},
-          empty_key_sentinel_{view.get_empty_key_sentinel()}
-      {
-      }
-
-      __host__ __device__ ~FancyIterator() {}
-
-      __device__ FancyIterator<data_type>& operator++()
-      {
-        current_ = next_slot(current_);
-        while (current_->first != key_) {
-          if (current_->first == this->empty_key_sentinel_) {
-            current_ = this->end_;
-            return *this;
-          }
-          current_ = next_slot(current_);
-        }
-        return *this;
-      }
-
-      __device__ pointer_type next_slot(pointer_type it) noexcept
-      {
-        return (++it < end_) ? it : begin_;
-      }
-      __device__ pointer_type next_slot(pointer_type it) const noexcept
-      {
-        return (++it < end_) ? it : begin_;
-      }
-
-      __device__ bool operator==(const pointer_type& it) const { return (this->current_ == it); }
-      __device__ bool operator!=(const pointer_type& it) const { return this->current_ != it; }
-
-      __device__ data_reference operator*() { return *current_; }
-      __device__ data_reference operator*() const { return *current_; }
-      __device__ pointer_type operator->() { return current_; }
-      __device__ pointer_type operator->() const { return current_; }
-
-     private:
-      pointer_type current_;
-      Key key_;
-      pointer_type begin_;
-      pointer_type end_;
-      Key empty_key_sentinel_;
-    };
-    using fancy_iterator       = FancyIterator<pair_atomic_type>;
-    using const_fancy_iterator = FancyIterator<const pair_atomic_type>;
 
     /**
      * @brief Construct a view of the first `capacity` slots of the
@@ -1058,102 +866,6 @@ class static_multimap {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ const_iterator
     find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
-
-    /**
-     * @brief Finds all values corresponding to the key `k`.
-     *
-     * Returns a fancy iterator to the first pair whose key is equivalent to `k`.
-     * If no such pair exists, returns `end()`.
-     *
-     * @tparam Hash Unary callable type
-     * @tparam KeyEqual Binary callable type
-     * @param k The key to search for
-     * @param hash The unary callable used to hash the key
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return A fancy iterator to the position at which the first key/value pair
-     * containing `k` was inserted
-     */
-    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ fancy_iterator find_all(Key const& k,
-                                       Hash hash          = Hash{},
-                                       KeyEqual key_equal = KeyEqual{}) noexcept;
-
-    /**
-     * @brief Finds all values corresponding to the key `k`.
-     *
-     * Returns a const fancy iterator to the first pair whose key is equivalent to `k`.
-     * If no such pair exists, returns `end()`.
-     *
-     * @tparam Hash Unary callable type
-     * @tparam KeyEqual Binary callable type
-     * @param k The key to search for
-     * @param hash The unary callable used to hash the key
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return A const fancy iterator to the position at which the first key/value pair
-     * containing `k` was inserted
-     */
-    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ const_fancy_iterator find_all(Key const& k,
-                                             Hash hash          = Hash{},
-                                             KeyEqual key_equal = KeyEqual{}) const noexcept;
-
-    /**
-     * @brief Finds all values corresponding to the key `k`.
-     *
-     * Returns a fancy iterator to the first pair whose key is equivalent to `k`.
-     * If no such pair exists, returns `end()`. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single find. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `find_all` at moderate to high load factors.
-     *
-     * @tparam CG Cooperative Group type
-     * @tparam Hash Unary callable type
-     * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to perform the find
-     * @param k The key to search for
-     * @param hash The unary callable used to hash the key
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return A fancy iterator to the position at which the first key/value pair
-     * containing `k` was inserted
-     */
-    template <typename CG,
-              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ fancy_iterator
-    find_all(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
-
-    /**
-     * @brief Finds all values corresponding to the key `k`.
-     *
-     * Returns a const_iterator to the first pair whose key is equivalent to `k`.
-     * If no such pair exists, returns `end()`. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single find. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `find_all` at moderate to high load factors.
-     *
-     * @tparam CG Cooperative Group type
-     * @tparam Hash Unary callable type
-     * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to perform the find
-     * @param k The key to search for
-     * @param hash The unary callable used to hash the key
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return A const fancy iterator to the position at which the first key/value pair
-     * containing `k` was inserted
-     */
-    template <typename CG,
-              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ const_fancy_iterator find_all(CG g,
-                                             Key const& k,
-                                             Hash hash          = Hash{},
-                                             KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.

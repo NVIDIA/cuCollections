@@ -87,67 +87,6 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
-                       "",
-                       ((typename T, dist_type Dist), T, Dist),
-                       (int32_t, dist_type::UNIQUE),
-                       (int64_t, dist_type::UNIQUE),
-                       (int32_t, dist_type::UNIFORM),
-                       (int64_t, dist_type::UNIFORM),
-                       (int32_t, dist_type::GAUSSIAN),
-                       (int64_t, dist_type::GAUSSIAN))
-{
-  using Key   = T;
-  using Value = T;
-
-  constexpr std::size_t num_keys{50'000'000};
-  cuco::static_multimap<Key, Value> map{100'000'000, -1, -1};
-
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
-
-  std::vector<Key> h_keys(num_keys);
-  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
-
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
-
-  for (auto i = 0; i < num_keys; ++i) {
-    Key key           = h_keys[i];
-    Value val         = h_keys[i];
-    h_pairs[i].first  = key;
-    h_pairs[i].second = val;
-  }
-
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
-
-  SECTION("All keys should be found.")
-  {
-    // Bulk insert keys
-    thrust::for_each(thrust::device,
-                     d_pairs.begin(),
-                     d_pairs.end(),
-                     [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                       m_view.insert(pair);
-                     });
-
-    SECTION("non-const view")
-    {
-      REQUIRE(all_of(d_pairs.begin(),
-                     d_pairs.end(),
-                     [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                       return view.find_all(pair.first) != view.end();
-                     }));
-    }
-    SECTION("const view")
-    {
-      REQUIRE(all_of(
-        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
-          return view.find_all(pair.first) != view.end();
-        }));
-    }
-  }
-}
-
 TEMPLATE_TEST_CASE_SIG("Each key appears twice",
                        "",
                        ((typename T, dist_type Dist), T, Dist),

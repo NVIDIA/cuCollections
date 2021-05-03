@@ -92,13 +92,9 @@ void launch_nvbench_insert(nvbench::state& state,
  *
  */
 template <typename Key, typename Value>
-void nvbench_static_multimap_insert(nvbench::state& state, nvbench::type_list<Key, Value>)
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_insert(
+  nvbench::state& state, nvbench::type_list<Key, Value>)
 {
-  if (not std::is_same<Key, Value>::value) {
-    state.skip("Key should be the same type as Value.");
-    return;
-  }
-
   std::size_t const num_keys = state.get_int64("NumInputs");
   auto const occupancy       = state.get_float64("Occupancy");
   std::size_t const num_reps = state.get_int64("NumReps");
@@ -114,6 +110,13 @@ void nvbench_static_multimap_insert(nvbench::state& state, nvbench::type_list<Ke
   launch_nvbench_insert<Key, Value, cg_size>(state, h_keys, num_keys, size);
 }
 
+template <typename Key, typename Value>
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_insert(
+  nvbench::state& state, nvbench::type_list<Key, Value>)
+{
+  state.skip("Key should be the same type as Value.");
+}
+
 /**
  * @brief A benchmark evaluating multi-value insertion performance by varing number of repetitions
  * per key and CUDA CG size:
@@ -124,14 +127,9 @@ void nvbench_static_multimap_insert(nvbench::state& state, nvbench::type_list<Ke
  *
  */
 template <typename Key, typename Value, nvbench::int32_t CGSize>
-void nvbench_static_multimap_insert_cgsize(
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_insert_cgsize(
   nvbench::state& state, nvbench::type_list<Key, Value, nvbench::enum_type<CGSize>>)
 {
-  if (not std::is_same<Key, Value>::value) {
-    state.skip("Key should be the same type as Value.");
-    return;
-  }
-
   std::size_t const num_keys = state.get_int64("NumInputs");
   auto const occupancy       = state.get_float64("Occupancy");
   std::size_t const num_reps = state.get_int64("NumReps");
@@ -146,6 +144,13 @@ void nvbench_static_multimap_insert_cgsize(
   launch_nvbench_insert<Key, Value, CGSize>(state, h_keys, num_keys, size);
 }
 
+template <typename Key, typename Value, nvbench::int32_t CGSize>
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_insert_cgsize(
+  nvbench::state& state, nvbench::type_list<Key, Value, nvbench::enum_type<CGSize>>)
+{
+  state.skip("Key should be the same type as Value.");
+}
+
 /**
  * @brief A benchmark evaluating multi-value count performance by varing number of repetitions
  * per key:
@@ -156,13 +161,9 @@ void nvbench_static_multimap_insert_cgsize(
  *
  */
 template <typename Key, typename Value>
-void nvbench_static_multimap_count(nvbench::state& state, nvbench::type_list<Key, Value>)
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_count(
+  nvbench::state& state, nvbench::type_list<Key, Value>)
 {
-  if (not std::is_same<Key, Value>::value) {
-    state.skip("Key should be the same type as Value.");
-    return;
-  }
-
   std::size_t const num_keys = state.get_int64("NumInputs");
   auto const occupancy       = state.get_float64("Occupancy");
   std::size_t const num_reps = state.get_int64("NumReps");
@@ -204,6 +205,13 @@ void nvbench_static_multimap_count(nvbench::state& state, nvbench::type_list<Key
       auto count = map.count(d_unique_keys.begin(), d_unique_keys.end(), launch.get_stream());
       timer.stop();
     });
+}
+
+template <typename Key, typename Value>
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_count(
+  nvbench::state& state, nvbench::type_list<Key, Value>)
+{
+  state.skip("Key should be the same type as Value.");
 }
 
 /**
@@ -216,13 +224,9 @@ void nvbench_static_multimap_count(nvbench::state& state, nvbench::type_list<Key
  *
  */
 template <typename Key, typename Value>
-void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<Key, Value>)
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_find_all(
+  nvbench::state& state, nvbench::type_list<Key, Value>)
 {
-  if (not std::is_same<Key, Value>::value) {
-    state.skip("Key should be the same type as Value.");
-    return;
-  }
-
   std::size_t const num_keys = state.get_int64("NumInputs");
   auto const occupancy       = state.get_float64("Occupancy");
   std::size_t const num_reps = state.get_int64("NumReps");
@@ -268,6 +272,13 @@ void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<
     });
 }
 
+template <typename Key, typename Value>
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_find_all(
+  nvbench::state& state, nvbench::type_list<Key, Value>)
+{
+  state.skip("Key should be the same type as Value.");
+}
+
 /**
  * @brief A benchmark evaluating multi-value retrieval performance (`count` + `find_all`) by varing
  * number of repetitions per key:
@@ -278,13 +289,9 @@ void nvbench_static_multimap_find_all(nvbench::state& state, nvbench::type_list<
  *
  */
 template <typename Key, typename Value>
-void nvbench_static_multimap_retrieve(nvbench::state& state, nvbench::type_list<Key, Value>)
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_retrieve(
+  nvbench::state& state, nvbench::type_list<Key, Value>)
 {
-  if (not std::is_same<Key, Value>::value) {
-    state.skip("Key should be the same type as Value.");
-    return;
-  }
-
   std::size_t const num_keys = state.get_int64("NumInputs");
   auto const occupancy       = state.get_float64("Occupancy");
   std::size_t const num_reps = state.get_int64("NumReps");
@@ -329,6 +336,13 @@ void nvbench_static_multimap_retrieve(nvbench::state& state, nvbench::type_list<
         d_unique_keys.begin(), d_unique_keys.end(), d_results.data().get(), launch.get_stream());
       timer.stop();
     });
+}
+
+template <typename Key, typename Value>
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_retrieve(
+  nvbench::state& state, nvbench::type_list<Key, Value>)
+{
+  state.skip("Key should be the same type as Value.");
 }
 
 using key_type   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;

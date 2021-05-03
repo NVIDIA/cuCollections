@@ -55,7 +55,7 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  *
  * Each space in `slots` that can hold a key value pair is initialized to a
  * `pair_atomic_type` containing the key `k` and the value `v`.
- * 
+ *
  * @tparam atomic_key_type Type of the `Key` atomic container
  * @tparam atomic_mapped_type Type of the `Value` atomic container
  * @tparam Key key type
@@ -418,5 +418,5 @@ __global__ void contains(
   }
 }
 
-} // namespace detail
-} // namespace cuco
+}  // namespace detail
+}  // namespace cuco
