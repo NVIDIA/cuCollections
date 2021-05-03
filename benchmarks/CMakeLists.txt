@@ -21,15 +21,7 @@ CPMAddPackage(
   GIT_SHALLOW TRUE
 )
 
-if (benchmark_ADDED)
-  # patch google benchmark target
-  set_target_properties(benchmark PROPERTIES CXX_STANDARD 14)
-endif()
-
-if (nvbench_ADDED)
-  # nvbench requires c++17
-  set_target_properties(nvbench PROPERTIES CXX_STANDARD 17)
-endif()
+set_target_properties(benchmark PROPERTIES CXX_STANDARD 17)
 
 ###################################################################################################
 # Auto-detect available GPU compute architectures
