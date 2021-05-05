@@ -27,4 +27,4 @@ endfunction(ConfigureExample)
 ### Example sources ##################################################################################
 ###################################################################################################
 
-ConfigureExample(STATIC_MAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_example.cu")
+ConfigureExample(HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/host_bulk_example.cu")
