@@ -28,3 +28,5 @@ endfunction(ConfigureExample)
 ###################################################################################################
 
 ConfigureExample(HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/host_bulk_example.cu")
+
+ConfigureExample(DEVICE_SIDE_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/device_side_example.cu")
