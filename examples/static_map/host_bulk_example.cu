@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+
 #include <limits>
 #include <iostream>
 
@@ -24,6 +25,15 @@
 #include <thrust/iterator/zip_iterator.h>
 
 #include <cuco/static_map.cuh>
+
+/**
+ * @file host_bulk_example.cu
+ * @brief Demonstrates usage of the static_map "bulk" host APIs.
+ *
+ * The bulk APIs are only invocable from the host and are used for doing operations like insert or
+ * find on a set of keys.
+ *
+ */
 
 int main(void)
 {
