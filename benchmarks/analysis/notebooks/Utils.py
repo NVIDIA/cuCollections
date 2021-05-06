@@ -28,10 +28,11 @@ def plot_perf(bm, df, xaxis, unique_labels, is_multivalue = False, is_singletype
     if is_multivalue:
         lnum = list(df[xaxis])
         
-        for item in lax:
-            item.set_xscale('log')
-            item.set_xticks(lnum)
-            item.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        if xaxis == 'NumReps':
+            for item in lax:
+                item.set_xscale('log')
+                item.set_xticks(lnum)
+                item.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
         
     if not is_singletype:
         num_style = len(df["Distribution"].unique())
