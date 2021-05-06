@@ -405,6 +405,7 @@ NVBENCH_BENCH_TYPES(nvbench_static_multimap_retrieve, NVBENCH_TYPE_AXES(key_type
   .add_int64_power_of_two_axis("NumReps", nvbench::range(0, 8, 1));
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_count_analysis, NVBENCH_TYPE_AXES(key_type, value_type))
+  .set_name("count_varying_matching_rate")
   .set_type_axes_names({"Key", "Value"})
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
@@ -414,6 +415,7 @@ NVBENCH_BENCH_TYPES(nvbench_static_multimap_count_analysis, NVBENCH_TYPE_AXES(ke
   .add_int64_power_of_two_axis("NumReps", {3});
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_count_analysis, NVBENCH_TYPE_AXES(key_type, value_type))
+  .set_name("count_varying_num_reps")
   .set_type_axes_names({"Key", "Value"})
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
