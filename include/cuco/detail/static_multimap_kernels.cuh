@@ -37,63 +37,19 @@ namespace cg = cooperative_groups;
  * @param num_items Size of the output sequence
  * @param output_begin Beginning of the output sequence of key/value pairs
  */
-template <uint32_t cg_size,
-          typename CG,
-          typename Key,
-          typename Value,
-          typename atomicT,
-          typename OutputIt>
-__inline__ __device__ std::enable_if_t<thrust::is_contiguous_iterator<OutputIt>::value, void>
-flush_output_buffer(CG const& g,
-                    uint32_t const num_outputs,
-                    cuco::pair_type<Key, Value>* output_buffer,
-                    atomicT* num_items,
-                    OutputIt output_begin)
+template <uint32_t block_size, typename Key, typename Value, typename atomicT, typename OutputIt>
+__inline__ __device__ void flush_output_buffer(uint32_t const num_outputs,
+                                               cuco::pair_type<Key, Value>* output_buffer,
+                                               atomicT* num_items,
+                                               OutputIt output_begin)
 {
-  std::size_t offset;
-  const auto lane_id = g.thread_rank();
-  if (0 == lane_id) { offset = num_items->fetch_add(num_outputs, cuda::std::memory_order_relaxed); }
-  offset = g.shfl(offset, 0);
+  __shared__ std::size_t offset;
+  if (0 == threadIdx.x) {
+    offset = num_items->fetch_add(num_outputs, cuda::std::memory_order_relaxed);
+  }
+  __syncthreads();
 
-  cg::memcpy_async(g,
-                   output_begin + offset,
-                   output_buffer,
-                   cuda::aligned_size_t<alignof(cuco::pair_type<Key, Value>)>(
-                     sizeof(cuco::pair_type<Key, Value>) * num_outputs));
-}
-
-/**
- * @brief Flushes shared memory buffer into the output sequence.
- *
- * @tparam Key key type
- * @tparam Value value type
- * @tparam atomicT Type of atomic storage
- * @tparam OutputIt Device accessible output iterator whose `value_type` is
- * convertible to the map's `mapped_type`
- * @param output_size Number of valid output in the buffer
- * @param output_buffer Shared memory buffer of the key/value pair sequence
- * @param num_items Size of the output sequence
- * @param output_begin Beginning of the output sequence of key/value pairs
- */
-template <uint32_t cg_size,
-          typename CG,
-          typename Key,
-          typename Value,
-          typename atomicT,
-          typename OutputIt>
-__inline__ __device__ std::enable_if_t<not thrust::is_contiguous_iterator<OutputIt>::value, void>
-flush_output_buffer(CG const& g,
-                    uint32_t const num_outputs,
-                    cuco::pair_type<Key, Value>* output_buffer,
-                    atomicT* num_items,
-                    OutputIt output_begin)
-{
-  std::size_t offset;
-  const auto lane_id = g.thread_rank();
-  if (0 == lane_id) { offset = num_items->fetch_add(num_outputs, cuda::std::memory_order_relaxed); }
-  offset = g.shfl(offset, 0);
-
-  for (auto index = lane_id; index < num_outputs; index += cg_size) {
+  for (auto index = threadIdx.x; index < num_outputs; index += block_size) {
     *(output_begin + offset + index) = output_buffer[index];
   }
 }
@@ -592,7 +548,7 @@ __global__ void find_all(InputIt first,
                          KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto tid     = block_size * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
 
   const uint32_t lane_id = tile.thread_rank();
@@ -610,73 +566,74 @@ __global__ void find_all(InputIt first,
     bool found_match = false;
 
     while (__syncthreads_or(running)) {
-      pair<Key, Value> arr[2];
-      if constexpr (sizeof(Key) == 4) {
-        auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-      } else {
-        auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
-        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-      }
-
-      auto const first_slot_is_empty  = (arr[0].first == view.get_empty_key_sentinel());
-      auto const second_slot_is_empty = (arr[1].first == view.get_empty_key_sentinel());
-      auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, key));
-      auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, key));
-      auto const first_exists         = tile.ballot(first_equals);
-      auto const second_exists        = tile.ballot(second_equals);
-
-      if (first_exists or second_exists) {
-        found_match = true;
-
-        auto num_first_matches  = __popc(first_exists);
-        auto num_second_matches = __popc(second_exists);
-
-        uint32_t output_idx;
-        if (0 == lane_id) {
-          output_idx = atomicAdd_block(&block_counter, (num_first_matches + num_second_matches));
+      if (running) {
+        pair<Key, Value> arr[2];
+        if constexpr (sizeof(Key) == 4) {
+          auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
+          memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+        } else {
+          auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
+          memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
         }
-        output_idx = tile.shfl(output_idx, 0);
 
-        if (first_equals) {
-          auto lane_offset = __popc(first_exists & ((1 << lane_id) - 1));
-          Key k            = key;
-          output_buffer[output_idx + lane_offset] =
-            cuco::make_pair<Key, Value>(std::move(k), std::move(arr[0].second));
+        auto const first_slot_is_empty  = (arr[0].first == view.get_empty_key_sentinel());
+        auto const second_slot_is_empty = (arr[1].first == view.get_empty_key_sentinel());
+        auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, key));
+        auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, key));
+        auto const first_exists  = tile.ballot(first_equals);
+        auto const second_exists = tile.ballot(second_equals);
+
+        if (first_exists or second_exists) {
+          found_match = true;
+
+          auto num_first_matches  = __popc(first_exists);
+          auto num_second_matches = __popc(second_exists);
+
+          uint32_t output_idx;
+          if (0 == lane_id) {
+            output_idx = atomicAdd_block(&block_counter, (num_first_matches + num_second_matches));
+          }
+          output_idx = tile.shfl(output_idx, 0);
+
+          if (first_equals) {
+            auto lane_offset = __popc(first_exists & ((1 << lane_id) - 1));
+            Key k            = key;
+            output_buffer[output_idx + lane_offset] =
+              cuco::make_pair<Key, Value>(std::move(k), std::move(arr[0].second));
+          }
+          if (second_equals) {
+            auto lane_offset = __popc(second_exists & ((1 << lane_id) - 1));
+            Key k            = key;
+            output_buffer[output_idx + num_first_matches + lane_offset] =
+              cuco::make_pair<Key, Value>(std::move(k), std::move(arr[1].second));
+          }
         }
-        if (second_equals) {
-          auto lane_offset = __popc(second_exists & ((1 << lane_id) - 1));
-          Key k            = key;
-          output_buffer[output_idx + num_first_matches + lane_offset] =
-            cuco::make_pair<Key, Value>(std::move(k), std::move(arr[1].second));
+        if (tile.any(first_slot_is_empty or second_slot_is_empty)) {
+          running = false;
+          if ((not found_match) && (lane_id == 0)) {
+            auto output_idx = atomicAdd_block(&block_counter, 1);
+            output_buffer[output_idx] =
+              cuco::make_pair<Key, Value>(key, view.get_empty_key_sentinel());
+          }
         }
-      }
-      if (tile.any(first_slot_is_empty or second_slot_is_empty)) {
-        running = false;
-        if ((not found_match) && (lane_id == 0)) {
-          auto output_idx = atomicAdd_block(&block_counter, 1);
-          output_buffer[output_idx] =
-            cuco::make_pair<Key, Value>(key, view.get_empty_key_sentinel());
-        }
-      }
+      }  // if running
 
       __syncthreads();
-      __shared__ uint32_t block_offset;
-      if (0 == threadIdx.x) {
-        block_offset = num_items->fetch_add(block_counter, cuda::std::memory_order_relaxed);
-      }
-      __syncthreads();
 
-      if (threadIdx.x < block_counter) {
-        *(output_begin + block_offset) = output_buffer[threadIdx.x];
-      }
-      __syncthreads();
+      if ((block_counter + 2 * block_size) > buffer_size) {
+        flush_output_buffer<block_size>(block_counter, output_buffer, num_items, output_begin);
 
-      if (0 == threadIdx.x) { block_counter = 0; }
+        if (0 == threadIdx.x) { block_counter = 0; }
+      }
 
       current_slot = view.next_slot(tile, current_slot);
     }  // while running
-    key_idx += (gridDim.x * blockDim.x) / tile_size;
+    key_idx += (gridDim.x * block_size) / tile_size;
+  }
+
+  // Final remainder flush
+  if (block_counter > 0) {
+    flush_output_buffer<block_size>(block_counter, output_buffer, num_items, output_begin);
   }
 }
 
@@ -761,10 +718,9 @@ __global__ void count(
   auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
 
-  using BlockReduce = cub::BlockReduce<int, block_size>;
+  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
-
-  int thread_counter{0};
+  std::size_t thread_num_items = 0;
 
   while (first + key_idx < last) {
     auto key          = *(first + key_idx);
@@ -784,7 +740,7 @@ __global__ void count(
       auto const second_slot_is_empty = (arr[1].first == view.get_empty_key_sentinel());
       auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, key));
       auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, key));
-      thread_counter += (first_equals + second_equals);
+      thread_num_items += (first_equals + second_equals);
 
       if (tile.any(first_slot_is_empty or second_slot_is_empty)) { break; }
 
@@ -792,8 +748,11 @@ __global__ void count(
     }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
-  auto const block_count = BlockReduce(temp_storage).Sum(thread_counter);
-  if (threadIdx.x == 0) { num_items->fetch_add(block_count, cuda::std::memory_order_relaxed); }
+
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  std::size_t block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
+  if (threadIdx.x == 0) { *num_items += block_num_items; }
 }
 
 }  // namespace detail

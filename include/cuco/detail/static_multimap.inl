@@ -144,7 +144,7 @@ OutputIt static_multimap<Key, Value, CGSize, Scope, Allocator>::find_all(InputIt
 {
   auto num_keys          = std::distance(first, last);
   auto const block_size  = 128;
-  auto const buffer_size = block_size * 2;
+  auto const buffer_size = block_size * 3;
   auto const stride      = 1;
   auto const grid_size   = (CGSize * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view              = get_device_view();
