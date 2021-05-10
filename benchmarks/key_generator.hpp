@@ -18,8 +18,14 @@
 
 #include <limits>
 #include <random>
+#include <unordered_map>
 
 enum class dist_type { GEOMETRIC, GAUSSIAN, UNIFORM };
+
+static std::unordered_map<std::string, dist_type> const dist_map = {
+  {"GAUSSIAN", dist_type::GAUSSIAN},
+  {"GEOMETRIC", dist_type::GEOMETRIC},
+  {"UNIFORM", dist_type::UNIFORM}};
 
 template <dist_type Dist, std::size_t Multiplicity, typename Key, typename OutputIt>
 static void generate_keys(OutputIt output_begin, OutputIt output_end)
