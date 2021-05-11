@@ -30,7 +30,7 @@ NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
   // Used when context is available to figure out the enum type.
   [](dist_type d) {
     switch (d) {
-      case dist_type::GAUSSIAN: return "GAUSSIAN";
+      case dist_type::BINOMIAL: return "BINOMIAL";
       case dist_type::GEOMETRIC: return "GEOMETRIC";
       case dist_type::UNIFORM: return "UNIFORM";
       default: return "ERROR";
@@ -60,9 +60,10 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_i
   auto const cg_size     = 8;
 
   std::vector<Key> h_keys(num_keys);
+  std::vector<Key> unique_keys;
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
 
-  generate_keys<Dist, Multiplicity, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Dist, Multiplicity, Key>(unique_keys, h_keys.begin(), h_keys.end());
 
   for (auto i = 0; i < num_keys; ++i) {
     Key key           = h_keys[i];
@@ -112,9 +113,10 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_c
   auto const cg_size     = 8;
 
   std::vector<Key> h_keys(num_keys);
+  std::vector<Key> unique_keys;
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
 
-  generate_keys<Dist, Multiplicity, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Dist, Multiplicity, Key>(unique_keys, h_keys.begin(), h_keys.end());
 
   for (auto i = 0; i < num_keys; ++i) {
     Key key           = h_keys[i];
@@ -123,7 +125,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_c
     h_pairs[i].second = val;
   }
 
-  generate_prob_keys<Multiplicity, Key>(h_keys.begin(), h_keys.end(), matching_rate);
+  generate_prob_keys<Multiplicity, Key>(unique_keys, matching_rate, h_keys.begin(), h_keys.end());
 
   thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
@@ -167,9 +169,10 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_f
   auto const cg_size     = 8;
 
   std::vector<Key> h_keys(num_keys);
+  std::vector<Key> unique_keys;
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
 
-  generate_keys<Dist, Multiplicity, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Dist, Multiplicity, Key>(unique_keys, h_keys.begin(), h_keys.end());
 
   for (auto i = 0; i < num_keys; ++i) {
     Key key           = h_keys[i];
@@ -178,7 +181,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_f
     h_pairs[i].second = val;
   }
 
-  generate_prob_keys<Multiplicity, Key>(h_keys.begin(), h_keys.end(), matching_rate);
+  generate_prob_keys<Multiplicity, Key>(unique_keys, matching_rate, h_keys.begin(), h_keys.end());
 
   thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
@@ -220,9 +223,10 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_r
   auto const cg_size     = 8;
 
   std::vector<Key> h_keys(num_keys);
+  std::vector<Key> unique_keys;
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
 
-  generate_keys<Dist, Multiplicity, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Dist, Multiplicity, Key>(unique_keys, h_keys.begin(), h_keys.end());
 
   for (auto i = 0; i < num_keys; ++i) {
     Key key           = h_keys[i];
@@ -231,7 +235,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_r
     h_pairs[i].second = val;
   }
 
-  generate_prob_keys<Multiplicity, Key>(h_keys.begin(), h_keys.end(), matching_rate);
+  generate_prob_keys<Multiplicity, Key>(unique_keys, matching_rate, h_keys.begin(), h_keys.end());
 
   thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
@@ -270,7 +274,7 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_r
 using key_type   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using value_type = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using d_type =
-  nvbench::enum_type_list<dist_type::GAUSSIAN, dist_type::GEOMETRIC, dist_type::UNIFORM>;
+  nvbench::enum_type_list<dist_type::BINOMIAL, dist_type::GEOMETRIC, dist_type::UNIFORM>;
 
 using multiplicity = nvbench::enum_type_list<1, 2, 4, 8, 16, 32, 64, 128, 256>;
 
