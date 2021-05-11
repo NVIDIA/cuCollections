@@ -62,8 +62,8 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
 }
 
 template <std::size_t Multiplicity, typename Key, typename OutputIt>
-static void generate_prob_keys(OutputIt output_end,
-                               OutputIt output_begin,
+static void generate_prob_keys(OutputIt output_begin,
+                               OutputIt output_end,
                                double const matching_rate)
 {
   auto const num_keys = std::distance(output_begin, output_end);
