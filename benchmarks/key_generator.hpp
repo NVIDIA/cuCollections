@@ -18,14 +18,8 @@
 
 #include <limits>
 #include <random>
-#include <unordered_map>
 
 enum class dist_type { GEOMETRIC, GAUSSIAN, UNIFORM };
-
-static std::unordered_map<std::string, dist_type> const dist_map = {
-  {"GAUSSIAN", dist_type::GAUSSIAN},
-  {"GEOMETRIC", dist_type::GEOMETRIC},
-  {"UNIFORM", dist_type::UNIFORM}};
 
 template <dist_type Dist, std::size_t Multiplicity, typename Key, typename OutputIt>
 static void generate_keys(OutputIt output_begin, OutputIt output_end)
@@ -64,20 +58,15 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
       }
       break;
     }
-  }
+  }  // switch
 }
 
-template <dist_type Dist,
-          std::size_t Multiplicity,
-          typename Key,
-          typename InputIt,
-          typename OutputIt>
-static void generate_prob_keys(InputIt input_begin,
-                               InputIt input_end,
+template <std::size_t Multiplicity, typename Key, typename OutputIt>
+static void generate_prob_keys(OutputIt output_end,
                                OutputIt output_begin,
                                double const matching_rate)
 {
-  auto const num_keys = std::distance(input_begin, input_end);
+  auto const num_keys = std::distance(output_begin, output_end);
 
   std::random_device rd;
   std::mt19937 gen{rd()};
@@ -85,19 +74,12 @@ static void generate_prob_keys(InputIt input_begin,
   auto const max = std::numeric_limits<Key>::max();
 
   std::uniform_real_distribution<double> rate_dist(0.0, 1.0);
-  std::uniform_int_distribution<std::size_t> idx_dist{0, num_keys - 1};
   std::uniform_int_distribution<Key> non_match_dist{max / Multiplicity, max};
 
   for (auto i = 0; i < num_keys; ++i) {
     auto const tmp_rate = rate_dist(gen);
 
-    // If match, randomly sample from the input keys
-    if (tmp_rate <= matching_rate) {
-      output_begin[i] = input_begin[idx_dist(gen)];
-    }
-    // Otherwise, randomly draw from [Max/Multiplicity, Max]
-    else {
-      output_begin[i] = non_match_dist(gen);
-    }
+    // If non-match, randomly sample from [Max/Multiplicity, Max]
+    if (tmp_rate > matching_rate) { output_begin[i] = non_match_dist(gen); }
   }
 }
