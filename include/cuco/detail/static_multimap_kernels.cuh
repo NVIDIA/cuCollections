@@ -558,15 +558,15 @@ __global__ void find_all(InputIt first,
 
   if (0 == threadIdx.x) { block_counter = 0; }
 
-  while (first + key_idx < last) {
-    auto key          = *(first + key_idx);
-    auto current_slot = view.initial_slot(tile, key, hash);
-
-    bool running     = true;
+  while (__syncthreads_or(first + key_idx < last)) {
+    bool running     = ((first + key_idx) < last);
     bool found_match = false;
 
     while (__syncthreads_or(running)) {
       if (running) {
+        auto key          = *(first + key_idx);
+        auto current_slot = view.initial_slot(tile, key, hash);
+
         pair<Key, Value> arr[2];
         if constexpr (sizeof(Key) == 4) {
           auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
