@@ -559,14 +559,16 @@ __global__ void find_all(InputIt first,
   if (0 == threadIdx.x) { block_counter = 0; }
 
   while (__syncthreads_or(first + key_idx < last)) {
+    auto key = *(first + key_idx);
+    typename viewT::iterator current_slot;
+
     bool running     = ((first + key_idx) < last);
     bool found_match = false;
 
+    if (running) { current_slot = view.initial_slot(tile, key, hash); }
+
     while (__syncthreads_or(running)) {
       if (running) {
-        auto key          = *(first + key_idx);
-        auto current_slot = view.initial_slot(tile, key, hash);
-
         pair<Key, Value> arr[2];
         if constexpr (sizeof(Key) == 4) {
           auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
@@ -626,7 +628,7 @@ __global__ void find_all(InputIt first,
         if (0 == threadIdx.x) { block_counter = 0; }
       }
 
-      current_slot = view.next_slot(tile, current_slot);
+      if (running) { current_slot = view.next_slot(tile, current_slot); }
     }  // while running
     key_idx += (gridDim.x * block_size) / tile_size;
   }
