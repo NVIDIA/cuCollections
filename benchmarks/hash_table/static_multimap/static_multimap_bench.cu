@@ -183,13 +183,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_f
   thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
 
-  std::size_t output_size = num_keys * matching_rate * Multiplicity + num_keys;
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(output_size);
-
   state.add_element_count(num_keys, "NumKeys");
 
   cuco::static_multimap<Key, Value, cg_size> map{size, -1, -1};
   map.insert(d_pairs.begin(), d_pairs.end());
+
+  auto num_matches        = map.count(d_keys.begin(), d_keys.end());
+  std::size_t output_size = num_matches + num_keys;
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(output_size);
 
   state.exec(
     nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
@@ -236,13 +237,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_r
   thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
 
-  std::size_t output_size = num_keys * matching_rate * Multiplicity + num_keys;
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(output_size);
-
   state.add_element_count(num_keys, "NumKeys");
 
   cuco::static_multimap<Key, Value, cg_size> map{size, -1, -1};
   map.insert(d_pairs.begin(), d_pairs.end());
+
+  auto num_matches        = map.count(d_keys.begin(), d_keys.end());
+  std::size_t output_size = num_matches + num_keys;
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(output_size);
 
   state.exec(
     nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
@@ -291,7 +293,7 @@ NVBENCH_BENCH_TYPES(nvbench_static_multimap_insert,
   .set_type_axes_names({"Key", "Value", "Distribution", "Multiplicity"})
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", nvbench::range(0.1, 1., 0.1));
+  .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1));
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_count,
                     NVBENCH_TYPE_AXES(key_type,
@@ -313,7 +315,7 @@ NVBENCH_BENCH_TYPES(nvbench_static_multimap_count,
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", nvbench::range(0.1, 1., 0.1))
+  .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1))
   .add_float64_axis("MatchingRate", {0.5});
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_count,
@@ -346,7 +348,7 @@ NVBENCH_BENCH_TYPES(nvbench_static_multimap_find_all,
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", nvbench::range(0.1, 1., 0.1))
+  .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1))
   .add_float64_axis("MatchingRate", {0.5});
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_find_all,
@@ -379,7 +381,7 @@ NVBENCH_BENCH_TYPES(nvbench_static_multimap_retrieve,
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", nvbench::range(0.1, 1., 0.1))
+  .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1))
   .add_float64_axis("MatchingRate", {0.5});
 
 NVBENCH_BENCH_TYPES(nvbench_static_multimap_retrieve,
