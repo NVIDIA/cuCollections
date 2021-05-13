@@ -24,7 +24,6 @@
 #include <memory>
 
 #include <cuco/allocator.hpp>
-#include <cuco/detail/cuda_memcmp.cuh>
 #ifndef CUDART_VERSION
 #error CUDART_VERSION Undefined!
 #elif (CUDART_VERSION >= 11000)  // including with CUDA 10.2 leads to compilation errors
