@@ -717,7 +717,7 @@ __global__ void count(
   InputIt first, InputIt last, atomicT* num_items, viewT view, Hash hash, KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto tid     = block_size * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
 
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
@@ -742,6 +742,7 @@ __global__ void count(
       auto const second_slot_is_empty = (arr[1].first == view.get_empty_key_sentinel());
       auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, key));
       auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, key));
+
       thread_num_items += (first_equals + second_equals);
 
       if (tile.any(first_slot_is_empty or second_slot_is_empty)) { break; }
@@ -754,7 +755,7 @@ __global__ void count(
   // compute number of successfully inserted elements for each block
   // and atomically add to the grand total
   std::size_t block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
-  if (threadIdx.x == 0) { *num_items += block_num_items; }
+  if (threadIdx.x == 0) { num_items->fetch_add(block_num_items, cuda::std::memory_order_relaxed); }
 }
 
 }  // namespace detail
