@@ -68,8 +68,8 @@ struct is_thrust_pair_like_impl : std::false_type {
 
 template <typename T>
 struct is_thrust_pair_like_impl<T,
-                           std::void_t<decltype(thrust::get<0>(std::declval<T>())),
-                                       decltype(thrust::get<1>(std::declval<T>()))>>
+                                std::void_t<decltype(thrust::get<0>(std::declval<T>())),
+                                            decltype(thrust::get<1>(std::declval<T>()))>>
   : std::conditional_t<thrust::tuple_size<T>::value == 2, std::true_type, std::false_type> {
 };
 
@@ -114,10 +114,6 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
   __host__ __device__ constexpr pair(T const& t)
     : pair{thrust::get<0>(thrust::raw_reference_cast(t)),
            thrust::get<1>(thrust::raw_reference_cast(t))}
-  {
-  }
-  __host__ __device__ constexpr pair(First const& f, Second const& s) noexcept
-    : first{f}, second{s}
   {
   }
 };
