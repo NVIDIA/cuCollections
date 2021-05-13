@@ -47,8 +47,9 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
       break;
     }
     case dist_type::GEOMETRIC: {
-      auto const max   = std::numeric_limits<Key>::max();
+      auto const max   = std::numeric_limits<int32_t>::max();
       auto const coeff = static_cast<double>(num_keys) / static_cast<double>(max);
+      // Random sampling in range [0, INT32_MAX]
       std::geometric_distribution<Key> distribution{1e-9};
 
       for (auto i = 0; i < num_keys; ++i) {
