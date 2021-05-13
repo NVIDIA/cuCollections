@@ -28,3 +28,5 @@ endfunction(ConfigureExample)
 ###################################################################################################
 
 ConfigureExample(STATIC_MAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_example.cu")
+
+ConfigureExample(STATIC_REDUCTION_MAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_reduction_map.cu")
