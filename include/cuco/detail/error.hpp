@@ -79,4 +79,4 @@ struct cuda_error : public std::runtime_error {
   do {                                 \
     cudaError_t const status = (expr); \
     assert(cudaSuccess == status);     \
-  } while (0);
+  } while (0)
