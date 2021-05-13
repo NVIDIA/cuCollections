@@ -398,12 +398,11 @@ class static_multimap {
     template <typename CG, typename Hash>
     __device__ iterator initial_slot(CG g, Key const& k, Hash hash) noexcept
     {
-      auto const cg_size    = g.size();
-      step_size_            = (hash(k + 1) % (capacity_ / (cg_size * 2) - 1) + 1) * cg_size * 2;
-      auto const h          = hash(k);
-      auto const slot_index = h % (capacity_ / (cg_size * 2)) * cg_size * 2 + g.thread_rank() * 2;
-      auto const p          = begin_slot() + slot_index;
-      return p;
+      auto const cg_size = g.size();
+      step_size_         = (hash(k + 1) % (capacity_ / (cg_size * 2) - 1) + 1) * cg_size * 2;
+      auto const slot_index =
+        hash(k) % (capacity_ / (cg_size * 2)) * cg_size * 2 + g.thread_rank() * 2;
+      return begin_slot() + slot_index;
     }
 
     /**
@@ -421,12 +420,11 @@ class static_multimap {
     template <typename CG, typename Hash>
     __device__ const_iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
     {
-      auto const cg_size    = g.size();
-      step_size_            = (hash(k + 1) % (capacity_ / (cg_size * 2) - 1) + 1) * cg_size * 2;
-      auto const h          = hash(k);
-      auto const slot_index = h % (capacity_ / (cg_size * 2)) * cg_size * 2 + g.thread_rank() * 2;
-      auto const p          = begin_slot() + slot_index;
-      return p;
+      auto const cg_size = g.size();
+      step_size_         = (hash(k + 1) % (capacity_ / (cg_size * 2) - 1) + 1) * cg_size * 2;
+      auto const slot_index =
+        hash(k) % (capacity_ / (cg_size * 2)) * cg_size * 2 + g.thread_rank() * 2;
+      return begin_slot() + slot_index;
     }
 
     /**
