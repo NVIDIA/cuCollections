@@ -972,6 +972,19 @@ class static_reduction_map {
   }
 
  private:
+  /// Unsafe access to the slots stripping away their atomic-ness to allow non-atomic access. This
+  /// is a temporary solution until we have atomic_ref
+  value_type* raw_slots_begin() noexcept { return reinterpret_cast<value_type*>(slots_); }
+
+  value_type const* raw_slots_begin() const noexcept
+  {
+    return reinterpret_cast<value_type const*>(slots_);
+  }
+
+  value_type* raw_slots_end() noexcept { return raw_slots_begin() + get_capacity(); }
+
+  value_type const* raw_slots_end() const noexcept { return raw_slots_begin() + get_capacity(); }
+
   pair_atomic_type* slots_{nullptr};      ///< Pointer to flat slots storage
   std::size_t capacity_{};                ///< Total number of slots
   std::size_t size_{};                    ///< Number of keys in map
