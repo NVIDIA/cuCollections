@@ -112,6 +112,45 @@ void static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::find(
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
 
+namespace detail {
+template <typename Key, typename Value>
+struct slot_to_tuple {
+  template <typename S>
+  __device__ thrust::tuple<Key, Value> operator()(S const& s)
+  {
+    return thrust::tuple<Key, Value>(s.first, s.second);
+  }
+};
+
+template <typename Key>
+struct slot_is_filled {
+  Key empty_key_sentinel;
+  template <typename S>
+  __device__ bool operator()(S const& s)
+  {
+    return thrust::get<0>(s) != empty_key_sentinel;
+  }
+};
+}  // namespace detail
+
+template <typename ReductionOp,
+          typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <typename KeyOut, typename ValueOut>
+void static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::retrieve_all(
+  KeyOut keys_out, ValueOut values_out)
+{
+  // Convert pair_type to thrust::tuple to allow assigning to a zip iterator
+  auto begin      = thrust::make_transform_iterator(raw_slots_begin(), detail::slot_to_tuple<Key, Value>{});
+  auto end        = begin + get_capacity();
+  auto filled     = detail::slot_is_filled<Key>{get_empty_key_sentinel()};
+  auto zipped_out = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
+
+  thrust::copy_if(thrust::device, begin, end, zipped_out, filled);
+}
+
 template <typename ReductionOp,
           typename Key,
           typename Value,

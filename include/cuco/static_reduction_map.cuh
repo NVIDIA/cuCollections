@@ -22,6 +22,10 @@
 #include <cub/cub.cuh>
 #include <cuda/std/atomic>
 #include <memory>
+#include <thrust/copy.h>
+#include <thrust/iterator/transform_output_iterator.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/tuple.h>
 
 #include <cuco/allocator.hpp>
 #ifndef CUDART_VERSION
@@ -275,6 +279,25 @@ class static_reduction_map {
             OutputIt output_begin,
             Hash hash          = Hash{},
             KeyEqual key_equal = KeyEqual{}) noexcept;
+
+  /**
+   * @brief Retrieves all of the keys and their associated values.
+   *
+   * The order in which keys are returned is implementation defined and not guaranteed to be
+   * consistent between subsequent calls to `retrieve_all`.
+   *
+   * Behavior is undefined if the range beginning at `keys_out` or `values_out` is not large enough
+   * to contain the number of keys in the map.
+   *
+   * @tparam KeyOut Device accessible random access output iterator whose `value_type` is
+   * convertible from `key_type`.
+   * @tparam ValueOut Device accesible random access output iterator whose `value_type` is
+   * convertible from `mapped_type`.
+   * @param keys_out Beginning output iterator for keys
+   * @param values_out Beginning output iterator for values
+   */
+  template <typename KeyOut, typename ValueOut>
+  void retrieve_all(KeyOut keys_out, ValueOut values_out);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
