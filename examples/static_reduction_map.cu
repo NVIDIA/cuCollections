@@ -45,7 +45,7 @@ int main(void)
   Key const empty_key_sentinel = -1;
 
   // Number of key/value pairs to be inserted
-  std::size_t num_keys = 50'000;
+  std::size_t num_keys = 257;
 
   // Compute capacity based on a 50% load factor
   auto const load_factor     = 0.5;
@@ -64,8 +64,9 @@ int main(void)
                     thrust::make_counting_iterator(insert_keys.size()),
                     insert_keys.begin(),
                     [=] __device__(auto i) {
-                      thrust::default_random_engine rng(i);
-                      thrust::uniform_int_distribution dist{std::size_t{0}, num_keys/2};
+                      thrust::default_random_engine rng;
+                      thrust::uniform_int_distribution dist{0, 10};
+                      rng.discard(i);
                       return dist(rng);
                     });
 
@@ -79,4 +80,12 @@ int main(void)
 
   std::cout << "Num unique keys: " << map.get_size() << std::endl;
 
+  thrust::device_vector<Key> unique_keys(map.get_size());
+  thrust::device_vector<Value> count_per_key(map.get_size());
+
+  map.retrieve_all(unique_keys.begin(), count_per_key.begin());
+
+  for (int i = 0; i < unique_keys.size(); ++i) {
+    std::cout << "Key: " << unique_keys[i] << " Count: " << count_per_key[i] << std::endl;
+  }
 }
