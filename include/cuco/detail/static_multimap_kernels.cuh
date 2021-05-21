@@ -157,11 +157,6 @@ __global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEq
     view.insert(tile, insert_pair, hash, key_equal);
     it += (gridDim.x * blockDim.x) / tile_size;
   }
-  if (threadIdx.x == 0 && blockIdx.x == 0) {
-    for (auto i = 0; i < view.get_capacity(); i++) {
-      auto slot = view.get_slots() + i;
-    }
-  }
 }
 
 /**
