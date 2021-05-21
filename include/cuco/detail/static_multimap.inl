@@ -276,7 +276,7 @@ __device__ void static_multimap<Key, Value, CGSize, Scope, Allocator>::device_mu
         using cuda::std::memory_order_relaxed;
         auto expected_key    = this->get_empty_key_sentinel();
         auto expected_value  = this->get_empty_value_sentinel();
-        auto insert_location = current_slot + !(first_slot_is_empty);
+        auto insert_location = first_slot_is_empty ? current_slot : current_slot + 1;
         auto& slot_key       = insert_location->first;
         auto& slot_value     = insert_location->second;
         bool key_success =

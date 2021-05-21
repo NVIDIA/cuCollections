@@ -18,7 +18,6 @@
 
 #include <limits>
 #include <random>
-#include <unordered_set>
 
 enum class dist_type { GAUSSIAN, GEOMETRIC, UNIFORM };
 
