@@ -77,11 +77,11 @@ template <typename atomic_key_type,
           typename pair_atomic_type>
 __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::size_t size)
 {
-  auto tid = threadIdx.x + blockIdx.x * block_size;
+  auto tid = threadIdx.x + blockIdx.x * blockDim.x;
   while (tid < size) {
     new (&slots[tid].first) atomic_key_type{k};
     new (&slots[tid].second) atomic_mapped_type{v};
-    tid += gridDim.x * block_size;
+    tid += gridDim.x * blockDim.x;
   }
 }
 
