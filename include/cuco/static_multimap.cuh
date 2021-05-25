@@ -201,35 +201,6 @@ class static_multimap {
               KeyEqual key_equal  = KeyEqual{});
 
   /**
-   * @brief Finds the values corresponding to all keys in the range `[first, last)`.
-   *
-   * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin +
-   * i)`. Else, copies the empty value sentinel.
-   *
-   * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the map's `key_type`
-   * @tparam OutputIt Device accessible output iterator whose `value_type` is
-   * convertible to the map's `mapped_type`
-   * @tparam Hash Unary callable type
-   * @tparam KeyEqual Binary callable type
-   * @param first Beginning of the sequence of keys
-   * @param last End of the sequence of keys
-   * @param output_begin Beginning of the sequence of values retrieved for each key
-   * @param hash The unary function to apply to hash each key
-   * @param key_equal The binary function to compare two keys for equality
-   */
-  template <typename InputIt,
-            typename OutputIt,
-            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
-  void find(InputIt first,
-            InputIt last,
-            OutputIt output_begin,
-            cudaStream_t stream = 0,
-            Hash hash           = Hash{},
-            KeyEqual key_equal  = KeyEqual{});
-
-  /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
    *
    * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
@@ -771,99 +742,6 @@ class static_multimap {
                          source_device_view.get_empty_key_sentinel(),
                          source_device_view.get_empty_value_sentinel());
     }
-
-    /**
-     * @brief Finds the value corresponding to the key `k`.
-     *
-     * Returns an iterator to the pair whose key is equivalent to `k`.
-     * If no such pair exists, returns `end()`.
-     *
-     * @tparam Hash Unary callable type
-     * @tparam KeyEqual Binary callable type
-     * @param k The key to search for
-     * @param hash The unary callable used to hash the key
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return An iterator to the position at which the key/value pair
-     * containing `k` was inserted
-     */
-    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ iterator find(Key const& k,
-                             Hash hash          = Hash{},
-                             KeyEqual key_equal = KeyEqual{}) noexcept;
-
-    /** @brief Finds the value corresponding to the key `k`.
-     *
-     * Returns a const_iterator to the pair whose key is equivalent to `k`.
-     * If no such pair exists, returns `end()`.
-     *
-     * @tparam Hash Unary callable type
-     * @tparam KeyEqual Binary callable type
-     * @param k The key to search for
-     * @param hash The unary callable used to hash the key
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return An iterator to the position at which the key/value pair
-     * containing `k` was inserted
-     */
-    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ const_iterator find(Key const& k,
-                                   Hash hash          = Hash{},
-                                   KeyEqual key_equal = KeyEqual{}) const noexcept;
-
-    /**
-     * @brief Finds the value corresponding to the key `k`.
-     *
-     * Returns an iterator to the pair whose key is equivalent to `k`.
-     * If no such pair exists, returns `end()`. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single find. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `find` at moderate to high load factors.
-     *
-     * @tparam CG Cooperative Group type
-     * @tparam Hash Unary callable type
-     * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to perform the find
-     * @param k The key to search for
-     * @param hash The unary callable used to hash the key
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return An iterator to the position at which the key/value pair
-     * containing `k` was inserted
-     */
-    template <typename CG,
-              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ iterator
-    find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
-
-    /**
-     * @brief Finds the value corresponding to the key `k`.
-     *
-     * Returns a const_iterator to the pair whose key is equivalent to `k`.
-     * If no such pair exists, returns `end()`. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single find. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `find` at moderate to high load factors.
-     *
-     * @tparam CG Cooperative Group type
-     * @tparam Hash Unary callable type
-     * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to perform the find
-     * @param k The key to search for
-     * @param hash The unary callable used to hash the key
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return An iterator to the position at which the key/value pair
-     * containing `k` was inserted
-     */
-    template <typename CG,
-              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ const_iterator
-    find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
