@@ -293,28 +293,6 @@ template <typename Key,
           std::size_t CGSize,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename Hash, typename KeyEqual>
-__device__ bool static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::contains(
-  Key const& k, Hash hash, KeyEqual key_equal) noexcept
-{
-  auto current_slot = initial_slot(k, hash);
-
-  while (true) {
-    auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
-
-    if (detail::bitwise_compare(existing_key, empty_key_sentinel_)) { return false; }
-
-    if (key_equal(existing_key, k)) { return true; }
-
-    current_slot = next_slot(current_slot);
-  }
-}
-
-template <typename Key,
-          typename Value,
-          std::size_t CGSize,
-          cuda::thread_scope Scope,
-          typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool static_multimap<Key, Value, CGSize, Scope, Allocator>::device_view::contains(
   CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
@@ -322,19 +300,25 @@ __device__ bool static_multimap<Key, Value, CGSize, Scope, Allocator>::device_vi
   auto current_slot = initial_slot(g, k, hash);
 
   while (true) {
-    key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    pair<Key, Value> arr[2];
+    if constexpr (sizeof(Key) == 4) {
+      auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
+      memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+    } else {
+      auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
+      memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+    }
 
-    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
-    // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+    auto const first_slot_is_empty  = (arr[0].first == get_empty_key_sentinel());
+    auto const second_slot_is_empty = (arr[1].first == get_empty_key_sentinel());
+    auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, k));
+    auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, k));
 
-    // the key we were searching for was found by one of the threads, so we return an iterator to
-    // the entry
-    if (g.ballot(not slot_is_empty and key_equal(existing_key, k))) { return true; }
+    // the key we were searching for was found by one of the threads, so we return true
+    if (g.any(first_equals or second_equals)) { return true; }
 
     // we found an empty slot, meaning that the key we're searching for isn't present
-    if (g.ballot(slot_is_empty)) { return false; }
+    if (g.any(first_slot_is_empty or second_slot_is_empty)) { return false; }
 
     // otherwise, all slots in the current window are full with other keys, so we move onto the next
     // window
