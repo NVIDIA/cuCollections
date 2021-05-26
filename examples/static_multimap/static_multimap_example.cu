@@ -47,11 +47,16 @@ int main(void)
   // Sequence of keys {0, 1, 2, ...}
   thrust::device_vector<int> keys_to_find(50'000);
   thrust::sequence(keys_to_find.begin(), keys_to_find.end(), 0);
-  thrust::device_vector<int> found_values(50'000);
 
-  // Finds all keys {0, 1, 2, ...} and stores associated values into `found_values`
-  // If a key `keys_to_find[i]` doesn't exist, `found_values[i] == empty_value_sentinel`
-  map.find(keys_to_find.begin(), keys_to_find.end(), found_values.begin());
+  // Counts number of matches for all keys {0, 1, 2, ... 50'000}
+  auto num_matches = map.count(keys_to_find.begin(), keys_to_find.end());
+
+  std::size_t output_size = num_matches + 25'000;
+  thrust::device_vector<cuco::pair_type<int, int>> d_results(output_size);
+
+  // Finds all keys {0, 1, 2, ...} and stores associated key/value pairs into `d_results`
+  // If a key `keys_to_find[i]` doesn't exist, `d_results[i].second == empty_value_sentinel`
+  map.find_all(keys_to_find.begin(), keys_to_find.end(), d_results.data().get());
 
   return 0;
 }
