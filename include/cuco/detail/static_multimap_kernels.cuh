@@ -89,37 +89,6 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  * @brief Inserts all key/value pairs in the range `[first, last)`.
  *
  * If multiple keys in `[first, last)` compare equal, it is unspecified which
- * element is inserted.
- *
- * @tparam block_size
- * @tparam InputIt Device accessible input iterator whose `value_type` is
- * convertible to the map's `value_type`
- * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam Hash Unary callable type
- * @tparam KeyEqual Binary callable type
- * @param first Beginning of the sequence of key/value pairs
- * @param last End of the sequence of key/value pairs
- * @param view Mutable device view used to access the hash map's slot storage
- * @param hash The unary function to apply to hash each key
- * @param key_equal The binary function used to compare two keys for equality
- */
-template <uint32_t block_size, typename InputIt, typename viewT, typename Hash, typename KeyEqual>
-__global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEqual key_equal)
-{
-  auto tid = block_size * blockIdx.x + threadIdx.x;
-  auto it  = first + tid;
-
-  while (it < last) {
-    typename viewT::value_type const insert_pair{*it};
-    view.insert(insert_pair, hash, key_equal);
-    it += gridDim.x * block_size;
-  }
-}
-
-/**
- * @brief Inserts all key/value pairs in the range `[first, last)`.
- *
- * If multiple keys in `[first, last)` compare equal, it is unspecified which
  * element is inserted. Uses the CUDA Cooperative Groups API to leverage groups
  * of multiple threads to perform each key/value insertion. This provides a
  * significant boost in throughput compared to the non Cooperative Group
