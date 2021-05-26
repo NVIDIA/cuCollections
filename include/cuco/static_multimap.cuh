@@ -37,7 +37,7 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
-#include <cuco/detail/prime.cuh>
+#include <cuco/detail/prime.hpp>
 #include <cuco/detail/static_multimap_kernels.cuh>
 
 namespace cuco {
