@@ -20,7 +20,6 @@
 #include <thrust/distance.h>
 #include <thrust/functional.h>
 #include <cub/cub.cuh>
-#include <cuda/std/atomic>
 #include <memory>
 
 #include <cuco/allocator.hpp>
@@ -35,9 +34,8 @@
 #endif
 
 #include <cuco/detail/error.hpp>
-#include <cuco/detail/hash_functions.cuh>
-#include <cuco/detail/pair.cuh>
 #include <cuco/detail/prime.hpp>
+#include <cuco/detail/probe_sequences.cuh>
 #include <cuco/detail/static_multimap_kernels.cuh>
 
 namespace cuco {
@@ -112,7 +110,7 @@ namespace cuco {
  */
 template <typename Key,
           typename Value,
-          std::size_t CGSize       = 8,
+          class ProbeSequence      = DoubleHashing<Key, Value>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_multimap {
@@ -141,6 +139,8 @@ class static_multimap {
   static_multimap(static_multimap&&)      = delete;
   static_multimap& operator=(static_multimap const&) = delete;
   static_multimap& operator=(static_multimap&&) = delete;
+
+  static constexpr uint32_t cg_size() noexcept { return ProbeSequence::cg_size(); }
 
   /**
    * @brief Construct a fixed-size map with the specified capacity and sentinel values.
@@ -184,20 +184,15 @@ class static_multimap {
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `value_type`
-   * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
-   * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    */
-  template <typename InputIt,
-            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+  template <typename InputIt, typename KeyEqual = thrust::equal_to<key_type>>
   void insert(InputIt first,
               InputIt last,
               cudaStream_t stream = 0,
-              Hash hash           = Hash{},
               KeyEqual key_equal  = KeyEqual{});
 
   /**
@@ -209,23 +204,17 @@ class static_multimap {
    * convertible to the map's `key_type`
    * @tparam OutputIt Device accessible output iterator whose `value_type` is
    * convertible to the map's `mapped_type`
-   * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
-   * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    */
-  template <typename InputIt,
-            typename OutputIt,
-            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+  template <typename InputIt, typename OutputIt, typename KeyEqual = thrust::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
                 cudaStream_t stream = 0,
-                Hash hash           = Hash{},
                 KeyEqual key_equal  = KeyEqual{});
 
   /**
@@ -242,45 +231,34 @@ class static_multimap {
    * convertible to the map's `key_type`
    * @tparam OutputIt Device accessible output iterator whose `value_type` is
    * convertible to the map's `value_type`
-   * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of key/value pairs retrieved for each key
-   * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    * @return The iterator indicating the last valid key/value pairs in the output
    */
-  template <typename InputIt,
-            typename OutputIt,
-            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+  template <typename InputIt, typename OutputIt, typename KeyEqual = thrust::equal_to<key_type>>
   OutputIt find_all(InputIt first,
                     InputIt last,
                     OutputIt output_begin,
                     cudaStream_t stream = 0,
-                    Hash hash           = Hash{},
                     KeyEqual key_equal  = KeyEqual{});
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
    *
    * @tparam Input Device accesible input iterator whose `value_type` is convertible to `key_type`
-   * @tparam Hash Unary callable
    * @tparam KeyEqual Binary callable
    * @param first Beginning of the sequence of keys to count
    * @param last End of the sequence of keys to count
-   * @param hash Unary function to apply to hash each key
    * @param key_equal Binary function to compare two keys for equality
    * @return The sum of total occurrences of all keys in `[first,last)`
    */
-  template <typename InputIt,
-            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+  template <typename InputIt, typename KeyEqual = thrust::equal_to<key_type>>
   std::size_t count(InputIt first,
                     InputIt last,
                     cudaStream_t stream = 0,
-                    Hash hash           = Hash{},
                     KeyEqual key_equal  = KeyEqual{});
 
  private:
@@ -294,19 +272,16 @@ class static_multimap {
     using const_iterator = pair_atomic_type const*;
 
    private:
-    pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
-    std::size_t capacity_{};        ///< Total number of slots
+    ProbeSequence probe_sequence_;
     Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
-    std::size_t step_size_{};
 
    public:
     __host__ __device__ device_view_base(pair_atomic_type* slots,
                                          std::size_t capacity,
                                          Key empty_key_sentinel,
                                          Value empty_value_sentinel) noexcept
-      : slots_{slots},
-        capacity_{capacity},
+      : probe_sequence_{slots, capacity},
         empty_key_sentinel_{empty_key_sentinel},
         empty_value_sentinel_{empty_value_sentinel}
     {
@@ -317,41 +292,16 @@ class static_multimap {
      *
      * @return Slots array
      */
-    __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
+    __device__ pair_atomic_type* get_slots() noexcept { return probe_sequence_.get_slots(); }
 
     /**
      * @brief Gets slots array.
      *
      * @return Slots array
      */
-    __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
-
-    /**
-     * @brief Returns the initial slot for a given key `k`
-     *
-     * @tparam Hash Unary callable type
-     * @param k The key to get the slot for
-     * @param hash The unary callable used to hash the key
-     * @return Pointer to the initial slot for `k`
-     */
-    template <typename Hash>
-    __device__ iterator initial_slot(Key const& k, Hash hash) noexcept
+    __device__ pair_atomic_type const* get_slots() const noexcept
     {
-      return &slots_[hash(k) % capacity_];
-    }
-
-    /**
-     * @brief Returns the initial slot for a given key `k`
-     *
-     * @tparam Hash Unary callable type
-     * @param k The key to get the slot for
-     * @param hash The unary callable used to hash the key
-     * @return Pointer to the initial slot for `k`
-     */
-    template <typename Hash>
-    __device__ const_iterator initial_slot(Key const& k, Hash hash) const noexcept
-    {
-      return &slots_[hash(k) % capacity_];
+      return probe_sequence_.get_slots();
     }
 
     /**
@@ -360,20 +310,14 @@ class static_multimap {
      * To be used for Cooperative Group based probing.
      *
      * @tparam CG Cooperative Group type
-     * @tparam Hash Unary callable type
      * @param g the Cooperative Group for which the initial slot is needed
      * @param k The key to get the slot for
-     * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename CG, typename Hash>
-    __device__ iterator initial_slot(CG g, Key const& k, Hash hash) noexcept
+    template <typename CG>
+    __device__ iterator initial_slot(CG const& g, Key const& k) noexcept
     {
-      auto const cg_size = g.size();
-      step_size_         = (hash(k + 1) % (capacity_ / (cg_size * 2) - 1) + 1) * cg_size * 2;
-      auto const slot_index =
-        hash(k) % (capacity_ / (cg_size * 2)) * cg_size * 2 + g.thread_rank() * 2;
-      return begin_slot() + slot_index;
+      return probe_sequence_.initial_slot(g, k);
     }
 
     /**
@@ -382,43 +326,14 @@ class static_multimap {
      * To be used for Cooperative Group based probing.
      *
      * @tparam CG Cooperative Group type
-     * @tparam Hash Unary callable type
      * @param g the Cooperative Group for which the initial slot is needed
      * @param k The key to get the slot for
-     * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename CG, typename Hash>
-    __device__ const_iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
+    template <typename CG>
+    __device__ const_iterator initial_slot(CG g, Key const& k) const noexcept
     {
-      auto const cg_size = g.size();
-      step_size_         = (hash(k + 1) % (capacity_ / (cg_size * 2) - 1) + 1) * cg_size * 2;
-      auto const slot_index =
-        hash(k) % (capacity_ / (cg_size * 2)) * cg_size * 2 + g.thread_rank() * 2;
-      return begin_slot() + slot_index;
-    }
-
-    /**
-     * @brief Given a slot `s`, returns the next slot.
-     *
-     * If `s` is the last slot, wraps back around to the first slot.
-     *
-     * @param s The slot to advance
-     * @return The next slot after `s`
-     */
-    __device__ iterator next_slot(iterator s) noexcept { return (++s < end()) ? s : begin_slot(); }
-
-    /**
-     * @brief Given a slot `s`, returns the next slot.
-     *
-     * If `s` is the last slot, wraps back around to the first slot.
-     *
-     * @param s The slot to advance
-     * @return The next slot after `s`
-     */
-    __device__ const_iterator next_slot(const_iterator s) const noexcept
-    {
-      return (++s < end()) ? s : begin_slot();
+      return probe_sequence_.initial_slot(g, k);
     }
 
     /**
@@ -433,10 +348,9 @@ class static_multimap {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ iterator next_slot(CG g, iterator s) noexcept
+    __device__ iterator next_slot(CG const& g, iterator s) noexcept
     {
-      uint32_t index = s - slots_;
-      return &slots_[(index + step_size_) % capacity_];
+      return probe_sequence_.next_slot(g, s);
     }
 
     /**
@@ -451,10 +365,9 @@ class static_multimap {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ const_iterator next_slot(CG g, const_iterator s) const noexcept
+    __device__ const_iterator next_slot(CG const& g, const_iterator s) const noexcept
     {
-      uint32_t index = s - slots_;
-      return &slots_[(index + step_size_) % capacity_];
+      return probe_sequence_.next_slot(g, s);
     }
 
    public:
@@ -463,7 +376,10 @@ class static_multimap {
      *
      * @return The maximum number of elements the hash map can hold
      */
-    __host__ __device__ std::size_t get_capacity() const noexcept { return capacity_; }
+    __host__ __device__ std::size_t get_capacity() const noexcept
+    {
+      return probe_sequence_.get_capacity();
+    }
 
     /**
      * @brief Gets the sentinel value used to represent an empty key slot.
@@ -481,70 +397,6 @@ class static_multimap {
     {
       return empty_value_sentinel_;
     }
-
-    /**
-     * @brief Returns iterator to the first slot.
-     *
-     * @note Unlike `std::map::begin()`, the `begin_slot()` iterator does _not_ point to the first
-     * occupied slot. Instead, it refers to the first slot in the array of contiguous slot storage.
-     * Iterating from `begin_slot()` to `end_slot()` will iterate over all slots, including those
-     * both empty and filled.
-     *
-     * There is no `begin()` iterator to avoid confusion as it is not possible to provide an
-     * iterator over only the filled slots.
-     *
-     * @return Iterator to the first slot
-     */
-    __device__ iterator begin_slot() noexcept { return slots_; }
-
-    /**
-     * @brief Returns iterator to the first slot.
-     *
-     * @note Unlike `std::map::begin()`, the `begin_slot()` iterator does _not_ point to the first
-     * occupied slot. Instead, it refers to the first slot in the array of contiguous slot storage.
-     * Iterating from `begin_slot()` to `end_slot()` will iterate over all slots, including those
-     * both empty and filled.
-     *
-     * There is no `begin()` iterator to avoid confusion as it is not possible to provide an
-     * iterator over only the filled slots.
-     *
-     * @return Iterator to the first slot
-     */
-    __device__ const_iterator begin_slot() const noexcept { return slots_; }
-
-    /**
-     * @brief Returns a const_iterator to one past the last slot.
-     *
-     * @return A const_iterator to one past the last slot
-     */
-    __host__ __device__ const_iterator end_slot() const noexcept { return slots_ + capacity_; }
-
-    /**
-     * @brief Returns an iterator to one past the last slot.
-     *
-     * @return An iterator to one past the last slot
-     */
-    __host__ __device__ iterator end_slot() noexcept { return slots_ + capacity_; }
-
-    /**
-     * @brief Returns a const_iterator to one past the last slot.
-     *
-     * `end()` calls `end_slot()` and is provided for convenience for those familiar with checking
-     * an iterator returned from `find()` against the `end()` iterator.
-     *
-     * @return A const_iterator to one past the last slot
-     */
-    __host__ __device__ const_iterator end() const noexcept { return end_slot(); }
-
-    /**
-     * @brief Returns an iterator to one past the last slot.
-     *
-     * `end()` calls `end_slot()` and is provided for convenience for those familiar with checking
-     * an iterator returned from `find()` against the `end()` iterator.
-     *
-     * @return An iterator to one past the last slot
-     */
-    __host__ __device__ iterator end() noexcept { return end_slot(); }
   };
 
  public:
@@ -598,39 +450,29 @@ class static_multimap {
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
-     * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param insert_pair The pair to insert
-     * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys for
      * equality
      * @return void.
      */
-    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void insert(value_type const& insert_pair,
-                           Hash hash          = Hash{},
-                           KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ void insert(value_type const& insert_pair, KeyEqual key_equal = KeyEqual{}) noexcept;
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
      * @tparam Cooperative Group type
-     * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      *
      * @param g The Cooperative Group that performs the insert
      * @param insert_pair The pair to insert
-     * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys for
      * equality
      * @return void.
      */
-    template <typename CG,
-              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
+    template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
     __device__ void insert(CG g,
                            value_type const& insert_pair,
-                           Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
 
   };  // class device mutable view
@@ -749,21 +591,16 @@ class static_multimap {
      * If the key `k` was inserted into the map, find returns
      * true. Otherwise, it returns false.
      *
-     * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param k The key to search for
-     * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys
      * for equality
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
 
-    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(Key const& k,
-                             Hash hash          = Hash{},
-                             KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ bool contains(Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
@@ -775,23 +612,16 @@ class static_multimap {
      * `contains` at moderate to high load factors.
      *
      * @tparam CG Cooperative Group type
-     * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The key to search for
-     * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys
      * for equality
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <typename CG,
-              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(CG g,
-                             Key const& k,
-                             Hash hash          = Hash{},
-                             KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ bool contains(CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
   };  // class device_view
 
   /**

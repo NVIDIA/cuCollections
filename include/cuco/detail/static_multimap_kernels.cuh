@@ -100,21 +100,18 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `value_type`
  * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
  * @param view Mutable device view used to access the hash map's slot storage
- * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function used to compare two keys for equality
  */
 template <uint32_t block_size,
           uint32_t tile_size,
           typename InputIt,
           typename viewT,
-          typename Hash,
           typename KeyEqual>
-__global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEqual key_equal)
+__global__ void insert(InputIt first, InputIt last, viewT view, KeyEqual key_equal)
 {
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid  = block_size * blockIdx.x + threadIdx.x;
@@ -123,7 +120,7 @@ __global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEq
   while (it < last) {
     // force conversion to value_type
     typename viewT::value_type const insert_pair{*it};
-    view.insert(tile, insert_pair, hash, key_equal);
+    view.insert(tile, insert_pair, key_equal);
     it += (gridDim.x * block_size) / tile_size;
   }
 }
@@ -144,13 +141,11 @@ __global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEq
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
  * convertible to the map's `mapped_type`
  * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
  * @param view Device view used to access the hash map's slot storage
- * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
 template <uint32_t block_size,
@@ -158,10 +153,9 @@ template <uint32_t block_size,
           typename InputIt,
           typename OutputIt,
           typename viewT,
-          typename Hash,
           typename KeyEqual>
 __global__ void contains(
-  InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
+  InputIt first, InputIt last, OutputIt output_begin, viewT view, KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid     = block_size * blockIdx.x + threadIdx.x;
@@ -170,7 +164,7 @@ __global__ void contains(
 
   while (first + key_idx < last) {
     auto key   = *(first + key_idx);
-    auto found = view.contains(tile, key, hash, key_equal);
+    auto found = view.contains(tile, key, key_equal);
 
     /*
      * The ld.relaxed.gpu instruction used in view.find causes L1 to
@@ -210,14 +204,12 @@ __global__ void contains(
  * convertible to the map's `mapped_type`
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of values retrieved for each key
  * @param num_items Size of the output sequence
  * @param view Device view used to access the hash map's slot storage
- * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
 
@@ -230,14 +222,12 @@ template <uint32_t block_size,
           typename OutputIt,
           typename atomicT,
           typename viewT,
-          typename Hash,
           typename KeyEqual>
 __global__ void find_all(InputIt first,
                          InputIt last,
                          OutputIt output_begin,
                          atomicT* num_items,
                          viewT view,
-                         Hash hash,
                          KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
@@ -258,7 +248,7 @@ __global__ void find_all(InputIt first,
     bool running     = ((first + key_idx) < last);
     bool found_match = false;
 
-    if (running) { current_slot = view.initial_slot(tile, key, hash); }
+    if (running) { current_slot = view.initial_slot(tile, key); }
 
     while (__syncthreads_or(running)) {
       if (running) {
@@ -342,13 +332,11 @@ __global__ void find_all(InputIt first,
  * `key_type`
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam Hash Unary callable
  * @tparam KeyEqual Binary callable
  * @param first Beginning of the sequence of keys to count
  * @param last End of the sequence of keys to count
  * @param num_items The number of all the matches for a sequence of keys
  * @param view Device view used to access the hash map's slot storage
- * @param hash Unary function to apply to hash each key
  * @param key_equal Binary function to compare two keys for equality
  */
 template <uint32_t block_size,
@@ -358,10 +346,9 @@ template <uint32_t block_size,
           typename InputIt,
           typename atomicT,
           typename viewT,
-          typename Hash,
           typename KeyEqual>
 __global__ void count(
-  InputIt first, InputIt last, atomicT* num_items, viewT view, Hash hash, KeyEqual key_equal)
+  InputIt first, InputIt last, atomicT* num_items, viewT view, KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid     = block_size * blockIdx.x + threadIdx.x;
@@ -373,7 +360,7 @@ __global__ void count(
 
   while (first + key_idx < last) {
     auto key          = *(first + key_idx);
-    auto current_slot = view.initial_slot(tile, key, hash);
+    auto current_slot = view.initial_slot(tile, key);
 
     while (true) {
       pair<Key, Value> arr[2];

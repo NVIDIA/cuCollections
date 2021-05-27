@@ -57,7 +57,6 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_i
   auto const occupancy = state.get_float64("Occupancy");
 
   std::size_t const size = num_keys / occupancy;
-  auto const cg_size     = 8;
 
   std::vector<Key> h_keys(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
@@ -77,7 +76,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_i
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               cuco::static_multimap<Key, Value, cg_size> map{size, -1, -1};
+               cuco::static_multimap<Key, Value> map{size, -1, -1};
 
                // Use timers to explicitly mark the target region
                timer.start();
@@ -109,7 +108,6 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_c
   auto const matching_rate = state.get_float64("MatchingRate");
 
   std::size_t const size = num_keys / occupancy;
-  auto const cg_size     = 8;
 
   std::vector<Key> h_keys(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
@@ -130,7 +128,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_c
 
   state.add_element_count(num_keys, "NumKeys");
 
-  cuco::static_multimap<Key, Value, cg_size> map{size, -1, -1};
+  cuco::static_multimap<Key, Value> map{size, -1, -1};
   map.insert(d_pairs.begin(), d_pairs.end());
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
@@ -164,7 +162,6 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_f
   auto const matching_rate = state.get_float64("MatchingRate");
 
   std::size_t const size = num_keys / occupancy;
-  auto const cg_size     = 8;
 
   std::vector<Key> h_keys(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
@@ -185,7 +182,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_f
 
   state.add_element_count(num_keys, "NumKeys");
 
-  cuco::static_multimap<Key, Value, cg_size> map{size, -1, -1};
+  cuco::static_multimap<Key, Value> map{size, -1, -1};
   map.insert(d_pairs.begin(), d_pairs.end());
 
   auto num_matches        = map.count(d_keys.begin(), d_keys.end());
@@ -218,7 +215,6 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_r
   auto const matching_rate = state.get_float64("MatchingRate");
 
   std::size_t const size = num_keys / occupancy;
-  auto const cg_size     = 8;
 
   std::vector<Key> h_keys(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
@@ -239,7 +235,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_r
 
   state.add_element_count(num_keys, "NumKeys");
 
-  cuco::static_multimap<Key, Value, cg_size> map{size, -1, -1};
+  cuco::static_multimap<Key, Value> map{size, -1, -1};
   map.insert(d_pairs.begin(), d_pairs.end());
 
   auto num_matches        = map.count(d_keys.begin(), d_keys.end());

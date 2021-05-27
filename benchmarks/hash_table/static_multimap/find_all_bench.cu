@@ -78,7 +78,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
 
   state.exec(
     nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      cuco::static_multimap<Key, Value, CGSize> map{size, -1, -1};
+      cuco::static_multimap<Key, Value, cuco::DoubleHashing<Key, Value, CGSize>> map{size, -1, -1};
       map.insert(d_pairs.begin(), d_pairs.end());
 
       timer.start();
@@ -89,10 +89,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
       auto const stride      = 1;
       auto const grid_size = (CGSize * num_keys + stride * block_size - 1) / (stride * block_size);
 
-      using Hash     = cuco::detail::MurmurHash3_32<Key>;
       using KeyEqual = thrust::equal_to<Key>;
 
-      Hash hash;
       KeyEqual key_equal;
 
       using atomic_ctr_type = typename cuco::static_multimap<Key, Value>::atomic_ctr_type;
@@ -110,7 +108,6 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
                                                             d_results.data().get(),
                                                             num_items,
                                                             view,
-                                                            hash,
                                                             key_equal);
       CUCO_CUDA_TRY(cudaDeviceSynchronize());
       timer.stop();
