@@ -55,9 +55,9 @@ class DoubleHashing {
   template <typename CG>
   __device__ iterator initial_slot(CG const& g, Key const k) noexcept
   {
-    step_size_ = (hash2(k + 1) % (capacity_ / (cg_size() * 2) - 1) + 1) * cg_size() * 2;
+    step_size_ = (hash2_(k + 1) % (capacity_ / (cg_size() * 2) - 1) + 1) * cg_size() * 2;
     std::size_t index =
-      hash1(k) % (capacity_ / (cg_size() * 2)) * cg_size() * 2 + g.thread_rank() * 2;
+      hash1_(k) % (capacity_ / (cg_size() * 2)) * cg_size() * 2 + g.thread_rank() * 2;
     return slots_ + index;
   }
 
@@ -72,8 +72,8 @@ class DoubleHashing {
   iterator slots_;
   const std::size_t capacity_;
   std::size_t step_size_;
-  Hash1 hash1{};
-  Hash2 hash2{};
+  Hash1 hash1_{};
+  Hash2 hash2_{};
 };  // class DoubleHashing
 
 }  // namespace cuco
