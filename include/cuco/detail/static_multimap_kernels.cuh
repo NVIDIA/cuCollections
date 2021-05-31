@@ -241,7 +241,7 @@ __global__ void count_inner(
 
       if (tile.any(first_slot_is_empty or second_slot_is_empty)) { break; }
 
-      current_slot = view.next_slot(tile, current_slot);
+      current_slot = view.next_slot(current_slot);
     }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
@@ -321,7 +321,7 @@ __global__ void count_outer(
         break;
       }
 
-      current_slot = view.next_slot(tile, current_slot);
+      current_slot = view.next_slot(current_slot);
     }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
@@ -408,7 +408,7 @@ __global__ void pair_count_inner(InputIt first,
 
       if (tile.any(first_key_is_empty or second_key_is_empty)) { break; }
 
-      current_slot = view.next_slot(tile, current_slot);
+      current_slot = view.next_slot(current_slot);
     }
     pair_idx += (gridDim.x * block_size) / tile_size;
   }
@@ -504,7 +504,7 @@ __global__ void pair_count_outer(InputIt first,
         break;
       }
 
-      current_slot = view.next_slot(tile, current_slot);
+      current_slot = view.next_slot(current_slot);
     }
     pair_idx += (gridDim.x * block_size) / tile_size;
   }
@@ -631,7 +631,7 @@ __global__ void retrieve_inner(InputIt first,
         if (0 == threadIdx.x) { block_counter = 0; }
       }
 
-      if (running) { current_slot = view.next_slot(tile, current_slot); }
+      if (running) { current_slot = view.next_slot(current_slot); }
     }  // while running
     key_idx += (gridDim.x * block_size) / tile_size;
   }
@@ -769,7 +769,7 @@ __global__ void retrieve_outer(InputIt first,
         if (0 == threadIdx.x) { block_counter = 0; }
       }
 
-      if (running) { current_slot = view.next_slot(tile, current_slot); }
+      if (running) { current_slot = view.next_slot(current_slot); }
     }  // while running
     key_idx += (gridDim.x * block_size) / tile_size;
   }

@@ -300,48 +300,6 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename KeyEqual>
-__device__ void
-static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert(
-  value_type const& insert_pair, KeyEqual key_equal) noexcept
-{
-  auto current_slot{initial_slot(insert_pair.first)};
-
-  while (true) {
-    using cuda::std::memory_order_relaxed;
-    auto expected_key   = this->get_empty_key_sentinel();
-    auto expected_value = this->get_empty_value_sentinel();
-    auto& slot_key      = current_slot->first;
-    auto& slot_value    = current_slot->second;
-
-    bool key_success =
-      slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
-    bool value_success =
-      slot_value.compare_exchange_strong(expected_value, insert_pair.second, memory_order_relaxed);
-
-    if (key_success) {
-      while (not value_success) {
-        value_success =
-          slot_value.compare_exchange_strong(expected_value = this->get_empty_value_sentinel(),
-                                             insert_pair.second,
-                                             memory_order_relaxed);
-      }
-      return;
-    } else if (value_success) {
-      slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
-    }
-
-    // If we couldn't insert the key, then there must have been some other key there. So we keep
-    // looking for a slot
-    current_slot = next_slot(current_slot);
-  }
-}
-
-template <typename Key,
-          typename Value,
-          class ProbeSequence,
-          cuda::thread_scope Scope,
-          typename Allocator>
 template <typename CG, typename KeyEqual>
 __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert(
@@ -405,7 +363,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
     // if there are no empty slots in the current window,
     // we move onto the next window
     else {
-      current_slot = next_slot(g, current_slot);
+      current_slot = next_slot(current_slot);
     }
   }
 }
@@ -444,7 +402,7 @@ __device__ bool static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::de
 
     // otherwise, all slots in the current window are full with other keys, so we move onto the next
     // window
-    current_slot = next_slot(g, current_slot);
+    current_slot = next_slot(current_slot);
   }
 }
 

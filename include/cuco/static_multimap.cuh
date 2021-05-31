@@ -429,16 +429,10 @@ class static_multimap {
      * If `s` is the last slot, wraps back around to the first slot. To
      * be used for Cooperative Group based probing.
      *
-     * @tparam CG The Cooperative Group type
-     * @param g The Cooperative Group for which the next slot is needed
      * @param s The slot to advance
      * @return The next slot after `s`
      */
-    template <typename CG>
-    __device__ iterator next_slot(CG const& g, iterator s) noexcept
-    {
-      return probe_sequence_.next_slot(g, s);
-    }
+    __device__ iterator next_slot(iterator s) noexcept { return probe_sequence_.next_slot(s); }
 
     /**
      * @brief Given a slot `s`, returns the next slot.
@@ -446,15 +440,13 @@ class static_multimap {
      * If `s` is the last slot, wraps back around to the first slot. To
      * be used for Cooperative Group based probing.
      *
-     * @tparam CG The Cooperative Group type
-     * @param g The Cooperative Group for which the next slot is needed
      * @param s The slot to advance
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ const_iterator next_slot(CG const& g, const_iterator s) const noexcept
+    __device__ const_iterator next_slot(const_iterator s) const noexcept
     {
-      return probe_sequence_.next_slot(g, s);
+      return probe_sequence_.next_slot(s);
     }
 
    public:
@@ -534,17 +526,6 @@ class static_multimap {
     {
     }
 
-    /**
-     * @brief Inserts the specified key/value pair into the map.
-     *
-     * @tparam KeyEqual Binary callable type
-     * @param insert_pair The pair to insert
-     * @param key_equal The binary callable used to compare two keys for
-     * equality
-     * @return void.
-     */
-    template <typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void insert(value_type const& insert_pair, KeyEqual key_equal = KeyEqual{}) noexcept;
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
@@ -671,23 +652,6 @@ class static_multimap {
                          source_device_view.get_empty_key_sentinel(),
                          source_device_view.get_empty_value_sentinel());
     }
-
-    /**
-     * @brief Indicates whether the key `k` was inserted into the map.
-     *
-     * If the key `k` was inserted into the map, find returns
-     * true. Otherwise, it returns false.
-     *
-     * @tparam KeyEqual Binary callable type
-     * @param k The key to search for
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return A boolean indicating whether the key/value pair
-     * containing `k` was inserted
-     */
-
-    template <typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.

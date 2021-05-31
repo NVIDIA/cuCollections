@@ -61,8 +61,7 @@ class DoubleHashing {
     return slots_ + index;
   }
 
-  template <typename CG>
-  __device__ iterator next_slot(CG const& g, iterator s) noexcept
+  __device__ iterator next_slot(iterator s) noexcept
   {
     std::size_t index = s - slots_;
     return &slots_[(index + step_size_) % capacity_];
@@ -75,5 +74,51 @@ class DoubleHashing {
   Hash1 hash1_{};
   Hash2 hash2_{};
 };  // class DoubleHashing
+
+template <typename Key,
+          typename Value,
+          uint32_t CGSize          = 8,
+          typename Hash            = cuco::detail::MurmurHash3_32<Key>,
+          cuda::thread_scope Scope = cuda::thread_scope_device>
+class LinearProbing {
+ public:
+  using value_type         = cuco::pair_type<Key, Value>;
+  using key_type           = Key;
+  using mapped_type        = Value;
+  using atomic_key_type    = cuda::atomic<key_type, Scope>;
+  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
+  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  using iterator           = pair_atomic_type*;
+  using const_iterator     = pair_atomic_type const*;
+
+  __host__ __device__ static constexpr uint32_t cg_size() noexcept { return CGSize; }
+
+  __host__ __device__ explicit LinearProbing(iterator slots, std::size_t capacity)
+    : slots_{slots}, capacity_{capacity}
+  {
+  }
+
+  __host__ __device__ std::size_t get_capacity() const noexcept { return capacity_; }
+
+  __device__ iterator get_slots() noexcept { return slots_; }
+  __device__ const_iterator get_slots() const noexcept { return slots_; }
+
+  template <typename CG>
+  __device__ iterator initial_slot(CG const& g, Key const k) noexcept
+  {
+    return &slots_[(hash_(k) + g.thread_rank() * 2) % capacity_];
+  }
+
+  __device__ iterator next_slot(iterator s) noexcept
+  {
+    std::size_t index = s - slots_;
+    return &slots_[(index + cg_size() * 2) % capacity_];
+  }
+
+ private:
+  iterator slots_;
+  const std::size_t capacity_;
+  Hash hash_{};
+};  // class LinearProbing
 
 }  // namespace cuco
