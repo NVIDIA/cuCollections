@@ -251,6 +251,49 @@ class static_multimap {
                           KeyEqual key_equal  = KeyEqual{});
 
   /**
+   * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap.
+   *
+   * @tparam Input Device accesible input iterator of key/value pairs
+   * @tparam KeyEqual Binary callable
+   * @tparam ValEqual Binary callable
+   * @param first Beginning of the sequence of pairs to count
+   * @param last End of the sequence of pairs to count
+   * @param key_equal Binary function to compare two keys for equality
+   * @param val_equal Binary function to compare two values for equality
+   * @return The sum of total occurrences of all pairs in `[first,last)`
+   */
+  template <typename InputIt,
+            typename KeyEqual = thrust::equal_to<key_type>,
+            typename ValEqual = thrust::equal_to<mapped_type>>
+  std::size_t pair_count_inner(InputIt first,
+                               InputIt last,
+                               cudaStream_t stream = 0,
+                               KeyEqual key_equal  = KeyEqual{},
+                               ValEqual val_equal  = ValEqual{});
+
+  /**
+   * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap.
+   * If no matches can be found for a given key/value pair, the corresponding occurrence is 1.
+   *
+   * @tparam Input Device accesible input iterator of key/value pairs
+   * @tparam KeyEqual Binary callable
+   * @tparam ValEqual Binary callable
+   * @param first Beginning of the sequence of pairs to count
+   * @param last End of the sequence of pairs to count
+   * @param key_equal Binary function to compare two keys for equality
+   * @param val_equal Binary function to compare two values for equality
+   * @return The sum of total occurrences of all pairs in `[first,last)`
+   */
+  template <typename InputIt,
+            typename KeyEqual = thrust::equal_to<key_type>,
+            typename ValEqual = thrust::equal_to<mapped_type>>
+  std::size_t pair_count_outer(InputIt first,
+                               InputIt last,
+                               cudaStream_t stream = 0,
+                               KeyEqual key_equal  = KeyEqual{},
+                               ValEqual val_equal  = ValEqual{});
+
+  /**
    * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
    *
    * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to

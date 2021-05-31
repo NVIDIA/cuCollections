@@ -170,6 +170,70 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
+template <typename InputIt, typename KeyEqual, typename ValEqual>
+std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_count_inner(
+  InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal, ValEqual val_equal)
+{
+  auto num_keys         = std::distance(first, last);
+  auto const block_size = 128;
+  auto const stride     = 1;
+  auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view             = get_device_view();
+
+  atomic_ctr_type* num_items;
+  CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
+  *num_items = 0;
+  int device_id;
+  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
+
+  detail::pair_count_inner<block_size, cg_size(), Key, Value>
+    <<<grid_size, block_size, 0, stream>>>(first, last, num_items, view, key_equal, val_equal);
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+
+  size_t result = *num_items;
+  CUCO_CUDA_TRY(cudaFree(num_items));
+
+  return result;
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <typename InputIt, typename KeyEqual, typename ValEqual>
+std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_count_outer(
+  InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal, ValEqual val_equal)
+{
+  auto num_keys         = std::distance(first, last);
+  auto const block_size = 128;
+  auto const stride     = 1;
+  auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view             = get_device_view();
+
+  atomic_ctr_type* num_items;
+  CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
+  *num_items = 0;
+  int device_id;
+  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
+
+  detail::pair_count_outer<block_size, cg_size(), Key, Value>
+    <<<grid_size, block_size, 0, stream>>>(first, last, num_items, view, key_equal, val_equal);
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+
+  size_t result = *num_items;
+  CUCO_CUDA_TRY(cudaFree(num_items));
+
+  return result;
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename InputIt, typename OutputIt, typename KeyEqual>
 OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_inner(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal)
