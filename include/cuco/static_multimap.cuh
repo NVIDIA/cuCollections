@@ -110,7 +110,7 @@ namespace cuco {
  */
 template <typename Key,
           typename Value,
-          class ProbeSequence      = DoubleHashing<Key, Value>,
+          class ProbeSequence      = cuco::double_hashing<Key, Value>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_multimap {

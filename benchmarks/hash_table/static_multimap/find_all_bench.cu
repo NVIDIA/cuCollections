@@ -78,7 +78,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
 
   state.exec(
     nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      cuco::static_multimap<Key, Value, cuco::DoubleHashing<Key, Value, CGSize>> map{size, -1, -1};
+      cuco::static_multimap<Key, Value, cuco::double_hashing<Key, Value, CGSize>> map{size, -1, -1};
       map.insert(d_pairs.begin(), d_pairs.end());
 
       timer.start();

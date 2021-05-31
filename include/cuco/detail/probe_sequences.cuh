@@ -26,11 +26,9 @@ namespace cuco {
 template <typename Key,
           typename Value,
           uint32_t CGSize          = 8,
-          typename Hash1           = cuco::detail::MurmurHash3_32<Key>,
-          typename Hash2           = cuco::detail::MurmurHash3_32<Key>,
           cuda::thread_scope Scope = cuda::thread_scope_device>
-class DoubleHashing {
- public:
+class probe_sequence_base {
+ protected:
   using value_type         = cuco::pair_type<Key, Value>;
   using key_type           = Key;
   using mapped_type        = Value;
@@ -40,9 +38,10 @@ class DoubleHashing {
   using iterator           = pair_atomic_type*;
   using const_iterator     = pair_atomic_type const*;
 
+ public:
   __host__ __device__ static constexpr uint32_t cg_size() noexcept { return CGSize; }
 
-  __host__ __device__ explicit DoubleHashing(iterator slots, std::size_t capacity)
+  __host__ __device__ explicit probe_sequence_base(iterator slots, std::size_t capacity)
     : slots_{slots}, capacity_{capacity}
   {
   }
@@ -51,6 +50,29 @@ class DoubleHashing {
 
   __device__ iterator get_slots() noexcept { return slots_; }
   __device__ const_iterator get_slots() const noexcept { return slots_; }
+
+ protected:
+  iterator slots_;
+  const std::size_t capacity_;
+};  // class probe_sequence_base
+
+template <typename Key,
+          typename Value,
+          uint32_t CGSize          = 8,
+          typename Hash1           = cuco::detail::MurmurHash3_32<Key>,
+          typename Hash2           = cuco::detail::MurmurHash3_32<Key>,
+          cuda::thread_scope Scope = cuda::thread_scope_device>
+class double_hashing : public probe_sequence_base<Key, Value, CGSize, Scope> {
+ public:
+  using iterator = typename probe_sequence_base<Key, Value, CGSize, Scope>::iterator;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::capacity_;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::slots_;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::cg_size;
+
+  __host__ __device__ explicit double_hashing(iterator slots, std::size_t capacity) noexcept
+    : probe_sequence_base<Key, Value, CGSize, Scope>{slots, capacity}
+  {
+  }
 
   template <typename CG>
   __device__ iterator initial_slot(CG const& g, Key const k) noexcept
@@ -68,40 +90,27 @@ class DoubleHashing {
   }
 
  private:
-  iterator slots_;
-  const std::size_t capacity_;
   std::size_t step_size_;
   Hash1 hash1_{};
   Hash2 hash2_{};
-};  // class DoubleHashing
+};  // class double_hashing
 
 template <typename Key,
           typename Value,
           uint32_t CGSize          = 8,
           typename Hash            = cuco::detail::MurmurHash3_32<Key>,
           cuda::thread_scope Scope = cuda::thread_scope_device>
-class LinearProbing {
+class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
  public:
-  using value_type         = cuco::pair_type<Key, Value>;
-  using key_type           = Key;
-  using mapped_type        = Value;
-  using atomic_key_type    = cuda::atomic<key_type, Scope>;
-  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
-  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
-  using iterator           = pair_atomic_type*;
-  using const_iterator     = pair_atomic_type const*;
+  using iterator = typename probe_sequence_base<Key, Value, CGSize, Scope>::iterator;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::capacity_;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::slots_;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::cg_size;
 
-  __host__ __device__ static constexpr uint32_t cg_size() noexcept { return CGSize; }
-
-  __host__ __device__ explicit LinearProbing(iterator slots, std::size_t capacity)
-    : slots_{slots}, capacity_{capacity}
+  __host__ __device__ explicit linear_probing(iterator slots, std::size_t capacity)
+    : probe_sequence_base<Key, Value, CGSize, Scope>{slots, capacity}
   {
   }
-
-  __host__ __device__ std::size_t get_capacity() const noexcept { return capacity_; }
-
-  __device__ iterator get_slots() noexcept { return slots_; }
-  __device__ const_iterator get_slots() const noexcept { return slots_; }
 
   template <typename CG>
   __device__ iterator initial_slot(CG const& g, Key const k) noexcept
@@ -116,9 +125,7 @@ class LinearProbing {
   }
 
  private:
-  iterator slots_;
-  const std::size_t capacity_;
   Hash hash_{};
-};  // class LinearProbing
+};  // class linear_probing
 
 }  // namespace cuco
