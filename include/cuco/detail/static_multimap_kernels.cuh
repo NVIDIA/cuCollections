@@ -134,8 +134,7 @@ __global__ void insert(InputIt first, InputIt last, viewT view, KeyEqual key_equ
  * to the non Cooperative Group `contains` at moderate to high load factors.
  *
  * @tparam block_size The size of the thread block
- * @tparam tile_size The number of threads in the Cooperative Groups used to perform
- * inserts
+ * @tparam tile_size The number of threads in the Cooperative Groups
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
@@ -183,18 +182,168 @@ __global__ void contains(
 }
 
 /**
+ * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
+ * @tparam Key key type
+ * @tparam Value The type of the mapped value for the map
+ * @tparam InputIt Device accessible input iterator whose `value_type` is convertible to the map's
+ * `key_type`
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam KeyEqual Binary callable
+ * @param first Beginning of the sequence of keys to count
+ * @param last End of the sequence of keys to count
+ * @param num_items The number of all the matches for a sequence of keys
+ * @param view Device view used to access the hash map's slot storage
+ * @param key_equal Binary function to compare two keys for equality
+ */
+template <uint32_t block_size,
+          uint32_t tile_size,
+          typename Key,
+          typename Value,
+          typename InputIt,
+          typename atomicT,
+          typename viewT,
+          typename KeyEqual>
+__global__ void count_inner(
+  InputIt first, InputIt last, atomicT* num_items, viewT view, KeyEqual key_equal)
+{
+  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid     = block_size * blockIdx.x + threadIdx.x;
+  auto key_idx = tid / tile_size;
+
+  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  std::size_t thread_num_items = 0;
+
+  while (first + key_idx < last) {
+    auto key          = *(first + key_idx);
+    auto current_slot = view.initial_slot(tile, key);
+
+    while (true) {
+      pair<Key, Value> arr[2];
+      if constexpr (sizeof(Key) == 4) {
+        auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
+        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+      } else {
+        auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
+        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+      }
+
+      auto const first_slot_is_empty  = (arr[0].first == view.get_empty_key_sentinel());
+      auto const second_slot_is_empty = (arr[1].first == view.get_empty_key_sentinel());
+      auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, key));
+      auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, key));
+
+      thread_num_items += (first_equals + second_equals);
+
+      if (tile.any(first_slot_is_empty or second_slot_is_empty)) { break; }
+
+      current_slot = view.next_slot(tile, current_slot);
+    }
+    key_idx += (gridDim.x * block_size) / tile_size;
+  }
+
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  std::size_t block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
+  if (threadIdx.x == 0) { num_items->fetch_add(block_num_items, cuda::std::memory_order_relaxed); }
+}
+
+/**
+ * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap. If no matches
+ * can be found for a given key, the corresponding occurrence is 1.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
+ * @tparam Key key type
+ * @tparam Value The type of the mapped value for the map
+ * @tparam InputIt Device accessible input iterator whose `value_type` is convertible to the map's
+ * `key_type`
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam KeyEqual Binary callable
+ * @param first Beginning of the sequence of keys to count
+ * @param last End of the sequence of keys to count
+ * @param num_items The number of all the matches for a sequence of keys
+ * @param view Device view used to access the hash map's slot storage
+ * @param key_equal Binary function to compare two keys for equality
+ */
+template <uint32_t block_size,
+          uint32_t tile_size,
+          typename Key,
+          typename Value,
+          typename InputIt,
+          typename atomicT,
+          typename viewT,
+          typename KeyEqual>
+__global__ void count_outer(
+  InputIt first, InputIt last, atomicT* num_items, viewT view, KeyEqual key_equal)
+{
+  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid     = block_size * blockIdx.x + threadIdx.x;
+  auto key_idx = tid / tile_size;
+
+  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  std::size_t thread_num_items = 0;
+
+  while (first + key_idx < last) {
+    auto key          = *(first + key_idx);
+    auto current_slot = view.initial_slot(tile, key);
+
+    bool found_match = false;
+
+    while (true) {
+      pair<Key, Value> arr[2];
+      if constexpr (sizeof(Key) == 4) {
+        auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
+        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+      } else {
+        auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
+        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+      }
+
+      auto const first_slot_is_empty  = (arr[0].first == view.get_empty_key_sentinel());
+      auto const second_slot_is_empty = (arr[1].first == view.get_empty_key_sentinel());
+      auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, key));
+      auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, key));
+      auto const first_exists         = tile.any(first_equals);
+      auto const second_exists        = tile.any(second_equals);
+
+      if (first_exists or second_exists) { found_match = true; }
+
+      thread_num_items += (first_equals + second_equals);
+
+      if (tile.any(first_slot_is_empty or second_slot_is_empty)) {
+        if ((not found_match) && (tile.thread_rank() == 0)) { thread_num_items++; }
+        break;
+      }
+
+      current_slot = view.next_slot(tile, current_slot);
+    }
+    key_idx += (gridDim.x * block_size) / tile_size;
+  }
+
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  std::size_t block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
+  if (threadIdx.x == 0) { num_items->fetch_add(block_num_items, cuda::std::memory_order_relaxed); }
+}
+
+/**
  * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
  *
  * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
- * unspecified locations in `[output_begin, output_begin + *num_items - 1)`. Else, copies `k` and
- * the empty value sentinel.
+ * unspecified locations in `[output_begin, output_begin + *num_items - 1)`. Else, does nothing.
  *
  * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
  * output_begin + *num_items - 1)`. Use `count()` to determine the number of matching keys.
  *
  * @tparam block_size The size of the thread block
- * @tparam tile_size The number of threads in the Cooperative Groups used to perform
- * inserts
+ * @tparam tile_size The number of threads in the Cooperative Groups
  * @tparam buffer_size Size of the output buffer
  * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
@@ -223,12 +372,141 @@ template <uint32_t block_size,
           typename atomicT,
           typename viewT,
           typename KeyEqual>
-__global__ void find_all(InputIt first,
-                         InputIt last,
-                         OutputIt output_begin,
-                         atomicT* num_items,
-                         viewT view,
-                         KeyEqual key_equal)
+__global__ void retrieve_inner(InputIt first,
+                               InputIt last,
+                               OutputIt output_begin,
+                               atomicT* num_items,
+                               viewT view,
+                               KeyEqual key_equal)
+{
+  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid     = block_size * blockIdx.x + threadIdx.x;
+  auto key_idx = tid / tile_size;
+
+  const uint32_t lane_id = tile.thread_rank();
+
+  __shared__ uint32_t block_counter;
+  __shared__ cuco::pair_type<Key, Value> output_buffer[buffer_size];
+
+  if (0 == threadIdx.x) { block_counter = 0; }
+
+  while (__syncthreads_or(first + key_idx < last)) {
+    auto key = *(first + key_idx);
+    typename viewT::iterator current_slot;
+
+    bool running = ((first + key_idx) < last);
+
+    if (running) { current_slot = view.initial_slot(tile, key); }
+
+    while (__syncthreads_or(running)) {
+      if (running) {
+        pair<Key, Value> arr[2];
+        if constexpr (sizeof(Key) == 4) {
+          auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
+          memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+        } else {
+          auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
+          memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+        }
+
+        auto const first_slot_is_empty  = (arr[0].first == view.get_empty_key_sentinel());
+        auto const second_slot_is_empty = (arr[1].first == view.get_empty_key_sentinel());
+        auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, key));
+        auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, key));
+        auto const first_exists  = tile.ballot(first_equals);
+        auto const second_exists = tile.ballot(second_equals);
+
+        if (first_exists or second_exists) {
+          auto num_first_matches  = __popc(first_exists);
+          auto num_second_matches = __popc(second_exists);
+
+          uint32_t output_idx;
+          if (0 == lane_id) {
+            output_idx = atomicAdd_block(&block_counter, (num_first_matches + num_second_matches));
+          }
+          output_idx = tile.shfl(output_idx, 0);
+
+          if (first_equals) {
+            auto lane_offset = __popc(first_exists & ((1 << lane_id) - 1));
+            Key k            = key;
+            output_buffer[output_idx + lane_offset] =
+              cuco::make_pair<Key, Value>(std::move(k), std::move(arr[0].second));
+          }
+          if (second_equals) {
+            auto lane_offset = __popc(second_exists & ((1 << lane_id) - 1));
+            Key k            = key;
+            output_buffer[output_idx + num_first_matches + lane_offset] =
+              cuco::make_pair<Key, Value>(std::move(k), std::move(arr[1].second));
+          }
+        }
+        if (tile.any(first_slot_is_empty or second_slot_is_empty)) { running = false; }
+      }  // if running
+
+      __syncthreads();
+
+      if ((block_counter + 2 * block_size) > buffer_size) {
+        flush_output_buffer<block_size>(block_counter, output_buffer, num_items, output_begin);
+
+        if (0 == threadIdx.x) { block_counter = 0; }
+      }
+
+      if (running) { current_slot = view.next_slot(tile, current_slot); }
+    }  // while running
+    key_idx += (gridDim.x * block_size) / tile_size;
+  }
+
+  // Final remainder flush
+  if (block_counter > 0) {
+    flush_output_buffer<block_size>(block_counter, output_buffer, num_items, output_begin);
+  }
+}
+
+/**
+ * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
+ *
+ * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
+ * unspecified locations in `[output_begin, output_begin + *num_items - 1)`. Else, copies `k` and
+ * the empty value sentinel.
+ *
+ * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
+ * output_begin + *num_items - 1)`. Use `count()` to determine the number of matching keys.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups
+ * @tparam buffer_size Size of the output buffer
+ * @tparam Key key type
+ * @tparam Value The type of the mapped value for the map
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is
+ * convertible to the map's `mapped_type`
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param output_begin Beginning of the sequence of values retrieved for each key
+ * @param num_items Size of the output sequence
+ * @param view Device view used to access the hash map's slot storage
+ * @param key_equal The binary function to compare two keys for equality
+ */
+
+template <uint32_t block_size,
+          uint32_t tile_size,
+          uint32_t buffer_size,
+          typename Key,
+          typename Value,
+          typename InputIt,
+          typename OutputIt,
+          typename atomicT,
+          typename viewT,
+          typename KeyEqual>
+__global__ void retrieve_outer(InputIt first,
+                               InputIt last,
+                               OutputIt output_begin,
+                               atomicT* num_items,
+                               viewT view,
+                               KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid     = block_size * blockIdx.x + threadIdx.x;
@@ -320,76 +598,6 @@ __global__ void find_all(InputIt first,
   if (block_counter > 0) {
     flush_output_buffer<block_size>(block_counter, output_buffer, num_items, output_begin);
   }
-}
-
-/**
- * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
- *
- * @tparam block_size The size of the thread block
- * @tparam tile_size The number of threads in the Cooperative Groups used to perform inserts
- * @tparam Value The type of the mapped value for the map
- * @tparam InputIt Device accessible input iterator whose `value_type` is convertible to the map's
- * `key_type`
- * @tparam atomicT Type of atomic storage
- * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam KeyEqual Binary callable
- * @param first Beginning of the sequence of keys to count
- * @param last End of the sequence of keys to count
- * @param num_items The number of all the matches for a sequence of keys
- * @param view Device view used to access the hash map's slot storage
- * @param key_equal Binary function to compare two keys for equality
- */
-template <uint32_t block_size,
-          uint32_t tile_size,
-          typename Key,
-          typename Value,
-          typename InputIt,
-          typename atomicT,
-          typename viewT,
-          typename KeyEqual>
-__global__ void count(
-  InputIt first, InputIt last, atomicT* num_items, viewT view, KeyEqual key_equal)
-{
-  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid / tile_size;
-
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
-  __shared__ typename BlockReduce::TempStorage temp_storage;
-  std::size_t thread_num_items = 0;
-
-  while (first + key_idx < last) {
-    auto key          = *(first + key_idx);
-    auto current_slot = view.initial_slot(tile, key);
-
-    while (true) {
-      pair<Key, Value> arr[2];
-      if constexpr (sizeof(Key) == 4) {
-        auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-      } else {
-        auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
-        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-      }
-
-      auto const first_slot_is_empty  = (arr[0].first == view.get_empty_key_sentinel());
-      auto const second_slot_is_empty = (arr[1].first == view.get_empty_key_sentinel());
-      auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, key));
-      auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, key));
-
-      thread_num_items += (first_equals + second_equals);
-
-      if (tile.any(first_slot_is_empty or second_slot_is_empty)) { break; }
-
-      current_slot = view.next_slot(tile, current_slot);
-    }
-    key_idx += (gridDim.x * block_size) / tile_size;
-  }
-
-  // compute number of successfully inserted elements for each block
-  // and atomically add to the grand total
-  std::size_t block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
-  if (threadIdx.x == 0) { num_items->fetch_add(block_num_items, cuda::std::memory_order_relaxed); }
 }
 
 }  // namespace detail
