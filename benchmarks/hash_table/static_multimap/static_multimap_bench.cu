@@ -134,7 +134,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_c
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                timer.start();
-               auto count = map.count(d_keys.begin(), d_keys.end(), launch.get_stream());
+               auto count = map.count_inner(d_keys.begin(), d_keys.end(), launch.get_stream());
                timer.stop();
              });
 }
@@ -185,14 +185,13 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_f
   cuco::static_multimap<Key, Value> map{size, -1, -1};
   map.insert(d_pairs.begin(), d_pairs.end());
 
-  auto num_matches        = map.count(d_keys.begin(), d_keys.end());
-  std::size_t output_size = num_matches + num_keys;
+  auto const output_size = map.count_outer(d_keys.begin(), d_keys.end());
   thrust::device_vector<cuco::pair_type<Key, Value>> d_results(output_size);
 
   state.exec(
     nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
       timer.start();
-      map.find_all(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.get_stream());
+      map.retrieve_outer(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.get_stream());
       timer.stop();
     });
 }
@@ -238,15 +237,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_r
   cuco::static_multimap<Key, Value> map{size, -1, -1};
   map.insert(d_pairs.begin(), d_pairs.end());
 
-  auto num_matches        = map.count(d_keys.begin(), d_keys.end());
-  std::size_t output_size = num_matches + num_keys;
+  auto const output_size = map.count_outer(d_keys.begin(), d_keys.end());
   thrust::device_vector<cuco::pair_type<Key, Value>> d_results(output_size);
 
   state.exec(
     nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
       timer.start();
-      auto count = map.count(d_keys.begin(), d_keys.end(), launch.get_stream());
-      map.find_all(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.get_stream());
+      auto count = map.count_outer(d_keys.begin(), d_keys.end(), launch.get_stream());
+      map.retrieve_outer(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.get_stream());
       timer.stop();
     });
 }

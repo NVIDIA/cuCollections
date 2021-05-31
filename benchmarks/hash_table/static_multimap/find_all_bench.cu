@@ -102,7 +102,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
       CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
 
       // Use timers to explicitly mark the target region
-      cuco::detail::find_all<block_size, CGSize, buffer_size, Key, Value>
+      cuco::detail::retrieve_outer<block_size, CGSize, buffer_size, Key, Value>
         <<<grid_size, block_size, 0, launch.get_stream()>>>(d_unique_keys.begin(),
                                                             d_unique_keys.end(),
                                                             d_results.data().get(),

@@ -126,13 +126,13 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
   {
     map.insert(d_pairs.begin(), d_pairs.end());
     // Count matching keys
-    size_t num = map.count(d_unique_keys.begin(), d_unique_keys.end());
+    size_t num = map.count_inner(d_unique_keys.begin(), d_unique_keys.end());
 
     REQUIRE(num == num_items);
 
     auto output_begin = d_results.data().get();
-    auto output_end   = map.find_all(d_unique_keys.begin(), d_unique_keys.end(), output_begin);
-    auto size         = thrust::distance(output_begin, output_end);
+    auto output_end = map.retrieve_inner(d_unique_keys.begin(), d_unique_keys.end(), output_begin);
+    auto size       = thrust::distance(output_begin, output_end);
 
     REQUIRE(size == num_items);
   }
