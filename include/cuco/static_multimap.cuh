@@ -228,10 +228,10 @@ class static_multimap {
    * @return The sum of total occurrences of all keys in `[first,last)`
    */
   template <typename InputIt, typename KeyEqual = thrust::equal_to<key_type>>
-  std::size_t count_inner(InputIt first,
-                          InputIt last,
-                          cudaStream_t stream = 0,
-                          KeyEqual key_equal  = KeyEqual{});
+  std::size_t count(InputIt first,
+                    InputIt last,
+                    cudaStream_t stream = 0,
+                    KeyEqual key_equal  = KeyEqual{});
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap. If no
@@ -265,11 +265,11 @@ class static_multimap {
   template <typename InputIt,
             typename KeyEqual = thrust::equal_to<key_type>,
             typename ValEqual = thrust::equal_to<mapped_type>>
-  std::size_t pair_count_inner(InputIt first,
-                               InputIt last,
-                               cudaStream_t stream = 0,
-                               KeyEqual key_equal  = KeyEqual{},
-                               ValEqual val_equal  = ValEqual{});
+  std::size_t pair_count(InputIt first,
+                         InputIt last,
+                         cudaStream_t stream = 0,
+                         KeyEqual key_equal  = KeyEqual{},
+                         ValEqual val_equal  = ValEqual{});
 
   /**
    * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap.
@@ -314,11 +314,11 @@ class static_multimap {
    * @return The iterator indicating the last valid key/value pairs in the output
    */
   template <typename InputIt, typename OutputIt, typename KeyEqual = thrust::equal_to<key_type>>
-  OutputIt retrieve_inner(InputIt first,
-                          InputIt last,
-                          OutputIt output_begin,
-                          cudaStream_t stream = 0,
-                          KeyEqual key_equal  = KeyEqual{});
+  OutputIt retrieve(InputIt first,
+                    InputIt last,
+                    OutputIt output_begin,
+                    cudaStream_t stream = 0,
+                    KeyEqual key_equal  = KeyEqual{});
 
   /**
    * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
@@ -443,7 +443,6 @@ class static_multimap {
      * @param s The slot to advance
      * @return The next slot after `s`
      */
-    template <typename CG>
     __device__ const_iterator next_slot(const_iterator s) const noexcept
     {
       return probe_sequence_.next_slot(s);

@@ -207,7 +207,7 @@ template <uint32_t block_size,
           typename atomicT,
           typename viewT,
           typename KeyEqual>
-__global__ void count_inner(
+__global__ void count(
   InputIt first, InputIt last, atomicT* num_items, viewT view, KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
@@ -360,12 +360,12 @@ template <uint32_t block_size,
           typename viewT,
           typename KeyEqual,
           typename ValEqual>
-__global__ void pair_count_inner(InputIt first,
-                                 InputIt last,
-                                 atomicT* num_items,
-                                 viewT view,
-                                 KeyEqual key_equal,
-                                 ValEqual val_equal)
+__global__ void pair_count(InputIt first,
+                           InputIt last,
+                           atomicT* num_items,
+                           viewT view,
+                           KeyEqual key_equal,
+                           ValEqual val_equal)
 {
   auto tile     = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid      = block_size * blockIdx.x + threadIdx.x;
@@ -553,12 +553,12 @@ template <uint32_t block_size,
           typename atomicT,
           typename viewT,
           typename KeyEqual>
-__global__ void retrieve_inner(InputIt first,
-                               InputIt last,
-                               OutputIt output_begin,
-                               atomicT* num_items,
-                               viewT view,
-                               KeyEqual key_equal)
+__global__ void retrieve(InputIt first,
+                         InputIt last,
+                         OutputIt output_begin,
+                         atomicT* num_items,
+                         viewT view,
+                         KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid     = block_size * blockIdx.x + threadIdx.x;
