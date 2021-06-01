@@ -69,8 +69,8 @@ constexpr std::size_t compute_prime(std::size_t num) noexcept
 template <std::size_t CGSize>
 constexpr std::size_t get_valid_capacity(std::size_t capacity) noexcept
 {
-  auto const min_prime = compute_prime(SDIV(capacity, CGSize * 2));
-  return min_prime * CGSize * 2;
+  auto const min_prime = compute_prime(SDIV(capacity, CGSize));
+  return min_prime * CGSize;
 }
 
 }  // namespace detail

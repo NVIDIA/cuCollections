@@ -141,6 +141,7 @@ class static_multimap {
   static_multimap& operator=(static_multimap&&) = delete;
 
   static constexpr uint32_t cg_size() noexcept { return ProbeSequence::cg_size(); }
+  static constexpr bool is_vector_load() noexcept { return ProbeSequence::is_vector_load(); }
 
   /**
    * @brief Construct a fixed-size map with the specified capacity and sentinel values.
@@ -526,7 +527,7 @@ class static_multimap {
     }
 
     /**
-     * @brief Inserts the specified key/value pair into the map.
+     * @brief Inserts the specified key/value pair into the map using vector loads.
      *
      * @tparam Cooperative Group type
      * @tparam KeyEqual Binary callable type
@@ -537,11 +538,25 @@ class static_multimap {
      * equality
      * @return void.
      */
-    template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void insert(CG g,
-                           value_type const& insert_pair,
-                           KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <bool is_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ std::enable_if_t<is_vector_load, void> insert(
+      CG g, value_type const& insert_pair, KeyEqual key_equal = KeyEqual{}) noexcept;
 
+    /**
+     * @brief Inserts the specified key/value pair into the map using scalar loads.
+     *
+     * @tparam Cooperative Group type
+     * @tparam KeyEqual Binary callable type
+     *
+     * @param g The Cooperative Group that performs the insert
+     * @param insert_pair The pair to insert
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return void.
+     */
+    template <bool is_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ std::enable_if_t<not is_vector_load, void> insert(
+      CG g, value_type const& insert_pair, KeyEqual key_equal = KeyEqual{}) noexcept;
   };  // class device mutable view
 
   /**
@@ -653,7 +668,7 @@ class static_multimap {
     }
 
     /**
-     * @brief Indicates whether the key `k` was inserted into the map.
+     * @brief Indicates whether the key `k` was inserted into the map using vector loads.
      *
      * If the key `k` was inserted into the map, find returns
      * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
@@ -670,8 +685,31 @@ class static_multimap {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <bool is_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ std::enable_if_t<is_vector_load, bool> contains(
+      CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Indicates whether the key `k` was inserted into the map using scalar loads.
+     *
+     * If the key `k` was inserted into the map, find returns
+     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single contains operation. This provides a
+     * significant boost in throughput compared to the non Cooperative Group
+     * `contains` at moderate to high load factors.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to perform the contains operation
+     * @param k The key to search for
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     * @return A boolean indicating whether the key/value pair
+     * containing `k` was inserted
+     */
+    template <bool is_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ std::enable_if_t<not is_vector_load, bool> contains(
+      CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
   };  // class device_view
 
   /**
