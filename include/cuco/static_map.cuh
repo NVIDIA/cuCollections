@@ -62,6 +62,7 @@ template <typename T, typename = void>
 struct is_bitwise_comparable : std::false_type {
 };
 
+/// By default, only types with unique object representations are allowed
 template <typename T>
   struct is_bitwise_comparable < T,
   std::enable_if_t<std::has_unique_object_representations_v<T>> : std::true_type {
@@ -86,14 +87,12 @@ template <typename T>
  * concurrent insert and find) from threads in device code.
  *
  * Current limitations:
- * - Requires keys and values that are trivially copyable and have unique object representations
+ * - Requires keys and values that where `cuco::is_bitwise_comparable<T>::value` is true
  *    - Comparisons against the "sentinel" values will always be done with bitwise comparisons.
- *      Therefore, the objects must have unique, bitwise object representations (e.g., no padding
- *      bits).
  * - Does not support erasing keys
  * - Capacity is fixed and will not grow automatically
- * - Requires the user to specify sentinel values for both key and mapped value
- * to indicate empty slots
+ * - Requires the user to specify sentinel values for both key and mapped value to indicate empty
+ * slots
  * - Does not support concurrent insert and find operations
  *
  * The `static_map` supports two types of operations:
