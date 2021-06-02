@@ -508,10 +508,9 @@ __global__ std::enable_if_t<is_vector_load, void> pair_count(
   std::size_t thread_num_items = 0;
 
   while (first + pair_idx < last) {
-    auto pair         = *(first + pair_idx);
-    auto key          = pair.first;
-    auto value        = pair.second;
-    auto current_slot = view.initial_slot(tile, key);
+    cuco::pair_type<Key, Value> pair = *(first + pair_idx);
+    auto key                         = pair.first;
+    auto current_slot                = view.initial_slot(tile, key);
 
     if constexpr (is_outer) {
       bool found_match = false;
@@ -619,10 +618,9 @@ __global__ std::enable_if_t<not is_vector_load, void> pair_count(
   std::size_t thread_num_items = 0;
 
   while (first + pair_idx < last) {
-    auto pair         = *(first + pair_idx);
-    auto key          = pair.first;
-    auto value        = pair.second;
-    auto current_slot = view.initial_slot(tile, key);
+    cuco::pair_type<Key, Value> pair = *(first + pair_idx);
+    auto key                         = pair.first;
+    auto current_slot                = view.initial_slot(tile, key);
 
     if constexpr (is_outer) {
       bool found_match = false;

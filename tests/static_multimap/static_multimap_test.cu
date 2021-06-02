@@ -45,6 +45,15 @@ bool none_of(Iterator begin, Iterator end, Predicate p)
 {
   return not all_of(begin, end, p);
 }
+
+template <typename Key, typename Value>
+struct pair_equal {
+  __host__ __device__ bool operator()(const cuco::pair_type<Key, Value>& lhs,
+                                      const cuco::pair_type<Key, Value>& rhs) const
+  {
+    return lhs.first == rhs.first;
+  }
+};
 }  // namespace
 
 enum class dist_type { UNIQUE, DUAL, UNIFORM, GAUSSIAN };
@@ -82,8 +91,8 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
   using Key   = T;
   using Value = T;
 
-  constexpr std::size_t num_items{50'000'000};
-  cuco::static_multimap<Key, Value> map{100'000'000, -1, -1};
+  constexpr std::size_t num_items{400};
+  cuco::static_multimap<Key, Value> map{500, -1, -1};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();
@@ -241,5 +250,49 @@ TEMPLATE_TEST_CASE_SIG("Handling of non-matches",
     auto size_outer = thrust::distance(output_begin, output_end);
 
     REQUIRE(size_outer == (size + num_keys / 2));
+  }
+}
+
+TEMPLATE_TEST_CASE_SIG("Evaluation of pair functions",
+                       "",
+                       ((typename T, dist_type Dist), T, Dist),
+                       (int32_t, dist_type::UNIQUE),
+                       (int64_t, dist_type::UNIQUE))
+{
+  using Key   = T;
+  using Value = T;
+
+  constexpr std::size_t num_pairs{5'000'000};
+  cuco::static_multimap<Key, Value> map{10'000'000, -1, -1};
+
+  auto m_view = map.get_device_mutable_view();
+  auto view   = map.get_device_view();
+
+  std::vector<Key> h_keys(num_pairs);
+  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_pairs);
+
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+
+  for (auto i = 0; i < num_pairs; ++i) {
+    h_pairs[i].first  = h_keys[i] / 2;
+    h_pairs[i].second = h_keys[i];
+  }
+
+  thrust::device_vector<Key> d_keys(h_keys);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+
+  map.insert(d_pairs.begin(), d_pairs.end());
+
+  for (auto i = 0; i < num_pairs; ++i) {
+    h_pairs[i].first = h_keys[i];
+  }
+  d_pairs = h_pairs;
+
+  SECTION("pair_count_outer handles non-matches wile pair_count doesn't.")
+  {
+    auto num_outer = map.pair_count_outer(d_pairs.begin(), d_pairs.end(), pair_equal<Key, Value>{});
+    auto num       = map.pair_count(d_pairs.begin(), d_pairs.end(), pair_equal<Key, Value>{});
+
+    REQUIRE(num_outer == (num + num_pairs / 2));
   }
 }
