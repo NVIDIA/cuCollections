@@ -44,6 +44,41 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 class dynamic_map;
 
 /**
+ * @brief Customization point that can be specialized to indicate that it is safe to perform bitwise
+ * equality comparisons on objects of type `T`.
+ *
+ * By default, only types where `std::has_unique_object_representations_v<T>` is true are safe for
+ * bitwise equality. However, this can be too restrictive for some types, e.g., floating point
+ * types.
+ *
+ * User-defined specializations of `is_bitwise_comparable` are allowed, but it is the users
+ * responsibility to ensure values do not occur that would lead to unexpected behavior. For example,
+ * if a `NaN` bit pattern were used as the empty sentinel value, it may not compare bitwise equal to
+ * other `NaN` bit patterns.
+ *
+ */
+template <typename T, typename = void>
+struct is_bitwise_comparable : std::false_type {
+};
+
+/// By default, only types with unique object representations are allowed
+template <typename T>
+struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_representations_v<T>>>
+  : std::true_type {
+};
+
+/**
+ * @brief Declares that a type `Type` is bitwise comparable.
+ * 
+ */
+#define CUCO_DECLARE_BITWISE_COMPARABLE(Type)           \
+  namespace cuco {                                      \
+  template <>                                           \
+  struct is_bitwise_comparable<Type> : std::true_type { \
+  };                                                    \
+  }
+
+/**
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs with unique keys.
  *
@@ -51,14 +86,12 @@ class dynamic_map;
  * concurrent insert and find) from threads in device code.
  *
  * Current limitations:
- * - Requires keys and values that are trivially copyable and have unique object representations
+ * - Requires keys and values that where `cuco::is_bitwise_comparable<T>::value` is true
  *    - Comparisons against the "sentinel" values will always be done with bitwise comparisons.
- *      Therefore, the objects must have unique, bitwise object representations (e.g., no padding
- *      bits).
  * - Does not support erasing keys
  * - Capacity is fixed and will not grow automatically
- * - Requires the user to specify sentinel values for both key and mapped value
- * to indicate empty slots
+ * - Requires the user to specify sentinel values for both key and mapped value to indicate empty
+ * slots
  * - Does not support concurrent insert and find operations
  *
  * The `static_map` supports two types of operations:
@@ -117,14 +150,16 @@ template <typename Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_map {
-  template <typename T>
-  static constexpr bool is_CAS_safe =
-    std::is_trivially_copyable_v<T>and std::has_unique_object_representations_v<T>;
 
-  static_assert(is_CAS_safe<Key>,
-                "Key type must be trivially copyable and have unique object representation.");
-  static_assert(is_CAS_safe<Value>,
-                "Value type must be trivially copyable and have unique object representation.");
+  static_assert(
+    is_bitwise_comparable<Key>::value,
+    "Key type must have unique object representations or have been explicitly declared as safe for "
+    "bitwise comparison via specialization of cuco::is_bitwise_comparable<Key>.");
+
+  static_assert(
+    is_bitwise_comparable<Value>::value,
+    "Value type must have unique object representations or have been explicitly declared as safe for "
+    "bitwise comparison via specialization of cuco::is_bitwise_comparable<Value>.");
 
   friend class dynamic_map<Key, Value, Scope, Allocator>;
 
