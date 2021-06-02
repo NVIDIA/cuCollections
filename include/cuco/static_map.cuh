@@ -63,8 +63,8 @@ struct is_bitwise_comparable : std::false_type {
 
 /// By default, only types with unique object representations are allowed
 template <typename T>
-  struct is_bitwise_comparable < T,
-  std::enable_if_t<std::has_unique_object_representations_v<T>> : std::true_type {
+struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_representations_v<T>>>
+  : std::true_type {
 };
 
 /**
