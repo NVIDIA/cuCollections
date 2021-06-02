@@ -478,8 +478,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::conta
       memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
     }
 
-    auto const first_slot_is_empty  = (arr[0].first == get_empty_key_sentinel());
-    auto const second_slot_is_empty = (arr[1].first == get_empty_key_sentinel());
+    auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
+    auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
     auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, k));
     auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, k));
 

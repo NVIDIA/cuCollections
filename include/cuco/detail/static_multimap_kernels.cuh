@@ -319,7 +319,7 @@ __global__ std::enable_if_t<is_vector_load, void> count(
         auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, key));
         auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, key));
 
-        found_match = tile.any(first_equals or second_equals);
+        if (tile.any(first_equals or second_equals)) { found_match = true; }
 
         thread_num_items += (first_equals + second_equals);
 
@@ -417,7 +417,7 @@ __global__ std::enable_if_t<not is_vector_load, void> count(
         auto const slot_is_empty = (current_key == view.get_empty_key_sentinel());
         auto const equals        = not slot_is_empty and key_equal(current_key, key);
 
-        found_match = tile.any(equals);
+        if (tile.any(equals)) { found_match = true; }
 
         thread_num_items += equals;
 
