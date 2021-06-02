@@ -25,14 +25,17 @@ namespace detail {
 namespace cg = cooperative_groups;
 
 /**
- * @brief Flushes per-CG shared memory buffer into the output sequence.
+ * @brief Flushes per-CG shared memory buffer into the output sequence using CG memcpy_async.
  *
+ * @tparam cg_size The number of threads in the Cooperative Groups
+ * @tparam CG Cooperative Group type
  * @tparam Key key type
  * @tparam Value value type
  * @tparam atomicT Type of atomic storage
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
  * convertible to the map's `mapped_type`
- * @param output_size Number of valid output in the buffer
+ * @param g The Cooperative Group used to flush output buffer
+ * @param num_outputs Number of valid output in the buffer
  * @param output_buffer Shared memory buffer of the key/value pair sequence
  * @param num_items Size of the output sequence
  * @param output_begin Beginning of the output sequence of key/value pairs
@@ -65,12 +68,15 @@ flush_output_buffer(CG const& g,
 /**
  * @brief Flushes per-CG shared memory buffer into the output sequence.
  *
+ * @tparam cg_size The number of threads in the Cooperative Groups
+ * @tparam CG Cooperative Group type
  * @tparam Key key type
  * @tparam Value value type
  * @tparam atomicT Type of atomic storage
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
  * convertible to the map's `mapped_type`
- * @param output_size Number of valid output in the buffer
+ * @param g The Cooperative Group used to flush output buffer
+ * @param num_outputs Number of valid output in the buffer
  * @param output_buffer Shared memory buffer of the key/value pair sequence
  * @param num_items Size of the output sequence
  * @param output_begin Beginning of the output sequence of key/value pairs
@@ -101,12 +107,13 @@ flush_output_buffer(CG const& g,
 /**
  * @brief Flushes per-block shared memory buffer into the output sequence.
  *
+ * @tparam block_size The size of the thread block
  * @tparam Key key type
  * @tparam Value value type
  * @tparam atomicT Type of atomic storage
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
  * convertible to the map's `mapped_type`
- * @param output_size Number of valid output in the buffer
+ * @param num_outputs Number of valid output in the buffer
  * @param output_buffer Shared memory buffer of the key/value pair sequence
  * @param num_items Size of the output sequence
  * @param output_begin Beginning of the output sequence of key/value pairs
@@ -168,9 +175,10 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  * significant boost in throughput compared to the non Cooperative Group
  * `insert` at moderate to high load factors.
  *
- * @tparam block_size
+ * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
  * inserts
+ * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `value_type`
  * @tparam viewT Type of device view allowing access of hash map storage
@@ -210,6 +218,7 @@ __global__ void insert(InputIt first, InputIt last, viewT view, KeyEqual key_equ
  *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups
+ * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
@@ -265,6 +274,9 @@ __global__ void contains(
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
  * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
+ * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+ * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
+ * operations or not
  * @tparam InputIt Device accessible input iterator whose `value_type` is convertible to the map's
  * `key_type`
  * @tparam atomicT Type of atomic storage
@@ -370,6 +382,9 @@ __global__ std::enable_if_t<is_vector_load, void> count(
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
  * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
+ * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+ * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
+ * operations or not
  * @tparam InputIt Device accessible input iterator whose `value_type` is convertible to the map's
  * `key_type`
  * @tparam atomicT Type of atomic storage
@@ -458,17 +473,18 @@ __global__ std::enable_if_t<not is_vector_load, void> count(
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
  * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
+ * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+ * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
+ * operations or not
  * @tparam Input Device accesible input iterator of key/value pairs
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam KeyEqual Binary callable
- * @tparam ValEqual Binary callable
+ * @tparam PairEqual Binary callable
  * @param first Beginning of the sequence of pairs to count
  * @param last End of the sequence of pairs to count
  * @param num_items The number of all the matches for a sequence of pairs
  * @param view Device view used to access the hash map's slot storage
- * @param key_equal Binary function to compare two keys for equality
- * @param val_equal Binary function to compare two values for equality
+ * @param pair_equal Binary function to compare two pairs for equality
  */
 template <uint32_t block_size,
           uint32_t tile_size,
@@ -479,14 +495,9 @@ template <uint32_t block_size,
           typename InputIt,
           typename atomicT,
           typename viewT,
-          typename KeyEqual,
-          typename ValEqual>
-__global__ std::enable_if_t<is_vector_load, void> pair_count(InputIt first,
-                                                             InputIt last,
-                                                             atomicT* num_items,
-                                                             viewT view,
-                                                             KeyEqual key_equal,
-                                                             ValEqual val_equal)
+          typename PairEqual>
+__global__ std::enable_if_t<is_vector_load, void> pair_count(
+  InputIt first, InputIt last, atomicT* num_items, viewT view, PairEqual pair_equal)
 {
   auto tile     = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid      = block_size * blockIdx.x + threadIdx.x;
@@ -515,25 +526,17 @@ __global__ std::enable_if_t<is_vector_load, void> pair_count(InputIt first,
           memcpy(&arr[0], &tmp, 2 * sizeof(cuco::pair_type<Key, Value>));
         }
 
-        auto const first_key_is_empty  = (arr[0].first == view.get_empty_key_sentinel());
-        auto const second_key_is_empty = (arr[1].first == view.get_empty_key_sentinel());
-        auto const first_val_is_empty  = (arr[0].second == view.get_empty_value_sentinel());
-        auto const second_val_is_empty = (arr[1].second == view.get_empty_value_sentinel());
+        auto const first_slot_is_empty  = (arr[0].first == view.get_empty_key_sentinel());
+        auto const second_slot_is_empty = (arr[1].first == view.get_empty_key_sentinel());
 
-        auto const first_key_equals  = (not first_key_is_empty and key_equal(arr[0].first, key));
-        auto const second_key_equals = (not second_key_is_empty and key_equal(arr[1].first, key));
-        auto const first_val_equals  = (not first_val_is_empty and key_equal(arr[0].second, value));
-        auto const second_val_equals =
-          (not second_val_is_empty and key_equal(arr[1].second, value));
+        auto const first_slot_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
+        auto const second_slot_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
 
-        auto const first_equals  = first_key_equals and first_val_equals;
-        auto const second_equals = second_key_equals and second_val_equals;
+        if (tile.any(first_slot_equals or second_slot_equals)) { found_match = true; }
 
-        found_match = tile.any(first_equals or second_equals);
+        thread_num_items += (first_slot_equals + second_slot_equals);
 
-        thread_num_items += (first_equals + second_equals);
-
-        if (tile.any(first_key_is_empty or second_key_is_empty)) {
+        if (tile.any(first_slot_is_empty or second_slot_is_empty)) {
           if ((not found_match) && (tile.thread_rank() == 0)) { thread_num_items++; }
           break;
         }
@@ -551,23 +554,15 @@ __global__ std::enable_if_t<is_vector_load, void> pair_count(InputIt first,
           memcpy(&arr[0], &tmp, 2 * sizeof(cuco::pair_type<Key, Value>));
         }
 
-        auto const first_key_is_empty  = (arr[0].first == view.get_empty_key_sentinel());
-        auto const second_key_is_empty = (arr[1].first == view.get_empty_key_sentinel());
-        auto const first_val_is_empty  = (arr[0].second == view.get_empty_value_sentinel());
-        auto const second_val_is_empty = (arr[1].second == view.get_empty_value_sentinel());
+        auto const first_slot_is_empty  = (arr[0].first == view.get_empty_key_sentinel());
+        auto const second_slot_is_empty = (arr[1].first == view.get_empty_key_sentinel());
 
-        auto const first_key_equals  = (not first_key_is_empty and key_equal(arr[0].first, key));
-        auto const second_key_equals = (not second_key_is_empty and key_equal(arr[1].first, key));
-        auto const first_val_equals  = (not first_val_is_empty and key_equal(arr[0].second, value));
-        auto const second_val_equals =
-          (not second_val_is_empty and key_equal(arr[1].second, value));
+        auto const first_slot_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
+        auto const second_slot_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
 
-        auto const first_equals  = first_key_equals and first_val_equals;
-        auto const second_equals = second_key_equals and second_val_equals;
+        thread_num_items += (first_slot_equals + second_slot_equals);
 
-        thread_num_items += (first_equals + second_equals);
-
-        if (tile.any(first_key_is_empty or second_key_is_empty)) { break; }
+        if (tile.any(first_slot_is_empty or second_slot_is_empty)) { break; }
 
         current_slot = view.next_slot(current_slot);
       }
@@ -589,17 +584,18 @@ __global__ std::enable_if_t<is_vector_load, void> pair_count(InputIt first,
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
  * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
+ * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+ * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
+ * operations or not
  * @tparam Input Device accesible input iterator of key/value pairs
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam KeyEqual Binary callable
- * @tparam ValEqual Binary callable
+ * @tparam PairEqual Binary callable
  * @param first Beginning of the sequence of pairs to count
  * @param last End of the sequence of pairs to count
  * @param num_items The number of all the matches for a sequence of pairs
  * @param view Device view used to access the hash map's slot storage
- * @param key_equal Binary function to compare two keys for equality
- * @param val_equal Binary function to compare two values for equality
+ * @param pair_equal Binary function to compare two pairs for equality
  */
 template <uint32_t block_size,
           uint32_t tile_size,
@@ -610,14 +606,9 @@ template <uint32_t block_size,
           typename InputIt,
           typename atomicT,
           typename viewT,
-          typename KeyEqual,
-          typename ValEqual>
-__global__ std::enable_if_t<not is_vector_load, void> pair_count(InputIt first,
-                                                                 InputIt last,
-                                                                 atomicT* num_items,
-                                                                 viewT view,
-                                                                 KeyEqual key_equal,
-                                                                 ValEqual val_equal)
+          typename PairEqual>
+__global__ std::enable_if_t<not is_vector_load, void> pair_count(
+  InputIt first, InputIt last, atomicT* num_items, viewT view, PairEqual pair_equal)
 {
   auto tile     = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid      = block_size * blockIdx.x + threadIdx.x;
@@ -639,19 +630,15 @@ __global__ std::enable_if_t<not is_vector_load, void> pair_count(InputIt first,
       while (true) {
         auto slot_contents = *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
 
-        auto const key_is_empty = (slot_contents.first == view.get_empty_key_sentinel());
-        auto const val_is_empty = (slot_contents.second == view.get_empty_value_sentinel());
+        auto const slot_is_empty = (slot_contents.first == view.get_empty_key_sentinel());
 
-        auto const key_equals = (not key_is_empty and key_equal(slot_contents.first, key));
-        auto const val_equals = (not val_is_empty and key_equal(slot_contents.second, value));
+        auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
 
-        auto const equals = key_equals and val_equals;
-
-        found_match = tile.any(equals);
+        if (tile.any(equals)) { found_match = true; }
 
         thread_num_items += equals;
 
-        if (tile.any(key_is_empty)) {
+        if (tile.any(slot_is_empty)) {
           if ((not found_match) && (tile.thread_rank() == 0)) { thread_num_items++; }
           break;
         }
@@ -662,17 +649,13 @@ __global__ std::enable_if_t<not is_vector_load, void> pair_count(InputIt first,
       while (true) {
         auto slot_contents = *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
 
-        auto const key_is_empty = (slot_contents.first == view.get_empty_key_sentinel());
-        auto const val_is_empty = (slot_contents.second == view.get_empty_value_sentinel());
+        auto const slot_is_empty = (slot_contents.first == view.get_empty_key_sentinel());
 
-        auto const key_equals = (not key_is_empty and key_equal(slot_contents.first, key));
-        auto const val_equals = (not val_is_empty and key_equal(slot_contents.second, value));
-
-        auto const equals = key_equals and val_equals;
+        auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
 
         thread_num_items += equals;
 
-        if (tile.any(key_is_empty)) { break; }
+        if (tile.any(slot_is_empty)) { break; }
 
         current_slot = view.next_slot(current_slot);
       }
@@ -687,7 +670,8 @@ __global__ std::enable_if_t<not is_vector_load, void> pair_count(InputIt first,
 }
 
 /**
- * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
+ * @brief Finds all the values corresponding to all keys in the range `[first, last)` using vector
+ * oads combined with per-block shared memory buffer.
  *
  * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
  * unspecified locations in `[output_begin, output_begin + *num_items - 1)`. Else, copies `k` and
@@ -701,6 +685,9 @@ __global__ std::enable_if_t<not is_vector_load, void> pair_count(InputIt first,
  * @tparam buffer_size Size of the output buffer
  * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
+ * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+ * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
+ * operations or not
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
@@ -889,7 +876,8 @@ __global__ std::enable_if_t<is_vector_load, void> retrieve(InputIt first,
 }
 
 /**
- * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
+ * @brief Finds all the values corresponding to all keys in the range `[first, last)` using scalar
+ * loads combined with per-CG shared memory buffer.
  *
  * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
  * unspecified locations in `[output_begin, output_begin + *num_items - 1)`. Else, copies `k` and
@@ -903,6 +891,9 @@ __global__ std::enable_if_t<is_vector_load, void> retrieve(InputIt first,
  * @tparam buffer_size Size of the output buffer
  * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
+ * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+ * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
+ * operations or not
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is

@@ -104,6 +104,7 @@ namespace cuco {
  *
  * @tparam Key Arithmetic type used for key
  * @tparam Value Type of the mapped values
+ * @tparam ProbeSequence Probe sequence used in multimap
  * @tparam Scope The scope in which insert/find operations will be performed by
  * individual threads.
  * @tparam Allocator Type of allocator used for device storage
@@ -188,6 +189,7 @@ class static_multimap {
    * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
+   * @param stream CUDA stream used for insert
    * @param key_equal The binary function to compare two keys for equality
    */
   template <typename InputIt, typename KeyEqual = thrust::equal_to<key_type>>
@@ -209,6 +211,7 @@ class static_multimap {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream CUDA stream used for contains
    * @param key_equal The binary function to compare two keys for equality
    */
   template <typename InputIt, typename OutputIt, typename KeyEqual = thrust::equal_to<key_type>>
@@ -225,6 +228,7 @@ class static_multimap {
    * @tparam KeyEqual Binary callable
    * @param first Beginning of the sequence of keys to count
    * @param last End of the sequence of keys to count
+   * @param stream CUDA stream used for count
    * @param key_equal Binary function to compare two keys for equality
    * @return The sum of total occurrences of all keys in `[first,last)`
    */
@@ -242,6 +246,7 @@ class static_multimap {
    * @tparam KeyEqual Binary callable
    * @param first Beginning of the sequence of keys to count
    * @param last End of the sequence of keys to count
+   * @param stream CUDA stream used for count_outer
    * @param key_equal Binary function to compare two keys for equality
    * @return The sum of total occurrences of all keys in `[first,last)`
    */
@@ -255,44 +260,36 @@ class static_multimap {
    * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap.
    *
    * @tparam Input Device accesible input iterator of key/value pairs
-   * @tparam KeyEqual Binary callable
-   * @tparam ValEqual Binary callable
+   * @tparam PairEqual Binary callable
    * @param first Beginning of the sequence of pairs to count
    * @param last End of the sequence of pairs to count
-   * @param key_equal Binary function to compare two keys for equality
-   * @param val_equal Binary function to compare two values for equality
+   * @param pair_equal Binary function to compare two pairs for equality
+   * @param stream CUDA stream used for pair_count
    * @return The sum of total occurrences of all pairs in `[first,last)`
    */
-  template <typename InputIt,
-            typename KeyEqual = thrust::equal_to<key_type>,
-            typename ValEqual = thrust::equal_to<mapped_type>>
+  template <typename InputIt, typename PairEqual>
   std::size_t pair_count(InputIt first,
                          InputIt last,
-                         cudaStream_t stream = 0,
-                         KeyEqual key_equal  = KeyEqual{},
-                         ValEqual val_equal  = ValEqual{});
+                         PairEqual pair_equal,
+                         cudaStream_t stream = 0);
 
   /**
    * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap.
    * If no matches can be found for a given key/value pair, the corresponding occurrence is 1.
    *
    * @tparam Input Device accesible input iterator of key/value pairs
-   * @tparam KeyEqual Binary callable
-   * @tparam ValEqual Binary callable
+   * @tparam PairEqual Binary callable
    * @param first Beginning of the sequence of pairs to count
    * @param last End of the sequence of pairs to count
-   * @param key_equal Binary function to compare two keys for equality
-   * @param val_equal Binary function to compare two values for equality
+   * @param pair_equal Binary function to compare two pairs for equality
+   * @param stream CUDA stream used for pair_count_outer
    * @return The sum of total occurrences of all pairs in `[first,last)`
    */
-  template <typename InputIt,
-            typename KeyEqual = thrust::equal_to<key_type>,
-            typename ValEqual = thrust::equal_to<mapped_type>>
+  template <typename InputIt, typename PairEqual>
   std::size_t pair_count_outer(InputIt first,
                                InputIt last,
-                               cudaStream_t stream = 0,
-                               KeyEqual key_equal  = KeyEqual{},
-                               ValEqual val_equal  = ValEqual{});
+                               PairEqual pair_equal,
+                               cudaStream_t stream = 0);
 
   /**
    * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
@@ -311,6 +308,7 @@ class static_multimap {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of key/value pairs retrieved for each key
+   * @param stream CUDA stream used for retrieve
    * @param key_equal The binary function to compare two keys for equality
    * @return The iterator indicating the last valid key/value pairs in the output
    */
@@ -339,6 +337,7 @@ class static_multimap {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of key/value pairs retrieved for each key
+   * @param stream CUDA stream used for retrieve_outer
    * @param key_equal The binary function to compare two keys for equality
    * @return The iterator indicating the last valid key/value pairs in the output
    */
@@ -529,7 +528,8 @@ class static_multimap {
     /**
      * @brief Inserts the specified key/value pair into the map using vector loads.
      *
-     * @tparam Cooperative Group type
+     * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam CG Cooperative Group type
      * @tparam KeyEqual Binary callable type
      *
      * @param g The Cooperative Group that performs the insert
@@ -545,7 +545,8 @@ class static_multimap {
     /**
      * @brief Inserts the specified key/value pair into the map using scalar loads.
      *
-     * @tparam Cooperative Group type
+     * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam CG Cooperative Group type
      * @tparam KeyEqual Binary callable type
      *
      * @param g The Cooperative Group that performs the insert
@@ -625,7 +626,7 @@ class static_multimap {
      * @endcode
      *
      * @tparam CG The type of the cooperative thread group
-     * @param g The ooperative thread group used to copy the slots
+     * @param g The cooperative thread group used to copy the slots
      * @param source_device_view `device_view` to copy from
      * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
      * the ownership of the memory
@@ -676,6 +677,7 @@ class static_multimap {
      * significant boost in throughput compared to the non Cooperative Group
      * `contains` at moderate to high load factors.
      *
+     * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
      * @tparam CG Cooperative Group type
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the contains operation
@@ -698,6 +700,7 @@ class static_multimap {
      * significant boost in throughput compared to the non Cooperative Group
      * `contains` at moderate to high load factors.
      *
+     * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
      * @tparam CG Cooperative Group type
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the contains operation

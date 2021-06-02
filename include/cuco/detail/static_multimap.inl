@@ -179,9 +179,9 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename InputIt, typename KeyEqual, typename ValEqual>
+template <typename InputIt, typename PairEqual>
 std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_count(
-  InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal, ValEqual val_equal)
+  InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -197,7 +197,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
 
   detail::pair_count<block_size, cg_size(), Key, Value, is_vector_load()>
-    <<<grid_size, block_size, 0, stream>>>(first, last, num_items, view, key_equal, val_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, last, num_items, view, pair_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   size_t result = *num_items;
@@ -211,9 +211,9 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename InputIt, typename KeyEqual, typename ValEqual>
+template <typename InputIt, typename PairEqual>
 std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_count_outer(
-  InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal, ValEqual val_equal)
+  InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -231,7 +231,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
 
   detail::pair_count<block_size, cg_size(), Key, Value, is_vector_load(), is_outer>
-    <<<grid_size, block_size, 0, stream>>>(first, last, num_items, view, key_equal, val_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, last, num_items, view, pair_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   size_t result = *num_items;
