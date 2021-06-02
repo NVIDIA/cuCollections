@@ -159,7 +159,7 @@ class static_map {
 
   static_assert(
     is_bitwise_comparable<Value>::value,
-    "Key type must have unique object representations or have been explicitly declared as safe for "
+    "Value type must have unique object representations or have been explicitly declared as safe for "
     "bitwise comparison via specialization of cuco::is_bitwise_comparable<Value>.");
 
   friend class dynamic_map<Key, Value, Scope, Allocator>;
