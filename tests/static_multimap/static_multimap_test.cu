@@ -70,20 +70,6 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
       }
       break;
     }
-    case dist_type::UNIFORM: {
-      std::uniform_int_distribution<Key> distribution{0, std::numeric_limits<Key>::max()};
-      for (auto i = 0; i < num_items; ++i) {
-        output_begin[i] = distribution(gen);
-      }
-      break;
-    }
-    case dist_type::GAUSSIAN: {
-      std::normal_distribution<> dg{1e9, 1e7};
-      for (auto i = 0; i < num_items; ++i) {
-        output_begin[i] = std::abs(static_cast<Key>(dg(gen)));
-      }
-      break;
-    }
   }
 }
 
@@ -116,17 +102,35 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num_items);
 
-  // Get array of unique keys
+  // Get unique keys
   std::set<Key> key_set(h_keys.begin(), h_keys.end());
   std::vector<Key> h_unique_keys(key_set.begin(), key_set.end());
   thrust::device_vector<Key> d_unique_keys(h_unique_keys);
 
-  // Bulk function test cases
+  thrust::device_vector<bool> d_contained(num_items / 2);
+
+  SECTION("Non-inserted key/value pairs should not be contained.")
+  {
+    map.contains(d_unique_keys.begin(), d_unique_keys.end(), d_contained.begin());
+
+    REQUIRE(
+      none_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+  }
+
+  map.insert(d_pairs.begin(), d_pairs.end());
+
+  SECTION("All inserted key/value pairs should be contained.")
+  {
+    map.contains(d_unique_keys.begin(), d_unique_keys.end(), d_contained.begin());
+
+    REQUIRE(
+      all_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+  }
+
   SECTION("Total count should be equal to the number of inserted pairs.")
   {
-    map.insert(d_pairs.begin(), d_pairs.end());
     // Count matching keys
-    size_t num = map.count(d_unique_keys.begin(), d_unique_keys.end());
+    auto num = map.count(d_unique_keys.begin(), d_unique_keys.end());
 
     REQUIRE(num == num_items);
 
@@ -135,5 +139,107 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
     auto size         = thrust::distance(output_begin, output_end);
 
     REQUIRE(size == num_items);
+  }
+
+  SECTION("count and count_outer should return the same value.")
+  {
+    auto num       = map.count(d_unique_keys.begin(), d_unique_keys.end());
+    auto num_outer = map.count_outer(d_unique_keys.begin(), d_unique_keys.end());
+
+    REQUIRE(num == num_outer);
+  }
+
+  SECTION("Output size of retrieve and retrieve_outer should be the same.")
+  {
+    auto output_begin = d_results.data().get();
+    auto output_end   = map.retrieve(d_unique_keys.begin(), d_unique_keys.end(), output_begin);
+    auto size         = thrust::distance(output_begin, output_end);
+
+    output_end      = map.retrieve_outer(d_unique_keys.begin(), d_unique_keys.end(), output_begin);
+    auto size_outer = thrust::distance(output_begin, output_end);
+
+    REQUIRE(size == size_outer);
+  }
+}
+
+TEMPLATE_TEST_CASE_SIG("Handling of non-matches",
+                       "",
+                       ((typename T, dist_type Dist), T, Dist),
+                       (int32_t, dist_type::UNIQUE),
+                       (int64_t, dist_type::UNIQUE))
+{
+  using Key   = T;
+  using Value = T;
+
+  constexpr std::size_t num_keys{1'000'000};
+  cuco::static_multimap<Key, Value> map{2'000'000, -1, -1};
+
+  auto m_view = map.get_device_mutable_view();
+  auto view   = map.get_device_view();
+
+  std::vector<Key> h_keys(num_keys);
+  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
+
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+
+  for (auto i = 0; i < num_keys; ++i) {
+    h_pairs[i].first  = h_keys[i] / 2;
+    h_pairs[i].second = h_keys[i];
+  }
+
+  thrust::device_vector<Key> d_keys(h_keys);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+
+  map.insert(d_pairs.begin(), d_pairs.end());
+
+  SECTION("Output of count and retrieve should be coherent.")
+  {
+    auto num = map.count(d_keys.begin(), d_keys.end());
+    thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num);
+
+    REQUIRE(num == num_keys);
+
+    auto output_begin = d_results.data().get();
+    auto output_end   = map.retrieve(d_keys.begin(), d_keys.end(), output_begin);
+    auto size         = thrust::distance(output_begin, output_end);
+
+    REQUIRE(num == size);
+  }
+
+  SECTION("Output of count_outer and retrieve_outer should be coherent.")
+  {
+    auto num = map.count_outer(d_keys.begin(), d_keys.end());
+    thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num);
+
+    REQUIRE(num == (num_keys + num_keys / 2));
+
+    auto output_begin = d_results.data().get();
+    auto output_end   = map.retrieve_outer(d_keys.begin(), d_keys.end(), output_begin);
+    auto size         = thrust::distance(output_begin, output_end);
+
+    REQUIRE(num == size);
+  }
+
+  SECTION("count_outer handles non-matches wile count doesn't.")
+  {
+    auto num_outer = map.count_outer(d_keys.begin(), d_keys.end());
+    auto num       = map.count(d_keys.begin(), d_keys.end());
+
+    REQUIRE(num_outer == (num + num_keys / 2));
+  }
+
+  SECTION("retrieve_outer handles non-matches wile retrieve doesn't.")
+  {
+    auto num_outer = map.count_outer(d_keys.begin(), d_keys.end());
+    thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num_outer);
+
+    auto output_begin = d_results.data().get();
+    auto output_end   = map.retrieve(d_keys.begin(), d_keys.end(), output_begin);
+    auto size         = thrust::distance(output_begin, output_end);
+
+    output_end      = map.retrieve_outer(d_keys.begin(), d_keys.end(), output_begin);
+    auto size_outer = thrust::distance(output_begin, output_end);
+
+    REQUIRE(size_outer == (size + num_keys / 2));
   }
 }
