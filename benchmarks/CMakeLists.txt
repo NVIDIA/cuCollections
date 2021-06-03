@@ -16,7 +16,7 @@ CPMAddPackage(
 
 CPMAddPackage(
   NAME nvbench
-  GITHUB_REPOSITORY allisonvacanti/nvbench
+  GITHUB_REPOSITORY NVIDIA/nvbench
   GIT_TAG main
   GIT_SHALLOW TRUE
 )
