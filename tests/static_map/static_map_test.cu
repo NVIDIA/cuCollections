@@ -59,26 +59,22 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
   std::mt19937 gen{rd()};
 
   switch (Dist) {
-    case dist_type::UNIQUE: {
+    case dist_type::UNIQUE:
       for (auto i = 0; i < num_keys; ++i) {
         output_begin[i] = i;
       }
       break;
-    }
-    case dist_type::UNIFORM: {
-      std::uniform_int_distribution<Key> distribution{0, std::numeric_limits<Key>::max()};
+    case dist_type::UNIFORM:
       for (auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = distribution(gen);
+        output_begin[i] = std::abs(static_cast<Key>(gen()));
       }
       break;
-    }
-    case dist_type::GAUSSIAN: {
+    case dist_type::GAUSSIAN:
       std::normal_distribution<> dg{1e9, 1e7};
       for (auto i = 0; i < num_keys; ++i) {
         output_begin[i] = std::abs(static_cast<Key>(dg(gen)));
       }
       break;
-    }
   }
 }
 
@@ -221,6 +217,7 @@ TEST_CASE("User defined key and value type", "")
   }
 }
 
+
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        "",
                        ((typename T, dist_type Dist), T, Dist),
@@ -286,10 +283,10 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
     REQUIRE(
-      none_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+      none_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b;
+}));
   }
 
-  // device funtion test cases
   SECTION("Inserting unique keys should return insert success.")
   {
     if (Dist == dist_type::UNIQUE) {
@@ -314,8 +311,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     SECTION("const view")
     {
       REQUIRE(all_of(
-        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
-          return view.find(pair.first) == view.end();
+        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair)
+{ return view.find(pair.first) == view.end();
         }));
     }
   }
@@ -345,10 +342,9 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     {
       // All keys should be found
       REQUIRE(all_of(
-        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
-          auto const found = view.find(pair.first);
-          return (found != view.end()) and
-                 (found->first.load() == pair.first and found->second.load() == pair.second);
+        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair)
+{ auto const found = view.find(pair.first); return (found != view.end()) and (found->first.load()
+== pair.first and found->second.load() == pair.second);
         }));
     }
   }
@@ -493,8 +489,8 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
                                d_keys_exist.data().get(),
                                d_keys_and_values_correct.data().get());
 
-    REQUIRE(none_of(d_keys_exist.begin(), d_keys_exist.end(), [] __device__(const bool key_found) {
-      return key_found;
+    REQUIRE(none_of(d_keys_exist.begin(), d_keys_exist.end(), [] __device__(const bool key_found)
+{ return key_found;
     }));
   }
 }
