@@ -37,6 +37,7 @@
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/probe_sequences.cuh>
 #include <cuco/detail/static_multimap_kernels.cuh>
+#include <cuco/detail/traits.hpp>
 
 namespace cuco {
 
@@ -48,7 +49,7 @@ namespace cuco {
  * concurrent insert and find) from threads in device code.
  *
  * Current limitations:
- * - Requires keys and values that are trivially copyable and have unique object representations
+ * - Requires keys and values that where `cuco::is_bitwise_comparable<T>::value` is true
  * - Comparisons against the "sentinel" values will always be done with bitwise comparisons
  * Therefore, the objects must have unique, bitwise object representations (e.g., no padding bits).
  * - Does not support erasing keys
@@ -115,14 +116,15 @@ template <typename Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_multimap {
-  template <typename T>
-  static constexpr bool is_CAS_safe =
-    std::is_trivially_copyable_v<T>and std::has_unique_object_representations_v<T>;
+  static_assert(
+    is_bitwise_comparable<Key>::value,
+    "Key type must have unique object representations or have been explicitly declared as safe for "
+    "bitwise comparison via specialization of cuco::is_bitwise_comparable<Key>.");
 
-  static_assert(is_CAS_safe<Key>,
-                "Key type must be trivially copyable and have unique object representation.");
-  static_assert(is_CAS_safe<Value>,
-                "Value type must be trivially copyable and have unique object representation.");
+  static_assert(is_bitwise_comparable<Value>::value,
+                "Value type must have unique object representations or have been explicitly "
+                "declared as safe for "
+                "bitwise comparison via specialization of cuco::is_bitwise_comparable<Value>.");
 
  public:
   using value_type         = cuco::pair_type<Key, Value>;

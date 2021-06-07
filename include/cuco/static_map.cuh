@@ -37,46 +37,12 @@
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
+#include <cuco/detail/traits.hpp>
 
 namespace cuco {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;
-
-/**
- * @brief Customization point that can be specialized to indicate that it is safe to perform bitwise
- * equality comparisons on objects of type `T`.
- *
- * By default, only types where `std::has_unique_object_representations_v<T>` is true are safe for
- * bitwise equality. However, this can be too restrictive for some types, e.g., floating point
- * types.
- *
- * User-defined specializations of `is_bitwise_comparable` are allowed, but it is the users
- * responsibility to ensure values do not occur that would lead to unexpected behavior. For example,
- * if a `NaN` bit pattern were used as the empty sentinel value, it may not compare bitwise equal to
- * other `NaN` bit patterns.
- *
- */
-template <typename T, typename = void>
-struct is_bitwise_comparable : std::false_type {
-};
-
-/// By default, only types with unique object representations are allowed
-template <typename T>
-struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_representations_v<T>>>
-  : std::true_type {
-};
-
-/**
- * @brief Declares that a type `Type` is bitwise comparable.
- * 
- */
-#define CUCO_DECLARE_BITWISE_COMPARABLE(Type)           \
-  namespace cuco {                                      \
-  template <>                                           \
-  struct is_bitwise_comparable<Type> : std::true_type { \
-  };                                                    \
-  }
 
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
