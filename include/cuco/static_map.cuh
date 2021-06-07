@@ -25,8 +25,7 @@
 
 #include <cuco/allocator.hpp>
 
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
-  (__CUDA_ARCH__ >= 700)
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 700)
 #define CUCO_HAS_CUDA_BARRIER
 #endif
 
@@ -116,7 +115,7 @@ struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_represen
  * Example:
  * \code{.cpp}
  * int empty_key_sentinel = -1;
- * int empty_value_sentinel = -1;
+ * int empty_value_sentine = -1;
  *
  * // Constructs a map with 100,000 slots using -1 and -1 as the empty key/value
  * // sentinels. Note the capacity is chosen knowing we will insert 50,000 keys,
@@ -584,10 +583,10 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-    __host__ __device__ device_mutable_view(pair_atomic_type* slots,
-                                            std::size_t capacity,
-                                            Key empty_key_sentinel,
-                                            Value empty_value_sentinel) noexcept
+     __host__ __device__ device_mutable_view(pair_atomic_type* slots,
+                                             std::size_t capacity,
+                                             Key empty_key_sentinel,
+                                             Value empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
     }
@@ -669,10 +668,10 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-    __host__ __device__ device_view(pair_atomic_type* slots,
-                                    std::size_t capacity,
-                                    Key empty_key_sentinel,
-                                    Value empty_value_sentinel) noexcept
+     __host__ __device__ device_view(pair_atomic_type* slots,
+                                     std::size_t capacity,
+                                     Key empty_key_sentinel,
+                                     Value empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
     }
@@ -680,8 +679,7 @@ class static_map {
     /**
      * @brief Makes a copy of given `device_view` using non-owned memory.
      *
-     * This function is intended to be used to create shared memory copies of small static maps,
-     * although global memory can be used as well.
+     * This function is intended to be used to create shared memory copies of small static maps, although global memory can be used as well.
      *
      * Example:
      * @code{.cpp}
@@ -710,8 +708,7 @@ class static_map {
      * @tparam CG The type of the cooperative thread group
      * @param g The ooperative thread group used to copy the slots
      * @param source_device_view `device_view` to copy from
-     * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
-     * the ownership of the memory
+     * @param memory_to_use Array large enough to support `capacity` elements. Object does not take the ownership of the memory
      * @return Copy of passed `device_view`
      */
     template <typename CG>
@@ -721,7 +718,9 @@ class static_map {
     {
 #if defined(CUDA_HAS_CUDA_BARRIER)
       __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
-      if (g.thread_rank() == 0) { init(&barrier, g.size()); }
+      if (g.thread_rank() == 0) {
+        init(&barrier, g.size());
+      }
       g.sync();
 
       cuda::memcpy_async(g,
@@ -733,11 +732,10 @@ class static_map {
       barrier.arrive_and_wait();
 #else
       pair_atomic_type const* const slots_ptr = source_device_view.get_slots();
-      for (std::size_t i = g.thread_rank(); i < source_device_view.get_capacity(); i += g.size()) {
-        new (&memory_to_use[i].first)
-          atomic_key_type{slots_ptr[i].first.load(cuda::memory_order_relaxed)};
-        new (&memory_to_use[i].second)
-          atomic_mapped_type{slots_ptr[i].second.load(cuda::memory_order_relaxed)};
+      for (std::size_t i = g.thread_rank(); i < source_device_view.get_capacity(); i += g.size())
+      {
+        new (&memory_to_use[i].first) atomic_key_type{slots_ptr[i].first.load(cuda::memory_order_relaxed)};
+        new (&memory_to_use[i].second) atomic_mapped_type{slots_ptr[i].second.load(cuda::memory_order_relaxed)};
       }
       g.sync();
 #endif
