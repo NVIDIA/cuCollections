@@ -137,4 +137,11 @@ __host__ __device__ pair_type<F, S> make_pair(F&& f, S&& s) noexcept
 {
   return pair_type<F, S>{std::forward<F>(f), std::forward<S>(s)};
 }
+
+template <typename K, typename V>
+union pair2uint64 {
+  uint64_t uint64;
+  pair_type<K, V> pair;
+};
+
 }  // namespace cuco

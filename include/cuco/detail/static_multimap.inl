@@ -348,22 +348,41 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
         auto expected_key    = this->get_empty_key_sentinel();
         auto expected_value  = this->get_empty_value_sentinel();
         auto insert_location = first_slot_is_empty ? current_slot : current_slot + 1;
-        auto& slot_key       = insert_location->first;
-        auto& slot_value     = insert_location->second;
-        bool key_success =
-          slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
-        bool value_success = slot_value.compare_exchange_strong(
-          expected_value, insert_pair.second, memory_order_relaxed);
-        if (key_success) {
-          while (not value_success) {
-            value_success =
-              slot_value.compare_exchange_strong(expected_value = this->get_empty_value_sentinel(),
-                                                 insert_pair.second,
-                                                 memory_order_relaxed);
+
+        if constexpr (sizeof(Key) == 4 and sizeof(Value) == 4) {
+          static_assert(sizeof(cuda::atomic<uint64_t>) ==
+                        (sizeof(cuda::atomic<Key>) + sizeof(cuda::atomic<Value>)));
+
+          cuco::pair2uint64<Key, Value> converter;
+          auto slot = reinterpret_cast<cuda::atomic<uint64_t>*>(insert_location);
+
+          converter.pair =
+            cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value));
+          auto empty_sentinel = converter.uint64;
+          converter.pair      = insert_pair;
+          auto tmp_pair       = converter.uint64;
+
+          bool success =
+            slot->compare_exchange_strong(empty_sentinel, tmp_pair, memory_order_relaxed);
+          if (success) { status = insert_result::SUCCESS; }
+        } else {
+          auto& slot_key   = insert_location->first;
+          auto& slot_value = insert_location->second;
+          bool key_success =
+            slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
+          bool value_success = slot_value.compare_exchange_strong(
+            expected_value, insert_pair.second, memory_order_relaxed);
+          if (key_success) {
+            while (not value_success) {
+              value_success = slot_value.compare_exchange_strong(
+                expected_value = this->get_empty_value_sentinel(),
+                insert_pair.second,
+                memory_order_relaxed);
+            }
+            status = insert_result::SUCCESS;
+          } else if (value_success) {
+            slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
           }
-          status = insert_result::SUCCESS;
-        } else if (value_success) {
-          slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
         }
         // another key was inserted in both slots we wanted to try
         // so we need to try the next empty slots in the window
@@ -412,26 +431,44 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
         using cuda::std::memory_order_relaxed;
         auto expected_key   = this->get_empty_key_sentinel();
         auto expected_value = this->get_empty_value_sentinel();
-        auto& slot_key      = current_slot->first;
-        auto& slot_value    = current_slot->second;
 
-        bool key_success =
-          slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
-        bool value_success = slot_value.compare_exchange_strong(
-          expected_value, insert_pair.second, memory_order_relaxed);
+        if constexpr (sizeof(Key) == 4 and sizeof(Value) == 4) {
+          static_assert(sizeof(cuda::atomic<uint64_t>) ==
+                        (sizeof(cuda::atomic<Key>) + sizeof(cuda::atomic<Value>)));
 
-        if (key_success) {
-          while (not value_success) {
-            value_success =
-              slot_value.compare_exchange_strong(expected_value = this->get_empty_value_sentinel(),
-                                                 insert_pair.second,
-                                                 memory_order_relaxed);
+          cuco::pair2uint64<Key, Value> converter;
+          auto slot = reinterpret_cast<cuda::atomic<uint64_t>*>(current_slot);
+
+          converter.pair =
+            cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value));
+          auto empty_sentinel = converter.uint64;
+          converter.pair      = insert_pair;
+          auto tmp_pair       = converter.uint64;
+
+          bool success =
+            slot->compare_exchange_strong(empty_sentinel, tmp_pair, memory_order_relaxed);
+          if (success) { status = insert_result::SUCCESS; }
+        } else {
+          auto& slot_key   = current_slot->first;
+          auto& slot_value = current_slot->second;
+
+          bool key_success =
+            slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
+          bool value_success = slot_value.compare_exchange_strong(
+            expected_value, insert_pair.second, memory_order_relaxed);
+
+          if (key_success) {
+            while (not value_success) {
+              value_success = slot_value.compare_exchange_strong(
+                expected_value = this->get_empty_value_sentinel(),
+                insert_pair.second,
+                memory_order_relaxed);
+            }
+            status = insert_result::SUCCESS;
+          } else if (value_success) {
+            slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
           }
-          status = insert_result::SUCCESS;
-        } else if (value_success) {
-          slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
         }
-
         // another key was inserted in the slot we wanted to try
         // so we need to try the next empty slot in the window
       }
