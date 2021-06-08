@@ -24,8 +24,13 @@
   do {                                                                               \
     auto const status = (call);                                                      \
     if (cudaSuccess != status) { throw std::runtime_error("CUDA error detected."); } \
-  } while (0);
+  } while (0)
 
+#define BENCH_ASSERT_CUDA_SUCCESS(expr) \
+  do {                                  \
+    cudaError_t const status = (expr);  \
+    assert(cudaSuccess == status);      \
+  } while (0)
 /**
  * @brief  This class serves as a wrapper for using `cudaEvent_t` as the user
  * defined timer within the framework of google benchmark
@@ -110,13 +115,13 @@ class cuda_event_timer {
    */
   ~cuda_event_timer()
   {
-    BENCH_CUDA_TRY(cudaEventRecord(stop_, stream_));
-    BENCH_CUDA_TRY(cudaEventSynchronize(stop_));
+    BENCH_ASSERT_CUDA_SUCCESS(cudaEventRecord(stop_, stream_));
+    BENCH_ASSERT_CUDA_SUCCESS(cudaEventSynchronize(stop_));
     float milliseconds = 0.0f;
-    BENCH_CUDA_TRY(cudaEventElapsedTime(&milliseconds, start_, stop_));
+    BENCH_ASSERT_CUDA_SUCCESS(cudaEventElapsedTime(&milliseconds, start_, stop_));
     p_state->SetIterationTime(milliseconds / (1000.0f));
-    BENCH_CUDA_TRY(cudaEventDestroy(start_));
-    BENCH_CUDA_TRY(cudaEventDestroy(stop_));
+    BENCH_ASSERT_CUDA_SUCCESS(cudaEventDestroy(start_));
+    BENCH_ASSERT_CUDA_SUCCESS(cudaEventDestroy(stop_));
   }
 
  private:
