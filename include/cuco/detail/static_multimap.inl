@@ -251,14 +251,11 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
-  // Using per-block buffer for vector loads and per-CG buffer for scalar loads
-  auto const buffer_size = [&]() {
-    if constexpr (is_vector_load()) { return block_size * 3u; }
-    return cg_size() * 3u;
-  }();
-  auto const stride    = 1;
-  auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view            = get_device_view();
+  // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
+  auto const buffer_size = is_vector_load() ? (32u * 3u) : (cg_size() * 3u);
+  auto const stride      = 1;
+  auto const grid_size   = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view              = get_device_view();
 
   atomic_ctr_type* num_items;
   CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
@@ -288,14 +285,11 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
-  // Using per-block buffer for vector loads and per-CG buffer for scalar loads
-  auto const buffer_size = [&]() {
-    if constexpr (is_vector_load()) { return block_size * 3u; }
-    return cg_size() * 3u;
-  }();
-  auto const stride    = 1;
-  auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view            = get_device_view();
+  // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
+  auto const buffer_size = is_vector_load() ? (32u * 3u) : (cg_size() * 3u);
+  auto const stride      = 1;
+  auto const grid_size   = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view              = get_device_view();
 
   constexpr bool is_outer = true;
 

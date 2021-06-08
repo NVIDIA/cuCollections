@@ -105,32 +105,34 @@ flush_output_buffer(CG const& g,
 }
 
 /**
- * @brief Flushes per-block shared memory buffer into the output sequence.
+ * @brief Flushes per-warp shared memory buffer into the output sequence.
  *
- * @tparam block_size The size of the thread block
  * @tparam Key key type
  * @tparam Value value type
  * @tparam atomicT Type of atomic storage
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
  * convertible to the map's `mapped_type`
+ * @param activemask Mask of active threads in the warp
  * @param num_outputs Number of valid output in the buffer
  * @param output_buffer Shared memory buffer of the key/value pair sequence
  * @param num_items Size of the output sequence
  * @param output_begin Beginning of the output sequence of key/value pairs
  */
-template <uint32_t block_size, typename Key, typename Value, typename atomicT, typename OutputIt>
-__inline__ __device__ void flush_output_buffer(uint32_t const num_outputs,
+template <typename Key, typename Value, typename atomicT, typename OutputIt>
+__inline__ __device__ void flush_output_buffer(const unsigned int activemask,
+                                               uint32_t const num_outputs,
                                                cuco::pair_type<Key, Value>* output_buffer,
                                                atomicT* num_items,
                                                OutputIt output_begin)
 {
-  __shared__ std::size_t offset;
-  if (0 == threadIdx.x) {
-    offset = num_items->fetch_add(num_outputs, cuda::std::memory_order_relaxed);
-  }
-  __syncthreads();
+  int num_threads = __popc(activemask);
 
-  for (auto index = threadIdx.x; index < num_outputs; index += block_size) {
+  std::size_t offset;
+  const auto lane_id = threadIdx.x % 32;
+  if (0 == lane_id) { offset = num_items->fetch_add(num_outputs, cuda::std::memory_order_relaxed); }
+  offset = __shfl_sync(activemask, offset, 0);
+
+  for (auto index = lane_id; index < num_outputs; index += num_threads) {
     *(output_begin + offset + index) = output_buffer[index];
   }
 }
@@ -723,25 +725,27 @@ __global__ std::enable_if_t<is_vector_load, void> retrieve(InputIt first,
   auto tid     = block_size * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
 
-  const uint32_t lane_id = tile.thread_rank();
+  constexpr uint32_t num_warps = block_size / 32;
+  const uint32_t warp_id       = threadIdx.x / 32;
+  const uint32_t warp_lane_id  = threadIdx.x % 32;
+  const uint32_t tile_lane_id  = tile.thread_rank();
 
-  __shared__ uint32_t block_counter;
-  __shared__ cuco::pair_type<Key, Value> output_buffer[buffer_size];
+  __shared__ cuco::pair_type<Key, Value> output_buffer[num_warps][buffer_size];
+  __shared__ uint32_t warp_counter[num_warps];
 
-  if (0 == threadIdx.x) { block_counter = 0; }
+  if (warp_lane_id == 0) { warp_counter[warp_id] = 0; }
 
-  while (__syncthreads_or(first + key_idx < last)) {
-    auto key = *(first + key_idx);
-    typename viewT::iterator current_slot;
+  const unsigned int activemask = __ballot_sync(0xffffffff, first + key_idx < last);
 
-    bool running = ((first + key_idx) < last);
+  while (first + key_idx < last) {
+    auto key          = *(first + key_idx);
+    auto current_slot = view.initial_slot(tile, key);
 
+    bool running = true;
     if constexpr (is_outer) {
       bool found_match = false;
 
-      if (running) { current_slot = view.initial_slot(tile, key); }
-
-      while (__syncthreads_or(running)) {
+      while (__any_sync(activemask, running)) {
         if (running) {
           pair<Key, Value> arr[2];
           if constexpr (sizeof(Key) == 4) {
@@ -766,49 +770,47 @@ __global__ std::enable_if_t<is_vector_load, void> retrieve(InputIt first,
             auto num_second_matches = __popc(second_exists);
 
             uint32_t output_idx;
-            if (0 == lane_id) {
+            if (0 == tile_lane_id) {
               output_idx =
-                atomicAdd_block(&block_counter, (num_first_matches + num_second_matches));
+                atomicAdd(&warp_counter[warp_id], (num_first_matches + num_second_matches));
             }
             output_idx = tile.shfl(output_idx, 0);
 
             if (first_equals) {
-              auto lane_offset = __popc(first_exists & ((1 << lane_id) - 1));
+              auto lane_offset = __popc(first_exists & ((1 << tile_lane_id) - 1));
               Key k            = key;
-              output_buffer[output_idx + lane_offset] =
+              output_buffer[warp_id][output_idx + lane_offset] =
                 cuco::make_pair<Key, Value>(std::move(k), std::move(arr[0].second));
             }
             if (second_equals) {
-              auto lane_offset = __popc(second_exists & ((1 << lane_id) - 1));
+              auto lane_offset = __popc(second_exists & ((1 << tile_lane_id) - 1));
               Key k            = key;
-              output_buffer[output_idx + num_first_matches + lane_offset] =
+              output_buffer[warp_id][output_idx + num_first_matches + lane_offset] =
                 cuco::make_pair<Key, Value>(std::move(k), std::move(arr[1].second));
             }
           }
           if (tile.any(first_slot_is_empty or second_slot_is_empty)) {
             running = false;
-            if ((not found_match) && (lane_id == 0)) {
-              auto output_idx = atomicAdd_block(&block_counter, 1);
-              output_buffer[output_idx] =
+            if ((not found_match) && (tile_lane_id == 0)) {
+              auto output_idx = atomicAdd(&warp_counter[warp_id], 1);
+              output_buffer[warp_id][output_idx] =
                 cuco::make_pair<Key, Value>(key, view.get_empty_key_sentinel());
             }
           }
         }  // if running
 
-        __syncthreads();
-
-        if ((block_counter + 2 * block_size) > buffer_size) {
-          flush_output_buffer<block_size>(block_counter, output_buffer, num_items, output_begin);
-
-          if (0 == threadIdx.x) { block_counter = 0; }
+        __syncwarp(activemask);
+        if (warp_counter[warp_id] + 32 * 2 > buffer_size) {
+          flush_output_buffer(
+            activemask, warp_counter[warp_id], output_buffer[warp_id], num_items, output_begin);
+          // First lane reset warp-level counter
+          if (warp_lane_id == 0) { warp_counter[warp_id] = 0; }
         }
 
-        if (running) { current_slot = view.next_slot(current_slot); }
+        current_slot = view.next_slot(current_slot);
       }  // while running
     } else {
-      if (running) { current_slot = view.initial_slot(tile, key); }
-
-      while (__syncthreads_or(running)) {
+      while (__any_sync(activemask, running)) {
         if (running) {
           pair<Key, Value> arr[2];
           if constexpr (sizeof(Key) == 4) {
@@ -831,45 +833,46 @@ __global__ std::enable_if_t<is_vector_load, void> retrieve(InputIt first,
             auto num_second_matches = __popc(second_exists);
 
             uint32_t output_idx;
-            if (0 == lane_id) {
+            if (0 == tile_lane_id) {
               output_idx =
-                atomicAdd_block(&block_counter, (num_first_matches + num_second_matches));
+                atomicAdd(&warp_counter[warp_id], (num_first_matches + num_second_matches));
             }
             output_idx = tile.shfl(output_idx, 0);
 
             if (first_equals) {
-              auto lane_offset = __popc(first_exists & ((1 << lane_id) - 1));
+              auto lane_offset = __popc(first_exists & ((1 << tile_lane_id) - 1));
               Key k            = key;
-              output_buffer[output_idx + lane_offset] =
+              output_buffer[warp_id][output_idx + lane_offset] =
                 cuco::make_pair<Key, Value>(std::move(k), std::move(arr[0].second));
             }
             if (second_equals) {
-              auto lane_offset = __popc(second_exists & ((1 << lane_id) - 1));
+              auto lane_offset = __popc(second_exists & ((1 << tile_lane_id) - 1));
               Key k            = key;
-              output_buffer[output_idx + num_first_matches + lane_offset] =
+              output_buffer[warp_id][output_idx + num_first_matches + lane_offset] =
                 cuco::make_pair<Key, Value>(std::move(k), std::move(arr[1].second));
             }
           }
           if (tile.any(first_slot_is_empty or second_slot_is_empty)) { running = false; }
         }  // if running
 
-        __syncthreads();
-
-        if ((block_counter + 2 * block_size) > buffer_size) {
-          flush_output_buffer<block_size>(block_counter, output_buffer, num_items, output_begin);
-
-          if (0 == threadIdx.x) { block_counter = 0; }
+        __syncwarp(activemask);
+        if (warp_counter[warp_id] + 32 * 2 > buffer_size) {
+          flush_output_buffer(
+            activemask, warp_counter[warp_id], output_buffer[warp_id], num_items, output_begin);
+          // First lane reset warp-level counter
+          if (warp_lane_id == 0) { warp_counter[warp_id] = 0; }
         }
 
-        if (running) { current_slot = view.next_slot(current_slot); }
+        current_slot = view.next_slot(current_slot);
       }  // while running
     }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
 
-  // Final remainder flush
-  if (block_counter > 0) {
-    flush_output_buffer<block_size>(block_counter, output_buffer, num_items, output_begin);
+  // Final flush of output buffer
+  if (warp_counter[warp_id] > 0) {
+    flush_output_buffer(
+      activemask, warp_counter[warp_id], output_buffer[warp_id], num_items, output_begin);
   }
 }
 
