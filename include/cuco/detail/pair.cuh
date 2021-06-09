@@ -131,7 +131,7 @@ using pair_type = cuco::pair<K, V>;
  * @return pair_type with first element `f` and second element `s`.
  */
 template <typename F, typename S>
-__host__ __device__ pair_type<F, S> make_pair(F&& f, S&& s) noexcept
+__host__ __device__ auto make_pair(F&& f, S&& s) noexcept
 {
   using decayed_F = std::decay_t<F>;
   using decayed_S = std::decay_t<S>;
