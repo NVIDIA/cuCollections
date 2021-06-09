@@ -715,6 +715,52 @@ class static_multimap {
     template <bool is_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
     __device__ std::enable_if_t<not is_vector_load, bool> contains(
       CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Counts the occurrence of a given key contained in multimap using vector loads.
+     *
+     * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to perform the contains operation
+     * @param thread_num_matches Number of matches found by the current thread
+     * @param k The key to search for
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     */
+    template <bool is_vector_load,
+              bool is_outer,
+              typename CG,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ std::enable_if_t<is_vector_load, void> count(
+      CG const& g,
+      std::size_t& thread_num_matches,
+      Key const& k,
+      KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Counts the occurrence of a given key contained in multimap using scalar loads.
+     *
+     * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to perform the contains operation
+     * @param thread_num_matches Number of matches found by the current thread
+     * @param k The key to search for
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     */
+    template <bool is_vector_load,
+              bool is_outer,
+              typename CG,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ std::enable_if_t<not is_vector_load, void> count(
+      CG const& g,
+      std::size_t& thread_num_matches,
+      Key const& k,
+      KeyEqual key_equal = KeyEqual{}) noexcept;
   };  // class device_view
 
   /**
