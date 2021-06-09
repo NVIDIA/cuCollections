@@ -123,19 +123,19 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(
   auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_view();
 
-  atomic_ctr_type* num_items;
-  CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
-  *num_items = 0;
+  atomic_ctr_type* num_matches;
+  CUCO_CUDA_TRY(cudaMallocManaged(&num_matches, sizeof(atomic_ctr_type)));
+  *num_matches = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
   detail::count<block_size, cg_size(), Key, Value, is_vector_load()>
-    <<<grid_size, block_size, 0, stream>>>(first, last, num_items, view, key_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  size_t result = *num_items;
-  CUCO_CUDA_TRY(cudaFree(num_items));
+  size_t result = *num_matches;
+  CUCO_CUDA_TRY(cudaFree(num_matches));
 
   return result;
 }
@@ -157,19 +157,19 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count_
 
   constexpr bool is_outer = true;
 
-  atomic_ctr_type* num_items;
-  CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
-  *num_items = 0;
+  atomic_ctr_type* num_matches;
+  CUCO_CUDA_TRY(cudaMallocManaged(&num_matches, sizeof(atomic_ctr_type)));
+  *num_matches = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
   detail::count<block_size, cg_size(), Key, Value, is_vector_load(), is_outer>
-    <<<grid_size, block_size, 0, stream>>>(first, last, num_items, view, key_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  size_t result = *num_items;
-  CUCO_CUDA_TRY(cudaFree(num_items));
+  size_t result = *num_matches;
+  CUCO_CUDA_TRY(cudaFree(num_matches));
 
   return result;
 }
@@ -189,19 +189,19 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_view();
 
-  atomic_ctr_type* num_items;
-  CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
-  *num_items = 0;
+  atomic_ctr_type* num_matches;
+  CUCO_CUDA_TRY(cudaMallocManaged(&num_matches, sizeof(atomic_ctr_type)));
+  *num_matches = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
   detail::pair_count<block_size, cg_size(), Key, Value, is_vector_load()>
-    <<<grid_size, block_size, 0, stream>>>(first, last, num_items, view, pair_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, pair_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  size_t result = *num_items;
-  CUCO_CUDA_TRY(cudaFree(num_items));
+  size_t result = *num_matches;
+  CUCO_CUDA_TRY(cudaFree(num_matches));
 
   return result;
 }
@@ -223,19 +223,19 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
 
   constexpr bool is_outer = true;
 
-  atomic_ctr_type* num_items;
-  CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
-  *num_items = 0;
+  atomic_ctr_type* num_matches;
+  CUCO_CUDA_TRY(cudaMallocManaged(&num_matches, sizeof(atomic_ctr_type)));
+  *num_matches = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
   detail::pair_count<block_size, cg_size(), Key, Value, is_vector_load(), is_outer>
-    <<<grid_size, block_size, 0, stream>>>(first, last, num_items, view, pair_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, pair_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  size_t result = *num_items;
-  CUCO_CUDA_TRY(cudaFree(num_items));
+  size_t result = *num_matches;
+  CUCO_CUDA_TRY(cudaFree(num_matches));
 
   return result;
 }
@@ -257,19 +257,19 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   auto const grid_size   = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view              = get_device_view();
 
-  atomic_ctr_type* num_items;
-  CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
-  *num_items = 0;
+  atomic_ctr_type* num_matches;
+  CUCO_CUDA_TRY(cudaMallocManaged(&num_matches, sizeof(atomic_ctr_type)));
+  *num_matches = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
   detail::retrieve<block_size, cg_size(), buffer_size, Key, Value, is_vector_load()>
-    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, num_items, view, key_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, num_matches, view, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  auto output_end = output_begin + *num_items;
-  CUCO_CUDA_TRY(cudaFree(num_items));
+  auto output_end = output_begin + *num_matches;
+  CUCO_CUDA_TRY(cudaFree(num_matches));
 
   return output_end;
 }
@@ -293,19 +293,19 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
 
   constexpr bool is_outer = true;
 
-  atomic_ctr_type* num_items;
-  CUCO_CUDA_TRY(cudaMallocManaged(&num_items, sizeof(atomic_ctr_type)));
-  *num_items = 0;
+  atomic_ctr_type* num_matches;
+  CUCO_CUDA_TRY(cudaMallocManaged(&num_matches, sizeof(atomic_ctr_type)));
+  *num_matches = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
   detail::retrieve<block_size, cg_size(), buffer_size, Key, Value, is_vector_load(), is_outer>
-    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, num_items, view, key_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, num_matches, view, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  auto output_end = output_begin + *num_items;
-  CUCO_CUDA_TRY(cudaFree(num_items));
+  auto output_end = output_begin + *num_matches;
+  CUCO_CUDA_TRY(cudaFree(num_matches));
 
   return output_end;
 }

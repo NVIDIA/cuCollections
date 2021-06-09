@@ -37,7 +37,7 @@ namespace cg = cooperative_groups;
  * @param g The Cooperative Group used to flush output buffer
  * @param num_outputs Number of valid output in the buffer
  * @param output_buffer Shared memory buffer of the key/value pair sequence
- * @param num_items Size of the output sequence
+ * @param num_matches Size of the output sequence
  * @param output_begin Beginning of the output sequence of key/value pairs
  */
 template <uint32_t cg_size,
@@ -50,12 +50,14 @@ __inline__ __device__ std::enable_if_t<thrust::is_contiguous_iterator<OutputIt>:
 flush_output_buffer(CG const& g,
                     uint32_t const num_outputs,
                     cuco::pair_type<Key, Value>* output_buffer,
-                    atomicT* num_items,
+                    atomicT* num_matches,
                     OutputIt output_begin)
 {
   std::size_t offset;
   const auto lane_id = g.thread_rank();
-  if (0 == lane_id) { offset = num_items->fetch_add(num_outputs, cuda::std::memory_order_relaxed); }
+  if (0 == lane_id) {
+    offset = num_matches->fetch_add(num_outputs, cuda::std::memory_order_relaxed);
+  }
   offset = g.shfl(offset, 0);
 
   cg::memcpy_async(g,
@@ -78,7 +80,7 @@ flush_output_buffer(CG const& g,
  * @param g The Cooperative Group used to flush output buffer
  * @param num_outputs Number of valid output in the buffer
  * @param output_buffer Shared memory buffer of the key/value pair sequence
- * @param num_items Size of the output sequence
+ * @param num_matches Size of the output sequence
  * @param output_begin Beginning of the output sequence of key/value pairs
  */
 template <uint32_t cg_size,
@@ -91,12 +93,14 @@ __inline__ __device__ std::enable_if_t<not thrust::is_contiguous_iterator<Output
 flush_output_buffer(CG const& g,
                     uint32_t const num_outputs,
                     cuco::pair_type<Key, Value>* output_buffer,
-                    atomicT* num_items,
+                    atomicT* num_matches,
                     OutputIt output_begin)
 {
   std::size_t offset;
   const auto lane_id = g.thread_rank();
-  if (0 == lane_id) { offset = num_items->fetch_add(num_outputs, cuda::std::memory_order_relaxed); }
+  if (0 == lane_id) {
+    offset = num_matches->fetch_add(num_outputs, cuda::std::memory_order_relaxed);
+  }
   offset = g.shfl(offset, 0);
 
   for (auto index = lane_id; index < num_outputs; index += cg_size) {
@@ -115,21 +119,23 @@ flush_output_buffer(CG const& g,
  * @param activemask Mask of active threads in the warp
  * @param num_outputs Number of valid output in the buffer
  * @param output_buffer Shared memory buffer of the key/value pair sequence
- * @param num_items Size of the output sequence
+ * @param num_matches Size of the output sequence
  * @param output_begin Beginning of the output sequence of key/value pairs
  */
 template <typename Key, typename Value, typename atomicT, typename OutputIt>
 __inline__ __device__ void flush_output_buffer(const unsigned int activemask,
                                                uint32_t const num_outputs,
                                                cuco::pair_type<Key, Value>* output_buffer,
-                                               atomicT* num_items,
+                                               atomicT* num_matches,
                                                OutputIt output_begin)
 {
   int num_threads = __popc(activemask);
 
   std::size_t offset;
   const auto lane_id = threadIdx.x % 32;
-  if (0 == lane_id) { offset = num_items->fetch_add(num_outputs, cuda::std::memory_order_relaxed); }
+  if (0 == lane_id) {
+    offset = num_matches->fetch_add(num_outputs, cuda::std::memory_order_relaxed);
+  }
   offset = __shfl_sync(activemask, offset, 0);
 
   for (auto index = lane_id; index < num_outputs; index += num_threads) {
@@ -286,7 +292,7 @@ __global__ void contains(
  * @tparam KeyEqual Binary callable
  * @param first Beginning of the sequence of keys to count
  * @param last End of the sequence of keys to count
- * @param num_items The number of all the matches for a sequence of keys
+ * @param num_matches The number of all the matches for a sequence of keys
  * @param view Device view used to access the hash map's slot storage
  * @param key_equal Binary function to compare two keys for equality
  */
@@ -301,7 +307,7 @@ template <uint32_t block_size,
           typename viewT,
           typename KeyEqual>
 __global__ std::enable_if_t<is_vector_load, void> count(
-  InputIt first, InputIt last, atomicT* num_items, viewT view, KeyEqual key_equal)
+  InputIt first, InputIt last, atomicT* num_matches, viewT view, KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid     = block_size * blockIdx.x + threadIdx.x;
@@ -309,7 +315,7 @@ __global__ std::enable_if_t<is_vector_load, void> count(
 
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
-  std::size_t thread_num_items = 0;
+  std::size_t thread_num_matches = 0;
 
   while (first + key_idx < last) {
     auto key          = *(first + key_idx);
@@ -335,10 +341,10 @@ __global__ std::enable_if_t<is_vector_load, void> count(
 
         if (tile.any(first_equals or second_equals)) { found_match = true; }
 
-        thread_num_items += (first_equals + second_equals);
+        thread_num_matches += (first_equals + second_equals);
 
         if (tile.any(first_slot_is_empty or second_slot_is_empty)) {
-          if ((not found_match) && (tile.thread_rank() == 0)) { thread_num_items++; }
+          if ((not found_match) && (tile.thread_rank() == 0)) { thread_num_matches++; }
           break;
         }
 
@@ -360,7 +366,7 @@ __global__ std::enable_if_t<is_vector_load, void> count(
         auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, key));
         auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, key));
 
-        thread_num_items += (first_equals + second_equals);
+        thread_num_matches += (first_equals + second_equals);
 
         if (tile.any(first_slot_is_empty or second_slot_is_empty)) { break; }
 
@@ -372,8 +378,10 @@ __global__ std::enable_if_t<is_vector_load, void> count(
 
   // compute number of successfully inserted elements for each block
   // and atomically add to the grand total
-  std::size_t block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
-  if (threadIdx.x == 0) { num_items->fetch_add(block_num_items, cuda::std::memory_order_relaxed); }
+  std::size_t block_num_matches = BlockReduce(temp_storage).Sum(thread_num_matches);
+  if (threadIdx.x == 0) {
+    num_matches->fetch_add(block_num_matches, cuda::std::memory_order_relaxed);
+  }
 }
 
 /**
@@ -394,7 +402,7 @@ __global__ std::enable_if_t<is_vector_load, void> count(
  * @tparam KeyEqual Binary callable
  * @param first Beginning of the sequence of keys to count
  * @param last End of the sequence of keys to count
- * @param num_items The number of all the matches for a sequence of keys
+ * @param num_matches The number of all the matches for a sequence of keys
  * @param view Device view used to access the hash map's slot storage
  * @param key_equal Binary function to compare two keys for equality
  */
@@ -409,7 +417,7 @@ template <uint32_t block_size,
           typename viewT,
           typename KeyEqual>
 __global__ std::enable_if_t<not is_vector_load, void> count(
-  InputIt first, InputIt last, atomicT* num_items, viewT view, KeyEqual key_equal)
+  InputIt first, InputIt last, atomicT* num_matches, viewT view, KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid     = block_size * blockIdx.x + threadIdx.x;
@@ -417,7 +425,7 @@ __global__ std::enable_if_t<not is_vector_load, void> count(
 
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
-  std::size_t thread_num_items = 0;
+  std::size_t thread_num_matches = 0;
 
   while (first + key_idx < last) {
     auto key          = *(first + key_idx);
@@ -436,10 +444,10 @@ __global__ std::enable_if_t<not is_vector_load, void> count(
 
         if (tile.any(equals)) { found_match = true; }
 
-        thread_num_items += equals;
+        thread_num_matches += equals;
 
         if (tile.any(slot_is_empty)) {
-          if ((not found_match) && (tile.thread_rank() == 0)) { thread_num_items++; }
+          if ((not found_match) && (tile.thread_rank() == 0)) { thread_num_matches++; }
           break;
         }
 
@@ -454,7 +462,7 @@ __global__ std::enable_if_t<not is_vector_load, void> count(
         auto const slot_is_empty = (current_key == view.get_empty_key_sentinel());
         auto const equals        = not slot_is_empty and key_equal(current_key, key);
 
-        thread_num_items += equals;
+        thread_num_matches += equals;
 
         if (tile.any(slot_is_empty)) { break; }
 
@@ -463,8 +471,10 @@ __global__ std::enable_if_t<not is_vector_load, void> count(
     }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
-  auto const block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
-  if (threadIdx.x == 0) { num_items->fetch_add(block_num_items, cuda::std::memory_order_relaxed); }
+  auto const block_num_matches = BlockReduce(temp_storage).Sum(thread_num_matches);
+  if (threadIdx.x == 0) {
+    num_matches->fetch_add(block_num_matches, cuda::std::memory_order_relaxed);
+  }
 }
 
 /**
@@ -484,7 +494,7 @@ __global__ std::enable_if_t<not is_vector_load, void> count(
  * @tparam PairEqual Binary callable
  * @param first Beginning of the sequence of pairs to count
  * @param last End of the sequence of pairs to count
- * @param num_items The number of all the matches for a sequence of pairs
+ * @param num_matches The number of all the matches for a sequence of pairs
  * @param view Device view used to access the hash map's slot storage
  * @param pair_equal Binary function to compare two pairs for equality
  */
@@ -499,7 +509,7 @@ template <uint32_t block_size,
           typename viewT,
           typename PairEqual>
 __global__ std::enable_if_t<is_vector_load, void> pair_count(
-  InputIt first, InputIt last, atomicT* num_items, viewT view, PairEqual pair_equal)
+  InputIt first, InputIt last, atomicT* num_matches, viewT view, PairEqual pair_equal)
 {
   auto tile     = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid      = block_size * blockIdx.x + threadIdx.x;
@@ -507,7 +517,7 @@ __global__ std::enable_if_t<is_vector_load, void> pair_count(
 
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
-  std::size_t thread_num_items = 0;
+  std::size_t thread_num_matches = 0;
 
   while (first + pair_idx < last) {
     cuco::pair_type<Key, Value> pair = *(first + pair_idx);
@@ -535,10 +545,10 @@ __global__ std::enable_if_t<is_vector_load, void> pair_count(
 
         if (tile.any(first_slot_equals or second_slot_equals)) { found_match = true; }
 
-        thread_num_items += (first_slot_equals + second_slot_equals);
+        thread_num_matches += (first_slot_equals + second_slot_equals);
 
         if (tile.any(first_slot_is_empty or second_slot_is_empty)) {
-          if ((not found_match) && (tile.thread_rank() == 0)) { thread_num_items++; }
+          if ((not found_match) && (tile.thread_rank() == 0)) { thread_num_matches++; }
           break;
         }
 
@@ -561,7 +571,7 @@ __global__ std::enable_if_t<is_vector_load, void> pair_count(
         auto const first_slot_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
         auto const second_slot_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
 
-        thread_num_items += (first_slot_equals + second_slot_equals);
+        thread_num_matches += (first_slot_equals + second_slot_equals);
 
         if (tile.any(first_slot_is_empty or second_slot_is_empty)) { break; }
 
@@ -573,8 +583,10 @@ __global__ std::enable_if_t<is_vector_load, void> pair_count(
 
   // compute number of successfully inserted elements for each block
   // and atomically add to the grand total
-  std::size_t block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
-  if (threadIdx.x == 0) { num_items->fetch_add(block_num_items, cuda::std::memory_order_relaxed); }
+  std::size_t block_num_matches = BlockReduce(temp_storage).Sum(thread_num_matches);
+  if (threadIdx.x == 0) {
+    num_matches->fetch_add(block_num_matches, cuda::std::memory_order_relaxed);
+  }
 }
 
 /**
@@ -594,7 +606,7 @@ __global__ std::enable_if_t<is_vector_load, void> pair_count(
  * @tparam PairEqual Binary callable
  * @param first Beginning of the sequence of pairs to count
  * @param last End of the sequence of pairs to count
- * @param num_items The number of all the matches for a sequence of pairs
+ * @param num_matches The number of all the matches for a sequence of pairs
  * @param view Device view used to access the hash map's slot storage
  * @param pair_equal Binary function to compare two pairs for equality
  */
@@ -609,7 +621,7 @@ template <uint32_t block_size,
           typename viewT,
           typename PairEqual>
 __global__ std::enable_if_t<not is_vector_load, void> pair_count(
-  InputIt first, InputIt last, atomicT* num_items, viewT view, PairEqual pair_equal)
+  InputIt first, InputIt last, atomicT* num_matches, viewT view, PairEqual pair_equal)
 {
   auto tile     = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid      = block_size * blockIdx.x + threadIdx.x;
@@ -617,7 +629,7 @@ __global__ std::enable_if_t<not is_vector_load, void> pair_count(
 
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
-  std::size_t thread_num_items = 0;
+  std::size_t thread_num_matches = 0;
 
   while (first + pair_idx < last) {
     cuco::pair_type<Key, Value> pair = *(first + pair_idx);
@@ -636,10 +648,10 @@ __global__ std::enable_if_t<not is_vector_load, void> pair_count(
 
         if (tile.any(equals)) { found_match = true; }
 
-        thread_num_items += equals;
+        thread_num_matches += equals;
 
         if (tile.any(slot_is_empty)) {
-          if ((not found_match) && (tile.thread_rank() == 0)) { thread_num_items++; }
+          if ((not found_match) && (tile.thread_rank() == 0)) { thread_num_matches++; }
           break;
         }
 
@@ -653,7 +665,7 @@ __global__ std::enable_if_t<not is_vector_load, void> pair_count(
 
         auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
 
-        thread_num_items += equals;
+        thread_num_matches += equals;
 
         if (tile.any(slot_is_empty)) { break; }
 
@@ -665,8 +677,10 @@ __global__ std::enable_if_t<not is_vector_load, void> pair_count(
 
   // compute number of successfully inserted elements for each block
   // and atomically add to the grand total
-  std::size_t block_num_items = BlockReduce(temp_storage).Sum(thread_num_items);
-  if (threadIdx.x == 0) { num_items->fetch_add(block_num_items, cuda::std::memory_order_relaxed); }
+  std::size_t block_num_matches = BlockReduce(temp_storage).Sum(thread_num_matches);
+  if (threadIdx.x == 0) {
+    num_matches->fetch_add(block_num_matches, cuda::std::memory_order_relaxed);
+  }
 }
 
 /**
@@ -674,11 +688,11 @@ __global__ std::enable_if_t<not is_vector_load, void> pair_count(
  * oads combined with per-block shared memory buffer.
  *
  * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
- * unspecified locations in `[output_begin, output_begin + *num_items - 1)`. Else, copies `k` and
+ * unspecified locations in `[output_begin, output_begin + *num_matches - 1)`. Else, copies `k` and
  * the empty value sentinel.
  *
  * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
- * output_begin + *num_items - 1)`. Use `count()` to determine the number of matching keys.
+ * output_begin + *num_matches - 1)`. Use `count()` to determine the number of matching keys.
  *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups
@@ -698,7 +712,7 @@ __global__ std::enable_if_t<not is_vector_load, void> pair_count(
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of values retrieved for each key
- * @param num_items Size of the output sequence
+ * @param num_matches Size of the output sequence
  * @param view Device view used to access the hash map's slot storage
  * @param key_equal The binary function to compare two keys for equality
  */
@@ -717,7 +731,7 @@ template <uint32_t block_size,
 __global__ std::enable_if_t<is_vector_load, void> retrieve(InputIt first,
                                                            InputIt last,
                                                            OutputIt output_begin,
-                                                           atomicT* num_items,
+                                                           atomicT* num_matches,
                                                            viewT view,
                                                            KeyEqual key_equal)
 {
@@ -802,7 +816,7 @@ __global__ std::enable_if_t<is_vector_load, void> retrieve(InputIt first,
         __syncwarp(activemask);
         if (warp_counter[warp_id] + 32 * 2 > buffer_size) {
           flush_output_buffer(
-            activemask, warp_counter[warp_id], output_buffer[warp_id], num_items, output_begin);
+            activemask, warp_counter[warp_id], output_buffer[warp_id], num_matches, output_begin);
           // First lane reset warp-level counter
           if (warp_lane_id == 0) { warp_counter[warp_id] = 0; }
         }
@@ -858,7 +872,7 @@ __global__ std::enable_if_t<is_vector_load, void> retrieve(InputIt first,
         __syncwarp(activemask);
         if (warp_counter[warp_id] + 32 * 2 > buffer_size) {
           flush_output_buffer(
-            activemask, warp_counter[warp_id], output_buffer[warp_id], num_items, output_begin);
+            activemask, warp_counter[warp_id], output_buffer[warp_id], num_matches, output_begin);
           // First lane reset warp-level counter
           if (warp_lane_id == 0) { warp_counter[warp_id] = 0; }
         }
@@ -872,7 +886,7 @@ __global__ std::enable_if_t<is_vector_load, void> retrieve(InputIt first,
   // Final flush of output buffer
   if (warp_counter[warp_id] > 0) {
     flush_output_buffer(
-      activemask, warp_counter[warp_id], output_buffer[warp_id], num_items, output_begin);
+      activemask, warp_counter[warp_id], output_buffer[warp_id], num_matches, output_begin);
   }
 }
 
@@ -881,11 +895,11 @@ __global__ std::enable_if_t<is_vector_load, void> retrieve(InputIt first,
  * loads combined with per-CG shared memory buffer.
  *
  * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
- * unspecified locations in `[output_begin, output_begin + *num_items - 1)`. Else, copies `k` and
+ * unspecified locations in `[output_begin, output_begin + *num_matches - 1)`. Else, copies `k` and
  * the empty value sentinel.
  *
  * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
- * output_begin + *num_items - 1)`. Use `count()` to determine the number of matching keys.
+ * output_begin + *num_matches - 1)`. Use `count()` to determine the number of matching keys.
  *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups
@@ -905,7 +919,7 @@ __global__ std::enable_if_t<is_vector_load, void> retrieve(InputIt first,
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of values retrieved for each key
- * @param num_items Size of the output sequence
+ * @param num_matches Size of the output sequence
  * @param view Device view used to access the hash map's slot storage
  * @param key_equal The binary function to compare two keys for equality
  */
@@ -924,7 +938,7 @@ template <uint32_t block_size,
 __global__ std::enable_if_t<not is_vector_load, void> retrieve(InputIt first,
                                                                InputIt last,
                                                                OutputIt output_begin,
-                                                               atomicT* num_items,
+                                                               atomicT* num_matches,
                                                                viewT view,
                                                                KeyEqual key_equal)
 {
@@ -988,7 +1002,7 @@ __global__ std::enable_if_t<not is_vector_load, void> retrieve(InputIt first,
         // Flush if the next iteration won't fit into buffer
         if ((cg_counter[cg_id] + tile_size) > buffer_size) {
           flush_output_buffer<tile_size>(
-            tile, cg_counter[cg_id], output_buffer[cg_id], num_items, output_begin);
+            tile, cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin);
           // First lane reset CG-level counter
           if (lane_id == 0) { cg_counter[cg_id] = 0; }
         }
@@ -1025,7 +1039,7 @@ __global__ std::enable_if_t<not is_vector_load, void> retrieve(InputIt first,
         // Flush if the next iteration won't fit into buffer
         if ((cg_counter[cg_id] + tile_size) > buffer_size) {
           flush_output_buffer<tile_size>(
-            tile, cg_counter[cg_id], output_buffer[cg_id], num_items, output_begin);
+            tile, cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin);
           // First lane reset CG-level counter
           if (lane_id == 0) { cg_counter[cg_id] = 0; }
         }
@@ -1038,7 +1052,7 @@ __global__ std::enable_if_t<not is_vector_load, void> retrieve(InputIt first,
   // Final flush of output buffer
   if (cg_counter[cg_id] > 0) {
     flush_output_buffer<tile_size>(
-      tile, cg_counter[cg_id], output_buffer[cg_id], num_items, output_begin);
+      tile, cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin);
   }
 }
 
