@@ -133,6 +133,8 @@ using pair_type = cuco::pair<K, V>;
 template <typename F, typename S>
 __host__ __device__ pair_type<F, S> make_pair(F&& f, S&& s) noexcept
 {
-  return pair_type<F, S>{std::forward<F>(f), std::forward<S>(s)};
+  using decayed_F = std::decay_t<F>;
+  using decayed_S = std::decay_t<S>;
+  return pair_type<decayed_F, decayed_S>{std::forward<decayed_F>(f), std::forward<decayed_S>(s)};
 }
 }  // namespace cuco
