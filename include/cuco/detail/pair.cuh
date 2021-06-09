@@ -75,8 +75,8 @@ struct is_thrust_pair_like_impl<T,
 
 template <typename T>
 struct is_thrust_pair_like
-  : is_thrust_pair_like_impl<
-      std::remove_reference_t<decltype(thrust::raw_reference_cast(std::declval<T>()))>> {
+  : is_thrust_pair_like_impl<std::remove_const_t< // remove_const to WAR Thrust bug https://github.com/NVIDIA/thrust/issues/1456
+      std::remove_reference_t<decltype(thrust::raw_reference_cast(std::declval<T>()))>>> {
 };
 
 }  // namespace detail
