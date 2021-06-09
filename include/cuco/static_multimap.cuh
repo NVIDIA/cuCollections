@@ -322,7 +322,7 @@ class static_multimap {
                     KeyEqual key_equal  = KeyEqual{});
 
   /**
-   * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
+   * @brief Finds all the matches corresponding to all keys in the range `[first, last)`.
    *
    * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
    * unspecified locations in `[output_begin, output_end)`. Else, copies `k` and the empty value
@@ -671,6 +671,70 @@ class static_multimap {
     }
 
     /**
+     * @brief Flushes per-CG shared memory buffer into the output sequence using CG memcpy_async.
+     *
+     * @tparam cg_size The number of threads in the Cooperative Groups
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt Device accessible output iterator whose `value_type` is
+     * convertible to the map's `mapped_type`
+     * @param g The Cooperative Group used to flush output buffer
+     * @param num_outputs Number of valid output in the buffer
+     * @param output_buffer Shared memory buffer of the key/value pair sequence
+     * @param num_matches Size of the output sequence
+     * @param output_begin Beginning of the output sequence of key/value pairs
+     */
+    template <uint32_t cg_size, typename CG, typename atomicT, typename OutputIt>
+    __inline__ __device__ std::enable_if_t<thrust::is_contiguous_iterator<OutputIt>::value, void>
+    flush_output_buffer(CG const& g,
+                        uint32_t const num_outputs,
+                        value_type* output_buffer,
+                        atomicT* num_matches,
+                        OutputIt output_begin) noexcept;
+
+    /**
+     * @brief Flushes per-CG shared memory buffer into the output sequence using CG memcpy_async.
+     *
+     * @tparam cg_size The number of threads in the Cooperative Groups
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt Device accessible output iterator whose `value_type` is
+     * convertible to the map's `mapped_type`
+     * @param g The Cooperative Group used to flush output buffer
+     * @param num_outputs Number of valid output in the buffer
+     * @param output_buffer Shared memory buffer of the key/value pair sequence
+     * @param num_matches Size of the output sequence
+     * @param output_begin Beginning of the output sequence of key/value pairs
+     */
+    template <uint32_t cg_size, typename CG, typename atomicT, typename OutputIt>
+    __inline__ __device__
+      std::enable_if_t<not thrust::is_contiguous_iterator<OutputIt>::value, void>
+      flush_output_buffer(CG const& g,
+                          uint32_t const num_outputs,
+                          value_type* output_buffer,
+                          atomicT* num_matches,
+                          OutputIt output_begin) noexcept;
+
+    /**
+     * @brief Flushes per-warp shared memory buffer into the output sequence.
+     *
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt Device accessible output iterator whose `value_type` is
+     * convertible to the map's `mapped_type`
+     * @param activemask Mask of active threads in the warp
+     * @param num_outputs Number of valid output in the buffer
+     * @param output_buffer Shared memory buffer of the key/value pair sequence
+     * @param num_matches Size of the output sequence
+     * @param output_begin Beginning of the output sequence of key/value pairs
+     */
+    template <typename atomicT, typename OutputIt>
+    __inline__ __device__ void flush_output_buffer(const unsigned int activemask,
+                                                   uint32_t const num_outputs,
+                                                   value_type* output_buffer,
+                                                   atomicT* num_matches,
+                                                   OutputIt output_begin) noexcept;
+
+    /**
      * @brief Indicates whether the key `k` was inserted into the map using vector loads.
      *
      * If the key `k` was inserted into the map, find returns
@@ -802,6 +866,92 @@ class static_multimap {
       value_type const& pair,
       std::size_t& thread_num_matches,
       PairEqual pair_equal) noexcept;
+
+    /**
+     * @brief Find all the matches of a given key contained in multimap using vector
+     * loads with per-warp shared memory buffer.
+     *
+     * For keys `k = *(first + i)` existing in the map, copies `k` and all associated values to
+     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k` and
+     * the empty value sentinel into the output only if `is_outer` is true.
+     *
+     * @tparam buffer_size Size of the output buffer
+     * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt Device accessible output iterator whose `value_type` is
+     * convertible to the map's `mapped_type`
+     * @tparam KeyEqual Binary callable type
+     * @param activemask Mask of active threads in the warp
+     * @param g The Cooperative Group used to retrieve
+     * @param k The key to search for
+     * @param warp_counter Pointer to the warp counter
+     * @param output_buffer Shared memory buffer of the key/value pair sequence
+     * @param num_matches Size of the output sequence
+     * @param output_begin Beginning of the output sequence of key/value pairs
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     */
+    template <uint32_t buffer_size,
+              bool is_vector_load,
+              bool is_outer,
+              typename CG,
+              typename atomicT,
+              typename OutputIt,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ std::enable_if_t<is_vector_load, void> retrieve(
+      const unsigned int activemask,
+      CG const& g,
+      Key const& k,
+      uint32_t* warp_counter,
+      value_type* output_buffer,
+      atomicT* num_matches,
+      OutputIt output_begin,
+      KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Find all the matches of a given key contained in multimap using scalar
+     * loads with per-cg shared memory buffer.
+     *
+     * For keys `k = *(first + i)` existing in the map, copies `k` and all associated values to
+     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k` and
+     * the empty value sentinel into the output only if `is_outer` is true.
+     *
+     * @tparam cg_size The number of threads in CUDA Cooperative Groups
+     * @tparam buffer_size Size of the output buffer
+     * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt Device accessible output iterator whose `value_type` is
+     * convertible to the map's `mapped_type`
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to retrieve
+     * @param k The key to search for
+     * @param cg_counter Pointer to the CG counter
+     * @param output_buffer Shared memory buffer of the key/value pair sequence
+     * @param num_matches Size of the output sequence
+     * @param output_begin Beginning of the output sequence of key/value pairs
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     */
+    template <uint32_t cg_size,
+              uint32_t buffer_size,
+              bool is_vector_load,
+              bool is_outer,
+              typename CG,
+              typename atomicT,
+              typename OutputIt,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ std::enable_if_t<not is_vector_load, void> retrieve(
+      CG const& g,
+      Key const& k,
+      uint32_t* cg_counter,
+      value_type* output_buffer,
+      atomicT* num_matches,
+      OutputIt output_begin,
+      KeyEqual key_equal = KeyEqual{}) noexcept;
   };  // class device_view
 
   /**
