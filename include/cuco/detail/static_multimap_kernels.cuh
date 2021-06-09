@@ -275,7 +275,7 @@ __global__ void contains(
 }
 
 /**
- * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap. If is_outer
+ * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap. If `is_outer`
  * is true, the corresponding occurrence for non-matches is 1. Otherwise, it's 0.
  *
  * @tparam block_size The size of the thread block
@@ -306,7 +306,7 @@ template <uint32_t block_size,
           typename atomicT,
           typename viewT,
           typename KeyEqual>
-__global__ std::enable_if_t<is_vector_load, void> count(
+__global__ void count(
   InputIt first, InputIt last, atomicT* num_matches, viewT view, KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
@@ -332,62 +332,9 @@ __global__ std::enable_if_t<is_vector_load, void> count(
 }
 
 /**
- * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap. If is_outer
- * is true, the corresponding occurrence for non-matches is 1. Otherwise, it's 0.
- *
- * @tparam block_size The size of the thread block
- * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
- * @tparam Key key type
- * @tparam Value The type of the mapped value for the map
- * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
- * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
- * operations or not
- * @tparam InputIt Device accessible input iterator whose `value_type` is convertible to the map's
- * `key_type`
- * @tparam atomicT Type of atomic storage
- * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam KeyEqual Binary callable
- * @param first Beginning of the sequence of keys to count
- * @param last End of the sequence of keys to count
- * @param num_matches The number of all the matches for a sequence of keys
- * @param view Device view used to access the hash map's slot storage
- * @param key_equal Binary function to compare two keys for equality
- */
-template <uint32_t block_size,
-          uint32_t tile_size,
-          typename Key,
-          typename Value,
-          bool is_vector_load,
-          bool is_outer = false,
-          typename InputIt,
-          typename atomicT,
-          typename viewT,
-          typename KeyEqual>
-__global__ std::enable_if_t<not is_vector_load, void> count(
-  InputIt first, InputIt last, atomicT* num_matches, viewT view, KeyEqual key_equal)
-{
-  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid / tile_size;
-
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
-  __shared__ typename BlockReduce::TempStorage temp_storage;
-  std::size_t thread_num_matches = 0;
-
-  while (first + key_idx < last) {
-    auto key = *(first + key_idx);
-    view.count<is_vector_load, is_outer>(tile, key, thread_num_matches, key_equal);
-    key_idx += (gridDim.x * block_size) / tile_size;
-  }
-  auto const block_num_matches = BlockReduce(temp_storage).Sum(thread_num_matches);
-  if (threadIdx.x == 0) {
-    num_matches->fetch_add(block_num_matches, cuda::std::memory_order_relaxed);
-  }
-}
-
-/**
  * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap.
- * If no matches can be found for a given key/value pair, the corresponding occurrence is 1.
+ * If no matches can be found for a given key/value pair and `is_outer` is true, the corresponding
+ * occurrence is 1.
  *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
@@ -416,7 +363,7 @@ template <uint32_t block_size,
           typename atomicT,
           typename viewT,
           typename PairEqual>
-__global__ std::enable_if_t<is_vector_load, void> pair_count(
+__global__ void pair_count(
   InputIt first, InputIt last, atomicT* num_matches, viewT view, PairEqual pair_equal)
 {
   auto tile     = cg::tiled_partition<tile_size>(cg::this_thread_block());
@@ -430,100 +377,6 @@ __global__ std::enable_if_t<is_vector_load, void> pair_count(
   while (first + pair_idx < last) {
     typename viewT::value_type const pair = *(first + pair_idx);
     view.pair_count<is_vector_load, is_outer>(tile, pair, thread_num_matches, pair_equal);
-    pair_idx += (gridDim.x * block_size) / tile_size;
-  }
-
-  // compute number of successfully inserted elements for each block
-  // and atomically add to the grand total
-  std::size_t block_num_matches = BlockReduce(temp_storage).Sum(thread_num_matches);
-  if (threadIdx.x == 0) {
-    num_matches->fetch_add(block_num_matches, cuda::std::memory_order_relaxed);
-  }
-}
-
-/**
- * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap.
- * If no matches can be found for a given key/value pair, the corresponding occurrence is 1.
- *
- * @tparam block_size The size of the thread block
- * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
- * @tparam Key key type
- * @tparam Value The type of the mapped value for the map
- * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
- * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
- * operations or not
- * @tparam Input Device accesible input iterator of key/value pairs
- * @tparam atomicT Type of atomic storage
- * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam PairEqual Binary callable
- * @param first Beginning of the sequence of pairs to count
- * @param last End of the sequence of pairs to count
- * @param num_matches The number of all the matches for a sequence of pairs
- * @param view Device view used to access the hash map's slot storage
- * @param pair_equal Binary function to compare two pairs for equality
- */
-template <uint32_t block_size,
-          uint32_t tile_size,
-          typename Key,
-          typename Value,
-          bool is_vector_load,
-          bool is_outer = false,
-          typename InputIt,
-          typename atomicT,
-          typename viewT,
-          typename PairEqual>
-__global__ std::enable_if_t<not is_vector_load, void> pair_count(
-  InputIt first, InputIt last, atomicT* num_matches, viewT view, PairEqual pair_equal)
-{
-  auto tile     = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid      = block_size * blockIdx.x + threadIdx.x;
-  auto pair_idx = tid / tile_size;
-
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
-  __shared__ typename BlockReduce::TempStorage temp_storage;
-  std::size_t thread_num_matches = 0;
-
-  while (first + pair_idx < last) {
-    cuco::pair_type<Key, Value> pair = *(first + pair_idx);
-    auto key                         = pair.first;
-    auto current_slot                = view.initial_slot(tile, key);
-
-    if constexpr (is_outer) {
-      bool found_match = false;
-
-      while (true) {
-        auto slot_contents = *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
-
-        auto const slot_is_empty = (slot_contents.first == view.get_empty_key_sentinel());
-
-        auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
-
-        if (tile.any(equals)) { found_match = true; }
-
-        thread_num_matches += equals;
-
-        if (tile.any(slot_is_empty)) {
-          if ((not found_match) && (tile.thread_rank() == 0)) { thread_num_matches++; }
-          break;
-        }
-
-        current_slot = view.next_slot(current_slot);
-      }
-    } else {
-      while (true) {
-        auto slot_contents = *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
-
-        auto const slot_is_empty = (slot_contents.first == view.get_empty_key_sentinel());
-
-        auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
-
-        thread_num_matches += equals;
-
-        if (tile.any(slot_is_empty)) { break; }
-
-        current_slot = view.next_slot(current_slot);
-      }
-    }
     pair_idx += (gridDim.x * block_size) / tile_size;
   }
 
