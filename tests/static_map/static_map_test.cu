@@ -217,7 +217,6 @@ TEST_CASE("User defined key and value type", "")
   }
 }
 
-
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        "",
                        ((typename T, dist_type Dist), T, Dist),
@@ -283,8 +282,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
     REQUIRE(
-      none_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b;
-}));
+      none_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
   SECTION("Inserting unique keys should return insert success.")
@@ -311,8 +309,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     SECTION("const view")
     {
       REQUIRE(all_of(
-        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair)
-{ return view.find(pair.first) == view.end();
+        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+          return view.find(pair.first) == view.end();
         }));
     }
   }
@@ -342,9 +340,10 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     {
       // All keys should be found
       REQUIRE(all_of(
-        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair)
-{ auto const found = view.find(pair.first); return (found != view.end()) and (found->first.load()
-== pair.first and found->second.load() == pair.second);
+        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+          auto const found = view.find(pair.first);
+          return (found != view.end()) and
+                 (found->first.load() == pair.first and found->second.load() == pair.second);
         }));
     }
   }
@@ -489,35 +488,34 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
                                d_keys_exist.data().get(),
                                d_keys_and_values_correct.data().get());
 
-    REQUIRE(none_of(d_keys_exist.begin(), d_keys_exist.end(), [] __device__(const bool key_found)
-{ return key_found;
+    REQUIRE(none_of(d_keys_exist.begin(), d_keys_exist.end(), [] __device__(const bool key_found) {
+      return key_found;
     }));
   }
 }
 
 template <typename K, typename V, std::size_t N>
-__global__ void shared_memory_hash_table_kernel(bool *key_found)
+__global__ void shared_memory_hash_table_kernel(bool* key_found)
 {
   namespace cg   = cooperative_groups;
   using map_type = typename cuco::static_map<K, V, cuda::thread_scope_block>::device_mutable_view;
   using find_map_type = typename cuco::static_map<K, V, cuda::thread_scope_block>::device_view;
   __shared__ typename map_type::slot_type slots[N];
-  auto map = map_type::make_from_uninitialized_slots(cg::this_thread_block(), &slots[0], N, -1, 0);
+  auto map = map_type::make_from_uninitialized_slots(cg::this_thread_block(), &slots[0], N, -1, -1);
 
-  auto g = cg::this_thread_block();
+  auto g            = cg::this_thread_block();
   std::size_t index = threadIdx.x + blockIdx.x * blockDim.x;
-  int rank = g.thread_rank();
+  int rank          = g.thread_rank();
 
   // insert {thread_rank, thread_rank} for each thread in thread-block
-  map.insert(thrust::make_pair(rank, rank));
+  map.insert(cuco::pair<int, int>(rank, rank));
   g.sync();
 
-  auto find_map = find_map_type(slots, N, -1, 0);
+  auto find_map       = find_map_type(slots, N, -1, -1);
   auto retrieved_pair = find_map.find(rank);
   if (retrieved_pair != find_map.end() && retrieved_pair->second == rank) {
     key_found[index] = true;
   }
-
 }
 
 TEMPLATE_TEST_CASE("Shared memory slots.", "", int32_t)
@@ -526,5 +524,7 @@ TEMPLATE_TEST_CASE("Shared memory slots.", "", int32_t)
   thrust::device_vector<bool> key_found(N, false);
   shared_memory_hash_table_kernel<TestType, TestType, N><<<8, 32, 32>>>(key_found.data().get());
 
-  REQUIRE(all_of(key_found.begin(), key_found.end(), [] __device__ (const bool is_present) { return is_present; }));
+  REQUIRE(all_of(key_found.begin(), key_found.end(), [] __device__(const bool is_present) {
+    return is_present;
+  }));
 }
