@@ -567,7 +567,7 @@ template <typename Key,
 template <bool is_vector_load, bool is_outer, typename CG, typename KeyEqual>
 __device__ std::enable_if_t<is_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count(
-  CG const& g, std::size_t& thread_num_matches, Key const& k, KeyEqual key_equal) noexcept
+  CG const& g, Key const& k, std::size_t& thread_num_matches, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k);
 
@@ -595,7 +595,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
 
       if (g.any(first_slot_is_empty or second_slot_is_empty)) {
         if ((not found_match) && (g.thread_rank() == 0)) { thread_num_matches++; }
-        return;
+        break;
       }
 
       current_slot = next_slot(current_slot);
@@ -618,7 +618,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
 
       thread_num_matches += (first_equals + second_equals);
 
-      if (g.any(first_slot_is_empty or second_slot_is_empty)) { return; }
+      if (g.any(first_slot_is_empty or second_slot_is_empty)) { break; }
 
       current_slot = next_slot(current_slot);
     }
@@ -633,7 +633,7 @@ template <typename Key,
 template <bool is_vector_load, bool is_outer, typename CG, typename KeyEqual>
 __device__ std::enable_if_t<not is_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count(
-  CG const& g, std::size_t& thread_num_matches, Key const& k, KeyEqual key_equal) noexcept
+  CG const& g, Key const& k, std::size_t& thread_num_matches, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k);
 
@@ -676,4 +676,131 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
     }
   }
 }
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <bool is_vector_load, bool is_outer, typename CG, typename PairEqual>
+__device__ std::enable_if_t<is_vector_load, void>
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_count(
+  CG const& g,
+  value_type const& pair,
+  std::size_t& thread_num_matches,
+  PairEqual pair_equal) noexcept
+{
+  auto key          = pair.first;
+  auto current_slot = initial_slot(g, key);
+
+  if constexpr (is_outer) {
+    bool found_match = false;
+
+    while (true) {
+      cuco::pair_type<Key, Value> arr[2];
+      if constexpr (sizeof(Key) == 4) {
+        auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
+        memcpy(&arr[0], &tmp, 2 * sizeof(cuco::pair_type<Key, Value>));
+      } else {
+        auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
+        memcpy(&arr[0], &tmp, 2 * sizeof(cuco::pair_type<Key, Value>));
+      }
+
+      auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
+      auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
+
+      auto const first_slot_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
+      auto const second_slot_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
+
+      if (g.any(first_slot_equals or second_slot_equals)) { found_match = true; }
+
+      thread_num_matches += (first_slot_equals + second_slot_equals);
+
+      if (g.any(first_slot_is_empty or second_slot_is_empty)) {
+        if ((not found_match) && (g.thread_rank() == 0)) { thread_num_matches++; }
+        break;
+      }
+
+      current_slot = next_slot(current_slot);
+    }
+  } else {
+    while (true) {
+      cuco::pair_type<Key, Value> arr[2];
+      if constexpr (sizeof(Key) == 4) {
+        auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
+        memcpy(&arr[0], &tmp, 2 * sizeof(cuco::pair_type<Key, Value>));
+      } else {
+        auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
+        memcpy(&arr[0], &tmp, 2 * sizeof(cuco::pair_type<Key, Value>));
+      }
+
+      auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
+      auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
+
+      auto const first_slot_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
+      auto const second_slot_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
+
+      thread_num_matches += (first_slot_equals + second_slot_equals);
+
+      if (g.any(first_slot_is_empty or second_slot_is_empty)) { break; }
+
+      current_slot = next_slot(current_slot);
+    }
+  }
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <bool is_vector_load, bool is_outer, typename CG, typename PairEqual>
+__device__ std::enable_if_t<not is_vector_load, void>
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_count(
+  CG const& g,
+  value_type const& pair,
+  std::size_t& thread_num_matches,
+  PairEqual pair_equal) noexcept
+{
+  auto key          = pair.first;
+  auto current_slot = initial_slot(g, key);
+
+  if constexpr (is_outer) {
+    bool found_match = false;
+
+    while (true) {
+      auto slot_contents = *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
+
+      auto const slot_is_empty = (slot_contents.first == this->get_empty_key_sentinel());
+
+      auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
+
+      if (g.any(equals)) { found_match = true; }
+
+      thread_num_matches += equals;
+
+      if (g.any(slot_is_empty)) {
+        if ((not found_match) && (g.thread_rank() == 0)) { thread_num_matches++; }
+        break;
+      }
+
+      current_slot = next_slot(current_slot);
+    }
+  } else {
+    while (true) {
+      auto slot_contents = *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
+
+      auto const slot_is_empty = (slot_contents.first == this->get_empty_key_sentinel());
+
+      auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
+
+      thread_num_matches += equals;
+
+      if (g.any(slot_is_empty)) { break; }
+
+      current_slot = next_slot(current_slot);
+    }
+  }
+}
+
 }  // namespace cuco

@@ -723,9 +723,9 @@ class static_multimap {
      * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
      * @tparam CG Cooperative Group type
      * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to perform the contains operation
-     * @param thread_num_matches Number of matches found by the current thread
+     * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
+     * @param thread_num_matches Number of matches found by the current thread
      * @param key_equal The binary callable used to compare two keys
      * for equality
      */
@@ -735,8 +735,8 @@ class static_multimap {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ std::enable_if_t<is_vector_load, void> count(
       CG const& g,
-      std::size_t& thread_num_matches,
       Key const& k,
+      std::size_t& thread_num_matches,
       KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
@@ -746,9 +746,9 @@ class static_multimap {
      * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
      * @tparam CG Cooperative Group type
      * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to perform the contains operation
-     * @param thread_num_matches Number of matches found by the current thread
+     * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
+     * @param thread_num_matches Number of matches found by the current thread
      * @param key_equal The binary callable used to compare two keys
      * for equality
      */
@@ -758,9 +758,50 @@ class static_multimap {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ std::enable_if_t<not is_vector_load, void> count(
       CG const& g,
-      std::size_t& thread_num_matches,
       Key const& k,
+      std::size_t& thread_num_matches,
       KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Counts the occurrence of a given key/value pair contained in multimap using vector
+     * loads.
+     *
+     * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam PairEqual Binary callable type
+     * @param g The Cooperative Group used to perform the pair_count operation
+     * @param pair The pair to search for
+     * @param thread_num_matches Number of matches found by the current thread
+     * @param pair_equal The binary callable used to compare two pairs
+     * for equality
+     */
+    template <bool is_vector_load, bool is_outer, typename CG, typename PairEqual>
+    __device__ std::enable_if_t<is_vector_load, void> pair_count(CG const& g,
+                                                                 value_type const& pair,
+                                                                 std::size_t& thread_num_matches,
+                                                                 PairEqual pair_equal) noexcept;
+
+    /**
+     * @brief Counts the occurrence of a given key/value pair contained in multimap using scalar
+     * loads.
+     *
+     * @tparam is_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam PairEqual Binary callable type
+     * @param g The Cooperative Group used to perform the pair_count operation
+     * @param pair The pair to search for
+     * @param thread_num_matches Number of matches found by the current thread
+     * @param pair_equal The binary callable used to compare two pairs
+     * for equality
+     */
+    template <bool is_vector_load, bool is_outer, typename CG, typename PairEqual>
+    __device__ std::enable_if_t<not is_vector_load, void> pair_count(
+      CG const& g,
+      value_type const& pair,
+      std::size_t& thread_num_matches,
+      PairEqual pair_equal) noexcept;
   };  // class device_view
 
   /**
