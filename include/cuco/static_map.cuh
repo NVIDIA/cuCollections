@@ -158,8 +158,12 @@ class static_map {
 
   static_assert(is_bitwise_comparable<Value>::value,
                 "Value type must have unique object representations or have been explicitly "
-                "declared as safe for "
-                "bitwise comparison via specialization of cuco::is_bitwise_comparable<Value>.");
+                "declared as safe for bitwise comparison via specialization of "
+                "cuco::is_bitwise_comparable<Value>.");
+
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
+  static_assert(sizeof(cuco::pair_type<Key, Value>) <= 8), "8B/8B key/value pairs are only supported for sm_70 and up.");
+#endif
 
   friend class dynamic_map<Key, Value, Scope, Allocator>;
 
