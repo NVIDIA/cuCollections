@@ -160,6 +160,10 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
     }
     // Back-to-back CAS for 8B/8B key/value pairs
     else {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 700
+#error "8B/8B key/value pair insertions are only supported for sm_70 and up."
+#endif
+
       auto& slot_key   = current_slot->first;
       auto& slot_value = current_slot->second;
 
@@ -246,6 +250,10 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
         }
         // Back-to-back CAS for 8B/8B key/value pairs
         else {
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ < 700
+#error "8B/8B key/value pair insertions are only supported for sm_70 and up."
+#endif
+
           auto& slot_key   = current_slot->first;
           auto& slot_value = current_slot->second;
 
