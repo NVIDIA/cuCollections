@@ -63,7 +63,7 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
                                                       Hash hash,
                                                       KeyEqual key_equal)
 {
-  auto num_keys         = std::distance(first, last);
+  auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const block_size = 128;
@@ -87,9 +87,9 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::find(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) 
+  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
 {
-  auto num_keys         = std::distance(first, last);
+  auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const block_size = 128;
@@ -108,7 +108,7 @@ template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::contains(
   InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
 {
-  auto num_keys         = std::distance(first, last);
+  auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const block_size = 128;
@@ -133,29 +133,57 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
     using cuda::std::memory_order_relaxed;
     auto expected_key   = this->get_empty_key_sentinel();
     auto expected_value = this->get_empty_value_sentinel();
-    auto& slot_key      = current_slot->first;
-    auto& slot_value    = current_slot->second;
 
-    bool key_success =
-      slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
-    bool value_success =
-      slot_value.compare_exchange_strong(expected_value, insert_pair.second, memory_order_relaxed);
+    key_type const existing_key = current_slot->first.load(memory_order_relaxed);
+    // the key we are trying to insert is already in the map, so we return with failure to insert
+    if (key_equal(existing_key, insert_pair.first)) { return false; }
 
-    if (key_success) {
-      while (not value_success) {
-        value_success =
-          slot_value.compare_exchange_strong(expected_value = this->get_empty_value_sentinel(),
-                                             insert_pair.second,
-                                             memory_order_relaxed);
+    // Packed CAS for 4B/4B key/value pairs
+    if constexpr (sizeof(Key) == 4 and sizeof(Value) == 4) {
+      pair2uint64 converter;
+      auto slot = reinterpret_cast<cuda::atomic<uint64_t>*>(current_slot);
+
+      converter.pair =
+        cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value));
+      auto empty_sentinel = converter.uint64;
+      converter.pair      = insert_pair;
+      auto tmp_pair       = converter.uint64;
+
+      bool success = slot->compare_exchange_strong(empty_sentinel, tmp_pair, memory_order_relaxed);
+      if (success) {
+        return true;
       }
-      return true;
-    } else if (value_success) {
-      slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
+      // duplicate present during insert
+      else if (key_equal(insert_pair.first, current_slot->first.load(memory_order_relaxed))) {
+        return false;
+      }
     }
+    // Back-to-back CAS for 8B/8B key/value pairs
+    else {
+      auto& slot_key   = current_slot->first;
+      auto& slot_value = current_slot->second;
 
-    // if the key was already inserted by another thread, than this instance is a
-    // duplicate, so the insert fails
-    if (key_equal(insert_pair.first, expected_key)) { return false; }
+      bool key_success =
+        slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
+      bool value_success = slot_value.compare_exchange_strong(
+        expected_value, insert_pair.second, memory_order_relaxed);
+
+      if (key_success) {
+        while (not value_success) {
+          value_success =
+            slot_value.compare_exchange_strong(expected_value = this->get_empty_value_sentinel(),
+                                               insert_pair.second,
+                                               memory_order_relaxed);
+        }
+        return true;
+      } else if (value_success) {
+        slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
+      }
+
+      // if the key was already inserted by another thread, than this instance is a
+      // duplicate, so the insert fails
+      if (key_equal(insert_pair.first, expected_key)) { return false; }
+    }
 
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
     // have been some other key there, so we keep looking for a slot
@@ -175,7 +203,8 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = detail::bitwise_compare(existing_key,this->get_empty_key_sentinel());
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
     if (g.ballot(not slot_is_empty and key_equal(existing_key, insert_pair.first))) {
@@ -374,7 +403,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    if (detail::bitwise_compare(existing_key,empty_key_sentinel_)) { return false; }
+    if (detail::bitwise_compare(existing_key, empty_key_sentinel_)) { return false; }
 
     if (key_equal(existing_key, k)) { return true; }
 
@@ -394,7 +423,8 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = detail::bitwise_compare(existing_key,this->get_empty_key_sentinel());
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
     // the entry
