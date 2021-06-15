@@ -269,22 +269,25 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
           // our key was already present in the slot, so our key is a duplicate
           if (key_equal(insert_pair.first, expected_key)) { status = insert_result::DUPLICATE; }
         }
+      }
 
-        // successful insert
-        if (status == insert_result::SUCCESS) { return true; }
-        // duplicate present during insert
-        if (status == insert_result::DUPLICATE) { return false; }
-        // if we've gotten this far, a different key took our spot
-        // before we could insert. We need to retry the insert on the
-        // same window
-      }
-      // if there are no empty slots in the current window,
-      // we move onto the next window
-      else {
-        current_slot = next_slot(g, current_slot);
-      }
+      uint32_t res_status = g.shfl(static_cast<uint32_t>(status), src_lane);
+      status              = static_cast<insert_result>(res_status);
+
+      // successful insert
+      if (status == insert_result::SUCCESS) { return true; }
+      // duplicate present during insert
+      if (status == insert_result::DUPLICATE) { return false; }
+      // if we've gotten this far, a different key took our spot
+      // before we could insert. We need to retry the insert on the
+      // same window
     }
-  }  // while true
+    // if there are no empty slots in the current window,
+    // we move onto the next window
+    else {
+      current_slot = next_slot(g, current_slot);
+    }
+  }
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
