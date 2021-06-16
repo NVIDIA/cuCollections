@@ -320,20 +320,6 @@ class static_map {
     }
 
     /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
-
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
-
-    /**
      * @brief Returns the initial slot for a given key `k`
      *
      * @tparam Hash Unary callable type
@@ -484,6 +470,20 @@ class static_map {
     }
 
    public:
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __host__ __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
+
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __host__ __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
+
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
      *
@@ -719,6 +719,19 @@ class static_map {
                                     Key empty_key_sentinel,
                                     Value empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+    {
+    }
+
+    /**
+     * @brief Construct a `device_view` from a `device_mutable_view` object
+     *
+     * @param mutable_map object of type `device_mutable_view`
+     */
+    __host__ __device__ explicit device_view(device_mutable_view mutable_map)
+      : device_view_base{mutable_map.get_slots(),
+                         mutable_map.get_capacity(),
+                         mutable_map.get_empty_key_sentinel(),
+                         mutable_map.get_empty_value_sentinel()}
     {
     }
 

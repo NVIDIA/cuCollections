@@ -511,7 +511,7 @@ __global__ void shared_memory_hash_table_kernel(bool* key_found)
   map.insert(cuco::pair<int, int>(rank, rank));
   g.sync();
 
-  auto find_map       = find_map_type(slots, N, -1, -1);
+  auto find_map       = find_map_type(map);
   auto retrieved_pair = find_map.find(rank);
   if (retrieved_pair != find_map.end() && retrieved_pair->second == rank) {
     key_found[index] = true;
