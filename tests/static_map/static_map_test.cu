@@ -522,9 +522,7 @@ TEMPLATE_TEST_CASE("Shared memory slots.", "", int32_t)
 {
   constexpr std::size_t N = 256;
   thrust::device_vector<bool> key_found(N, false);
-  shared_memory_hash_table_kernel<TestType, TestType, N><<<8, 32, 32>>>(key_found.data().get());
+  shared_memory_hash_table_kernel<TestType, TestType, N><<<8, 32>>>(key_found.data().get());
 
-  REQUIRE(all_of(key_found.begin(), key_found.end(), [] __device__(const bool is_present) {
-    return is_present;
-  }));
+  REQUIRE(all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
 }
