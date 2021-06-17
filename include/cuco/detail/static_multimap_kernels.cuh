@@ -330,6 +330,8 @@ __global__ std::enable_if_t<is_vector_load, void> retrieve(InputIt first,
   const uint32_t warp_lane_id  = threadIdx.x % 32;
 
   __shared__ cuco::pair_type<Key, Value> output_buffer[num_warps][buffer_size];
+  // TODO: replace this with shared memory cuda::atomic variables once the dynamiic initialization
+  // warning issue is solved __shared__ atomicT toto_countter[num_warps];
   __shared__ uint32_t warp_counter[num_warps];
 
   if (warp_lane_id == 0) { warp_counter[warp_id] = 0; }
