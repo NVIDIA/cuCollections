@@ -148,7 +148,8 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(value_type
     converter.pair      = insert_pair;
     auto tmp_pair       = converter.packed;
 
-    auto slot = reinterpret_cast<cuda::atomic<uint64_t>*>(current_slot);
+    auto slot = reinterpret_cast<
+      cuda::atomic<typename cuco::detail::pair_converter<pair_type>::packed_type>*>(current_slot);
 
     bool success = slot->compare_exchange_strong(empty_sentinel, tmp_pair, memory_order_relaxed);
     if (success) {
