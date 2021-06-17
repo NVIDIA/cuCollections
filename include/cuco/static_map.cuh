@@ -83,8 +83,9 @@ struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_represen
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs with unique keys.
  *
- * Allows constant time concurrent inserts or concurrent find operations (not
- * concurrent insert and find) from threads in device code.
+ * Allows constant time concurrent inserts or concurrent find operations from threads in device
+ * code. Concurrent insert and find are supported only if the pair type is packable (see
+ * `cuco::detail::is_packable` constexpr).
  *
  * Current limitations:
  * - Requires keys and values that where `cuco::is_bitwise_comparable<T>::value` is true
@@ -93,7 +94,7 @@ struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_represen
  * - Capacity is fixed and will not grow automatically
  * - Requires the user to specify sentinel values for both key and mapped value to indicate empty
  * slots
- * - Does not support concurrent insert and find operations
+ * - Conditionally support concurrent insert and find operations
  *
  * The `static_map` supports two types of operations:
  * - Host-side "bulk" operations
@@ -596,7 +597,8 @@ class static_map {
     }
 
     /**
-     * @brief Inserts the specified key/value pair into the map via one single packed CAS.
+     * @brief Inserts the specified key/value pair into the map with one single CAS operation. CUDA
+     * Cooperative Groups are not applied.
      *
      * Returns a pair consisting of an iterator to the inserted element (or to
      * the element that prevented the insertion) and a `bool` denoting whether
@@ -618,7 +620,8 @@ class static_map {
       value_type const& insert_pair, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
-     * @brief Inserts the specified key/value pair into the map via two separate CASs.
+     * @brief Inserts the specified key/value pair into the map via two back-to-back CAS operations.
+     * CUDA Cooperative Groups are not applied.
      *
      * Returns a pair consisting of an iterator to the inserted element (or to
      * the element that prevented the insertion) and a `bool` denoting whether
@@ -640,7 +643,7 @@ class static_map {
       value_type const& insert_pair, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
-     * @brief Inserts the specified key/value pair into the map via one single CAS.
+     * @brief Inserts the specified key/value pair into the map with one single CAS operation.
      *
      * Returns a pair consisting of an iterator to the inserted element (or to
      * the element that prevented the insertion) and a `bool` denoting whether
@@ -672,7 +675,7 @@ class static_map {
       KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
-     * @brief Inserts the specified key/value pair into the map via two separate CASs.
+     * @brief Inserts the specified key/value pair into the map via two back-to-back CAS operations.
      *
      * Returns a pair consisting of an iterator to the inserted element (or to
      * the element that prevented the insertion) and a `bool` denoting whether
