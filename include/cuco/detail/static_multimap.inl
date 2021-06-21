@@ -508,11 +508,16 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush
   }
   offset = g.shfl(offset, 0);
 
+#if defined(CUCO_HAS_CUDA_BARRIER)
   cooperative_groups::memcpy_async(g,
                                    output_begin + offset,
                                    output_buffer,
                                    cuda::aligned_size_t<alignof(cuco::pair_type<Key, Value>)>(
                                      sizeof(cuco::pair_type<Key, Value>) * num_outputs));
+#else
+  cooperative_groups::memcpy_async(
+    g, output_begin + offset, output_buffer, sizeof(cuco::pair_type<Key, Value>) * num_outputs);
+#endif
 }
 
 template <typename Key,

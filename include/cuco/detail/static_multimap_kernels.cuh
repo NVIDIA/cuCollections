@@ -16,7 +16,6 @@
 
 #include <cooperative_groups/memcpy_async.h>
 #include <thrust/type_traits/is_contiguous_iterator.h>
-#include <cuda/barrier>
 
 #include <cuco/detail/pair.cuh>
 
