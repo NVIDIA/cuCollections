@@ -43,7 +43,7 @@ namespace cuco {
 
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
- * pairs with unique keys.
+ * pairs that supports equivalent keys.
  *
  * Allows constant time concurrent inserts or concurrent find operations (not
  * concurrent insert and find) from threads in device code.
@@ -62,16 +62,16 @@ namespace cuco {
  * - Host-side "bulk" operations
  * - Device-side "singular" operations
  *
- * The host-side bulk operations include `insert`, `find`, and `contains`. These
- * APIs should be used when there are a large number of keys to insert or lookup
- * in the map. For example, given a range of keys specified by device-accessible
- * iterators, the bulk `insert` function will insert all keys into the map.
+ * The host-side bulk operations include `insert`, `contains`, `count`, `retrieve` and their
+ * variants. These APIs should be used when there are a large number of keys to insert or lookup in
+ * the map. For example, given a range of keys specified by device-accessible iterators, the bulk
+ * `insert` function will insert all keys into the map.
  *
  * The singular device-side operations allow individual threads to perform
  * independent insert or find/contains operations from device code. These
  * operations are accessed through non-owning, trivially copyable "view" types:
  * `device_view` and `mutable_device_view`. The `device_view` class is an
- * immutable view that allows only non-modifying operations such as `find` or
+ * immutable view that allows only non-modifying operations such as `count` or
  * `contains`. The `mutable_device_view` class only allows `insert` operations.
  * The two types are separate to prevent erroneous concurrent insert/find
  * operations.
@@ -81,7 +81,7 @@ namespace cuco {
  * int empty_key_sentinel = -1;
  * int empty_value_sentinel = -1;
  *
- * // Constructs a map with 100,000 slots using -1 and -1 as the empty key/value
+ * // Constructs a multimap with 100,000 slots using -1 and -1 as the empty key/value
  * // sentinels. Note the capacity is chosen knowing we will insert 50,000 keys,
  * // for an load factor of 50%.
  * static_multimap<int, int> m{100'000, empty_key_sentinel, empty_value_sentinel};
@@ -98,7 +98,7 @@ namespace cuco {
  * m.insert(pairs.begin(), pairs.end());
  *
  * // Get a `device_view` and passes it to a kernel where threads may perform
- * // `find/contains` lookups
+ * // `contains/count/retrieve` lookups
  * kernel<<<...>>>(m.get_device_view());
  * \endcode
  *
