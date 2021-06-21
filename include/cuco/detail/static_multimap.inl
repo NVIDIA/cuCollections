@@ -83,7 +83,7 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert(InputI
 
   detail::insert<block_size, cg_size(), is_vector_load()>
     <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view, key_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 
 template <typename Key,
@@ -103,7 +103,7 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::contains(
 
   detail::contains<block_size, cg_size(), is_vector_load()>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, key_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 
 template <typename Key,
@@ -132,7 +132,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(
 
   detail::count<block_size, cg_size(), Key, Value, is_vector_load()>
     <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, key_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   size_t result = *num_matches;
   CUCO_CUDA_TRY(cudaFree(num_matches));
@@ -166,7 +166,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count_
 
   detail::count<block_size, cg_size(), Key, Value, is_vector_load(), is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, key_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   size_t result = *num_matches;
   CUCO_CUDA_TRY(cudaFree(num_matches));
@@ -198,7 +198,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
 
   detail::pair_count<block_size, cg_size(), Key, Value, is_vector_load()>
     <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, pair_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   size_t result = *num_matches;
   CUCO_CUDA_TRY(cudaFree(num_matches));
@@ -232,7 +232,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
 
   detail::pair_count<block_size, cg_size(), Key, Value, is_vector_load(), is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, pair_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   size_t result = *num_matches;
   CUCO_CUDA_TRY(cudaFree(num_matches));
@@ -266,7 +266,7 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
 
   detail::retrieve<block_size, cg_size(), buffer_size, Key, Value, is_vector_load()>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, num_matches, view, key_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   auto output_end = output_begin + *num_matches;
   CUCO_CUDA_TRY(cudaFree(num_matches));
@@ -302,7 +302,7 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
 
   detail::retrieve<block_size, cg_size(), buffer_size, Key, Value, is_vector_load(), is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, num_matches, view, key_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   auto output_end = output_begin + *num_matches;
   CUCO_CUDA_TRY(cudaFree(num_matches));
