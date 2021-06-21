@@ -32,10 +32,10 @@ constexpr bool is_prime(std::size_t num) noexcept
 {
   bool flag = true;
   // 0 and 1 are not prime numbers
-  if (num == 0 || num == 1) {
+  if (num == 0lu || num == 1lu) {
     flag = false;
   } else {
-    for (auto i = 2; i <= num / 2; ++i) {
+    for (auto i = 2lu; i <= num / 2lu; ++i) {
       if (num % i == 0) {
         flag = false;
         break;
