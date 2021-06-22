@@ -152,11 +152,13 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(value_type
       cuda::atomic<typename cuco::detail::pair_converter<pair_type>::packed_type>*>(current_slot);
 
     bool success = slot->compare_exchange_strong(empty_sentinel, tmp_pair, memory_order_relaxed);
+    converter.packed   = empty_sentinel;
+    auto expected_pair = converter.pair;
     if (success) {
       return true;
     }
     // duplicate present during insert
-    else if (key_equal(insert_pair.first, current_slot->first.load(memory_order_relaxed))) {
+    else if (key_equal(insert_pair.first, expected_pair.first)) {
       return false;
     }
 
@@ -263,11 +265,13 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(CG g,
 
         bool success =
           slot->compare_exchange_strong(empty_sentinel, tmp_pair, memory_order_relaxed);
+        converter.packed   = empty_sentinel;
+        auto expected_pair = converter.pair;
         if (success) {
           status = insert_result::SUCCESS;
         }
         // duplicate present during insert
-        else if (key_equal(insert_pair.first, current_slot->first.load(memory_order_relaxed))) {
+        else if (key_equal(insert_pair.first, expected_pair.first)) {
           status = insert_result::DUPLICATE;
         }
       }
