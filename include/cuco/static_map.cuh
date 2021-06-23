@@ -607,6 +607,16 @@ class static_map {
     }
 
    private:
+    /**---------------------------------------------------------------------------*
+     * @brief Enumeration of the possible results of attempting to insert into
+     *a hash bucket
+     *---------------------------------------------------------------------------**/
+    enum class insert_result {
+      CONTINUE,  ///< Insert did not succeed, continue trying to insert
+      SUCCESS,   ///< New pair inserted successfully
+      DUPLICATE  ///< Insert did not succeed, key is already present
+    };
+
     /**
      * @brief Inserts the specified key/value pair into the map using one
      * single CAS operation.

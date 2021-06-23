@@ -18,16 +18,6 @@
 
 namespace cuco {
 
-/**---------------------------------------------------------------------------*
- * @brief Enumeration of the possible results of attempting to insert into
- *a hash bucket
- *---------------------------------------------------------------------------**/
-enum class insert_result {
-  CONTINUE,  ///< Insert did not succeed, continue trying to insert
-  SUCCESS,   ///< New pair inserted successfully
-  DUPLICATE  ///< Insert did not succeed, key is already present
-};
-
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
                                                      Key empty_key_sentinel,
