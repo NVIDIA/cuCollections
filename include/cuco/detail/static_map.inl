@@ -113,238 +113,71 @@ void static_map<Key, Value, Scope, Allocator>::contains(
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <bool is_packable, typename Hash, typename KeyEqual>
-__device__ std::enable_if_t<is_packable, bool>
-static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_impl(
-  value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
+template <typename KeyEqual>
+__device__ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_result
+static_map<Key, Value, Scope, Allocator>::device_mutable_view::packed_cas(
+  iterator current_slot, value_type const& insert_pair, KeyEqual key_equal) noexcept
 {
-  auto current_slot{initial_slot(insert_pair.first, hash)};
+  auto expected_key   = this->get_empty_key_sentinel();
+  auto expected_value = this->get_empty_value_sentinel();
 
-  while (true) {
-    using cuda::std::memory_order_relaxed;
-    auto expected_key   = this->get_empty_key_sentinel();
-    auto expected_value = this->get_empty_value_sentinel();
+  cuco::detail::pair_converter<value_type> expected_pair{
+    cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value))};
+  cuco::detail::pair_converter<value_type> new_pair{insert_pair};
 
-    key_type const existing_key = current_slot->first.load(memory_order_relaxed);
-    // the key we are trying to insert is already in the map, so we return with failure to insert
-    if (key_equal(existing_key, insert_pair.first)) { return false; }
+  auto slot =
+    reinterpret_cast<cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(
+      current_slot);
 
-    cuco::detail::pair_converter<value_type> expected_pair{
-      cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value))};
-    cuco::detail::pair_converter<value_type> new_pair{insert_pair};
-
-    auto slot = reinterpret_cast<
-      cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(current_slot);
-
-    bool success =
-      slot->compare_exchange_strong(expected_pair.packed, new_pair.packed, memory_order_relaxed);
-    if (success) {
-      return true;
-    }
-    // duplicate present during insert
-    else if (key_equal(insert_pair.first, expected_pair.pair.first)) {
-      return false;
-    }
-
-    // if we couldn't insert the key, but it wasn't a duplicate, then there must
-    // have been some other key there, so we keep looking for a slot
-    current_slot = next_slot(current_slot);
+  bool success = slot->compare_exchange_strong(
+    expected_pair.packed, new_pair.packed, cuda::std::memory_order_relaxed);
+  if (success) {
+    return insert_result::SUCCESS;
   }
+  // duplicate present during insert
+  else if (key_equal(insert_pair.first, expected_pair.pair.first)) {
+    return insert_result::DUPLICATE;
+  }
+
+  return insert_result::CONTINUE;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <bool is_packable, typename Hash, typename KeyEqual>
-__device__ std::enable_if_t<not is_packable, bool>
-static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_impl(
-  value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
-{
-  auto current_slot{initial_slot(insert_pair.first, hash)};
-
-  while (true) {
-    using cuda::std::memory_order_relaxed;
-    auto expected_key   = this->get_empty_key_sentinel();
-    auto expected_value = this->get_empty_value_sentinel();
-
-    key_type const existing_key = current_slot->first.load(memory_order_relaxed);
-    // the key we are trying to insert is already in the map, so we return with failure to insert
-    if (key_equal(existing_key, insert_pair.first)) { return false; }
-
-    auto& slot_key   = current_slot->first;
-    auto& slot_value = current_slot->second;
-
-    bool key_success =
-      slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
-    bool value_success =
-      slot_value.compare_exchange_strong(expected_value, insert_pair.second, memory_order_relaxed);
-
-    if (key_success) {
-      while (not value_success) {
-        value_success =
-          slot_value.compare_exchange_strong(expected_value = this->get_empty_value_sentinel(),
-                                             insert_pair.second,
-                                             memory_order_relaxed);
-      }
-      return true;
-    } else if (value_success) {
-      slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
-    }
-
-    // if the key was already inserted by another thread, than this instance is a
-    // duplicate, so the insert fails
-    if (key_equal(insert_pair.first, expected_key)) { return false; }
-
-    // if we couldn't insert the key, but it wasn't a duplicate, then there must
-    // have been some other key there, so we keep looking for a slot
-    current_slot = next_slot(current_slot);
-  }
-}
-
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <bool is_packable, typename CG, typename Hash, typename KeyEqual>
-__device__ std::enable_if_t<is_packable, bool>
-static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_impl(
-  CG const& g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
+template <typename KeyEqual>
+__device__ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_result
+static_map<Key, Value, Scope, Allocator>::device_mutable_view::back_to_back_cas(
+  iterator current_slot, value_type const& insert_pair, KeyEqual key_equal) noexcept
 {
   using cuda::std::memory_order_relaxed;
-  auto current_slot = initial_slot(g, insert_pair.first, hash);
 
-  while (true) {
-    key_type const existing_key = current_slot->first.load(memory_order_relaxed);
+  auto expected_key   = this->get_empty_key_sentinel();
+  auto expected_value = this->get_empty_value_sentinel();
 
-    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
-    // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+  // Back-to-back CAS for 8B/8B key/value pairs
+  auto& slot_key   = current_slot->first;
+  auto& slot_value = current_slot->second;
 
-    // the key we are trying to insert is already in the map, so we return with failure to insert
-    if (g.any(not slot_is_empty and key_equal(existing_key, insert_pair.first))) { return false; }
+  bool key_success =
+    slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
+  bool value_success =
+    slot_value.compare_exchange_strong(expected_value, insert_pair.second, memory_order_relaxed);
 
-    auto const window_contains_empty = g.ballot(slot_is_empty);
-
-    // we found an empty slot, but not the key we are inserting, so this must
-    // be an empty slot into which we can insert the key
-    if (window_contains_empty) {
-      // the first lane in the group with an empty slot will attempt the insert
-      insert_result status{insert_result::CONTINUE};
-      uint32_t src_lane = __ffs(window_contains_empty) - 1;
-
-      if (g.thread_rank() == src_lane) {
-        auto expected_key   = this->get_empty_key_sentinel();
-        auto expected_value = this->get_empty_value_sentinel();
-
-        cuco::detail::pair_converter<value_type> expected_pair{
-          cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value))};
-        cuco::detail::pair_converter<value_type> new_pair{insert_pair};
-
-        auto slot = reinterpret_cast<
-          cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(
-          current_slot);
-
-        bool success = slot->compare_exchange_strong(
-          expected_pair.packed, new_pair.packed, memory_order_relaxed);
-        if (success) {
-          status = insert_result::SUCCESS;
-        }
-        // duplicate present during insert
-        else if (key_equal(insert_pair.first, expected_pair.pair.first)) {
-          status = insert_result::DUPLICATE;
-        }
-      }
-
-      uint32_t res_status = g.shfl(static_cast<uint32_t>(status), src_lane);
-      status              = static_cast<insert_result>(res_status);
-
-      // successful insert
-      if (status == insert_result::SUCCESS) { return true; }
-      // duplicate present during insert
-      if (status == insert_result::DUPLICATE) { return false; }
-      // if we've gotten this far, a different key took our spot
-      // before we could insert. We need to retry the insert on the
-      // same window
+  if (key_success) {
+    while (not value_success) {
+      value_success =
+        slot_value.compare_exchange_strong(expected_value = this->get_empty_value_sentinel(),
+                                           insert_pair.second,
+                                           memory_order_relaxed);
     }
-    // if there are no empty slots in the current window,
-    // we move onto the next window
-    else {
-      current_slot = next_slot(g, current_slot);
-    }
+    return insert_result::SUCCESS;
+  } else if (value_success) {
+    slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
   }
-}
 
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <bool is_packable, typename CG, typename Hash, typename KeyEqual>
-__device__ std::enable_if_t<not is_packable, bool>
-static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_impl(
-  CG const& g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
-{
-  using cuda::std::memory_order_relaxed;
-  auto current_slot = initial_slot(g, insert_pair.first, hash);
+  // our key was already present in the slot, so our key is a duplicate
+  if (key_equal(insert_pair.first, expected_key)) { return insert_result::DUPLICATE; }
 
-  while (true) {
-    key_type const existing_key = current_slot->first.load(memory_order_relaxed);
-
-    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
-    // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
-
-    // the key we are trying to insert is already in the map, so we return with failure to insert
-    if (g.any(not slot_is_empty and key_equal(existing_key, insert_pair.first))) { return false; }
-
-    auto const window_contains_empty = g.ballot(slot_is_empty);
-
-    // we found an empty slot, but not the key we are inserting, so this must
-    // be an empty slot into which we can insert the key
-    if (window_contains_empty) {
-      // the first lane in the group with an empty slot will attempt the insert
-      insert_result status{insert_result::CONTINUE};
-      uint32_t src_lane = __ffs(window_contains_empty) - 1;
-
-      if (g.thread_rank() == src_lane) {
-        auto expected_key   = this->get_empty_key_sentinel();
-        auto expected_value = this->get_empty_value_sentinel();
-
-        // Back-to-back CAS for 8B/8B key/value pairs
-        auto& slot_key   = current_slot->first;
-        auto& slot_value = current_slot->second;
-
-        bool key_success =
-          slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
-        bool value_success = slot_value.compare_exchange_strong(
-          expected_value, insert_pair.second, memory_order_relaxed);
-
-        if (key_success) {
-          while (not value_success) {
-            value_success =
-              slot_value.compare_exchange_strong(expected_value = this->get_empty_value_sentinel(),
-                                                 insert_pair.second,
-                                                 memory_order_relaxed);
-          }
-          status = insert_result::SUCCESS;
-        } else if (value_success) {
-          slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
-        }
-
-        // our key was already present in the slot, so our key is a duplicate
-        if (key_equal(insert_pair.first, expected_key)) { status = insert_result::DUPLICATE; }
-      }
-
-      uint32_t res_status = g.shfl(static_cast<uint32_t>(status), src_lane);
-      status              = static_cast<insert_result>(res_status);
-
-      // successful insert
-      if (status == insert_result::SUCCESS) { return true; }
-      // duplicate present during insert
-      if (status == insert_result::DUPLICATE) { return false; }
-      // if we've gotten this far, a different key took our spot
-      // before we could insert. We need to retry the insert on the
-      // same window
-    }
-    // if there are no empty slots in the current window,
-    // we move onto the next window
-    else {
-      current_slot = next_slot(g, current_slot);
-    }
-  }
+  return insert_result::CONTINUE;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -352,7 +185,33 @@ template <typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
-  return insert_impl<cuco::detail::is_packable<value_type>()>(insert_pair, hash, key_equal);
+  auto current_slot{initial_slot(insert_pair.first, hash)};
+
+  while (true) {
+    key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    // the key we are trying to insert is already in the map, so we return with failure to insert
+    if (key_equal(existing_key, insert_pair.first)) { return false; }
+
+    insert_result status{insert_result::CONTINUE};
+
+    // One single CAS operation if `value_type` is packable
+    if constexpr (cuco::detail::is_packable<value_type>()) {
+      status = packed_cas(current_slot, insert_pair, key_equal);
+    }
+    // Otherwise, two back-to-back CAS operations
+    else {
+      status = back_to_back_cas(current_slot, insert_pair, key_equal);
+    }
+
+    // successful insert
+    if (status == insert_result::SUCCESS) { return true; }
+    // duplicate present during insert
+    if (status == insert_result::DUPLICATE) { return false; }
+
+    // if we couldn't insert the key, but it wasn't a duplicate, then there must
+    // have been some other key there, so we keep looking for a slot
+    current_slot = next_slot(current_slot);
+  }
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -360,7 +219,56 @@ template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(
   CG const& g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
-  return insert_impl<cuco::detail::is_packable<value_type>()>(g, insert_pair, hash, key_equal);
+  auto current_slot = initial_slot(g, insert_pair.first, hash);
+
+  while (true) {
+    key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
+    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+
+    // the key we are trying to insert is already in the map, so we return with failure to insert
+    if (g.any(not slot_is_empty and key_equal(existing_key, insert_pair.first))) { return false; }
+
+    auto const window_contains_empty = g.ballot(slot_is_empty);
+
+    // we found an empty slot, but not the key we are inserting, so this must
+    // be an empty slot into which we can insert the key
+    if (window_contains_empty) {
+      // the first lane in the group with an empty slot will attempt the insert
+      insert_result status{insert_result::CONTINUE};
+      uint32_t src_lane = __ffs(window_contains_empty) - 1;
+
+      if (g.thread_rank() == src_lane) {
+        // One single CAS operation if `value_type` is packable
+        if constexpr (cuco::detail::is_packable<value_type>()) {
+          status = packed_cas(current_slot, insert_pair, key_equal);
+        }
+        // Otherwise, two back-to-back CAS operations
+        else {
+          status = back_to_back_cas(current_slot, insert_pair, key_equal);
+        }
+      }
+
+      uint32_t res_status = g.shfl(static_cast<uint32_t>(status), src_lane);
+      status              = static_cast<insert_result>(res_status);
+
+      // successful insert
+      if (status == insert_result::SUCCESS) { return true; }
+      // duplicate present during insert
+      if (status == insert_result::DUPLICATE) { return false; }
+      // if we've gotten this far, a different key took our spot
+      // before we could insert. We need to retry the insert on the
+      // same window
+    }
+    // if there are no empty slots in the current window,
+    // we move onto the next window
+    else {
+      current_slot = next_slot(g, current_slot);
+    }
+  }
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
