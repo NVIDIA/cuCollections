@@ -175,6 +175,7 @@ class static_map {
   using atomic_key_type    = cuda::atomic<key_type, Scope>;
   using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
   using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  using slot_type          = pair_atomic_type;
   using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
   using allocator_type     = Allocator;
   using slot_allocator_type =
@@ -313,6 +314,7 @@ class static_map {
     using mapped_type    = Value;
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
+    using slot_type      = slot_type;
 
    private:
     pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
@@ -331,20 +333,6 @@ class static_map {
         empty_value_sentinel_{empty_value_sentinel}
     {
     }
-
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
-
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
 
     /**
      * @brief Returns the initial slot for a given key `k`
@@ -469,7 +457,48 @@ class static_map {
       return &slots_[(index + g.size()) % capacity_];
     }
 
+    /**
+     * @brief Initializes the given array of slots to the specified values given by `k` and `v`
+     * using the threads in the group `g`.
+     *
+     * @note This function synchronizes the group `g`.
+     *
+     * @tparam CG The type of the cooperative thread group
+     * @param g The cooperative thread group used to initialize the slots
+     * @param slots Pointer to the array of slots to initialize
+     * @param num_slots Number of slots to initialize
+     * @param k The desired key value for each slot
+     * @param v The desired mapped value for each slot
+     */
+
+    template <typename CG>
+    __device__ static void initialize_slots(
+      CG g, pair_atomic_type* slots, std::size_t num_slots, Key k, Value v)
+    {
+      auto tid = g.thread_rank();
+      while (tid < num_slots) {
+        new (&slots[tid].first) atomic_key_type{k};
+        new (&slots[tid].second) atomic_mapped_type{v};
+        tid += g.size();
+      }
+      g.sync();
+    }
+
    public:
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __host__ __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
+
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __host__ __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
+
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
      *
@@ -587,6 +616,8 @@ class static_map {
     using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
+    using slot_type      = typename device_view_base::slot_type;
+
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -647,6 +678,19 @@ class static_map {
                                               KeyEqual key_equal) noexcept;
 
    public:
+    template <typename CG>
+    __device__ static device_mutable_view make_from_uninitialized_slots(
+      CG g,
+      pair_atomic_type* slots,
+      std::size_t capacity,
+      Key empty_key_sentinel,
+      Value empty_value_sentinel) noexcept
+    {
+      device_view_base::initialize_slots(
+        g, slots, capacity, empty_key_sentinel, empty_value_sentinel);
+      return device_mutable_view{slots, capacity, empty_key_sentinel, empty_value_sentinel};
+    }
+
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
@@ -713,6 +757,8 @@ class static_map {
     using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
+    using slot_type      = typename device_view_base::slot_type;
+
     /**
      * @brief Construct a view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -729,6 +775,19 @@ class static_map {
                                     Key empty_key_sentinel,
                                     Value empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+    {
+    }
+
+    /**
+     * @brief Construct a `device_view` from a `device_mutable_view` object
+     *
+     * @param mutable_map object of type `device_mutable_view`
+     */
+    __host__ __device__ explicit device_view(device_mutable_view mutable_map)
+      : device_view_base{mutable_map.get_slots(),
+                         mutable_map.get_capacity(),
+                         mutable_map.get_empty_key_sentinel(),
+                         mutable_map.get_empty_value_sentinel()}
     {
     }
 
