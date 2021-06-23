@@ -25,7 +25,8 @@
 
 #include <cuco/allocator.hpp>
 
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 700)
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
+  (__CUDA_ARCH__ >= 700)
 #define CUCO_HAS_CUDA_BARRIER
 #endif
 
@@ -69,7 +70,7 @@ struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_represen
 
 /**
  * @brief Declares that a type `Type` is bitwise comparable.
- * 
+ *
  */
 #define CUCO_DECLARE_BITWISE_COMPARABLE(Type)           \
   namespace cuco {                                      \
@@ -150,16 +151,15 @@ template <typename Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_map {
-
   static_assert(
     is_bitwise_comparable<Key>::value,
     "Key type must have unique object representations or have been explicitly declared as safe for "
     "bitwise comparison via specialization of cuco::is_bitwise_comparable<Key>.");
 
-  static_assert(
-    is_bitwise_comparable<Value>::value,
-    "Value type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable<Value>.");
+  static_assert(is_bitwise_comparable<Value>::value,
+                "Value type must have unique object representations or have been explicitly "
+                "declared as safe for "
+                "bitwise comparison via specialization of cuco::is_bitwise_comparable<Value>.");
 
   friend class dynamic_map<Key, Value, Scope, Allocator>;
 
@@ -170,6 +170,7 @@ class static_map {
   using atomic_key_type    = cuda::atomic<key_type, Scope>;
   using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
   using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  using slot_type          = pair_atomic_type;
   using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
   using allocator_type     = Allocator;
   using slot_allocator_type =
@@ -298,6 +299,7 @@ class static_map {
     using mapped_type    = Value;
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
+    using slot_type      = slot_type;
 
    private:
     pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
@@ -316,20 +318,6 @@ class static_map {
         empty_value_sentinel_{empty_value_sentinel}
     {
     }
-
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
-
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
 
     /**
      * @brief Returns the initial slot for a given key `k`
@@ -454,7 +442,48 @@ class static_map {
       return &slots_[(index + g.size()) % capacity_];
     }
 
+    /**
+     * @brief Initializes the given array of slots to the specified values given by `k` and `v`
+     * using the threads in the group `g`.
+     *
+     * @note This function synchronizes the group `g`.
+     *
+     * @tparam CG The type of the cooperative thread group
+     * @param g The cooperative thread group used to initialize the slots
+     * @param slots Pointer to the array of slots to initialize
+     * @param num_slots Number of slots to initialize
+     * @param k The desired key value for each slot
+     * @param v The desired mapped value for each slot
+     */
+
+    template <typename CG>
+    __device__ static void initialize_slots(
+      CG g, pair_atomic_type* slots, std::size_t num_slots, Key k, Value v)
+    {
+      auto tid = g.thread_rank();
+      while (tid < num_slots) {
+        new (&slots[tid].first) atomic_key_type{k};
+        new (&slots[tid].second) atomic_mapped_type{v};
+        tid += g.size();
+      }
+      g.sync();
+    }
+
    public:
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __host__ __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
+
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __host__ __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
+
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
      *
@@ -572,6 +601,8 @@ class static_map {
     using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
+    using slot_type      = typename device_view_base::slot_type;
+
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -583,12 +614,25 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-     __host__ __device__ device_mutable_view(pair_atomic_type* slots,
-                                             std::size_t capacity,
-                                             Key empty_key_sentinel,
-                                             Value empty_value_sentinel) noexcept
+    __host__ __device__ device_mutable_view(pair_atomic_type* slots,
+                                            std::size_t capacity,
+                                            Key empty_key_sentinel,
+                                            Value empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
+    }
+
+    template <typename CG>
+    __device__ static device_mutable_view make_from_uninitialized_slots(
+      CG g,
+      pair_atomic_type* slots,
+      std::size_t capacity,
+      Key empty_key_sentinel,
+      Value empty_value_sentinel) noexcept
+    {
+      device_view_base::initialize_slots(
+        g, slots, capacity, empty_key_sentinel, empty_value_sentinel);
+      return device_mutable_view{slots, capacity, empty_key_sentinel, empty_value_sentinel};
     }
 
     /**
@@ -657,6 +701,8 @@ class static_map {
     using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
+    using slot_type      = typename device_view_base::slot_type;
+
     /**
      * @brief Construct a view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -668,18 +714,32 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-     __host__ __device__ device_view(pair_atomic_type* slots,
-                                     std::size_t capacity,
-                                     Key empty_key_sentinel,
-                                     Value empty_value_sentinel) noexcept
+    __host__ __device__ device_view(pair_atomic_type* slots,
+                                    std::size_t capacity,
+                                    Key empty_key_sentinel,
+                                    Value empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+    {
+    }
+
+    /**
+     * @brief Construct a `device_view` from a `device_mutable_view` object
+     *
+     * @param mutable_map object of type `device_mutable_view`
+     */
+    __host__ __device__ explicit device_view(device_mutable_view mutable_map)
+      : device_view_base{mutable_map.get_slots(),
+                         mutable_map.get_capacity(),
+                         mutable_map.get_empty_key_sentinel(),
+                         mutable_map.get_empty_value_sentinel()}
     {
     }
 
     /**
      * @brief Makes a copy of given `device_view` using non-owned memory.
      *
-     * This function is intended to be used to create shared memory copies of small static maps, although global memory can be used as well.
+     * This function is intended to be used to create shared memory copies of small static maps,
+     * although global memory can be used as well.
      *
      * Example:
      * @code{.cpp}
@@ -708,7 +768,8 @@ class static_map {
      * @tparam CG The type of the cooperative thread group
      * @param g The ooperative thread group used to copy the slots
      * @param source_device_view `device_view` to copy from
-     * @param memory_to_use Array large enough to support `capacity` elements. Object does not take the ownership of the memory
+     * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
+     * the ownership of the memory
      * @return Copy of passed `device_view`
      */
     template <typename CG>
@@ -718,9 +779,7 @@ class static_map {
     {
 #if defined(CUDA_HAS_CUDA_BARRIER)
       __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
-      if (g.thread_rank() == 0) {
-        init(&barrier, g.size());
-      }
+      if (g.thread_rank() == 0) { init(&barrier, g.size()); }
       g.sync();
 
       cuda::memcpy_async(g,
@@ -732,10 +791,11 @@ class static_map {
       barrier.arrive_and_wait();
 #else
       pair_atomic_type const* const slots_ptr = source_device_view.get_slots();
-      for (std::size_t i = g.thread_rank(); i < source_device_view.get_capacity(); i += g.size())
-      {
-        new (&memory_to_use[i].first) atomic_key_type{slots_ptr[i].first.load(cuda::memory_order_relaxed)};
-        new (&memory_to_use[i].second) atomic_mapped_type{slots_ptr[i].second.load(cuda::memory_order_relaxed)};
+      for (std::size_t i = g.thread_rank(); i < source_device_view.get_capacity(); i += g.size()) {
+        new (&memory_to_use[i].first)
+          atomic_key_type{slots_ptr[i].first.load(cuda::memory_order_relaxed)};
+        new (&memory_to_use[i].second)
+          atomic_mapped_type{slots_ptr[i].second.load(cuda::memory_order_relaxed)};
       }
       g.sync();
 #endif
