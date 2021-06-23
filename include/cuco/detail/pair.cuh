@@ -132,6 +132,10 @@ union pair_converter {
   using packed_type = packed_t<pair_type>;
   packed_type packed;
   pair_type pair;
+
+  __device__ pair_converter(pair_type _pair) : pair{_pair} {}
+
+  __device__ pair_converter(packed_type _packed) : packed{_packed} {}
 };
 
 }  // namespace detail

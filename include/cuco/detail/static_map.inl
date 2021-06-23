@@ -140,25 +140,20 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(value_type
     // the key we are trying to insert is already in the map, so we return with failure to insert
     if (key_equal(existing_key, insert_pair.first)) { return false; }
 
-    cuco::detail::pair_converter<pair_type> converter;
-
-    converter.pair =
-      cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value));
-    auto empty_sentinel = converter.packed;
-    converter.pair      = insert_pair;
-    auto tmp_pair       = converter.packed;
+    cuco::detail::pair_converter<pair_type> expected_pair{
+      cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value))};
+    cuco::detail::pair_converter<pair_type> new_pair{insert_pair};
 
     auto slot = reinterpret_cast<
       cuda::atomic<typename cuco::detail::pair_converter<pair_type>::packed_type>*>(current_slot);
 
-    bool success = slot->compare_exchange_strong(empty_sentinel, tmp_pair, memory_order_relaxed);
-    converter.packed   = empty_sentinel;
-    auto expected_pair = converter.pair;
+    bool success =
+      slot->compare_exchange_strong(expected_pair.packed, new_pair.packed, memory_order_relaxed);
     if (success) {
       return true;
     }
     // duplicate present during insert
-    else if (key_equal(insert_pair.first, expected_pair.first)) {
+    else if (key_equal(insert_pair.first, expected_pair.pair.first)) {
       return false;
     }
 
@@ -251,27 +246,21 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(CG g,
         auto expected_key   = this->get_empty_key_sentinel();
         auto expected_value = this->get_empty_value_sentinel();
 
-        cuco::detail::pair_converter<pair_type> converter;
-
-        converter.pair =
-          cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value));
-        auto empty_sentinel = converter.packed;
-        converter.pair      = insert_pair;
-        auto tmp_pair       = converter.packed;
+        cuco::detail::pair_converter<pair_type> expected_pair{
+          cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value))};
+        cuco::detail::pair_converter<pair_type> new_pair{insert_pair};
 
         auto slot = reinterpret_cast<
           cuda::atomic<typename cuco::detail::pair_converter<pair_type>::packed_type>*>(
           current_slot);
 
-        bool success =
-          slot->compare_exchange_strong(empty_sentinel, tmp_pair, memory_order_relaxed);
-        converter.packed   = empty_sentinel;
-        auto expected_pair = converter.pair;
+        bool success = slot->compare_exchange_strong(
+          expected_pair.packed, new_pair.packed, memory_order_relaxed);
         if (success) {
           status = insert_result::SUCCESS;
         }
         // duplicate present during insert
-        else if (key_equal(insert_pair.first, expected_pair.first)) {
+        else if (key_equal(insert_pair.first, expected_pair.pair.first)) {
           status = insert_result::DUPLICATE;
         }
       }
