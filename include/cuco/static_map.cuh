@@ -606,15 +606,16 @@ class static_map {
     {
     }
 
+   private:
     /**
-     * @brief Inserts the specified key/value pair into the map with one single CAS operation. CUDA
-     * Cooperative Groups are not applied.
+     * @brief Inserts the specified key/value pair into the map using one
+     * single CAS operation.
      *
      * Returns a pair consisting of an iterator to the inserted element (or to
      * the element that prevented the insertion) and a `bool` denoting whether
      * the insertion took place.
      *
-     * @tparam pair_type CuCo pair type
+     * @tparam is_packable Boolean indicating if packed CAS is used
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param insert_pair The pair to insert
@@ -623,21 +624,20 @@ class static_map {
      * equality
      * @return `true` if the insert was successful, `false` otherwise.
      */
-    template <typename pair_type = value_type,
-              typename Hash      = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual  = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<cuco::detail::is_packable<pair_type>(), bool> insert(
-      value_type const& insert_pair, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <bool is_packable, typename Hash, typename KeyEqual>
+    __device__ std::enable_if_t<is_packable, bool> insert_impl(value_type const& insert_pair,
+                                                               Hash hash,
+                                                               KeyEqual key_equal) noexcept;
 
     /**
-     * @brief Inserts the specified key/value pair into the map via two back-to-back CAS operations.
-     * CUDA Cooperative Groups are not applied.
+     * @brief Inserts the specified key/value pair into the map two
+     * back-to-back CAS operations.
      *
      * Returns a pair consisting of an iterator to the inserted element (or to
      * the element that prevented the insertion) and a `bool` denoting whether
      * the insertion took place.
      *
-     * @tparam pair_type CuCo pair type
+     * @tparam is_packable Boolean indicating if packed CAS is used
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param insert_pair The pair to insert
@@ -646,14 +646,93 @@ class static_map {
      * equality
      * @return `true` if the insert was successful, `false` otherwise.
      */
-    template <typename pair_type = value_type,
-              typename Hash      = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual  = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<not cuco::detail::is_packable<pair_type>(), bool> insert(
-      value_type const& insert_pair, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <bool is_packable, typename Hash, typename KeyEqual>
+    __device__ std::enable_if_t<not is_packable, bool> insert_impl(value_type const& insert_pair,
+                                                                   Hash hash,
+                                                                   KeyEqual key_equal) noexcept;
 
     /**
-     * @brief Inserts the specified key/value pair into the map with one single CAS operation.
+     * @brief Inserts the specified key/value pair into the map using one
+     * single CAS operation.
+     *
+     * Returns a pair consisting of an iterator to the inserted element (or to
+     * the element that prevented the insertion) and a `bool` denoting whether
+     * the insertion took place. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single insert. This provides a
+     * significant boost in throughput compared to the non Cooperative Group
+     * `insert` at moderate to high load factors.
+     *
+     * @tparam is_packable Boolean indicating if packed CAS is used
+     * @tparam CG Cooperative Group type
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     *
+     * @param g The Cooperative Group that performs the insert
+     * @param insert_pair The pair to insert
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return `true` if the insert was successful, `false` otherwise.
+     */
+    template <bool is_packable, typename CG, typename Hash, typename KeyEqual>
+    __device__ std::enable_if_t<is_packable, bool> insert_impl(CG const& g,
+                                                               value_type const& insert_pair,
+                                                               Hash hash,
+                                                               KeyEqual key_equal) noexcept;
+
+    /**
+     * @brief Inserts the specified key/value pair into the map two
+     * back-to-back CAS operations.
+     *
+     * Returns a pair consisting of an iterator to the inserted element (or to
+     * the element that prevented the insertion) and a `bool` denoting whether
+     * the insertion took place. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single insert. This provides a
+     * significant boost in throughput compared to the non Cooperative Group
+     * `insert` at moderate to high load factors.
+     *
+     * @tparam is_packable Boolean indicating if packed CAS is used
+     * @tparam CG Cooperative Group type
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     *
+     * @param g The Cooperative Group that performs the insert
+     * @param insert_pair The pair to insert
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return `true` if the insert was successful, `false` otherwise.
+     */
+    template <bool is_packable, typename CG, typename Hash, typename KeyEqual>
+    __device__ std::enable_if_t<not is_packable, bool> insert_impl(CG const& g,
+                                                                   value_type const& insert_pair,
+                                                                   Hash hash,
+                                                                   KeyEqual key_equal) noexcept;
+
+   public:
+    /**
+     * @brief Inserts the specified key/value pair into the map.
+     *
+     * Returns a pair consisting of an iterator to the inserted element (or to
+     * the element that prevented the insertion) and a `bool` denoting whether
+     * the insertion took place.
+     *
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     * @param insert_pair The pair to insert
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return `true` if the insert was successful, `false` otherwise.
+     */
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ bool insert(value_type const& insert_pair,
+                           Hash hash          = Hash{},
+                           KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Inserts the specified key/value pair into the map.
      *
      * Returns a pair consisting of an iterator to the inserted element (or to
      * the element that prevented the insertion) and a `bool` denoting whether
@@ -663,7 +742,6 @@ class static_map {
      * `insert` at moderate to high load factors.
      *
      * @tparam CG Cooperative Group type
-     * @tparam pair_type CuCo pair type
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      *
@@ -675,46 +753,12 @@ class static_map {
      * @return `true` if the insert was successful, `false` otherwise.
      */
     template <typename CG,
-              typename pair_type = value_type,
-              typename Hash      = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual  = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<cuco::detail::is_packable<pair_type>(), bool> insert(
-      CG g,
-      value_type const& insert_pair,
-      Hash hash          = Hash{},
-      KeyEqual key_equal = KeyEqual{}) noexcept;
-
-    /**
-     * @brief Inserts the specified key/value pair into the map via two back-to-back CAS operations.
-     *
-     * Returns a pair consisting of an iterator to the inserted element (or to
-     * the element that prevented the insertion) and a `bool` denoting whether
-     * the insertion took place. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single insert. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `insert` at moderate to high load factors.
-     *
-     * @tparam CG Cooperative Group type
-     * @tparam pair_type CuCo pair type
-     * @tparam Hash Unary callable type
-     * @tparam KeyEqual Binary callable type
-     *
-     * @param g The Cooperative Group that performs the insert
-     * @param insert_pair The pair to insert
-     * @param hash The unary callable used to hash the key
-     * @param key_equal The binary callable used to compare two keys for
-     * equality
-     * @return `true` if the insert was successful, `false` otherwise.
-     */
-    template <typename CG,
-              typename pair_type = value_type,
-              typename Hash      = cuco::detail::MurmurHash3_32<key_type>,
-              typename KeyEqual  = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<not cuco::detail::is_packable<pair_type>(), bool> insert(
-      CG g,
-      value_type const& insert_pair,
-      Hash hash          = Hash{},
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ bool insert(CG const& g,
+                           value_type const& insert_pair,
+                           Hash hash          = Hash{},
+                           KeyEqual key_equal = KeyEqual{}) noexcept;
   };  // class device mutable view
 
   /**

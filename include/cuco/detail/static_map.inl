@@ -123,11 +123,10 @@ void static_map<Key, Value, Scope, Allocator>::contains(
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <typename pair_type, typename Hash, typename KeyEqual>
-__device__ std::enable_if_t<cuco::detail::is_packable<pair_type>(), bool>
-static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(value_type const& insert_pair,
-                                                                      Hash hash,
-                                                                      KeyEqual key_equal) noexcept
+template <bool is_packable, typename Hash, typename KeyEqual>
+__device__ std::enable_if_t<is_packable, bool>
+static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_impl(
+  value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot{initial_slot(insert_pair.first, hash)};
 
@@ -140,12 +139,12 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(value_type
     // the key we are trying to insert is already in the map, so we return with failure to insert
     if (key_equal(existing_key, insert_pair.first)) { return false; }
 
-    cuco::detail::pair_converter<pair_type> expected_pair{
+    cuco::detail::pair_converter<value_type> expected_pair{
       cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value))};
-    cuco::detail::pair_converter<pair_type> new_pair{insert_pair};
+    cuco::detail::pair_converter<value_type> new_pair{insert_pair};
 
     auto slot = reinterpret_cast<
-      cuda::atomic<typename cuco::detail::pair_converter<pair_type>::packed_type>*>(current_slot);
+      cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(current_slot);
 
     bool success =
       slot->compare_exchange_strong(expected_pair.packed, new_pair.packed, memory_order_relaxed);
@@ -164,11 +163,10 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(value_type
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <typename pair_type, typename Hash, typename KeyEqual>
-__device__ std::enable_if_t<not cuco::detail::is_packable<pair_type>(), bool>
-static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(value_type const& insert_pair,
-                                                                      Hash hash,
-                                                                      KeyEqual key_equal) noexcept
+template <bool is_packable, typename Hash, typename KeyEqual>
+__device__ std::enable_if_t<not is_packable, bool>
+static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_impl(
+  value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot{initial_slot(insert_pair.first, hash)};
 
@@ -212,12 +210,10 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(value_type
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <typename CG, typename pair_type, typename Hash, typename KeyEqual>
-__device__ std::enable_if_t<cuco::detail::is_packable<pair_type>(), bool>
-static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(CG g,
-                                                                      value_type const& insert_pair,
-                                                                      Hash hash,
-                                                                      KeyEqual key_equal) noexcept
+template <bool is_packable, typename CG, typename Hash, typename KeyEqual>
+__device__ std::enable_if_t<is_packable, bool>
+static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_impl(
+  CG const& g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   using cuda::std::memory_order_relaxed;
   auto current_slot = initial_slot(g, insert_pair.first, hash);
@@ -246,12 +242,12 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(CG g,
         auto expected_key   = this->get_empty_key_sentinel();
         auto expected_value = this->get_empty_value_sentinel();
 
-        cuco::detail::pair_converter<pair_type> expected_pair{
+        cuco::detail::pair_converter<value_type> expected_pair{
           cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value))};
-        cuco::detail::pair_converter<pair_type> new_pair{insert_pair};
+        cuco::detail::pair_converter<value_type> new_pair{insert_pair};
 
         auto slot = reinterpret_cast<
-          cuda::atomic<typename cuco::detail::pair_converter<pair_type>::packed_type>*>(
+          cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(
           current_slot);
 
         bool success = slot->compare_exchange_strong(
@@ -285,12 +281,10 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(CG g,
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <typename CG, typename pair_type, typename Hash, typename KeyEqual>
-__device__ std::enable_if_t<not cuco::detail::is_packable<pair_type>(), bool>
-static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(CG g,
-                                                                      value_type const& insert_pair,
-                                                                      Hash hash,
-                                                                      KeyEqual key_equal) noexcept
+template <bool is_packable, typename CG, typename Hash, typename KeyEqual>
+__device__ std::enable_if_t<not is_packable, bool>
+static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_impl(
+  CG const& g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   using cuda::std::memory_order_relaxed;
   auto current_slot = initial_slot(g, insert_pair.first, hash);
@@ -361,6 +355,22 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(CG g,
       current_slot = next_slot(g, current_slot);
     }
   }
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Hash, typename KeyEqual>
+__device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(
+  value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
+{
+  return insert_impl<cuco::detail::is_packable<value_type>()>(insert_pair, hash, key_equal);
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename CG, typename Hash, typename KeyEqual>
+__device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(
+  CG const& g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
+{
+  return insert_impl<cuco::detail::is_packable<value_type>()>(g, insert_pair, hash, key_equal);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
