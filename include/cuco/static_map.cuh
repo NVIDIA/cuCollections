@@ -186,6 +186,16 @@ class static_map {
   static_map& operator=(static_map&&) = delete;
 
   /**
+   * @brief Indicate if concurrent insert/find is supported.
+   *
+   * @return Boolean indicating if concurrent insert/find is supported.
+   */
+  __host__ __device__ static constexpr bool supports_concurrent_insert_find() noexcept
+  {
+    return cuco::detail::is_packable<value_type>();
+  }
+
+  /**
    * @brief Construct a fixed-size map with the specified capacity and sentinel values.
    * @brief Construct a statically sized map with the specified number of slots
    * and sentinel values.
