@@ -1,7 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
-include(CPM)
-
 CPMAddPackage(
   NAME benchmark
   GITHUB_REPOSITORY google/benchmark
@@ -20,29 +18,20 @@ if (benchmark_ADDED)
 endif()
 
 ###################################################################################################
-# Auto-detect available GPU compute architectures
-set(GPU_ARCHS "" CACHE STRING "List of GPU architectures (semicolon-separated) to be compiled for. Empty string means to auto-detect the GPUs on the current system")
-
-if("${GPU_ARCHS}" STREQUAL "")
-  include(../cmake/EvalGpuArchs.cmake)
-  evaluate_gpu_archs(GPU_ARCHS)
-endif()
-
-###################################################################################################
 # - compiler function -----------------------------------------------------------------------------
 
 function(ConfigureBench BENCH_NAME BENCH_SRC)
     add_executable(${BENCH_NAME} "${BENCH_SRC}")
-    set_target_properties(${BENCH_NAME} PROPERTIES 
+    set_target_properties(${BENCH_NAME} PROPERTIES
                                         POSITION_INDEPENDENT_CODE ON
-                                        CUDA_ARCHITECTURES ${GPU_ARCHS}
+                                        CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES}
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
     target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)
-    target_link_libraries(${BENCH_NAME} PRIVATE 
-                                        benchmark benchmark_main 
-                                        pthread 
+    target_link_libraries(${BENCH_NAME} PRIVATE
+                                        benchmark benchmark_main
+                                        pthread
                                         cuco)
 endfunction(ConfigureBench)
 
