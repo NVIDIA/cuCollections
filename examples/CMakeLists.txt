@@ -6,7 +6,6 @@
 function(ConfigureExample EXAMPLE_NAME EXAMPLE_SRC)
     add_executable(${EXAMPLE_NAME} "${EXAMPLE_SRC}")
     set_target_properties(${EXAMPLE_NAME} PROPERTIES
-                                          CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES}
                                           RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/examples")
     target_include_directories(${EXAMPLE_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
