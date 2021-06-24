@@ -31,7 +31,8 @@ function(ConfigureBench BENCH_NAME BENCH_SRC)
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         benchmark benchmark_main
                                         pthread
-                                        cuco)
+                                        cuco
+                                        CUDA::cudart)
 endfunction(ConfigureBench)
 
 ###################################################################################################

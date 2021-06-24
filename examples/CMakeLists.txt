@@ -10,7 +10,7 @@ function(ConfigureExample EXAMPLE_NAME EXAMPLE_SRC)
     target_include_directories(${EXAMPLE_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
     target_compile_options(${EXAMPLE_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
-    target_link_libraries(${EXAMPLE_NAME} PRIVATE cuco)
+    target_link_libraries(${EXAMPLE_NAME} PRIVATE cuco CUDA::cudart)
 endfunction(ConfigureExample)
 
 ###################################################################################################
