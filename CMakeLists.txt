@@ -66,7 +66,7 @@ include(cmake/thirdparty/get_libcudacxx.cmake)
 add_library(cuco INTERFACE)
 add_library(cuco::cuco ALIAS cuco)
 target_include_directories(cuco INTERFACE
-    INTERFACE   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    INTERFACE   $<BUILD_INTERFACE:${CUCO_SOURCE_DIR}/include>
                 $<INSTALL_INTERFACE:include>)
 target_link_libraries(cuco INTERFACE libcudacxx CUDA::cudart cuco::Thrust)
 target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
@@ -79,7 +79,7 @@ option(BUILD_EXAMPLES "Configure CMake to build examples" ON)
 ###################################################################################################
 # - cmake modules ---------------------------------------------------------------------------------
 
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/" ${CMAKE_MODULE_PATH})
+set(CMAKE_MODULE_PATH "${CUCO_SOURCE_DIR}/cmake/Modules/" ${CMAKE_MODULE_PATH})
 
 ###################################################################################################
 # - optionally build tests ------------------------------------------------------------------------
@@ -148,13 +148,3 @@ rapids_export(
     NAMESPACE cuco::
     DOCUMENTATION doc_string
     FINAL_CODE_BLOCK code_string)
-
-if(CMAKE_EXPORT_COMPILE_COMMANDS)
-    # Create a symlink to compile_commands.json for the llvm-vs-code-extensions.vscode-clangd plugin
-    execute_process(COMMAND
-        ${CMAKE_COMMAND} -E create_symlink
-        ${CMAKE_CURRENT_BINARY_DIR}/compile_commands.json
-        ${CMAKE_CURRENT_SOURCE_DIR}/compile_commands.json)
-else()
-    file(REMOVE ${CMAKE_CURRENT_SOURCE_DIR}/compile_commands.json)
-endif()
