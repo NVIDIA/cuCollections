@@ -17,7 +17,7 @@ function(find_and_configure_libcudacxx VERSION)
     rapids_cpm_find(
         libcudacxx         ${VERSION}
         CPM_ARGS
-            GIT_REPOSITORY https://github.com/NVIDIA/thrust.git
+            GIT_REPOSITORY https://github.com/NVIDIA/libcudacxx.git
             GIT_TAG        ${VERSION}
             GIT_SHALLOW    TRUE
             DOWNLOAD_ONLY  TRUE
