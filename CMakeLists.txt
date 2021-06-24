@@ -28,11 +28,14 @@ include(rapids-cuda)
 include(rapids-export)
 include(rapids-find)
 
-# * determine GPU architectures
-# * enable the CMake CUDA language
+# * Determine GPU architectures
+# * Enable the CMake CUDA language
 rapids_cuda_init_architectures(CUCO)
 
 project(CUCO VERSION 0.0.1 LANGUAGES CXX CUDA)
+
+# Write the version header
+rapids_cmake_write_version_file(include/cuco/version_config.hpp)
 
 ##############################################################################
 # - build type ---------------------------------------------------------------
@@ -46,7 +49,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 ##############################################################################
 # - compiler options ---------------------------------------------------------
 
-# * find CUDAToolkit package
+# * Find CUDAToolkit package
+# * Offers support for CMAKE_CUDA_ARCHITECTURES=NATIVE
 rapids_find_package(
     CUDAToolkit REQUIRED
     BUILD_EXPORT_SET cuco-exports
@@ -71,15 +75,17 @@ target_include_directories(cuco INTERFACE
 target_link_libraries(cuco INTERFACE libcudacxx CUDA::cudart cuco::Thrust)
 target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
 
-# Build options
-option(BUILD_TESTS "Configure CMake to build tests" ON)
-option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ON)
-option(BUILD_EXAMPLES "Configure CMake to build examples" ON)
-
 ###################################################################################################
-# - cmake modules ---------------------------------------------------------------------------------
+# - build options ---------------------------------------------------------------------------------
 
-set(CMAKE_MODULE_PATH "${CUCO_SOURCE_DIR}/cmake/Modules/" ${CMAKE_MODULE_PATH})
+set(default_build_option_state OFF)
+if ("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_LIST_DIR}")
+  set(default_build_option_state ON)
+endif()
+
+option(BUILD_TESTS "Configure CMake to build tests" ${default_build_option_state})
+option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ${default_build_option_state})
+option(BUILD_EXAMPLES "Configure CMake to build examples" ${default_build_option_state})
 
 ###################################################################################################
 # - optionally build tests ------------------------------------------------------------------------
