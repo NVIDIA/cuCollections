@@ -72,7 +72,7 @@ add_library(cuco::cuco ALIAS cuco)
 target_include_directories(cuco INTERFACE
     INTERFACE   $<BUILD_INTERFACE:${CUCO_SOURCE_DIR}/include>
                 $<INSTALL_INTERFACE:include>)
-target_link_libraries(cuco INTERFACE libcudacxx CUDA::toolkit cuco::Thrust)
+target_link_libraries(cuco INTERFACE libcudacxx CUDA::toolkit $<BUILD_INTERFACE:cuco::Thrust>)
 target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
 
 ###################################################################################################
@@ -130,6 +130,14 @@ structures tailored for efficient use with GPUs.
 
 ]=])
 
+# build install targets
+rapids_export(
+    INSTALL cuco
+    EXPORT_SET cuco-exports
+    GLOBAL_TARGETS cuco libcudacxx
+    NAMESPACE cuco::
+    DOCUMENTATION doc_string)
+
 set(code_string
     [=[
 if(NOT TARGET cuco::Thrust)
@@ -137,20 +145,11 @@ if(NOT TARGET cuco::Thrust)
 endif()
 ]=])
 
-# build install targets
-rapids_export(
-    INSTALL cuco
-    EXPORT_SET cuco-exports
-    GLOBAL_TARGETS cuco
-    NAMESPACE cuco::
-    DOCUMENTATION doc_string
-    FINAL_CODE_BLOCK code_string)
-
 # build export targets
 rapids_export(
     BUILD cuco
     EXPORT_SET cuco-exports
-    GLOBAL_TARGETS cuco
+    GLOBAL_TARGETS cuco libcudacxx
     NAMESPACE cuco::
     DOCUMENTATION doc_string
     FINAL_CODE_BLOCK code_string)

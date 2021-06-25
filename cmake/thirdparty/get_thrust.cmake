@@ -17,7 +17,6 @@ function(find_and_configure_thrust VERSION)
     rapids_cpm_find(
         Thrust             ${VERSION}
         BUILD_EXPORT_SET   cuco-exports
-        INSTALL_EXPORT_SET cuco-exports
         CPM_ARGS
             GIT_REPOSITORY https://github.com/NVIDIA/thrust.git
             GIT_TAG        ${VERSION}
