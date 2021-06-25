@@ -27,8 +27,8 @@ function(find_and_configure_libcudacxx VERSION)
     target_include_directories(libcudacxx
         INTERFACE   $<BUILD_INTERFACE:${libcudacxx_SOURCE_DIR}/include>
                     $<INSTALL_INTERFACE:include/cuco/libcudacxx>)
-    install(DIRECTORY ${libcudacxx_SOURCE_DIR}/include DESTINATION include/cuco/libcudacxx)
-    install(DIRECTORY ${libcudacxx_SOURCE_DIR}/libcxx DESTINATION include/cuco)
+    install(DIRECTORY ${libcudacxx_SOURCE_DIR}/include/ DESTINATION include/cuco/libcudacxx)
+    install(DIRECTORY ${libcudacxx_SOURCE_DIR}/libcxx/include/ DESTINATION include/cuco/libcxx/include)
 endfunction()
 
 find_and_configure_libcudacxx(1.4.0)
