@@ -101,11 +101,8 @@ using packed_t = typename packed<sizeof(pair_type)>::type;
  * equal in size to a type where atomicCAS is natively supported, it is more
  * efficient to "pack" the pair and insert it with a single atomicCAS.
  *
- * Only integral key and value types may be packed because we use
- * bitwise equality comparison, which may not be valid for non-integral
- * types.
- *
- * Also, the `pair_type` must not contain any padding bits otherwise
+ * Pair types whose key and value have the same object representation may be
+ * packed. Also, the `pair_type` must not contain any padding bits otherwise
  * accessing the packed value would be undefined.
  *
  * @tparam pair_type The pair type that will be packed

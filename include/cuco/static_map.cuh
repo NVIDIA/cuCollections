@@ -163,7 +163,7 @@ class static_map {
                 "cuco::is_bitwise_comparable<Value>.");
 
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
-  static_assert(sizeof(cuco::pair_type<Key, Value>) <= 8), "8B/8B key/value pairs are only supported for sm_70 and up.");
+  static_assert(sizeof(cuco::pair_type<Key, Value>) <= 8), "A key/value pair larger than 8B is supported for only sm_70 and up.");
 #endif
 
   friend class dynamic_map<Key, Value, Scope, Allocator>;
@@ -187,7 +187,7 @@ class static_map {
   static_map& operator=(static_map&&) = delete;
 
   /**
-   * @brief Indicate if concurrent insert/find is supported.
+   * @brief Indicate if concurrent insert/find is supported for the key/value types.
    *
    * @return Boolean indicating if concurrent insert/find is supported.
    */
