@@ -163,7 +163,7 @@ class static_map {
                 "cuco::is_bitwise_comparable<Value>.");
 
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
-  static_assert(sizeof(cuco::pair_type<Key, Value>) <= 8), "A key/value pair larger than 8B is supported for only sm_70 and up.");
+  static_assert(sizeof(cuco::pair_type<Key, Value>) <= 8, "A key/value pair larger than 8B is supported for only sm_70 and up.");
 #endif
 
   friend class dynamic_map<Key, Value, Scope, Allocator>;
