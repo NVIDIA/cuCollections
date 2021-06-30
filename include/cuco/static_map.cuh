@@ -83,8 +83,9 @@ struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_represen
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs with unique keys.
  *
- * Allows constant time concurrent inserts or concurrent find operations (not
- * concurrent insert and find) from threads in device code.
+ * Allows constant time concurrent inserts or concurrent find operations from threads in device
+ * code. Concurrent insert and find are supported only if the pair type is packable (see
+ * `cuco::detail::is_packable` constexpr).
  *
  * Current limitations:
  * - Requires keys and values that where `cuco::is_bitwise_comparable<T>::value` is true
@@ -93,7 +94,7 @@ struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_represen
  * - Capacity is fixed and will not grow automatically
  * - Requires the user to specify sentinel values for both key and mapped value to indicate empty
  * slots
- * - Does not support concurrent insert and find operations
+ * - Conditionally support concurrent insert and find operations
  *
  * The `static_map` supports two types of operations:
  * - Host-side "bulk" operations
@@ -158,8 +159,12 @@ class static_map {
 
   static_assert(is_bitwise_comparable<Value>::value,
                 "Value type must have unique object representations or have been explicitly "
-                "declared as safe for "
-                "bitwise comparison via specialization of cuco::is_bitwise_comparable<Value>.");
+                "declared as safe for bitwise comparison via specialization of "
+                "cuco::is_bitwise_comparable<Value>.");
+
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
+  static_assert(sizeof(cuco::pair_type<Key, Value>) <= 8), "A key/value pair larger than 8B is supported for only sm_70 and up.");
+#endif
 
   friend class dynamic_map<Key, Value, Scope, Allocator>;
 
@@ -180,6 +185,16 @@ class static_map {
   static_map(static_map&&)      = delete;
   static_map& operator=(static_map const&) = delete;
   static_map& operator=(static_map&&) = delete;
+
+  /**
+   * @brief Indicate if concurrent insert/find is supported for the key/value types.
+   *
+   * @return Boolean indicating if concurrent insert/find is supported.
+   */
+  __host__ __device__ static constexpr bool supports_concurrent_insert_find() noexcept
+  {
+    return cuco::detail::is_packable<value_type>();
+  }
 
   /**
    * @brief Construct a fixed-size map with the specified capacity and sentinel values.
@@ -622,6 +637,47 @@ class static_map {
     {
     }
 
+   private:
+    /**
+     * @brief Enumeration of the possible results of attempting to insert into a hash bucket.
+     */
+    enum class insert_result {
+      CONTINUE,  ///< Insert did not succeed, continue trying to insert
+      SUCCESS,   ///< New pair inserted successfully
+      DUPLICATE  ///< Insert did not succeed, key is already present
+    };
+
+    /**
+     * @brief Inserts the specified key/value pair with one single CAS operation.
+     *
+     * @tparam KeyEqual Binary callable type
+     * @param current_slot The slot to insert
+     * @param insert_pair The pair to insert
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return An insert result from the `insert_resullt` enumeration.
+     */
+    template <typename KeyEqual>
+    __device__ insert_result packed_cas(iterator current_slot,
+                                        value_type const& insert_pair,
+                                        KeyEqual key_equal) noexcept;
+
+    /**
+     * @brief Inserts the specified key/value pair with two back-to-back CAS operations.
+     *
+     * @tparam KeyEqual Binary callable type
+     * @param current_slot The slot to insert
+     * @param insert_pair The pair to insert
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return An insert result from the `insert_resullt` enumeration.
+     */
+    template <typename KeyEqual>
+    __device__ insert_result back_to_back_cas(iterator current_slot,
+                                              value_type const& insert_pair,
+                                              KeyEqual key_equal) noexcept;
+
+   public:
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
       CG g,
@@ -655,6 +711,7 @@ class static_map {
     __device__ bool insert(value_type const& insert_pair,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
+
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
@@ -665,7 +722,7 @@ class static_map {
      * significant boost in throughput compared to the non Cooperative Group
      * `insert` at moderate to high load factors.
      *
-     * @tparam Cooperative Group type
+     * @tparam CG Cooperative Group type
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      *
@@ -679,11 +736,10 @@ class static_map {
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool insert(CG g,
+    __device__ bool insert(CG const& g,
                            value_type const& insert_pair,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
-
   };  // class device mutable view
 
   /**
