@@ -181,6 +181,32 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::back_to_back_cas(
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename KeyEqual>
+__device__ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_result
+static_map<Key, Value, Scope, Allocator>::device_mutable_view::cas_dependent_write(
+  iterator current_slot, value_type const& insert_pair, KeyEqual key_equal) noexcept
+{
+  using cuda::std::memory_order_relaxed;
+  auto expected_key = this->get_empty_key_sentinel();
+
+  auto& slot_key = current_slot->first;
+
+  auto const key_success =
+    slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
+
+  if (key_success) {
+    auto& slot_value = current_slot->second;
+    slot_value.store(insert_pair.second, memory_order_relaxed);
+    return insert_result::SUCCESS;
+  }
+
+  // our key was already present in the slot, so our key is a duplicate
+  if (key_equal(insert_pair.first, expected_key)) { return insert_result::DUPLICATE; }
+
+  return insert_result::CONTINUE;
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
@@ -192,16 +218,20 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
     // the key we are trying to insert is already in the map, so we return with failure to insert
     if (key_equal(existing_key, insert_pair.first)) { return false; }
 
-    insert_result status{insert_result::CONTINUE};
+    auto const status = [&]() {
+      // One single CAS operation if `value_type` is packable
+      if constexpr (cuco::detail::is_packable<value_type>()) {
+        return packed_cas(current_slot, insert_pair, key_equal);
+      }
 
-    // One single CAS operation if `value_type` is packable
-    if constexpr (cuco::detail::is_packable<value_type>()) {
-      status = packed_cas(current_slot, insert_pair, key_equal);
-    }
-    // Otherwise, two back-to-back CAS operations
-    else {
-      status = back_to_back_cas(current_slot, insert_pair, key_equal);
-    }
+      if constexpr (not cuco::detail::is_packable<value_type>()) {
+#if __CUDA_ARCH__ < 700
+        return cas_dependent_write(current_slot, insert_pair, key_equal);
+#else
+        return back_to_back_cas(current_slot, insert_pair, key_equal);
+#endif
+      }
+    }();
 
     // successful insert
     if (status == insert_result::SUCCESS) { return true; }
@@ -248,7 +278,11 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
         }
         // Otherwise, two back-to-back CAS operations
         else {
+#if __CUDA_ARCH__ < 700
+          status = cas_dependent_write(current_slot, insert_pair, key_equal);
+#else
           status = back_to_back_cas(current_slot, insert_pair, key_equal);
+#endif
         }
       }
 
