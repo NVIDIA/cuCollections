@@ -278,7 +278,11 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
         }
         // Otherwise, two back-to-back CAS operations
         else {
+#if __CUDA_ARCH__ < 700
+          status = cas_dependent_write(current_slot, insert_pair, key_equal);
+#else
           status = back_to_back_cas(current_slot, insert_pair, key_equal);
+#endif
         }
       }
 
