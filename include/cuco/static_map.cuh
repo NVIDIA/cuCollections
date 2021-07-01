@@ -162,10 +162,6 @@ class static_map {
                 "declared as safe for bitwise comparison via specialization of "
                 "cuco::is_bitwise_comparable<Value>.");
 
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
-  static_assert(sizeof(cuco::pair_type<Key, Value>) <= 8, "A key/value pair larger than 8B is supported for only sm_70 and up.");
-#endif
-
   friend class dynamic_map<Key, Value, Scope, Allocator>;
 
  public:
@@ -180,6 +176,13 @@ class static_map {
   using allocator_type     = Allocator;
   using slot_allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
+
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
+  static_assert(atomic_key_type::is_always_lock_free,
+                "A key type larger than 8B is supported for only sm_70 and up.");
+  static_assert(atomic_mapped_type::is_always_lock_free,
+                "A value type larger than 8B is supported for only sm_70 and up.");
+#endif
 
   static_map(static_map const&) = delete;
   static_map(static_map&&)      = delete;
