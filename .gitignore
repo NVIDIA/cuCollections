@@ -133,3 +133,6 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# clang
+compile_commands.json

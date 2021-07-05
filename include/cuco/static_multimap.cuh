@@ -527,6 +527,63 @@ class static_multimap {
     {
     }
 
+   private:
+    /**
+     * @brief Enumeration of the possible results of attempting to insert into a hash bucket.
+     */
+    enum class insert_result {
+      CONTINUE,  ///< Insert did not succeed, continue trying to insert
+      SUCCESS,   ///< New pair inserted successfully
+      DUPLICATE  ///< Insert did not succeed, key is already present
+    };
+
+    /**
+     * @brief Inserts the specified key/value pair with one single CAS operation.
+     *
+     * @tparam KeyEqual Binary callable type
+     * @param current_slot The slot to insert
+     * @param insert_pair The pair to insert
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return An insert result from the `insert_resullt` enumeration.
+     */
+    template <typename KeyEqual>
+    __device__ insert_result packed_cas(iterator current_slot,
+                                        value_type const& insert_pair,
+                                        KeyEqual key_equal) noexcept;
+
+    /**
+     * @brief Inserts the specified key/value pair with two back-to-back CAS operations.
+     *
+     * @tparam KeyEqual Binary callable type
+     * @param current_slot The slot to insert
+     * @param insert_pair The pair to insert
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return An insert result from the `insert_resullt` enumeration.
+     */
+    template <typename KeyEqual>
+    __device__ insert_result back_to_back_cas(iterator current_slot,
+                                              value_type const& insert_pair,
+                                              KeyEqual key_equal) noexcept;
+
+    /**
+     * @brief Inserts the specified key/value pair with a CAS of the key and a dependent write of
+     * the value.
+     *
+     * @tparam KeyEqual Binary callable type
+     * @param current_slot The slot to insert
+     * @param insert_pair The pair to insert
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return An insert result from the `insert_resullt` enumeration.
+     */
+    template <typename KeyEqual>
+    __device__ insert_result cas_dependent_write(iterator current_slot,
+                                                 value_type const& insert_pair,
+                                                 KeyEqual key_equal) noexcept;
+
+   public:
     /**
      * @brief Inserts the specified key/value pair into the map using vector loads.
      *
