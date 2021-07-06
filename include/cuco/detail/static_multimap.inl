@@ -18,16 +18,6 @@
 
 namespace cuco {
 
-/**---------------------------------------------------------------------------*
- * @brief Enumeration of the possible results of attempting to insert into
- *a hash bucket
- *---------------------------------------------------------------------------**/
-enum class insert_result {
-  CONTINUE,  ///< Insert did not succeed, continue trying to insert
-  SUCCESS,   ///< New pair inserted successfully
-  DUPLICATE  ///< Insert did not succeed, key is already present
-};
-
 template <typename Key,
           typename Value,
           class ProbeSequence,
