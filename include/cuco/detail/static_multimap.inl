@@ -29,7 +29,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::static_multimap(
     empty_value_sentinel_{empty_value_sentinel},
     slot_allocator_{alloc}
 {
-  if constexpr (is_vector_load()) {
+  if constexpr (uses_vector_load()) {
     capacity_ = cuco::detail::get_valid_capacity<cg_size() * 2>(capacity);
   } else {
     capacity_ = cuco::detail::get_valid_capacity<cg_size()>(capacity);
@@ -71,7 +71,7 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert(InputI
   auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 
-  detail::insert<block_size, cg_size(), is_vector_load()>
+  detail::insert<block_size, cg_size(), uses_vector_load()>
     <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view, key_equal);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
@@ -91,7 +91,7 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::contains(
   auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_view();
 
-  detail::contains<block_size, cg_size(), is_vector_load()>
+  detail::contains<block_size, cg_size(), uses_vector_load()>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, key_equal);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
@@ -120,7 +120,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
-  detail::count<block_size, cg_size(), Key, Value, is_vector_load()>
+  detail::count<block_size, cg_size(), Key, Value, uses_vector_load()>
     <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, key_equal);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
@@ -154,7 +154,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count_
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
-  detail::count<block_size, cg_size(), Key, Value, is_vector_load(), is_outer>
+  detail::count<block_size, cg_size(), Key, Value, uses_vector_load(), is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, key_equal);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
@@ -186,7 +186,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
-  detail::pair_count<block_size, cg_size(), Key, Value, is_vector_load()>
+  detail::pair_count<block_size, cg_size(), Key, Value, uses_vector_load()>
     <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, pair_equal);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
@@ -220,7 +220,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
-  detail::pair_count<block_size, cg_size(), Key, Value, is_vector_load(), is_outer>
+  detail::pair_count<block_size, cg_size(), Key, Value, uses_vector_load(), is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, pair_equal);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
@@ -242,7 +242,7 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
-  auto const buffer_size = is_vector_load() ? (32u * 3u) : (cg_size() * 3u);
+  auto const buffer_size = uses_vector_load() ? (32u * 3u) : (cg_size() * 3u);
   auto const stride      = 1;
   auto const grid_size   = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view              = get_device_view();
@@ -254,7 +254,7 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
-  detail::retrieve<block_size, cg_size(), buffer_size, Key, Value, is_vector_load()>
+  detail::retrieve<block_size, cg_size(), buffer_size, Key, Value, uses_vector_load()>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, num_matches, view, key_equal);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
@@ -276,7 +276,7 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
-  auto const buffer_size = is_vector_load() ? (32u * 3u) : (cg_size() * 3u);
+  auto const buffer_size = uses_vector_load() ? (32u * 3u) : (cg_size() * 3u);
   auto const stride      = 1;
   auto const grid_size   = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view              = get_device_view();
@@ -290,7 +290,7 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
-  detail::retrieve<block_size, cg_size(), buffer_size, Key, Value, is_vector_load(), is_outer>
+  detail::retrieve<block_size, cg_size(), buffer_size, Key, Value, uses_vector_load(), is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, num_matches, view, key_equal);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
@@ -406,8 +406,8 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <bool is_vector_load, typename CG, typename KeyEqual>
-__device__ std::enable_if_t<is_vector_load, void>
+template <bool uses_vector_load, typename CG, typename KeyEqual>
+__device__ std::enable_if_t<uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, KeyEqual key_equal) noexcept
 {
@@ -469,8 +469,8 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <bool is_vector_load, typename CG, typename KeyEqual>
-__device__ std::enable_if_t<not is_vector_load, void>
+template <bool uses_vector_load, typename CG, typename KeyEqual>
+__device__ std::enable_if_t<not uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert(
   CG g, value_type const& insert_pair, KeyEqual key_equal) noexcept
 {
@@ -608,8 +608,8 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <bool is_vector_load, typename CG, typename KeyEqual>
-__device__ std::enable_if_t<is_vector_load, bool>
+template <bool uses_vector_load, typename CG, typename KeyEqual>
+__device__ std::enable_if_t<uses_vector_load, bool>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::contains(
   CG g, Key const& k, KeyEqual key_equal) noexcept
 {
@@ -647,8 +647,8 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <bool is_vector_load, typename CG, typename KeyEqual>
-__device__ std::enable_if_t<not is_vector_load, bool>
+template <bool uses_vector_load, typename CG, typename KeyEqual>
+__device__ std::enable_if_t<not uses_vector_load, bool>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::contains(
   CG g, Key const& k, KeyEqual key_equal) noexcept
 {
@@ -680,8 +680,8 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <bool is_vector_load, bool is_outer, typename CG, typename KeyEqual>
-__device__ std::enable_if_t<is_vector_load, void>
+template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
+__device__ std::enable_if_t<uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count(
   CG const& g, Key const& k, std::size_t& thread_num_matches, KeyEqual key_equal) noexcept
 {
@@ -746,8 +746,8 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <bool is_vector_load, bool is_outer, typename CG, typename KeyEqual>
-__device__ std::enable_if_t<not is_vector_load, void>
+template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
+__device__ std::enable_if_t<not uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count(
   CG const& g, Key const& k, std::size_t& thread_num_matches, KeyEqual key_equal) noexcept
 {
@@ -798,8 +798,8 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <bool is_vector_load, bool is_outer, typename CG, typename PairEqual>
-__device__ std::enable_if_t<is_vector_load, void>
+template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
+__device__ std::enable_if_t<uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_count(
   CG const& g,
   value_type const& pair,
@@ -870,8 +870,8 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <bool is_vector_load, bool is_outer, typename CG, typename PairEqual>
-__device__ std::enable_if_t<not is_vector_load, void>
+template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
+__device__ std::enable_if_t<not uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_count(
   CG const& g,
   value_type const& pair,
@@ -925,13 +925,13 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <uint32_t buffer_size,
-          bool is_vector_load,
+          bool uses_vector_load,
           bool is_outer,
           typename CG,
           typename atomicT,
           typename OutputIt,
           typename KeyEqual>
-__device__ std::enable_if_t<is_vector_load, void>
+__device__ std::enable_if_t<uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retrieve(
   const unsigned int activemask,
   CG const& g,
@@ -1078,13 +1078,13 @@ template <typename Key,
           typename Allocator>
 template <uint32_t cg_size,
           uint32_t buffer_size,
-          bool is_vector_load,
+          bool uses_vector_load,
           bool is_outer,
           typename CG,
           typename atomicT,
           typename OutputIt,
           typename KeyEqual>
-__device__ std::enable_if_t<not is_vector_load, void>
+__device__ std::enable_if_t<not uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retrieve(
   CG const& g,
   Key const& k,

@@ -41,7 +41,7 @@ class probe_sequence_base {
 
  public:
   __host__ __device__ static constexpr uint32_t cg_size() noexcept { return CGSize; }
-  __host__ __device__ static constexpr bool is_vector_load() noexcept { return IsVectorLoad; }
+  __host__ __device__ static constexpr bool uses_vector_load() noexcept { return IsVectorLoad; }
 
   __host__ __device__ explicit probe_sequence_base(iterator slots, std::size_t capacity)
     : slots_{slots}, capacity_{capacity}
@@ -71,7 +71,7 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, IsVectorLo
   using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::capacity_;
   using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::slots_;
   using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::cg_size;
-  using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::is_vector_load;
+  using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::uses_vector_load;
 
   __host__ __device__ explicit double_hashing(iterator slots, std::size_t capacity) noexcept
     : probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>{slots, capacity}
@@ -116,7 +116,7 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, IsVectorLo
   using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::capacity_;
   using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::slots_;
   using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::cg_size;
-  using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::is_vector_load;
+  using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::uses_vector_load;
 
   __host__ __device__ explicit linear_probing(iterator slots, std::size_t capacity)
     : probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>{slots, capacity}
