@@ -26,7 +26,6 @@ namespace cuco {
 template <typename Key,
           typename Value,
           uint32_t CGSize          = 8,
-          bool IsVectorLoad        = sizeof(Key) == 4,
           cuda::thread_scope Scope = cuda::thread_scope_device>
 class probe_sequence_base {
  protected:
@@ -41,7 +40,10 @@ class probe_sequence_base {
 
  public:
   __host__ __device__ static constexpr uint32_t cg_size() noexcept { return CGSize; }
-  __host__ __device__ static constexpr bool uses_vector_load() noexcept { return IsVectorLoad; }
+  __host__ __device__ static constexpr bool uses_vector_load() noexcept
+  {
+    return cuco::detail::is_packable<value_type>();
+  }
 
   __host__ __device__ explicit probe_sequence_base(iterator slots, std::size_t capacity)
     : slots_{slots}, capacity_{capacity}
@@ -61,20 +63,19 @@ class probe_sequence_base {
 template <typename Key,
           typename Value,
           uint32_t CGSize          = 8,
-          bool IsVectorLoad        = sizeof(Key) == 4,
           typename Hash1           = cuco::detail::MurmurHash3_32<Key>,
           typename Hash2           = cuco::detail::MurmurHash3_32<Key>,
           cuda::thread_scope Scope = cuda::thread_scope_device>
-class double_hashing : public probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope> {
+class double_hashing : public probe_sequence_base<Key, Value, CGSize, Scope> {
  public:
-  using iterator = typename probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::iterator;
-  using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::capacity_;
-  using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::slots_;
-  using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::cg_size;
-  using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::uses_vector_load;
+  using iterator = typename probe_sequence_base<Key, Value, CGSize, Scope>::iterator;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::capacity_;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::slots_;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::cg_size;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::uses_vector_load;
 
   __host__ __device__ explicit double_hashing(iterator slots, std::size_t capacity) noexcept
-    : probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>{slots, capacity}
+    : probe_sequence_base<Key, Value, CGSize, Scope>{slots, capacity}
   {
   }
 
@@ -82,7 +83,7 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, IsVectorLo
   __device__ iterator initial_slot(CG const& g, Key const k) noexcept
   {
     std::size_t index;
-    if constexpr (IsVectorLoad) {
+    if constexpr (uses_vector_load()) {
       step_size_ = (hash2_(k + 1) % (capacity_ / (cg_size() * 2) - 1) + 1) * cg_size() * 2;
       index      = hash1_(k) % (capacity_ / (cg_size() * 2)) * cg_size() * 2 + g.thread_rank() * 2;
     } else {
@@ -107,26 +108,25 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, IsVectorLo
 template <typename Key,
           typename Value,
           uint32_t CGSize          = 8,
-          bool IsVectorLoad        = sizeof(Key) == 4,
           typename Hash            = cuco::detail::MurmurHash3_32<Key>,
           cuda::thread_scope Scope = cuda::thread_scope_device>
-class linear_probing : public probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope> {
+class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
  public:
-  using iterator = typename probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::iterator;
-  using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::capacity_;
-  using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::slots_;
-  using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::cg_size;
-  using probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>::uses_vector_load;
+  using iterator = typename probe_sequence_base<Key, Value, CGSize, Scope>::iterator;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::capacity_;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::slots_;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::cg_size;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::uses_vector_load;
 
   __host__ __device__ explicit linear_probing(iterator slots, std::size_t capacity)
-    : probe_sequence_base<Key, Value, CGSize, IsVectorLoad, Scope>{slots, capacity}
+    : probe_sequence_base<Key, Value, CGSize, Scope>{slots, capacity}
   {
   }
 
   template <typename CG>
   __device__ iterator initial_slot(CG const& g, Key const k) noexcept
   {
-    if constexpr (IsVectorLoad) {
+    if constexpr (uses_vector_load()) {
       return &slots_[(hash_(k) + g.thread_rank() * 2) % capacity_];
     } else {
       return &slots_[(hash_(k) + g.thread_rank()) % capacity_];
@@ -136,7 +136,7 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, IsVectorLo
   __device__ iterator next_slot(iterator s) noexcept
   {
     std::size_t index = s - slots_;
-    if constexpr (IsVectorLoad) {
+    if constexpr (uses_vector_load()) {
       return &slots_[(index + cg_size() * 2) % capacity_];
     } else {
       return &slots_[(index + cg_size()) % capacity_];
