@@ -371,6 +371,13 @@ class static_multimap {
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
 
+    /**
+     * @brief Indicate if vector load is used.
+     *
+     * @return Boolean indicating if vector load is used.
+     */
+    static constexpr bool uses_vector_load() noexcept { return ProbeSequence::uses_vector_load(); }
+
    private:
     ProbeSequence probe_sequence_;
     Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
@@ -519,6 +526,8 @@ class static_multimap {
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
 
+    using device_view_base::uses_vector_load;
+
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -594,7 +603,6 @@ class static_multimap {
                                                  value_type const& insert_pair,
                                                  KeyEqual key_equal) noexcept;
 
-   public:
     /**
      * @brief Inserts the specified key/value pair into the map using vector loads.
      *
@@ -609,7 +617,7 @@ class static_multimap {
      * @return void.
      */
     template <bool uses_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<uses_vector_load, void> insert(
+    __device__ std::enable_if_t<uses_vector_load, void> insert_impl(
       CG g, value_type const& insert_pair, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
@@ -626,8 +634,26 @@ class static_multimap {
      * @return void.
      */
     template <bool uses_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<not uses_vector_load, void> insert(
+    __device__ std::enable_if_t<not uses_vector_load, void> insert_impl(
       CG g, value_type const& insert_pair, KeyEqual key_equal = KeyEqual{}) noexcept;
+
+   public:
+    /**
+     * @brief Inserts the specified key/value pair into the map.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam KeyEqual Binary callable type
+     *
+     * @param g The Cooperative Group that performs the insert
+     * @param insert_pair The pair to insert
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return void.
+     */
+    template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ void insert(CG g,
+                           value_type const& insert_pair,
+                           KeyEqual key_equal = KeyEqual{}) noexcept;
   };  // class device mutable view
 
   /**
@@ -645,6 +671,8 @@ class static_multimap {
     using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
+
+    using device_view_base::uses_vector_load;
 
     /**
      * @brief Construct a view of the first `capacity` slots of the
@@ -736,6 +764,222 @@ class static_multimap {
                          source_device_view.get_empty_value_sentinel());
     }
 
+   private:
+    /**
+     * @brief Indicates whether the key `k` was inserted into the map using vector loads.
+     *
+     * If the key `k` was inserted into the map, find returns
+     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single contains operation. This provides a
+     * significant boost in throughput compared to the non Cooperative Group
+     * `contains` at moderate to high load factors.
+     *
+     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam CG Cooperative Group type
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to perform the contains operation
+     * @param k The key to search for
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     * @return A boolean indicating whether the key/value pair
+     * containing `k` was inserted
+     */
+    template <bool uses_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ std::enable_if_t<uses_vector_load, bool> contains_impl(
+      CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Indicates whether the key `k` was inserted into the map using scalar loads.
+     *
+     * If the key `k` was inserted into the map, find returns
+     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single contains operation. This provides a
+     * significant boost in throughput compared to the non Cooperative Group
+     * `contains` at moderate to high load factors.
+     *
+     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam CG Cooperative Group type
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to perform the contains operation
+     * @param k The key to search for
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     * @return A boolean indicating whether the key/value pair
+     * containing `k` was inserted
+     */
+    template <bool uses_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ std::enable_if_t<not uses_vector_load, bool> contains_impl(
+      CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Counts the occurrence of a given key contained in multimap using vector loads.
+     *
+     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to perform the count operation
+     * @param k The key to search for
+     * @param thread_num_matches Number of matches found by the current thread
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     */
+    template <bool uses_vector_load,
+              bool is_outer,
+              typename CG,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ std::enable_if_t<uses_vector_load, void> count_impl(
+      CG const& g,
+      Key const& k,
+      std::size_t& thread_num_matches,
+      KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Counts the occurrence of a given key contained in multimap using scalar loads.
+     *
+     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to perform the count operation
+     * @param k The key to search for
+     * @param thread_num_matches Number of matches found by the current thread
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     */
+    template <bool uses_vector_load,
+              bool is_outer,
+              typename CG,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ std::enable_if_t<not uses_vector_load, void> count_impl(
+      CG const& g,
+      Key const& k,
+      std::size_t& thread_num_matches,
+      KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Counts the occurrence of a given key/value pair contained in multimap using vector
+     * loads.
+     *
+     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam PairEqual Binary callable type
+     * @param g The Cooperative Group used to perform the pair_count operation
+     * @param pair The pair to search for
+     * @param thread_num_matches Number of matches found by the current thread
+     * @param pair_equal The binary callable used to compare two pairs
+     * for equality
+     */
+    template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
+    __device__ std::enable_if_t<uses_vector_load, void> pair_count_impl(
+      CG const& g,
+      value_type const& pair,
+      std::size_t& thread_num_matches,
+      PairEqual pair_equal) noexcept;
+
+    /**
+     * @brief Counts the occurrence of a given key/value pair contained in multimap using scalar
+     * loads.
+     *
+     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam PairEqual Binary callable type
+     * @param g The Cooperative Group used to perform the pair_count operation
+     * @param pair The pair to search for
+     * @param thread_num_matches Number of matches found by the current thread
+     * @param pair_equal The binary callable used to compare two pairs
+     * for equality
+     */
+    template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
+    __device__ std::enable_if_t<not uses_vector_load, void> pair_count_impl(
+      CG const& g,
+      value_type const& pair,
+      std::size_t& thread_num_matches,
+      PairEqual pair_equal) noexcept;
+
+    /**
+     * @brief Find all the matches of a given key contained in multimap using vector
+     * loads with per-warp shared memory buffer.
+     *
+     * For keys `k = *(first + i)` existing in the map, copies `k` and all associated values to
+     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k` and
+     * the empty value sentinel into the output only if `is_outer` is true.
+     *
+     * @tparam buffer_size Size of the output buffer
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt Device accessible output iterator whose `value_type` is
+     * convertible to the map's `mapped_type`
+     * @tparam KeyEqual Binary callable type
+     * @param activemask Mask of active threads in the warp
+     * @param g The Cooperative Group used to retrieve
+     * @param k The key to search for
+     * @param warp_counter Pointer to the warp counter
+     * @param output_buffer Shared memory buffer of the key/value pair sequence
+     * @param num_matches Size of the output sequence
+     * @param output_begin Beginning of the output sequence of key/value pairs
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     */
+    template <uint32_t buffer_size,
+              bool is_outer,
+              typename CG,
+              typename atomicT,
+              typename OutputIt,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ void warp_retrieve_impl(const unsigned int activemask,
+                                       CG const& g,
+                                       Key const& k,
+                                       uint32_t* warp_counter,
+                                       value_type* output_buffer,
+                                       atomicT* num_matches,
+                                       OutputIt output_begin,
+                                       KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Find all the matches of a given key contained in multimap using scalar
+     * loads with per-cg shared memory buffer.
+     *
+     * For keys `k = *(first + i)` existing in the map, copies `k` and all associated values to
+     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k` and
+     * the empty value sentinel into the output only if `is_outer` is true.
+     *
+     * @tparam cg_size The number of threads in CUDA Cooperative Groups
+     * @tparam buffer_size Size of the output buffer
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt Device accessible output iterator whose `value_type` is
+     * convertible to the map's `mapped_type`
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to retrieve
+     * @param k The key to search for
+     * @param cg_counter Pointer to the CG counter
+     * @param output_buffer Shared memory buffer of the key/value pair sequence
+     * @param num_matches Size of the output sequence
+     * @param output_begin Beginning of the output sequence of key/value pairs
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     */
+    template <uint32_t cg_size,
+              uint32_t buffer_size,
+              bool is_outer,
+              typename CG,
+              typename atomicT,
+              typename OutputIt,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ void cg_retrieve_impl(CG const& g,
+                                     Key const& k,
+                                     uint32_t* cg_counter,
+                                     value_type* output_buffer,
+                                     atomicT* num_matches,
+                                     OutputIt output_begin,
+                                     KeyEqual key_equal = KeyEqual{}) noexcept;
+
+   public:
     /**
      * @brief Flushes per-CG shared memory buffer into the output sequence using CG memcpy_async.
      *
@@ -801,7 +1045,7 @@ class static_multimap {
                                                    OutputIt output_begin) noexcept;
 
     /**
-     * @brief Indicates whether the key `k` was inserted into the map using vector loads.
+     * @brief Indicates whether the key `k` was inserted into the map.
      *
      * If the key `k` was inserted into the map, find returns
      * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
@@ -809,7 +1053,6 @@ class static_multimap {
      * significant boost in throughput compared to the non Cooperative Group
      * `contains` at moderate to high load factors.
      *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
      * @tparam CG Cooperative Group type
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the contains operation
@@ -819,38 +1062,12 @@ class static_multimap {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <bool uses_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<uses_vector_load, bool> contains(
-      CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ bool contains(CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
-     * @brief Indicates whether the key `k` was inserted into the map using scalar loads.
+     * @brief Counts the occurrence of a given key contained in multimap.
      *
-     * If the key `k` was inserted into the map, find returns
-     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single contains operation. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `contains` at moderate to high load factors.
-     *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
-     * @tparam CG Cooperative Group type
-     * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to perform the contains operation
-     * @param k The key to search for
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return A boolean indicating whether the key/value pair
-     * containing `k` was inserted
-     */
-    template <bool uses_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<not uses_vector_load, bool> contains(
-      CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
-
-    /**
-     * @brief Counts the occurrence of a given key contained in multimap using vector loads.
-     *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
      * @tparam CG Cooperative Group type
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the count operation
@@ -859,21 +1076,16 @@ class static_multimap {
      * @param key_equal The binary callable used to compare two keys
      * for equality
      */
-    template <bool uses_vector_load,
-              bool is_outer,
-              typename CG,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<uses_vector_load, void> count(
-      CG const& g,
-      Key const& k,
-      std::size_t& thread_num_matches,
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ void count(CG const& g,
+                          Key const& k,
+                          std::size_t& thread_num_matches,
+                          KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
-     * @brief Counts the occurrence of a given key contained in multimap using scalar loads.
+     * @brief Counts the occurrence of a given key contained in multimap. If no
+     * matches can be found for a given key, the corresponding occurrence is 1.
      *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
      * @tparam CG Cooperative Group type
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the count operation
@@ -882,22 +1094,15 @@ class static_multimap {
      * @param key_equal The binary callable used to compare two keys
      * for equality
      */
-    template <bool uses_vector_load,
-              bool is_outer,
-              typename CG,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<not uses_vector_load, void> count(
-      CG const& g,
-      Key const& k,
-      std::size_t& thread_num_matches,
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ void count_outer(CG const& g,
+                                Key const& k,
+                                std::size_t& thread_num_matches,
+                                KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
-     * @brief Counts the occurrence of a given key/value pair contained in multimap using vector
-     * loads.
+     * @brief Counts the occurrence of a given key/value pair contained in multimap.
      *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
      * @tparam CG Cooperative Group type
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to perform the pair_count operation
@@ -906,18 +1111,16 @@ class static_multimap {
      * @param pair_equal The binary callable used to compare two pairs
      * for equality
      */
-    template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
-    __device__ std::enable_if_t<uses_vector_load, void> pair_count(CG const& g,
-                                                                   value_type const& pair,
-                                                                   std::size_t& thread_num_matches,
-                                                                   PairEqual pair_equal) noexcept;
+    template <typename CG, typename PairEqual>
+    __device__ void pair_count(CG const& g,
+                               value_type const& pair,
+                               std::size_t& thread_num_matches,
+                               PairEqual pair_equal) noexcept;
 
     /**
-     * @brief Counts the occurrence of a given key/value pair contained in multimap using scalar
-     * loads.
+     * @brief Counts the occurrence of a given key/value pair contained in multimap.
+     * If no matches can be found for a given key, the corresponding occurrence is 1.
      *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
      * @tparam CG Cooperative Group type
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to perform the pair_count operation
@@ -926,12 +1129,11 @@ class static_multimap {
      * @param pair_equal The binary callable used to compare two pairs
      * for equality
      */
-    template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
-    __device__ std::enable_if_t<not uses_vector_load, void> pair_count(
-      CG const& g,
-      value_type const& pair,
-      std::size_t& thread_num_matches,
-      PairEqual pair_equal) noexcept;
+    template <typename CG, typename PairEqual>
+    __device__ void pair_count_outer(CG const& g,
+                                     value_type const& pair,
+                                     std::size_t& thread_num_matches,
+                                     PairEqual pair_equal) noexcept;
 
     /**
      * @brief Find all the matches of a given key contained in multimap using vector
@@ -942,8 +1144,6 @@ class static_multimap {
      * the empty value sentinel into the output only if `is_outer` is true.
      *
      * @tparam buffer_size Size of the output buffer
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
@@ -960,34 +1160,66 @@ class static_multimap {
      * for equality
      */
     template <uint32_t buffer_size,
-              bool uses_vector_load,
-              bool is_outer,
               typename CG,
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<uses_vector_load, void> retrieve(
-      const unsigned int activemask,
-      CG const& g,
-      Key const& k,
-      uint32_t* warp_counter,
-      value_type* output_buffer,
-      atomicT* num_matches,
-      OutputIt output_begin,
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ void warp_retrieve(const unsigned int activemask,
+                                  CG const& g,
+                                  Key const& k,
+                                  uint32_t* warp_counter,
+                                  value_type* output_buffer,
+                                  atomicT* num_matches,
+                                  OutputIt output_begin,
+                                  KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Find all the matches of a given key contained in multimap using vector
+     * loads with per-warp shared memory buffer.
+     *
+     * For keys `k = *(first + i)` existing in the map, copies `k` and all associated values to
+     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k` and
+     * the empty value sentinel into the output only if `is_outer` is true.
+     *
+     * @tparam buffer_size Size of the output buffer
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt Device accessible output iterator whose `value_type` is
+     * convertible to the map's `mapped_type`
+     * @tparam KeyEqual Binary callable type
+     * @param activemask Mask of active threads in the warp
+     * @param g The Cooperative Group used to retrieve
+     * @param k The key to search for
+     * @param warp_counter Pointer to the warp counter
+     * @param output_buffer Shared memory buffer of the key/value pair sequence
+     * @param num_matches Size of the output sequence
+     * @param output_begin Beginning of the output sequence of key/value pairs
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     */
+    template <uint32_t buffer_size,
+              typename CG,
+              typename atomicT,
+              typename OutputIt,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ void warp_retrieve_outer(const unsigned int activemask,
+                                        CG const& g,
+                                        Key const& k,
+                                        uint32_t* warp_counter,
+                                        value_type* output_buffer,
+                                        atomicT* num_matches,
+                                        OutputIt output_begin,
+                                        KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Find all the matches of a given key contained in multimap using scalar
      * loads with per-cg shared memory buffer.
      *
      * For keys `k = *(first + i)` existing in the map, copies `k` and all associated values to
-     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k` and
-     * the empty value sentinel into the output only if `is_outer` is true.
+     * unspecified locations in `[output_begin, output_end)`.
      *
      * @tparam cg_size The number of threads in CUDA Cooperative Groups
      * @tparam buffer_size Size of the output buffer
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
@@ -1004,20 +1236,55 @@ class static_multimap {
      */
     template <uint32_t cg_size,
               uint32_t buffer_size,
-              bool uses_vector_load,
-              bool is_outer,
               typename CG,
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<not uses_vector_load, void> retrieve(
-      CG const& g,
-      Key const& k,
-      uint32_t* cg_counter,
-      value_type* output_buffer,
-      atomicT* num_matches,
-      OutputIt output_begin,
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ void cg_retrieve(CG const& g,
+                                Key const& k,
+                                uint32_t* cg_counter,
+                                value_type* output_buffer,
+                                atomicT* num_matches,
+                                OutputIt output_begin,
+                                KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Find all the matches of a given key contained in multimap using scalar
+     * loads with per-cg shared memory buffer.
+     *
+     * For keys `k = *(first + i)` existing in the map, copies `k` and all associated values to
+     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k` and
+     * the empty value sentinel into the output.
+     *
+     * @tparam cg_size The number of threads in CUDA Cooperative Groups
+     * @tparam buffer_size Size of the output buffer
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt Device accessible output iterator whose `value_type` is
+     * convertible to the map's `mapped_type`
+     * @tparam KeyEqual Binary callable type
+     * @param g The Cooperative Group used to retrieve
+     * @param k The key to search for
+     * @param cg_counter Pointer to the CG counter
+     * @param output_buffer Shared memory buffer of the key/value pair sequence
+     * @param num_matches Size of the output sequence
+     * @param output_begin Beginning of the output sequence of key/value pairs
+     * @param key_equal The binary callable used to compare two keys
+     * for equality
+     */
+    template <uint32_t cg_size,
+              uint32_t buffer_size,
+              typename CG,
+              typename atomicT,
+              typename OutputIt,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ void cg_retrieve_outer(CG const& g,
+                                      Key const& k,
+                                      uint32_t* cg_counter,
+                                      value_type* output_buffer,
+                                      atomicT* num_matches,
+                                      OutputIt output_begin,
+                                      KeyEqual key_equal = KeyEqual{}) noexcept;
   };  // class device_view
 
   /**

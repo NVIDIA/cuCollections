@@ -66,7 +66,6 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
  * inserts
- * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `value_type`
  * @tparam viewT Type of device view allowing access of hash map storage
@@ -78,7 +77,6 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  */
 template <uint32_t block_size,
           uint32_t tile_size,
-          bool uses_vector_load,
           typename InputIt,
           typename viewT,
           typename KeyEqual>
@@ -91,7 +89,7 @@ __global__ void insert(InputIt first, InputIt last, viewT view, KeyEqual key_equ
   while (it < last) {
     // force conversion to value_type
     typename viewT::value_type const insert_pair{*it};
-    view.insert<uses_vector_load>(tile, insert_pair, key_equal);
+    view.insert(tile, insert_pair, key_equal);
     it += (gridDim.x * block_size) / tile_size;
   }
 }
@@ -106,7 +104,6 @@ __global__ void insert(InputIt first, InputIt last, viewT view, KeyEqual key_equ
  *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups
- * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
@@ -121,7 +118,6 @@ __global__ void insert(InputIt first, InputIt last, viewT view, KeyEqual key_equ
  */
 template <uint32_t block_size,
           uint32_t tile_size,
-          bool uses_vector_load,
           typename InputIt,
           typename OutputIt,
           typename viewT,
@@ -136,7 +132,7 @@ __global__ void contains(
 
   while (first + key_idx < last) {
     auto key   = *(first + key_idx);
-    auto found = view.contains<uses_vector_load>(tile, key, key_equal);
+    auto found = view.contains(tile, key, key_equal);
 
     /*
      * The ld.relaxed.gpu instruction used in view.find causes L1 to
@@ -180,8 +176,7 @@ template <uint32_t block_size,
           uint32_t tile_size,
           typename Key,
           typename Value,
-          bool uses_vector_load,
-          bool is_outer = false,
+          bool is_outer,
           typename InputIt,
           typename atomicT,
           typename viewT,
@@ -199,7 +194,11 @@ __global__ void count(
 
   while (first + key_idx < last) {
     auto key = *(first + key_idx);
-    view.count<uses_vector_load, is_outer>(tile, key, thread_num_matches, key_equal);
+    if constexpr (is_outer) {
+      view.count_outer(tile, key, thread_num_matches, key_equal);
+    } else {
+      view.count(tile, key, thread_num_matches, key_equal);
+    }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
 
@@ -220,7 +219,6 @@ __global__ void count(
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
  * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
- * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
  * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
  * operations or not
  * @tparam Input Device accesible input iterator of key/value pairs
@@ -237,8 +235,7 @@ template <uint32_t block_size,
           uint32_t tile_size,
           typename Key,
           typename Value,
-          bool uses_vector_load,
-          bool is_outer = false,
+          bool is_outer,
           typename InputIt,
           typename atomicT,
           typename viewT,
@@ -256,7 +253,11 @@ __global__ void pair_count(
 
   while (first + pair_idx < last) {
     typename viewT::value_type const pair = *(first + pair_idx);
-    view.pair_count<uses_vector_load, is_outer>(tile, pair, thread_num_matches, pair_equal);
+    if constexpr (is_outer) {
+      view.pair_count_outer(tile, pair, thread_num_matches, pair_equal);
+    } else {
+      view.pair_count(tile, pair, thread_num_matches, pair_equal);
+    }
     pair_idx += (gridDim.x * block_size) / tile_size;
   }
 
@@ -307,7 +308,7 @@ template <uint32_t block_size,
           typename Key,
           typename Value,
           bool uses_vector_load,
-          bool is_outer = false,
+          bool is_outer,
           typename InputIt,
           typename OutputIt,
           typename atomicT,
@@ -339,14 +340,25 @@ __global__ std::enable_if_t<uses_vector_load, void> retrieve(InputIt first,
 
   while (first + key_idx < last) {
     auto key = *(first + key_idx);
-    view.retrieve<buffer_size, uses_vector_load, is_outer>(activemask,
-                                                           tile,
-                                                           key,
-                                                           &warp_counter[warp_id],
-                                                           output_buffer[warp_id],
-                                                           num_matches,
-                                                           output_begin,
-                                                           key_equal);
+    if constexpr (is_outer) {
+      view.warp_retrieve_outer<buffer_size>(activemask,
+                                            tile,
+                                            key,
+                                            &warp_counter[warp_id],
+                                            output_buffer[warp_id],
+                                            num_matches,
+                                            output_begin,
+                                            key_equal);
+    } else {
+      view.warp_retrieve<buffer_size>(activemask,
+                                      tile,
+                                      key,
+                                      &warp_counter[warp_id],
+                                      output_buffer[warp_id],
+                                      num_matches,
+                                      output_begin,
+                                      key_equal);
+    }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
 
@@ -396,7 +408,7 @@ template <uint32_t block_size,
           typename Key,
           typename Value,
           bool uses_vector_load,
-          bool is_outer = false,
+          bool is_outer,
           typename InputIt,
           typename OutputIt,
           typename atomicT,
@@ -424,8 +436,13 @@ __global__ std::enable_if_t<not uses_vector_load, void> retrieve(InputIt first,
 
   while (first + key_idx < last) {
     auto key = *(first + key_idx);
-    view.retrieve<tile_size, buffer_size, uses_vector_load, is_outer>(
-      tile, key, &cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin, key_equal);
+    if constexpr (is_outer) {
+      view.cg_retrieve_outer<tile_size, buffer_size>(
+        tile, key, &cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin, key_equal);
+    } else {
+      view.cg_retrieve<tile_size, buffer_size>(
+        tile, key, &cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin, key_equal);
+    }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
 
