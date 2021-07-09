@@ -419,7 +419,6 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
 {
   auto current_slot = initial_slot(g, insert_pair.first);
   while (true) {
-    // key_type const existing_key = current_slot->first.load(cuda::memory_order_relaxed);
     pair<Key, Value> arr[2];
     if constexpr (sizeof(Key) == 4) {
       auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
@@ -487,7 +486,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty         = (existing_key == this->get_empty_key_sentinel());
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
     auto const window_contains_empty = g.ballot(slot_is_empty);
 
     if (window_contains_empty) {
