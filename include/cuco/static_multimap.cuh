@@ -378,6 +378,14 @@ class static_multimap {
      */
     static constexpr bool uses_vector_load() noexcept { return ProbeSequence::uses_vector_load(); }
 
+    /**
+     * @brief Load two key/value pairs from the given slot to the target pair array.
+     *
+     * @param arr The pair array to be loaded
+     * @param current_slot The given slot to load from
+     */
+    __device__ void load_pair_array(value_type* arr, const_iterator current_slot) noexcept;
+
    private:
     ProbeSequence probe_sequence_;
     Key empty_key_sentinel_{};      ///< Key value that represents an empty slot

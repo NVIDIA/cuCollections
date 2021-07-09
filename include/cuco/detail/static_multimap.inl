@@ -311,6 +311,24 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
+__device__ void
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view_base::load_pair_array(
+  value_type* arr, const_iterator current_slot) noexcept
+{
+  if constexpr (sizeof(value_type) == 4) {
+    auto const tmp = *reinterpret_cast<ushort4 const*>(current_slot);
+    memcpy(&arr[0], &tmp, 2 * sizeof(value_type));
+  } else {
+    auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
+    memcpy(&arr[0], &tmp, 2 * sizeof(value_type));
+  }
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename KeyEqual>
 __device__
   static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert_result
@@ -420,13 +438,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
   auto current_slot = initial_slot(g, insert_pair.first);
   while (true) {
     value_type arr[2];
-    if constexpr (sizeof(cuco::detail::packed_t<value_type>) == 4) {
-      auto const tmp = *reinterpret_cast<ushort4 const*>(current_slot);
-      memcpy(&arr[0], &tmp, 2 * sizeof(value_type));
-    } else {
-      auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-      memcpy(&arr[0], &tmp, 2 * sizeof(value_type));
-    }
+    load_pair_array(&arr[0], current_slot);
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
     // the sentinel is not a valid key value. Therefore, first check for the sentinel
@@ -535,13 +547,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::conta
 
   while (true) {
     value_type arr[2];
-    if constexpr (sizeof(Key) == 4) {
-      auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-      memcpy(&arr[0], &tmp, 2 * sizeof(value_type));
-    } else {
-      auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
-      memcpy(&arr[0], &tmp, 2 * sizeof(value_type));
-    }
+    load_pair_array(&arr[0], current_slot);
 
     auto const first_slot_is_empty =
       detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
@@ -612,14 +618,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
     bool found_match = false;
 
     while (true) {
-      pair<Key, Value> arr[2];
-      if constexpr (sizeof(Key) == 4) {
-        auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-      } else {
-        auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
-        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-      }
+      value_type arr[2];
+      load_pair_array(&arr[0], current_slot);
 
       auto const first_slot_is_empty =
         detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
@@ -641,14 +641,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
     }
   } else {
     while (true) {
-      pair<Key, Value> arr[2];
-      if constexpr (sizeof(Key) == 4) {
-        auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-      } else {
-        auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
-        memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-      }
+      value_type arr[2];
+      load_pair_array(&arr[0], current_slot);
 
       auto const first_slot_is_empty =
         detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
@@ -740,14 +734,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
     bool found_match = false;
 
     while (true) {
-      cuco::pair_type<Key, Value> arr[2];
-      if constexpr (sizeof(Key) == 4) {
-        auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-        memcpy(&arr[0], &tmp, 2 * sizeof(cuco::pair_type<Key, Value>));
-      } else {
-        auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
-        memcpy(&arr[0], &tmp, 2 * sizeof(cuco::pair_type<Key, Value>));
-      }
+      value_type arr[2];
+      load_pair_array(&arr[0], current_slot);
 
       auto const first_slot_is_empty =
         detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
@@ -770,14 +758,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
     }
   } else {
     while (true) {
-      cuco::pair_type<Key, Value> arr[2];
-      if constexpr (sizeof(Key) == 4) {
-        auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-        memcpy(&arr[0], &tmp, 2 * sizeof(cuco::pair_type<Key, Value>));
-      } else {
-        auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
-        memcpy(&arr[0], &tmp, 2 * sizeof(cuco::pair_type<Key, Value>));
-      }
+      value_type arr[2];
+      load_pair_array(&arr[0], current_slot);
 
       auto const first_slot_is_empty =
         detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
@@ -884,14 +866,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_
 
     while (__any_sync(activemask, running)) {
       if (running) {
-        pair<Key, Value> arr[2];
-        if constexpr (sizeof(Key) == 4) {
-          auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-          memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-        } else {
-          auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
-          memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-        }
+        value_type arr[2];
+        load_pair_array(&arr[0], current_slot);
 
         auto const first_slot_is_empty =
           detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
@@ -950,14 +926,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_
   } else {
     while (__any_sync(activemask, running)) {
       if (running) {
-        pair<Key, Value> arr[2];
-        if constexpr (sizeof(Key) == 4) {
-          auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-          memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-        } else {
-          auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
-          memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
-        }
+        value_type arr[2];
+        load_pair_array(&arr[0], current_slot);
 
         auto const first_slot_is_empty =
           detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
