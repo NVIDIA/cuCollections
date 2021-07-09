@@ -419,13 +419,13 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
 {
   auto current_slot = initial_slot(g, insert_pair.first);
   while (true) {
-    pair<Key, Value> arr[2];
-    if constexpr (sizeof(Key) == 4) {
-      auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-      memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+    value_type arr[2];
+    if constexpr (sizeof(cuco::detail::packed_t<value_type>) == 4) {
+      auto const tmp = *reinterpret_cast<ushort4 const*>(current_slot);
+      memcpy(&arr[0], &tmp, 2 * sizeof(value_type));
     } else {
-      auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
-      memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+      auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
+      memcpy(&arr[0], &tmp, 2 * sizeof(value_type));
     }
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
@@ -435,24 +435,15 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
     auto const second_slot_is_empty =
       (detail::bitwise_compare(arr[1].first, this->get_empty_value_sentinel()));
     auto const window_contains_empty = g.ballot(first_slot_is_empty or second_slot_is_empty);
+
     if (window_contains_empty) {
       // the first lane in the group with an empty slot will attempt the insert
       insert_result status{insert_result::CONTINUE};
       uint32_t src_lane = __ffs(window_contains_empty) - 1;
       if (g.thread_rank() == src_lane) {
         auto insert_location = first_slot_is_empty ? current_slot : current_slot + 1;
-        // One single CAS operation if `value_type` is packable
-        if constexpr (cuco::detail::is_packable<value_type>()) {
-          status = packed_cas(insert_location, insert_pair, key_equal);
-        }
-        // Otherwise, two back-to-back CAS operations
-        else {
-#if __CUDA_ARCH__ < 700
-          status = cas_dependent_write(insert_location, insert_pair, key_equal);
-#else
-          status = back_to_back_cas(insert_location, insert_pair, key_equal);
-#endif
-        }
+        // One single CAS operation since vector loads are dedicated to packable pairs
+        status = packed_cas(insert_location, insert_pair, key_equal);
       }
 
       // successful insert
@@ -466,7 +457,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
     else {
       current_slot = next_slot(current_slot);
     }
-  }
+  }  // while true
 }
 
 template <typename Key,
@@ -496,18 +487,11 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
       uint32_t src_lane = __ffs(window_contains_empty) - 1;
 
       if (g.thread_rank() == src_lane) {
-        // One single CAS operation if `value_type` is packable
-        if constexpr (cuco::detail::is_packable<value_type>()) {
-          status = packed_cas(current_slot, insert_pair, key_equal);
-        }
-        // Otherwise, two back-to-back CAS operations
-        else {
 #if __CUDA_ARCH__ < 700
-          status = cas_dependent_write(current_slot, insert_pair, key_equal);
+        status = cas_dependent_write(current_slot, insert_pair, key_equal);
 #else
-          status = back_to_back_cas(current_slot, insert_pair, key_equal);
+        status = back_to_back_cas(current_slot, insert_pair, key_equal);
 #endif
-        }
       }
 
       // successful insert
@@ -521,7 +505,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
     else {
       current_slot = next_slot(current_slot);
     }
-  }
+  }  // while true
 }
 
 template <typename Key,
