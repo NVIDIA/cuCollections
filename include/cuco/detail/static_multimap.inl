@@ -534,19 +534,21 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::conta
   auto current_slot = initial_slot(g, k);
 
   while (true) {
-    pair<Key, Value> arr[2];
+    value_type arr[2];
     if constexpr (sizeof(Key) == 4) {
       auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
-      memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+      memcpy(&arr[0], &tmp, 2 * sizeof(value_type));
     } else {
       auto const tmp = *reinterpret_cast<ulonglong4 const*>(current_slot);
-      memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
+      memcpy(&arr[0], &tmp, 2 * sizeof(value_type));
     }
 
-    auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
-    auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
-    auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, k));
-    auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, k));
+    auto const first_slot_is_empty =
+      detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+    auto const second_slot_is_empty =
+      detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+    auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
+    auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
 
     // the key we were searching for was found by one of the threads, so we return true
     if (g.any(first_equals or second_equals)) { return true; }
@@ -577,7 +579,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::conta
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     auto const equals = (not slot_is_empty and key_equal(existing_key, k));
 
@@ -618,10 +621,12 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
         memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
       }
 
-      auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
-      auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
-      auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, k));
-      auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, k));
+      auto const first_slot_is_empty =
+        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+      auto const second_slot_is_empty =
+        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+      auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
+      auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
 
       if (g.any(first_equals or second_equals)) { found_match = true; }
 
@@ -645,10 +650,12 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
         memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
       }
 
-      auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
-      auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
-      auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, k));
-      auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, k));
+      auto const first_slot_is_empty =
+        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+      auto const second_slot_is_empty =
+        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+      auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
+      auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
 
       thread_num_matches += (first_equals + second_equals);
 
@@ -679,8 +686,9 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
         *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
       auto const& current_key = slot_contents.first;
 
-      auto const slot_is_empty = (current_key == this->get_empty_key_sentinel());
-      auto const equals        = not slot_is_empty and key_equal(current_key, k);
+      auto const slot_is_empty =
+        detail::bitwise_compare(current_key, this->get_empty_key_sentinel());
+      auto const equals = not slot_is_empty and key_equal(current_key, k);
 
       if (g.any(equals)) { found_match = true; }
 
@@ -699,8 +707,9 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
         *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
       auto const& current_key = slot_contents.first;
 
-      auto const slot_is_empty = (current_key == this->get_empty_key_sentinel());
-      auto const equals        = not slot_is_empty and key_equal(current_key, k);
+      auto const slot_is_empty =
+        detail::bitwise_compare(current_key, this->get_empty_key_sentinel());
+      auto const equals = not slot_is_empty and key_equal(current_key, k);
 
       thread_num_matches += equals;
 
@@ -740,8 +749,10 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
         memcpy(&arr[0], &tmp, 2 * sizeof(cuco::pair_type<Key, Value>));
       }
 
-      auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
-      auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
+      auto const first_slot_is_empty =
+        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+      auto const second_slot_is_empty =
+        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
 
       auto const first_slot_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
       auto const second_slot_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
@@ -768,8 +779,10 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
         memcpy(&arr[0], &tmp, 2 * sizeof(cuco::pair_type<Key, Value>));
       }
 
-      auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
-      auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
+      auto const first_slot_is_empty =
+        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+      auto const second_slot_is_empty =
+        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
 
       auto const first_slot_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
       auto const second_slot_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
@@ -824,7 +837,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
     while (true) {
       auto slot_contents = *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
 
-      auto const slot_is_empty = (slot_contents.first == this->get_empty_key_sentinel());
+      auto const slot_is_empty =
+        detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
 
       auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
 
@@ -879,12 +893,14 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_
           memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
         }
 
-        auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
-        auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
-        auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, k));
-        auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, k));
-        auto const first_exists         = g.ballot(first_equals);
-        auto const second_exists        = g.ballot(second_equals);
+        auto const first_slot_is_empty =
+          detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+        auto const second_slot_is_empty =
+          detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+        auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
+        auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
+        auto const first_exists  = g.ballot(first_equals);
+        auto const second_exists = g.ballot(second_equals);
 
         if (first_exists or second_exists) {
           found_match = true;
@@ -943,12 +959,14 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_
           memcpy(&arr[0], &tmp, 2 * sizeof(pair<Key, Value>));
         }
 
-        auto const first_slot_is_empty  = (arr[0].first == this->get_empty_key_sentinel());
-        auto const second_slot_is_empty = (arr[1].first == this->get_empty_key_sentinel());
-        auto const first_equals         = (not first_slot_is_empty and key_equal(arr[0].first, k));
-        auto const second_equals        = (not second_slot_is_empty and key_equal(arr[1].first, k));
-        auto const first_exists         = g.ballot(first_equals);
-        auto const second_exists        = g.ballot(second_equals);
+        auto const first_slot_is_empty =
+          detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+        auto const second_slot_is_empty =
+          detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+        auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
+        auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
+        auto const first_exists  = g.ballot(first_equals);
+        auto const second_exists = g.ballot(second_equals);
 
         if (first_exists or second_exists) {
           auto num_first_matches  = __popc(first_exists);
@@ -1026,9 +1044,10 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::cg_re
       static_assert(sizeof(Value) == sizeof(cuda::atomic<Value>));
       pair<Key, Value> slot_contents = *reinterpret_cast<pair<Key, Value> const*>(current_slot);
 
-      auto const slot_is_empty = (slot_contents.first == this->get_empty_key_sentinel());
-      auto const equals        = (not slot_is_empty and key_equal(slot_contents.first, k));
-      auto const exists        = g.ballot(equals);
+      auto const slot_is_empty =
+        detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
+      auto const equals = (not slot_is_empty and key_equal(slot_contents.first, k));
+      auto const exists = g.ballot(equals);
 
       if (exists) {
         found_match         = true;
@@ -1071,9 +1090,10 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::cg_re
       static_assert(sizeof(Value) == sizeof(cuda::atomic<Value>));
       pair<Key, Value> slot_contents = *reinterpret_cast<pair<Key, Value> const*>(current_slot);
 
-      auto const slot_is_empty = (slot_contents.first == this->get_empty_key_sentinel());
-      auto const equals        = (not slot_is_empty and key_equal(slot_contents.first, k));
-      auto const exists        = g.ballot(equals);
+      auto const slot_is_empty =
+        detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
+      auto const equals = (not slot_is_empty and key_equal(slot_contents.first, k));
+      auto const exists = g.ballot(equals);
 
       if (exists) {
         auto num_matches    = __popc(exists);

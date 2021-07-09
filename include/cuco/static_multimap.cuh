@@ -526,8 +526,6 @@ class static_multimap {
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
 
-    using device_view_base::uses_vector_load;
-
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -671,8 +669,6 @@ class static_multimap {
     using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
-
-    using device_view_base::uses_vector_load;
 
     /**
      * @brief Construct a view of the first `capacity` slots of the
