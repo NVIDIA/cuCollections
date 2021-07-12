@@ -916,7 +916,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_
 
       __syncwarp(activemask);
       if (*warp_counter + 32 * 2 > buffer_size) {
-        flush_output_buffer(activemask, *warp_counter, output_buffer, num_matches, output_begin);
+        flush_warp_buffer(activemask, *warp_counter, output_buffer, num_matches, output_begin);
         // First lane reset warp-level counter
         if (warp_lane_id == 0) { *warp_counter = 0; }
       }
@@ -966,7 +966,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_
 
       __syncwarp(activemask);
       if (*warp_counter + 32 * 2 > buffer_size) {
-        flush_output_buffer(activemask, *warp_counter, output_buffer, num_matches, output_begin);
+        flush_warp_buffer(activemask, *warp_counter, output_buffer, num_matches, output_begin);
         // First lane reset warp-level counter
         if (warp_lane_id == 0) { *warp_counter = 0; }
       }
@@ -1046,7 +1046,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::cg_re
 
       // Flush if the next iteration won't fit into buffer
       if ((*cg_counter + cg_size) > buffer_size) {
-        flush_output_buffer<cg_size>(g, *cg_counter, output_buffer, num_matches, output_begin);
+        flush_cg_buffer<cg_size>(g, *cg_counter, output_buffer, num_matches, output_begin);
         // First lane reset CG-level counter
         if (lane_id == 0) { *cg_counter = 0; }
       }
@@ -1083,7 +1083,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::cg_re
 
       // Flush if the next iteration won't fit into buffer
       if ((*cg_counter + cg_size) > buffer_size) {
-        flush_output_buffer<cg_size>(g, *cg_counter, output_buffer, num_matches, output_begin);
+        flush_cg_buffer<cg_size>(g, *cg_counter, output_buffer, num_matches, output_begin);
         // First lane reset CG-level counter
         if (lane_id == 0) { *cg_counter = 0; }
       }
@@ -1101,7 +1101,7 @@ template <typename Key,
           typename Allocator>
 template <uint32_t cg_size, typename CG, typename atomicT, typename OutputIt>
 __inline__ __device__ std::enable_if_t<thrust::is_contiguous_iterator<OutputIt>::value, void>
-static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_output_buffer(
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_cg_buffer(
   CG const& g,
   uint32_t const num_outputs,
   value_type* output_buffer,
@@ -1134,7 +1134,7 @@ template <typename Key,
           typename Allocator>
 template <uint32_t cg_size, typename CG, typename atomicT, typename OutputIt>
 __inline__ __device__ std::enable_if_t<not thrust::is_contiguous_iterator<OutputIt>::value, void>
-static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_output_buffer(
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_cg_buffer(
   CG const& g,
   uint32_t const num_outputs,
   value_type* output_buffer,
@@ -1158,7 +1158,7 @@ template <typename Key,
           typename Allocator>
 template <typename atomicT, typename OutputIt>
 __inline__ __device__ void
-static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_output_buffer(
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_warp_buffer(
   const unsigned int activemask,
   uint32_t const num_outputs,
   value_type* output_buffer,

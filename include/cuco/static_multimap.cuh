@@ -1000,11 +1000,11 @@ class static_multimap {
      */
     template <uint32_t cg_size, typename CG, typename atomicT, typename OutputIt>
     __inline__ __device__ std::enable_if_t<thrust::is_contiguous_iterator<OutputIt>::value, void>
-    flush_output_buffer(CG const& g,
-                        uint32_t const num_outputs,
-                        value_type* output_buffer,
-                        atomicT* num_matches,
-                        OutputIt output_begin) noexcept;
+    flush_cg_buffer(CG const& g,
+                    uint32_t const num_outputs,
+                    value_type* output_buffer,
+                    atomicT* num_matches,
+                    OutputIt output_begin) noexcept;
 
     /**
      * @brief Flushes per-CG shared memory buffer into the output sequence using CG memcpy_async.
@@ -1023,11 +1023,11 @@ class static_multimap {
     template <uint32_t cg_size, typename CG, typename atomicT, typename OutputIt>
     __inline__ __device__
       std::enable_if_t<not thrust::is_contiguous_iterator<OutputIt>::value, void>
-      flush_output_buffer(CG const& g,
-                          uint32_t const num_outputs,
-                          value_type* output_buffer,
-                          atomicT* num_matches,
-                          OutputIt output_begin) noexcept;
+      flush_cg_buffer(CG const& g,
+                      uint32_t const num_outputs,
+                      value_type* output_buffer,
+                      atomicT* num_matches,
+                      OutputIt output_begin) noexcept;
 
     /**
      * @brief Flushes per-warp shared memory buffer into the output sequence.
@@ -1042,11 +1042,11 @@ class static_multimap {
      * @param output_begin Beginning of the output sequence of key/value pairs
      */
     template <typename atomicT, typename OutputIt>
-    __inline__ __device__ void flush_output_buffer(const unsigned int activemask,
-                                                   uint32_t const num_outputs,
-                                                   value_type* output_buffer,
-                                                   atomicT* num_matches,
-                                                   OutputIt output_begin) noexcept;
+    __inline__ __device__ void flush_warp_buffer(const unsigned int activemask,
+                                                 uint32_t const num_outputs,
+                                                 value_type* output_buffer,
+                                                 atomicT* num_matches,
+                                                 OutputIt output_begin) noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
