@@ -614,49 +614,33 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
 {
   auto current_slot = initial_slot(g, k);
 
-  if constexpr (is_outer) {
-    bool found_match = false;
+  [[maybe_unused]] bool found_match = false;
 
-    while (true) {
-      value_type arr[2];
-      load_pair_array(&arr[0], current_slot);
+  while (true) {
+    value_type arr[2];
+    load_pair_array(&arr[0], current_slot);
 
-      auto const first_slot_is_empty =
-        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
-      auto const second_slot_is_empty =
-        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
-      auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
-      auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
+    auto const first_slot_is_empty =
+      detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+    auto const second_slot_is_empty =
+      detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+    auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
+    auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
 
+    if constexpr (is_outer) {
       if (g.any(first_equals or second_equals)) { found_match = true; }
+    }
 
-      thread_num_matches += (first_equals + second_equals);
+    thread_num_matches += (first_equals + second_equals);
 
-      if (g.any(first_slot_is_empty or second_slot_is_empty)) {
+    if (g.any(first_slot_is_empty or second_slot_is_empty)) {
+      if constexpr (is_outer) {
         if ((not found_match) && (g.thread_rank() == 0)) { thread_num_matches++; }
-        break;
       }
-
-      current_slot = next_slot(current_slot);
+      break;
     }
-  } else {
-    while (true) {
-      value_type arr[2];
-      load_pair_array(&arr[0], current_slot);
 
-      auto const first_slot_is_empty =
-        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
-      auto const second_slot_is_empty =
-        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
-      auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
-      auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
-
-      thread_num_matches += (first_equals + second_equals);
-
-      if (g.any(first_slot_is_empty or second_slot_is_empty)) { break; }
-
-      current_slot = next_slot(current_slot);
-    }
+    current_slot = next_slot(current_slot);
   }
 }
 
@@ -672,45 +656,30 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
 {
   auto current_slot = initial_slot(g, k);
 
-  if constexpr (is_outer) {
-    bool found_match = false;
+  [[maybe_unused]] bool found_match = false;
 
-    while (true) {
-      pair<Key, Value> slot_contents =
-        *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
-      auto const& current_key = slot_contents.first;
+  while (true) {
+    pair<Key, Value> slot_contents =
+      *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
+    auto const& current_key = slot_contents.first;
 
-      auto const slot_is_empty =
-        detail::bitwise_compare(current_key, this->get_empty_key_sentinel());
-      auto const equals = not slot_is_empty and key_equal(current_key, k);
+    auto const slot_is_empty = detail::bitwise_compare(current_key, this->get_empty_key_sentinel());
+    auto const equals        = not slot_is_empty and key_equal(current_key, k);
 
+    if constexpr (is_outer) {
       if (g.any(equals)) { found_match = true; }
+    }
 
-      thread_num_matches += equals;
+    thread_num_matches += equals;
 
-      if (g.any(slot_is_empty)) {
+    if (g.any(slot_is_empty)) {
+      if constexpr (is_outer) {
         if ((not found_match) && (g.thread_rank() == 0)) { thread_num_matches++; }
-        break;
       }
-
-      current_slot = next_slot(current_slot);
+      break;
     }
-  } else {
-    while (true) {
-      pair<Key, Value> slot_contents =
-        *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
-      auto const& current_key = slot_contents.first;
 
-      auto const slot_is_empty =
-        detail::bitwise_compare(current_key, this->get_empty_key_sentinel());
-      auto const equals = not slot_is_empty and key_equal(current_key, k);
-
-      thread_num_matches += equals;
-
-      if (g.any(slot_is_empty)) { break; }
-
-      current_slot = next_slot(current_slot);
-    }
+    current_slot = next_slot(current_slot);
   }
 }
 
@@ -730,51 +699,34 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   auto key          = pair.first;
   auto current_slot = initial_slot(g, key);
 
-  if constexpr (is_outer) {
-    bool found_match = false;
+  [[maybe_unused]] bool found_match = false;
 
-    while (true) {
-      value_type arr[2];
-      load_pair_array(&arr[0], current_slot);
+  while (true) {
+    value_type arr[2];
+    load_pair_array(&arr[0], current_slot);
 
-      auto const first_slot_is_empty =
-        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
-      auto const second_slot_is_empty =
-        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+    auto const first_slot_is_empty =
+      detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+    auto const second_slot_is_empty =
+      detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
 
-      auto const first_slot_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
-      auto const second_slot_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
+    auto const first_slot_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
+    auto const second_slot_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
 
+    if constexpr (is_outer) {
       if (g.any(first_slot_equals or second_slot_equals)) { found_match = true; }
+    }
 
-      thread_num_matches += (first_slot_equals + second_slot_equals);
+    thread_num_matches += (first_slot_equals + second_slot_equals);
 
-      if (g.any(first_slot_is_empty or second_slot_is_empty)) {
+    if (g.any(first_slot_is_empty or second_slot_is_empty)) {
+      if constexpr (is_outer) {
         if ((not found_match) && (g.thread_rank() == 0)) { thread_num_matches++; }
-        break;
       }
-
-      current_slot = next_slot(current_slot);
+      break;
     }
-  } else {
-    while (true) {
-      value_type arr[2];
-      load_pair_array(&arr[0], current_slot);
 
-      auto const first_slot_is_empty =
-        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
-      auto const second_slot_is_empty =
-        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
-
-      auto const first_slot_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
-      auto const second_slot_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
-
-      thread_num_matches += (first_slot_equals + second_slot_equals);
-
-      if (g.any(first_slot_is_empty or second_slot_is_empty)) { break; }
-
-      current_slot = next_slot(current_slot);
-    }
+    current_slot = next_slot(current_slot);
   }
 }
 
@@ -794,42 +746,29 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   auto key          = pair.first;
   auto current_slot = initial_slot(g, key);
 
-  if constexpr (is_outer) {
-    bool found_match = false;
+  [[maybe_unused]] bool found_match = false;
 
-    while (true) {
-      auto slot_contents = *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
+  while (true) {
+    auto slot_contents = *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
 
-      auto const slot_is_empty = (slot_contents.first == this->get_empty_key_sentinel());
+    auto const slot_is_empty = (slot_contents.first == this->get_empty_key_sentinel());
 
-      auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
+    auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
 
+    if constexpr (is_outer) {
       if (g.any(equals)) { found_match = true; }
+    }
 
-      thread_num_matches += equals;
+    thread_num_matches += equals;
 
-      if (g.any(slot_is_empty)) {
+    if (g.any(slot_is_empty)) {
+      if constexpr (is_outer) {
         if ((not found_match) && (g.thread_rank() == 0)) { thread_num_matches++; }
-        break;
       }
-
-      current_slot = next_slot(current_slot);
+      break;
     }
-  } else {
-    while (true) {
-      auto slot_contents = *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
 
-      auto const slot_is_empty =
-        detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
-
-      auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
-
-      thread_num_matches += equals;
-
-      if (g.any(slot_is_empty)) { break; }
-
-      current_slot = next_slot(current_slot);
-    }
+    current_slot = next_slot(current_slot);
   }
 }
 
@@ -860,51 +799,51 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_
 
   auto current_slot = initial_slot(g, k);
 
-  bool running = true;
-  if constexpr (is_outer) {
-    bool found_match = false;
+  bool running                      = true;
+  [[maybe_unused]] bool found_match = false;
 
-    while (__any_sync(activemask, running)) {
-      if (running) {
-        value_type arr[2];
-        load_pair_array(&arr[0], current_slot);
+  while (__any_sync(activemask, running)) {
+    if (running) {
+      value_type arr[2];
+      load_pair_array(&arr[0], current_slot);
 
-        auto const first_slot_is_empty =
-          detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
-        auto const second_slot_is_empty =
-          detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
-        auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
-        auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
-        auto const first_exists  = g.ballot(first_equals);
-        auto const second_exists = g.ballot(second_equals);
+      auto const first_slot_is_empty =
+        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+      auto const second_slot_is_empty =
+        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+      auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
+      auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
+      auto const first_exists  = g.ballot(first_equals);
+      auto const second_exists = g.ballot(second_equals);
 
-        if (first_exists or second_exists) {
-          found_match = true;
+      if (first_exists or second_exists) {
+        if constexpr (is_outer) { found_match = true; }
 
-          auto num_first_matches  = __popc(first_exists);
-          auto num_second_matches = __popc(second_exists);
+        auto num_first_matches  = __popc(first_exists);
+        auto num_second_matches = __popc(second_exists);
 
-          uint32_t output_idx;
-          if (0 == cg_lane_id) {
-            output_idx = atomicAdd(warp_counter, (num_first_matches + num_second_matches));
-          }
-          output_idx = g.shfl(output_idx, 0);
-
-          if (first_equals) {
-            auto lane_offset = __popc(first_exists & ((1 << cg_lane_id) - 1));
-            Key key          = k;
-            output_buffer[output_idx + lane_offset] =
-              cuco::make_pair<Key, Value>(std::move(key), std::move(arr[0].second));
-          }
-          if (second_equals) {
-            auto lane_offset = __popc(second_exists & ((1 << cg_lane_id) - 1));
-            Key key          = k;
-            output_buffer[output_idx + num_first_matches + lane_offset] =
-              cuco::make_pair<Key, Value>(std::move(key), std::move(arr[1].second));
-          }
+        uint32_t output_idx;
+        if (0 == cg_lane_id) {
+          output_idx = atomicAdd(warp_counter, (num_first_matches + num_second_matches));
         }
-        if (g.any(first_slot_is_empty or second_slot_is_empty)) {
-          running = false;
+        output_idx = g.shfl(output_idx, 0);
+
+        if (first_equals) {
+          auto lane_offset = __popc(first_exists & ((1 << cg_lane_id) - 1));
+          Key key          = k;
+          output_buffer[output_idx + lane_offset] =
+            cuco::make_pair<Key, Value>(std::move(key), std::move(arr[0].second));
+        }
+        if (second_equals) {
+          auto lane_offset = __popc(second_exists & ((1 << cg_lane_id) - 1));
+          Key key          = k;
+          output_buffer[output_idx + num_first_matches + lane_offset] =
+            cuco::make_pair<Key, Value>(std::move(key), std::move(arr[1].second));
+        }
+      }
+      if (g.any(first_slot_is_empty or second_slot_is_empty)) {
+        running = false;
+        if constexpr (is_outer) {
           if ((not found_match) && (cg_lane_id == 0)) {
             auto output_idx           = atomicAdd(warp_counter, 1);
             Key key                   = k;
@@ -912,68 +851,18 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_
               std::move(key), std::move(this->get_empty_key_sentinel()));
           }
         }
-      }  // if running
-
-      __syncwarp(activemask);
-      if (*warp_counter + 32 * 2 > buffer_size) {
-        flush_warp_buffer(activemask, *warp_counter, output_buffer, num_matches, output_begin);
-        // First lane reset warp-level counter
-        if (warp_lane_id == 0) { *warp_counter = 0; }
       }
+    }  // if running
 
-      current_slot = next_slot(current_slot);
-    }  // while running
-  } else {
-    while (__any_sync(activemask, running)) {
-      if (running) {
-        value_type arr[2];
-        load_pair_array(&arr[0], current_slot);
+    __syncwarp(activemask);
+    if (*warp_counter + 32 * 2 > buffer_size) {
+      flush_warp_buffer(activemask, *warp_counter, output_buffer, num_matches, output_begin);
+      // First lane reset warp-level counter
+      if (warp_lane_id == 0) { *warp_counter = 0; }
+    }
 
-        auto const first_slot_is_empty =
-          detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
-        auto const second_slot_is_empty =
-          detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
-        auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
-        auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
-        auto const first_exists  = g.ballot(first_equals);
-        auto const second_exists = g.ballot(second_equals);
-
-        if (first_exists or second_exists) {
-          auto num_first_matches  = __popc(first_exists);
-          auto num_second_matches = __popc(second_exists);
-
-          uint32_t output_idx;
-          if (0 == cg_lane_id) {
-            output_idx = atomicAdd(warp_counter, (num_first_matches + num_second_matches));
-          }
-          output_idx = g.shfl(output_idx, 0);
-
-          if (first_equals) {
-            auto lane_offset = __popc(first_exists & ((1 << cg_lane_id) - 1));
-            Key key          = k;
-            output_buffer[output_idx + lane_offset] =
-              cuco::make_pair<Key, Value>(std::move(key), std::move(arr[0].second));
-          }
-          if (second_equals) {
-            auto lane_offset = __popc(second_exists & ((1 << cg_lane_id) - 1));
-            Key key          = k;
-            output_buffer[output_idx + num_first_matches + lane_offset] =
-              cuco::make_pair<Key, Value>(std::move(key), std::move(arr[1].second));
-          }
-        }
-        if (g.any(first_slot_is_empty or second_slot_is_empty)) { running = false; }
-      }  // if running
-
-      __syncwarp(activemask);
-      if (*warp_counter + 32 * 2 > buffer_size) {
-        flush_warp_buffer(activemask, *warp_counter, output_buffer, num_matches, output_begin);
-        // First lane reset warp-level counter
-        if (warp_lane_id == 0) { *warp_counter = 0; }
-      }
-
-      current_slot = next_slot(current_slot);
-    }  // while running
-  }
+    current_slot = next_slot(current_slot);
+  }  // while running
 }
 
 template <typename Key,
@@ -1002,38 +891,37 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::cg_re
 
   auto current_slot = initial_slot(g, k);
 
-  bool running = true;
+  bool running                      = true;
+  [[maybe_unused]] bool found_match = false;
 
-  if constexpr (is_outer) {
-    bool found_match = false;
+  while (running) {
+    // TODO: Replace reinterpret_cast with atomic ref when possible. The current implementation
+    // is unsafe!
+    static_assert(sizeof(Key) == sizeof(cuda::atomic<Key>));
+    static_assert(sizeof(Value) == sizeof(cuda::atomic<Value>));
+    pair<Key, Value> slot_contents = *reinterpret_cast<pair<Key, Value> const*>(current_slot);
 
-    while (running) {
-      // TODO: Replace reinterpret_cast with atomic ref when possible. The current implementation
-      // is unsafe!
-      static_assert(sizeof(Key) == sizeof(cuda::atomic<Key>));
-      static_assert(sizeof(Value) == sizeof(cuda::atomic<Value>));
-      pair<Key, Value> slot_contents = *reinterpret_cast<pair<Key, Value> const*>(current_slot);
+    auto const slot_is_empty =
+      detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
+    auto const equals = (not slot_is_empty and key_equal(slot_contents.first, k));
+    auto const exists = g.ballot(equals);
 
-      auto const slot_is_empty =
-        detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
-      auto const equals = (not slot_is_empty and key_equal(slot_contents.first, k));
-      auto const exists = g.ballot(equals);
-
-      if (exists) {
-        found_match         = true;
-        auto num_matches    = __popc(exists);
-        uint32_t output_idx = *cg_counter;
-        if (equals) {
-          // Each match computes its lane-level offset
-          auto lane_offset = __popc(exists & ((1 << lane_id) - 1));
-          Key key          = k;
-          output_buffer[output_idx + lane_offset] =
-            cuco::make_pair<Key, Value>(std::move(key), std::move(slot_contents.second));
-        }
-        if (0 == lane_id) { (*cg_counter) += num_matches; }
+    if (exists) {
+      if constexpr (is_outer) { found_match = true; }
+      auto num_matches    = __popc(exists);
+      uint32_t output_idx = *cg_counter;
+      if (equals) {
+        // Each match computes its lane-level offset
+        auto lane_offset = __popc(exists & ((1 << lane_id) - 1));
+        Key key          = k;
+        output_buffer[output_idx + lane_offset] =
+          cuco::make_pair<Key, Value>(std::move(key), std::move(slot_contents.second));
       }
-      if (g.any(slot_is_empty)) {
-        running = false;
+      if (0 == lane_id) { (*cg_counter) += num_matches; }
+    }
+    if (g.any(slot_is_empty)) {
+      running = false;
+      if constexpr (is_outer) {
         if ((not found_match) && (lane_id == 0)) {
           auto output_idx = (*cg_counter)++;
           Key key         = k;
@@ -1041,55 +929,18 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::cg_re
             cuco::make_pair<Key, Value>(std::move(key), std::move(this->get_empty_key_sentinel()));
         }
       }
+    }
 
-      g.sync();
+    g.sync();
 
-      // Flush if the next iteration won't fit into buffer
-      if ((*cg_counter + cg_size) > buffer_size) {
-        flush_cg_buffer<cg_size>(g, *cg_counter, output_buffer, num_matches, output_begin);
-        // First lane reset CG-level counter
-        if (lane_id == 0) { *cg_counter = 0; }
-      }
-      current_slot = next_slot(current_slot);
-    }  // while running
-  } else {
-    while (running) {
-      // TODO: Replace reinterpret_cast with atomic ref when possible. The current implementation
-      // is unsafe!
-      static_assert(sizeof(Key) == sizeof(cuda::atomic<Key>));
-      static_assert(sizeof(Value) == sizeof(cuda::atomic<Value>));
-      pair<Key, Value> slot_contents = *reinterpret_cast<pair<Key, Value> const*>(current_slot);
-
-      auto const slot_is_empty =
-        detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
-      auto const equals = (not slot_is_empty and key_equal(slot_contents.first, k));
-      auto const exists = g.ballot(equals);
-
-      if (exists) {
-        auto num_matches    = __popc(exists);
-        uint32_t output_idx = *cg_counter;
-        if (equals) {
-          // Each match computes its lane-level offset
-          auto lane_offset = __popc(exists & ((1 << lane_id) - 1));
-          Key key          = k;
-          output_buffer[output_idx + lane_offset] =
-            cuco::make_pair<Key, Value>(std::move(key), std::move(slot_contents.second));
-        }
-        if (0 == lane_id) { (*cg_counter) += num_matches; }
-      }
-      if (g.any(slot_is_empty)) { running = false; }
-
-      g.sync();
-
-      // Flush if the next iteration won't fit into buffer
-      if ((*cg_counter + cg_size) > buffer_size) {
-        flush_cg_buffer<cg_size>(g, *cg_counter, output_buffer, num_matches, output_begin);
-        // First lane reset CG-level counter
-        if (lane_id == 0) { *cg_counter = 0; }
-      }
-      current_slot = next_slot(current_slot);
-    }  // while running
-  }
+    // Flush if the next iteration won't fit into buffer
+    if ((*cg_counter + cg_size) > buffer_size) {
+      flush_cg_buffer<cg_size>(g, *cg_counter, output_buffer, num_matches, output_begin);
+      // First lane reset CG-level counter
+      if (lane_id == 0) { *cg_counter = 0; }
+    }
+    current_slot = next_slot(current_slot);
+  }  // while running
 }
 
 // public APIs
