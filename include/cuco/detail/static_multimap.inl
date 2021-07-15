@@ -965,13 +965,15 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <typename CG, typename atomicT, typename OutputIt>
-__inline__ __device__ std::enable_if_t<thrust::is_contiguous_iterator<OutputIt>::value, void>
-static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_output_buffer(
-  CG const& g,
-  uint32_t const num_outputs,
-  value_type* output_buffer,
-  atomicT* num_matches,
-  OutputIt output_begin) noexcept
+__inline__ __device__
+  std::enable_if_t<thrust::is_contiguous_iterator<OutputIt>::value and SUPPORTS_CG_MEMCPY_ASYNC,
+                   void>
+  static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_output_buffer(
+    CG const& g,
+    uint32_t const num_outputs,
+    value_type* output_buffer,
+    atomicT* num_matches,
+    OutputIt output_begin) noexcept
 {
   std::size_t offset;
   const auto lane_id = g.thread_rank();
@@ -998,7 +1000,9 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <typename CG, typename atomicT, typename OutputIt>
-__inline__ __device__ std::enable_if_t<not thrust::is_contiguous_iterator<OutputIt>::value, void>
+__inline__ __device__ std::enable_if_t<not(thrust::is_contiguous_iterator<OutputIt>::value and
+                                           SUPPORTS_CG_MEMCPY_ASYNC),
+                                       void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_output_buffer(
   CG const& g,
   uint32_t const num_outputs,
