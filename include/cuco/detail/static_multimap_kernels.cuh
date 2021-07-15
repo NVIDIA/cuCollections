@@ -364,7 +364,7 @@ __global__ std::enable_if_t<uses_vector_load, void> retrieve(InputIt first,
 
   // Final flush of output buffer
   if (warp_counter[warp_id] > 0) {
-    view.flush_warp_buffer(
+    view.flush_output_buffer(
       warp, warp_counter[warp_id], output_buffer[warp_id], num_matches, output_begin);
   }
 }
@@ -450,7 +450,7 @@ __global__ std::enable_if_t<not uses_vector_load, void> retrieve(InputIt first,
 
   // Final flush of output buffer
   if (cg_counter[cg_id] > 0) {
-    view.flush_cg_buffer<tile_size>(
+    view.flush_output_buffer(
       tile, cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin);
   }
 }
