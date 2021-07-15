@@ -144,6 +144,13 @@ class static_multimap {
   static_multimap& operator=(static_multimap&&) = delete;
 
   /**
+   * @brief Indicate the warp size.
+   *
+   * @return The warp size.
+   */
+  static constexpr uint32_t warp_size() noexcept { return 32u; }
+
+  /**
    * @brief The size of the CUDA cooperative thread group.
    *
    * @return Boolean indicating if concurrent insert/find is supported.
@@ -913,12 +920,13 @@ class static_multimap {
      *
      * @tparam buffer_size Size of the output buffer
      * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam warpT Warp (Cooperative Group) type
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
      * convertible to the map's `mapped_type`
      * @tparam KeyEqual Binary callable type
-     * @param activemask Mask of active threads in the warp
+     * @param warp The Cooperative Group (or warp) used to flush output buffer
      * @param g The Cooperative Group used to retrieve
      * @param k The key to search for
      * @param warp_counter Pointer to the warp counter
@@ -930,18 +938,19 @@ class static_multimap {
      */
     template <uint32_t buffer_size,
               bool is_outer,
+              typename warpT,
               typename CG,
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void warp_retrieve_impl(const unsigned int activemask,
-                                       CG const& g,
-                                       Key const& k,
-                                       uint32_t* warp_counter,
-                                       value_type* output_buffer,
-                                       atomicT* num_matches,
-                                       OutputIt output_begin,
-                                       KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ void retrieve_impl(warpT const& warp,
+                                  CG const& g,
+                                  Key const& k,
+                                  uint32_t* warp_counter,
+                                  value_type* output_buffer,
+                                  atomicT* num_matches,
+                                  OutputIt output_begin,
+                                  KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Find all the matches of a given key contained in multimap using scalar
@@ -975,13 +984,13 @@ class static_multimap {
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void cg_retrieve_impl(CG const& g,
-                                     Key const& k,
-                                     uint32_t* cg_counter,
-                                     value_type* output_buffer,
-                                     atomicT* num_matches,
-                                     OutputIt output_begin,
-                                     KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ void retrieve_impl(CG const& g,
+                                  Key const& k,
+                                  uint32_t* cg_counter,
+                                  value_type* output_buffer,
+                                  atomicT* num_matches,
+                                  OutputIt output_begin,
+                                  KeyEqual key_equal = KeyEqual{}) noexcept;
 
    public:
     /**
@@ -1041,8 +1050,8 @@ class static_multimap {
      * @param num_matches Size of the output sequence
      * @param output_begin Beginning of the output sequence of key/value pairs
      */
-    template <typename atomicT, typename OutputIt>
-    __inline__ __device__ void flush_warp_buffer(const unsigned int activemask,
+    template <typename CG, typename atomicT, typename OutputIt>
+    __inline__ __device__ void flush_warp_buffer(CG const& g,
                                                  uint32_t const num_outputs,
                                                  value_type* output_buffer,
                                                  atomicT* num_matches,
@@ -1148,12 +1157,13 @@ class static_multimap {
      * the empty value sentinel into the output only if `is_outer` is true.
      *
      * @tparam buffer_size Size of the output buffer
+     * @tparam warpT Warp (Cooperative Group) type
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
      * convertible to the map's `mapped_type`
      * @tparam KeyEqual Binary callable type
-     * @param activemask Mask of active threads in the warp
+     * @param warp The Cooperative Group (or warp) used to flush output buffer
      * @param g The Cooperative Group used to retrieve
      * @param k The key to search for
      * @param warp_counter Pointer to the warp counter
@@ -1164,18 +1174,19 @@ class static_multimap {
      * for equality
      */
     template <uint32_t buffer_size,
+              typename warpT,
               typename CG,
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void warp_retrieve(const unsigned int activemask,
-                                  CG const& g,
-                                  Key const& k,
-                                  uint32_t* warp_counter,
-                                  value_type* output_buffer,
-                                  atomicT* num_matches,
-                                  OutputIt output_begin,
-                                  KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ void retrieve(warpT const& warp,
+                             CG const& g,
+                             Key const& k,
+                             uint32_t* warp_counter,
+                             value_type* output_buffer,
+                             atomicT* num_matches,
+                             OutputIt output_begin,
+                             KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Find all the matches of a given key contained in multimap using vector
@@ -1186,12 +1197,13 @@ class static_multimap {
      * the empty value sentinel into the output only if `is_outer` is true.
      *
      * @tparam buffer_size Size of the output buffer
+     * @tparam warpT Warp (Cooperative Group) type
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
      * convertible to the map's `mapped_type`
      * @tparam KeyEqual Binary callable type
-     * @param activemask Mask of active threads in the warp
+     * @param warp The Cooperative Group (or warp) used to flush output buffer
      * @param g The Cooperative Group used to retrieve
      * @param k The key to search for
      * @param warp_counter Pointer to the warp counter
@@ -1202,18 +1214,19 @@ class static_multimap {
      * for equality
      */
     template <uint32_t buffer_size,
+              typename warpT,
               typename CG,
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void warp_retrieve_outer(const unsigned int activemask,
-                                        CG const& g,
-                                        Key const& k,
-                                        uint32_t* warp_counter,
-                                        value_type* output_buffer,
-                                        atomicT* num_matches,
-                                        OutputIt output_begin,
-                                        KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ void retrieve_outer(warpT const& warp,
+                                   CG const& g,
+                                   Key const& k,
+                                   uint32_t* warp_counter,
+                                   value_type* output_buffer,
+                                   atomicT* num_matches,
+                                   OutputIt output_begin,
+                                   KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Find all the matches of a given key contained in multimap using scalar
@@ -1244,13 +1257,13 @@ class static_multimap {
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void cg_retrieve(CG const& g,
-                                Key const& k,
-                                uint32_t* cg_counter,
-                                value_type* output_buffer,
-                                atomicT* num_matches,
-                                OutputIt output_begin,
-                                KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ void retrieve(CG const& g,
+                             Key const& k,
+                             uint32_t* cg_counter,
+                             value_type* output_buffer,
+                             atomicT* num_matches,
+                             OutputIt output_begin,
+                             KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Find all the matches of a given key contained in multimap using scalar
@@ -1282,13 +1295,13 @@ class static_multimap {
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void cg_retrieve_outer(CG const& g,
-                                      Key const& k,
-                                      uint32_t* cg_counter,
-                                      value_type* output_buffer,
-                                      atomicT* num_matches,
-                                      OutputIt output_begin,
-                                      KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ void retrieve_outer(CG const& g,
+                                   Key const& k,
+                                   uint32_t* cg_counter,
+                                   value_type* output_buffer,
+                                   atomicT* num_matches,
+                                   OutputIt output_begin,
+                                   KeyEqual key_equal = KeyEqual{}) noexcept;
   };  // class device_view
 
   /**

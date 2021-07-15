@@ -88,6 +88,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
       auto view = map.get_device_view();
 
       auto const block_size  = 128;
+      auto const warp_size   = 32;
       auto const buffer_size = CGSize * BufferSize;
       auto const stride      = 1;
       auto const grid_size = (CGSize * num_keys + stride * block_size - 1) / (stride * block_size);
@@ -105,7 +106,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
       CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_items, sizeof(atomic_ctr_type), device_id));
 
       // Use timers to explicitly mark the target region
-      cuco::detail::retrieve<block_size, CGSize, buffer_size, Key, Value, is_vector_load, is_outer>
+      cuco::detail::
+        retrieve<block_size, warp_size, CGSize, buffer_size, Key, Value, is_vector_load, is_outer>
         <<<grid_size, block_size, 0, launch.get_stream()>>>(d_unique_keys.begin(),
                                                             d_unique_keys.end(),
                                                             d_results.data().get(),

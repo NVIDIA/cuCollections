@@ -246,7 +246,7 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
-  auto const buffer_size = uses_vector_load() ? (32u * 3u) : (cg_size() * 3u);
+  auto const buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
   auto const stride      = 1;
   auto const grid_size   = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view              = get_device_view();
@@ -260,7 +260,14 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
-  detail::retrieve<block_size, cg_size(), buffer_size, Key, Value, uses_vector_load(), is_outer>
+  detail::retrieve<block_size,
+                   warp_size(),
+                   cg_size(),
+                   buffer_size,
+                   Key,
+                   Value,
+                   uses_vector_load(),
+                   is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, num_matches, view, key_equal);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
@@ -282,7 +289,7 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
-  auto const buffer_size = uses_vector_load() ? (32u * 3u) : (cg_size() * 3u);
+  auto const buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
   auto const stride      = 1;
   auto const grid_size   = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view              = get_device_view();
@@ -296,7 +303,14 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
-  detail::retrieve<block_size, cg_size(), buffer_size, Key, Value, uses_vector_load(), is_outer>
+  detail::retrieve<block_size,
+                   warp_size(),
+                   cg_size(),
+                   buffer_size,
+                   Key,
+                   Value,
+                   uses_vector_load(),
+                   is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, num_matches, view, key_equal);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
@@ -779,13 +793,14 @@ template <typename Key,
           typename Allocator>
 template <uint32_t buffer_size,
           bool is_outer,
+          typename warpT,
           typename CG,
           typename atomicT,
           typename OutputIt,
           typename KeyEqual>
 __device__ void
-static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_retrieve_impl(
-  const unsigned int activemask,
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retrieve_impl(
+  warpT const& warp,
   CG const& g,
   Key const& k,
   uint32_t* warp_counter,
@@ -794,15 +809,14 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_
   OutputIt output_begin,
   KeyEqual key_equal) noexcept
 {
-  const uint32_t warp_lane_id = threadIdx.x % 32;
-  const uint32_t cg_lane_id   = g.thread_rank();
+  const uint32_t cg_lane_id = g.thread_rank();
 
   auto current_slot = initial_slot(g, k);
 
   bool running                      = true;
   [[maybe_unused]] bool found_match = false;
 
-  while (__any_sync(activemask, running)) {
+  while (warp.any(running)) {
     if (running) {
       value_type arr[2];
       load_pair_array(&arr[0], current_slot);
@@ -854,11 +868,11 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_
       }
     }  // if running
 
-    __syncwarp(activemask);
-    if (*warp_counter + 32 * 2 > buffer_size) {
-      flush_warp_buffer(activemask, *warp_counter, output_buffer, num_matches, output_begin);
+    warp.sync();
+    if (*warp_counter + warp.size() * 2u > buffer_size) {
+      flush_warp_buffer(warp, *warp_counter, output_buffer, num_matches, output_begin);
       // First lane reset warp-level counter
-      if (warp_lane_id == 0) { *warp_counter = 0; }
+      if (warp.thread_rank() == 0) { *warp_counter = 0; }
     }
 
     current_slot = next_slot(current_slot);
@@ -878,7 +892,7 @@ template <uint32_t cg_size,
           typename OutputIt,
           typename KeyEqual>
 __device__ void
-static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::cg_retrieve_impl(
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retrieve_impl(
   CG const& g,
   Key const& k,
   uint32_t* cg_counter,
@@ -997,7 +1011,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush
   if (0 == lane_id) { offset = num_items->fetch_add(num_outputs, cuda::std::memory_order_relaxed); }
   offset = g.shfl(offset, 0);
 
-  for (auto index = lane_id; index < num_outputs; index += cg_size) {
+  for (auto index = lane_id; index < num_outputs; index += g.size()) {
     *(output_begin + offset + index) = output_buffer[index];
   }
 }
@@ -1007,25 +1021,23 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename atomicT, typename OutputIt>
+template <typename CG, typename atomicT, typename OutputIt>
 __inline__ __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_warp_buffer(
-  const unsigned int activemask,
+  CG const& g,
   uint32_t const num_outputs,
   value_type* output_buffer,
   atomicT* num_matches,
   OutputIt output_begin) noexcept
 {
-  int num_threads = __popc(activemask);
-
   std::size_t offset;
-  const auto lane_id = threadIdx.x % 32;
+  const auto lane_id = g.thread_rank();
   if (0 == lane_id) {
     offset = num_matches->fetch_add(num_outputs, cuda::std::memory_order_relaxed);
   }
-  offset = __shfl_sync(activemask, offset, 0);
+  offset = g.shfl(offset, 0);
 
-  for (auto index = lane_id; index < num_outputs; index += num_threads) {
+  for (auto index = lane_id; index < num_outputs; index += g.size()) {
     *(output_begin + offset + index) = output_buffer[index];
   }
 }
@@ -1108,10 +1120,14 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <uint32_t buffer_size, typename CG, typename atomicT, typename OutputIt, typename KeyEqual>
-__device__ void
-static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_retrieve(
-  const unsigned int activemask,
+template <uint32_t buffer_size,
+          typename warpT,
+          typename CG,
+          typename atomicT,
+          typename OutputIt,
+          typename KeyEqual>
+__device__ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retrieve(
+  warpT const& warp,
   CG const& g,
   Key const& k,
   uint32_t* warp_counter,
@@ -1121,8 +1137,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_
   KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = false;
-  warp_retrieve_impl<buffer_size, is_outer>(
-    activemask, g, k, warp_counter, output_buffer, num_matches, output_begin);
+  retrieve_impl<buffer_size, is_outer>(
+    warp, g, k, warp_counter, output_buffer, num_matches, output_begin);
 }
 
 template <typename Key,
@@ -1130,10 +1146,15 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <uint32_t buffer_size, typename CG, typename atomicT, typename OutputIt, typename KeyEqual>
+template <uint32_t buffer_size,
+          typename warpT,
+          typename CG,
+          typename atomicT,
+          typename OutputIt,
+          typename KeyEqual>
 __device__ void
-static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_retrieve_outer(
-  const unsigned int activemask,
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retrieve_outer(
+  warpT const& warp,
   CG const& g,
   Key const& k,
   uint32_t* warp_counter,
@@ -1143,8 +1164,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::warp_
   KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = true;
-  warp_retrieve_impl<buffer_size, is_outer>(
-    activemask, g, k, warp_counter, output_buffer, num_matches, output_begin);
+  retrieve_impl<buffer_size, is_outer>(
+    warp, g, k, warp_counter, output_buffer, num_matches, output_begin);
 }
 
 template <typename Key,
@@ -1158,8 +1179,7 @@ template <uint32_t cg_size,
           typename atomicT,
           typename OutputIt,
           typename KeyEqual>
-__device__ void
-static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::cg_retrieve(
+__device__ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retrieve(
   CG const& g,
   Key const& k,
   uint32_t* cg_counter,
@@ -1169,7 +1189,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::cg_re
   KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = false;
-  cg_retrieve_impl<cg_size, buffer_size, is_outer>(
+  retrieve_impl<cg_size, buffer_size, is_outer>(
     g, k, cg_counter, output_buffer, num_matches, output_begin);
 }
 
@@ -1185,7 +1205,7 @@ template <uint32_t cg_size,
           typename OutputIt,
           typename KeyEqual>
 __device__ void
-static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::cg_retrieve_outer(
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retrieve_outer(
   CG const& g,
   Key const& k,
   uint32_t* cg_counter,
@@ -1195,7 +1215,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::cg_re
   KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = true;
-  cg_retrieve_impl<cg_size, buffer_size, is_outer>(
+  retrieve_impl<cg_size, buffer_size, is_outer>(
     g, k, cg_counter, output_buffer, num_matches, output_begin);
 }
 

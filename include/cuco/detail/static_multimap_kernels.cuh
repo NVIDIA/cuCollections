@@ -281,6 +281,7 @@ __global__ void pair_count(
  * output_begin + *num_matches - 1)`. Use `count()` to determine the number of matching keys.
  *
  * @tparam block_size The size of the thread block
+ * @tparam warp_size The size of the warp
  * @tparam tile_size The number of threads in the Cooperative Groups
  * @tparam buffer_size Size of the output buffer
  * @tparam Key key type
@@ -303,6 +304,7 @@ __global__ void pair_count(
  * @param key_equal The binary function to compare two keys for equality
  */
 template <uint32_t block_size,
+          uint32_t warp_size,
           uint32_t tile_size,
           uint32_t buffer_size,
           typename Key,
@@ -321,43 +323,41 @@ __global__ std::enable_if_t<uses_vector_load, void> retrieve(InputIt first,
                                                              viewT view,
                                                              KeyEqual key_equal)
 {
+  constexpr uint32_t num_warps = block_size / warp_size;
+  const uint32_t warp_id       = threadIdx.x / warp_size;
+
+  auto warp    = cg::tiled_partition<warp_size>(cg::this_thread_block());
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid     = block_size * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
-
-  constexpr uint32_t num_warps = block_size / 32;
-  const uint32_t warp_id       = threadIdx.x / 32;
-  const uint32_t warp_lane_id  = threadIdx.x % 32;
 
   __shared__ cuco::pair_type<Key, Value> output_buffer[num_warps][buffer_size];
   // TODO: replace this with shared memory cuda::atomic variables once the dynamiic initialization
   // warning issue is solved __shared__ atomicT toto_countter[num_warps];
   __shared__ uint32_t warp_counter[num_warps];
 
-  if (warp_lane_id == 0) { warp_counter[warp_id] = 0; }
+  if (warp.thread_rank() == 0) { warp_counter[warp_id] = 0; }
 
-  const unsigned int activemask = __ballot_sync(0xffffffff, first + key_idx < last);
-
-  while (first + key_idx < last) {
+  while (warp.any(first + key_idx < last)) {
     auto key = *(first + key_idx);
     if constexpr (is_outer) {
-      view.warp_retrieve_outer<buffer_size>(activemask,
-                                            tile,
-                                            key,
-                                            &warp_counter[warp_id],
-                                            output_buffer[warp_id],
-                                            num_matches,
-                                            output_begin,
-                                            key_equal);
+      view.retrieve_outer<buffer_size>(warp,
+                                       tile,
+                                       key,
+                                       &warp_counter[warp_id],
+                                       output_buffer[warp_id],
+                                       num_matches,
+                                       output_begin,
+                                       key_equal);
     } else {
-      view.warp_retrieve<buffer_size>(activemask,
-                                      tile,
-                                      key,
-                                      &warp_counter[warp_id],
-                                      output_buffer[warp_id],
-                                      num_matches,
-                                      output_begin,
-                                      key_equal);
+      view.retrieve<buffer_size>(warp,
+                                 tile,
+                                 key,
+                                 &warp_counter[warp_id],
+                                 output_buffer[warp_id],
+                                 num_matches,
+                                 output_begin,
+                                 key_equal);
     }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
@@ -365,7 +365,7 @@ __global__ std::enable_if_t<uses_vector_load, void> retrieve(InputIt first,
   // Final flush of output buffer
   if (warp_counter[warp_id] > 0) {
     view.flush_warp_buffer(
-      activemask, warp_counter[warp_id], output_buffer[warp_id], num_matches, output_begin);
+      warp, warp_counter[warp_id], output_buffer[warp_id], num_matches, output_begin);
   }
 }
 
@@ -381,6 +381,7 @@ __global__ std::enable_if_t<uses_vector_load, void> retrieve(InputIt first,
  * output_begin + *num_matches - 1)`. Use `count()` to determine the number of matching keys.
  *
  * @tparam block_size The size of the thread block
+ * @tparam warp_size The size of the warp
  * @tparam tile_size The number of threads in the Cooperative Groups
  * @tparam buffer_size Size of the output buffer
  * @tparam Key key type
@@ -403,6 +404,7 @@ __global__ std::enable_if_t<uses_vector_load, void> retrieve(InputIt first,
  * @param key_equal The binary function to compare two keys for equality
  */
 template <uint32_t block_size,
+          uint32_t warp_size,
           uint32_t tile_size,
           uint32_t buffer_size,
           typename Key,
@@ -437,10 +439,10 @@ __global__ std::enable_if_t<not uses_vector_load, void> retrieve(InputIt first,
   while (first + key_idx < last) {
     auto key = *(first + key_idx);
     if constexpr (is_outer) {
-      view.cg_retrieve_outer<tile_size, buffer_size>(
+      view.retrieve_outer<tile_size, buffer_size>(
         tile, key, &cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin, key_equal);
     } else {
-      view.cg_retrieve<tile_size, buffer_size>(
+      view.retrieve<tile_size, buffer_size>(
         tile, key, &cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin, key_equal);
     }
     key_idx += (gridDim.x * block_size) / tile_size;
