@@ -40,6 +40,9 @@ class probe_sequence_base {
 
  public:
   __host__ __device__ static constexpr uint32_t cg_size() noexcept { return CGSize; }
+
+  __host__ __device__ static constexpr uint32_t vector_width() noexcept { return 2u; }
+
   __host__ __device__ static constexpr bool uses_vector_load() noexcept
   {
     return cuco::detail::is_packable<value_type>();
@@ -72,6 +75,7 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, Scope> {
   using probe_sequence_base<Key, Value, CGSize, Scope>::capacity_;
   using probe_sequence_base<Key, Value, CGSize, Scope>::slots_;
   using probe_sequence_base<Key, Value, CGSize, Scope>::cg_size;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::vector_width;
   using probe_sequence_base<Key, Value, CGSize, Scope>::uses_vector_load;
 
   __host__ __device__ explicit double_hashing(iterator slots, std::size_t capacity) noexcept
@@ -84,8 +88,10 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, Scope> {
   {
     std::size_t index;
     if constexpr (uses_vector_load()) {
-      step_size_ = (hash2_(k + 1) % (capacity_ / (cg_size() * 2) - 1) + 1) * cg_size() * 2;
-      index      = hash1_(k) % (capacity_ / (cg_size() * 2)) * cg_size() * 2 + g.thread_rank() * 2;
+      step_size_ = (hash2_(k + 1) % (capacity_ / (cg_size() * vector_width()) - 1) + 1) *
+                   cg_size() * vector_width();
+      index = hash1_(k) % (capacity_ / (cg_size() * vector_width())) * cg_size() * vector_width() +
+              g.thread_rank() * vector_width();
     } else {
       step_size_ = (hash2_(k + 1) % (capacity_ / cg_size() - 1) + 1) * cg_size();
       index      = (hash1_(k) + g.thread_rank()) % capacity_;
@@ -116,6 +122,7 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
   using probe_sequence_base<Key, Value, CGSize, Scope>::capacity_;
   using probe_sequence_base<Key, Value, CGSize, Scope>::slots_;
   using probe_sequence_base<Key, Value, CGSize, Scope>::cg_size;
+  using probe_sequence_base<Key, Value, CGSize, Scope>::vector_width;
   using probe_sequence_base<Key, Value, CGSize, Scope>::uses_vector_load;
 
   __host__ __device__ explicit linear_probing(iterator slots, std::size_t capacity)
@@ -127,7 +134,7 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
   __device__ iterator initial_slot(CG const& g, Key const k) noexcept
   {
     if constexpr (uses_vector_load()) {
-      return &slots_[(hash_(k) + g.thread_rank() * 2) % capacity_];
+      return &slots_[(hash_(k) + g.thread_rank() * vector_width()) % capacity_];
     } else {
       return &slots_[(hash_(k) + g.thread_rank()) % capacity_];
     }
@@ -137,7 +144,7 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
   {
     std::size_t index = s - slots_;
     if constexpr (uses_vector_load()) {
-      return &slots_[(index + cg_size() * 2) % capacity_];
+      return &slots_[(index + cg_size() * vector_width()) % capacity_];
     } else {
       return &slots_[(index + cg_size()) % capacity_];
     }

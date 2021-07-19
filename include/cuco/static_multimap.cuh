@@ -381,6 +381,13 @@ class static_multimap {
    */
   static constexpr bool uses_vector_load() noexcept { return ProbeSequence::uses_vector_load(); }
 
+  /**
+   * @brief The number of elements for each vector load
+   *
+   * @return The number of elements for each vector load.
+   */
+  static constexpr uint32_t vector_width() noexcept { return ProbeSequence::vector_width(); }
+
   class device_view_base {
    protected:
     // Import member type definitions from `static_multimap`
@@ -396,6 +403,13 @@ class static_multimap {
      * @return Boolean indicating if vector load is used.
      */
     static constexpr bool uses_vector_load() noexcept { return ProbeSequence::uses_vector_load(); }
+
+    /**
+     * @brief The number of elements for each vector load
+     *
+     * @return The number of elements for each vector load.
+     */
+    static constexpr uint32_t vector_width() noexcept { return ProbeSequence::vector_width(); }
 
     /**
      * @brief Load two key/value pairs from the given slot to the target pair array.

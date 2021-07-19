@@ -30,7 +30,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::static_multimap(
     slot_allocator_{alloc}
 {
   if constexpr (uses_vector_load()) {
-    capacity_ = cuco::detail::get_valid_capacity<cg_size() * 2>(capacity);
+    capacity_ = cuco::detail::get_valid_capacity<cg_size() * vector_width()>(capacity);
   } else {
     capacity_ = cuco::detail::get_valid_capacity<cg_size()>(capacity);
   }
@@ -869,7 +869,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
     }  // if running
 
     warp.sync();
-    if (*warp_counter + warp.size() * 2u > buffer_size) {
+    if (*warp_counter + warp.size() * vector_width() > buffer_size) {
       flush_output_buffer(warp, *warp_counter, output_buffer, num_matches, output_begin);
       // First lane reset warp-level counter
       if (warp.thread_rank() == 0) { *warp_counter = 0; }
