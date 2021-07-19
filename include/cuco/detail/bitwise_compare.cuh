@@ -19,7 +19,7 @@
 
 namespace cuco {
 namespace detail {
-__host__ __device__ constexpr int cuda_memcmp(void const* __lhs, void const* __rhs, size_t __count)
+__host__ __device__ int cuda_memcmp(void const* __lhs, void const* __rhs, size_t __count)
 {
   auto __lhs_c = reinterpret_cast<unsigned char const*>(__lhs);
   auto __rhs_c = reinterpret_cast<unsigned char const*>(__rhs);
@@ -34,7 +34,7 @@ __host__ __device__ constexpr int cuda_memcmp(void const* __lhs, void const* __r
 
 template <std::size_t TypeSize>
 struct bitwise_compare_impl {
-  __host__ __device__ static constexpr bool compare(char const* lhs, char const* rhs)
+  __host__ __device__ static bool compare(char const* lhs, char const* rhs)
   {
     return cuda_memcmp(lhs, rhs, TypeSize) == 0;
   }
@@ -42,7 +42,7 @@ struct bitwise_compare_impl {
 
 template <>
 struct bitwise_compare_impl<4> {
-  __host__ __device__ static constexpr bool compare(char const* lhs, char const* rhs)
+  __host__ __device__ static bool compare(char const* lhs, char const* rhs)
   {
     return *reinterpret_cast<uint32_t const*>(lhs) == *reinterpret_cast<uint32_t const*>(rhs);
   }
@@ -50,7 +50,7 @@ struct bitwise_compare_impl<4> {
 
 template <>
 struct bitwise_compare_impl<8> {
-  __host__ __device__ static constexpr bool compare(char const* lhs, char const* rhs)
+  __host__ __device__ static bool compare(char const* lhs, char const* rhs)
   {
     return *reinterpret_cast<uint64_t const*>(lhs) == *reinterpret_cast<uint64_t const*>(rhs);
   }
@@ -65,7 +65,7 @@ struct bitwise_compare_impl<8> {
  * @return If the bits in the object representations of lhs and rhs are identical.
  */
 template <typename T>
-__host__ __device__ constexpr bool bitwise_compare(T const& lhs, T const& rhs)
+__host__ __device__ bool bitwise_compare(T const& lhs, T const& rhs)
 {
   static_assert(std::has_unique_object_representations_v<T>,
                 "Bitwise compared objects must have unique object representation.");
