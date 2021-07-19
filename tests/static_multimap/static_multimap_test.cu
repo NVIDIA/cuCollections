@@ -84,13 +84,11 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
 
 TEMPLATE_TEST_CASE_SIG("Each key appears twice",
                        "",
-                       ((typename T, dist_type Dist), T, Dist),
-                       (int32_t, dist_type::DUAL),
-                       (int64_t, dist_type::DUAL))
+                       ((typename Key, typename Value, dist_type Dist), Key, Value, Dist),
+                       (int32_t, int32_t, dist_type::DUAL),
+                       (int32_t, int64_t, dist_type::DUAL),
+                       (int64_t, int64_t, dist_type::DUAL))
 {
-  using Key   = T;
-  using Value = T;
-
   constexpr std::size_t num_items{400};
   cuco::static_multimap<Key, Value> map{500, -1, -1};
 
@@ -173,13 +171,11 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
 
 TEMPLATE_TEST_CASE_SIG("Handling of non-matches",
                        "",
-                       ((typename T, dist_type Dist), T, Dist),
-                       (int32_t, dist_type::UNIQUE),
-                       (int64_t, dist_type::UNIQUE))
+                       ((typename Key, typename Value, dist_type Dist), Key, Value, Dist),
+                       (int32_t, int32_t, dist_type::UNIQUE),
+                       (int32_t, int64_t, dist_type::UNIQUE),
+                       (int64_t, int64_t, dist_type::UNIQUE))
 {
-  using Key   = T;
-  using Value = T;
-
   constexpr std::size_t num_keys{1'000'000};
   cuco::static_multimap<Key, Value> map{2'000'000, -1, -1};
 
@@ -255,13 +251,11 @@ TEMPLATE_TEST_CASE_SIG("Handling of non-matches",
 
 TEMPLATE_TEST_CASE_SIG("Evaluation of pair functions",
                        "",
-                       ((typename T, dist_type Dist), T, Dist),
-                       (int32_t, dist_type::UNIQUE),
-                       (int64_t, dist_type::UNIQUE))
+                       ((typename Key, typename Value, dist_type Dist), Key, Value, Dist),
+                       (int32_t, int32_t, dist_type::UNIQUE),
+                       (int32_t, int64_t, dist_type::UNIQUE),
+                       (int64_t, int64_t, dist_type::UNIQUE))
 {
-  using Key   = T;
-  using Value = T;
-
   constexpr std::size_t num_pairs{5'000'000};
   cuco::static_multimap<Key, Value> map{10'000'000, -1, -1};
 
