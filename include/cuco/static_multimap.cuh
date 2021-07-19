@@ -75,13 +75,18 @@ namespace cuco {
  * `insert` function will insert all keys into the map.
  *
  * The singular device-side operations allow individual threads to perform
- * independent insert or find/contains operations from device code. These
+ * independent operations (e.g. `insert`, etc.) from device code. These
  * operations are accessed through non-owning, trivially copyable "view" types:
  * `device_view` and `mutable_device_view`. The `device_view` class is an
  * immutable view that allows only non-modifying operations such as `count` or
  * `contains`. The `mutable_device_view` class only allows `insert` operations.
  * The two types are separate to prevent erroneous concurrent insert/find
  * operations.
+ *
+ * Loading two consecutive slots instead of one for small pairs can improve cache utilization since
+ * 16B memory loads are natively supported at the SASS/hardware level. This `vector load` method is
+ * implicitly applied to all involved operations (e.g. `insert`, `count`, and `retrieve`, etc.) if
+ * the pair is packable (see `multimap::uses_vector_load` logic).
  *
  * Example:
  * \code{.cpp}
@@ -163,13 +168,6 @@ class static_multimap {
    * @return Boolean indicating if concurrent insert/find is supported.
    */
   static constexpr uint32_t cg_size() noexcept { return ProbeSequence::cg_size(); }
-
-  /**
-   * @brief Indicate if vector load is used.
-   *
-   * @return Boolean indicating if vector load is used.
-   */
-  static constexpr bool uses_vector_load() noexcept { return ProbeSequence::uses_vector_load(); }
 
   /**
    * @brief Construct a fixed-size map with the specified capacity and sentinel values.
@@ -376,6 +374,13 @@ class static_multimap {
                           KeyEqual key_equal  = KeyEqual{});
 
  private:
+  /**
+   * @brief Indicate if vector load is used.
+   *
+   * @return Boolean indicating if vector load is used.
+   */
+  static constexpr bool uses_vector_load() noexcept { return ProbeSequence::uses_vector_load(); }
+
   class device_view_base {
    protected:
     // Import member type definitions from `static_multimap`
