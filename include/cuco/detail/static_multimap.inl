@@ -457,9 +457,9 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
     // the sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const first_slot_is_empty =
-      (detail::bitwise_compare(arr[0].first, this->get_empty_value_sentinel()));
+      (detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel()));
     auto const second_slot_is_empty =
-      (detail::bitwise_compare(arr[1].first, this->get_empty_value_sentinel()));
+      (detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel()));
     auto const window_contains_empty = g.ballot(first_slot_is_empty or second_slot_is_empty);
 
     if (window_contains_empty) {
@@ -862,7 +862,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
             auto output_idx           = atomicAdd(warp_counter, 1);
             Key key                   = k;
             output_buffer[output_idx] = cuco::make_pair<Key, Value>(
-              std::move(key), std::move(this->get_empty_key_sentinel()));
+              std::move(key), std::move(this->get_empty_value_sentinel()));
           }
         }
       }
@@ -937,10 +937,10 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
       running = false;
       if constexpr (is_outer) {
         if ((not found_match) && (lane_id == 0)) {
-          auto output_idx = (*cg_counter)++;
-          Key key         = k;
-          output_buffer[output_idx] =
-            cuco::make_pair<Key, Value>(std::move(key), std::move(this->get_empty_key_sentinel()));
+          auto output_idx           = (*cg_counter)++;
+          Key key                   = k;
+          output_buffer[output_idx] = cuco::make_pair<Key, Value>(
+            std::move(key), std::move(this->get_empty_value_sentinel()));
         }
       }
     }
