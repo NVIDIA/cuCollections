@@ -25,7 +25,8 @@
 
 #include <cuco/allocator.hpp>
 
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 700)
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
+  (__CUDA_ARCH__ >= 700)
 #define CUCO_HAS_CUDA_BARRIER
 #endif
 
@@ -44,22 +45,56 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 class dynamic_map;
 
 /**
+ * @brief Customization point that can be specialized to indicate that it is safe to perform bitwise
+ * equality comparisons on objects of type `T`.
+ *
+ * By default, only types where `std::has_unique_object_representations_v<T>` is true are safe for
+ * bitwise equality. However, this can be too restrictive for some types, e.g., floating point
+ * types.
+ *
+ * User-defined specializations of `is_bitwise_comparable` are allowed, but it is the users
+ * responsibility to ensure values do not occur that would lead to unexpected behavior. For example,
+ * if a `NaN` bit pattern were used as the empty sentinel value, it may not compare bitwise equal to
+ * other `NaN` bit patterns.
+ *
+ */
+template <typename T, typename = void>
+struct is_bitwise_comparable : std::false_type {
+};
+
+/// By default, only types with unique object representations are allowed
+template <typename T>
+struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_representations_v<T>>>
+  : std::true_type {
+};
+
+/**
+ * @brief Declares that a type `Type` is bitwise comparable.
+ *
+ */
+#define CUCO_DECLARE_BITWISE_COMPARABLE(Type)           \
+  namespace cuco {                                      \
+  template <>                                           \
+  struct is_bitwise_comparable<Type> : std::true_type { \
+  };                                                    \
+  }
+
+/**
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs with unique keys.
  *
- * Allows constant time concurrent inserts or concurrent find operations (not
- * concurrent insert and find) from threads in device code.
+ * Allows constant time concurrent inserts or concurrent find operations from threads in device
+ * code. Concurrent insert and find are supported only if the pair type is packable (see
+ * `cuco::detail::is_packable` constexpr).
  *
  * Current limitations:
- * - Requires keys and values that are trivially copyable and have unique object representations
+ * - Requires keys and values that where `cuco::is_bitwise_comparable<T>::value` is true
  *    - Comparisons against the "sentinel" values will always be done with bitwise comparisons.
- *      Therefore, the objects must have unique, bitwise object representations (e.g., no padding
- *      bits).
  * - Does not support erasing keys
  * - Capacity is fixed and will not grow automatically
- * - Requires the user to specify sentinel values for both key and mapped value
- * to indicate empty slots
- * - Does not support concurrent insert and find operations
+ * - Requires the user to specify sentinel values for both key and mapped value to indicate empty
+ * slots
+ * - Conditionally support concurrent insert and find operations
  *
  * The `static_map` supports two types of operations:
  * - Host-side "bulk" operations
@@ -117,14 +152,15 @@ template <typename Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_map {
-  template <typename T>
-  static constexpr bool is_CAS_safe =
-    std::is_trivially_copyable_v<T>and std::has_unique_object_representations_v<T>;
+  static_assert(
+    is_bitwise_comparable<Key>::value,
+    "Key type must have unique object representations or have been explicitly declared as safe for "
+    "bitwise comparison via specialization of cuco::is_bitwise_comparable<Key>.");
 
-  static_assert(is_CAS_safe<Key>,
-                "Key type must be trivially copyable and have unique object representation.");
-  static_assert(is_CAS_safe<Value>,
-                "Value type must be trivially copyable and have unique object representation.");
+  static_assert(is_bitwise_comparable<Value>::value,
+                "Value type must have unique object representations or have been explicitly "
+                "declared as safe for bitwise comparison via specialization of "
+                "cuco::is_bitwise_comparable<Value>.");
 
   friend class dynamic_map<Key, Value, Scope, Allocator>;
 
@@ -135,15 +171,33 @@ class static_map {
   using atomic_key_type    = cuda::atomic<key_type, Scope>;
   using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
   using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  using slot_type          = pair_atomic_type;
   using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
   using allocator_type     = Allocator;
   using slot_allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
 
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
+  static_assert(atomic_key_type::is_always_lock_free,
+                "A key type larger than 8B is supported for only sm_70 and up.");
+  static_assert(atomic_mapped_type::is_always_lock_free,
+                "A value type larger than 8B is supported for only sm_70 and up.");
+#endif
+
   static_map(static_map const&) = delete;
   static_map(static_map&&)      = delete;
   static_map& operator=(static_map const&) = delete;
   static_map& operator=(static_map&&) = delete;
+
+  /**
+   * @brief Indicate if concurrent insert/find is supported for the key/value types.
+   *
+   * @return Boolean indicating if concurrent insert/find is supported.
+   */
+  __host__ __device__ static constexpr bool supports_concurrent_insert_find() noexcept
+  {
+    return cuco::detail::is_packable<value_type>();
+  }
 
   /**
    * @brief Construct a fixed-size map with the specified capacity and sentinel values.
@@ -263,6 +317,7 @@ class static_map {
     using mapped_type    = Value;
     using iterator       = pair_atomic_type*;
     using const_iterator = pair_atomic_type const*;
+    using slot_type      = slot_type;
 
    private:
     pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
@@ -281,20 +336,6 @@ class static_map {
         empty_value_sentinel_{empty_value_sentinel}
     {
     }
-
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
-
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
 
     /**
      * @brief Returns the initial slot for a given key `k`
@@ -419,7 +460,48 @@ class static_map {
       return &slots_[(index + g.size()) % capacity_];
     }
 
+    /**
+     * @brief Initializes the given array of slots to the specified values given by `k` and `v`
+     * using the threads in the group `g`.
+     *
+     * @note This function synchronizes the group `g`.
+     *
+     * @tparam CG The type of the cooperative thread group
+     * @param g The cooperative thread group used to initialize the slots
+     * @param slots Pointer to the array of slots to initialize
+     * @param num_slots Number of slots to initialize
+     * @param k The desired key value for each slot
+     * @param v The desired mapped value for each slot
+     */
+
+    template <typename CG>
+    __device__ static void initialize_slots(
+      CG g, pair_atomic_type* slots, std::size_t num_slots, Key k, Value v)
+    {
+      auto tid = g.thread_rank();
+      while (tid < num_slots) {
+        new (&slots[tid].first) atomic_key_type{k};
+        new (&slots[tid].second) atomic_mapped_type{v};
+        tid += g.size();
+      }
+      g.sync();
+    }
+
    public:
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __host__ __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
+
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __host__ __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
+
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
      *
@@ -537,6 +619,8 @@ class static_map {
     using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
+    using slot_type      = typename device_view_base::slot_type;
+
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -548,12 +632,82 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-     __host__ __device__ device_mutable_view(pair_atomic_type* slots,
-                                             std::size_t capacity,
-                                             Key empty_key_sentinel,
-                                             Value empty_value_sentinel) noexcept
+    __host__ __device__ device_mutable_view(pair_atomic_type* slots,
+                                            std::size_t capacity,
+                                            Key empty_key_sentinel,
+                                            Value empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
+    }
+
+   private:
+    /**
+     * @brief Enumeration of the possible results of attempting to insert into a hash bucket.
+     */
+    enum class insert_result {
+      CONTINUE,  ///< Insert did not succeed, continue trying to insert
+      SUCCESS,   ///< New pair inserted successfully
+      DUPLICATE  ///< Insert did not succeed, key is already present
+    };
+
+    /**
+     * @brief Inserts the specified key/value pair with one single CAS operation.
+     *
+     * @tparam KeyEqual Binary callable type
+     * @param current_slot The slot to insert
+     * @param insert_pair The pair to insert
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return An insert result from the `insert_resullt` enumeration.
+     */
+    template <typename KeyEqual>
+    __device__ insert_result packed_cas(iterator current_slot,
+                                        value_type const& insert_pair,
+                                        KeyEqual key_equal) noexcept;
+
+    /**
+     * @brief Inserts the specified key/value pair with two back-to-back CAS operations.
+     *
+     * @tparam KeyEqual Binary callable type
+     * @param current_slot The slot to insert
+     * @param insert_pair The pair to insert
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return An insert result from the `insert_resullt` enumeration.
+     */
+    template <typename KeyEqual>
+    __device__ insert_result back_to_back_cas(iterator current_slot,
+                                              value_type const& insert_pair,
+                                              KeyEqual key_equal) noexcept;
+
+    /**
+     * @brief Inserts the specified key/value pair with a CAS of the key and a dependent write of
+     * the value.
+     *
+     * @tparam KeyEqual Binary callable type
+     * @param current_slot The slot to insert
+     * @param insert_pair The pair to insert
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return An insert result from the `insert_resullt` enumeration.
+     */
+    template <typename KeyEqual>
+    __device__ insert_result cas_dependent_write(iterator current_slot,
+                                                 value_type const& insert_pair,
+                                                 KeyEqual key_equal) noexcept;
+
+   public:
+    template <typename CG>
+    __device__ static device_mutable_view make_from_uninitialized_slots(
+      CG g,
+      pair_atomic_type* slots,
+      std::size_t capacity,
+      Key empty_key_sentinel,
+      Value empty_value_sentinel) noexcept
+    {
+      device_view_base::initialize_slots(
+        g, slots, capacity, empty_key_sentinel, empty_value_sentinel);
+      return device_mutable_view{slots, capacity, empty_key_sentinel, empty_value_sentinel};
     }
 
     /**
@@ -576,6 +730,7 @@ class static_map {
     __device__ bool insert(value_type const& insert_pair,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
+
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
@@ -586,7 +741,7 @@ class static_map {
      * significant boost in throughput compared to the non Cooperative Group
      * `insert` at moderate to high load factors.
      *
-     * @tparam Cooperative Group type
+     * @tparam CG Cooperative Group type
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      *
@@ -600,11 +755,10 @@ class static_map {
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool insert(CG g,
+    __device__ bool insert(CG const& g,
                            value_type const& insert_pair,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
-
   };  // class device mutable view
 
   /**
@@ -622,6 +776,8 @@ class static_map {
     using mapped_type    = typename device_view_base::mapped_type;
     using iterator       = typename device_view_base::iterator;
     using const_iterator = typename device_view_base::const_iterator;
+    using slot_type      = typename device_view_base::slot_type;
+
     /**
      * @brief Construct a view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
@@ -633,18 +789,32 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-     __host__ __device__ device_view(pair_atomic_type* slots,
-                                     std::size_t capacity,
-                                     Key empty_key_sentinel,
-                                     Value empty_value_sentinel) noexcept
+    __host__ __device__ device_view(pair_atomic_type* slots,
+                                    std::size_t capacity,
+                                    Key empty_key_sentinel,
+                                    Value empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+    {
+    }
+
+    /**
+     * @brief Construct a `device_view` from a `device_mutable_view` object
+     *
+     * @param mutable_map object of type `device_mutable_view`
+     */
+    __host__ __device__ explicit device_view(device_mutable_view mutable_map)
+      : device_view_base{mutable_map.get_slots(),
+                         mutable_map.get_capacity(),
+                         mutable_map.get_empty_key_sentinel(),
+                         mutable_map.get_empty_value_sentinel()}
     {
     }
 
     /**
      * @brief Makes a copy of given `device_view` using non-owned memory.
      *
-     * This function is intended to be used to create shared memory copies of small static maps, although global memory can be used as well.
+     * This function is intended to be used to create shared memory copies of small static maps,
+     * although global memory can be used as well.
      *
      * Example:
      * @code{.cpp}
@@ -673,7 +843,8 @@ class static_map {
      * @tparam CG The type of the cooperative thread group
      * @param g The ooperative thread group used to copy the slots
      * @param source_device_view `device_view` to copy from
-     * @param memory_to_use Array large enough to support `capacity` elements. Object does not take the ownership of the memory
+     * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
+     * the ownership of the memory
      * @return Copy of passed `device_view`
      */
     template <typename CG>
@@ -683,9 +854,7 @@ class static_map {
     {
 #if defined(CUDA_HAS_CUDA_BARRIER)
       __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
-      if (g.thread_rank() == 0) {
-        init(&barrier, g.size());
-      }
+      if (g.thread_rank() == 0) { init(&barrier, g.size()); }
       g.sync();
 
       cuda::memcpy_async(g,
@@ -697,10 +866,11 @@ class static_map {
       barrier.arrive_and_wait();
 #else
       pair_atomic_type const* const slots_ptr = source_device_view.get_slots();
-      for (std::size_t i = g.thread_rank(); i < source_device_view.get_capacity(); i += g.size())
-      {
-        new (&memory_to_use[i].first) atomic_key_type{slots_ptr[i].first.load(cuda::memory_order_relaxed)};
-        new (&memory_to_use[i].second) atomic_mapped_type{slots_ptr[i].second.load(cuda::memory_order_relaxed)};
+      for (std::size_t i = g.thread_rank(); i < source_device_view.get_capacity(); i += g.size()) {
+        new (&memory_to_use[i].first)
+          atomic_key_type{slots_ptr[i].first.load(cuda::memory_order_relaxed)};
+        new (&memory_to_use[i].second)
+          atomic_mapped_type{slots_ptr[i].second.load(cuda::memory_order_relaxed)};
       }
       g.sync();
 #endif

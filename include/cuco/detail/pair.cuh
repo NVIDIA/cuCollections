@@ -79,6 +79,62 @@ struct is_thrust_pair_like
       std::remove_reference_t<decltype(thrust::raw_reference_cast(std::declval<T>()))>> {
 };
 
+template <std::size_t N>
+struct packed {
+  using type = void;
+};
+template <>
+struct packed<sizeof(uint64_t)> {
+  using type = uint64_t;
+};
+template <>
+struct packed<sizeof(uint32_t)> {
+  using type = uint32_t;
+};
+template <typename pair_type>
+using packed_t = typename packed<sizeof(pair_type)>::type;
+
+/**
+ * @brief Indicates if a pair type can be packed.
+ *
+ * When the size of the key,value pair being inserted into the hash table is
+ * equal in size to a type where atomicCAS is natively supported, it is more
+ * efficient to "pack" the pair and insert it with a single atomicCAS.
+ *
+ * Pair types whose key and value have the same object representation may be
+ * packed. Also, the `pair_type` must not contain any padding bits otherwise
+ * accessing the packed value would be undefined.
+ *
+ * @tparam pair_type The pair type that will be packed
+ * @return true If the pair type can be packed
+ * @return false  If the pair type cannot be packed
+ */
+template <typename pair_type,
+          typename key_type   = typename pair_type::first_type,
+          typename value_type = typename pair_type::second_type>
+constexpr bool is_packable()
+{
+  return not std::is_void<packed_t<pair_type>>::value and
+         std::has_unique_object_representations_v<pair_type>;
+}
+
+/**
+ * @brief Allows viewing a pair in a packed representation
+ *
+ * Used as an optimization for inserting when a pair can be inserted with a
+ * single atomicCAS
+ */
+template <typename pair_type>
+union pair_converter {
+  using packed_type = packed_t<pair_type>;
+  packed_type packed;
+  pair_type pair;
+
+  __device__ pair_converter(pair_type _pair) : pair{_pair} {}
+
+  __device__ pair_converter(packed_type _packed) : packed{_packed} {}
+};
+
 }  // namespace detail
 
 /**
@@ -135,4 +191,5 @@ __host__ __device__ pair_type<F, S> make_pair(F&& f, S&& s) noexcept
 {
   return pair_type<F, S>{std::forward<F>(f), std::forward<S>(s)};
 }
+
 }  // namespace cuco
