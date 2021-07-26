@@ -22,27 +22,6 @@
 #include <cuco/static_multimap.cuh>
 #include <key_generator.hpp>
 
-NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
-  // Enum type:
-  dist_type,
-  // Callable to generate input strings:
-  // Short identifier used for tables, command-line args, etc.
-  // Used when context is available to figure out the enum type.
-  [](dist_type d) {
-    switch (d) {
-      case dist_type::GAUSSIAN: return "GAUSSIAN";
-      case dist_type::GEOMETRIC: return "GEOMETRIC";
-      case dist_type::UNIFORM: return "UNIFORM";
-      default: return "ERROR";
-    }
-  },
-  // Callable to generate descriptions:
-  // If non-empty, these are used in `--list` to describe values.
-  // Used when context may not be available to figure out the type from the
-  // input string.
-  // Just use `[](auto) { return std::string{}; }` if you don't want these.
-  [](auto) { return std::string{}; })
-
 /**
  * @brief A benchmark evaluating multi-value `insert` performance:
  * - Total number of insertions: 100'000'000
@@ -204,6 +183,11 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_f
   state.skip("Key should be the same type as Value.");
 }
 
+/**
+ * @brief A benchmark evaluating multi-value retrieve (`count` + `find_all`) performance:
+ * - Total number of insertions: 100'000'000
+ * - CG size: 8
+ */
 template <typename Key, typename Value, dist_type Dist, nvbench::int32_t Multiplicity>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_retrieve(
   nvbench::state& state,
@@ -256,12 +240,6 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_r
 {
   state.skip("Key should be the same type as Value.");
 }
-
-/**
- * @brief A benchmark evaluating multi-value retrieve (`count` + `find_all`) performance:
- * - Total number of insertions: 100'000'000
- * - CG size: 8
- */
 
 using key_type   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using value_type = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;

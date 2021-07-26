@@ -21,6 +21,27 @@
 
 enum class dist_type { GAUSSIAN, GEOMETRIC, UNIFORM };
 
+NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
+  // Enum type:
+  dist_type,
+  // Callable to generate input strings:
+  // Short identifier used for tables, command-line args, etc.
+  // Used when context is available to figure out the enum type.
+  [](dist_type d) {
+    switch (d) {
+      case dist_type::GAUSSIAN: return "GAUSSIAN";
+      case dist_type::GEOMETRIC: return "GEOMETRIC";
+      case dist_type::UNIFORM: return "UNIFORM";
+      default: return "ERROR";
+    }
+  },
+  // Callable to generate descriptions:
+  // If non-empty, these are used in `--list` to describe values.
+  // Used when context may not be available to figure out the type from the
+  // input string.
+  // Just use `[](auto) { return std::string{}; }` if you don't want these.
+  [](auto) { return std::string{}; })
+
 template <dist_type Dist, std::size_t Multiplicity, typename Key, typename OutputIt>
 static void generate_keys(OutputIt output_begin, OutputIt output_end)
 {
