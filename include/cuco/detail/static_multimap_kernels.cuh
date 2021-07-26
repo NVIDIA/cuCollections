@@ -286,7 +286,6 @@ __global__ void pair_count(
  * @tparam buffer_size Size of the output buffer
  * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
- * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
  * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
  * operations or not
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -309,19 +308,18 @@ template <uint32_t block_size,
           uint32_t buffer_size,
           typename Key,
           typename Value,
-          bool uses_vector_load,
           bool is_outer,
           typename InputIt,
           typename OutputIt,
           typename atomicT,
           typename viewT,
           typename KeyEqual>
-__global__ std::enable_if_t<uses_vector_load, void> retrieve(InputIt first,
-                                                             InputIt last,
-                                                             OutputIt output_begin,
-                                                             atomicT* num_matches,
-                                                             viewT view,
-                                                             KeyEqual key_equal)
+__global__ void vectorized_retrieve(InputIt first,
+                                    InputIt last,
+                                    OutputIt output_begin,
+                                    atomicT* num_matches,
+                                    viewT view,
+                                    KeyEqual key_equal)
 {
   constexpr uint32_t num_warps = block_size / warp_size;
   const uint32_t warp_id       = threadIdx.x / warp_size;
@@ -386,7 +384,6 @@ __global__ std::enable_if_t<uses_vector_load, void> retrieve(InputIt first,
  * @tparam buffer_size Size of the output buffer
  * @tparam Key key type
  * @tparam Value The type of the mapped value for the map
- * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
  * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
  * operations or not
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -409,19 +406,18 @@ template <uint32_t block_size,
           uint32_t buffer_size,
           typename Key,
           typename Value,
-          bool uses_vector_load,
           bool is_outer,
           typename InputIt,
           typename OutputIt,
           typename atomicT,
           typename viewT,
           typename KeyEqual>
-__global__ std::enable_if_t<not uses_vector_load, void> retrieve(InputIt first,
-                                                                 InputIt last,
-                                                                 OutputIt output_begin,
-                                                                 atomicT* num_matches,
-                                                                 viewT view,
-                                                                 KeyEqual key_equal)
+__global__ void retrieve(InputIt first,
+                         InputIt last,
+                         OutputIt output_begin,
+                         atomicT* num_matches,
+                         viewT view,
+                         KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid     = block_size * blockIdx.x + threadIdx.x;

@@ -260,15 +260,16 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
-  detail::retrieve<block_size,
-                   warp_size(),
-                   cg_size(),
-                   buffer_size,
-                   Key,
-                   Value,
-                   uses_vector_load(),
-                   is_outer>
-    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, num_matches, view, key_equal);
+  if constexpr (uses_vector_load()) {
+    detail::
+      vectorized_retrieve<block_size, warp_size(), cg_size(), buffer_size, Key, Value, is_outer>
+      <<<grid_size, block_size, 0, stream>>>(
+        first, last, output_begin, num_matches, view, key_equal);
+  } else {
+    detail::retrieve<block_size, warp_size(), cg_size(), buffer_size, Key, Value, is_outer>
+      <<<grid_size, block_size, 0, stream>>>(
+        first, last, output_begin, num_matches, view, key_equal);
+  }
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   auto output_end = output_begin + *num_matches;
@@ -303,15 +304,16 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
 
-  detail::retrieve<block_size,
-                   warp_size(),
-                   cg_size(),
-                   buffer_size,
-                   Key,
-                   Value,
-                   uses_vector_load(),
-                   is_outer>
-    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, num_matches, view, key_equal);
+  if constexpr (uses_vector_load()) {
+    detail::
+      vectorized_retrieve<block_size, warp_size(), cg_size(), buffer_size, Key, Value, is_outer>
+      <<<grid_size, block_size, 0, stream>>>(
+        first, last, output_begin, num_matches, view, key_equal);
+  } else {
+    detail::retrieve<block_size, warp_size(), cg_size(), buffer_size, Key, Value, is_outer>
+      <<<grid_size, block_size, 0, stream>>>(
+        first, last, output_begin, num_matches, view, key_equal);
+  }
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   auto output_end = output_begin + *num_matches;

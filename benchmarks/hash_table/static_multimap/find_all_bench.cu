@@ -53,8 +53,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
   std::size_t const size     = num_keys / occupancy;
   std::size_t const num_reps = state.get_int64("NumReps");
 
-  constexpr bool is_vector_load = true;
-  constexpr bool is_outer       = true;
+  constexpr bool is_outer = true;
 
   std::vector<Key> h_keys(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
@@ -107,7 +106,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
 
       // Use timers to explicitly mark the target region
       cuco::detail::
-        retrieve<block_size, warp_size, CGSize, buffer_size, Key, Value, is_vector_load, is_outer>
+        vectorized_retrieve<block_size, warp_size, CGSize, buffer_size, Key, Value, is_outer>
         <<<grid_size, block_size, 0, launch.get_stream()>>>(d_unique_keys.begin(),
                                                             d_unique_keys.end(),
                                                             d_results.data().get(),
