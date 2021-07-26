@@ -118,7 +118,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(
   *num_matches = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id, stream));
 
   detail::count<block_size, cg_size(), Key, Value, is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, key_equal);
@@ -152,7 +152,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count_
   *num_matches = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id, stream));
 
   detail::count<block_size, cg_size(), Key, Value, is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, key_equal);
@@ -186,7 +186,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   *num_matches = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id, stream));
 
   detail::pair_count<block_size, cg_size(), Key, Value, is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, pair_equal);
@@ -220,7 +220,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   *num_matches = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id, stream));
 
   detail::pair_count<block_size, cg_size(), Key, Value, is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, num_matches, view, pair_equal);
@@ -256,7 +256,7 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   *num_matches = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id, stream));
 
   if constexpr (uses_vector_load()) {
     detail::
@@ -300,7 +300,7 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
   *num_matches = 0;
   int device_id;
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_matches, sizeof(atomic_ctr_type), device_id, stream));
 
   if constexpr (uses_vector_load()) {
     detail::
