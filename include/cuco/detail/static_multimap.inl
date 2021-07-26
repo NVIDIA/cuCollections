@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <cuco/detail/bitwise_compare.cuh>
-
 namespace cuco {
 
 template <typename Key,
