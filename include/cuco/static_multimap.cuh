@@ -149,6 +149,8 @@ class static_multimap {
   using allocator_type     = Allocator;
   using slot_allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
+  using counter_allocator_type =
+    typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
 
   static_multimap(static_multimap const&) = delete;
   static_multimap(static_multimap&&)      = delete;
@@ -1369,13 +1371,14 @@ class static_multimap {
   }
 
  private:
-  pair_atomic_type* slots_{nullptr};      ///< Pointer to flat slots storage
-  std::size_t capacity_{};                ///< Total number of slots
-  std::size_t size_{};                    ///< Number of keys in map
-  Key empty_key_sentinel_{};              ///< Key value that represents an empty slot
-  Value empty_value_sentinel_{};          ///< Initial value of empty slot
-  slot_allocator_type slot_allocator_{};  ///< Allocator used to allocate slots
-};                                        // class static_multimap
+  pair_atomic_type* slots_{nullptr};            ///< Pointer to flat slots storage
+  std::size_t capacity_{};                      ///< Total number of slots
+  std::size_t size_{};                          ///< Number of keys in map
+  Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};                ///< Initial value of empty slot
+  slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
+  counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
+};                                              // class static_multimap
 }  // namespace cuco
 
 #include <cuco/detail/static_multimap.inl>
