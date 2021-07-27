@@ -80,6 +80,26 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
+template <typename InputIt, typename Predicate, typename KeyEqual>
+void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if(
+  InputIt first, InputIt last, Predicate pred, cudaStream_t stream, KeyEqual key_equal)
+{
+  auto num_keys         = std::distance(first, last);
+  auto const block_size = 128;
+  auto const stride     = 1;
+  auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view             = get_device_mutable_view();
+
+  detail::insert_if<block_size, cg_size()>
+    <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view, pred, key_equal);
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
 template <typename InputIt, typename OutputIt, typename KeyEqual>
 void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal)

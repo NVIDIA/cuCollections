@@ -208,9 +208,6 @@ class static_multimap {
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
    *
-   * If multiple keys in `[first, last)` compare equal, it is unspecified which
-   * element is inserted.
-   *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `value_type`
    * @tparam KeyEqual Binary callable type
@@ -224,6 +221,25 @@ class static_multimap {
               InputIt last,
               cudaStream_t stream = 0,
               KeyEqual key_equal  = KeyEqual{});
+
+  /**
+   * @brief Inserts key/value pairs in the range `[first, last)` if `pred` returns true.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the map's `value_type`
+   * @tparam Predicate Unary predicate function type
+   * @tparam KeyEqual Binary callable type
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stream CUDA stream used for insert
+   * @param key_equal The binary function to compare two keys for equality
+   */
+  template <typename InputIt, typename Predicate, typename KeyEqual = thrust::equal_to<key_type>>
+  void insert_if(InputIt first,
+                 InputIt last,
+                 Predicate pred,
+                 cudaStream_t stream = 0,
+                 KeyEqual key_equal  = KeyEqual{});
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.

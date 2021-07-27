@@ -57,11 +57,9 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
 /**
  * @brief Inserts all key/value pairs in the range `[first, last)`.
  *
- * If multiple keys in `[first, last)` compare equal, it is unspecified which
- * element is inserted. Uses the CUDA Cooperative Groups API to leverage groups
- * of multiple threads to perform each key/value insertion. This provides a
- * significant boost in throughput compared to the non Cooperative Group
- * `insert` at moderate to high load factors.
+ * Uses the CUDA Cooperative Groups API to leverage groups of multiple threads to perform each
+ * key/value insertion. This provides a significant boost in throughput compared to the non
+ * Cooperative Group `insert` at moderate to high load factors.
  *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
@@ -90,6 +88,49 @@ __global__ void insert(InputIt first, InputIt last, viewT view, KeyEqual key_equ
     // force conversion to value_type
     typename viewT::value_type const insert_pair{*it};
     view.insert(tile, insert_pair, key_equal);
+    it += (gridDim.x * block_size) / tile_size;
+  }
+}
+
+/**
+ * @brief Inserts key/value pairs in the range `[first, last)` if `pred` returns true.
+ *
+ * Uses the CUDA Cooperative Groups API to leverage groups of multiple threads to perform each
+ * key/value insertion. This provides a significant boost in throughput compared to the non
+ * Cooperative Group `insert` at moderate to high load factors.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform
+ * inserts
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `value_type`
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Predicate Unary predicate function type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of key/value pairs
+ * @param last End of the sequence of key/value pairs
+ * @param view Mutable device view used to access the hash map's slot storage
+ * @param key_equal The binary function used to compare two keys for equality
+ */
+template <uint32_t block_size,
+          uint32_t tile_size,
+          typename InputIt,
+          typename viewT,
+          typename Predicate,
+          typename KeyEqual>
+__global__ void insert_if(
+  InputIt first, InputIt last, viewT view, Predicate pred, KeyEqual key_equal)
+{
+  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid  = block_size * blockIdx.x + threadIdx.x;
+  auto it   = first + tid / tile_size;
+
+  while (it < last) {
+    if (pred(*it)) {
+      // force conversion to value_type
+      typename viewT::value_type const insert_pair{*it};
+      view.insert(tile, insert_pair, key_equal);
+    }
     it += (gridDim.x * block_size) / tile_size;
   }
 }
