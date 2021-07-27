@@ -54,6 +54,7 @@ struct pair_equal {
     return lhs.first == rhs.first;
   }
 };
+
 }  // namespace
 
 enum class dist_type { UNIQUE, DUAL, UNIFORM, GAUSSIAN };
@@ -247,6 +248,42 @@ TEMPLATE_TEST_CASE_SIG("Handling of non-matches",
 
     REQUIRE(size_outer == (size + num_keys / 2));
   }
+}
+
+TEMPLATE_TEST_CASE_SIG("Test of insert_if",
+                       "",
+                       ((typename Key, typename Value, dist_type Dist), Key, Value, Dist),
+                       (int32_t, int32_t, dist_type::UNIQUE),
+                       (int32_t, int64_t, dist_type::UNIQUE),
+                       (int64_t, int64_t, dist_type::UNIQUE))
+{
+  constexpr std::size_t num_keys{1'000'000};
+  cuco::static_multimap<Key, Value> map{2'000'000, -1, -1};
+
+  auto m_view = map.get_device_mutable_view();
+  auto view   = map.get_device_view();
+
+  std::vector<Key> h_keys(num_keys);
+  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
+
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+
+  for (auto i = 0; i < num_keys; ++i) {
+    h_pairs[i].first  = h_keys[i];
+    h_pairs[i].second = h_keys[i];
+  }
+
+  thrust::device_vector<Key> d_keys(h_keys);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+
+  auto pred_lambda = [] __device__(cuco::pair_type<Key, Value> pair) {
+    return pair.first % 2 == 0;
+  };
+  map.insert_if(d_pairs.begin(), d_pairs.end(), pred_lambda);
+
+  auto num = map.count(d_keys.begin(), d_keys.end());
+
+  REQUIRE(num * 2 == num_keys);
 }
 
 TEMPLATE_TEST_CASE_SIG("Evaluation of pair functions",
