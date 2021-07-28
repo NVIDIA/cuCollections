@@ -262,7 +262,7 @@ class static_multimap {
                 InputIt last,
                 OutputIt output_begin,
                 cudaStream_t stream = 0,
-                KeyEqual key_equal  = KeyEqual{});
+                KeyEqual key_equal  = KeyEqual{}) const;
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
@@ -279,7 +279,7 @@ class static_multimap {
   std::size_t count(InputIt first,
                     InputIt last,
                     cudaStream_t stream = 0,
-                    KeyEqual key_equal  = KeyEqual{});
+                    KeyEqual key_equal  = KeyEqual{}) const;
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap. If no
@@ -297,7 +297,7 @@ class static_multimap {
   std::size_t count_outer(InputIt first,
                           InputIt last,
                           cudaStream_t stream = 0,
-                          KeyEqual key_equal  = KeyEqual{});
+                          KeyEqual key_equal  = KeyEqual{}) const;
 
   /**
    * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap.
@@ -314,7 +314,7 @@ class static_multimap {
   std::size_t pair_count(InputIt first,
                          InputIt last,
                          PairEqual pair_equal,
-                         cudaStream_t stream = 0);
+                         cudaStream_t stream = 0) const;
 
   /**
    * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap.
@@ -332,7 +332,7 @@ class static_multimap {
   std::size_t pair_count_outer(InputIt first,
                                InputIt last,
                                PairEqual pair_equal,
-                               cudaStream_t stream = 0);
+                               cudaStream_t stream = 0) const;
 
   /**
    * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
@@ -360,7 +360,7 @@ class static_multimap {
                     InputIt last,
                     OutputIt output_begin,
                     cudaStream_t stream = 0,
-                    KeyEqual key_equal  = KeyEqual{});
+                    KeyEqual key_equal  = KeyEqual{}) const;
 
   /**
    * @brief Finds all the matches corresponding to all keys in the range `[first, last)`.
@@ -389,7 +389,7 @@ class static_multimap {
                           InputIt last,
                           OutputIt output_begin,
                           cudaStream_t stream = 0,
-                          KeyEqual key_equal  = KeyEqual{});
+                          KeyEqual key_equal  = KeyEqual{}) const;
 
  private:
   /**

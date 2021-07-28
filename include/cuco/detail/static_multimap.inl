@@ -102,7 +102,7 @@ template <typename Key,
           typename Allocator>
 template <typename InputIt, typename OutputIt, typename KeyEqual>
 void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal)
+  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -121,10 +121,8 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <typename InputIt, typename KeyEqual>
-std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(InputIt first,
-                                                                                InputIt last,
-                                                                                cudaStream_t stream,
-                                                                                KeyEqual key_equal)
+std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(
+  InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal) const
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -137,7 +135,8 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(
   atomic_ctr_type *h_num_matches, *d_num_matches;
 
   CUCO_CUDA_TRY(cudaMallocHost((void**)&h_num_matches, sizeof(atomic_ctr_type)));
-  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
+  auto tmp_counter_allocator = counter_allocator_;
+  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
 
   h_num_matches->store(0ull, cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
@@ -151,7 +150,8 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(
 
   auto result = h_num_matches->load(cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaFreeHost(h_num_matches));
-  std::allocator_traits<counter_allocator_type>::deallocate(counter_allocator_, d_num_matches, 1);
+  std::allocator_traits<counter_allocator_type>::deallocate(
+    tmp_counter_allocator, d_num_matches, 1);
 
   return result;
 }
@@ -163,7 +163,7 @@ template <typename Key,
           typename Allocator>
 template <typename InputIt, typename KeyEqual>
 std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count_outer(
-  InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal)
+  InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal) const
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -176,7 +176,8 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count_
   atomic_ctr_type *h_num_matches, *d_num_matches;
 
   CUCO_CUDA_TRY(cudaMallocHost((void**)&h_num_matches, sizeof(atomic_ctr_type)));
-  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
+  auto tmp_counter_allocator = counter_allocator_;
+  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
 
   h_num_matches->store(0ull, cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
@@ -190,7 +191,8 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count_
 
   auto result = h_num_matches->load(cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaFreeHost(h_num_matches));
-  std::allocator_traits<counter_allocator_type>::deallocate(counter_allocator_, d_num_matches, 1);
+  std::allocator_traits<counter_allocator_type>::deallocate(
+    tmp_counter_allocator, d_num_matches, 1);
 
   return result;
 }
@@ -202,7 +204,7 @@ template <typename Key,
           typename Allocator>
 template <typename InputIt, typename PairEqual>
 std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_count(
-  InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream)
+  InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream) const
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -215,7 +217,8 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   atomic_ctr_type *h_num_matches, *d_num_matches;
 
   CUCO_CUDA_TRY(cudaMallocHost((void**)&h_num_matches, sizeof(atomic_ctr_type)));
-  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
+  auto tmp_counter_allocator = counter_allocator_;
+  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
 
   h_num_matches->store(0ull, cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
@@ -229,7 +232,8 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
 
   auto result = h_num_matches->load(cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaFreeHost(h_num_matches));
-  std::allocator_traits<counter_allocator_type>::deallocate(counter_allocator_, d_num_matches, 1);
+  std::allocator_traits<counter_allocator_type>::deallocate(
+    tmp_counter_allocator, d_num_matches, 1);
 
   return result;
 }
@@ -241,7 +245,7 @@ template <typename Key,
           typename Allocator>
 template <typename InputIt, typename PairEqual>
 std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_count_outer(
-  InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream)
+  InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream) const
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -254,7 +258,8 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   atomic_ctr_type *h_num_matches, *d_num_matches;
 
   CUCO_CUDA_TRY(cudaMallocHost((void**)&h_num_matches, sizeof(atomic_ctr_type)));
-  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
+  auto tmp_counter_allocator = counter_allocator_;
+  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
 
   h_num_matches->store(0ull, cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
@@ -268,7 +273,8 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
 
   auto result = h_num_matches->load(cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaFreeHost(h_num_matches));
-  std::allocator_traits<counter_allocator_type>::deallocate(counter_allocator_, d_num_matches, 1);
+  std::allocator_traits<counter_allocator_type>::deallocate(
+    tmp_counter_allocator, d_num_matches, 1);
 
   return result;
 }
@@ -280,7 +286,7 @@ template <typename Key,
           typename Allocator>
 template <typename InputIt, typename OutputIt, typename KeyEqual>
 OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
-  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal)
+  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -295,7 +301,8 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   atomic_ctr_type *h_num_matches, *d_num_matches;
 
   CUCO_CUDA_TRY(cudaMallocHost((void**)&h_num_matches, sizeof(atomic_ctr_type)));
-  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
+  auto tmp_counter_allocator = counter_allocator_;
+  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
 
   h_num_matches->store(0ull, cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
@@ -317,7 +324,8 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
 
   auto output_end = output_begin + h_num_matches->load(cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaFreeHost(h_num_matches));
-  std::allocator_traits<counter_allocator_type>::deallocate(counter_allocator_, d_num_matches, 1);
+  std::allocator_traits<counter_allocator_type>::deallocate(
+    tmp_counter_allocator, d_num_matches, 1);
 
   return output_end;
 }
@@ -329,7 +337,7 @@ template <typename Key,
           typename Allocator>
 template <typename InputIt, typename OutputIt, typename KeyEqual>
 OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_outer(
-  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal)
+  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -344,7 +352,8 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
   atomic_ctr_type *h_num_matches, *d_num_matches;
 
   CUCO_CUDA_TRY(cudaMallocHost((void**)&h_num_matches, sizeof(atomic_ctr_type)));
-  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
+  auto tmp_counter_allocator = counter_allocator_;
+  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
 
   h_num_matches->store(0ull, cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
@@ -366,7 +375,8 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
 
   auto output_end = output_begin + h_num_matches->load(cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaFreeHost(h_num_matches));
-  std::allocator_traits<counter_allocator_type>::deallocate(counter_allocator_, d_num_matches, 1);
+  std::allocator_traits<counter_allocator_type>::deallocate(
+    tmp_counter_allocator, d_num_matches, 1);
 
   return output_end;
 }
