@@ -447,7 +447,7 @@ class static_multimap {
    * @param stream CUDA stream used for retrieve_outer
    * @return The total number of matches
    */
-  template <typename InputIt, typename OutputIt1, typename Output2, typename PairEqual>
+  template <typename InputIt, typename OutputIt1, typename OutputIt2, typename PairEqual>
   std::size_t pair_retrieve_outer(InputIt first,
                                   InputIt last,
                                   OutputIt1 probe_output_begin,
