@@ -409,7 +409,7 @@ class static_multimap {
    * @param first Beginning of the sequence of pairs
    * @param last End of the sequence of pairs
    * @param probe_output_begin Beginning of the sequence of the matched probe pairs
-   * @param probe_output_begin Beginning of the sequence of the matched contained pairs
+   * @param contained_output_begin Beginning of the sequence of the matched contained pairs
    * @param pair_equal The binary function to compare two pairs for equality
    * @param stream CUDA stream used for retrieve_outer
    * @return The total number of matches
@@ -442,7 +442,7 @@ class static_multimap {
    * @param first Beginning of the sequence of pairs
    * @param last End of the sequence of pairs
    * @param probe_output_begin Beginning of the sequence of the matched probe pairs
-   * @param probe_output_begin Beginning of the sequence of the matched contained pairs
+   * @param contained_output_begin Beginning of the sequence of the matched contained pairs
    * @param pair_equal The binary function to compare two pairs for equality
    * @param stream CUDA stream used for retrieve_outer
    * @return The total number of matches
@@ -1146,6 +1146,30 @@ class static_multimap {
                         value_type* output_buffer,
                         atomicT* num_matches,
                         OutputIt output_begin) noexcept;
+
+    /**
+     * @brief Flushes per-CG buffer into the output sequence.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt1 Device accessible output iterator for probe pairs
+     * @tparam OutputIt2 Device accessible output iterator for contained pairs
+     * @param g The Cooperative Group used to flush output buffer
+     * @param num_outputs Number of valid output in the buffer
+     * @param probe_output_buffer Buffer of the matched probe pair sequence
+     * @param contained_output_buffer Buffer of the matched contained pair sequence
+     * @param num_matches Size of the output sequence
+     * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     */
+    template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
+    __inline__ __device__ void flush_output_buffer(CG const& g,
+                                                   uint32_t const num_outputs,
+                                                   value_type* probe_output_buffer,
+                                                   value_type* contained_output_buffer,
+                                                   atomicT* num_matches,
+                                                   OutputIt1 probe_output_begin,
+                                                   OutputIt2 contained_output_begin) noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
