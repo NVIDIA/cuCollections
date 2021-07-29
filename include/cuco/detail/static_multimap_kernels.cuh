@@ -492,5 +492,51 @@ __global__ void retrieve(InputIt first,
   }
 }
 
+template <uint32_t block_size,
+          uint32_t warp_size,
+          uint32_t tile_size,
+          uint32_t buffer_size,
+          typename Key,
+          typename Value,
+          bool is_outer,
+          typename InputIt,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename atomicT,
+          typename viewT,
+          typename PairEqual>
+__global__ void vectorized_pair_retrieve(InputIt first,
+                                         InputIt last,
+                                         OutputIt1 probe_output_begin,
+                                         OutputIt1 contained_output_begin,
+                                         atomicT* num_matches,
+                                         viewT view,
+                                         PairEqual pair_equal)
+{
+}
+
+template <uint32_t block_size,
+          uint32_t warp_size,
+          uint32_t tile_size,
+          uint32_t buffer_size,
+          typename Key,
+          typename Value,
+          bool is_outer,
+          typename InputIt,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename atomicT,
+          typename viewT,
+          typename PairEqual>
+__global__ void pair_retrieve(InputIt first,
+                              InputIt last,
+                              OutputIt1 probe_output_begin,
+                              OutputIt1 contained_output_begin,
+                              atomicT* num_matches,
+                              viewT view,
+                              PairEqual pair_equal)
+{
+}
+
 }  // namespace detail
 }  // namespace cuco

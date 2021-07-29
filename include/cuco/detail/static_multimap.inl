@@ -138,7 +138,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(
   auto tmp_counter_allocator = counter_allocator_;
   d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
 
-  h_num_matches->store(0ull, cuda::std::memory_order_relaxed);
+  h_num_matches->store(static_cast<std::size_t>(0), cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     d_num_matches, h_num_matches, sizeof(atomic_ctr_type), cudaMemcpyHostToDevice, stream));
 
@@ -179,7 +179,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count_
   auto tmp_counter_allocator = counter_allocator_;
   d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
 
-  h_num_matches->store(0ull, cuda::std::memory_order_relaxed);
+  h_num_matches->store(static_cast<std::size_t>(0), cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     d_num_matches, h_num_matches, sizeof(atomic_ctr_type), cudaMemcpyHostToDevice, stream));
 
@@ -220,7 +220,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   auto tmp_counter_allocator = counter_allocator_;
   d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
 
-  h_num_matches->store(0ull, cuda::std::memory_order_relaxed);
+  h_num_matches->store(static_cast<std::size_t>(0), cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     d_num_matches, h_num_matches, sizeof(atomic_ctr_type), cudaMemcpyHostToDevice, stream));
 
@@ -261,7 +261,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   auto tmp_counter_allocator = counter_allocator_;
   d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
 
-  h_num_matches->store(0ull, cuda::std::memory_order_relaxed);
+  h_num_matches->store(static_cast<std::size_t>(0), cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     d_num_matches, h_num_matches, sizeof(atomic_ctr_type), cudaMemcpyHostToDevice, stream));
 
@@ -304,7 +304,7 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   auto tmp_counter_allocator = counter_allocator_;
   d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
 
-  h_num_matches->store(0ull, cuda::std::memory_order_relaxed);
+  h_num_matches->store(static_cast<std::size_t>(0), cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     d_num_matches, h_num_matches, sizeof(atomic_ctr_type), cudaMemcpyHostToDevice, stream));
 
@@ -355,7 +355,7 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
   auto tmp_counter_allocator = counter_allocator_;
   d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
 
-  h_num_matches->store(0ull, cuda::std::memory_order_relaxed);
+  h_num_matches->store(static_cast<std::size_t>(0), cuda::std::memory_order_relaxed);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     d_num_matches, h_num_matches, sizeof(atomic_ctr_type), cudaMemcpyHostToDevice, stream));
 
@@ -379,6 +379,126 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
     tmp_counter_allocator, d_num_matches, 1);
 
   return output_end;
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <typename InputIt, typename OutputIt1, typename OutputIt2, typename PairEqual>
+std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_retrieve(
+  InputIt first,
+  InputIt last,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
+  PairEqual pair_equal,
+  cudaStream_t stream) const
+{
+  auto num_pairs        = std::distance(first, last);
+  auto const block_size = 128;
+  // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
+  auto const buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
+  auto const stride      = 1;
+  auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_view();
+
+  constexpr bool is_outer = false;
+
+  atomic_ctr_type *h_num_matches, *d_num_matches;
+
+  CUCO_CUDA_TRY(cudaMallocHost((void**)&h_num_matches, sizeof(atomic_ctr_type)));
+  auto tmp_counter_allocator = counter_allocator_;
+  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
+
+  h_num_matches->store(static_cast<std::size_t>(0), cuda::std::memory_order_relaxed);
+  CUCO_CUDA_TRY(cudaMemcpyAsync(
+    d_num_matches, h_num_matches, sizeof(atomic_ctr_type), cudaMemcpyHostToDevice, stream));
+
+  if constexpr (uses_vector_load()) {
+    detail::vectorized_pair_retrieve<block_size,
+                                     warp_size(),
+                                     cg_size(),
+                                     buffer_size,
+                                     Key,
+                                     Value,
+                                     is_outer><<<grid_size, block_size, 0, stream>>>(
+      first, last, probe_output_begin, contained_output_begin, d_num_matches, view, pair_equal);
+  } else {
+    detail::pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, Key, Value, is_outer>
+      <<<grid_size, block_size, 0, stream>>>(
+        first, last, probe_output_begin, contained_output_begin, d_num_matches, view, pair_equal);
+  }
+  CUCO_CUDA_TRY(cudaMemcpyAsync(
+    h_num_matches, d_num_matches, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+
+  auto res = h_num_matches->load(cuda::std::memory_order_relaxed);
+  CUCO_CUDA_TRY(cudaFreeHost(h_num_matches));
+  std::allocator_traits<counter_allocator_type>::deallocate(
+    tmp_counter_allocator, d_num_matches, 1);
+
+  return res;
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <typename InputIt, typename OutputIt1, typename OutputIt2, typename PairEqual>
+std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_retrieve_outer(
+  InputIt first,
+  InputIt last,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
+  PairEqual pair_equal,
+  cudaStream_t stream) const
+{
+  auto num_pairs        = std::distance(first, last);
+  auto const block_size = 128;
+  // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
+  auto const buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
+  auto const stride      = 1;
+  auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_view();
+
+  constexpr bool is_outer = true;
+
+  atomic_ctr_type *h_num_matches, *d_num_matches;
+
+  CUCO_CUDA_TRY(cudaMallocHost((void**)&h_num_matches, sizeof(atomic_ctr_type)));
+  auto tmp_counter_allocator = counter_allocator_;
+  d_num_matches = std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
+
+  h_num_matches->store(static_cast<std::size_t>(0), cuda::std::memory_order_relaxed);
+  CUCO_CUDA_TRY(cudaMemcpyAsync(
+    d_num_matches, h_num_matches, sizeof(atomic_ctr_type), cudaMemcpyHostToDevice, stream));
+
+  if constexpr (uses_vector_load()) {
+    detail::vectorized_pair_retrieve<block_size,
+                                     warp_size(),
+                                     cg_size(),
+                                     buffer_size,
+                                     Key,
+                                     Value,
+                                     is_outer><<<grid_size, block_size, 0, stream>>>(
+      first, last, probe_output_begin, contained_output_begin, d_num_matches, view, pair_equal);
+  } else {
+    detail::pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, Key, Value, is_outer>
+      <<<grid_size, block_size, 0, stream>>>(
+        first, last, probe_output_begin, contained_output_begin, d_num_matches, view, pair_equal);
+  }
+  CUCO_CUDA_TRY(cudaMemcpyAsync(
+    h_num_matches, d_num_matches, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+
+  auto res = h_num_matches->load(cuda::std::memory_order_relaxed);
+  CUCO_CUDA_TRY(cudaFreeHost(h_num_matches));
+  std::allocator_traits<counter_allocator_type>::deallocate(
+    tmp_counter_allocator, d_num_matches, 1);
+
+  return res;
 }
 
 template <typename Key,
