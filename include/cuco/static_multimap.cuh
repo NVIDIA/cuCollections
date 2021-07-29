@@ -370,7 +370,7 @@ class static_multimap {
    * sentinel.
    *
    * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
-   * output_end)`. Use `count()` to determine the number of matching keys.
+   * output_end)`. Use `count_outer()` to determine the number of matching keys.
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `key_type`
@@ -390,6 +390,70 @@ class static_multimap {
                           OutputIt output_begin,
                           cudaStream_t stream = 0,
                           KeyEqual key_equal  = KeyEqual{}) const;
+
+  /**
+   * @brief Finds all pairs matching the input probe pair in the range `[first, last)`.
+   *
+   * if pair_equal(*(first + i), slot[j]) returns true, then *(first+i) is stored to
+   * `probe_output_begin`, and slot[j] is stored to `contained_output_begin`.
+   *
+   * Behavior is undefined if the total number of matching pairs exceeds
+   * `std::distance(probe_output_begin, probe_output_end)` (or
+   * `std::distance(contained_output_begin, contained_output_end)`). Use
+   * `pair_count()` to determine the number of matching pairs.
+   *
+   * @tparam InputIt Device accessible input iterator for probe pairs
+   * @tparam OutputIt1 Device accessible output iterator for probe matches
+   * @tparam OutputIt2 Device accessible output iterator for contained matches
+   * @tparam PairEqual Binary callable type
+   * @param first Beginning of the sequence of pairs
+   * @param last End of the sequence of pairs
+   * @param probe_output_begin Beginning of the sequence of the matched probe pairs
+   * @param probe_output_begin Beginning of the sequence of the matched contained pairs
+   * @param pair_equal The binary function to compare two pairs for equality
+   * @param stream CUDA stream used for retrieve_outer
+   * @return The total number of matches
+   */
+  template <typename InputIt, typename OutputIt1, typename OutputIt2, typename PairEqual>
+  std::size_t pair_retrieve(InputIt first,
+                            InputIt last,
+                            OutputIt1 probe_output_begin,
+                            OutputIt2 contained_output_begin,
+                            PairEqual pair_equal,
+                            cudaStream_t stream = 0) const;
+
+  /**
+   * @brief Finds all pairs matching the input probe pair in the range `[first, last)`.
+   *
+   * if pair_equal(*(first + i), slot[j]) returns true, then *(first+i) is stored to
+   * `probe_output_begin`, and slot[j] is stored to `contained_output_begin`. If *(first+i) doesn't
+   * have matches in the map, copies *(first + i) in `probe_output_begin` and a pair of
+   * `empty_key_sentinel` and `empty_value_sentinel` in `contained_output_begin`.
+   *
+   * Behavior is undefined if the total number of matching pairs exceeds
+   * `std::distance(probe_output_begin, probe_output_end)` (or
+   * `std::distance(contained_output_begin, contained_output_end)`). Use
+   * `pair_count()` to determine the number of matching pairs.
+   *
+   * @tparam InputIt Device accessible input iterator for probe pairs
+   * @tparam OutputIt1 Device accessible output iterator for probe matches
+   * @tparam OutputIt2 Device accessible output iterator for contained matches
+   * @tparam PairEqual Binary callable type
+   * @param first Beginning of the sequence of pairs
+   * @param last End of the sequence of pairs
+   * @param probe_output_begin Beginning of the sequence of the matched probe pairs
+   * @param probe_output_begin Beginning of the sequence of the matched contained pairs
+   * @param pair_equal The binary function to compare two pairs for equality
+   * @param stream CUDA stream used for retrieve_outer
+   * @return The total number of matches
+   */
+  template <typename InputIt, typename OutputIt1, typename Output2, typename PairEqual>
+  std::size_t pair_retrieve_outer(InputIt first,
+                                  InputIt last,
+                                  OutputIt1 probe_output_begin,
+                                  OutputIt2 contained_output_begin,
+                                  PairEqual pair_equal,
+                                  cudaStream_t stream = 0) const;
 
  private:
   /**
