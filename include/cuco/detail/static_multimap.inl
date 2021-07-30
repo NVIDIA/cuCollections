@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <thrust/tuple.h>
+
 namespace cuco {
 
 template <typename Key,
