@@ -1100,6 +1100,98 @@ class static_multimap {
                                   OutputIt output_begin,
                                   KeyEqual key_equal = KeyEqual{}) noexcept;
 
+    /**
+     * @brief Find all the matches of a given pair contained in multimap using vector
+     * loads with per-warp shared memory buffer.
+     *
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
+     * `[contained_output_begin, contained_output_end)`. In case of non-matches, copies `p` and the
+     * empty value sentinels into the output only if `is_outer` is true.
+     *
+     * @tparam buffer_size Size of the output buffer
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam warpT Warp (Cooperative Group) type
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt1 Device accessible output iterator for probe matches
+     * @tparam OutputIt2 Device accessible output iterator for contained matches
+     * @tparam PairEqual Binary callable type
+     * @param warp The Cooperative Group (or warp) used to flush output buffer
+     * @param g The Cooperative Group used to retrieve
+     * @param pair The pair to search for
+     * @param warp_counter Pointer to the warp counter
+     * @param probe_output_buffer Buffer of the matched probe pair sequence
+     * @param contained_output_buffer Buffer of the matched contained pair sequence
+     * @param num_matches Size of the output sequence
+     * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param pair_equal The binary callable used to compare two pairs for equality
+     */
+    template <uint32_t buffer_size,
+              bool is_outer,
+              typename warpT,
+              typename CG,
+              typename atomicT,
+              typename OutputIt1,
+              typename OutputIt2,
+              typename PairEqual>
+    __device__ void pair_retrieve_impl(warpT const& warp,
+                                       CG const& g,
+                                       value_type const& pair,
+                                       uint32_t* warp_counter,
+                                       value_type* probe_output_buffer,
+                                       value_type* contained_output_buffer,
+                                       atomicT* num_matches,
+                                       OutputIt1 probe_output_begin,
+                                       OutputIt2 contained_output_begin,
+                                       PairEqual pair_equal) noexcept;
+
+    /**
+     * @brief Find all the matches of a given pair contained in multimap using scalar
+     * loads with per-cg shared memory buffer.
+     *
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
+     * `[contained_output_begin, contained_output_end)`. In case of non-matches, copies `p` and the
+     * empty value sentinels into the output only if `is_outer` is true.
+     *
+     * @tparam cg_size The number of threads in CUDA Cooperative Groups
+     * @tparam buffer_size Size of the output buffer
+     * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt1 Device accessible output iterator for probe matches
+     * @tparam OutputIt2 Device accessible output iterator for contained matches
+     * @tparam PairEqual Binary callable type
+     * @param g The Cooperative Group used to retrieve
+     * @param pair The pair to search for
+     * @param cg_counter Pointer to the CG counter
+     * @param probe_output_buffer Buffer of the matched probe pair sequence
+     * @param contained_output_buffer Buffer of the matched contained pair sequence
+     * @param num_matches Size of the output sequence
+     * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param pair_equal The binary callable used to compare two pairs for equality
+     */
+    template <uint32_t cg_size,
+              uint32_t buffer_size,
+              bool is_outer,
+              typename CG,
+              typename atomicT,
+              typename OutputIt1,
+              typename OutputIt2,
+              typename PairEqual>
+    __device__ void pair_retrieve_impl(CG const& g,
+                                       value_type const& pair,
+                                       uint32_t* cg_counter,
+                                       value_type* probe_output_buffer,
+                                       value_type* contained_output_buffer,
+                                       atomicT* num_matches,
+                                       OutputIt1 probe_output_begin,
+                                       OutputIt2 contained_output_begin,
+                                       PairEqual pair_equal) noexcept;
+
    public:
     /**
      * @brief Flushes per-CG buffer into the output sequence using CG memcpy_async.
@@ -1148,7 +1240,7 @@ class static_multimap {
                         OutputIt output_begin) noexcept;
 
     /**
-     * @brief Flushes per-CG buffer into the output sequence.
+     * @brief Flushes per-CG buffer into the output sequences.
      *
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
@@ -1416,6 +1508,181 @@ class static_multimap {
                                    atomicT* num_matches,
                                    OutputIt output_begin,
                                    KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Find all the matches of a given pair contained in multimap using vector
+     * loads with per-warp shared memory buffer.
+     *
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
+     * `[contained_output_begin, contained_output_end)`.
+     *
+     * @tparam buffer_size Size of the output buffer
+     * @tparam warpT Warp (Cooperative Group) type
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt1 Device accessible output iterator for probe matches
+     * @tparam OutputIt2 Device accessible output iterator for contained matches
+     * @tparam PairEqual Binary callable type
+     * @param warp The Cooperative Group (or warp) used to flush output buffer
+     * @param g The Cooperative Group used to retrieve
+     * @param pair The pair to search for
+     * @param warp_counter Pointer to the warp counter
+     * @param probe_output_buffer Buffer of the matched probe pair sequence
+     * @param contained_output_buffer Buffer of the matched contained pair sequence
+     * @param num_matches Size of the output sequence
+     * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param pair_equal The binary callable used to compare two pairs for equality
+     */
+    template <uint32_t buffer_size,
+              typename warpT,
+              typename CG,
+              typename atomicT,
+              typename OutputIt1,
+              typename OutputIt2,
+              typename PairEqual>
+    __device__ void pair_retrieve(warpT const& warp,
+                                  CG const& g,
+                                  value_type const& pair,
+                                  uint32_t* warp_counter,
+                                  value_type* probe_output_buffer,
+                                  value_type* contained_output_buffer,
+                                  atomicT* num_matches,
+                                  OutputIt1 probe_output_begin,
+                                  OutputIt2 contained_output_begin,
+                                  PairEqual pair_equal) noexcept;
+
+    /**
+     * @brief Find all the matches of a given pair contained in multimap using vector
+     * loads with per-warp shared memory buffer.
+     *
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
+     * `[contained_output_begin, contained_output_end)`. In case of non-matches, copies `p` and the
+     * empty value sentinels into the output.
+     *
+     * @tparam buffer_size Size of the output buffer
+     * @tparam warpT Warp (Cooperative Group) type
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt1 Device accessible output iterator for probe matches
+     * @tparam OutputIt2 Device accessible output iterator for contained matches
+     * @tparam PairEqual Binary callable type
+     * @param warp The Cooperative Group (or warp) used to flush output buffer
+     * @param g The Cooperative Group used to retrieve
+     * @param pair The pair to search for
+     * @param warp_counter Pointer to the warp counter
+     * @param probe_output_buffer Buffer of the matched probe pair sequence
+     * @param contained_output_buffer Buffer of the matched contained pair sequence
+     * @param num_matches Size of the output sequence
+     * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param pair_equal The binary callable used to compare two pairs for equality
+     */
+    template <uint32_t buffer_size,
+              typename warpT,
+              typename CG,
+              typename atomicT,
+              typename OutputIt1,
+              typename OutputIt2,
+              typename PairEqual>
+    __device__ void pair_retrieve_outer(warpT const& warp,
+                                        CG const& g,
+                                        value_type const& pair,
+                                        uint32_t* warp_counter,
+                                        value_type* probe_output_buffer,
+                                        value_type* contained_output_buffer,
+                                        atomicT* num_matches,
+                                        OutputIt1 probe_output_begin,
+                                        OutputIt2 contained_output_begin,
+                                        PairEqual pair_equal) noexcept;
+
+    /**
+     * @brief Find all the matches of a given pair contained in multimap using scalar
+     * loads with per-cg shared memory buffer.
+     *
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
+     * `[contained_output_begin, contained_output_end)`.
+     *
+     * @tparam cg_size The number of threads in CUDA Cooperative Groups
+     * @tparam buffer_size Size of the output buffer
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt1 Device accessible output iterator for probe matches
+     * @tparam OutputIt2 Device accessible output iterator for contained matches
+     * @tparam PairEqual Binary callable type
+     * @param g The Cooperative Group used to retrieve
+     * @param pair The pair to search for
+     * @param cg_counter Pointer to the CG counter
+     * @param probe_output_buffer Buffer of the matched probe pair sequence
+     * @param contained_output_buffer Buffer of the matched contained pair sequence
+     * @param num_matches Size of the output sequence
+     * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param pair_equal The binary callable used to compare two pairs for equality
+     */
+    template <uint32_t cg_size,
+              uint32_t buffer_size,
+              typename CG,
+              typename atomicT,
+              typename OutputIt1,
+              typename OutputIt2,
+              typename PairEqual>
+    __device__ void pair_retrieve(CG const& g,
+                                  value_type const& pair,
+                                  uint32_t* cg_counter,
+                                  value_type* probe_output_buffer,
+                                  value_type* contained_output_buffer,
+                                  atomicT* num_matches,
+                                  OutputIt1 probe_output_begin,
+                                  OutputIt2 contained_output_begin,
+                                  PairEqual pair_equal) noexcept;
+
+    /**
+     * @brief Find all the matches of a given pair contained in multimap using scalar
+     * loads with per-cg shared memory buffer.
+     *
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
+     * `[contained_output_begin, contained_output_end)`. In case of non-matches, copies `p` and the
+     * empty value sentinels into the output.
+     *
+     * @tparam cg_size The number of threads in CUDA Cooperative Groups
+     * @tparam buffer_size Size of the output buffer
+     * @tparam CG Cooperative Group type
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt1 Device accessible output iterator for probe matches
+     * @tparam OutputIt2 Device accessible output iterator for contained matches
+     * @tparam PairEqual Binary callable type
+     * @param g The Cooperative Group used to retrieve
+     * @param pair The pair to search for
+     * @param cg_counter Pointer to the CG counter
+     * @param probe_output_buffer Buffer of the matched probe pair sequence
+     * @param contained_output_buffer Buffer of the matched contained pair sequence
+     * @param num_matches Size of the output sequence
+     * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param pair_equal The binary callable used to compare two pairs for equality
+     */
+    template <uint32_t cg_size,
+              uint32_t buffer_size,
+              typename CG,
+              typename atomicT,
+              typename OutputIt1,
+              typename OutputIt2,
+              typename PairEqual>
+    __device__ void pair_retrieve_outer(CG const& g,
+                                        value_type const& pair,
+                                        uint32_t* cg_counter,
+                                        value_type* probe_output_buffer,
+                                        value_type* contained_output_buffer,
+                                        atomicT* num_matches,
+                                        OutputIt1 probe_output_begin,
+                                        OutputIt2 contained_output_begin,
+                                        PairEqual pair_equal) noexcept;
+
   };  // class device_view
 
   /**

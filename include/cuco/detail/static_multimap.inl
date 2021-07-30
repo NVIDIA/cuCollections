@@ -1138,6 +1138,195 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
   }  // while running
 }
 
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <uint32_t buffer_size,
+          bool is_outer,
+          typename warpT,
+          typename CG,
+          typename atomicT,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename PairEqual>
+__device__ void
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve_impl(
+  warpT const& warp,
+  CG const& g,
+  value_type const& pair,
+  uint32_t* warp_counter,
+  value_type* probe_output_buffer,
+  value_type* contained_output_buffer,
+  atomicT* num_matches,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
+  PairEqual pair_equal) noexcept
+{
+  const uint32_t cg_lane_id = g.thread_rank();
+
+  auto key          = pair.first;
+  auto current_slot = initial_slot(g, key);
+
+  bool running                      = true;
+  [[maybe_unused]] bool found_match = false;
+
+  while (warp.any(running)) {
+    if (running) {
+      value_type arr[2];
+      load_pair_array(&arr[0], current_slot);
+
+      auto const first_slot_is_empty =
+        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+      auto const second_slot_is_empty =
+        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+      auto const first_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
+      auto const second_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
+      auto const first_exists  = g.ballot(first_equals);
+      auto const second_exists = g.ballot(second_equals);
+
+      if (first_exists or second_exists) {
+        if constexpr (is_outer) { found_match = true; }
+
+        auto num_first_matches  = __popc(first_exists);
+        auto num_second_matches = __popc(second_exists);
+
+        uint32_t output_idx;
+        if (0 == cg_lane_id) {
+          output_idx = atomicAdd(warp_counter, (num_first_matches + num_second_matches));
+        }
+        output_idx = g.shfl(output_idx, 0);
+
+        if (first_equals) {
+          auto lane_offset = __popc(first_exists & ((1 << cg_lane_id) - 1));
+          probe_output_buffer[output_idx + lane_offset]     = pair;
+          contained_output_buffer[output_idx + lane_offset] = arr[0];
+        }
+        if (second_equals) {
+          auto lane_offset = __popc(second_exists & ((1 << cg_lane_id) - 1));
+          probe_output_buffer[output_idx + lane_offset]     = pair;
+          contained_output_buffer[output_idx + lane_offset] = arr[1];
+        }
+      }
+      if (g.any(first_slot_is_empty or second_slot_is_empty)) {
+        running = false;
+        if constexpr (is_outer) {
+          if ((not found_match) && (cg_lane_id == 0)) {
+            auto output_idx                 = atomicAdd(warp_counter, 1);
+            probe_output_buffer[output_idx] = pair;
+            contained_output_buffer[output_idx] =
+              cuco::make_pair<Key, Value>(std::move(this->get_empty_key_sentinel()),
+                                          std::move(this->get_empty_value_sentinel()));
+          }
+        }
+      }
+    }  // if running
+
+    warp.sync();
+    if (*warp_counter + warp.size() * vector_width() > buffer_size) {
+      flush_output_buffer(warp,
+                          *warp_counter,
+                          probe_output_buffer,
+                          contained_output_buffer,
+                          num_matches,
+                          probe_output_begin,
+                          contained_output_begin);
+      // First lane reset warp-level counter
+      if (warp.thread_rank() == 0) { *warp_counter = 0; }
+    }
+
+    current_slot = next_slot(current_slot);
+  }  // while running
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <uint32_t cg_size,
+          uint32_t buffer_size,
+          bool is_outer,
+          typename CG,
+          typename atomicT,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename PairEqual>
+__device__ void
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve_impl(
+  CG const& g,
+  value_type const& pair,
+  uint32_t* cg_counter,
+  value_type* probe_output_buffer,
+  value_type* contained_output_buffer,
+  atomicT* num_matches,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
+  PairEqual pair_equal) noexcept
+{
+  const uint32_t lane_id = g.thread_rank();
+
+  auto key          = pair.first;
+  auto current_slot = initial_slot(g, key);
+
+  bool running                      = true;
+  [[maybe_unused]] bool found_match = false;
+
+  while (running) {
+    // TODO: Replace reinterpret_cast with atomic ref when possible. The current implementation
+    // is unsafe!
+    static_assert(sizeof(Key) == sizeof(cuda::atomic<Key>));
+    static_assert(sizeof(Value) == sizeof(cuda::atomic<Value>));
+    value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
+
+    auto const slot_is_empty =
+      detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
+    auto const equals = (not slot_is_empty and pair_equal(slot_contents, pair));
+    auto const exists = g.ballot(equals);
+
+    if (exists) {
+      if constexpr (is_outer) { found_match = true; }
+      auto num_matches    = __popc(exists);
+      uint32_t output_idx = *cg_counter;
+      if (equals) {
+        // Each match computes its lane-level offset
+        auto lane_offset                                  = __popc(exists & ((1 << lane_id) - 1));
+        probe_output_buffer[output_idx + lane_offset]     = pair;
+        contained_output_buffer[output_idx + lane_offset] = slot_contents;
+      }
+      if (0 == lane_id) { (*cg_counter) += num_matches; }
+    }
+    if (g.any(slot_is_empty)) {
+      running = false;
+      if constexpr (is_outer) {
+        if ((not found_match) && (lane_id == 0)) {
+          auto output_idx                     = (*cg_counter)++;
+          probe_output_buffer[output_idx]     = pair;
+          contained_output_buffer[output_idx] = cuco::make_pair<Key, Value>(
+            std::move(this->get_empty_key_sentinel()), std::move(this->get_empty_value_sentinel()));
+        }
+      }
+    }
+
+    g.sync();
+
+    // Flush if the next iteration won't fit into buffer
+    if ((*cg_counter + cg_size) > buffer_size) {
+      flush_output_buffer(g,
+                          *cg_counter,
+                          probe_output_buffer,
+                          contained_output_buffer,
+                          num_matches,
+                          probe_output_begin,
+                          contained_output_begin);
+      // First lane reset CG-level counter
+      if (lane_id == 0) { *cg_counter = 0; }
+    }
+    current_slot = next_slot(current_slot);
+  }  // while running
+}
+
 // public APIs
 
 template <typename Key,
@@ -1200,6 +1389,35 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush
 
   for (auto index = lane_id; index < num_outputs; index += g.size()) {
     *(output_begin + offset + index) = output_buffer[index];
+  }
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
+__inline__ __device__ void
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_output_buffer(
+  CG const& g,
+  uint32_t const num_outputs,
+  value_type* probe_output_buffer,
+  value_type* contained_output_buffer,
+  atomicT* num_matches,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin) noexcept
+{
+  std::size_t offset;
+  const auto lane_id = g.thread_rank();
+  if (0 == lane_id) {
+    offset = num_matches->fetch_add(num_outputs, cuda::std::memory_order_relaxed);
+  }
+  offset = g.shfl(offset, 0);
+
+  for (auto index = lane_id; index < num_outputs; index += g.size()) {
+    *(probe_output_begin + offset + index)     = probe_output_buffer[index];
+    *(contained_output_begin + offset + index) = contained_output_buffer[index];
   }
 }
 
@@ -1378,6 +1596,154 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
   constexpr bool is_outer = true;
   retrieve_impl<cg_size, buffer_size, is_outer>(
     g, k, cg_counter, output_buffer, num_matches, output_begin);
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <uint32_t buffer_size,
+          typename warpT,
+          typename CG,
+          typename atomicT,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename PairEqual>
+__device__ void
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve(
+  warpT const& warp,
+  CG const& g,
+  value_type const& pair,
+  uint32_t* warp_counter,
+  value_type* probe_output_buffer,
+  value_type* contained_output_buffer,
+  atomicT* num_matches,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
+  PairEqual pair_equal) noexcept
+{
+  constexpr bool is_outer = false;
+  pair_retrieve_impl<buffer_size, is_outer>(warp,
+                                            g,
+                                            pair,
+                                            warp_counter,
+                                            probe_output_buffer,
+                                            contained_output_buffer,
+                                            num_matches,
+                                            probe_output_begin,
+                                            contained_output_begin,
+                                            pair_equal);
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <uint32_t buffer_size,
+          typename warpT,
+          typename CG,
+          typename atomicT,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename PairEqual>
+__device__ void
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve_outer(
+  warpT const& warp,
+  CG const& g,
+  value_type const& pair,
+  uint32_t* warp_counter,
+  value_type* probe_output_buffer,
+  value_type* contained_output_buffer,
+  atomicT* num_matches,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
+  PairEqual pair_equal) noexcept
+{
+  constexpr bool is_outer = true;
+  pair_retrieve_impl<buffer_size, is_outer>(warp,
+                                            g,
+                                            pair,
+                                            warp_counter,
+                                            probe_output_buffer,
+                                            contained_output_buffer,
+                                            num_matches,
+                                            probe_output_begin,
+                                            contained_output_begin,
+                                            pair_equal);
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <uint32_t cg_size,
+          uint32_t buffer_size,
+          typename CG,
+          typename atomicT,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename PairEqual>
+__device__ void
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve(
+  CG const& g,
+  value_type const& pair,
+  uint32_t* cg_counter,
+  value_type* probe_output_buffer,
+  value_type* contained_output_buffer,
+  atomicT* num_matches,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
+  PairEqual pair_equal) noexcept
+{
+  constexpr bool is_outer = false;
+  pair_retrieve_impl<cg_size, buffer_size, is_outer>(g,
+                                                     pair,
+                                                     cg_counter,
+                                                     probe_output_buffer,
+                                                     contained_output_buffer,
+                                                     num_matches,
+                                                     probe_output_begin,
+                                                     contained_output_begin,
+                                                     pair_equal);
+}
+
+template <typename Key,
+          typename Value,
+          class ProbeSequence,
+          cuda::thread_scope Scope,
+          typename Allocator>
+template <uint32_t cg_size,
+          uint32_t buffer_size,
+          typename CG,
+          typename atomicT,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename PairEqual>
+__device__ void
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve_outer(
+  CG const& g,
+  value_type const& pair,
+  uint32_t* cg_counter,
+  value_type* probe_output_buffer,
+  value_type* contained_output_buffer,
+  atomicT* num_matches,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
+  PairEqual pair_equal) noexcept
+{
+  constexpr bool is_outer = true;
+  pair_retrieve_impl<cg_size, buffer_size, is_outer>(g,
+                                                     pair,
+                                                     cg_counter,
+                                                     probe_output_buffer,
+                                                     contained_output_buffer,
+                                                     num_matches,
+                                                     probe_output_begin,
+                                                     contained_output_begin,
+                                                     pair_equal);
 }
 
 }  // namespace cuco

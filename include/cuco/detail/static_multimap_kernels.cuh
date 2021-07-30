@@ -513,6 +513,60 @@ __global__ void vectorized_pair_retrieve(InputIt first,
                                          viewT view,
                                          PairEqual pair_equal)
 {
+  constexpr uint32_t num_warps = block_size / warp_size;
+  const uint32_t warp_id       = threadIdx.x / warp_size;
+
+  auto warp     = cg::tiled_partition<warp_size>(cg::this_thread_block());
+  auto tile     = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid      = block_size * blockIdx.x + threadIdx.x;
+  auto pair_idx = tid / tile_size;
+
+  __shared__ cuco::pair_type<Key, Value> probe_output_buffer[num_warps][buffer_size];
+  __shared__ cuco::pair_type<Key, Value> contained_output_buffer[num_warps][buffer_size];
+  // TODO: replace this with shared memory cuda::atomic variables once the dynamiic initialization
+  // warning issue is solved __shared__ atomicT toto_countter[num_warps];
+  __shared__ uint32_t warp_counter[num_warps];
+
+  if (warp.thread_rank() == 0) { warp_counter[warp_id] = 0; }
+
+  while (warp.any(first + pair_idx < last)) {
+    typename viewT::value_type pair = *(first + pair_idx);
+    if constexpr (is_outer) {
+      view.pair_retrieve_outer<buffer_size>(warp,
+                                            tile,
+                                            pair,
+                                            &warp_counter[warp_id],
+                                            probe_output_buffer[warp_id],
+                                            contained_output_buffer[warp_id],
+                                            num_matches,
+                                            probe_output_begin,
+                                            contained_output_begin,
+                                            pair_equal);
+    } else {
+      view.pair_retrieve<buffer_size>(warp,
+                                      tile,
+                                      pair,
+                                      &warp_counter[warp_id],
+                                      probe_output_buffer[warp_id],
+                                      contained_output_buffer[warp_id],
+                                      num_matches,
+                                      probe_output_begin,
+                                      contained_output_begin,
+                                      pair_equal);
+    }
+    pair_idx += (gridDim.x * block_size) / tile_size;
+  }
+
+  // Final flush of output buffer
+  if (warp_counter[warp_id] > 0) {
+    view.flush_output_buffer(warp,
+                             warp_counter[warp_id],
+                             probe_output_buffer[warp_id],
+                             contained_output_buffer[warp_id],
+                             num_matches,
+                             probe_output_begin,
+                             contained_output_begin);
+  }
 }
 
 template <uint32_t block_size,
@@ -536,6 +590,56 @@ __global__ void pair_retrieve(InputIt first,
                               viewT view,
                               PairEqual pair_equal)
 {
+  auto tile     = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid      = block_size * blockIdx.x + threadIdx.x;
+  auto pair_idx = tid / tile_size;
+
+  constexpr uint32_t num_cgs = block_size / tile_size;
+  const uint32_t cg_id       = threadIdx.x / tile_size;
+  const uint32_t lane_id     = tile.thread_rank();
+
+  __shared__ cuco::pair_type<Key, Value> probe_output_buffer[num_cgs][buffer_size];
+  __shared__ cuco::pair_type<Key, Value> contained_output_buffer[num_cgs][buffer_size];
+  __shared__ uint32_t cg_counter[num_cgs];
+
+  if (lane_id == 0) { cg_counter[cg_id] = 0; }
+
+  while (first + pair_idx < last) {
+    typename viewT::value_type pair = *(first + pair_idx);
+    if constexpr (is_outer) {
+      view.pair_retrieve_outer<tile_size, buffer_size>(tile,
+                                                       pair,
+                                                       &cg_counter[cg_id],
+                                                       probe_output_buffer[cg_id],
+                                                       contained_output_buffer[cg_id],
+                                                       num_matches,
+                                                       probe_output_begin,
+                                                       contained_output_begin,
+                                                       pair_equal);
+    } else {
+      view.pair_retrieve<tile_size, buffer_size>(tile,
+                                                 pair,
+                                                 &cg_counter[cg_id],
+                                                 probe_output_buffer[cg_id],
+                                                 contained_output_buffer[cg_id],
+                                                 num_matches,
+                                                 probe_output_begin,
+                                                 contained_output_begin,
+                                                 pair_equal);
+    }
+    pair_idx += (gridDim.x * block_size) / tile_size;
+  }
+
+  // Final flush of output buffer
+  if (cg_counter[cg_id] > 0) {
+    view.flush_output_buffer(tile,
+                             cg_counter[cg_id],
+                             probe_output_begin[cg_id],
+                             contained_output_buffer[cg_id],
+                             num_matches,
+                             probe_output_begin,
+                             contained_output_begin);
+  }
 }
 
 }  // namespace detail
