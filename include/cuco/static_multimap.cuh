@@ -403,8 +403,8 @@ class static_multimap {
    * `pair_count()` to determine the number of matching pairs.
    *
    * @tparam InputIt Device accessible input iterator for probe pairs
-   * @tparam OutputIt1 Device accessible output iterator for probe matches
-   * @tparam OutputIt2 Device accessible output iterator for contained matches
+   * @tparam OutputZipIt1 Device accessible output zip iterator for probe matches
+   * @tparam OutputZipIt2 Device accessible output zip iterator for contained matches
    * @tparam PairEqual Binary callable type
    * @param first Beginning of the sequence of pairs
    * @param last End of the sequence of pairs
@@ -414,11 +414,11 @@ class static_multimap {
    * @param stream CUDA stream used for retrieve_outer
    * @return The total number of matches
    */
-  template <typename InputIt, typename OutputIt1, typename OutputIt2, typename PairEqual>
+  template <typename InputIt, typename OutputZipIt1, typename OutputZipIt2, typename PairEqual>
   std::size_t pair_retrieve(InputIt first,
                             InputIt last,
-                            OutputIt1 probe_output_begin,
-                            OutputIt2 contained_output_begin,
+                            OutputZipIt1 probe_output_begin,
+                            OutputZipIt2 contained_output_begin,
                             PairEqual pair_equal,
                             cudaStream_t stream = 0) const;
 
@@ -436,8 +436,8 @@ class static_multimap {
    * `pair_count()` to determine the number of matching pairs.
    *
    * @tparam InputIt Device accessible input iterator for probe pairs
-   * @tparam OutputIt1 Device accessible output iterator for probe matches
-   * @tparam OutputIt2 Device accessible output iterator for contained matches
+   * @tparam OutputZipIt1 Device accessible output zip iterator for probe matches
+   * @tparam OutputZipIt2 Device accessible output zip iterator for contained matches
    * @tparam PairEqual Binary callable type
    * @param first Beginning of the sequence of pairs
    * @param last End of the sequence of pairs
@@ -447,11 +447,11 @@ class static_multimap {
    * @param stream CUDA stream used for retrieve_outer
    * @return The total number of matches
    */
-  template <typename InputIt, typename OutputIt1, typename OutputIt2, typename PairEqual>
+  template <typename InputIt, typename OutputZipIt1, typename OutputZipIt2, typename PairEqual>
   std::size_t pair_retrieve_outer(InputIt first,
                                   InputIt last,
-                                  OutputIt1 probe_output_begin,
-                                  OutputIt2 contained_output_begin,
+                                  OutputZipIt1 probe_output_begin,
+                                  OutputZipIt2 contained_output_begin,
                                   PairEqual pair_equal,
                                   cudaStream_t stream = 0) const;
 
@@ -1114,8 +1114,8 @@ class static_multimap {
      * @tparam warpT Warp (Cooperative Group) type
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt1 Device accessible output iterator for probe matches
-     * @tparam OutputIt2 Device accessible output iterator for contained matches
+     * @tparam OutputZipIt1 Device accessible output zip iterator for probe matches
+     * @tparam OutputZipIt2 Device accessible output zip iterator for contained matches
      * @tparam PairEqual Binary callable type
      * @param warp The Cooperative Group (or warp) used to flush output buffer
      * @param g The Cooperative Group used to retrieve
@@ -1133,8 +1133,8 @@ class static_multimap {
               typename warpT,
               typename CG,
               typename atomicT,
-              typename OutputIt1,
-              typename OutputIt2,
+              typename OutputZipIt1,
+              typename OutputZipIt2,
               typename PairEqual>
     __device__ void pair_retrieve_impl(warpT const& warp,
                                        CG const& g,
@@ -1143,8 +1143,8 @@ class static_multimap {
                                        value_type* probe_output_buffer,
                                        value_type* contained_output_buffer,
                                        atomicT* num_matches,
-                                       OutputIt1 probe_output_begin,
-                                       OutputIt2 contained_output_begin,
+                                       OutputZipIt1 probe_output_begin,
+                                       OutputZipIt2 contained_output_begin,
                                        PairEqual pair_equal) noexcept;
 
     /**
@@ -1161,8 +1161,8 @@ class static_multimap {
      * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt1 Device accessible output iterator for probe matches
-     * @tparam OutputIt2 Device accessible output iterator for contained matches
+     * @tparam OutputZipIt1 Device accessible output zip iterator for probe matches
+     * @tparam OutputZipIt2 Device accessible output zip iterator for contained matches
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to retrieve
      * @param pair The pair to search for
@@ -1179,8 +1179,8 @@ class static_multimap {
               bool is_outer,
               typename CG,
               typename atomicT,
-              typename OutputIt1,
-              typename OutputIt2,
+              typename OutputZipIt1,
+              typename OutputZipIt2,
               typename PairEqual>
     __device__ void pair_retrieve_impl(CG const& g,
                                        value_type const& pair,
@@ -1188,8 +1188,8 @@ class static_multimap {
                                        value_type* probe_output_buffer,
                                        value_type* contained_output_buffer,
                                        atomicT* num_matches,
-                                       OutputIt1 probe_output_begin,
-                                       OutputIt2 contained_output_begin,
+                                       OutputZipIt1 probe_output_begin,
+                                       OutputZipIt2 contained_output_begin,
                                        PairEqual pair_equal) noexcept;
 
    public:
@@ -1244,8 +1244,8 @@ class static_multimap {
      *
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt1 Device accessible output iterator for probe pairs
-     * @tparam OutputIt2 Device accessible output iterator for contained pairs
+     * @tparam OutputZipIt1 Device accessible output zip iterator for probe pairs
+     * @tparam OutputZipIt2 Device accessible output zip iterator for contained pairs
      * @param g The Cooperative Group used to flush output buffer
      * @param num_outputs Number of valid output in the buffer
      * @param probe_output_buffer Buffer of the matched probe pair sequence
@@ -1254,14 +1254,14 @@ class static_multimap {
      * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
      * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
      */
-    template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
+    template <typename CG, typename atomicT, typename OutputZipIt1, typename OutputZipIt2>
     __inline__ __device__ void flush_output_buffer(CG const& g,
                                                    uint32_t const num_outputs,
                                                    value_type* probe_output_buffer,
                                                    value_type* contained_output_buffer,
                                                    atomicT* num_matches,
-                                                   OutputIt1 probe_output_begin,
-                                                   OutputIt2 contained_output_begin) noexcept;
+                                                   OutputZipIt1 probe_output_begin,
+                                                   OutputZipIt2 contained_output_begin) noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
@@ -1521,8 +1521,8 @@ class static_multimap {
      * @tparam warpT Warp (Cooperative Group) type
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt1 Device accessible output iterator for probe matches
-     * @tparam OutputIt2 Device accessible output iterator for contained matches
+     * @tparam OutputZipIt1 Device accessible output zip iterator for probe matches
+     * @tparam OutputZipIt2 Device accessible output zip iterator for contained matches
      * @tparam PairEqual Binary callable type
      * @param warp The Cooperative Group (or warp) used to flush output buffer
      * @param g The Cooperative Group used to retrieve
@@ -1539,8 +1539,8 @@ class static_multimap {
               typename warpT,
               typename CG,
               typename atomicT,
-              typename OutputIt1,
-              typename OutputIt2,
+              typename OutputZipIt1,
+              typename OutputZipIt2,
               typename PairEqual>
     __device__ void pair_retrieve(warpT const& warp,
                                   CG const& g,
@@ -1549,8 +1549,8 @@ class static_multimap {
                                   value_type* probe_output_buffer,
                                   value_type* contained_output_buffer,
                                   atomicT* num_matches,
-                                  OutputIt1 probe_output_begin,
-                                  OutputIt2 contained_output_begin,
+                                  OutputZipIt1 probe_output_begin,
+                                  OutputZipIt2 contained_output_begin,
                                   PairEqual pair_equal) noexcept;
 
     /**
@@ -1566,8 +1566,8 @@ class static_multimap {
      * @tparam warpT Warp (Cooperative Group) type
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt1 Device accessible output iterator for probe matches
-     * @tparam OutputIt2 Device accessible output iterator for contained matches
+     * @tparam OutputZipIt1 Device accessible output zip iterator for probe matches
+     * @tparam OutputZipIt2 Device accessible output zip iterator for contained matches
      * @tparam PairEqual Binary callable type
      * @param warp The Cooperative Group (or warp) used to flush output buffer
      * @param g The Cooperative Group used to retrieve
@@ -1584,8 +1584,8 @@ class static_multimap {
               typename warpT,
               typename CG,
               typename atomicT,
-              typename OutputIt1,
-              typename OutputIt2,
+              typename OutputZipIt1,
+              typename OutputZipIt2,
               typename PairEqual>
     __device__ void pair_retrieve_outer(warpT const& warp,
                                         CG const& g,
@@ -1594,8 +1594,8 @@ class static_multimap {
                                         value_type* probe_output_buffer,
                                         value_type* contained_output_buffer,
                                         atomicT* num_matches,
-                                        OutputIt1 probe_output_begin,
-                                        OutputIt2 contained_output_begin,
+                                        OutputZipIt1 probe_output_begin,
+                                        OutputZipIt2 contained_output_begin,
                                         PairEqual pair_equal) noexcept;
 
     /**
@@ -1610,8 +1610,8 @@ class static_multimap {
      * @tparam buffer_size Size of the output buffer
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt1 Device accessible output iterator for probe matches
-     * @tparam OutputIt2 Device accessible output iterator for contained matches
+     * @tparam OutputZipIt1 Device accessible output zip iterator for probe matches
+     * @tparam OutputZipIt2 Device accessible output zip iterator for contained matches
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to retrieve
      * @param pair The pair to search for
@@ -1627,8 +1627,8 @@ class static_multimap {
               uint32_t buffer_size,
               typename CG,
               typename atomicT,
-              typename OutputIt1,
-              typename OutputIt2,
+              typename OutputZipIt1,
+              typename OutputZipIt2,
               typename PairEqual>
     __device__ void pair_retrieve(CG const& g,
                                   value_type const& pair,
@@ -1636,8 +1636,8 @@ class static_multimap {
                                   value_type* probe_output_buffer,
                                   value_type* contained_output_buffer,
                                   atomicT* num_matches,
-                                  OutputIt1 probe_output_begin,
-                                  OutputIt2 contained_output_begin,
+                                  OutputZipIt1 probe_output_begin,
+                                  OutputZipIt2 contained_output_begin,
                                   PairEqual pair_equal) noexcept;
 
     /**
@@ -1653,8 +1653,8 @@ class static_multimap {
      * @tparam buffer_size Size of the output buffer
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt1 Device accessible output iterator for probe matches
-     * @tparam OutputIt2 Device accessible output iterator for contained matches
+     * @tparam OutputZipIt1 Device accessible output zip iterator for probe matches
+     * @tparam OutputZipIt2 Device accessible output zip iterator for contained matches
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to retrieve
      * @param pair The pair to search for
@@ -1670,8 +1670,8 @@ class static_multimap {
               uint32_t buffer_size,
               typename CG,
               typename atomicT,
-              typename OutputIt1,
-              typename OutputIt2,
+              typename OutputZipIt1,
+              typename OutputZipIt2,
               typename PairEqual>
     __device__ void pair_retrieve_outer(CG const& g,
                                         value_type const& pair,
@@ -1679,8 +1679,8 @@ class static_multimap {
                                         value_type* probe_output_buffer,
                                         value_type* contained_output_buffer,
                                         atomicT* num_matches,
-                                        OutputIt1 probe_output_begin,
-                                        OutputIt2 contained_output_begin,
+                                        OutputZipIt1 probe_output_begin,
+                                        OutputZipIt2 contained_output_begin,
                                         PairEqual pair_equal) noexcept;
 
   };  // class device_view

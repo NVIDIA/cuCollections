@@ -386,12 +386,12 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename InputIt, typename OutputIt1, typename OutputIt2, typename PairEqual>
+template <typename InputIt, typename OutputZipIt1, typename OutputZipIt2, typename PairEqual>
 std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_retrieve(
   InputIt first,
   InputIt last,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin,
+  OutputZipIt1 probe_output_begin,
+  OutputZipIt2 contained_output_begin,
   PairEqual pair_equal,
   cudaStream_t stream) const
 {
@@ -446,12 +446,12 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename InputIt, typename OutputIt1, typename OutputIt2, typename PairEqual>
+template <typename InputIt, typename OutputZipIt1, typename OutputZipIt2, typename PairEqual>
 std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_retrieve_outer(
   InputIt first,
   InputIt last,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin,
+  OutputZipIt1 probe_output_begin,
+  OutputZipIt2 contained_output_begin,
   PairEqual pair_equal,
   cudaStream_t stream) const
 {
@@ -1148,8 +1148,8 @@ template <uint32_t buffer_size,
           typename warpT,
           typename CG,
           typename atomicT,
-          typename OutputIt1,
-          typename OutputIt2,
+          typename OutputZipIt1,
+          typename OutputZipIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve_impl(
@@ -1160,8 +1160,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin,
+  OutputZipIt1 probe_output_begin,
+  OutputZipIt2 contained_output_begin,
   PairEqual pair_equal) noexcept
 {
   const uint32_t cg_lane_id = g.thread_rank();
@@ -1250,8 +1250,8 @@ template <uint32_t cg_size,
           bool is_outer,
           typename CG,
           typename atomicT,
-          typename OutputIt1,
-          typename OutputIt2,
+          typename OutputZipIt1,
+          typename OutputZipIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve_impl(
@@ -1261,8 +1261,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin,
+  OutputZipIt1 probe_output_begin,
+  OutputZipIt2 contained_output_begin,
   PairEqual pair_equal) noexcept
 {
   const uint32_t lane_id = g.thread_rank();
@@ -1397,7 +1397,7 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
+template <typename CG, typename atomicT, typename OutputZipIt1, typename OutputZipIt2>
 __inline__ __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_output_buffer(
   CG const& g,
@@ -1405,8 +1405,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin) noexcept
+  OutputZipIt1 probe_output_begin,
+  OutputZipIt2 contained_output_begin) noexcept
 {
   std::size_t offset;
   const auto lane_id = g.thread_rank();
@@ -1416,8 +1416,12 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush
   offset = g.shfl(offset, 0);
 
   for (auto index = lane_id; index < num_outputs; index += g.size()) {
-    *(probe_output_begin + offset + index)     = probe_output_buffer[index];
-    *(contained_output_begin + offset + index) = contained_output_buffer[index];
+    auto& probe_pair                                        = probe_output_buffer[index];
+    auto& contained_pair                                    = contained_output_buffer[index];
+    thrust::get<0>(probe_output_begin + offset + index)     = probe_pair.first;
+    thrust::get<1>(probe_output_begin + offset + index)     = probe_pair.second;
+    thrust::get<0>(contained_output_begin + offset + index) = contained_pair.first;
+    thrust::get<1>(contained_output_begin + offset + index) = contained_pair.second;
   }
 }
 
@@ -1607,8 +1611,8 @@ template <uint32_t buffer_size,
           typename warpT,
           typename CG,
           typename atomicT,
-          typename OutputIt1,
-          typename OutputIt2,
+          typename OutputZipIt1,
+          typename OutputZipIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve(
@@ -1619,8 +1623,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin,
+  OutputZipIt1 probe_output_begin,
+  OutputZipIt2 contained_output_begin,
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = false;
@@ -1645,8 +1649,8 @@ template <uint32_t buffer_size,
           typename warpT,
           typename CG,
           typename atomicT,
-          typename OutputIt1,
-          typename OutputIt2,
+          typename OutputZipIt1,
+          typename OutputZipIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve_outer(
@@ -1657,8 +1661,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin,
+  OutputZipIt1 probe_output_begin,
+  OutputZipIt2 contained_output_begin,
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = true;
@@ -1683,8 +1687,8 @@ template <uint32_t cg_size,
           uint32_t buffer_size,
           typename CG,
           typename atomicT,
-          typename OutputIt1,
-          typename OutputIt2,
+          typename OutputZipIt1,
+          typename OutputZipIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve(
@@ -1694,8 +1698,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin,
+  OutputZipIt1 probe_output_begin,
+  OutputZipIt2 contained_output_begin,
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = false;
@@ -1719,8 +1723,8 @@ template <uint32_t cg_size,
           uint32_t buffer_size,
           typename CG,
           typename atomicT,
-          typename OutputIt1,
-          typename OutputIt2,
+          typename OutputZipIt1,
+          typename OutputZipIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve_outer(
@@ -1730,8 +1734,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin,
+  OutputZipIt1 probe_output_begin,
+  OutputZipIt2 contained_output_begin,
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = true;
