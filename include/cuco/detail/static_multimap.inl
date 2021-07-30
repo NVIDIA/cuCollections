@@ -1420,10 +1420,10 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush
   for (auto index = lane_id; index < num_outputs; index += g.size()) {
     auto& probe_pair                                        = probe_output_buffer[index];
     auto& contained_pair                                    = contained_output_buffer[index];
-    thrust::get<0>(probe_output_begin + offset + index)     = probe_pair.first;
-    thrust::get<1>(probe_output_begin + offset + index)     = probe_pair.second;
-    thrust::get<0>(contained_output_begin + offset + index) = contained_pair.first;
-    thrust::get<1>(contained_output_begin + offset + index) = contained_pair.second;
+    thrust::get<0>(*(probe_output_begin + offset + index))     = probe_pair.first;
+    thrust::get<1>(*(probe_output_begin + offset + index))     = probe_pair.second;
+    thrust::get<0>(*(contained_output_begin + offset + index)) = contained_pair.first;
+    thrust::get<1>(*(contained_output_begin + offset + index)) = contained_pair.second;
   }
 }
 
