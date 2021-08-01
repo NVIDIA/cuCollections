@@ -107,8 +107,7 @@ void nvbench_cuco_static_reduction_map_insert(
                map_type map{capacity, -1};
 
                timer.start();
-               // TODO use CUDA stream provided by nvbench::launch
-               map.insert(d_pairs_begin, d_pairs_end);
+               map.insert(d_pairs_begin, d_pairs_end, launch.get_stream());
                timer.stop();
              });
 }

@@ -16,10 +16,10 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
-#include <nvbench/nvbench.cuh>
-#include <key_generator.hpp>
-#include <util.hpp>
 #include <cuco/static_reduction_map.cuh>
+#include <key_generator.hpp>
+#include <nvbench/nvbench.cuh>
+#include <util.hpp>
 
 /**
  * @brief Enum representation for reduction operators
@@ -35,7 +35,7 @@ NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
   [](op_type o) {
     switch (o) {
       case op_type::REDUCE_ADD: return "REDUCE_ADD";
-      case op_type::CUSTOM_OP:  return "CUSTOM_OP";
+      case op_type::CUSTOM_OP: return "CUSTOM_OP";
       default: return "ERROR";
     }
   },
@@ -50,7 +50,8 @@ NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
  * @brief Maps the enum value of a cuco reduction operator to its actual type
  */
 template <op_type Op>
-struct op_type_map {};
+struct op_type_map {
+};
 
 template <>
 struct op_type_map<op_type::REDUCE_ADD> {
@@ -61,25 +62,17 @@ struct op_type_map<op_type::REDUCE_ADD> {
 template <>
 struct op_type_map<op_type::CUSTOM_OP> {
   template <typename T>
-  using type = cuco::custom_op<T, 0, thrust::plus<T>>; // sum reduction with CAS loop
+  using type = cuco::custom_op<T, 0, thrust::plus<T>>;  // sum reduction with CAS loop
 };
 
 /**
  * @brief A benchmark evaluating reduce-by-key performance.
  */
-template <
-  typename Key,
-  typename Value,
-  op_type Op>
+template <typename Key, typename Value, op_type Op>
 void nvbench_cuco_static_reduction_map_reduce_by_key(
-  nvbench::state& state,
-  nvbench::type_list<
-    Key,
-    Value,
-    nvbench::enum_type<Op>>)
+  nvbench::state& state, nvbench::type_list<Key, Value, nvbench::enum_type<Op>>)
 {
-  using map_type =
-    cuco::static_reduction_map<typename op_type_map<Op>::type<Value>, Key, Value>;
+  using map_type = cuco::static_reduction_map<typename op_type_map<Op>::type<Value>, Key, Value>;
 
   auto const num_elems    = state.get_int64("NumInputs");
   auto const occupancy    = state.get_float64("Occupancy");
@@ -102,50 +95,45 @@ void nvbench_cuco_static_reduction_map_reduce_by_key(
   // alternative occupancy calculation based on the total number of inputs
   // std::size_t const capacity = num_elems / occupancy;
 
-  thrust::device_vector<Key>   d_keys(h_keys);
+  thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<Value> d_values(h_values);
 
   auto d_pairs_begin =
     thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
   auto d_pairs_end = d_pairs_begin + num_elems;
 
-  state.exec(
-    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      map_type map{capacity, -1};
+  state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
+             [&](nvbench::launch& launch, auto& timer) {
+               map_type map{capacity, -1};
 
-      timer.start();
-        // TODO use CUDA stream provided by nvbench::launch
-        map.insert(d_pairs_begin, d_pairs_end);
-        map.retrieve_all(d_keys.begin(), d_values.begin());
-      timer.stop();
-    });
+               timer.start();
+               map.insert(d_pairs_begin, d_pairs_end, launch.get_stream());
+               map.retrieve_all(d_keys.begin(), d_values.begin(), launch.get_stream());
+               timer.stop();
+             });
 }
 
 // type parameter dimensions for benchmark
 using key_type_range   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using value_type_range = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
-using op_type_range = nvbench::enum_type_list<op_type::REDUCE_ADD, op_type::CUSTOM_OP>;
+using op_type_range    = nvbench::enum_type_list<op_type::REDUCE_ADD, op_type::CUSTOM_OP>;
 
 NVBENCH_BENCH_TYPES(nvbench_cuco_static_reduction_map_reduce_by_key,
-                    NVBENCH_TYPE_AXES(key_type_range,
-                                      value_type_range,
-                                      op_type_range))
+                    NVBENCH_TYPE_AXES(key_type_range, value_type_range, op_type_range))
   .set_name("cuco_static_reduction_map_reduce_by_key_occupancy")
   .set_type_axes_names({"Key", "Value", "ReductionOp"})
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs",  {100'000'000})  // Total number of key/value pairs
-  .add_float64_axis("Occupancy", nvbench::range(0.5, 0.9, 0.1)) // occupancy range
-  .add_int64_axis("Multiplicity", {8}) // only applies to uniform distribution
+  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs
+  .add_float64_axis("Occupancy", nvbench::range(0.5, 0.9, 0.1))  // occupancy range
+  .add_int64_axis("Multiplicity", {8})  // only applies to uniform distribution
   .add_string_axis("Distribution", {"GAUSSIAN", "UNIFORM", "UNIQUE", "SAME"});
 
 NVBENCH_BENCH_TYPES(nvbench_cuco_static_reduction_map_reduce_by_key,
-                    NVBENCH_TYPE_AXES(key_type_range,
-                                      value_type_range,
-                                      op_type_range))
+                    NVBENCH_TYPE_AXES(key_type_range, value_type_range, op_type_range))
   .set_name("cuco_static_reduction_map_reduce_by_key_multiplicity")
   .set_type_axes_names({"Key", "Value", "ReductionOp"})
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs",  {100'000'000})  // Total number of key/value pairs
-  .add_float64_axis("Occupancy", {0.8}) // fixed occupancy
-  .add_int64_axis("Multiplicity", {1, 10, 100, 1'000, 10'000, 100'000}) // key multiplicity range
+  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs
+  .add_float64_axis("Occupancy", {0.8})        // fixed occupancy
+  .add_int64_axis("Multiplicity", {1, 10, 100, 1'000, 10'000, 100'000})  // key multiplicity range
   .add_string_axis("Distribution", {"UNIFORM"});

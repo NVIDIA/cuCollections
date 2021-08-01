@@ -227,6 +227,8 @@ class static_reduction_map {
   using allocator_type     = Allocator;
   using slot_allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
+  using counter_allocator_type =
+    typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
 
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
   static_assert(atomic_key_type::is_always_lock_free,
@@ -282,13 +284,18 @@ class static_reduction_map {
    * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
+   * @param stream CUDA stream used for insert
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    */
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
+  void insert(InputIt first,
+              InputIt last,
+              cudaStream_t stream = 0,
+              Hash hash           = Hash{},
+              KeyEqual key_equal  = KeyEqual{});
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -305,6 +312,7 @@ class static_reduction_map {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of values retrieved for each key
+   * @param stream CUDA stream used for this operation
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    */
@@ -315,8 +323,9 @@ class static_reduction_map {
   void find(InputIt first,
             InputIt last,
             OutputIt output_begin,
-            Hash hash          = Hash{},
-            KeyEqual key_equal = KeyEqual{});
+            cudaStream_t stream = 0,
+            Hash hash           = Hash{},
+            KeyEqual key_equal  = KeyEqual{});
 
   /**
    * @brief Retrieves all of the keys and their associated values.
@@ -333,9 +342,10 @@ class static_reduction_map {
    * convertible from `mapped_type`.
    * @param keys_out Beginning output iterator for keys
    * @param values_out Beginning output iterator for values
+   * @param stream CUDA stream used for this operation
    */
   template <typename KeyOut, typename ValueOut>
-  void retrieve_all(KeyOut keys_out, ValueOut values_out);
+  void retrieve_all(KeyOut keys_out, ValueOut values_out, cudaStream_t stream = 0);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -351,6 +361,7 @@ class static_reduction_map {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream CUDA stream used
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    */
@@ -361,8 +372,9 @@ class static_reduction_map {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                Hash hash          = Hash{},
-                KeyEqual key_equal = KeyEqual{});
+                cudaStream_t stream = 0,
+                Hash hash           = Hash{},
+                KeyEqual key_equal  = KeyEqual{});
 
  private:
   class device_view_base {
@@ -1067,14 +1079,14 @@ class static_reduction_map {
 
   value_type const* raw_slots_end() const noexcept { return raw_slots_begin() + get_capacity(); }
 
-  pair_atomic_type* slots_{nullptr};      ///< Pointer to flat slots storage
-  std::size_t capacity_{};                ///< Total number of slots
-  std::size_t size_{};                    ///< Number of keys in map
-  Key empty_key_sentinel_{};              ///< Key value that represents an empty slot
-  Value empty_value_sentinel_{};          ///< Initial value of empty slot
-  atomic_ctr_type* num_successes_{};      ///< Number of successfully inserted keys on insert
-  ReductionOp op_{};                      ///< Binary operation reduction function object
-  slot_allocator_type slot_allocator_{};  ///< Allocator used to allocate slots
+  pair_atomic_type* slots_{nullptr};            ///< Pointer to flat slots storage
+  std::size_t capacity_{};                      ///< Total number of slots
+  std::size_t size_{};                          ///< Number of keys in map
+  Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};                ///< Initial value of empty slot
+  ReductionOp op_{};                            ///< Binary operation reduction function object
+  slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
+  counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
 };
 }  // namespace cuco
 
