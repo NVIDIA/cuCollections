@@ -45,3 +45,8 @@ set(DYNAMIC_MAP_TEST_SRC
 
 ConfigureTest(DYNAMIC_MAP_TEST "${DYNAMIC_MAP_TEST_SRC}")
 ####################################################################################################
+set(STATIC_REDUCTION_MAP_TEST_SRC
+    "${CMAKE_CURRENT_SOURCE_DIR}/static_reduction_map/static_reduction_map_test.cu")
+
+ConfigureTest(STATIC_REDUCTION_MAP_TEST "${STATIC_REDUCTION_MAP_TEST_SRC}")
+####################################################################################################
