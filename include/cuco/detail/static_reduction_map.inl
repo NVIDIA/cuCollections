@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <cuco/detail/bitwise_compare.cuh>
+
 namespace cuco {
 
 /**---------------------------------------------------------------------------*
@@ -23,7 +25,7 @@ namespace cuco {
 enum class insert_result {
   CONTINUE,  ///< Insert did not succeed, continue trying to insert
   SUCCESS,   ///< New pair inserted successfully
-  DUPLICATE  ///< Insert did not succeed, key is already present
+  DUPLICATE  ///< Key is already present
 };
 
 template <typename ReductionOp,
@@ -39,12 +41,12 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::static_reductio
     op_{reduction_op},
     slot_allocator_{alloc}
 {
-  slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity);
+  slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
 
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
-  auto const grid_size      = (capacity + stride * block_size - 1) / (stride * block_size);
-  detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size>>>(
+  auto const grid_size      = (capacity_ + stride * block_size - 1) / (stride * block_size);
+  detail::initialize<block_size, atomic_key_type, atomic_mapped_type><<<grid_size, block_size>>>(
     slots_, get_empty_key_sentinel(), get_empty_value_sentinel(), get_capacity());
 
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
@@ -58,7 +60,7 @@ template <typename ReductionOp,
 static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::~static_reduction_map()
 {
   std::allocator_traits<slot_allocator_type>::deallocate(slot_allocator_, slots_, capacity_);
-  CUCO_CUDA_TRY(cudaFree(num_successes_));
+  CUCO_ASSERT_CUDA_SUCCESS(cudaFree(num_successes_));
 }
 
 template <typename ReductionOp,
@@ -72,7 +74,9 @@ void static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::insert(Inp
                                                                              Hash hash,
                                                                              KeyEqual key_equal)
 {
-  auto num_keys         = std::distance(first, last);
+  auto num_keys = std::distance(first, last);
+  if (num_keys == 0) { return; }
+
   auto const block_size = 128;
   auto const stride     = 1;
   auto const tile_size  = 4;
@@ -98,9 +102,11 @@ template <typename ReductionOp,
           typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::find(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
+  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
 {
-  auto num_keys         = std::distance(first, last);
+  auto num_keys = std::distance(first, last);
+  if (num_keys == 0) { return; }
+
   auto const block_size = 128;
   auto const stride     = 1;
   auto const tile_size  = 4;
@@ -143,7 +149,8 @@ void static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::retrieve_a
   KeyOut keys_out, ValueOut values_out)
 {
   // Convert pair_type to thrust::tuple to allow assigning to a zip iterator
-  auto begin      = thrust::make_transform_iterator(raw_slots_begin(), detail::slot_to_tuple<Key, Value>{});
+  auto begin =
+    thrust::make_transform_iterator(raw_slots_begin(), detail::slot_to_tuple<Key, Value>{});
   auto end        = begin + get_capacity();
   auto filled     = detail::slot_is_filled<Key>{get_empty_key_sentinel()};
   auto zipped_out = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
@@ -158,9 +165,11 @@ template <typename ReductionOp,
           typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal) noexcept
+  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
 {
-  auto num_keys         = std::distance(first, last);
+  auto num_keys = std::distance(first, last);
+  if (num_keys == 0) { return; }
+
   auto const block_size = 128;
   auto const stride     = 1;
   auto const tile_size  = 4;
@@ -178,7 +187,7 @@ template <typename ReductionOp,
           cuda::thread_scope Scope,
           typename Allocator>
 template <typename Hash, typename KeyEqual>
-__device__ Value
+__device__ bool
 static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
@@ -195,7 +204,10 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
       slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
 
     if (key_success or key_equal(insert_pair.first, expected_key)) {
-      return this->get_op().apply(slot_value, insert_pair.second);
+      this->get_op().apply(slot_value, insert_pair.second);
+
+      // only return true if a new has been inserted
+      return key_success;
     }
 
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
@@ -212,7 +224,7 @@ template <typename ReductionOp,
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool
 static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_view::insert(
-  CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
+  CG const& g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, insert_pair.first, hash);
 
@@ -224,7 +236,7 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_
     // The user provided `key_equal` should never be used to compare against `empty_key_sentinel` as
     // the sentinel is not a valid key value. Therefore, first check for the sentinel
     // TODO: Use memcmp
-    auto const slot_is_empty = (current_key == this->get_empty_key_sentinel());
+    auto const slot_is_empty = detail::bitwise_compare(current_key, this->get_empty_key_sentinel());
 
     auto const key_exists = not slot_is_empty and key_equal(current_key, insert_pair.first);
 
@@ -287,7 +299,9 @@ __device__
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     // Key doesn't exist, return end()
-    if (existing_key == this->get_empty_key_sentinel()) { return this->end(); }
+    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
+      return this->end();
+    }
 
     // Key exists, return iterator to location
     if (key_equal(existing_key, k)) { return current_slot; }
@@ -312,7 +326,9 @@ __device__ typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocat
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     // Key doesn't exist, return end()
-    if (existing_key == this->get_empty_key_sentinel()) { return this->end(); }
+    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
+      return this->end();
+    }
 
     // Key exists, return iterator to location
     if (key_equal(existing_key, k)) { return current_slot; }
@@ -330,7 +346,7 @@ template <typename CG, typename Hash, typename KeyEqual>
 __device__
   typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::iterator
   static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::find(
-    CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
+    CG const& g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
@@ -339,7 +355,8 @@ __device__
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
     // the sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads,
     // so we return an iterator to the entry
@@ -370,7 +387,7 @@ template <typename CG, typename Hash, typename KeyEqual>
 __device__ typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::
   const_iterator
   static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::find(
-    CG g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
+    CG const& g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
@@ -379,7 +396,8 @@ __device__ typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocat
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
     // the sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
     // the entry
@@ -418,7 +436,7 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::co
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    if (existing_key == empty_key_sentinel_) { return false; }
+    if (detail::bitwise_compare(existing_key, empty_key_sentinel_)) { return false; }
 
     if (key_equal(existing_key, k)) { return true; }
 
@@ -434,7 +452,7 @@ template <typename ReductionOp,
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool
 static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::contains(
-  CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
+  CG const& g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
@@ -443,7 +461,8 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::co
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
     // the sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty = (existing_key == this->get_empty_key_sentinel());
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
     // the entry

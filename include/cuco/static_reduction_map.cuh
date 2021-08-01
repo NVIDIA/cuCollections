@@ -17,20 +17,24 @@
 #pragma once
 
 #include <cooperative_groups.h>
+#include <thrust/copy.h>
 #include <thrust/distance.h>
 #include <thrust/functional.h>
-#include <cub/cub.cuh>
-#include <cuda/std/atomic>
-#include <memory>
-#include <thrust/copy.h>
 #include <thrust/iterator/transform_output_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/tuple.h>
+#include <cub/cub.cuh>
+#include <cuda/std/atomic>
+#include <memory>
 
 #include <cuco/allocator.hpp>
-#ifndef CUDART_VERSION
-#error CUDART_VERSION Undefined!
-#elif (CUDART_VERSION >= 11000)  // including with CUDA 10.2 leads to compilation errors
+
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
+  (__CUDA_ARCH__ >= 700)
+#define CUCO_HAS_CUDA_BARRIER
+#endif
+
+#if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
 #endif
 
@@ -38,6 +42,7 @@
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_reduction_map_kernels.cuh>
+#include <cuco/detail/traits.hpp>
 
 namespace cuco {
 
@@ -107,17 +112,18 @@ struct custom_op {
 
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
- * pairs with unique keys.
+ * pairs that reduces the values associated to the same key according to a
+ * functor.
  *
  * Allows constant time concurrent inserts or concurrent find operations (not
  * concurrent insert and find) from threads in device code.
  *
  * Current limitations:
- * - Requires keys that are Arithmetic
+ * - Requires key types where `cuco::is_bitwise_comparable<T>::value` is true
  * - Does not support erasing keys
  * - Capacity is fixed and will not grow automatically
- * - Requires the user to specify sentinel values for both key and mapped value
- * to indicate empty slots
+ * - Requires the user to specify sentinel value for the key to indicate empty
+ *   slots
  * - Does not support concurrent insert and find operations
  *
  * The `static_reduction_map` supports two types of operations:
@@ -129,7 +135,7 @@ struct custom_op {
  * in the map. For example, given a range of keys specified by device-accessible
  * iterators, the bulk `insert` function will insert all keys into the map.
  *
- * The singular device-side operations allow individual threads to to perform
+ * The singular device-side operations allow individual threads to perform
  * independent insert or find/contains operations from device code. These
  * operations are accessed through non-owning, trivially copyable "view" types:
  * `device_view` and `mutable_device_view`. The `device_view` class is an
@@ -138,26 +144,51 @@ struct custom_op {
  * The two types are separate to prevent erroneous concurrent insert/find
  * operations.
  *
- * Example:
- * \code{.cpp}
- * int empty_key_sentinel = -1;
- * int empty_value_sentine = -1;
+ *  Example:
+ *  \code{.cpp}
  *
- * // Constructs a map with 100,000 slots using -1 and -1 as the empty key/value
- * // sentinels. Note the capacity is chosen knowing we will insert 50,000 keys,
- * // for an load factor of 50%.
- * static_reduction_map<int, int> m{100'000, empty_key_sentinel, empty_value_sentinel};
+ * // Empty slots are represented by reserved "sentinel" values. These values should be selected
+ * such
+ * // that they never occur in your input data.
+ * int const empty_key_sentinel = -1;
  *
- * // Create a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
- * thrust::device_vector<thrust::pair<int,int>> pairs(50,000);
- * thrust::transform(thrust::make_counting_iterator(0),
- *                   thrust::make_counting_iterator(pairs.size()),
- *                   pairs.begin(),
- *                   []__device__(auto i){ return thrust::make_pair(i,i); };
+ * // Number of key/value pairs to be inserted
+ * std::size_t const num_elems = 256;
  *
+ * // average number of values per distinct key
+ * std::size_t const multiplicity = 4;
  *
- * // Inserts all pairs into the map
- * m.insert(pairs.begin(), pairs.end());
+ * // Compute capacity based on a 50% load factor
+ * auto const load_factor     = 0.5;
+ * std::size_t const capacity = std::ceil(num_elems / load_factor);
+ *
+ * // Constructs a map each key with "capacity" slots using -1 as the
+ * // empty key sentinel. The initial payload value for empty slots is determined by the identity of
+ * // the reduction operation. By using the `reduce_add` operation, all values associated with a
+ * // given key will be summed.
+ * cuco::static_reduction_map<cuco::reduce_add<int>, int, int> map{capacity, empty_key_sentinel};
+ *
+ * // Create a sequence of random keys
+ * thrust::device_vector<int> insert_keys(num_elems);
+ * thrust::transform(thrust::device,
+ *                   thrust::make_counting_iterator<std::size_t>(0),
+ *                   thrust::make_counting_iterator(insert_keys.size()),
+ *                   insert_keys.begin(),
+ *                   [=] __device__(auto i) {
+ *                     thrust::default_random_engine rng;
+ *                     thrust::uniform_int_distribution<int> dist(
+ *                       int{1}, static_cast<int>(num_elems / multiplicity));
+ *                     rng.discard(i);
+ *                     return dist(rng);
+ *                   });
+ *
+ * // Insert each key with a payload of `1` to count the number of times each key was inserted by
+ * // using the `reduce_add` op
+ * auto zipped = thrust::make_zip_iterator(
+ *   thrust::make_tuple(insert_keys.begin(), thrust::make_constant_iterator(1)));
+ *
+ * // Inserts all pairs into the map, accumulating the payloads with the `reduce_add` operation
+ * map.insert(zipped, zipped + insert_keys.size());
  *
  * // Get a `device_view` and passes it to a kernel where threads may perform
  * // `find/contains` lookups
@@ -177,7 +208,11 @@ template <typename ReductionOp,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_reduction_map {
-  static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
+  static_assert(
+    is_bitwise_comparable<Key>::value,
+    "Key type must have unique object representations or have been explicitly declared as safe for "
+    "bitwise comparison via specialization of cuco::is_bitwise_comparable<Key>.");
+
   static_assert(std::is_same<typename ReductionOp::value_type, Value>::value,
                 "Type mismatch between ReductionOp::value_type and Value");
 
@@ -193,32 +228,38 @@ class static_reduction_map {
   using slot_allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
 
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
+  static_assert(atomic_key_type::is_always_lock_free,
+                "A key type larger than 8B is supported for only sm_70 and up.");
+  static_assert(atomic_mapped_type::is_always_lock_free,
+                "A value type larger than 8B is supported for only sm_70 and up.");
+#endif
+
   static_reduction_map(static_reduction_map const&) = delete;
   static_reduction_map(static_reduction_map&&)      = delete;
   static_reduction_map& operator=(static_reduction_map const&) = delete;
   static_reduction_map& operator=(static_reduction_map&&) = delete;
 
   /**
-   * @brief Construct a fixed-size map with the specified capacity and sentinel values.
+   * @brief Construct a fixed-size map with the specified capacity and sentinel key.
    * @brief Construct a statically sized map with the specified number of slots
-   * and sentinel values.
+   * and sentinel key.
    *
    * The capacity of the map is fixed. Insert operations will not automatically
    * grow the map. Attempting to insert more unique keys than the capacity of
-   * the map results in undefined behavior.
+   * the map results in undefined behavior (there should be at least one empty slot).
    *
    * Performance begins to degrade significantly beyond a load factor of ~70%.
    * For best performance, choose a capacity that will keep the load factor
    * below 70%. E.g., if inserting `N` unique keys, choose a capacity of
    * `N * (1/0.7)`.
    *
-   * The `empty_key_sentinel` and `empty_value_sentinel` values are reserved and
-   * undefined behavior results from attempting to insert any key/value pair
-   * that contains either.
+   * The `empty_key_sentinel` is reserved and undefined behaviour results from
+   * attempting to insert said key.
    *
    * @param capacity The total number of slots in the map
    * @param empty_key_sentinel The reserved key value for empty slots
-   * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param reduction_op Reduction operator
    * @param alloc Allocator used for allocating device storage
    */
   static_reduction_map(std::size_t capacity,
@@ -234,9 +275,6 @@ class static_reduction_map {
 
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
-   *
-   * If multiple keys in `[first, last)` compare equal, it is unspecified which
-   * element is inserted.
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `value_type`
@@ -278,7 +316,7 @@ class static_reduction_map {
             InputIt last,
             OutputIt output_begin,
             Hash hash          = Hash{},
-            KeyEqual key_equal = KeyEqual{}) noexcept;
+            KeyEqual key_equal = KeyEqual{});
 
   /**
    * @brief Retrieves all of the keys and their associated values.
@@ -324,7 +362,7 @@ class static_reduction_map {
                 InputIt last,
                 OutputIt output_begin,
                 Hash hash          = Hash{},
-                KeyEqual key_equal = KeyEqual{}) noexcept;
+                KeyEqual key_equal = KeyEqual{});
 
  private:
   class device_view_base {
@@ -360,7 +398,7 @@ class static_reduction_map {
      * @brief Gets the binary op
      *
      */
-    __device__ ReductionOp get_op() const { return op_; }
+    __device__ ReductionOp get_op() const noexcept { return op_; }
 
     /**
      * @brief Gets slots array.
@@ -417,7 +455,7 @@ class static_reduction_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename CG, typename Hash>
-    __device__ iterator initial_slot(CG g, Key const& k, Hash hash) noexcept
+    __device__ iterator initial_slot(CG const& g, Key const& k, Hash hash) noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -435,7 +473,7 @@ class static_reduction_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename CG, typename Hash>
-    __device__ const_iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
+    __device__ const_iterator initial_slot(CG const& g, Key const& k, Hash hash) const noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -475,7 +513,7 @@ class static_reduction_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ iterator next_slot(CG g, iterator s) noexcept
+    __device__ iterator next_slot(CG const& g, iterator s) noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];
@@ -493,7 +531,7 @@ class static_reduction_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ const_iterator next_slot(CG g, const_iterator s) const noexcept
+    __device__ const_iterator next_slot(CG const& g, const_iterator s) const noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];
@@ -599,7 +637,7 @@ class static_reduction_map {
    *
    * Example:
    * \code{.cpp}
-   * cuco::static_reduction_map<int,int> m{100'000, -1, -1};
+   * cuco::static_reduction_map<cuco::reduce_add<int>int,int> m{100'000, -1};
    *
    * // Inserts a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
    * thrust::for_each(thrust::make_counting_iterator(0),
@@ -635,7 +673,17 @@ class static_reduction_map {
       : device_view_base{slots, capacity, empty_key_sentinel, reduction_op}
     {
     }
-
+    template <typename CG>
+    __device__ static device_mutable_view make_from_uninitialized_slots(
+      CG const& g,
+      pair_atomic_type* slots,
+      std::size_t capacity,
+      Key empty_key_sentinel,
+      ReductionOp reduction_op) noexcept
+    {
+      device_view_base::initialize_slots(g, slots, capacity, empty_key_sentinel, reduction_op);
+      return device_mutable_view{slots, capacity, empty_key_sentinel, reduction_op};
+    }
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
@@ -649,13 +697,13 @@ class static_reduction_map {
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys for
      * equality
-     * @return `true` if the insert was successful, `false` otherwise.
+     * @return `true` if the insert (of a new key) was successful, `false` otherwise.
      */
     template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ Value insert(value_type const& insert_pair,
-                            Hash hash          = Hash{},
-                            KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ bool insert(value_type const& insert_pair,
+                           Hash hash          = Hash{},
+                           KeyEqual key_equal = KeyEqual{}) noexcept;
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
@@ -666,7 +714,7 @@ class static_reduction_map {
      * significant boost in throughput compared to the non Cooperative Group
      * `insert` at moderate to high load factors.
      *
-     * @tparam Cooperative Group type
+     * @tparam CG Cooperative Group type
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      *
@@ -675,16 +723,15 @@ class static_reduction_map {
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys for
      * equality
-     * @return `true` if the insert was successful, `false` otherwise.
+     * @return `true` if the insert (of a new key) was successful, `false` otherwise.
      */
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool insert(CG g,
+    __device__ bool insert(CG const& g,
                            value_type const& insert_pair,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
-
   };  // class device mutable view
 
   /**
@@ -710,14 +757,26 @@ class static_reduction_map {
      * @param capacity The number of slots viewed by this object
      * @param empty_key_sentinel The reserved value for keys to represent empty
      * slots
-     * @param empty_value_sentinel The reserved value for mapped values to
-     * represent empty slots
+     * @param reduction_op The reduction functor
      */
     __host__ __device__ device_view(pair_atomic_type* slots,
                                     std::size_t capacity,
                                     Key empty_key_sentinel,
                                     ReductionOp reduction_op = {}) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, reduction_op}
+    {
+    }
+
+    /**
+     * @brief Construct a `device_view` from a `device_mutable_view` object
+     *
+     * @param mutable_map object of type `device_mutable_view`
+     */
+    __host__ __device__ explicit device_view(device_mutable_view mutable_map)
+      : device_view_base{mutable_map.get_slots(),
+                         mutable_map.get_capacity(),
+                         mutable_map.get_empty_key_sentinel(),
+                         mutable_map.get_op()}
     {
     }
 
@@ -752,20 +811,18 @@ class static_reduction_map {
      * @endcode
      *
      * @tparam CG The type of the cooperative thread group
-     * @param g The ooperative thread group used to copy the slots
+     * @param g The cooperative thread group used to copy the slots
      * @param source_device_view `device_view` to copy from
      * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
      * the ownership of the memory
      * @return Copy of passed `device_view`
      */
     template <typename CG>
-    __device__ static device_view make_copy(CG g,
+    __device__ static device_view make_copy(CG const& g,
                                             pair_atomic_type* const memory_to_use,
                                             device_view source_device_view) noexcept
     {
-#ifndef CUDART_VERSION
-#error CUDART_VERSION Undefined!
-#elif (CUDART_VERSION >= 11000)
+#if defined(CUDA_HAS_CUDA_BARRIER)
       __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
       if (g.thread_rank() == 0) { init(&barrier, g.size()); }
       g.sync();
@@ -791,7 +848,7 @@ class static_reduction_map {
       return device_view(memory_to_use,
                          source_device_view.get_capacity(),
                          source_device_view.get_empty_key_sentinel(),
-                         source_device_view.get_empty_value_sentinel());
+                         source_device_view.get_op());
     }
 
     /**
@@ -859,7 +916,7 @@ class static_reduction_map {
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ iterator
-    find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
+    find(CG const& g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Finds the value corresponding to the key `k`.
@@ -884,8 +941,10 @@ class static_reduction_map {
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ const_iterator
-    find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
+    __device__ const_iterator find(CG const& g,
+                                   Key const& k,
+                                   Hash hash          = Hash{},
+                                   KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
@@ -931,7 +990,7 @@ class static_reduction_map {
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(CG g,
+    __device__ bool contains(CG const& g,
                              Key const& k,
                              Hash hash          = Hash{},
                              KeyEqual key_equal = KeyEqual{}) noexcept;

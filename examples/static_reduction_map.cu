@@ -27,14 +27,12 @@
 #include <cuco/static_reduction_map.cuh>
 
 /**
- * @file host_bulk_example.cu
- * @brief Demonstrates usage of the static_map "bulk" host APIs.
+ * @brief Demonstrates usage of the static_reduction_map "bulk" host APIs.
  *
  * The bulk APIs are only invocable from the host and are used for doing operations like insert or
  * find on a set of keys.
  *
  */
-
 int main(void)
 {
   using Key   = int;
@@ -45,11 +43,14 @@ int main(void)
   Key const empty_key_sentinel = -1;
 
   // Number of key/value pairs to be inserted
-  std::size_t num_keys = 257;
+  std::size_t const num_elems = 256;
+
+  // average number of values per distinct key
+  std::size_t const multiplicity = 4;
 
   // Compute capacity based on a 50% load factor
   auto const load_factor     = 0.5;
-  std::size_t const capacity = std::ceil(num_keys / load_factor);
+  std::size_t const capacity = std::ceil(num_elems / load_factor);
 
   // Constructs a map each key with "capacity" slots using -1 as the
   // empty key sentinel. The initial payload value for empty slots is determined by the identity of
@@ -57,15 +58,16 @@ int main(void)
   // given key will be summed.
   cuco::static_reduction_map<cuco::reduce_add<Value>, Key, Value> map{capacity, empty_key_sentinel};
 
-  // Create a sequence of random keys in `[0, num_keys/2]`
-  thrust::device_vector<Key> insert_keys(num_keys);
+  // Create a sequence of random keys
+  thrust::device_vector<Key> insert_keys(num_elems);
   thrust::transform(thrust::device,
                     thrust::make_counting_iterator<std::size_t>(0),
                     thrust::make_counting_iterator(insert_keys.size()),
                     insert_keys.begin(),
                     [=] __device__(auto i) {
                       thrust::default_random_engine rng;
-                      thrust::uniform_int_distribution dist{0, 10};
+                      thrust::uniform_int_distribution<int> dist(
+                        Key{1}, static_cast<Key>(num_elems / multiplicity));
                       rng.discard(i);
                       return dist(rng);
                     });

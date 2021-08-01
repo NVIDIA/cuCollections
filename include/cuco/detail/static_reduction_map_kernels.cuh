@@ -34,18 +34,19 @@ namespace cg = cooperative_groups;
  * @param v Value to which all values in `slots` are initialized
  * @param size Size of the storage pointed to by `slots`
  */
-template <typename atomic_key_type,
+template <std::size_t block_size,
+          typename atomic_key_type,
           typename atomic_mapped_type,
           typename Key,
           typename Value,
           typename pair_atomic_type>
 __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::size_t size)
 {
-  auto tid = threadIdx.x + blockIdx.x * blockDim.x;
+  auto tid = block_size * blockIdx.x + threadIdx.x;
   while (tid < size) {
     new (&slots[tid].first) atomic_key_type{k};
     new (&slots[tid].second) atomic_mapped_type{v};
-    tid += gridDim.x * blockDim.x;
+    tid += gridDim.x * block_size;
   }
 }
 
@@ -69,7 +70,7 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function used to compare two keys for equality
  */
-template <uint32_t block_size,
+template <std::size_t block_size,
           typename InputIt,
           typename atomicT,
           typename viewT,
@@ -82,13 +83,13 @@ __global__ void insert(
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  auto tid = blockDim.x * blockIdx.x + threadIdx.x;
+  auto tid = block_size * blockIdx.x + threadIdx.x;
   auto it  = first + tid;
 
   while (it < last) {
     typename viewT::value_type const insert_pair{*it};
     if (view.insert(insert_pair, hash, key_equal)) { thread_num_successes++; }
-    it += gridDim.x * blockDim.x;
+    it += gridDim.x * block_size;
   }
 
   // compute number of successfully inserted elements for each block
@@ -122,7 +123,7 @@ __global__ void insert(
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function used to compare two keys for equality
  */
-template <uint32_t block_size,
+template <std::size_t block_size,
           uint32_t tile_size,
           typename InputIt,
           typename atomicT,
@@ -137,7 +138,7 @@ __global__ void insert(
   std::size_t thread_num_successes = 0;
 
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid  = blockDim.x * blockIdx.x + threadIdx.x;
+  auto tid  = block_size * blockIdx.x + threadIdx.x;
   auto it   = first + tid / tile_size;
 
   while (it < last) {
@@ -149,7 +150,7 @@ __global__ void insert(
     if (view.insert(tile, insert_pair, hash, key_equal) && tile.thread_rank() == 0) {
       thread_num_successes++;
     }
-    it += (gridDim.x * blockDim.x) / tile_size;
+    it += (gridDim.x * block_size) / tile_size;
   }
 
   // compute number of successfully inserted elements for each block
@@ -179,7 +180,7 @@ __global__ void insert(
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
-template <uint32_t block_size,
+template <std::size_t block_size,
           typename Value,
           typename InputIt,
           typename OutputIt,
@@ -189,7 +190,7 @@ template <uint32_t block_size,
 __global__ void find(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto tid     = block_size * blockIdx.x + threadIdx.x;
   auto key_idx = tid;
   __shared__ Value writeBuffer[block_size];
 
@@ -207,7 +208,7 @@ __global__ void find(
     writeBuffer[threadIdx.x] = found->second.load(cuda::std::memory_order_relaxed);
     __syncthreads();
     *(output_begin + key_idx) = writeBuffer[threadIdx.x];
-    key_idx += gridDim.x * blockDim.x;
+    key_idx += gridDim.x * block_size;
   }
 }
 
@@ -237,7 +238,7 @@ __global__ void find(
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
-template <uint32_t block_size,
+template <std::size_t block_size,
           uint32_t tile_size,
           typename Value,
           typename InputIt,
@@ -249,7 +250,7 @@ __global__ void find(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto tid     = block_size * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
   __shared__ Value writeBuffer[block_size];
 
@@ -271,7 +272,7 @@ __global__ void find(
     if (tile.thread_rank() == 0) {
       *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
     }
-    key_idx += (gridDim.x * blockDim.x) / tile_size;
+    key_idx += (gridDim.x * block_size) / tile_size;
   }
 }
 
@@ -295,7 +296,7 @@ __global__ void find(
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
-template <uint32_t block_size,
+template <std::size_t block_size,
           typename InputIt,
           typename OutputIt,
           typename viewT,
@@ -304,7 +305,7 @@ template <uint32_t block_size,
 __global__ void contains(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto tid     = block_size * blockIdx.x + threadIdx.x;
   auto key_idx = tid;
   __shared__ bool writeBuffer[block_size];
 
@@ -321,7 +322,7 @@ __global__ void contains(
     writeBuffer[threadIdx.x] = view.contains(key, hash, key_equal);
     __syncthreads();
     *(output_begin + key_idx) = writeBuffer[threadIdx.x];
-    key_idx += gridDim.x * blockDim.x;
+    key_idx += gridDim.x * block_size;
   }
 }
 
@@ -350,7 +351,7 @@ __global__ void contains(
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function to compare two keys for equality
  */
-template <uint32_t block_size,
+template <std::size_t block_size,
           uint32_t tile_size,
           typename InputIt,
           typename OutputIt,
@@ -361,7 +362,7 @@ __global__ void contains(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto tid     = block_size * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
   __shared__ bool writeBuffer[block_size];
 
@@ -381,7 +382,7 @@ __global__ void contains(
     if (tile.thread_rank() == 0) {
       *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
     }
-    key_idx += (gridDim.x * blockDim.x) / tile_size;
+    key_idx += (gridDim.x * block_size) / tile_size;
   }
 }
 
