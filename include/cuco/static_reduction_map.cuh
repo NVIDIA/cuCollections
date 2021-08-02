@@ -38,6 +38,7 @@
 #include <cuda/barrier>
 #endif
 
+#include <cuda.h>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
@@ -46,6 +47,12 @@
 
 namespace cuco {
 
+/**
+ * @brief `+` reduction functor that internally uses an atomic fetch-and-add
+ * operation.
+ *
+ * @tparam T The data type used for reduction
+ */
 template <typename T>
 struct reduce_add {
   using value_type            = T;
@@ -58,6 +65,12 @@ struct reduce_add {
   }
 };
 
+/**
+ * @brief `-` reduction functor that internally uses an atomic fetch-and-add
+ * operation.
+ *
+ * @tparam T The data type used for reduction
+ */
 template <typename T>
 struct reduce_sub {
   using value_type            = T;
@@ -70,6 +83,12 @@ struct reduce_sub {
   }
 };
 
+/**
+ * @brief `min` reduction functor that internally uses an atomic fetch-and-add
+ * operation.
+ *
+ * @tparam T The data type used for reduction
+ */
 template <typename T>
 struct reduce_min {
   using value_type            = T;
@@ -82,6 +101,12 @@ struct reduce_min {
   }
 };
 
+/**
+ * @brief `max` reduction functor that internally uses an atomic fetch-and-add
+ * operation.
+ *
+ * @tparam T The data type used for reduction
+ */
 template <typename T>
 struct reduce_max {
   using value_type            = T;
@@ -94,7 +119,19 @@ struct reduce_max {
   }
 };
 
-template <typename T, T Identity, typename Op>
+/**
+ * @brief Wrapper for a user-defined custom reduction operator.
+ * @brief Internally uses an atomic compare-and-swap loop.
+ *
+ * @tparam T The data type used for reduction
+ * @tparam Identity Neutral element under the given reduction group
+ * @tparam Op Commutative and associative binary operator
+ */
+template <typename T,
+          T Identity,
+          typename Op,
+          std::uint32_t BackoffBaseDelay = 8,
+          std::uint32_t BackoffMaxDelay  = 256>
 struct custom_op {
   using value_type            = T;
   static constexpr T identity = Identity;
@@ -104,8 +141,18 @@ struct custom_op {
   template <cuda::thread_scope Scope, typename T2>
   __device__ T apply(cuda::atomic<T, Scope>& slot, T2 const& value) const
   {
+    [[maybe_unused]] unsigned ns = BackoffBaseDelay;
+
     auto old = slot.load(cuda::memory_order_relaxed);
-    while (not slot.compare_exchange_strong(old, op(old, value), cuda::memory_order_relaxed)) {}
+    while (not slot.compare_exchange_strong(old, op(old, value), cuda::memory_order_relaxed)) {
+#if __CUDA_ARCH__ >= 700
+      // exponential backoff strategy to reduce atomic contention
+      if (true) {
+        asm volatile("nanosleep.u32 %0;" ::"r"((unsigned)ns) :);
+        if (ns < BackoffMaxDelay) { ns *= 2; }
+      }
+#endif
+    }
     return old;
   }
 };
