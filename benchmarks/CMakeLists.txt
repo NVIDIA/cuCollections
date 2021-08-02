@@ -87,3 +87,7 @@ ConfigureNVBench(THRUST_RBK_BENCH "${THRUST_RBK_BENCH_SRC}")
 ###################################################################################################
 set(CUB_RBK_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/reduce_by_key/cub_reduce_by_key_bench.cu")
 ConfigureNVBench(CUB_RBK_BENCH "${CUB_RBK_BENCH_SRC}")
+
+###################################################################################################
+set(STATIC_REDUCTION_MAP_PARAM_GRID_SEARCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_reduction_map_param_grid_search.cu")
+ConfigureNVBench(STATIC_REDUCTION_MAP_PARAM_GRID_SEARCH "${STATIC_REDUCTION_MAP_PARAM_GRID_SEARCH_SRC}")
