@@ -126,9 +126,9 @@ __global__ void insert_if(
   auto it   = first + tid / tile_size;
 
   while (it < last) {
-    if (pred(*it)) {
+    typename viewT::value_type const insert_pair{*it};
+    if (pred(insert_pair)) {
       // force conversion to value_type
-      typename viewT::value_type const insert_pair{*it};
       view.insert(tile, insert_pair, key_equal);
     }
     it += (gridDim.x * block_size) / tile_size;
