@@ -24,7 +24,7 @@
 /**
  * @brief Enum representation for reduction operators
  */
-enum class op_type { REDUCE_ADD, CUSTOM_OP };
+enum class op_type { REDUCE_ADD, CUSTOM_OP, CUSTOM_OP_NO_BACKOFF };
 
 NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
   // Enum type:
@@ -36,6 +36,7 @@ NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
     switch (o) {
       case op_type::REDUCE_ADD: return "REDUCE_ADD";
       case op_type::CUSTOM_OP: return "CUSTOM_OP";
+      case op_type::CUSTOM_OP_NO_BACKOFF: return "CUSTOM_OP_NO_BACKOFF";
       default: return "ERROR";
     }
   },
@@ -53,16 +54,27 @@ template <op_type Op>
 struct op_type_map {
 };
 
+// Sum reduction with atomic fetch-and-add
 template <>
 struct op_type_map<op_type::REDUCE_ADD> {
   template <typename T>
   using type = cuco::reduce_add<T>;
 };
 
+// Sum reduction with atomic compare-and-swap loop
+// Note: default backoff strategy
 template <>
 struct op_type_map<op_type::CUSTOM_OP> {
   template <typename T>
-  using type = cuco::custom_op<T, 0, thrust::plus<T>>;  // sum reduction with CAS loop
+  using type = cuco::custom_op<T, 0, thrust::plus<T>>;
+};
+
+// Sum reduction with atomic compare-and-swap loop
+// Note: backoff strategy omitted
+template <>
+struct op_type_map<op_type::CUSTOM_OP_NO_BACKOFF> {
+  template <typename T>
+  using type = cuco::custom_op<T, 0, thrust::plus<T>, 0>;
 };
 
 /**
@@ -79,91 +91,35 @@ void nvbench_cuco_static_reduction_map_insert(
   auto const dist         = state.get_string("Distribution");
   auto const multiplicity = state.get_int64_or_default("Multiplicity", 8);
 
-  std::vector<Key> h_keys(num_elems);
-  std::vector<Value> h_values(num_elems);
+  std::vector<Key> h_keys_in(num_elems);
+  std::vector<Value> h_values_in(num_elems);
 
-  generate_keys<Key>(state, dist, h_keys.begin(), h_keys.end(), multiplicity);
+  generate_keys<Key>(state, dist, h_keys_in.begin(), h_keys_in.end(), multiplicity);
 
   // generate uniform random values
-  generate_keys<Value>(state, "UNIFORM", h_values.begin(), h_values.end(), 1);
+  generate_keys<Value>(state, "UNIFORM", h_values_in.begin(), h_values_in.end(), 1);
 
   // the size of the hash table under a given target occupancy depends on the
   // number of unique keys in the input
-  std::size_t const unique   = count_unique(h_keys.begin(), h_keys.end());
+  std::size_t const unique   = count_unique(h_keys_in.begin(), h_keys_in.end());
   std::size_t const capacity = std::ceil(SDIV(unique, occupancy));
 
   // alternative occupancy calculation based on the total number of inputs
   // std::size_t const capacity = num_elems / occupancy;
 
-  thrust::device_vector<Key> d_keys(h_keys);
-  thrust::device_vector<Value> d_values(h_values);
+  thrust::device_vector<Key> d_keys_in(h_keys_in);
+  thrust::device_vector<Value> d_values_in(h_values_in);
 
-  auto d_pairs_begin =
-    thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
-  auto d_pairs_end = d_pairs_begin + num_elems;
+  auto d_pairs_in_begin =
+    thrust::make_zip_iterator(thrust::make_tuple(d_keys_in.begin(), d_values_in.begin()));
+  auto d_pairs_in_end = d_pairs_in_begin + num_elems;
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                map_type map{capacity, -1};
 
                timer.start();
-               map.insert(d_pairs_begin, d_pairs_end, launch.get_stream());
-               timer.stop();
-             });
-}
-
-/**
- * @brief A benchmark evaluating insert performance.
- */
-template <typename Key,
-          typename Value,
-          nvbench::int32_t BackoffBaseDelay,
-          nvbench::int32_t BackoffMaxDelay>
-void nvbench_cuco_static_reduction_map_custom_op_insert(
-  nvbench::state& state,
-  nvbench::type_list<Key,
-                     Value,
-                     nvbench::enum_type<BackoffBaseDelay>,
-                     nvbench::enum_type<BackoffMaxDelay>>)
-{
-  using custom_op_type =
-    cuco::custom_op<Value, 0, thrust::plus<Value>, BackoffBaseDelay, BackoffMaxDelay>;
-  using map_type = cuco::static_reduction_map<custom_op_type, Key, Value>;
-
-  auto const num_elems    = state.get_int64("NumInputs");
-  auto const occupancy    = state.get_float64("Occupancy");
-  auto const dist         = state.get_string("Distribution");
-  auto const multiplicity = state.get_int64_or_default("Multiplicity", 8);
-
-  std::vector<Key> h_keys(num_elems);
-  std::vector<Value> h_values(num_elems);
-
-  generate_keys<Key>(state, dist, h_keys.begin(), h_keys.end(), multiplicity);
-
-  // generate uniform random values
-  generate_keys<Value>(state, "UNIFORM", h_values.begin(), h_values.end(), 1);
-
-  // the size of the hash table under a given target occupancy depends on the
-  // number of unique keys in the input
-  std::size_t const unique   = count_unique(h_keys.begin(), h_keys.end());
-  std::size_t const capacity = std::ceil(SDIV(unique, occupancy));
-
-  // alternative occupancy calculation based on the total number of inputs
-  // std::size_t const capacity = num_elems / occupancy;
-
-  thrust::device_vector<Key> d_keys(h_keys);
-  thrust::device_vector<Value> d_values(h_values);
-
-  auto d_pairs_begin =
-    thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
-  auto d_pairs_end = d_pairs_begin + num_elems;
-
-  state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
-             [&](nvbench::launch& launch, auto& timer) {
-               map_type map{capacity, -1};
-
-               timer.start();
-               map.insert(d_pairs_begin, d_pairs_end, launch.get_stream());
+               map.insert(d_pairs_in_begin, d_pairs_in_end, launch.get_stream());
                timer.stop();
              });
 }
@@ -171,11 +127,11 @@ void nvbench_cuco_static_reduction_map_custom_op_insert(
 // type parameter dimensions for benchmark
 using key_type_range   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using value_type_range = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
-using op_type_range    = nvbench::enum_type_list<op_type::REDUCE_ADD, op_type::CUSTOM_OP>;
-using base_delay_range = nvbench::enum_type_list<0, 8, 16, 32, 64, 128, 256>;
-using max_delay_range  = nvbench::enum_type_list<2048, 4096, 8192>;
+using op_type_range =
+  nvbench::enum_type_list<op_type::REDUCE_ADD, op_type::CUSTOM_OP, op_type::CUSTOM_OP_NO_BACKOFF>;
 
 // benchmark setups
+
 NVBENCH_BENCH_TYPES(nvbench_cuco_static_reduction_map_insert,
                     NVBENCH_TYPE_AXES(key_type_range, value_type_range, op_type_range))
   .set_name("cuco_static_reduction_map_insert_occupancy")
@@ -184,7 +140,20 @@ NVBENCH_BENCH_TYPES(nvbench_cuco_static_reduction_map_insert,
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs
   .add_float64_axis("Occupancy", nvbench::range(0.5, 0.9, 0.1))  // occupancy range
   .add_int64_axis("Multiplicity", {8})  // only applies to uniform distribution
-  .add_string_axis("Distribution", {"GAUSSIAN", "UNIFORM", "UNIQUE", "SAME"});
+  .add_string_axis("Distribution", {"GAUSSIAN", "UNIFORM", "UNIQUE"});
+
+// Distribution "SAME" does not work with CUSTOM_OP
+NVBENCH_BENCH_TYPES(nvbench_cuco_static_reduction_map_insert,
+                    NVBENCH_TYPE_AXES(key_type_range,
+                                      value_type_range,
+                                      nvbench::enum_type_list<op_type::REDUCE_ADD>))
+  .set_name("cuco_static_reduction_map_insert_occupancy")
+  .set_type_axes_names({"Key", "Value", "ReductionOp"})
+  .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
+  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs
+  .add_float64_axis("Occupancy", nvbench::range(0.5, 0.9, 0.1))  // occupancy range
+  .add_int64_axis("Multiplicity", {8})  // only applies to uniform distribution
+  .add_string_axis("Distribution", {"SAME"});
 
 NVBENCH_BENCH_TYPES(nvbench_cuco_static_reduction_map_insert,
                     NVBENCH_TYPE_AXES(key_type_range, value_type_range, op_type_range))
@@ -192,20 +161,7 @@ NVBENCH_BENCH_TYPES(nvbench_cuco_static_reduction_map_insert,
   .set_type_axes_names({"Key", "Value", "ReductionOp"})
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs
-  .add_float64_axis("Occupancy", {0.8})        // fixed occupancy
-  .add_int64_axis("Multiplicity", {1, 10, 100, 1'000, 10'000, 100'000})  // key multiplicity range
-  .add_string_axis("Distribution", {"UNIFORM"});
-
-NVBENCH_BENCH_TYPES(nvbench_cuco_static_reduction_map_custom_op_insert,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::int32_t>,
-                                      nvbench::type_list<nvbench::int32_t>,
-                                      base_delay_range,
-                                      max_delay_range))
-  .set_name("cuco_static_reduction_map_custom_op_insert_contention")
-  .set_type_axes_names({"Key", "Value", "BackoffBaseDelay", "BackoffMaxDelay"})
-  .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs
-  .add_float64_axis("Occupancy", {0.8})        // fixed occupancy
+  .add_float64_axis("Occupancy", nvbench::range(0.5, 0.9, 0.1))
   .add_int64_axis("Multiplicity",
-                  {1, 10, 100, 1'000, 10'000, 100'000, 200'000})  // key multiplicity range
+                  {1, 10, 100, 1'000, 10'000, 100'000, 1'000'000})  // key multiplicity range
   .add_string_axis("Distribution", {"UNIFORM"});
