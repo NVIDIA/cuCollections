@@ -116,7 +116,7 @@ void nvbench_cuco_static_reduction_map_reduce_by_key(
 // type parameter dimensions for benchmark
 using key_type_range   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using value_type_range = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
-using op_type_range    = nvbench::enum_type_list<op_type::REDUCE_ADD, op_type::CUSTOM_OP>;
+using op_type_range    = nvbench::enum_type_list<op_type::REDUCE_ADD>;
 
 NVBENCH_BENCH_TYPES(nvbench_cuco_static_reduction_map_reduce_by_key,
                     NVBENCH_TYPE_AXES(key_type_range, value_type_range, op_type_range))
@@ -134,6 +134,7 @@ NVBENCH_BENCH_TYPES(nvbench_cuco_static_reduction_map_reduce_by_key,
   .set_type_axes_names({"Key", "Value", "ReductionOp"})
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs
-  .add_float64_axis("Occupancy", {0.8})        // fixed occupancy
-  .add_int64_axis("Multiplicity", {1, 10, 100, 1'000, 10'000, 100'000})  // key multiplicity range
+  .add_float64_axis("Occupancy", {0.5, 0.8})   // fixed occupancy
+  .add_int64_axis("Multiplicity",
+                  {1, 10, 100, 1'000, 10'000, 100'000, 1'000'000})  // key multiplicity range
   .add_string_axis("Distribution", {"UNIFORM"});

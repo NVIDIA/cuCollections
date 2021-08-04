@@ -15,20 +15,20 @@
  */
 
 #include <thrust/device_vector.h>
+#include <thrust/iterator/iterator_traits.h>
+#include <thrust/iterator/zip_iterator.h>
 #include <thrust/reduce.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
-#include <thrust/iterator/iterator_traits.h>
-#include <thrust/iterator/zip_iterator.h>
-#include <nvbench/nvbench.cuh>
 #include <key_generator.hpp>
+#include <nvbench/nvbench.cuh>
 
 /**
  * @brief Reduce-by-key implementation in Thrust.
  */
 template <typename KeyRandomIterator, typename ValueRandomIterator>
-void thrust_reduce_by_key(KeyRandomIterator   keys_begin,
-                          KeyRandomIterator   keys_end,
+void thrust_reduce_by_key(KeyRandomIterator keys_begin,
+                          KeyRandomIterator keys_end,
                           ValueRandomIterator values_begin)
 {
   using Key   = typename thrust::iterator_traits<KeyRandomIterator>::value_type;
@@ -48,14 +48,8 @@ void thrust_reduce_by_key(KeyRandomIterator   keys_begin,
 /**
  * @brief A benchmark evaluating reduce-by-key performance.
  */
-template <
-  typename Key,
-  typename Value>
-void nvbench_thrust_reduce_by_key(
-  nvbench::state& state,
-  nvbench::type_list<
-    Key,
-    Value>)
+template <typename Key, typename Value>
+void nvbench_thrust_reduce_by_key(nvbench::state& state, nvbench::type_list<Key, Value>)
 {
   auto const num_elems    = state.get_int64("NumInputs");
   auto const dist         = state.get_string("Distribution");
@@ -69,16 +63,15 @@ void nvbench_thrust_reduce_by_key(
   // generate uniform random values
   generate_keys<Value>(state, "UNIFORM", h_values.begin(), h_values.end(), 1);
 
-  thrust::device_vector<Key>   d_keys(h_keys);
+  thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<Value> d_values(h_values);
 
-  state.exec(
-    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      timer.start();
-        // TODO use CUDA stream provided by nvbench::launch
-        thrust_reduce_by_key(d_keys.begin(), d_keys.end(), d_values.begin());
-      timer.stop();
-    });
+  state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
+             [&](nvbench::launch& launch, auto& timer) {
+               timer.start();
+               thrust_reduce_by_key(d_keys.begin(), d_keys.end(), d_values.begin());
+               timer.stop();
+             });
 }
 
 // type parameter dimensions for benchmark
@@ -87,21 +80,20 @@ using value_type_range = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 
 // benchmark setups
 NVBENCH_BENCH_TYPES(nvbench_thrust_reduce_by_key,
-                    NVBENCH_TYPE_AXES(key_type_range,
-                                      value_type_range))
+                    NVBENCH_TYPE_AXES(key_type_range, value_type_range))
   .set_name("nvbench_thrust_reduce_by_key_distribution")
   .set_type_axes_names({"Key", "Value"})
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs",  {100'000'000})  // Total number of key/value pairs
-  .add_int64_axis("Multiplicity", {8}) // only applies to uniform distribution
+  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs
+  .add_int64_axis("Multiplicity", {8})         // only applies to uniform distribution
   .add_string_axis("Distribution", {"GAUSSIAN", "UNIFORM", "UNIQUE", "SAME"});
 
 NVBENCH_BENCH_TYPES(nvbench_thrust_reduce_by_key,
-                    NVBENCH_TYPE_AXES(key_type_range,
-                                      value_type_range))
+                    NVBENCH_TYPE_AXES(key_type_range, value_type_range))
   .set_name("nvbench_thrust_reduce_by_key_multiplicity")
   .set_type_axes_names({"Key", "Value"})
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs",  {100'000'000})  // Total number of key/value pairs
-  .add_int64_axis("Multiplicity", {1, 10, 100, 1'000, 10'000, 100'000}) // key multiplicity range
+  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs
+  .add_int64_axis("Multiplicity",
+                  {1, 10, 100, 1'000, 10'000, 100'000, 1'000'000})  // key multiplicity range
   .add_string_axis("Distribution", {"UNIFORM"});

@@ -115,5 +115,6 @@ NVBENCH_BENCH_TYPES(nvbench_cub_reduce_by_key, NVBENCH_TYPE_AXES(key_type_range,
   .set_type_axes_names({"Key", "Value"})
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs
-  .add_int64_axis("Multiplicity", {1, 10, 100, 1'000, 10'000, 100'000})  // key multiplicity range
+  .add_int64_axis("Multiplicity",
+                  {1, 10, 100, 1'000, 10'000, 100'000, 1'000'000})  // key multiplicity range
   .add_string_axis("Distribution", {"UNIFORM"});
