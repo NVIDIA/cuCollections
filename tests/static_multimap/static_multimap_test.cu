@@ -94,9 +94,6 @@ TEMPLATE_TEST_CASE_SIG("Each key appears twice",
   constexpr std::size_t num_items{400};
   cuco::static_multimap<Key, Value> map{500, -1, -1};
 
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
-
   std::vector<Key> h_keys(num_items);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_items);
 
@@ -181,9 +178,6 @@ TEMPLATE_TEST_CASE_SIG("Handling of non-matches",
   constexpr std::size_t num_keys{1'000'000};
   cuco::static_multimap<Key, Value> map{2'000'000, -1, -1};
 
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
-
   std::vector<Key> h_keys(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
 
@@ -251,7 +245,7 @@ TEMPLATE_TEST_CASE_SIG("Handling of non-matches",
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Test of insert_if",
+TEMPLATE_TEST_CASE_SIG("Tests of insert_if",
                        "",
                        ((typename Key, typename Value, dist_type Dist), Key, Value, Dist),
                        (int32_t, int32_t, dist_type::UNIQUE),
@@ -260,9 +254,6 @@ TEMPLATE_TEST_CASE_SIG("Test of insert_if",
 {
   constexpr std::size_t num_keys{1'000'000};
   cuco::static_multimap<Key, Value> map{2'000'000, -1, -1};
-
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
 
   std::vector<Key> h_keys(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
@@ -296,9 +287,6 @@ TEMPLATE_TEST_CASE_SIG("Evaluation of pair functions",
 {
   constexpr std::size_t num_pairs{5'000'000};
   cuco::static_multimap<Key, Value> map{10'000'000, -1, -1};
-
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
 
   std::vector<Key> h_keys(num_pairs);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_pairs);
@@ -355,6 +343,99 @@ TEMPLATE_TEST_CASE_SIG("Evaluation of pair functions",
       thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
 
     REQUIRE(num == num_pairs * 1.5);
+
+    auto size = map.pair_retrieve_outer(
+      d_pairs.begin(), d_pairs.end(), out1_zip, out2_zip, pair_equal<Key, Value>{});
+
+    REQUIRE(num == size);
+  }
+}
+
+TEMPLATE_TEST_CASE_SIG("Evaluation of small test cases",
+                       "",
+                       ((typename Key, typename Value, dist_type Dist), Key, Value, Dist),
+                       (int32_t, int32_t, dist_type::UNIQUE),
+                       (int32_t, int64_t, dist_type::UNIQUE),
+                       (int64_t, int64_t, dist_type::UNIQUE))
+{
+  constexpr std::size_t num_items{3};
+  cuco::static_multimap<Key, Value> map{2 * num_items, -1, -1};
+
+  std::vector<Key> h_keys(num_items);
+  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_items);
+
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+
+  for (auto i = 0; i < num_items; ++i) {
+    h_pairs[i].first  = h_keys[i] / 2;
+    h_pairs[i].second = h_keys[i];
+  }
+
+  thrust::device_vector<Key> d_keys(h_keys);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+
+  map.insert(d_pairs.begin(), d_pairs.end());
+
+  for (auto i = 0; i < num_items; ++i) {
+    h_pairs[i].first = h_keys[i];
+  }
+  d_pairs = h_pairs;
+
+  SECTION("Output of count and retrieve should be coherent.")
+  {
+    auto num = map.count(d_keys.begin(), d_keys.end());
+    thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num);
+
+    REQUIRE(num == num_items);
+
+    auto output_begin = d_results.data().get();
+    auto output_end   = map.retrieve(d_keys.begin(), d_keys.end(), output_begin);
+    auto size         = thrust::distance(output_begin, output_end);
+
+    REQUIRE(num == size);
+  }
+
+  SECTION("Output of count_outer and retrieve_outer should be coherent.")
+  {
+    auto num = map.count_outer(d_keys.begin(), d_keys.end());
+    thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num);
+
+    REQUIRE(num == num_items + 1);
+
+    auto output_begin = d_results.data().get();
+    auto output_end   = map.retrieve_outer(d_keys.begin(), d_keys.end(), output_begin);
+    auto size         = thrust::distance(output_begin, output_end);
+
+    REQUIRE(num == size);
+  }
+
+  SECTION("Output of pair_count and pair_retrieve should be coherent.")
+  {
+    auto num = map.pair_count(d_pairs.begin(), d_pairs.end(), pair_equal<Key, Value>{});
+
+    auto out1_zip = thrust::make_zip_iterator(
+      thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
+    auto out2_zip = thrust::make_zip_iterator(
+      thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
+
+    REQUIRE(num == num_items);
+
+    auto size = map.pair_retrieve(
+      d_pairs.begin(), d_pairs.end(), out1_zip, out2_zip, pair_equal<Key, Value>{});
+
+    REQUIRE(num == size);
+  }
+
+  SECTION("Output of pair_count_outer and pair_retrieve_outer should be coherent.")
+  {
+    auto num = map.pair_count_outer(d_pairs.begin(), d_pairs.end(), pair_equal<Key, Value>{});
+
+    auto out1_zip = thrust::make_zip_iterator(
+      thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
+    auto out2_zip = thrust::make_zip_iterator(
+      thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
+
+    REQUIRE(num == num_items + 1);
 
     auto size = map.pair_retrieve_outer(
       d_pairs.begin(), d_pairs.end(), out1_zip, out2_zip, pair_equal<Key, Value>{});
