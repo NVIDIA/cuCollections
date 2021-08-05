@@ -1207,8 +1207,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
         }
         if (second_equals) {
           auto lane_offset = __popc(second_exists & ((1 << cg_lane_id) - 1));
-          probe_output_buffer[output_idx + lane_offset]     = pair;
-          contained_output_buffer[output_idx + lane_offset] = arr[1];
+          probe_output_buffer[output_idx + num_first_matches + lane_offset]     = pair;
+          contained_output_buffer[output_idx + num_first_matches + lane_offset] = arr[1];
         }
       }
       if (g.any(first_slot_is_empty or second_slot_is_empty)) {
@@ -1418,8 +1418,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush
   offset = g.shfl(offset, 0);
 
   for (auto index = lane_id; index < num_outputs; index += g.size()) {
-    auto& probe_pair                                        = probe_output_buffer[index];
-    auto& contained_pair                                    = contained_output_buffer[index];
+    auto& probe_pair                                           = probe_output_buffer[index];
+    auto& contained_pair                                       = contained_output_buffer[index];
     thrust::get<0>(*(probe_output_begin + offset + index))     = probe_pair.first;
     thrust::get<1>(*(probe_output_begin + offset + index))     = probe_pair.second;
     thrust::get<0>(*(contained_output_begin + offset + index)) = contained_pair.first;
