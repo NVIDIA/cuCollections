@@ -634,7 +634,7 @@ __global__ void pair_retrieve(InputIt first,
   if (cg_counter[cg_id] > 0) {
     view.flush_output_buffer(tile,
                              cg_counter[cg_id],
-                             probe_output_begin[cg_id],
+                             probe_output_buffer[cg_id],
                              contained_output_buffer[cg_id],
                              num_matches,
                              probe_output_begin,

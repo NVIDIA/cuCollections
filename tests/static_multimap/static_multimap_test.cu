@@ -17,6 +17,7 @@
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
+#include <thrust/iterator/discard_iterator.h>
 #include <algorithm>
 #include <catch2/catch.hpp>
 #include <cuco/static_multimap.cuh>
@@ -325,5 +326,39 @@ TEMPLATE_TEST_CASE_SIG("Evaluation of pair functions",
     auto num       = map.pair_count(d_pairs.begin(), d_pairs.end(), pair_equal<Key, Value>{});
 
     REQUIRE(num_outer == (num + num_pairs / 2));
+  }
+
+  SECTION("Output of pair_count and pair_retrieve should be coherent.")
+  {
+    auto num = map.pair_count(d_pairs.begin(), d_pairs.end(), pair_equal<Key, Value>{});
+
+    auto out1_zip = thrust::make_zip_iterator(
+      thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
+    auto out2_zip = thrust::make_zip_iterator(
+      thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
+
+    REQUIRE(num == num_pairs);
+
+    auto size = map.pair_retrieve(
+      d_pairs.begin(), d_pairs.end(), out1_zip, out2_zip, pair_equal<Key, Value>{});
+
+    REQUIRE(num == size);
+  }
+
+  SECTION("Output of pair_count_outer and pair_retrieve_outer should be coherent.")
+  {
+    auto num = map.pair_count_outer(d_pairs.begin(), d_pairs.end(), pair_equal<Key, Value>{});
+
+    auto out1_zip = thrust::make_zip_iterator(
+      thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
+    auto out2_zip = thrust::make_zip_iterator(
+      thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
+
+    REQUIRE(num == num_pairs * 1.5);
+
+    auto size = map.pair_retrieve_outer(
+      d_pairs.begin(), d_pairs.end(), out1_zip, out2_zip, pair_equal<Key, Value>{});
+
+    REQUIRE(num == size);
   }
 }
