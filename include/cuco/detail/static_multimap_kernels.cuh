@@ -378,25 +378,30 @@ __global__ void vectorized_retrieve(InputIt first,
   if (warp.thread_rank() == 0) { warp_counter[warp_id] = 0; }
 
   while (warp.any(first + key_idx < last)) {
-    auto key = *(first + key_idx);
-    if constexpr (is_outer) {
-      view.retrieve_outer<buffer_size>(warp,
-                                       tile,
-                                       key,
-                                       &warp_counter[warp_id],
-                                       output_buffer[warp_id],
-                                       num_matches,
-                                       output_begin,
-                                       key_equal);
-    } else {
-      view.retrieve<buffer_size>(warp,
-                                 tile,
-                                 key,
-                                 &warp_counter[warp_id],
-                                 output_buffer[warp_id],
-                                 num_matches,
-                                 output_begin,
-                                 key_equal);
+    bool active_flag = first + key_idx < last;
+    auto active_warp = cg::binary_partition<warp_size>(warp, active_flag);
+
+    if (active_flag) {
+      auto key = *(first + key_idx);
+      if constexpr (is_outer) {
+        view.retrieve_outer<buffer_size>(active_warp,
+                                         tile,
+                                         key,
+                                         &warp_counter[warp_id],
+                                         output_buffer[warp_id],
+                                         num_matches,
+                                         output_begin,
+                                         key_equal);
+      } else {
+        view.retrieve<buffer_size>(active_warp,
+                                   tile,
+                                   key,
+                                   &warp_counter[warp_id],
+                                   output_buffer[warp_id],
+                                   num_matches,
+                                   output_begin,
+                                   key_equal);
+      }
     }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
@@ -530,29 +535,34 @@ __global__ void vectorized_pair_retrieve(InputIt first,
   if (warp.thread_rank() == 0) { warp_counter[warp_id] = 0; }
 
   while (warp.any(first + pair_idx < last)) {
-    typename viewT::value_type pair = *(first + pair_idx);
-    if constexpr (is_outer) {
-      view.pair_retrieve_outer<buffer_size>(warp,
-                                            tile,
-                                            pair,
-                                            &warp_counter[warp_id],
-                                            probe_output_buffer[warp_id],
-                                            contained_output_buffer[warp_id],
-                                            num_matches,
-                                            probe_output_begin,
-                                            contained_output_begin,
-                                            pair_equal);
-    } else {
-      view.pair_retrieve<buffer_size>(warp,
-                                      tile,
-                                      pair,
-                                      &warp_counter[warp_id],
-                                      probe_output_buffer[warp_id],
-                                      contained_output_buffer[warp_id],
-                                      num_matches,
-                                      probe_output_begin,
-                                      contained_output_begin,
-                                      pair_equal);
+    bool active_flag = first + pair_idx < last;
+    auto active_warp = cg::binary_partition<warp_size>(warp, active_flag);
+
+    if (active_flag) {
+      typename viewT::value_type pair = *(first + pair_idx);
+      if constexpr (is_outer) {
+        view.pair_retrieve_outer<buffer_size>(active_warp,
+                                              tile,
+                                              pair,
+                                              &warp_counter[warp_id],
+                                              probe_output_buffer[warp_id],
+                                              contained_output_buffer[warp_id],
+                                              num_matches,
+                                              probe_output_begin,
+                                              contained_output_begin,
+                                              pair_equal);
+      } else {
+        view.pair_retrieve<buffer_size>(active_warp,
+                                        tile,
+                                        pair,
+                                        &warp_counter[warp_id],
+                                        probe_output_buffer[warp_id],
+                                        contained_output_buffer[warp_id],
+                                        num_matches,
+                                        probe_output_begin,
+                                        contained_output_begin,
+                                        pair_equal);
+      }
     }
     pair_idx += (gridDim.x * block_size) / tile_size;
   }
