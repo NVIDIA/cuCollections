@@ -596,6 +596,33 @@ class static_reduction_map {
       return &slots_[(index + g.size()) % capacity_];
     }
 
+    /**
+     * @brief Initializes the given array of slots to the specified values given by `k` and `v`
+     * using the threads in the group `g`.
+     *
+     * @note This function synchronizes the group `g`.
+     *
+     * @tparam CG The type of the cooperative thread group
+     * @param g The cooperative thread group used to initialize the slots
+     * @param slots Pointer to the array of slots to initialize
+     * @param num_slots Number of slots to initialize
+     * @param k The desired key value for each slot
+     * @param v The desired mapped value for each slot
+     */
+
+    template <typename CG>
+    __device__ static void initialize_slots(
+      CG g, pair_atomic_type* slots, std::size_t num_slots, Key k, Value v)
+    {
+      auto tid = g.thread_rank();
+      while (tid < num_slots) {
+        new (&slots[tid].first) atomic_key_type{k};
+        new (&slots[tid].second) atomic_mapped_type{v};
+        tid += g.size();
+      }
+      g.sync();
+    }
+
    public:
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
@@ -732,17 +759,20 @@ class static_reduction_map {
       : device_view_base{slots, capacity, empty_key_sentinel, reduction_op}
     {
     }
+
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
       CG const& g,
       pair_atomic_type* slots,
       std::size_t capacity,
       Key empty_key_sentinel,
-      ReductionOp reduction_op) noexcept
+      ReductionOp reduction_op = {}) noexcept
     {
-      device_view_base::initialize_slots(g, slots, capacity, empty_key_sentinel, reduction_op);
+      device_view_base::initialize_slots(
+        g, slots, capacity, empty_key_sentinel, ReductionOp::identity);
       return device_mutable_view{slots, capacity, empty_key_sentinel, reduction_op};
     }
+
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
