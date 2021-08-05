@@ -32,10 +32,13 @@ void nvbench_cub_reduce_by_key(nvbench::state& state, nvbench::type_list<Key, Va
   std::vector<Key> h_keys(num_elems_in);
   std::vector<Value> h_values(num_elems_in);
 
-  generate_keys<Key>(state, dist, h_keys.begin(), h_keys.end(), multiplicity);
+  if (not generate_keys<Key>(dist, h_keys.begin(), h_keys.end(), multiplicity)) {
+    state.skip("Invalid input distribution.");
+    return;
+  }
 
   // generate uniform random values
-  generate_keys<Value>(state, "UNIFORM", h_values.begin(), h_values.end(), 1);
+  generate_keys<Value>("UNIFORM", h_values.begin(), h_values.end(), 1);
 
   // double buffer (ying/yang)
   thrust::device_vector<Key> d_keys_ying(h_keys);

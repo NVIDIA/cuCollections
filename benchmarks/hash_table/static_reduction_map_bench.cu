@@ -94,10 +94,13 @@ void nvbench_cuco_static_reduction_map_insert(
   std::vector<Key> h_keys_in(num_elems);
   std::vector<Value> h_values_in(num_elems);
 
-  generate_keys<Key>(state, dist, h_keys_in.begin(), h_keys_in.end(), multiplicity);
+  if (not generate_keys<Key>(dist, h_keys_in.begin(), h_keys_in.end(), multiplicity)) {
+    state.skip("Invalid distribution.");
+    return;
+  }
 
   // generate uniform random values
-  generate_keys<Value>(state, "UNIFORM", h_values_in.begin(), h_values_in.end(), 1);
+  generate_keys<Value>("UNIFORM", h_values_in.begin(), h_values_in.end(), 1);
 
   // the size of the hash table under a given target occupancy depends on the
   // number of unique keys in the input

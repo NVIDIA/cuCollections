@@ -33,7 +33,7 @@ function(ConfigureBench BENCH_NAME BENCH_SRC)
     add_executable(${BENCH_NAME} "${BENCH_SRC}")
     set_target_properties(${BENCH_NAME} PROPERTIES
                                         POSITION_INDEPENDENT_CODE ON
-                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
+                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks")
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
     target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)
@@ -49,7 +49,8 @@ function(ConfigureNVBench BENCH_NAME BENCH_SRC)
     add_executable(${BENCH_NAME} "${BENCH_SRC}")
     set_target_properties(${BENCH_NAME} PROPERTIES
                                         POSITION_INDEPENDENT_CODE ON
-                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/nvbenchmarks")
+                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks"
+                                        COMPILE_FLAGS -DNVBENCH_MODULE)
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
                                              #"${NVBench_SOURCE_DIR}")

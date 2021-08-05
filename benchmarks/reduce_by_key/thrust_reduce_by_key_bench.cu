@@ -58,10 +58,13 @@ void nvbench_thrust_reduce_by_key(nvbench::state& state, nvbench::type_list<Key,
   std::vector<Key> h_keys(num_elems);
   std::vector<Value> h_values(num_elems);
 
-  generate_keys<Key>(state, dist, h_keys.begin(), h_keys.end(), multiplicity);
+  if (not generate_keys<Key>(dist, h_keys.begin(), h_keys.end(), multiplicity)) {
+    state.skip("Invalid input distribution.");
+    return;
+  }
 
   // generate uniform random values
-  generate_keys<Value>(state, "UNIFORM", h_values.begin(), h_values.end(), 1);
+  generate_keys<Value>("UNIFORM", h_values.begin(), h_values.end(), 1);
 
   thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<Value> d_values(h_values);

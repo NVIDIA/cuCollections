@@ -18,11 +18,13 @@
 
 #include <iostream>
 #include <limits>
-#include <nvbench/nvbench.cuh>
 #include <random>
 #include <string>
 
 enum class dist_type { GAUSSIAN, GEOMETRIC, UNIFORM, UNIQUE, SAME };
+
+#if defined(NVBENCH_MODULE)
+#include <nvbench/nvbench.cuh>
 
 NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
   // Enum type:
@@ -46,10 +48,10 @@ NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
   // input string.
   // Just use `[](auto) { return std::string{}; }` if you don't want these.
   [](auto) { return std::string{}; })
+#endif
 
 template <typename Key, typename OutputIt>
-static void generate_keys(nvbench::state& state,
-                          dist_type dist,
+static bool generate_keys(dist_type dist,
                           OutputIt output_begin,
                           OutputIt output_end,
                           std::size_t multiplicity = 8)
@@ -107,15 +109,15 @@ static void generate_keys(nvbench::state& state,
       break;
     }
     default: {
-      state.skip("unknown distribution type");
-      break;
+      return false;
     }
   }  // switch
+
+  return true;
 }
 
 template <typename Key, typename OutputIt>
-static void generate_keys(nvbench::state& state,
-                          std::string const& dist,
+static bool generate_keys(std::string const& dist,
                           OutputIt output_begin,
                           OutputIt output_end,
                           std::size_t multiplicity = 8)
@@ -133,11 +135,10 @@ static void generate_keys(nvbench::state& state,
   } else if (dist == "SAME") {
     enum_value = dist_type::SAME;
   } else {
-    state.skip("unknown distribution type");
-    return;
+    return false;
   }
 
-  generate_keys<Key>(state, enum_value, output_begin, output_end, multiplicity);
+  return generate_keys<Key>(enum_value, output_begin, output_end, multiplicity);
 }
 
 template <typename Key, typename OutputIt>
