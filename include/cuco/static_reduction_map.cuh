@@ -456,26 +456,6 @@ class static_reduction_map {
     }
 
     /**
-     * @brief Gets the binary op
-     *
-     */
-    __device__ ReductionOp get_op() const noexcept { return op_; }
-
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
-
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
-
-    /**
      * @brief Returns the initial slot for a given key `k`
      *
      * @tparam Hash Unary callable type
@@ -626,6 +606,26 @@ class static_reduction_map {
     }
 
    public:
+    /**
+     * @brief Gets the binary op
+     *
+     */
+    __device__ ReductionOp get_op() const noexcept { return op_; }
+
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
+
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
+
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
      *
