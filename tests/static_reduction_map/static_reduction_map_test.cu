@@ -16,23 +16,28 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
+#include <thrust/functional.h>
 #include <algorithm>
 #include <catch2/catch.hpp>
 #include <cuco/static_reduction_map.cuh>
 #include <limits>
 #include <util.hpp>
 
+// cuco::custom op functor that should give the same result as cuco::reduce_add
+template <typename T>
+using custom_reduce_add = cuco::custom_op<T, 0, thrust::plus<T>, 0>;
 
 TEMPLATE_TEST_CASE_SIG("Insert all identical keys",
                        "",
-                       ((typename Key, typename Value), Key, Value),
-                       (int32_t, int32_t))
+                       ((typename Key, typename Value, typename Op), Key, Value, Op),
+                       (int32_t, int32_t, cuco::reduce_add<int32_t>),
+                       (int32_t, int32_t, custom_reduce_add<int32_t>))
 {
   thrust::device_vector<Key> keys(100, 42);
   thrust::device_vector<Value> values(keys.size(), 1);
 
   auto const num_slots{keys.size() * 2};
-  cuco::static_reduction_map<cuco::reduce_add<Value>, Key, Value> map{num_slots, -1};
+  cuco::static_reduction_map<Op, Key, Value> map{num_slots, -1};
 
   auto zip     = thrust::make_zip_iterator(thrust::make_tuple(keys.begin(), values.begin()));
   auto zip_end = zip + keys.size();
@@ -62,12 +67,13 @@ TEMPLATE_TEST_CASE_SIG("Insert all identical keys",
 
 TEMPLATE_TEST_CASE_SIG("Insert all unique keys",
                        "",
-                       ((typename Key, typename Value), Key, Value),
-                       (int32_t, int32_t))
+                       ((typename Key, typename Value, typename Op), Key, Value, Op),
+                       (int32_t, int32_t, cuco::reduce_add<int32_t>),
+                       (int32_t, int32_t, custom_reduce_add<int32_t>))
 {
   constexpr std::size_t num_keys = 10000;
   constexpr std::size_t num_slots{num_keys * 2};
-  cuco::static_reduction_map<cuco::reduce_add<Value>, Key, Value> map{num_slots, -1};
+  cuco::static_reduction_map<Op, Key, Value> map{num_slots, -1};
 
   auto keys_begin   = thrust::make_counting_iterator<Key>(0);
   auto values_begin = thrust::make_counting_iterator<Value>(0);
@@ -93,4 +99,48 @@ TEMPLATE_TEST_CASE_SIG("Insert all unique keys",
     map.find(keys_begin, keys_begin + num_keys, found.begin());
     REQUIRE(thrust::equal(thrust::device, values_begin, values_begin + num_keys, found.begin()));
   }
+}
+
+template <typename MapType, std::size_t N>
+__global__ void static_reduction_map_shared_memory_kernel(bool* key_found)
+{
+  using Key   = typename MapType::key_type;
+  using Value = typename MapType::mapped_type;
+
+  namespace cg            = cooperative_groups;
+  using mutable_view_type = typename MapType::device_mutable_view;
+  using view_type         = typename MapType::device_view;
+  __shared__ typename mutable_view_type::slot_type slots[N];
+  auto map =
+    mutable_view_type::make_from_uninitialized_slots(cg::this_thread_block(), &slots[0], N, -1);
+
+  auto g            = cg::this_thread_block();
+  std::size_t index = threadIdx.x + blockIdx.x * blockDim.x;
+  int rank          = g.thread_rank();
+
+  // insert {thread_rank, thread_rank} for each thread in thread-block
+  map.insert(cuco::pair<Key, Value>(rank, rank));
+  g.sync();
+
+  auto find_map       = view_type(map);
+  auto retrieved_pair = find_map.find(rank);
+  if (retrieved_pair != find_map.end() && retrieved_pair->second == rank) {
+    key_found[index] = true;
+  }
+}
+
+TEMPLATE_TEST_CASE_SIG("Shared memory hast table.",
+                       "",
+                       ((typename Key, typename Value, typename Op), Key, Value, Op),
+                       (int32_t, int32_t, cuco::reduce_add<int32_t>),
+                       (int32_t, int32_t, custom_reduce_add<int32_t>))
+{
+  constexpr std::size_t N = 256;
+  thrust::device_vector<bool> key_found(N, false);
+
+  static_reduction_map_shared_memory_kernel<
+    cuco::static_reduction_map<Op, Key, Value, cuda::thread_scope_block>,
+    N><<<8, 32>>>(key_found.data().get());
+
+  REQUIRE(all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
 }
