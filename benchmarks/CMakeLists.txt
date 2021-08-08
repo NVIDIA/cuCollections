@@ -24,6 +24,14 @@ CPMAddPackage(
   GIT_SHALLOW TRUE
 )
 
+# device-side benchmark tool
+CPMAddPackage(
+  NAME cuda_benchmark
+  GITHUB_REPOSITORY sleeepyjack/cuda_benchmark
+  GIT_TAG master
+  GIT_SHALLOW TRUE
+)
+
 set_target_properties(benchmark PROPERTIES CXX_STANDARD 17)
 
 ###################################################################################################
@@ -62,6 +70,23 @@ function(ConfigureNVBench BENCH_NAME BENCH_SRC)
 endfunction(ConfigureNVBench)
 
 ###################################################################################################
+function(ConfigureCUDABench BENCH_NAME BENCH_SRC)
+    add_executable(${BENCH_NAME} "${BENCH_SRC}")
+    set_target_properties(${BENCH_NAME} PROPERTIES
+                                        POSITION_INDEPENDENT_CODE ON
+                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks")
+    target_include_directories(${BENCH_NAME} PRIVATE
+                                             "${CMAKE_CURRENT_SOURCE_DIR}")
+                                             #"${NVBench_SOURCE_DIR}")
+    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
+    target_link_libraries(${BENCH_NAME} PRIVATE
+                                        cuda_benchmark
+                                        fmt
+                                        pthread
+                                        cuco)
+endfunction(ConfigureCUDABench)
+
+###################################################################################################
 ### test sources ##################################################################################
 ###################################################################################################
 
@@ -88,6 +113,10 @@ ConfigureNVBench(THRUST_RBK_BENCH "${THRUST_RBK_BENCH_SRC}")
 ###################################################################################################
 set(CUB_RBK_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/reduce_by_key/cub_reduce_by_key_bench.cu")
 ConfigureNVBench(CUB_RBK_BENCH "${CUB_RBK_BENCH_SRC}")
+
+###################################################################################################
+set(STATIC_REDUCTION_MAP_SMEM_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_reduction_map_smem_bench.cu")
+ConfigureCUDABench(STATIC_REDUCTION_MAP_SMEM_BENCH "${STATIC_REDUCTION_MAP_SMEM_BENCH_SRC}")
 
 ###################################################################################################
 set(STATIC_REDUCTION_MAP_PARAM_GRID_SEARCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_reduction_map_param_grid_search.cu")
