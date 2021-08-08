@@ -81,6 +81,7 @@ function(ConfigureCUDABench BENCH_NAME BENCH_SRC)
     target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         cuda_benchmark
+                                        fmt
                                         pthread
                                         cuco)
 endfunction(ConfigureCUDABench)
