@@ -18,3 +18,4 @@ endfunction(ConfigureExample)
 ###################################################################################################
 
 ConfigureExample(STATIC_MAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_example.cu")
+ConfigureExample(BLOOM_FILTER_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/bloom_filter/bloom_filter_example.cu")
