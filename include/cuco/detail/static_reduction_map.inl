@@ -454,7 +454,7 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::co
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    if (detail::bitwise_compare(existing_key, empty_key_sentinel_)) { return false; }
+    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) { return false; }
 
     if (key_equal(existing_key, k)) { return true; }
 
