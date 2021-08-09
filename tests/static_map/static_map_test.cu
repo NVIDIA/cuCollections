@@ -102,6 +102,14 @@ struct alignas(8) value_pair {
   int32_t s;
 };
 
+#define SIZE 10
+__device__ int A[SIZE];
+
+template <typename T>
+struct custom_equals {
+  __device__ bool operator()(T lhs, T rhs) { return A[lhs] == rhs; }
+};
+
 TEST_CASE("User defined key and value type", "")
 {
   using Key   = key_pair;
@@ -157,6 +165,7 @@ TEST_CASE("User defined key and value type", "")
                             return std::tie(lhs.f, lhs.s) == std::tie(rhs.f, rhs.s);
                           }));
   }
+
   SECTION("All inserted keys-value pairs should be contained")
   {
     thrust::device_vector<bool> contained(num_pairs);
@@ -217,6 +226,59 @@ TEST_CASE("User defined key and value type", "")
   }
 }
 
+TEMPLATE_TEST_CASE_SIG("Key comparison against sentinel",
+                       "",
+                       ((typename T, dist_type Dist), T, Dist),
+                       (int32_t, dist_type::UNIQUE),
+                       (int64_t, dist_type::UNIQUE))
+{
+  using Key   = T;
+  using Value = T;
+
+  constexpr std::size_t num_keys{SIZE};
+  cuco::static_map<Key, Value> map{SIZE * 2, -1, -1};
+
+  auto m_view = map.get_device_mutable_view();
+
+  std::vector<Key> h_keys(num_keys);
+  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
+
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+
+  for (auto i = 0; i < num_keys; ++i) {
+    Key key           = h_keys[i];
+    Value val         = h_keys[i];
+    h_pairs[i].first  = key;
+    h_pairs[i].second = val;
+  }
+
+  int h_A[SIZE];
+  for (int i = 0; i < SIZE; i++) {
+    h_A[i] = i;
+  }
+  cudaMemcpyToSymbol(A, h_A, SIZE * sizeof(int));
+
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+
+  SECTION(
+    "Tests of non-CG insert: The custom `key_equal` can never be used to compare against sentinel")
+  {
+    REQUIRE(all_of(d_pairs.begin(),
+                   d_pairs.end(),
+                   [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+                     return m_view.insert(
+                       pair, cuco::detail::MurmurHash3_32<Key>{}, custom_equals<Key>{});
+                   }));
+  }
+
+  SECTION(
+    "Tests of CG insert: The custom `key_equal` can never be used to compare against sentinel")
+  {
+    map.insert(
+      d_pairs.begin(), d_pairs.end(), cuco::detail::MurmurHash3_32<Key>{}, custom_equals<Key>{});
+  }
+}
+
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        "",
                        ((typename T, dist_type Dist), T, Dist),
@@ -230,8 +292,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   using Key   = T;
   using Value = T;
 
-  constexpr std::size_t num_keys{50'000'000};
-  cuco::static_map<Key, Value> map{100'000'000, -1, -1};
+  constexpr std::size_t num_keys{500'000};
+  cuco::static_map<Key, Value> map{1'000'000, -1, -1};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();
