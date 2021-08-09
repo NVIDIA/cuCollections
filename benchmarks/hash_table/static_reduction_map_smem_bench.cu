@@ -54,7 +54,8 @@ void static_reduction_map_smem_insert_bench(cuda_benchmark::controller &controll
                                             std::uint32_t multiplicity_log2,
                                             float occupancy)
 {
-  using map_type  = cuco::static_reduction_map<typename cuco::reduce_add<Value>, Key, Value>;
+  using map_type = cuco::
+    static_reduction_map<typename cuco::reduce_add<Value>, Key, Value, cuda::thread_scope_block>;
   using pair_type = typename map_type::value_type;
 
   auto const num_elems    = 1UL << num_elems_log2;
@@ -145,13 +146,13 @@ int main()
   }
 
   // occupancy fix; capacity fix; varying number of keys; varying key multiplicity
-  for (float i = 0; i < 7; ++i) {
+  for (float i = 0; i < 11; ++i) {
     static_reduction_map_smem_insert_bench<std::uint32_t, std::uint32_t>(
       controller, "EQUAL CAPACITY", 10 + i, 0 + i, 0.8);
   }
 
   // occupancy fix; capacity fix; varying number of keys; varying key multiplicity
-  for (float i = 0; i < 7; ++i) {
+  for (float i = 0; i < 11; ++i) {
     static_reduction_map_smem_insert_bench<std::uint64_t, std::uint64_t>(
       controller, "EQUAL CAPACITY", 10 + i, 0 + i, 0.8);
   }
