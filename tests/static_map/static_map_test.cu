@@ -107,7 +107,7 @@ __device__ int A[SIZE];
 
 template <typename T>
 struct custom_equals {
-  __device__ bool operator()(T lhs, T rhs) { return A[lhs] == rhs; }
+  __device__ bool operator()(T lhs, T rhs) { return A[lhs] == A[rhs]; }
 };
 
 TEST_CASE("User defined key and value type", "")
