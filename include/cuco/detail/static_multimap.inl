@@ -24,7 +24,11 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::static_multimap(
-  std::size_t capacity, Key empty_key_sentinel, Value empty_value_sentinel, Allocator const& alloc)
+  std::size_t capacity,
+  Key empty_key_sentinel,
+  Value empty_value_sentinel,
+  cudaStream_t stream,
+  Allocator const& alloc)
   : empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
     slot_allocator_{alloc},
@@ -41,8 +45,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::static_multimap(
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
   auto const grid_size      = (get_capacity() + stride * block_size - 1) / (stride * block_size);
-  detail::initialize<atomic_key_type, atomic_mapped_type>
-    <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, get_capacity());
+  detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream>>>(
+    slots_, empty_key_sentinel, empty_value_sentinel, get_capacity());
 }
 
 template <typename Key,

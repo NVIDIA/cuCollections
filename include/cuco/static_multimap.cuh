@@ -192,11 +192,13 @@ class static_multimap {
    * @param capacity The total number of slots in the map
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param stream CUDA stream used to initialize the map
    * @param alloc Allocator used for allocating device storage
    */
   static_multimap(std::size_t capacity,
                   Key empty_key_sentinel,
                   Value empty_value_sentinel,
+                  cudaStream_t stream    = 0,
                   Allocator const& alloc = Allocator{});
 
   /**
