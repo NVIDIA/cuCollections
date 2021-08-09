@@ -239,6 +239,7 @@ TEMPLATE_TEST_CASE_SIG("Key comparison against sentinel",
   cuco::static_map<Key, Value> map{SIZE * 2, -1, -1};
 
   auto m_view = map.get_device_mutable_view();
+  auto view   = map.get_device_view();
 
   std::vector<Key> h_keys(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
@@ -276,6 +277,13 @@ TEMPLATE_TEST_CASE_SIG("Key comparison against sentinel",
   {
     map.insert(
       d_pairs.begin(), d_pairs.end(), cuco::detail::MurmurHash3_32<Key>{}, custom_equals<Key>{});
+    // All keys inserted via custom `key_equal` should be found
+    REQUIRE(all_of(
+      d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+        auto const found = view.find(pair.first);
+        return (found != view.end()) and
+               (found->first.load() == pair.first and found->second.load() == pair.second);
+      }));
   }
 }
 
