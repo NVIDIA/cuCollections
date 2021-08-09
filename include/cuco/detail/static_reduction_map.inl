@@ -39,8 +39,7 @@ static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::static_reductio
     empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{ReductionOp::identity},
     op_{reduction_op},
-    slot_allocator_{alloc},
-    counter_allocator_{alloc}
+    slot_allocator_{alloc}
 {
   slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
 
@@ -79,29 +78,8 @@ void static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::insert(
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 
-  atomic_ctr_type *h_num_successes, *d_num_successes;
-  CUCO_CUDA_TRY(cudaMallocHost(&h_num_successes, sizeof(atomic_ctr_type)));
-
-  auto tmp_counter_allocator = counter_allocator_;
-  d_num_successes =
-    std::allocator_traits<counter_allocator_type>::allocate(tmp_counter_allocator, 1);
-
-  h_num_successes->store(static_cast<std::size_t>(0), cuda::std::memory_order_relaxed);
-  CUCO_CUDA_TRY(cudaMemcpyAsync(
-    d_num_successes, h_num_successes, sizeof(atomic_ctr_type), cudaMemcpyHostToDevice, stream));
-
-  detail::insert<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
-    first, first + num_keys, d_num_successes, view, hash, key_equal);
-
-  CUCO_CUDA_TRY(cudaMemcpyAsync(
-    h_num_successes, d_num_successes, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
-  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
-
-  size_ += h_num_successes->load(cuda::std::memory_order_relaxed);
-
-  CUCO_CUDA_TRY(cudaFreeHost(h_num_successes));
-  std::allocator_traits<counter_allocator_type>::deallocate(
-    tmp_counter_allocator, d_num_successes, 1);
+  detail::insert<block_size, tile_size>
+    <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view, hash, key_equal);
 }
 
 template <typename ReductionOp,
@@ -128,7 +106,6 @@ void static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::find(Input
 
   detail::find<block_size, tile_size, Value>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
-  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 
 namespace detail {
@@ -196,7 +173,23 @@ void static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::contains(
 
   detail::contains<block_size, tile_size>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
-  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+}
+
+template <typename ReductionOp,
+          typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator>
+std::size_t static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::get_size(
+  cudaStream_t stream) const noexcept
+{
+  // Convert pair_type to thrust::tuple to allow assigning to a zip iterator
+  auto begin =
+    thrust::make_transform_iterator(raw_slots_begin(), detail::slot_to_tuple<Key, Value>{});
+  auto end    = begin + get_capacity();
+  auto filled = detail::slot_is_filled<Key>{get_empty_key_sentinel()};
+
+  return thrust::count_if(thrust::cuda::par.on(stream), begin, end, filled);
 }
 
 template <typename ReductionOp,

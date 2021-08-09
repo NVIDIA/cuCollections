@@ -271,12 +271,9 @@ class static_reduction_map {
   using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
   using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
   using slot_type          = pair_atomic_type;
-  using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
   using allocator_type     = Allocator;
   using slot_allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
-  using counter_allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
 
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
   static_assert(atomic_key_type::is_always_lock_free,
@@ -1101,16 +1098,21 @@ class static_reduction_map {
   /**
    * @brief Gets the number of elements in the hash map.
    *
+   * @param stream CUDA stream this operation is issued in (synchronizes with host)
    * @return The number of elements in the map
    */
-  std::size_t get_size() const noexcept { return size_; }
+  std::size_t get_size(cudaStream_t stream = 0) const noexcept;
 
   /**
    * @brief Gets the load factor of the hash map.
    *
+   * @param stream CUDA stream this operation is issued in (synchronizes with host)
    * @return The load factor of the hash map
    */
-  float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; }
+  float get_load_factor(cudaStream_t stream = 0) const noexcept
+  {
+    return static_cast<float>(get_size(stream)) / capacity_;
+  }
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
@@ -1162,14 +1164,12 @@ class static_reduction_map {
 
   value_type const* raw_slots_end() const noexcept { return raw_slots_begin() + get_capacity(); }
 
-  pair_atomic_type* slots_{nullptr};            ///< Pointer to flat slots storage
-  std::size_t capacity_{};                      ///< Total number of slots
-  std::size_t size_{};                          ///< Number of keys in map
-  Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
-  Value empty_value_sentinel_{};                ///< Initial value of empty slot
-  ReductionOp op_{};                            ///< Binary operation reduction function object
-  slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
-  counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
+  pair_atomic_type* slots_{nullptr};      ///< Pointer to flat slots storage
+  std::size_t capacity_{};                ///< Total number of slots
+  Key empty_key_sentinel_{};              ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};          ///< Initial value of empty slot
+  ReductionOp op_{};                      ///< Binary operation reduction function object
+  slot_allocator_type slot_allocator_{};  ///< Allocator used to allocate slots
 };
 }  // namespace cuco
 

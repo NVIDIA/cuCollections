@@ -72,30 +72,19 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  */
 template <std::size_t block_size,
           typename InputIt,
-          typename atomicT,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void insert(
-  InputIt first, InputIt last, atomicT* num_successes, viewT view, Hash hash, KeyEqual key_equal)
+__global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEqual key_equal)
 {
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
-  __shared__ typename BlockReduce::TempStorage temp_storage;
-  std::size_t thread_num_successes = 0;
-
   auto tid = block_size * blockIdx.x + threadIdx.x;
   auto it  = first + tid;
 
   while (it < last) {
     typename viewT::value_type const insert_pair{*it};
-    if (view.insert(insert_pair, hash, key_equal)) { thread_num_successes++; }
+    view.insert(insert_pair, hash, key_equal);
     it += gridDim.x * block_size;
   }
-
-  // compute number of successfully inserted elements for each block
-  // and atomically add to the grand total
-  std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
-  if (threadIdx.x == 0) { *num_successes += block_num_successes; }
 }
 
 /**
@@ -126,17 +115,11 @@ __global__ void insert(
 template <std::size_t block_size,
           uint32_t tile_size,
           typename InputIt,
-          typename atomicT,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void insert(
-  InputIt first, InputIt last, atomicT* num_successes, viewT view, Hash hash, KeyEqual key_equal)
+__global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEqual key_equal)
 {
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
-  __shared__ typename BlockReduce::TempStorage temp_storage;
-  std::size_t thread_num_successes = 0;
-
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid  = block_size * blockIdx.x + threadIdx.x;
   auto it   = first + tid / tile_size;
@@ -147,16 +130,9 @@ __global__ void insert(
       static_cast<typename viewT::key_type>(thrust::get<0>(*it)),
       static_cast<typename viewT::mapped_type>(thrust::get<1>(*it))};
 
-    if (view.insert(tile, insert_pair, hash, key_equal) && tile.thread_rank() == 0) {
-      thread_num_successes++;
-    }
+    view.insert(tile, insert_pair, hash, key_equal);
     it += (gridDim.x * block_size) / tile_size;
   }
-
-  // compute number of successfully inserted elements for each block
-  // and atomically add to the grand total
-  std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
-  if (threadIdx.x == 0) { *num_successes += block_num_successes; }
 }
 
 /**
