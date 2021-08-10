@@ -117,6 +117,8 @@ void nvbench_cuco_static_reduction_map_insert(
     thrust::make_zip_iterator(thrust::make_tuple(d_keys_in.begin(), d_values_in.begin()));
   auto d_pairs_in_end = d_pairs_in_begin + num_elems;
 
+  state.add_element_count(num_elems);
+
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                map_type map{capacity, -1};

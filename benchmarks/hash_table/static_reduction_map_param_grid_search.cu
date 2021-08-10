@@ -70,6 +70,8 @@ void nvbench_cuco_static_reduction_map_custom_op_backoff_delay(
     thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
   auto d_pairs_end = d_pairs_begin + num_elems;
 
+  state.add_element_count(num_elems);
+
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                map_type map{capacity, -1};

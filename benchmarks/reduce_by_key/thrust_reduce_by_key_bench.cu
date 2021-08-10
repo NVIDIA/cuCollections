@@ -69,6 +69,8 @@ void nvbench_thrust_reduce_by_key(nvbench::state& state, nvbench::type_list<Key,
   thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<Value> d_values(h_values);
 
+  state.add_element_count(num_elems);
+
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                timer.start();

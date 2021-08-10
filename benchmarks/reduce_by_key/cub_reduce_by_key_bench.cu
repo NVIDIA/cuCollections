@@ -72,6 +72,8 @@ void nvbench_cub_reduce_by_key(nvbench::state& state, nvbench::type_list<Key, Va
 
   thrust::device_vector<char> d_temp(std::max(temp_bytes_sort, temp_bytes_reduce));
 
+  state.add_element_count(num_elems_in);
+
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                timer.start();
