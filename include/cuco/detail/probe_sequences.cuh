@@ -84,17 +84,21 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, Scope> {
   }
 
   template <typename CG>
-  __device__ iterator initial_slot(CG const& g, Key const k) noexcept
+  __device__ iterator initial_slot(
+    CG const& g,
+    Key const k,
+    thrust::optional<typename detail::MurmurHash3_32<Key>::result_type> precomputed_hash) noexcept
   {
     std::size_t index;
+    auto const hash_value = precomputed_hash.value_or(hash1_(k));
     if constexpr (uses_vector_load()) {
       step_size_ = (hash2_(k + 1) % (capacity_ / (cg_size() * vector_width()) - 1) + 1) *
                    cg_size() * vector_width();
-      index = hash1_(k) % (capacity_ / (cg_size() * vector_width())) * cg_size() * vector_width() +
+      index = hash_value % (capacity_ / (cg_size() * vector_width())) * cg_size() * vector_width() +
               g.thread_rank() * vector_width();
     } else {
       step_size_ = (hash2_(k + 1) % (capacity_ / cg_size() - 1) + 1) * cg_size();
-      index      = (hash1_(k) + g.thread_rank()) % capacity_;
+      index      = (hash_value + g.thread_rank()) % capacity_;
     }
     return slots_ + index;
   }

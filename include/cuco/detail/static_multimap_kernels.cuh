@@ -87,7 +87,7 @@ __global__ void insert(InputIt first, InputIt last, viewT view, KeyEqual key_equ
   while (it < last) {
     // force conversion to value_type
     typename viewT::value_type const insert_pair{*it};
-    view.insert(tile, insert_pair, key_equal);
+    view.insert(tile, insert_pair, thrust::nullopt, key_equal);
     it += (gridDim.x * block_size) / tile_size;
   }
 }
@@ -129,7 +129,7 @@ __global__ void insert_if(
     typename viewT::value_type const insert_pair{*it};
     if (pred(insert_pair)) {
       // force conversion to value_type
-      view.insert(tile, insert_pair, key_equal);
+      view.insert(tile, insert_pair, thrust::nullopt, key_equal);
     }
     it += (gridDim.x * block_size) / tile_size;
   }
@@ -173,7 +173,7 @@ __global__ void contains(
 
   while (first + key_idx < last) {
     auto key   = *(first + key_idx);
-    auto found = view.contains(tile, key, key_equal);
+    auto found = view.contains(tile, key, thrust::nullopt, key_equal);
 
     /*
      * The ld.relaxed.gpu instruction used in view.find causes L1 to
@@ -236,9 +236,9 @@ __global__ void count(
   while (first + key_idx < last) {
     auto key = *(first + key_idx);
     if constexpr (is_outer) {
-      view.count_outer(tile, key, thread_num_matches, key_equal);
+      view.count_outer(tile, key, thrust::nullopt, thread_num_matches, key_equal);
     } else {
-      view.count(tile, key, thread_num_matches, key_equal);
+      view.count(tile, key, thrust::nullopt, thread_num_matches, key_equal);
     }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
@@ -295,9 +295,9 @@ __global__ void pair_count(
   while (first + pair_idx < last) {
     typename viewT::value_type const pair = *(first + pair_idx);
     if constexpr (is_outer) {
-      view.pair_count_outer(tile, pair, thread_num_matches, pair_equal);
+      view.pair_count_outer(tile, pair, thrust::nullopt, thread_num_matches, pair_equal);
     } else {
-      view.pair_count(tile, pair, thread_num_matches, pair_equal);
+      view.pair_count(tile, pair, thrust::nullopt, thread_num_matches, pair_equal);
     }
     pair_idx += (gridDim.x * block_size) / tile_size;
   }
@@ -387,6 +387,7 @@ __global__ void vectorized_retrieve(InputIt first,
         view.retrieve_outer<buffer_size>(active_warp,
                                          tile,
                                          key,
+                                         thrust::nullopt,
                                          &warp_counter[warp_id],
                                          output_buffer[warp_id],
                                          num_matches,
@@ -396,6 +397,7 @@ __global__ void vectorized_retrieve(InputIt first,
         view.retrieve<buffer_size>(active_warp,
                                    tile,
                                    key,
+                                   thrust::nullopt,
                                    &warp_counter[warp_id],
                                    output_buffer[warp_id],
                                    num_matches,
@@ -481,11 +483,23 @@ __global__ void retrieve(InputIt first,
   while (first + key_idx < last) {
     auto key = *(first + key_idx);
     if constexpr (is_outer) {
-      view.retrieve_outer<tile_size, buffer_size>(
-        tile, key, &cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin, key_equal);
+      view.retrieve_outer<tile_size, buffer_size>(tile,
+                                                  key,
+                                                  thrust::nullopt,
+                                                  &cg_counter[cg_id],
+                                                  output_buffer[cg_id],
+                                                  num_matches,
+                                                  output_begin,
+                                                  key_equal);
     } else {
-      view.retrieve<tile_size, buffer_size>(
-        tile, key, &cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin, key_equal);
+      view.retrieve<tile_size, buffer_size>(tile,
+                                            key,
+                                            thrust::nullopt,
+                                            &cg_counter[cg_id],
+                                            output_buffer[cg_id],
+                                            num_matches,
+                                            output_begin,
+                                            key_equal);
     }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
@@ -544,6 +558,7 @@ __global__ void vectorized_pair_retrieve(InputIt first,
         view.pair_retrieve_outer<buffer_size>(active_warp,
                                               tile,
                                               pair,
+                                              thrust::nullopt,
                                               &warp_counter[warp_id],
                                               probe_output_buffer[warp_id],
                                               contained_output_buffer[warp_id],
@@ -555,6 +570,7 @@ __global__ void vectorized_pair_retrieve(InputIt first,
         view.pair_retrieve<buffer_size>(active_warp,
                                         tile,
                                         pair,
+                                        thrust::nullopt,
                                         &warp_counter[warp_id],
                                         probe_output_buffer[warp_id],
                                         contained_output_buffer[warp_id],
@@ -619,6 +635,7 @@ __global__ void pair_retrieve(InputIt first,
     if constexpr (is_outer) {
       view.pair_retrieve_outer<tile_size, buffer_size>(tile,
                                                        pair,
+                                                       thrust::nullopt,
                                                        &cg_counter[cg_id],
                                                        probe_output_buffer[cg_id],
                                                        contained_output_buffer[cg_id],
@@ -629,6 +646,7 @@ __global__ void pair_retrieve(InputIt first,
     } else {
       view.pair_retrieve<tile_size, buffer_size>(tile,
                                                  pair,
+                                                 thrust::nullopt,
                                                  &cg_counter[cg_id],
                                                  probe_output_buffer[cg_id],
                                                  contained_output_buffer[cg_id],
