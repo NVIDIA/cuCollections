@@ -1845,7 +1845,8 @@ class static_multimap {
   Value empty_value_sentinel_{};                ///< Initial value of empty slot
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
-};                                              // class static_multimap
+  atomic_ctr_type* d_counter;
+};  // class static_multimap
 }  // namespace cuco
 
 #include <cuco/detail/static_multimap.inl>
