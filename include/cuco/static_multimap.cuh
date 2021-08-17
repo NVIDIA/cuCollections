@@ -1845,7 +1845,8 @@ class static_multimap {
   Value empty_value_sentinel_{};                ///< Initial value of empty slot
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
-  atomic_ctr_type* d_counter;
+  atomic_ctr_type* d_counter_;
+  cudaStream_t const& stream_;
 };  // class static_multimap
 }  // namespace cuco
 
