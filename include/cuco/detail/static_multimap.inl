@@ -144,7 +144,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(
   cudaMemsetAsync(d_counter, 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
-  detail::count<block_size, cg_size(), Key, Value, is_outer>
+  detail::count<block_size, cg_size(), is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, d_counter, view, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_counter, d_counter, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
@@ -173,7 +173,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count_
   cudaMemsetAsync(d_counter, 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
-  detail::count<block_size, cg_size(), Key, Value, is_outer>
+  detail::count<block_size, cg_size(), is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, d_counter, view, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_counter, d_counter, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
@@ -202,7 +202,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   cudaMemsetAsync(d_counter, 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
-  detail::pair_count<block_size, cg_size(), Key, Value, is_outer>
+  detail::pair_count<block_size, cg_size(), is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, d_counter, view, pair_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_counter, d_counter, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
@@ -231,7 +231,7 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   cudaMemsetAsync(d_counter, 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
-  detail::pair_count<block_size, cg_size(), Key, Value, is_outer>
+  detail::pair_count<block_size, cg_size(), is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, d_counter, view, pair_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_counter, d_counter, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
@@ -263,11 +263,10 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   std::size_t h_counter;
 
   if constexpr (uses_vector_load()) {
-    detail::
-      vectorized_retrieve<block_size, warp_size(), cg_size(), buffer_size, Key, Value, is_outer>
+    detail::vectorized_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
       <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, d_counter, view, key_equal);
   } else {
-    detail::retrieve<block_size, warp_size(), cg_size(), buffer_size, Key, Value, is_outer>
+    detail::retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
       <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, d_counter, view, key_equal);
   }
   CUCO_CUDA_TRY(cudaMemcpyAsync(
@@ -301,11 +300,10 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
   std::size_t h_counter;
 
   if constexpr (uses_vector_load()) {
-    detail::
-      vectorized_retrieve<block_size, warp_size(), cg_size(), buffer_size, Key, Value, is_outer>
+    detail::vectorized_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
       <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, d_counter, view, key_equal);
   } else {
-    detail::retrieve<block_size, warp_size(), cg_size(), buffer_size, Key, Value, is_outer>
+    detail::retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
       <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, d_counter, view, key_equal);
   }
   CUCO_CUDA_TRY(cudaMemcpyAsync(
@@ -344,16 +342,11 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_r
   std::size_t h_counter;
 
   if constexpr (uses_vector_load()) {
-    detail::vectorized_pair_retrieve<block_size,
-                                     warp_size(),
-                                     cg_size(),
-                                     buffer_size,
-                                     Key,
-                                     Value,
-                                     is_outer><<<grid_size, block_size, 0, stream>>>(
-      first, last, probe_output_begin, contained_output_begin, d_counter, view, pair_equal);
+    detail::vectorized_pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
+      <<<grid_size, block_size, 0, stream>>>(
+        first, last, probe_output_begin, contained_output_begin, d_counter, view, pair_equal);
   } else {
-    detail::pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, Key, Value, is_outer>
+    detail::pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
       <<<grid_size, block_size, 0, stream>>>(
         first, last, probe_output_begin, contained_output_begin, d_counter, view, pair_equal);
   }
@@ -392,16 +385,11 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_r
   std::size_t h_counter;
 
   if constexpr (uses_vector_load()) {
-    detail::vectorized_pair_retrieve<block_size,
-                                     warp_size(),
-                                     cg_size(),
-                                     buffer_size,
-                                     Key,
-                                     Value,
-                                     is_outer><<<grid_size, block_size, 0, stream>>>(
-      first, last, probe_output_begin, contained_output_begin, d_counter, view, pair_equal);
+    detail::vectorized_pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
+      <<<grid_size, block_size, 0, stream>>>(
+        first, last, probe_output_begin, contained_output_begin, d_counter, view, pair_equal);
   } else {
-    detail::pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, Key, Value, is_outer>
+    detail::pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
       <<<grid_size, block_size, 0, stream>>>(
         first, last, probe_output_begin, contained_output_begin, d_counter, view, pair_equal);
   }

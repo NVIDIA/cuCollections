@@ -197,8 +197,6 @@ __global__ void contains(
  *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
- * @tparam Key key type
- * @tparam Value The type of the mapped value for the map
  * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
  * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
  * operations or not
@@ -215,8 +213,6 @@ __global__ void contains(
  */
 template <uint32_t block_size,
           uint32_t tile_size,
-          typename Key,
-          typename Value,
           bool is_outer,
           typename InputIt,
           typename atomicT,
@@ -258,8 +254,6 @@ __global__ void count(
  *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
- * @tparam Key key type
- * @tparam Value The type of the mapped value for the map
  * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
  * operations or not
  * @tparam Input Device accesible input iterator of key/value pairs
@@ -274,8 +268,6 @@ __global__ void count(
  */
 template <uint32_t block_size,
           uint32_t tile_size,
-          typename Key,
-          typename Value,
           bool is_outer,
           typename InputIt,
           typename atomicT,
@@ -325,8 +317,6 @@ __global__ void pair_count(
  * @tparam warp_size The size of the warp
  * @tparam tile_size The number of threads in the Cooperative Groups
  * @tparam buffer_size Size of the output buffer
- * @tparam Key key type
- * @tparam Value The type of the mapped value for the map
  * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
  * operations or not
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -347,8 +337,6 @@ template <uint32_t block_size,
           uint32_t warp_size,
           uint32_t tile_size,
           uint32_t buffer_size,
-          typename Key,
-          typename Value,
           bool is_outer,
           typename InputIt,
           typename OutputIt,
@@ -362,6 +350,8 @@ __global__ void vectorized_retrieve(InputIt first,
                                     viewT view,
                                     KeyEqual key_equal)
 {
+  using pair_type = typename viewT::value_type;
+
   constexpr uint32_t num_warps = block_size / warp_size;
   const uint32_t warp_id       = threadIdx.x / warp_size;
 
@@ -370,7 +360,7 @@ __global__ void vectorized_retrieve(InputIt first,
   auto tid     = block_size * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
 
-  __shared__ cuco::pair_type<Key, Value> output_buffer[num_warps][buffer_size];
+  __shared__ pair_type output_buffer[num_warps][buffer_size];
   // TODO: replace this with shared memory cuda::atomic variables once the dynamiic initialization
   // warning issue is solved __shared__ atomicT toto_countter[num_warps];
   __shared__ uint32_t warp_counter[num_warps];
@@ -430,8 +420,6 @@ __global__ void vectorized_retrieve(InputIt first,
  * @tparam warp_size The size of the warp
  * @tparam tile_size The number of threads in the Cooperative Groups
  * @tparam buffer_size Size of the output buffer
- * @tparam Key key type
- * @tparam Value The type of the mapped value for the map
  * @tparam is_outer Boolean flag indicating whether the current functions is used for outer join
  * operations or not
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -452,8 +440,6 @@ template <uint32_t block_size,
           uint32_t warp_size,
           uint32_t tile_size,
           uint32_t buffer_size,
-          typename Key,
-          typename Value,
           bool is_outer,
           typename InputIt,
           typename OutputIt,
@@ -467,6 +453,8 @@ __global__ void retrieve(InputIt first,
                          viewT view,
                          KeyEqual key_equal)
 {
+  using pair_type = typename viewT::value_type;
+
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid     = block_size * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
@@ -475,7 +463,7 @@ __global__ void retrieve(InputIt first,
   const uint32_t cg_id       = threadIdx.x / tile_size;
   const uint32_t lane_id     = tile.thread_rank();
 
-  __shared__ cuco::pair_type<Key, Value> output_buffer[num_cgs][buffer_size];
+  __shared__ pair_type output_buffer[num_cgs][buffer_size];
   __shared__ uint32_t cg_counter[num_cgs];
 
   if (lane_id == 0) { cg_counter[cg_id] = 0; }
@@ -515,8 +503,6 @@ template <uint32_t block_size,
           uint32_t warp_size,
           uint32_t tile_size,
           uint32_t buffer_size,
-          typename Key,
-          typename Value,
           bool is_outer,
           typename InputIt,
           typename OutputIt1,
@@ -532,6 +518,8 @@ __global__ void vectorized_pair_retrieve(InputIt first,
                                          viewT view,
                                          PairEqual pair_equal)
 {
+  using pair_type = typename viewT::value_type;
+
   constexpr uint32_t num_warps = block_size / warp_size;
   const uint32_t warp_id       = threadIdx.x / warp_size;
 
@@ -540,8 +528,8 @@ __global__ void vectorized_pair_retrieve(InputIt first,
   auto tid      = block_size * blockIdx.x + threadIdx.x;
   auto pair_idx = tid / tile_size;
 
-  __shared__ cuco::pair_type<Key, Value> probe_output_buffer[num_warps][buffer_size];
-  __shared__ cuco::pair_type<Key, Value> contained_output_buffer[num_warps][buffer_size];
+  __shared__ pair_type probe_output_buffer[num_warps][buffer_size];
+  __shared__ pair_type contained_output_buffer[num_warps][buffer_size];
   // TODO: replace this with shared memory cuda::atomic variables once the dynamiic initialization
   // warning issue is solved __shared__ atomicT toto_countter[num_warps];
   __shared__ uint32_t warp_counter[num_warps];
@@ -553,7 +541,7 @@ __global__ void vectorized_pair_retrieve(InputIt first,
     auto active_warp = cg::binary_partition<warp_size>(warp, active_flag);
 
     if (active_flag) {
-      typename viewT::value_type pair = *(first + pair_idx);
+      pair_type pair = *(first + pair_idx);
       if constexpr (is_outer) {
         view.pair_retrieve_outer<buffer_size>(active_warp,
                                               tile,
@@ -599,8 +587,6 @@ template <uint32_t block_size,
           uint32_t warp_size,
           uint32_t tile_size,
           uint32_t buffer_size,
-          typename Key,
-          typename Value,
           bool is_outer,
           typename InputIt,
           typename OutputIt1,
@@ -616,6 +602,8 @@ __global__ void pair_retrieve(InputIt first,
                               viewT view,
                               PairEqual pair_equal)
 {
+  using pair_type = typename viewT::value_type;
+
   auto tile     = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid      = block_size * blockIdx.x + threadIdx.x;
   auto pair_idx = tid / tile_size;
@@ -624,8 +612,8 @@ __global__ void pair_retrieve(InputIt first,
   const uint32_t cg_id       = threadIdx.x / tile_size;
   const uint32_t lane_id     = tile.thread_rank();
 
-  __shared__ cuco::pair_type<Key, Value> probe_output_buffer[num_cgs][buffer_size];
-  __shared__ cuco::pair_type<Key, Value> contained_output_buffer[num_cgs][buffer_size];
+  __shared__ pair_type probe_output_buffer[num_cgs][buffer_size];
+  __shared__ pair_type contained_output_buffer[num_cgs][buffer_size];
   __shared__ uint32_t cg_counter[num_cgs];
 
   if (lane_id == 0) { cg_counter[cg_id] = 0; }
