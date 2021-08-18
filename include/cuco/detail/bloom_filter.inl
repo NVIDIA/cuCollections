@@ -27,16 +27,23 @@ bloom_filter<Key, Scope, Allocator, Slot>::bloom_filter(std::size_t num_bits,
 {
   slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, num_slots_);
 
-  std::size_t constexpr block_size = 256;
-  std::size_t constexpr stride     = 4;
-  std::size_t const grid_size      = SDIV(num_slots_, stride * block_size);
-  detail::initialize<block_size><<<grid_size, block_size>>>(slots_, num_slots_);
+  initialize();
 }
 
 template <typename Key, cuda::thread_scope Scope, typename Allocator, typename Slot>
 bloom_filter<Key, Scope, Allocator, Slot>::~bloom_filter()
 {
   std::allocator_traits<slot_allocator_type>::deallocate(slot_allocator_, slots_, num_slots_);
+}
+
+template <typename Key, cuda::thread_scope Scope, typename Allocator, typename Slot>
+void bloom_filter<Key, Scope, Allocator, Slot>::initialize(cudaStream_t stream)
+{
+  std::size_t constexpr block_size = 256;
+  std::size_t constexpr stride     = 4;
+  std::size_t const grid_size      = SDIV(num_slots_, stride * block_size);
+
+  detail::initialize<block_size><<<grid_size, block_size, 0, stream>>>(slots_, num_slots_);
 }
 
 template <typename Key, cuda::thread_scope Scope, typename Allocator, typename Slot>

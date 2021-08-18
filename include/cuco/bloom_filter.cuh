@@ -123,6 +123,12 @@ class bloom_filter {
   ~bloom_filter();
 
   /**
+   * @brief (Re-) initializes the filter, i.e., set all bits to 0.
+   *
+   */
+  void initialize(cudaStream_t stream = 0);
+
+  /**
    * @brief Inserts all keys in the range `[first, last)`.
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
