@@ -117,8 +117,8 @@ __device__ bool bloom_filter<Key, Scope, Allocator, Slot>::device_mutable_view::
 
 template <typename Key, cuda::thread_scope Scope, typename Allocator, typename Slot>
 template <typename Hash>
-__device__ bool bloom_filter<Key, Scope, Allocator, Slot>::device_view::contains(Key const& key,
-                                                                                 Hash hash) noexcept
+__device__ bool bloom_filter<Key, Scope, Allocator, Slot>::device_view::contains(
+  Key const& key, Hash hash) const noexcept
 {
   auto slot          = key_slot(key, hash);
   auto const pattern = key_pattern(key, hash);

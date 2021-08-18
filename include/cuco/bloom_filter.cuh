@@ -556,7 +556,7 @@ class bloom_filter {
      * the filter.
      */
     template <typename Hash = cuco::detail::MurmurHash3_32<key_type>>
-    __device__ bool contains(Key const& k, Hash hash = Hash{}) noexcept;
+    __device__ bool contains(Key const& k, Hash hash = Hash{}) const noexcept;
   };
 
   /**
