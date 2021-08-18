@@ -18,6 +18,13 @@
 namespace cuco {
 namespace detail {
 
+/**
+ * @brief Compute the number of bits of a simple type.
+ *
+ * @tparam T The type we want to infer its size in bits
+ *
+ * @return Size of type T in bits
+ */
 template <typename T>
 [[nodiscard]] static constexpr std::size_t type_bits() noexcept
 {

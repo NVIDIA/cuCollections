@@ -20,9 +20,10 @@ template <typename Key, cuda::thread_scope Scope, typename Allocator, typename S
 bloom_filter<Key, Scope, Allocator, Slot>::bloom_filter(std::size_t num_bits,
                                                         std::size_t num_hashes,
                                                         Allocator const& alloc)
-  : num_bits_{SDIV(num_bits, detail::type_bits<slot_type>()) * detail::type_bits<slot_type>()},
-    num_slots_{SDIV(num_bits, detail::type_bits<slot_type>())},
-    num_hashes_{num_hashes},
+  : num_bits_{SDIV(std::max(std::size_t{1}, num_bits), detail::type_bits<slot_type>()) *
+              detail::type_bits<slot_type>()},
+    num_slots_{SDIV(std::max(std::size_t{1}, num_bits), detail::type_bits<slot_type>())},
+    num_hashes_{std::clamp(num_hashes, std::size_t{1}, detail::type_bits<slot_type>())},
     slot_allocator_{alloc}
 {
   slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, num_slots_);
