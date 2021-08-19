@@ -84,14 +84,13 @@ template <typename Hash>
 __device__ Slot bloom_filter<Key, Scope, Allocator, Slot>::device_view_base::key_pattern(
   Key const& key, Hash hash) const noexcept
 {
-  slot_type pattern        = 0;
-  std::size_t k            = 0;
-  std::size_t i            = 0;
-  auto const h             = hash(key + 42);  // seed mitigates secondary clustering
-  constexpr slot_type step = 7919;            // prime step
+  slot_type pattern = 0;
+  std::size_t k     = 0;
+  std::size_t i     = 0;
+  auto const h      = hash(key + 42);  // seed mitigates secondary clustering
 
   while (k < num_hashes_) {
-    slot_type const bit = slot_type{1} << ((h + i * step) % detail::type_bits<slot_type>());
+    slot_type const bit = slot_type{1} << ((h + hash(key + i)) % detail::type_bits<slot_type>());
 
     if (not(pattern & bit)) {
       pattern += bit;
