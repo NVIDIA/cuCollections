@@ -77,11 +77,10 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename InputIt, typename KeyEqual>
+template <typename InputIt>
 void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert(InputIt first,
                                                                           InputIt last,
-                                                                          cudaStream_t stream,
-                                                                          KeyEqual key_equal)
+                                                                          cudaStream_t stream)
 {
   auto num_keys = std::distance(first, last);
   auto view     = get_device_mutable_view();
@@ -89,10 +88,7 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert(InputI
   auto constexpr block_size = 128;
   int grid_size{-1};
   cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &grid_size,
-    detail::insert<block_size, cg_size(), InputIt, device_mutable_view, KeyEqual>,
-    block_size,
-    0);
+    &grid_size, detail::insert<block_size, cg_size(), InputIt, device_mutable_view>, block_size, 0);
   int dev_id{-1};
   cudaGetDevice(&dev_id);
   int num_sms{-1};
@@ -100,7 +96,7 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert(InputI
   grid_size *= num_sms;
 
   detail::insert<block_size, cg_size()>
-    <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view, key_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 
@@ -109,9 +105,11 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename InputIt, typename Predicate, typename KeyEqual>
-void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if(
-  InputIt first, InputIt last, Predicate pred, cudaStream_t stream, KeyEqual key_equal)
+template <typename InputIt, typename Predicate>
+void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if(InputIt first,
+                                                                             InputIt last,
+                                                                             Predicate pred,
+                                                                             cudaStream_t stream)
 {
   auto num_keys = std::distance(first, last);
   auto view     = get_device_mutable_view();
@@ -120,7 +118,7 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if(
   int grid_size{-1};
   cudaOccupancyMaxActiveBlocksPerMultiprocessor(
     &grid_size,
-    detail::insert_if<block_size, cg_size(), InputIt, device_mutable_view, Predicate, KeyEqual>,
+    detail::insert_if<block_size, cg_size(), InputIt, device_mutable_view, Predicate>,
     block_size,
     0);
   int dev_id{-1};
@@ -130,7 +128,7 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if(
   grid_size *= num_sms;
 
   detail::insert_if<block_size, cg_size()>
-    <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view, pred, key_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view, pred);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 
@@ -649,11 +647,10 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename KeyEqual>
 __device__
   static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert_result
   static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::packed_cas(
-    iterator current_slot, value_type const& insert_pair, KeyEqual key_equal) noexcept
+    iterator current_slot, value_type const& insert_pair) noexcept
 {
   auto expected_key   = this->get_empty_key_sentinel();
   auto expected_value = this->get_empty_value_sentinel();
@@ -678,13 +675,10 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename KeyEqual>
 __device__
   static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert_result
   static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::
-    back_to_back_cas(iterator current_slot,
-                     value_type const& insert_pair,
-                     KeyEqual key_equal) noexcept
+    back_to_back_cas(iterator current_slot, value_type const& insert_pair) noexcept
 {
   using cuda::std::memory_order_relaxed;
 
@@ -720,13 +714,10 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename KeyEqual>
 __device__
   static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert_result
   static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::
-    cas_dependent_write(iterator current_slot,
-                        value_type const& insert_pair,
-                        KeyEqual key_equal) noexcept
+    cas_dependent_write(iterator current_slot, value_type const& insert_pair) noexcept
 {
   using cuda::std::memory_order_relaxed;
   auto expected_key = this->get_empty_key_sentinel();
@@ -750,13 +741,10 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <bool uses_vector_load, typename CG, typename KeyEqual>
+template <bool uses_vector_load, typename CG>
 __device__ std::enable_if_t<uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert_impl(
-  CG g,
-  value_type const& insert_pair,
-  optional_hash_type precomputed_hash,
-  KeyEqual key_equal) noexcept
+  CG g, value_type const& insert_pair, optional_hash_type precomputed_hash) noexcept
 {
   auto current_slot = initial_slot(g, insert_pair.first, precomputed_hash);
   while (true) {
@@ -778,7 +766,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
       if (g.thread_rank() == src_lane) {
         auto insert_location = first_slot_is_empty ? current_slot : current_slot + 1;
         // One single CAS operation since vector loads are dedicated to packable pairs
-        status = packed_cas(insert_location, insert_pair, key_equal);
+        status = packed_cas(insert_location, insert_pair);
       }
 
       // successful insert
@@ -800,13 +788,10 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <bool uses_vector_load, typename CG, typename KeyEqual>
+template <bool uses_vector_load, typename CG>
 __device__ std::enable_if_t<not uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert_impl(
-  CG g,
-  value_type const& insert_pair,
-  optional_hash_type precomputed_hash,
-  KeyEqual key_equal) noexcept
+  CG g, value_type const& insert_pair, optional_hash_type precomputed_hash) noexcept
 {
   auto current_slot = initial_slot(g, insert_pair.first, precomputed_hash);
 
@@ -826,9 +811,9 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
 
       if (g.thread_rank() == src_lane) {
 #if __CUDA_ARCH__ < 700
-        status = cas_dependent_write(current_slot, insert_pair, key_equal);
+        status = cas_dependent_write(current_slot, insert_pair);
 #else
-        status = back_to_back_cas(current_slot, insert_pair, key_equal);
+        status = back_to_back_cas(current_slot, insert_pair);
 #endif
       }
 
@@ -851,15 +836,12 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename CG, typename KeyEqual>
+template <typename CG>
 __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert(
-  CG g,
-  value_type const& insert_pair,
-  optional_hash_type precomputed_hash,
-  KeyEqual key_equal) noexcept
+  CG g, value_type const& insert_pair, optional_hash_type precomputed_hash) noexcept
 {
-  insert_impl<uses_vector_load()>(g, insert_pair, precomputed_hash, key_equal);
+  insert_impl<uses_vector_load()>(g, insert_pair, precomputed_hash);
 }
 
 template <typename Key,

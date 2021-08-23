@@ -67,18 +67,13 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `value_type`
  * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
  * @param view Mutable device view used to access the hash map's slot storage
- * @param key_equal The binary function used to compare two keys for equality
  */
-template <uint32_t block_size,
-          uint32_t tile_size,
-          typename InputIt,
-          typename viewT,
-          typename KeyEqual>
-__global__ void insert(InputIt first, InputIt last, viewT view, KeyEqual key_equal)
+template <uint32_t block_size, uint32_t tile_size, typename InputIt, typename viewT>
+__global__ void insert(InputIt first, InputIt last, viewT view)
 {
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid  = block_size * blockIdx.x + threadIdx.x;
@@ -87,7 +82,7 @@ __global__ void insert(InputIt first, InputIt last, viewT view, KeyEqual key_equ
   while (it < last) {
     // force conversion to value_type
     typename viewT::value_type const insert_pair{*it};
-    view.insert(tile, insert_pair, thrust::nullopt, key_equal);
+    view.insert(tile, insert_pair, thrust::nullopt);
     it += (gridDim.x * block_size) / tile_size;
   }
 }
@@ -106,20 +101,16 @@ __global__ void insert(InputIt first, InputIt last, viewT view, KeyEqual key_equ
  * convertible to the map's `value_type`
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Predicate Unary predicate function type
- * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
  * @param view Mutable device view used to access the hash map's slot storage
- * @param key_equal The binary function used to compare two keys for equality
  */
 template <uint32_t block_size,
           uint32_t tile_size,
           typename InputIt,
           typename viewT,
-          typename Predicate,
-          typename KeyEqual>
-__global__ void insert_if(
-  InputIt first, InputIt last, viewT view, Predicate pred, KeyEqual key_equal)
+          typename Predicate>
+__global__ void insert_if(InputIt first, InputIt last, viewT view, Predicate pred)
 {
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid  = block_size * blockIdx.x + threadIdx.x;
@@ -129,7 +120,7 @@ __global__ void insert_if(
     typename viewT::value_type const insert_pair{*it};
     if (pred(insert_pair)) {
       // force conversion to value_type
-      view.insert(tile, insert_pair, thrust::nullopt, key_equal);
+      view.insert(tile, insert_pair, thrust::nullopt);
     }
     it += (gridDim.x * block_size) / tile_size;
   }

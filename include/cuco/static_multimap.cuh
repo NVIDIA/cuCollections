@@ -214,17 +214,12 @@ class static_multimap {
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `value_type`
-   * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
    * @param stream CUDA stream used for insert
-   * @param key_equal The binary function to compare two keys for equality
    */
-  template <typename InputIt, typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first,
-              InputIt last,
-              cudaStream_t stream = 0,
-              KeyEqual key_equal  = KeyEqual{});
+  template <typename InputIt>
+  void insert(InputIt first, InputIt last, cudaStream_t stream = 0);
 
   /**
    * @brief Inserts key/value pairs in the range `[first, last)` if `pred` returns true.
@@ -238,12 +233,8 @@ class static_multimap {
    * @param stream CUDA stream used for insert
    * @param key_equal The binary function to compare two keys for equality
    */
-  template <typename InputIt, typename Predicate, typename KeyEqual = thrust::equal_to<key_type>>
-  void insert_if(InputIt first,
-                 InputIt last,
-                 Predicate pred,
-                 cudaStream_t stream = 0,
-                 KeyEqual key_equal  = KeyEqual{});
+  template <typename InputIt, typename Predicate>
+  void insert_if(InputIt first, InputIt last, Predicate pred, cudaStream_t stream = 0);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -689,113 +680,84 @@ class static_multimap {
     /**
      * @brief Inserts the specified key/value pair with one single CAS operation.
      *
-     * @tparam KeyEqual Binary callable type
      * @param current_slot The slot to insert
      * @param insert_pair The pair to insert
      * @param key_equal The binary callable used to compare two keys for
      * equality
      * @return An insert result from the `insert_resullt` enumeration.
      */
-    template <typename KeyEqual>
     __device__ insert_result packed_cas(iterator current_slot,
-                                        value_type const& insert_pair,
-                                        KeyEqual key_equal) noexcept;
+                                        value_type const& insert_pair) noexcept;
 
     /**
      * @brief Inserts the specified key/value pair with two back-to-back CAS operations.
      *
-     * @tparam KeyEqual Binary callable type
      * @param current_slot The slot to insert
      * @param insert_pair The pair to insert
-     * @param key_equal The binary callable used to compare two keys for
-     * equality
      * @return An insert result from the `insert_resullt` enumeration.
      */
-    template <typename KeyEqual>
     __device__ insert_result back_to_back_cas(iterator current_slot,
-                                              value_type const& insert_pair,
-                                              KeyEqual key_equal) noexcept;
+                                              value_type const& insert_pair) noexcept;
 
     /**
      * @brief Inserts the specified key/value pair with a CAS of the key and a dependent write of
      * the value.
      *
-     * @tparam KeyEqual Binary callable type
      * @param current_slot The slot to insert
      * @param insert_pair The pair to insert
-     * @param key_equal The binary callable used to compare two keys for
-     * equality
      * @return An insert result from the `insert_resullt` enumeration.
      */
-    template <typename KeyEqual>
     __device__ insert_result cas_dependent_write(iterator current_slot,
-                                                 value_type const& insert_pair,
-                                                 KeyEqual key_equal) noexcept;
+                                                 value_type const& insert_pair) noexcept;
 
     /**
      * @brief Inserts the specified key/value pair into the map using vector loads.
      *
      * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
      * @tparam CG Cooperative Group type
-     * @tparam KeyEqual Binary callable type
      *
      * @param g The Cooperative Group that performs the insert
      * @param insert_pair The pair to insert
      * @param precomputed_hash Optional value which allows users to specify the precomputed hash
      * value
-     * @param key_equal The binary callable used to compare two keys for
-     * equality
      * @return void.
      */
-    template <bool uses_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    template <bool uses_vector_load, typename CG>
     __device__ std::enable_if_t<uses_vector_load, void> insert_impl(
-      CG g,
-      value_type const& insert_pair,
-      optional_hash_type precomputed_hash,
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+      CG g, value_type const& insert_pair, optional_hash_type precomputed_hash) noexcept;
 
     /**
      * @brief Inserts the specified key/value pair into the map using scalar loads.
      *
      * @tparam uses_vector_load Boolean flag indicating whether vector loads are used or not
      * @tparam CG Cooperative Group type
-     * @tparam KeyEqual Binary callable type
      *
      * @param g The Cooperative Group that performs the insert
      * @param insert_pair The pair to insert
      * @param precomputed_hash Optional value which allows users to specify the precomputed hash
      * value
-     * @param key_equal The binary callable used to compare two keys for
-     * equality
      * @return void.
      */
-    template <bool uses_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    template <bool uses_vector_load, typename CG>
     __device__ std::enable_if_t<not uses_vector_load, void> insert_impl(
-      CG g,
-      value_type const& insert_pair,
-      optional_hash_type precomputed_hash,
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+      CG g, value_type const& insert_pair, optional_hash_type precomputed_hash) noexcept;
 
    public:
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
      * @tparam CG Cooperative Group type
-     * @tparam KeyEqual Binary callable type
      *
      * @param g The Cooperative Group that performs the insert
      * @param insert_pair The pair to insert
      * @param precomputed_hash Optional value which allows users to specify the precomputed hash
      * value
-     * @param key_equal The binary callable used to compare two keys for
-     * equality
      * @return void.
      */
-    template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    template <typename CG>
     __device__ void insert(CG g,
                            value_type const& insert_pair,
-                           optional_hash_type precomputed_hash,
-                           KeyEqual key_equal = KeyEqual{}) noexcept;
+                           optional_hash_type precomputed_hash) noexcept;
   };  // class device mutable view
 
   /**
