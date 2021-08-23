@@ -44,9 +44,19 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::static_multimap(
   d_counter_ = counter_allocator_.allocate(1, stream_);
   slots_     = slot_allocator_.allocate(get_capacity(), stream_);
 
-  auto constexpr block_size = 256;
-  auto constexpr stride     = 4;
-  auto const grid_size      = (get_capacity() + stride * block_size - 1) / (stride * block_size);
+  auto constexpr block_size = 128;
+  int grid_size{-1};
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+    &grid_size,
+    detail::initialize<atomic_key_type, atomic_mapped_type, Key, Value, pair_atomic_type>,
+    block_size,
+    0);
+  int dev_id{-1};
+  cudaGetDevice(&dev_id);
+  int num_sms{-1};
+  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  grid_size *= num_sms;
+
   detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream>>>(
     slots_, empty_key_sentinel, empty_value_sentinel, get_capacity());
 }
@@ -73,11 +83,21 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert(InputI
                                                                           cudaStream_t stream,
                                                                           KeyEqual key_equal)
 {
-  auto num_keys         = std::distance(first, last);
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_mutable_view();
+  auto num_keys = std::distance(first, last);
+  auto view     = get_device_mutable_view();
+
+  auto constexpr block_size = 128;
+  int grid_size{-1};
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+    &grid_size,
+    detail::insert<block_size, cg_size(), InputIt, device_mutable_view, KeyEqual>,
+    block_size,
+    0);
+  int dev_id{-1};
+  cudaGetDevice(&dev_id);
+  int num_sms{-1};
+  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  grid_size *= num_sms;
 
   detail::insert<block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view, key_equal);
@@ -93,11 +113,21 @@ template <typename InputIt, typename Predicate, typename KeyEqual>
 void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if(
   InputIt first, InputIt last, Predicate pred, cudaStream_t stream, KeyEqual key_equal)
 {
-  auto num_keys         = std::distance(first, last);
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_mutable_view();
+  auto num_keys = std::distance(first, last);
+  auto view     = get_device_mutable_view();
+
+  auto constexpr block_size = 128;
+  int grid_size{-1};
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+    &grid_size,
+    detail::insert_if<block_size, cg_size(), InputIt, device_mutable_view, Predicate, KeyEqual>,
+    block_size,
+    0);
+  int dev_id{-1};
+  cudaGetDevice(&dev_id);
+  int num_sms{-1};
+  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  grid_size *= num_sms;
 
   detail::insert_if<block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view, pred, key_equal);
@@ -113,11 +143,21 @@ template <typename InputIt, typename OutputIt, typename KeyEqual>
 void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
 {
-  auto num_keys         = std::distance(first, last);
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_view();
+  auto num_keys = std::distance(first, last);
+  auto view     = get_device_view();
+
+  auto constexpr block_size = 128;
+  int grid_size{-1};
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+    &grid_size,
+    detail::contains<block_size, cg_size(), InputIt, OutputIt, device_view, KeyEqual>,
+    block_size,
+    0);
+  int dev_id{-1};
+  cudaGetDevice(&dev_id);
+  int num_sms{-1};
+  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  grid_size *= num_sms;
 
   detail::contains<block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, key_equal);
@@ -133,13 +173,23 @@ template <typename InputIt, typename KeyEqual>
 std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(
   InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal) const
 {
-  auto num_keys         = std::distance(first, last);
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_view();
+  auto num_keys = std::distance(first, last);
+  auto view     = get_device_view();
 
   constexpr bool is_outer = false;
+
+  auto constexpr block_size = 128;
+  int grid_size{-1};
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+    &grid_size,
+    detail::count<block_size, cg_size(), is_outer, InputIt, atomic_ctr_type, device_view, KeyEqual>,
+    block_size,
+    0);
+  int dev_id{-1};
+  cudaGetDevice(&dev_id);
+  int num_sms{-1};
+  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  grid_size *= num_sms;
 
   cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -162,13 +212,23 @@ template <typename InputIt, typename KeyEqual>
 std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count_outer(
   InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal) const
 {
-  auto num_keys         = std::distance(first, last);
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_view();
+  auto num_keys = std::distance(first, last);
+  auto view     = get_device_view();
 
   constexpr bool is_outer = true;
+
+  auto constexpr block_size = 128;
+  int grid_size{-1};
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+    &grid_size,
+    detail::count<block_size, cg_size(), is_outer, InputIt, atomic_ctr_type, device_view, KeyEqual>,
+    block_size,
+    0);
+  int dev_id{-1};
+  cudaGetDevice(&dev_id);
+  int num_sms{-1};
+  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  grid_size *= num_sms;
 
   cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -191,13 +251,24 @@ template <typename InputIt, typename PairEqual>
 std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_count(
   InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream) const
 {
-  auto num_keys         = std::distance(first, last);
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_view();
+  auto num_keys = std::distance(first, last);
+  auto view     = get_device_view();
 
   constexpr bool is_outer = false;
+
+  auto constexpr block_size = 128;
+  int grid_size{-1};
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+    &grid_size,
+    detail::
+      pair_count<block_size, cg_size(), is_outer, InputIt, atomic_ctr_type, device_view, PairEqual>,
+    block_size,
+    0);
+  int dev_id{-1};
+  cudaGetDevice(&dev_id);
+  int num_sms{-1};
+  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  grid_size *= num_sms;
 
   cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -220,13 +291,24 @@ template <typename InputIt, typename PairEqual>
 std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_count_outer(
   InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream) const
 {
-  auto num_keys         = std::distance(first, last);
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const grid_size  = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_view();
+  auto num_keys = std::distance(first, last);
+  auto view     = get_device_view();
 
   constexpr bool is_outer = true;
+
+  auto constexpr block_size = 128;
+  int grid_size{-1};
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+    &grid_size,
+    detail::
+      pair_count<block_size, cg_size(), is_outer, InputIt, atomic_ctr_type, device_view, PairEqual>,
+    block_size,
+    0);
+  int dev_id{-1};
+  cudaGetDevice(&dev_id);
+  int num_sms{-1};
+  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  grid_size *= num_sms;
 
   cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -249,15 +331,49 @@ template <typename InputIt, typename OutputIt, typename KeyEqual>
 OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
 {
-  auto num_keys         = std::distance(first, last);
-  auto const block_size = 128;
-  // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
-  auto const buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
-  auto const stride      = 1;
-  auto const grid_size   = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view              = get_device_view();
+  auto num_keys = std::distance(first, last);
+  auto view     = get_device_view();
 
-  constexpr bool is_outer = false;
+  // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
+  constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
+  constexpr bool is_outer    = false;
+
+  auto constexpr block_size = 128;
+  int grid_size{-1};
+  if constexpr (uses_vector_load()) {
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
+                                                  detail::vectorized_retrieve<block_size,
+                                                                              warp_size(),
+                                                                              cg_size(),
+                                                                              buffer_size,
+                                                                              is_outer,
+                                                                              InputIt,
+                                                                              OutputIt,
+                                                                              atomic_ctr_type,
+                                                                              device_view,
+                                                                              KeyEqual>,
+                                                  block_size,
+                                                  0);
+  } else {
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
+                                                  detail::retrieve<block_size,
+                                                                   warp_size(),
+                                                                   cg_size(),
+                                                                   buffer_size,
+                                                                   is_outer,
+                                                                   InputIt,
+                                                                   OutputIt,
+                                                                   atomic_ctr_type,
+                                                                   device_view,
+                                                                   KeyEqual>,
+                                                  block_size,
+                                                  0);
+  }
+  int dev_id{-1};
+  cudaGetDevice(&dev_id);
+  int num_sms{-1};
+  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  grid_size *= num_sms;
 
   cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -288,15 +404,49 @@ template <typename InputIt, typename OutputIt, typename KeyEqual>
 OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_outer(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
 {
-  auto num_keys         = std::distance(first, last);
-  auto const block_size = 128;
-  // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
-  auto const buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
-  auto const stride      = 1;
-  auto const grid_size   = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view              = get_device_view();
+  auto num_keys = std::distance(first, last);
+  auto view     = get_device_view();
 
-  constexpr bool is_outer = true;
+  // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
+  constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
+  constexpr bool is_outer    = true;
+
+  auto constexpr block_size = 128;
+  int grid_size{-1};
+  if constexpr (uses_vector_load()) {
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
+                                                  detail::vectorized_retrieve<block_size,
+                                                                              warp_size(),
+                                                                              cg_size(),
+                                                                              buffer_size,
+                                                                              is_outer,
+                                                                              InputIt,
+                                                                              OutputIt,
+                                                                              atomic_ctr_type,
+                                                                              device_view,
+                                                                              KeyEqual>,
+                                                  block_size,
+                                                  0);
+  } else {
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
+                                                  detail::retrieve<block_size,
+                                                                   warp_size(),
+                                                                   cg_size(),
+                                                                   buffer_size,
+                                                                   is_outer,
+                                                                   InputIt,
+                                                                   OutputIt,
+                                                                   atomic_ctr_type,
+                                                                   device_view,
+                                                                   KeyEqual>,
+                                                  block_size,
+                                                  0);
+  }
+  int dev_id{-1};
+  cudaGetDevice(&dev_id);
+  int num_sms{-1};
+  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  grid_size *= num_sms;
 
   cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -332,15 +482,51 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_r
   PairEqual pair_equal,
   cudaStream_t stream) const
 {
-  auto num_pairs        = std::distance(first, last);
-  auto const block_size = 128;
-  // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
-  auto const buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
-  auto const stride      = 1;
-  auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
-  auto view            = get_device_view();
+  auto num_pairs = std::distance(first, last);
+  auto view      = get_device_view();
 
-  constexpr bool is_outer = false;
+  // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
+  constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
+  constexpr bool is_outer    = false;
+
+  auto constexpr block_size = 128;
+  int grid_size{-1};
+  if constexpr (uses_vector_load()) {
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
+                                                  detail::vectorized_pair_retrieve<block_size,
+                                                                                   warp_size(),
+                                                                                   cg_size(),
+                                                                                   buffer_size,
+                                                                                   is_outer,
+                                                                                   InputIt,
+                                                                                   OutputZipIt1,
+                                                                                   OutputZipIt2,
+                                                                                   atomic_ctr_type,
+                                                                                   device_view,
+                                                                                   PairEqual>,
+                                                  block_size,
+                                                  0);
+  } else {
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
+                                                  detail::pair_retrieve<block_size,
+                                                                        warp_size(),
+                                                                        cg_size(),
+                                                                        buffer_size,
+                                                                        is_outer,
+                                                                        InputIt,
+                                                                        OutputZipIt1,
+                                                                        OutputZipIt2,
+                                                                        atomic_ctr_type,
+                                                                        device_view,
+                                                                        PairEqual>,
+                                                  block_size,
+                                                  0);
+  }
+  int dev_id{-1};
+  cudaGetDevice(&dev_id);
+  int num_sms{-1};
+  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  grid_size *= num_sms;
 
   cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -375,15 +561,51 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_r
   PairEqual pair_equal,
   cudaStream_t stream) const
 {
-  auto num_pairs        = std::distance(first, last);
-  auto const block_size = 128;
-  // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
-  auto const buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
-  auto const stride      = 1;
-  auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
-  auto view            = get_device_view();
+  auto num_pairs = std::distance(first, last);
+  auto view      = get_device_view();
 
-  constexpr bool is_outer = true;
+  // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
+  constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
+  constexpr bool is_outer    = true;
+
+  auto constexpr block_size = 128;
+  int grid_size{-1};
+  if constexpr (uses_vector_load()) {
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
+                                                  detail::vectorized_pair_retrieve<block_size,
+                                                                                   warp_size(),
+                                                                                   cg_size(),
+                                                                                   buffer_size,
+                                                                                   is_outer,
+                                                                                   InputIt,
+                                                                                   OutputZipIt1,
+                                                                                   OutputZipIt2,
+                                                                                   atomic_ctr_type,
+                                                                                   device_view,
+                                                                                   PairEqual>,
+                                                  block_size,
+                                                  0);
+  } else {
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
+                                                  detail::pair_retrieve<block_size,
+                                                                        warp_size(),
+                                                                        cg_size(),
+                                                                        buffer_size,
+                                                                        is_outer,
+                                                                        InputIt,
+                                                                        OutputZipIt1,
+                                                                        OutputZipIt2,
+                                                                        atomic_ctr_type,
+                                                                        device_view,
+                                                                        PairEqual>,
+                                                  block_size,
+                                                  0);
+  }
+  int dev_id{-1};
+  cudaGetDevice(&dev_id);
+  int num_sms{-1};
+  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  grid_size *= num_sms;
 
   cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
