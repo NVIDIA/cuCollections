@@ -744,9 +744,9 @@ template <typename Key,
 template <bool uses_vector_load, typename CG>
 __device__ std::enable_if_t<uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert_impl(
-  CG g, value_type const& insert_pair, optional_hash_type precomputed_hash) noexcept
+  CG g, value_type const& insert_pair) noexcept
 {
-  auto current_slot = initial_slot(g, insert_pair.first, precomputed_hash);
+  auto current_slot = initial_slot(g, insert_pair.first);
   while (true) {
     value_type arr[2];
     load_pair_array(&arr[0], current_slot);
@@ -791,9 +791,9 @@ template <typename Key,
 template <bool uses_vector_load, typename CG>
 __device__ std::enable_if_t<not uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert_impl(
-  CG g, value_type const& insert_pair, optional_hash_type precomputed_hash) noexcept
+  CG g, value_type const& insert_pair) noexcept
 {
-  auto current_slot = initial_slot(g, insert_pair.first, precomputed_hash);
+  auto current_slot = initial_slot(g, insert_pair.first);
 
   while (true) {
     key_type const existing_key = current_slot->first.load(cuda::memory_order_relaxed);
@@ -839,9 +839,9 @@ template <typename Key,
 template <typename CG>
 __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_view::insert(
-  CG g, value_type const& insert_pair, optional_hash_type precomputed_hash) noexcept
+  CG g, value_type const& insert_pair) noexcept
 {
-  insert_impl<uses_vector_load()>(g, insert_pair, precomputed_hash);
+  insert_impl<uses_vector_load()>(g, insert_pair);
 }
 
 template <typename Key,
@@ -852,9 +852,9 @@ template <typename Key,
 template <bool uses_vector_load, typename CG, typename KeyEqual>
 __device__ std::enable_if_t<uses_vector_load, bool>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::contains_impl(
-  CG g, Key const& k, optional_hash_type precomputed_hash, KeyEqual key_equal) noexcept
+  CG g, Key const& k, KeyEqual key_equal) noexcept
 {
-  auto current_slot = initial_slot(g, k, precomputed_hash);
+  auto current_slot = initial_slot(g, k);
 
   while (true) {
     value_type arr[2];
@@ -887,9 +887,9 @@ template <typename Key,
 template <bool uses_vector_load, typename CG, typename KeyEqual>
 __device__ std::enable_if_t<not uses_vector_load, bool>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::contains_impl(
-  CG g, Key const& k, optional_hash_type precomputed_hash, KeyEqual key_equal) noexcept
+  CG g, Key const& k, KeyEqual key_equal) noexcept
 {
-  auto current_slot = initial_slot(g, k, precomputed_hash);
+  auto current_slot = initial_slot(g, k);
 
   while (true) {
     key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
@@ -921,13 +921,9 @@ template <typename Key,
 template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
 __device__ std::enable_if_t<uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count_impl(
-  CG const& g,
-  Key const& k,
-  optional_hash_type precomputed_hash,
-  std::size_t& thread_num_matches,
-  KeyEqual key_equal) noexcept
+  CG const& g, Key const& k, std::size_t& thread_num_matches, KeyEqual key_equal) noexcept
 {
-  auto current_slot = initial_slot(g, k, precomputed_hash);
+  auto current_slot = initial_slot(g, k);
 
   [[maybe_unused]] bool found_match = false;
 
@@ -967,13 +963,9 @@ template <typename Key,
 template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
 __device__ std::enable_if_t<not uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count_impl(
-  CG const& g,
-  Key const& k,
-  optional_hash_type precomputed_hash,
-  std::size_t& thread_num_matches,
-  KeyEqual key_equal) noexcept
+  CG const& g, Key const& k, std::size_t& thread_num_matches, KeyEqual key_equal) noexcept
 {
-  auto current_slot = initial_slot(g, k, precomputed_hash);
+  auto current_slot = initial_slot(g, k);
 
   [[maybe_unused]] bool found_match = false;
 
@@ -1012,12 +1004,11 @@ __device__ std::enable_if_t<uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_count_impl(
   CG const& g,
   value_type const& pair,
-  optional_hash_type precomputed_hash,
   std::size_t& thread_num_matches,
   PairEqual pair_equal) noexcept
 {
   auto key          = pair.first;
-  auto current_slot = initial_slot(g, key, precomputed_hash);
+  auto current_slot = initial_slot(g, key);
 
   [[maybe_unused]] bool found_match = false;
 
@@ -1060,12 +1051,11 @@ __device__ std::enable_if_t<not uses_vector_load, void>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_count_impl(
   CG const& g,
   value_type const& pair,
-  optional_hash_type precomputed_hash,
   std::size_t& thread_num_matches,
   PairEqual pair_equal) noexcept
 {
   auto key          = pair.first;
-  auto current_slot = initial_slot(g, key, precomputed_hash);
+  auto current_slot = initial_slot(g, key);
 
   [[maybe_unused]] bool found_match = false;
 
@@ -1111,7 +1101,6 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
   warpT const& warp,
   CG const& g,
   Key const& k,
-  optional_hash_type precomputed_hash,
   uint32_t* warp_counter,
   value_type* output_buffer,
   atomicT* num_matches,
@@ -1120,7 +1109,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
 {
   const uint32_t cg_lane_id = g.thread_rank();
 
-  auto current_slot = initial_slot(g, k, precomputed_hash);
+  auto current_slot = initial_slot(g, k);
 
   bool running                      = true;
   [[maybe_unused]] bool found_match = false;
@@ -1204,7 +1193,6 @@ __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retrieve_impl(
   CG const& g,
   Key const& k,
-  optional_hash_type precomputed_hash,
   uint32_t* cg_counter,
   value_type* output_buffer,
   atomicT* num_matches,
@@ -1213,7 +1201,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
 {
   const uint32_t lane_id = g.thread_rank();
 
-  auto current_slot = initial_slot(g, k, precomputed_hash);
+  auto current_slot = initial_slot(g, k);
 
   bool running                      = true;
   [[maybe_unused]] bool found_match = false;
@@ -1285,7 +1273,6 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   warpT const& warp,
   CG const& g,
   value_type const& pair,
-  optional_hash_type precomputed_hash,
   uint32_t* warp_counter,
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
@@ -1297,7 +1284,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   const uint32_t cg_lane_id = g.thread_rank();
 
   auto key          = pair.first;
-  auto current_slot = initial_slot(g, key, precomputed_hash);
+  auto current_slot = initial_slot(g, key);
 
   bool running                      = true;
   [[maybe_unused]] bool found_match = false;
@@ -1387,7 +1374,6 @@ __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve_impl(
   CG const& g,
   value_type const& pair,
-  optional_hash_type precomputed_hash,
   uint32_t* cg_counter,
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
@@ -1399,7 +1385,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   const uint32_t lane_id = g.thread_rank();
 
   auto key          = pair.first;
-  auto current_slot = initial_slot(g, key, precomputed_hash);
+  auto current_slot = initial_slot(g, key);
 
   bool running                      = true;
   [[maybe_unused]] bool found_match = false;
@@ -1563,9 +1549,9 @@ template <typename Key,
           typename Allocator>
 template <typename CG, typename KeyEqual>
 __device__ bool static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::contains(
-  CG g, Key const& k, optional_hash_type precomputed_hash, KeyEqual key_equal) noexcept
+  CG g, Key const& k, KeyEqual key_equal) noexcept
 {
-  return contains_impl<uses_vector_load()>(g, k, precomputed_hash, key_equal);
+  return contains_impl<uses_vector_load()>(g, k, key_equal);
 }
 
 template <typename Key,
@@ -1575,14 +1561,10 @@ template <typename Key,
           typename Allocator>
 template <typename CG, typename KeyEqual>
 __device__ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count(
-  CG const& g,
-  Key const& k,
-  optional_hash_type precomputed_hash,
-  std::size_t& thread_num_matches,
-  KeyEqual key_equal) noexcept
+  CG const& g, Key const& k, std::size_t& thread_num_matches, KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = false;
-  count_impl<uses_vector_load(), is_outer>(g, k, precomputed_hash, thread_num_matches, key_equal);
+  count_impl<uses_vector_load(), is_outer>(g, k, thread_num_matches, key_equal);
 }
 
 template <typename Key,
@@ -1593,14 +1575,10 @@ template <typename Key,
 template <typename CG, typename KeyEqual>
 __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count_outer(
-  CG const& g,
-  Key const& k,
-  optional_hash_type precomputed_hash,
-  std::size_t& thread_num_matches,
-  KeyEqual key_equal) noexcept
+  CG const& g, Key const& k, std::size_t& thread_num_matches, KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = true;
-  count_impl<uses_vector_load(), is_outer>(g, k, precomputed_hash, thread_num_matches, key_equal);
+  count_impl<uses_vector_load(), is_outer>(g, k, thread_num_matches, key_equal);
 }
 
 template <typename Key,
@@ -1613,13 +1591,11 @@ __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_count(
   CG const& g,
   value_type const& pair,
-  optional_hash_type precomputed_hash,
   std::size_t& thread_num_matches,
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = false;
-  pair_count_impl<uses_vector_load(), is_outer>(
-    g, pair, precomputed_hash, thread_num_matches, pair_equal);
+  pair_count_impl<uses_vector_load(), is_outer>(g, pair, thread_num_matches, pair_equal);
 }
 
 template <typename Key,
@@ -1632,13 +1608,11 @@ __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_count_outer(
   CG const& g,
   value_type const& pair,
-  optional_hash_type precomputed_hash,
   std::size_t& thread_num_matches,
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = true;
-  pair_count_impl<uses_vector_load(), is_outer>(
-    g, pair, precomputed_hash, thread_num_matches, pair_equal);
+  pair_count_impl<uses_vector_load(), is_outer>(g, pair, thread_num_matches, pair_equal);
 }
 
 template <typename Key,
@@ -1656,7 +1630,6 @@ __device__ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::de
   warpT const& warp,
   CG const& g,
   Key const& k,
-  optional_hash_type precomputed_hash,
   uint32_t* warp_counter,
   value_type* output_buffer,
   atomicT* num_matches,
@@ -1665,7 +1638,7 @@ __device__ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::de
 {
   constexpr bool is_outer = false;
   retrieve_impl<buffer_size, is_outer>(
-    warp, g, k, precomputed_hash, warp_counter, output_buffer, num_matches, output_begin);
+    warp, g, k, warp_counter, output_buffer, num_matches, output_begin);
 }
 
 template <typename Key,
@@ -1684,7 +1657,6 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
   warpT const& warp,
   CG const& g,
   Key const& k,
-  optional_hash_type precomputed_hash,
   uint32_t* warp_counter,
   value_type* output_buffer,
   atomicT* num_matches,
@@ -1693,7 +1665,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
 {
   constexpr bool is_outer = true;
   retrieve_impl<buffer_size, is_outer>(
-    warp, g, k, precomputed_hash, warp_counter, output_buffer, num_matches, output_begin);
+    warp, g, k, warp_counter, output_buffer, num_matches, output_begin);
 }
 
 template <typename Key,
@@ -1710,7 +1682,6 @@ template <uint32_t cg_size,
 __device__ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retrieve(
   CG const& g,
   Key const& k,
-  optional_hash_type precomputed_hash,
   uint32_t* cg_counter,
   value_type* output_buffer,
   atomicT* num_matches,
@@ -1719,7 +1690,7 @@ __device__ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::de
 {
   constexpr bool is_outer = false;
   retrieve_impl<cg_size, buffer_size, is_outer>(
-    g, k, precomputed_hash, cg_counter, output_buffer, num_matches, output_begin);
+    g, k, cg_counter, output_buffer, num_matches, output_begin);
 }
 
 template <typename Key,
@@ -1737,7 +1708,6 @@ __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retrieve_outer(
   CG const& g,
   Key const& k,
-  optional_hash_type precomputed_hash,
   uint32_t* cg_counter,
   value_type* output_buffer,
   atomicT* num_matches,
@@ -1746,7 +1716,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
 {
   constexpr bool is_outer = true;
   retrieve_impl<cg_size, buffer_size, is_outer>(
-    g, k, precomputed_hash, cg_counter, output_buffer, num_matches, output_begin);
+    g, k, cg_counter, output_buffer, num_matches, output_begin);
 }
 
 template <typename Key,
@@ -1766,7 +1736,6 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   warpT const& warp,
   CG const& g,
   value_type const& pair,
-  optional_hash_type precomputed_hash,
   uint32_t* warp_counter,
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
@@ -1779,7 +1748,6 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   pair_retrieve_impl<buffer_size, is_outer>(warp,
                                             g,
                                             pair,
-                                            precomputed_hash,
                                             warp_counter,
                                             probe_output_buffer,
                                             contained_output_buffer,
@@ -1806,7 +1774,6 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   warpT const& warp,
   CG const& g,
   value_type const& pair,
-  optional_hash_type precomputed_hash,
   uint32_t* warp_counter,
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
@@ -1819,7 +1786,6 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   pair_retrieve_impl<buffer_size, is_outer>(warp,
                                             g,
                                             pair,
-                                            precomputed_hash,
                                             warp_counter,
                                             probe_output_buffer,
                                             contained_output_buffer,
@@ -1845,7 +1811,6 @@ __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve(
   CG const& g,
   value_type const& pair,
-  optional_hash_type precomputed_hash,
   uint32_t* cg_counter,
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
@@ -1857,7 +1822,6 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   constexpr bool is_outer = false;
   pair_retrieve_impl<cg_size, buffer_size, is_outer>(g,
                                                      pair,
-                                                     precomputed_hash,
                                                      cg_counter,
                                                      probe_output_buffer,
                                                      contained_output_buffer,
@@ -1883,7 +1847,6 @@ __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_retrieve_outer(
   CG const& g,
   value_type const& pair,
-  optional_hash_type precomputed_hash,
   uint32_t* cg_counter,
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
@@ -1895,7 +1858,6 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   constexpr bool is_outer = true;
   pair_retrieve_impl<cg_size, buffer_size, is_outer>(g,
                                                      pair,
-                                                     precomputed_hash,
                                                      cg_counter,
                                                      probe_output_buffer,
                                                      contained_output_buffer,

@@ -84,13 +84,10 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, Scope> {
   }
 
   template <typename CG>
-  __device__ iterator initial_slot(
-    CG const& g,
-    Key const k,
-    thrust::optional<typename detail::MurmurHash3_32<Key>::result_type> precomputed_hash) noexcept
+  __device__ iterator initial_slot(CG const& g, Key const k) noexcept
   {
     std::size_t index;
-    auto const hash_value = precomputed_hash.value_or(hash1_(k));
+    auto const hash_value = hash1_(k);
     if constexpr (uses_vector_load()) {
       step_size_ = (hash2_(k + 1) % (capacity_ / (cg_size() * vector_width()) - 1) + 1) *
                    cg_size() * vector_width();
@@ -137,21 +134,28 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
   template <typename CG>
   __device__ iterator initial_slot(CG const& g, Key const k) noexcept
   {
+    auto hash_value = hash_(k);
+    hash_value      = hash_value % 2 ? hash_value + 1 : hash_value;
+
+    std::size_t offset;
     if constexpr (uses_vector_load()) {
-      return &slots_[(hash_(k) + g.thread_rank() * vector_width()) % capacity_];
+      offset = g.thread_rank() * vector_width();
     } else {
-      return &slots_[(hash_(k) + g.thread_rank()) % capacity_];
+      offset = g.thread_rank();
     }
+    return &slots_[(hash_value + offset) % capacity_];
   }
 
   __device__ iterator next_slot(iterator s) noexcept
   {
     std::size_t index = s - slots_;
+    std::size_t offset;
     if constexpr (uses_vector_load()) {
-      return &slots_[(index + cg_size() * vector_width()) % capacity_];
+      offset = cg_size() * vector_width();
     } else {
-      return &slots_[(index + cg_size()) % capacity_];
+      offset = cg_size();
     }
+    return &slots_[(index + offset) % capacity_];
   }
 
  private:

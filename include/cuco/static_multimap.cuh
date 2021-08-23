@@ -19,7 +19,6 @@
 #include <cooperative_groups.h>
 #include <thrust/distance.h>
 #include <thrust/functional.h>
-#include <thrust/optional.h>
 #include <cub/cub.cuh>
 #include <memory>
 
@@ -152,7 +151,6 @@ class static_multimap {
     typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
   using counter_allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
-  using optional_hash_type = thrust::optional<typename detail::MurmurHash3_32<Key>::result_type>;
 
   static_multimap(static_multimap const&) = delete;
   static_multimap(static_multimap&&)      = delete;
@@ -540,11 +538,9 @@ class static_multimap {
      * @return Pointer to the initial slot for `k`
      */
     template <typename CG>
-    __device__ iterator initial_slot(CG const& g,
-                                     Key const& k,
-                                     optional_hash_type precomputed_hash) noexcept
+    __device__ iterator initial_slot(CG const& g, Key const& k) noexcept
     {
-      return probe_sequence_.initial_slot(g, k, precomputed_hash);
+      return probe_sequence_.initial_slot(g, k);
     }
 
     /**
@@ -558,11 +554,9 @@ class static_multimap {
      * @return Pointer to the initial slot for `k`
      */
     template <typename CG>
-    __device__ const_iterator initial_slot(CG g,
-                                           Key const& k,
-                                           optional_hash_type precomputed_hash) const noexcept
+    __device__ const_iterator initial_slot(CG g, Key const& k) const noexcept
     {
-      return probe_sequence_.initial_slot(g, k, precomputed_hash);
+      return probe_sequence_.initial_slot(g, k);
     }
 
     /**
@@ -718,13 +712,11 @@ class static_multimap {
      *
      * @param g The Cooperative Group that performs the insert
      * @param insert_pair The pair to insert
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @return void.
      */
     template <bool uses_vector_load, typename CG>
     __device__ std::enable_if_t<uses_vector_load, void> insert_impl(
-      CG g, value_type const& insert_pair, optional_hash_type precomputed_hash) noexcept;
+      CG g, value_type const& insert_pair) noexcept;
 
     /**
      * @brief Inserts the specified key/value pair into the map using scalar loads.
@@ -734,13 +726,11 @@ class static_multimap {
      *
      * @param g The Cooperative Group that performs the insert
      * @param insert_pair The pair to insert
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @return void.
      */
     template <bool uses_vector_load, typename CG>
     __device__ std::enable_if_t<not uses_vector_load, void> insert_impl(
-      CG g, value_type const& insert_pair, optional_hash_type precomputed_hash) noexcept;
+      CG g, value_type const& insert_pair) noexcept;
 
    public:
     /**
@@ -750,14 +740,10 @@ class static_multimap {
      *
      * @param g The Cooperative Group that performs the insert
      * @param insert_pair The pair to insert
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @return void.
      */
     template <typename CG>
-    __device__ void insert(CG g,
-                           value_type const& insert_pair,
-                           optional_hash_type precomputed_hash) noexcept;
+    __device__ void insert(CG g, value_type const& insert_pair) noexcept;
   };  // class device mutable view
 
   /**
@@ -881,8 +867,6 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param key_equal The binary callable used to compare two keys
      * for equality
      * @return A boolean indicating whether the key/value pair
@@ -890,10 +874,7 @@ class static_multimap {
      */
     template <bool uses_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
     __device__ std::enable_if_t<uses_vector_load, bool> contains_impl(
-      CG g,
-      Key const& k,
-      optional_hash_type precomputed_hash,
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+      CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map using scalar loads.
@@ -909,8 +890,6 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param key_equal The binary callable used to compare two keys
      * for equality
      * @return A boolean indicating whether the key/value pair
@@ -918,10 +897,7 @@ class static_multimap {
      */
     template <bool uses_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
     __device__ std::enable_if_t<not uses_vector_load, bool> contains_impl(
-      CG g,
-      Key const& k,
-      optional_hash_type precomputed_hash,
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+      CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap using vector loads.
@@ -932,8 +908,6 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param thread_num_matches Number of matches found by the current thread
      * @param key_equal The binary callable used to compare two keys
      * for equality
@@ -945,7 +919,6 @@ class static_multimap {
     __device__ std::enable_if_t<uses_vector_load, void> count_impl(
       CG const& g,
       Key const& k,
-      optional_hash_type precomputed_hash,
       std::size_t& thread_num_matches,
       KeyEqual key_equal = KeyEqual{}) noexcept;
 
@@ -958,8 +931,6 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param thread_num_matches Number of matches found by the current thread
      * @param key_equal The binary callable used to compare two keys
      * for equality
@@ -971,7 +942,6 @@ class static_multimap {
     __device__ std::enable_if_t<not uses_vector_load, void> count_impl(
       CG const& g,
       Key const& k,
-      optional_hash_type precomputed_hash,
       std::size_t& thread_num_matches,
       KeyEqual key_equal = KeyEqual{}) noexcept;
 
@@ -985,8 +955,6 @@ class static_multimap {
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to perform the pair_count operation
      * @param pair The pair to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param thread_num_matches Number of matches found by the current thread
      * @param pair_equal The binary callable used to compare two pairs
      * for equality
@@ -995,7 +963,6 @@ class static_multimap {
     __device__ std::enable_if_t<uses_vector_load, void> pair_count_impl(
       CG const& g,
       value_type const& pair,
-      optional_hash_type precomputed_hash,
       std::size_t& thread_num_matches,
       PairEqual pair_equal) noexcept;
 
@@ -1009,8 +976,6 @@ class static_multimap {
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to perform the pair_count operation
      * @param pair The pair to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param thread_num_matches Number of matches found by the current thread
      * @param pair_equal The binary callable used to compare two pairs
      * for equality
@@ -1019,7 +984,6 @@ class static_multimap {
     __device__ std::enable_if_t<not uses_vector_load, void> pair_count_impl(
       CG const& g,
       value_type const& pair,
-      optional_hash_type precomputed_hash,
       std::size_t& thread_num_matches,
       PairEqual pair_equal) noexcept;
 
@@ -1042,8 +1006,6 @@ class static_multimap {
      * @param warp The Cooperative Group (or warp) used to flush output buffer
      * @param g The Cooperative Group used to retrieve
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param warp_counter Pointer to the warp counter
      * @param output_buffer Shared memory buffer of the key/value pair sequence
      * @param num_matches Size of the output sequence
@@ -1061,7 +1023,6 @@ class static_multimap {
     __device__ void retrieve_impl(warpT const& warp,
                                   CG const& g,
                                   Key const& k,
-                                  optional_hash_type precomputed_hash,
                                   uint32_t* warp_counter,
                                   value_type* output_buffer,
                                   atomicT* num_matches,
@@ -1086,8 +1047,6 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to retrieve
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param cg_counter Pointer to the CG counter
      * @param output_buffer Shared memory buffer of the key/value pair sequence
      * @param num_matches Size of the output sequence
@@ -1104,7 +1063,6 @@ class static_multimap {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ void retrieve_impl(CG const& g,
                                   Key const& k,
-                                  optional_hash_type precomputed_hash,
                                   uint32_t* cg_counter,
                                   value_type* output_buffer,
                                   atomicT* num_matches,
@@ -1131,8 +1089,6 @@ class static_multimap {
      * @param warp The Cooperative Group (or warp) used to flush output buffer
      * @param g The Cooperative Group used to retrieve
      * @param pair The pair to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param warp_counter Pointer to the warp counter
      * @param probe_output_buffer Buffer of the matched probe pair sequence
      * @param contained_output_buffer Buffer of the matched contained pair sequence
@@ -1152,7 +1108,6 @@ class static_multimap {
     __device__ void pair_retrieve_impl(warpT const& warp,
                                        CG const& g,
                                        value_type const& pair,
-                                       optional_hash_type precomputed_hash,
                                        uint32_t* warp_counter,
                                        value_type* probe_output_buffer,
                                        value_type* contained_output_buffer,
@@ -1180,8 +1135,6 @@ class static_multimap {
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to retrieve
      * @param pair The pair to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param cg_counter Pointer to the CG counter
      * @param probe_output_buffer Buffer of the matched probe pair sequence
      * @param contained_output_buffer Buffer of the matched contained pair sequence
@@ -1200,7 +1153,6 @@ class static_multimap {
               typename PairEqual>
     __device__ void pair_retrieve_impl(CG const& g,
                                        value_type const& pair,
-                                       optional_hash_type precomputed_hash,
                                        uint32_t* cg_counter,
                                        value_type* probe_output_buffer,
                                        value_type* contained_output_buffer,
@@ -1293,18 +1245,13 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param key_equal The binary callable used to compare two keys
      * for equality
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
     template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(CG g,
-                             Key const& k,
-                             optional_hash_type precomputed_hash,
-                             KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ bool contains(CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap.
@@ -1313,8 +1260,6 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param thread_num_matches Number of matches found by the current thread
      * @param key_equal The binary callable used to compare two keys
      * for equality
@@ -1322,7 +1267,6 @@ class static_multimap {
     template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
     __device__ void count(CG const& g,
                           Key const& k,
-                          optional_hash_type precomputed_hash,
                           std::size_t& thread_num_matches,
                           KeyEqual key_equal = KeyEqual{}) noexcept;
 
@@ -1334,8 +1278,6 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param thread_num_matches Number of matches found by the current thread
      * @param key_equal The binary callable used to compare two keys
      * for equality
@@ -1343,7 +1285,6 @@ class static_multimap {
     template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
     __device__ void count_outer(CG const& g,
                                 Key const& k,
-                                optional_hash_type precomputed_hash,
                                 std::size_t& thread_num_matches,
                                 KeyEqual key_equal = KeyEqual{}) noexcept;
 
@@ -1354,8 +1295,6 @@ class static_multimap {
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to perform the pair_count operation
      * @param pair The pair to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param thread_num_matches Number of matches found by the current thread
      * @param pair_equal The binary callable used to compare two pairs
      * for equality
@@ -1363,7 +1302,6 @@ class static_multimap {
     template <typename CG, typename PairEqual>
     __device__ void pair_count(CG const& g,
                                value_type const& pair,
-                               optional_hash_type precomputed_hash,
                                std::size_t& thread_num_matches,
                                PairEqual pair_equal) noexcept;
 
@@ -1375,8 +1313,6 @@ class static_multimap {
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to perform the pair_count operation
      * @param pair The pair to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param thread_num_matches Number of matches found by the current thread
      * @param pair_equal The binary callable used to compare two pairs
      * for equality
@@ -1384,7 +1320,6 @@ class static_multimap {
     template <typename CG, typename PairEqual>
     __device__ void pair_count_outer(CG const& g,
                                      value_type const& pair,
-                                     optional_hash_type precomputed_hash,
                                      std::size_t& thread_num_matches,
                                      PairEqual pair_equal) noexcept;
 
@@ -1406,8 +1341,6 @@ class static_multimap {
      * @param warp The Cooperative Group (or warp) used to flush output buffer
      * @param g The Cooperative Group used to retrieve
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param warp_counter Pointer to the warp counter
      * @param output_buffer Shared memory buffer of the key/value pair sequence
      * @param num_matches Size of the output sequence
@@ -1424,7 +1357,6 @@ class static_multimap {
     __device__ void retrieve(warpT const& warp,
                              CG const& g,
                              Key const& k,
-                             optional_hash_type precomputed_hash,
                              uint32_t* warp_counter,
                              value_type* output_buffer,
                              atomicT* num_matches,
@@ -1449,8 +1381,6 @@ class static_multimap {
      * @param warp The Cooperative Group (or warp) used to flush output buffer
      * @param g The Cooperative Group used to retrieve
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param warp_counter Pointer to the warp counter
      * @param output_buffer Shared memory buffer of the key/value pair sequence
      * @param num_matches Size of the output sequence
@@ -1467,7 +1397,6 @@ class static_multimap {
     __device__ void retrieve_outer(warpT const& warp,
                                    CG const& g,
                                    Key const& k,
-                                   optional_hash_type precomputed_hash,
                                    uint32_t* warp_counter,
                                    value_type* output_buffer,
                                    atomicT* num_matches,
@@ -1490,8 +1419,6 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to retrieve
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param cg_counter Pointer to the CG counter
      * @param output_buffer Shared memory buffer of the key/value pair sequence
      * @param num_matches Size of the output sequence
@@ -1507,7 +1434,6 @@ class static_multimap {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ void retrieve(CG const& g,
                              Key const& k,
-                             optional_hash_type precomputed_hash,
                              uint32_t* cg_counter,
                              value_type* output_buffer,
                              atomicT* num_matches,
@@ -1531,8 +1457,6 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to retrieve
      * @param k The key to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param cg_counter Pointer to the CG counter
      * @param output_buffer Shared memory buffer of the key/value pair sequence
      * @param num_matches Size of the output sequence
@@ -1548,7 +1472,6 @@ class static_multimap {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ void retrieve_outer(CG const& g,
                                    Key const& k,
-                                   optional_hash_type precomputed_hash,
                                    uint32_t* cg_counter,
                                    value_type* output_buffer,
                                    atomicT* num_matches,
@@ -1573,8 +1496,6 @@ class static_multimap {
      * @param warp The Cooperative Group (or warp) used to flush output buffer
      * @param g The Cooperative Group used to retrieve
      * @param pair The pair to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param warp_counter Pointer to the warp counter
      * @param probe_output_buffer Buffer of the matched probe pair sequence
      * @param contained_output_buffer Buffer of the matched contained pair sequence
@@ -1593,7 +1514,6 @@ class static_multimap {
     __device__ void pair_retrieve(warpT const& warp,
                                   CG const& g,
                                   value_type const& pair,
-                                  optional_hash_type precomputed_hash,
                                   uint32_t* warp_counter,
                                   value_type* probe_output_buffer,
                                   value_type* contained_output_buffer,
@@ -1621,8 +1541,6 @@ class static_multimap {
      * @param warp The Cooperative Group (or warp) used to flush output buffer
      * @param g The Cooperative Group used to retrieve
      * @param pair The pair to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param warp_counter Pointer to the warp counter
      * @param probe_output_buffer Buffer of the matched probe pair sequence
      * @param contained_output_buffer Buffer of the matched contained pair sequence
@@ -1641,7 +1559,6 @@ class static_multimap {
     __device__ void pair_retrieve_outer(warpT const& warp,
                                         CG const& g,
                                         value_type const& pair,
-                                        optional_hash_type precomputed_hash,
                                         uint32_t* warp_counter,
                                         value_type* probe_output_buffer,
                                         value_type* contained_output_buffer,
@@ -1667,8 +1584,6 @@ class static_multimap {
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to retrieve
      * @param pair The pair to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param cg_counter Pointer to the CG counter
      * @param probe_output_buffer Buffer of the matched probe pair sequence
      * @param contained_output_buffer Buffer of the matched contained pair sequence
@@ -1686,7 +1601,6 @@ class static_multimap {
               typename PairEqual>
     __device__ void pair_retrieve(CG const& g,
                                   value_type const& pair,
-                                  optional_hash_type precomputed_hash,
                                   uint32_t* cg_counter,
                                   value_type* probe_output_buffer,
                                   value_type* contained_output_buffer,
@@ -1713,8 +1627,6 @@ class static_multimap {
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to retrieve
      * @param pair The pair to search for
-     * @param precomputed_hash Optional value which allows users to specify the precomputed hash
-     * value
      * @param cg_counter Pointer to the CG counter
      * @param probe_output_buffer Buffer of the matched probe pair sequence
      * @param contained_output_buffer Buffer of the matched contained pair sequence
@@ -1732,7 +1644,6 @@ class static_multimap {
               typename PairEqual>
     __device__ void pair_retrieve_outer(CG const& g,
                                         value_type const& pair,
-                                        optional_hash_type precomputed_hash,
                                         uint32_t* cg_counter,
                                         value_type* probe_output_buffer,
                                         value_type* contained_output_buffer,
