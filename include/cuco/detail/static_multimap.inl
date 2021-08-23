@@ -1090,7 +1090,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   while (true) {
     auto slot_contents = *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
 
-    auto const slot_is_empty = (slot_contents.first == this->get_empty_key_sentinel());
+    auto const slot_is_empty =
+      detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
 
     auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
 
