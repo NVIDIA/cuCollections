@@ -31,7 +31,9 @@ TEMPLATE_TEST_CASE_SIG("Insert all identical keys",
                        "",
                        ((typename Key, typename Value, typename Op), Key, Value, Op),
                        (int32_t, int32_t, cuco::reduce_add<int32_t>),
-                       (int32_t, int32_t, custom_reduce_add<int32_t>))
+                       (int32_t, int32_t, custom_reduce_add<int32_t>),
+                       (int32_t, float, cuco::reduce_add<float>),
+                       (int64_t, double, cuco::reduce_add<double>))
 {
   thrust::device_vector<Key> keys(100, 42);
   thrust::device_vector<Value> values(keys.size(), 1);
@@ -133,7 +135,9 @@ TEMPLATE_TEST_CASE_SIG("Shared memory hast table.",
                        "",
                        ((typename Key, typename Value, typename Op), Key, Value, Op),
                        (int32_t, int32_t, cuco::reduce_add<int32_t>),
-                       (int32_t, int32_t, custom_reduce_add<int32_t>))
+                       (int32_t, int32_t, custom_reduce_add<int32_t>),
+                       (int32_t, float, cuco::reduce_add<float>),
+                       (int64_t, double, cuco::reduce_add<double>))
 {
   constexpr std::size_t N = 256;
   thrust::device_vector<bool> key_found(N, false);
