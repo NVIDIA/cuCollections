@@ -213,28 +213,35 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
 
   while (true) {
     key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
+    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+
     // the key we are trying to insert is already in the map, so we return with failure to insert
-    if (key_equal(existing_key, insert_pair.first)) { return false; }
+    if (not slot_is_empty and key_equal(existing_key, insert_pair.first)) { return false; }
 
-    auto const status = [&]() {
-      // One single CAS operation if `value_type` is packable
-      if constexpr (cuco::detail::is_packable<value_type>()) {
-        return packed_cas(current_slot, insert_pair, key_equal);
-      }
+    if (slot_is_empty) {
+      auto const status = [&]() {
+        // One single CAS operation if `value_type` is packable
+        if constexpr (cuco::detail::is_packable<value_type>()) {
+          return packed_cas(current_slot, insert_pair, key_equal);
+        }
 
-      if constexpr (not cuco::detail::is_packable<value_type>()) {
+        if constexpr (not cuco::detail::is_packable<value_type>()) {
 #if __CUDA_ARCH__ < 700
-        return cas_dependent_write(current_slot, insert_pair, key_equal);
+          return cas_dependent_write(current_slot, insert_pair, key_equal);
 #else
-        return back_to_back_cas(current_slot, insert_pair, key_equal);
+          return back_to_back_cas(current_slot, insert_pair, key_equal);
 #endif
-      }
-    }();
+        }
+      }();
 
-    // successful insert
-    if (status == insert_result::SUCCESS) { return true; }
-    // duplicate present during insert
-    if (status == insert_result::DUPLICATE) { return false; }
+      // successful insert
+      if (status == insert_result::SUCCESS) { return true; }
+      // duplicate present during insert
+      if (status == insert_result::DUPLICATE) { return false; }
+    }
 
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
     // have been some other key there, so we keep looking for a slot
