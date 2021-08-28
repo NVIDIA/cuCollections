@@ -77,9 +77,9 @@ namespace cuco {
  * The singular device-side operations allow individual threads to perform
  * independent operations (e.g. `insert`, etc.) from device code. These
  * operations are accessed through non-owning, trivially copyable "view" types:
- * `device_view` and `mutable_device_view`. The `device_view` class is an
+ * `device_view` and `device_mutable_view`. The `device_view` class is an
  * immutable view that allows only non-modifying operations such as `count` or
- * `contains`. The `mutable_device_view` class only allows `insert` operations.
+ * `contains`. The `device_mutable_view` class only allows `insert` operations.
  * The two types are separate to prevent erroneous concurrent insert/find
  * operations.
  *
@@ -628,7 +628,7 @@ class static_multimap {
    * // Inserts a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
    * thrust::for_each(thrust::make_counting_iterator(0),
    *                  thrust::make_counting_iterator(50'000),
-   *                  [map = m.get_mutable_device_view()]
+   *                  [map = m.get_device_mutable_view()]
    *                  __device__ (auto i) mutable {
    *                     map.insert(thrust::make_pair(i,i));
    *                  });
