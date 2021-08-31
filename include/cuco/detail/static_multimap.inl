@@ -1215,13 +1215,13 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
 
     auto const slot_is_empty =
       detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
-    auto const equals = (not slot_is_empty and key_equal(slot_contents.first, k));
-    auto const exists = g.ballot(equals);
+    auto const equals   = (not slot_is_empty and key_equal(slot_contents.first, k));
+    uint32_t output_idx = *cg_counter;
+    auto const exists   = g.ballot(equals);
 
     if (exists) {
       if constexpr (is_outer) { found_match = true; }
-      auto num_matches    = __popc(exists);
-      uint32_t output_idx = *cg_counter;
+      auto num_matches = __popc(exists);
       if (equals) {
         // Each match computes its lane-level offset
         auto lane_offset = __popc(exists & ((1 << lane_id) - 1));
@@ -1235,7 +1235,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
       running = false;
       if constexpr (is_outer) {
         if ((not found_match) && (lane_id == 0)) {
-          auto output_idx           = (*cg_counter)++;
+          output_idx                = (*cg_counter)++;
           Key key                   = k;
           output_buffer[output_idx] = cuco::make_pair<Key, Value>(
             std::move(key), std::move(this->get_empty_value_sentinel()));
@@ -1399,13 +1399,13 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
 
     auto const slot_is_empty =
       detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
-    auto const equals = (not slot_is_empty and pair_equal(slot_contents, pair));
-    auto const exists = g.ballot(equals);
+    auto const equals   = (not slot_is_empty and pair_equal(slot_contents, pair));
+    uint32_t output_idx = *cg_counter;
+    auto const exists   = g.ballot(equals);
 
     if (exists) {
       if constexpr (is_outer) { found_match = true; }
-      auto num_matches    = __popc(exists);
-      uint32_t output_idx = *cg_counter;
+      auto num_matches = __popc(exists);
       if (equals) {
         // Each match computes its lane-level offset
         auto lane_offset                                  = __popc(exists & ((1 << lane_id) - 1));
@@ -1418,7 +1418,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
       running = false;
       if constexpr (is_outer) {
         if ((not found_match) && (lane_id == 0)) {
-          auto output_idx                     = (*cg_counter)++;
+          output_idx                          = (*cg_counter)++;
           probe_output_buffer[output_idx]     = pair;
           contained_output_buffer[output_idx] = cuco::make_pair<Key, Value>(
             std::move(this->get_empty_key_sentinel()), std::move(this->get_empty_value_sentinel()));
