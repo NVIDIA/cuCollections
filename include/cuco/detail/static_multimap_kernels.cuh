@@ -88,7 +88,8 @@ __global__ void insert(InputIt first, InputIt last, viewT view)
 }
 
 /**
- * @brief Inserts key/value pairs in the range `[first, last)` if `pred` returns true.
+ * @brief Inserts key/value pairs in the range `[first, first + n)` if `pred` of the
+ * corresponding stencil returns true.
  *
  * Uses the CUDA Cooperative Groups API to leverage groups of multiple threads to perform each
  * key/value insertion. This provides a significant boost in throughput compared to the non
@@ -99,30 +100,34 @@ __global__ void insert(InputIt first, InputIt last, viewT view)
  * inserts
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `value_type`
+ * @tparam StencilIt Device accessible stencil iterator
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Predicate Unary predicate function type
  * @param first Beginning of the sequence of key/value pairs
- * @param last End of the sequence of key/value pairs
+ * @param s Beginning of the stencil sequence
+ * @param n Number of elements to insert
  * @param view Mutable device view used to access the hash map's slot storage
+ * @param pred Predicate to test on the given stencil sequence
  */
 template <uint32_t block_size,
           uint32_t tile_size,
           typename InputIt,
+          typename StencilIt,
           typename viewT,
           typename Predicate>
-__global__ void insert_if(InputIt first, InputIt last, viewT view, Predicate pred)
+__global__ void insert_if_n(InputIt first, StencilIt s, std::size_t n, viewT view, Predicate pred)
 {
-  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid  = block_size * blockIdx.x + threadIdx.x;
-  auto it   = first + tid / tile_size;
+  auto tile      = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto const tid = block_size * blockIdx.x + threadIdx.x;
+  auto i         = tid / tile_size;
 
-  while (it < last) {
-    typename viewT::value_type const insert_pair{*it};
-    if (pred(insert_pair)) {
+  while (i < n) {
+    if (pred(*(s + i))) {
+      typename viewT::value_type const insert_pair{*(first + i)};
       // force conversion to value_type
       view.insert(tile, insert_pair);
     }
-    it += (gridDim.x * block_size) / tile_size;
+    i += (gridDim.x * block_size) / tile_size;
   }
 }
 

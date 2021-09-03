@@ -220,19 +220,22 @@ class static_multimap {
   void insert(InputIt first, InputIt last, cudaStream_t stream = 0);
 
   /**
-   * @brief Inserts key/value pairs in the range `[first, last)` if `pred` returns true.
+   * @brief Inserts key/value pairs in the range `[first, first + n)` if `pred`
+   * of the corresponding stencil returns true.
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `value_type`
+   * @tparam StencilIt Device accessible stencil iterator
    * @tparam Predicate Unary predicate function type
-   * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of key/value pairs
-   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param n Number of elements to insert
+   * @param pred Predicate to test on the given stencil sequence
    * @param stream CUDA stream used for insert
-   * @param key_equal The binary function to compare two keys for equality
    */
-  template <typename InputIt, typename Predicate>
-  void insert_if(InputIt first, InputIt last, Predicate pred, cudaStream_t stream = 0);
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  void insert_if_n(
+    InputIt first, StencilIt stencil, std::size_t n, Predicate pred, cudaStream_t stream = 0);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.

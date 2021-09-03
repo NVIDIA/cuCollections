@@ -105,20 +105,17 @@ template <typename Key,
           class ProbeSequence,
           cuda::thread_scope Scope,
           typename Allocator>
-template <typename InputIt, typename Predicate>
-void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if(InputIt first,
-                                                                             InputIt last,
-                                                                             Predicate pred,
-                                                                             cudaStream_t stream)
+template <typename InputIt, typename StencilIt, typename Predicate>
+void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if_n(
+  InputIt first, StencilIt stencil, std::size_t n, Predicate pred, cudaStream_t stream)
 {
-  auto num_keys = std::distance(first, last);
-  auto view     = get_device_mutable_view();
+  auto view = get_device_mutable_view();
 
   auto constexpr block_size = 128;
   int grid_size{-1};
   cudaOccupancyMaxActiveBlocksPerMultiprocessor(
     &grid_size,
-    detail::insert_if<block_size, cg_size(), InputIt, device_mutable_view, Predicate>,
+    detail::insert_if_n<block_size, cg_size(), InputIt, StencilIt, device_mutable_view, Predicate>,
     block_size,
     0);
   int dev_id{-1};
@@ -127,8 +124,8 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if(Inp
   cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
   grid_size *= num_sms;
 
-  detail::insert_if<block_size, cg_size()>
-    <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view, pred);
+  detail::insert_if_n<block_size, cg_size()>
+    <<<grid_size, block_size, 0, stream>>>(first, stencil, n, view, pred);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 
