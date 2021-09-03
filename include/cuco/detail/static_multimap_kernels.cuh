@@ -228,9 +228,9 @@ __global__ void count(
   while (first + key_idx < last) {
     auto key = *(first + key_idx);
     if constexpr (is_outer) {
-      view.count_outer(tile, key, thread_num_matches, key_equal);
+      thread_num_matches += view.count_outer(tile, key, key_equal);
     } else {
-      view.count(tile, key, thread_num_matches, key_equal);
+      thread_num_matches += view.count(tile, key, key_equal);
     }
     key_idx += (gridDim.x * block_size) / tile_size;
   }
@@ -283,9 +283,9 @@ __global__ void pair_count(
   while (first + pair_idx < last) {
     typename viewT::value_type const pair = *(first + pair_idx);
     if constexpr (is_outer) {
-      view.pair_count_outer(tile, pair, thread_num_matches, pair_equal);
+      thread_num_matches += view.pair_count_outer(tile, pair, pair_equal);
     } else {
-      view.pair_count(tile, pair, thread_num_matches, pair_equal);
+      thread_num_matches += view.pair_count(tile, pair, pair_equal);
     }
     pair_idx += (gridDim.x * block_size) / tile_size;
   }

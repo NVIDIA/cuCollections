@@ -918,10 +918,11 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
-__device__ std::enable_if_t<uses_vector_load, void>
+__device__ std::enable_if_t<uses_vector_load, std::size_t>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count_impl(
-  CG const& g, Key const& k, std::size_t& thread_num_matches, KeyEqual key_equal) noexcept
+  CG const& g, Key const& k, KeyEqual key_equal) noexcept
 {
+  std::size_t count = 0;
   auto current_slot = initial_slot(g, k);
 
   [[maybe_unused]] bool found_match = false;
@@ -941,13 +942,13 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
       if (g.any(first_equals or second_equals)) { found_match = true; }
     }
 
-    thread_num_matches += (first_equals + second_equals);
+    count += (first_equals + second_equals);
 
     if (g.any(first_slot_is_empty or second_slot_is_empty)) {
       if constexpr (is_outer) {
-        if ((not found_match) && (g.thread_rank() == 0)) { thread_num_matches++; }
+        if ((not found_match) && (g.thread_rank() == 0)) { count++; }
       }
-      break;
+      return count;
     }
 
     current_slot = next_slot(current_slot);
@@ -960,10 +961,11 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
-__device__ std::enable_if_t<not uses_vector_load, void>
+__device__ std::enable_if_t<not uses_vector_load, std::size_t>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count_impl(
-  CG const& g, Key const& k, std::size_t& thread_num_matches, KeyEqual key_equal) noexcept
+  CG const& g, Key const& k, KeyEqual key_equal) noexcept
 {
+  std::size_t count = 0;
   auto current_slot = initial_slot(g, k);
 
   [[maybe_unused]] bool found_match = false;
@@ -979,13 +981,13 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
       if (g.any(equals)) { found_match = true; }
     }
 
-    thread_num_matches += equals;
+    count += equals;
 
     if (g.any(slot_is_empty)) {
       if constexpr (is_outer) {
-        if ((not found_match) && (g.thread_rank() == 0)) { thread_num_matches++; }
+        if ((not found_match) && (g.thread_rank() == 0)) { count++; }
       }
-      break;
+      return count;
     }
 
     current_slot = next_slot(current_slot);
@@ -998,13 +1000,11 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
-__device__ std::enable_if_t<uses_vector_load, void>
+__device__ std::enable_if_t<uses_vector_load, std::size_t>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_count_impl(
-  CG const& g,
-  value_type const& pair,
-  std::size_t& thread_num_matches,
-  PairEqual pair_equal) noexcept
+  CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
 {
+  std::size_t count = 0;
   auto key          = pair.first;
   auto current_slot = initial_slot(g, key);
 
@@ -1026,13 +1026,13 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
       if (g.any(first_slot_equals or second_slot_equals)) { found_match = true; }
     }
 
-    thread_num_matches += (first_slot_equals + second_slot_equals);
+    count += (first_slot_equals + second_slot_equals);
 
     if (g.any(first_slot_is_empty or second_slot_is_empty)) {
       if constexpr (is_outer) {
-        if ((not found_match) && (g.thread_rank() == 0)) { thread_num_matches++; }
+        if ((not found_match) && (g.thread_rank() == 0)) { count++; }
       }
-      break;
+      return count;
     }
 
     current_slot = next_slot(current_slot);
@@ -1045,13 +1045,11 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
-__device__ std::enable_if_t<not uses_vector_load, void>
+__device__ std::enable_if_t<not uses_vector_load, std::size_t>
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_count_impl(
-  CG const& g,
-  value_type const& pair,
-  std::size_t& thread_num_matches,
-  PairEqual pair_equal) noexcept
+  CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
 {
+  std::size_t count = 0;
   auto key          = pair.first;
   auto current_slot = initial_slot(g, key);
 
@@ -1069,13 +1067,13 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
       if (g.any(equals)) { found_match = true; }
     }
 
-    thread_num_matches += equals;
+    count += equals;
 
     if (g.any(slot_is_empty)) {
       if constexpr (is_outer) {
-        if ((not found_match) && (g.thread_rank() == 0)) { thread_num_matches++; }
+        if ((not found_match) && (g.thread_rank() == 0)) { count++; }
       }
-      break;
+      return count;
     }
 
     current_slot = next_slot(current_slot);
@@ -1558,11 +1556,12 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <typename CG, typename KeyEqual>
-__device__ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count(
-  CG const& g, Key const& k, std::size_t& thread_num_matches, KeyEqual key_equal) noexcept
+__device__ std::size_t
+static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count(
+  CG const& g, Key const& k, KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = false;
-  count_impl<uses_vector_load(), is_outer>(g, k, thread_num_matches, key_equal);
+  return count_impl<uses_vector_load(), is_outer>(g, k, key_equal);
 }
 
 template <typename Key,
@@ -1571,12 +1570,12 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <typename CG, typename KeyEqual>
-__device__ void
+__device__ std::size_t
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count_outer(
-  CG const& g, Key const& k, std::size_t& thread_num_matches, KeyEqual key_equal) noexcept
+  CG const& g, Key const& k, KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = true;
-  count_impl<uses_vector_load(), is_outer>(g, k, thread_num_matches, key_equal);
+  return count_impl<uses_vector_load(), is_outer>(g, k, key_equal);
 }
 
 template <typename Key,
@@ -1585,15 +1584,12 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <typename CG, typename PairEqual>
-__device__ void
+__device__ std::size_t
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_count(
-  CG const& g,
-  value_type const& pair,
-  std::size_t& thread_num_matches,
-  PairEqual pair_equal) noexcept
+  CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = false;
-  pair_count_impl<uses_vector_load(), is_outer>(g, pair, thread_num_matches, pair_equal);
+  return pair_count_impl<uses_vector_load(), is_outer>(g, pair, pair_equal);
 }
 
 template <typename Key,
@@ -1602,15 +1598,12 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <typename CG, typename PairEqual>
-__device__ void
+__device__ std::size_t
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_count_outer(
-  CG const& g,
-  value_type const& pair,
-  std::size_t& thread_num_matches,
-  PairEqual pair_equal) noexcept
+  CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = true;
-  pair_count_impl<uses_vector_load(), is_outer>(g, pair, thread_num_matches, pair_equal);
+  return pair_count_impl<uses_vector_load(), is_outer>(g, pair, pair_equal);
 }
 
 template <typename Key,

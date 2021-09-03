@@ -911,19 +911,16 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
-     * @param thread_num_matches Number of matches found by the current thread
      * @param key_equal The binary callable used to compare two keys
      * for equality
+     * @return Number of matches found by the current thread
      */
     template <bool uses_vector_load,
               bool is_outer,
               typename CG,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<uses_vector_load, void> count_impl(
-      CG const& g,
-      Key const& k,
-      std::size_t& thread_num_matches,
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ std::enable_if_t<uses_vector_load, std::size_t> count_impl(
+      CG const& g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap using scalar loads.
@@ -934,19 +931,16 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
-     * @param thread_num_matches Number of matches found by the current thread
      * @param key_equal The binary callable used to compare two keys
      * for equality
+     * @return Number of matches found by the current thread
      */
     template <bool uses_vector_load,
               bool is_outer,
               typename CG,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<not uses_vector_load, void> count_impl(
-      CG const& g,
-      Key const& k,
-      std::size_t& thread_num_matches,
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ std::enable_if_t<not uses_vector_load, std::size_t> count_impl(
+      CG const& g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key/value pair contained in multimap using vector
@@ -958,16 +952,13 @@ class static_multimap {
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to perform the pair_count operation
      * @param pair The pair to search for
-     * @param thread_num_matches Number of matches found by the current thread
      * @param pair_equal The binary callable used to compare two pairs
      * for equality
+     * @return Number of matches found by the current thread
      */
     template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
-    __device__ std::enable_if_t<uses_vector_load, void> pair_count_impl(
-      CG const& g,
-      value_type const& pair,
-      std::size_t& thread_num_matches,
-      PairEqual pair_equal) noexcept;
+    __device__ std::enable_if_t<uses_vector_load, std::size_t> pair_count_impl(
+      CG const& g, value_type const& pair, PairEqual pair_equal) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key/value pair contained in multimap using scalar
@@ -979,16 +970,13 @@ class static_multimap {
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to perform the pair_count operation
      * @param pair The pair to search for
-     * @param thread_num_matches Number of matches found by the current thread
      * @param pair_equal The binary callable used to compare two pairs
      * for equality
+     * @return Number of matches found by the current thread
      */
     template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
-    __device__ std::enable_if_t<not uses_vector_load, void> pair_count_impl(
-      CG const& g,
-      value_type const& pair,
-      std::size_t& thread_num_matches,
-      PairEqual pair_equal) noexcept;
+    __device__ std::enable_if_t<not uses_vector_load, std::size_t> pair_count_impl(
+      CG const& g, value_type const& pair, PairEqual pair_equal) noexcept;
 
     /**
      * @brief Find all the matches of a given key contained in multimap using vector
@@ -1263,15 +1251,14 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
-     * @param thread_num_matches Number of matches found by the current thread
      * @param key_equal The binary callable used to compare two keys
      * for equality
+     * @return Number of matches found by the current thread
      */
     template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void count(CG const& g,
-                          Key const& k,
-                          std::size_t& thread_num_matches,
-                          KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ std::size_t count(CG const& g,
+                                 Key const& k,
+                                 KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap. If no
@@ -1281,15 +1268,14 @@ class static_multimap {
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
-     * @param thread_num_matches Number of matches found by the current thread
      * @param key_equal The binary callable used to compare two keys
      * for equality
+     * @return Number of matches found by the current thread
      */
     template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void count_outer(CG const& g,
-                                Key const& k,
-                                std::size_t& thread_num_matches,
-                                KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ std::size_t count_outer(CG const& g,
+                                       Key const& k,
+                                       KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key/value pair contained in multimap.
@@ -1298,15 +1284,14 @@ class static_multimap {
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to perform the pair_count operation
      * @param pair The pair to search for
-     * @param thread_num_matches Number of matches found by the current thread
      * @param pair_equal The binary callable used to compare two pairs
      * for equality
+     * @return Number of matches found by the current thread
      */
     template <typename CG, typename PairEqual>
-    __device__ void pair_count(CG const& g,
-                               value_type const& pair,
-                               std::size_t& thread_num_matches,
-                               PairEqual pair_equal) noexcept;
+    __device__ std::size_t pair_count(CG const& g,
+                                      value_type const& pair,
+                                      PairEqual pair_equal) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key/value pair contained in multimap.
@@ -1316,15 +1301,14 @@ class static_multimap {
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to perform the pair_count operation
      * @param pair The pair to search for
-     * @param thread_num_matches Number of matches found by the current thread
      * @param pair_equal The binary callable used to compare two pairs
      * for equality
+     * @return Number of matches found by the current thread
      */
     template <typename CG, typename PairEqual>
-    __device__ void pair_count_outer(CG const& g,
-                                     value_type const& pair,
-                                     std::size_t& thread_num_matches,
-                                     PairEqual pair_equal) noexcept;
+    __device__ std::size_t pair_count_outer(CG const& g,
+                                            value_type const& pair,
+                                            PairEqual pair_equal) noexcept;
 
     /**
      * @brief Find all the matches of a given key contained in multimap using vector
@@ -1721,9 +1705,9 @@ class static_multimap {
   Value empty_value_sentinel_{};                ///< Initial value of empty slot
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
-  atomic_ctr_type* d_counter_;
-  cudaStream_t const stream_;
-};  // class static_multimap
+  atomic_ctr_type* d_counter_;                  ///< Preallocated device counter
+  cudaStream_t const stream_;                   ///< CUDA stream used for initialization
+};                                              // class static_multimap
 }  // namespace cuco
 
 #include <cuco/detail/static_multimap.inl>
