@@ -228,14 +228,15 @@ class static_multimap {
    * @tparam StencilIt Device accessible stencil iterator
    * @tparam Predicate Unary predicate function type
    * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
    * @param stencil Beginning of the stencil sequence
    * @param n Number of elements to insert
    * @param pred Predicate to test on the given stencil sequence
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
-  void insert_if_n(
-    InputIt first, StencilIt stencil, std::size_t n, Predicate pred, cudaStream_t stream = 0);
+  void insert_if(
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream = 0);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.

@@ -269,7 +269,7 @@ TEMPLATE_TEST_CASE_SIG("Tests of insert_if",
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
 
   auto pred_lambda = [] __device__(Key k) { return k % 2 == 0; };
-  map.insert_if_n(d_pairs.begin(), d_keys.begin(), d_pairs.size(), pred_lambda);
+  map.insert_if(d_pairs.begin(), d_pairs.begin() + d_pairs.size(), d_keys.begin(), pred_lambda);
 
   auto num = map.count(d_keys.begin(), d_keys.end());
 

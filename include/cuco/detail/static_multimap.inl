@@ -106,10 +106,11 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <typename InputIt, typename StencilIt, typename Predicate>
-void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if_n(
-  InputIt first, StencilIt stencil, std::size_t n, Predicate pred, cudaStream_t stream)
+void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if(
+  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream)
 {
-  auto view = get_device_mutable_view();
+  auto num_elements = std::distance(first, last);
+  auto view         = get_device_mutable_view();
 
   auto constexpr block_size = 128;
   int grid_size{-1};
@@ -125,7 +126,7 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if_n(
   grid_size *= num_sms;
 
   detail::insert_if_n<block_size, cg_size()>
-    <<<grid_size, block_size, 0, stream>>>(first, stencil, n, view, pred);
+    <<<grid_size, block_size, 0, stream>>>(first, stencil, num_elements, view, pred);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 
