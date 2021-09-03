@@ -793,7 +793,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_mutable_vie
   auto current_slot = initial_slot(g, insert_pair.first);
 
   while (true) {
-    key_type const existing_key = current_slot->first.load(cuda::memory_order_relaxed);
+    value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
+    auto const& existing_key = slot_contents.first;
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
@@ -889,7 +890,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::conta
   auto current_slot = initial_slot(g, k);
 
   while (true) {
-    key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
+    auto const& existing_key = slot_contents.first;
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
@@ -967,9 +969,8 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::count
   [[maybe_unused]] bool found_match = false;
 
   while (true) {
-    pair<Key, Value> slot_contents =
-      *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
-    auto const& current_key = slot_contents.first;
+    value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
+    auto const& current_key  = slot_contents.first;
 
     auto const slot_is_empty = detail::bitwise_compare(current_key, this->get_empty_key_sentinel());
     auto const equals        = not slot_is_empty and key_equal(current_key, k);
@@ -1057,7 +1058,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::pair_
   [[maybe_unused]] bool found_match = false;
 
   while (true) {
-    auto slot_contents = *reinterpret_cast<cuco::pair_type<Key, Value> const*>(current_slot);
+    auto slot_contents = *reinterpret_cast<value_type const*>(current_slot);
 
     auto const slot_is_empty =
       detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
@@ -1208,7 +1209,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
     // is unsafe!
     static_assert(sizeof(Key) == sizeof(cuda::atomic<Key>));
     static_assert(sizeof(Value) == sizeof(cuda::atomic<Value>));
-    pair<Key, Value> slot_contents = *reinterpret_cast<pair<Key, Value> const*>(current_slot);
+    value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
 
     auto const slot_is_empty =
       detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
@@ -1467,14 +1468,14 @@ __inline__ __device__
   offset = g.shfl(offset, 0);
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
-  cooperative_groups::memcpy_async(g,
-                                   output_begin + offset,
-                                   output_buffer,
-                                   cuda::aligned_size_t<alignof(cuco::pair_type<Key, Value>)>(
-                                     sizeof(cuco::pair_type<Key, Value>) * num_outputs));
+  cooperative_groups::memcpy_async(
+    g,
+    output_begin + offset,
+    output_buffer,
+    cuda::aligned_size_t<alignof(value_type)>(sizeof(value_type) * num_outputs));
 #else
   cooperative_groups::memcpy_async(
-    g, output_begin + offset, output_buffer, sizeof(cuco::pair_type<Key, Value>) * num_outputs);
+    g, output_begin + offset, output_buffer, sizeof(value_type) * num_outputs);
 #endif
 }
 
