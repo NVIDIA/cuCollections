@@ -657,9 +657,9 @@ __device__
     cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value))};
   cuco::detail::pair_converter<value_type> new_pair{insert_pair};
 
-  auto slot =
-    reinterpret_cast<cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(
-      current_slot);
+  auto slot = reinterpret_cast<
+    cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type, Scope>*>(
+    current_slot);
 
   bool success = slot->compare_exchange_strong(
     expected_pair.packed, new_pair.packed, cuda::std::memory_order_relaxed);
