@@ -50,7 +50,8 @@ class priority_queue {
 
  public:
   /**
-   * Construct a priority queue
+   * @brief Construct a priority queue
+   *
    * @param initial_capacity The number of elements the priority queue can hold
    * @param node_size The size of the nodes in the underlying heap data
    *        structure
@@ -58,7 +59,8 @@ class priority_queue {
   priority_queue(size_t initial_capacity, size_t node_size = 1024);
 
   /**
-   * Push num_elements elements into the priority queue
+   * @brief Push num_elements elements into the priority queue
+   *
    * @param elements Array of elements to add to the queue
    * @param num_elements Number of elements to add to the queue
    * @param block_size Block size to use for the internal kernel launch
@@ -74,8 +76,9 @@ class priority_queue {
             cudaStream_t stream = 0);
 
   /**
-   * Remove the num_elements elements with the lowest keys from the priority
+   * @brief Remove the num_elements elements with the lowest keys from the priority
    * queue and place them in out in ascending sorted order by key
+   *
    * @param out The array in which the removed elements will be placed
    * @param num_elements The number of elements to be removed
    * @param block_size Block size to use for the internal kernel launch
@@ -91,10 +94,11 @@ class priority_queue {
            cudaStream_t stream = 0);
 
   /*
-  * Return the amount of shared memory required for operations on the queue
+  * @brief Return the amount of shared memory required for operations on the queue
   * with a thread block size of block_size
   *
   * @param block_size Size of the blocks to calculate storage for
+  * @return The amount of temporary storage required in bytes
   */
   int get_shmem_size(int block_size) {
     int intersection_bytes = 2 * (block_size + 1) * sizeof(int);
@@ -102,14 +106,18 @@ class priority_queue {
     return intersection_bytes + 2 * node_bytes;
   }
 
+  /**
+   * @brief Destroys the queue and frees its contents
+   */
   ~priority_queue();
 
   class device_mutable_view {
    public:
 
     /**
-     * Push a single node or less elements into the priority queue
+     * @brief Push a single node or less elements into the priority queue
      *
+     * @tparam CG Cooperative Group type
      * @param g The cooperative group that will perform the operation
      * @param elements Array of elements to add to the queue
      * @param num_elements Number of elements to add to the queue
@@ -121,8 +129,9 @@ class priority_queue {
                          size_t num_elements, void *temp_storage);
 
     /**
-     * Pop a single node or less elements from the priority queue
+     * @brief Pop a single node or less elements from the priority queue
      *
+     * @tparam CG Cooperative Group type
      * @param g The cooperative group that will perform the operation
      * @param out Array of elements to put the removed elements in 
      * @param num_elements Number of elements to remove from the queue
@@ -133,15 +142,24 @@ class priority_queue {
     __device__ void pop(CG const& g, Pair<Key, Value> *out,
                         size_t num_elements, void *temp_storage);
 
+    /**
+     * @brief Returns the node size of the queue's underlying heap
+     *        representation, i.e. the maximum number of elements
+     *        pushable or poppable with a call to the device push
+     *        and pop functions
+     *
+     * @return The underlying node size
+     */
     __device__ size_t get_node_size() {
       return node_size_;
     }
 
     /*
-    * Return the amount of temporary storage required for operations
+    * @brief Return the amount of temporary storage required for operations
     * on the queue with a cooperative group size of block_size
     *
     * @param block_size Size of the cooperative groups to calculate storage for
+    * @return The amount of temporary storage required in bytes
     */
     __device__ int get_shmem_size(int block_size) {
       int intersection_bytes = 2 * (block_size + 1) * sizeof(int);
@@ -178,8 +196,11 @@ class priority_queue {
   };
 
   /*
-  * Return a class that can be used to perform insertion and deletion
-  * of single nodes in device code with cooperative groups
+  * @brief Returns a trivailly-copyable class that can be used to perform 
+  *        insertion and deletion of single nodes in device code with
+  *        cooperative groups
+  *
+  * @return A device view
   */
   device_mutable_view get_mutable_device_view() {
     return device_mutable_view(node_size_, d_heap_, d_size_, d_p_buffer_size_,
@@ -187,15 +208,24 @@ class priority_queue {
   }
 
  private:
-  size_t node_size_;
-  int lowest_level_start_;
-  int node_capacity_;
+  size_t node_size_;         ///< Size of the heap's nodes
+  int lowest_level_start_;   ///< Index in `d_heap_` of the first node in the
+                             ///  heap's lowest level
+  int node_capacity_;        ///< Capacity of the heap in nodes
 
-  Pair<Key, Value> *d_heap_;
-  int *d_size_;
-  size_t *d_p_buffer_size_;
-  int *d_locks_;
-  int *d_pop_tracker_;
+  Pair<Key, Value> *d_heap_; ///< Pointer to an array of nodes, the 0th node
+                             ///  being the heap's partial buffer, and nodes
+                             ///  1..(node_capacity_) being the heap, where the
+                             ///  1st node is the root
+  int *d_size_;              ///< Number of nodes currently in the heap
+  size_t *d_p_buffer_size_;  ///< Number of elements currently in the partial
+                             ///  buffer
+  int *d_locks_;             ///< Array of locks where `d_locks_[i]` is the
+                             ///  lock for the node starting at
+                             ///  1d_heap_[node_size * i]`
+  int *d_pop_tracker_;       ///< Variable used to track where in its output
+                             ///  array a pop operation should place a given
+                             ///  popped node
 };
 
 }
