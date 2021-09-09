@@ -6,8 +6,48 @@
 
 namespace cuco {
 
+/*
+* @brief A GPU-accelerated priority queue of key-value pairs
+*
+* Allows for multiple concurrent insertions as well as multiple concurrent
+* deletions
+*
+* Current limitations:
+* - Only supports trivially comparable key types
+* - Does not support insertion and deletion at the same time
+*   - The implementation of the priority queue is based on 
+*     https://arxiv.org/pdf/1906.06504.pdf, which provides a way to allow
+*     concurrent insertion and deletion, so this could be added later if useful
+* - Capacity is fixed and the queue does not automatically resize
+* - Deletion from the queue is much slower than insertion into the queue
+*   due to congestion at the underlying heap's root node
+* 
+* The queue supports two operations:
+*   `push`: Add elements into the queue
+*   `pop`: Remove the element(s) with the lowest (when Max == false) or highest
+*        (when Max == true) keys
+*
+* The priority queue supports bulk host-side operations and more fine-grained
+* device-side operations.
+*
+* The host-side bulk operations `push` and `pop` allow an arbitrary number of
+* elements to be pushed to or popped from the queue.
+*
+* The device-side operations allow a cooperative group to push or pop
+* some number of elements less than or equal to node_size. These device side
+* operations are invoked with a trivially-copyable device view,
+* `device_mutable_view` which can be obtained with the host function 
+* `get_mutable_device_view` and passed to the device.
+*
+* @tparam Key Trivially comparable type used for keys
+* @tparam Value Type of the value to be stored
+* @tparam Max When false, pop operations yield the elements with the smallest
+*             keys in the queue, otherwise, pop operations yeild the elements
+*             with the largest keys
+*/
 template <typename Key, typename Value, bool Max = false>
 class priority_queue {
+
  public:
   /**
    * Construct a priority queue
