@@ -153,7 +153,6 @@ class static_multimap {
     typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
 
   static_multimap(static_multimap const&) = delete;
-  static_multimap(static_multimap&&)      = delete;
   static_multimap& operator=(static_multimap const&) = delete;
   static_multimap& operator=(static_multimap&&) = delete;
 
@@ -200,6 +199,25 @@ class static_multimap {
                   Value empty_value_sentinel,
                   cudaStream_t stream    = 0,
                   Allocator const& alloc = Allocator{});
+
+  /**
+   * @brief Move-constructor
+   * @param other Object to be moved
+   */
+  static_multimap(static_multimap&& other)
+    : slots_(std::move(other.slots_)),
+      capacity_(std::move(other.capacity_)),
+      size_(std::move(other.size_)),
+      empty_key_sentinel_(std::move(other.empty_key_sentinel_)),
+      empty_value_sentinel_(std::move(other.empty_value_sentinel_)),
+      slot_allocator_(std::move(other.slot_allocator_)),
+      counter_allocator_(std::move(other.counter_allocator_)),
+      d_counter_(std::move(other.d_counter_)),
+      stream_(std::move(other.stream_))
+  {
+    other.slots_     = nullptr;
+    other.d_counter_ = nullptr;
+  }
 
   /**
    * @brief Destroys the map and frees its contents.
