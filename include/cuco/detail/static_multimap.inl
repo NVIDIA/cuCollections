@@ -57,7 +57,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::static_multimap(
   cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
   grid_size *= num_sms;
 
-  detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream>>>(
+  detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream_>>>(
     slots_, empty_key_sentinel, empty_value_sentinel, get_capacity());
 }
 

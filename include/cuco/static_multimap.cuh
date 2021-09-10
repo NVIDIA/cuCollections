@@ -154,7 +154,10 @@ class static_multimap {
 
   static_multimap(static_multimap const&) = delete;
   static_multimap& operator=(static_multimap const&) = delete;
-  static_multimap& operator=(static_multimap&&) = delete;
+
+  static_multimap()                  = default;
+  static_multimap(static_multimap&&) = default;
+  static_multimap& operator=(static_multimap&&) = default;
 
   /**
    * @brief Indicate the warp size.
@@ -199,25 +202,6 @@ class static_multimap {
                   Value empty_value_sentinel,
                   cudaStream_t stream    = 0,
                   Allocator const& alloc = Allocator{});
-
-  /**
-   * @brief Move-constructor
-   * @param other Object to be moved
-   */
-  static_multimap(static_multimap&& other)
-    : slots_(std::move(other.slots_)),
-      capacity_(std::move(other.capacity_)),
-      size_(std::move(other.size_)),
-      empty_key_sentinel_(std::move(other.empty_key_sentinel_)),
-      empty_value_sentinel_(std::move(other.empty_value_sentinel_)),
-      slot_allocator_(std::move(other.slot_allocator_)),
-      counter_allocator_(std::move(other.counter_allocator_)),
-      d_counter_(std::move(other.d_counter_)),
-      stream_(std::move(other.stream_))
-  {
-    other.slots_     = nullptr;
-    other.d_counter_ = nullptr;
-  }
 
   /**
    * @brief Destroys the map and frees its contents.
@@ -1718,14 +1702,14 @@ class static_multimap {
 
  private:
   pair_atomic_type* slots_{nullptr};            ///< Pointer to flat slots storage
+  atomic_ctr_type* d_counter_{nullptr};         ///< Preallocated device counter
   std::size_t capacity_{};                      ///< Total number of slots
   std::size_t size_{};                          ///< Number of keys in map
   Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
   Value empty_value_sentinel_{};                ///< Initial value of empty slot
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
-  atomic_ctr_type* d_counter_;                  ///< Preallocated device counter
-  cudaStream_t const stream_;                   ///< CUDA stream used for initialization
+  cudaStream_t stream_{};                       ///< CUDA stream used for initialization
 };                                              // class static_multimap
 }  // namespace cuco
 
