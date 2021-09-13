@@ -77,7 +77,7 @@ __host__ __device__ bool bitwise_compare(T const& lhs, T const& rhs)
 
 /**
  * @brief Customization point that can be specialized to indicate that it is safe to perform bitwise
- * equality comparisons on objects of type `T`.
+ * equality comparisons on the object-representation of objects of type `T`.
  *
  * By default, only types where `std::has_unique_object_representations_v<T>` is true are safe for
  * bitwise equality. However, this can be too restrictive for some types, e.g., floating point
