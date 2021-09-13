@@ -72,7 +72,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
   thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
 
-  cuco::static_multimap<Key, Value, cuco::double_hashing<Key, Value, CGSize>> map{size, -1, -1};
+  cuco::static_multimap<Key, Value, cuco::detail::double_hashing<Key, Value, CGSize>> map{
+    size, -1, -1};
   map.insert(d_pairs.begin(), d_pairs.end());
 
   auto const output_size = map.count_outer(d_keys.begin(), d_keys.end());

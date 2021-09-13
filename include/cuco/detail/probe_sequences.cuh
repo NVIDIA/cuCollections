@@ -22,6 +22,7 @@
 #include <cuco/detail/pair.cuh>
 
 namespace cuco {
+namespace detail {
 
 template <typename Key,
           typename Value,
@@ -162,4 +163,5 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
   Hash hash_{};
 };  // class linear_probing
 
+}  // namespace detail
 }  // namespace cuco
