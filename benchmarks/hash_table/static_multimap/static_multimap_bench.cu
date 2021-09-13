@@ -110,12 +110,9 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_c
   cuco::static_multimap<Key, Value> map{size, -1, -1};
   map.insert(d_pairs.begin(), d_pairs.end());
 
-  state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
-             [&](nvbench::launch& launch, auto& timer) {
-               timer.start();
-               auto count = map.count(d_keys.begin(), d_keys.end(), launch.get_stream());
-               timer.stop();
-             });
+  state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
+    auto count = map.count(d_keys.begin(), d_keys.end(), launch.get_stream());
+  });
 }
 
 template <typename Key, typename Value, dist_type Dist, nvbench::int32_t Multiplicity>
@@ -167,12 +164,9 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_f
   auto const output_size = map.count_outer(d_keys.begin(), d_keys.end());
   thrust::device_vector<cuco::pair_type<Key, Value>> d_results(output_size);
 
-  state.exec(
-    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      timer.start();
-      map.retrieve_outer(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.get_stream());
-      timer.stop();
-    });
+  state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
+    map.retrieve_outer(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.get_stream());
+  });
 }
 
 template <typename Key, typename Value, dist_type Dist, nvbench::int32_t Multiplicity>
@@ -224,13 +218,10 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_r
   auto const output_size = map.count_outer(d_keys.begin(), d_keys.end());
   thrust::device_vector<cuco::pair_type<Key, Value>> d_results(output_size);
 
-  state.exec(
-    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      timer.start();
-      auto count = map.count_outer(d_keys.begin(), d_keys.end(), launch.get_stream());
-      map.retrieve_outer(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.get_stream());
-      timer.stop();
-    });
+  state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
+    auto count = map.count_outer(d_keys.begin(), d_keys.end(), launch.get_stream());
+    map.retrieve_outer(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.get_stream());
+  });
 }
 
 template <typename Key, typename Value, dist_type Dist, nvbench::int32_t Multiplicity>
