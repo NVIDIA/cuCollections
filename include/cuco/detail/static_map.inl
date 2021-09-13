@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <cuco/detail/bitwise_compare.cuh>
+
 namespace cuco {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>

@@ -23,6 +23,7 @@
 #include <memory>
 
 #include <cuco/allocator.hpp>
+#include <cuco/traits.hpp>
 
 #if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
   (__CUDA_ARCH__ >= 700)
@@ -40,7 +41,6 @@
 #include <cuda/barrier>
 #endif
 
-#include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/probe_sequences.cuh>
@@ -56,7 +56,7 @@ namespace cuco {
  * concurrent insert and find) from threads in device code.
  *
  * Current limitations:
- * - Requires keys and values that where `cuco::detail::is_bitwise_comparable<T>::value` is true
+ * - Requires keys and values that where `cuco::is_bitwise_comparable<T>::value` is true
  * - Comparisons against the "sentinel" values will always be done with bitwise comparisons
  * Therefore, the objects must have unique, bitwise object representations (e.g., no padding bits).
  * - Does not support erasing keys
@@ -129,14 +129,14 @@ template <typename Key,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_multimap {
   static_assert(
-    detail::is_bitwise_comparable<Key>::value,
+    cuco::is_bitwise_comparable<Key>::value,
     "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::detail::is_bitwise_comparable<Key>.");
+    "bitwise comparison via specialization of cuco::is_bitwise_comparable<Key>.");
 
   static_assert(
-    detail::is_bitwise_comparable<Value>::value,
+    cuco::is_bitwise_comparable<Value>::value,
     "Value type must have unique object representations or have been explicitly declared as safe "
-    "for bitwise comparison via specialization of cuco::detail::is_bitwise_comparable<Value>.");
+    "for bitwise comparison via specialization of cuco::is_bitwise_comparable<Value>.");
 
  public:
   using value_type         = cuco::pair_type<Key, Value>;
