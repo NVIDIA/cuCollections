@@ -26,7 +26,7 @@ namespace detail {
 
 template <typename Key,
           typename Value,
-          uint32_t CGSize          = 8,
+          uint32_t CGSize,
           cuda::thread_scope Scope = cuda::thread_scope_device>
 class probe_sequence_base {
  protected:
@@ -79,8 +79,12 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, Scope> {
   using probe_sequence_base<Key, Value, CGSize, Scope>::vector_width;
   using probe_sequence_base<Key, Value, CGSize, Scope>::uses_vector_load;
 
-  __host__ __device__ explicit double_hashing(iterator slots, std::size_t capacity) noexcept
-    : probe_sequence_base<Key, Value, CGSize, Scope>{slots, capacity}
+  __host__ __device__ explicit double_hashing(
+    iterator slots,
+    std::size_t capacity,
+    Hash1 hash1 = cuco::detail::MurmurHash3_32<Key>{},
+    Hash2 hash2 = cuco::detail::MurmurHash3_32<Key>{}) noexcept
+    : probe_sequence_base<Key, Value, CGSize, Scope>{slots, capacity}, hash1_{hash1}, hash2_{hash2}
   {
   }
 
@@ -109,8 +113,8 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, Scope> {
 
  private:
   std::size_t step_size_;
-  Hash1 hash1_{};
-  Hash2 hash2_{};
+  Hash1 hash1_;
+  Hash2 hash2_;
 };  // class double_hashing
 
 template <typename Key,
@@ -127,16 +131,20 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
   using probe_sequence_base<Key, Value, CGSize, Scope>::vector_width;
   using probe_sequence_base<Key, Value, CGSize, Scope>::uses_vector_load;
 
-  __host__ __device__ explicit linear_probing(iterator slots, std::size_t capacity)
-    : probe_sequence_base<Key, Value, CGSize, Scope>{slots, capacity}
+  __host__ __device__ explicit linear_probing(iterator slots,
+                                              std::size_t capacity,
+                                              Hash hash = cuco::detail::MurmurHash3_32<Key>{})
+    : probe_sequence_base<Key, Value, CGSize, Scope>{slots, capacity}, hash_(hash)
   {
   }
 
   template <typename CG>
   __device__ iterator initial_slot(CG const& g, Key const k) noexcept
   {
-    auto hash_value = hash_(k);
-    hash_value      = hash_value % 2 ? hash_value + 1 : hash_value;
+    auto const hash_value = [&]() {
+      auto const tmp = hash_(k);
+      return tmp + tmp % 2;  // ensure initial hash value is always even
+    }();
 
     std::size_t offset;
     if constexpr (uses_vector_load()) {
@@ -160,7 +168,7 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
   }
 
  private:
-  Hash hash_{};
+  Hash hash_;
 };  // class linear_probing
 
 }  // namespace detail
