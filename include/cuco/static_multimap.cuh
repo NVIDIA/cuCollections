@@ -52,18 +52,20 @@ namespace cuco {
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs that supports equivalent keys.
  *
- * Allows constant time concurrent inserts or concurrent find operations (not
- * concurrent insert and find) from threads in device code.
+ * Allows constant time concurrent inserts or concurrent find operations from threads in device
+ * code. Concurrent insert/find is allowed only when
+ * `static_multimap<Key, Value>::supports_concurrent_insert_find()` is true.
  *
  * Current limitations:
- * - Requires keys and values that where `cuco::is_bitwise_comparable<T>::value` is true
+ * - Requires keys and values where `cuco::is_bitwise_comparable<T>::value` is true
  * - Comparisons against the "sentinel" values will always be done with bitwise comparisons
  * Therefore, the objects must have unique, bitwise object representations (e.g., no padding bits).
  * - Does not support erasing keys
  * - Capacity is fixed and will not grow automatically
  * - Requires the user to specify sentinel values for both key and mapped value
  * to indicate empty slots
- * - Does not support concurrent insert and find operations
+ * - Concurrent insert/find is only supported when `static_multimap<Key,
+ * Value>::supports_concurrent_insert_find()` is true`
  *
  * The `static_multimap` supports two types of operations:
  * - Host-side "bulk" operations
@@ -85,8 +87,8 @@ namespace cuco {
  *
  * Loading two consecutive slots instead of one for small pairs can improve cache utilization since
  * 16B memory loads are natively supported at the SASS/hardware level. This `vector load` method is
- * implicitly applied to all involved operations (e.g. `insert`, `count`, and `retrieve`, etc.) if
- * the pair is packable (see `multimap::uses_vector_load` logic).
+ * implicitly applied to all involved operations (e.g. `insert`, `count`, and `retrieve`, etc.) when
+ * pairs are packable (see `multimap::uses_vector_load` logic).
  *
  * Example:
  * \code{.cpp}
@@ -115,7 +117,7 @@ namespace cuco {
  * \endcode
  *
  *
- * @tparam Key Arithmetic type used for key
+ * @tparam Key Type used for keys
  * @tparam Value Type of the mapped values
  * @tparam ProbeSequence Probe sequence used in multimap
  * @tparam Scope The scope in which insert/find operations will be performed by
@@ -160,16 +162,19 @@ class static_multimap {
   static_multimap& operator=(static_multimap&&) = default;
 
   /**
-   * @brief Indicate the warp size.
+   * @brief Indicate if concurrent insert/find is supported for the key/value types.
    *
-   * @return The warp size.
+   * @return Boolean indicating if concurrent insert/find is supported.
    */
-  static constexpr uint32_t warp_size() noexcept { return 32u; }
+  __host__ __device__ static constexpr bool supports_concurrent_insert_find() noexcept
+  {
+    return cuco::detail::is_packable<value_type>();
+  }
 
   /**
    * @brief The size of the CUDA cooperative thread group.
    *
-   * @return Boolean indicating if concurrent insert/find is supported.
+   * @return The CG size.
    */
   static constexpr uint32_t cg_size() noexcept { return ProbeSequence::cg_size(); }
 
@@ -212,8 +217,9 @@ class static_multimap {
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
    *
-   * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the map's `value_type`
+   * @tparam InputIt Device accessible random access input iterator where
+   * `std::is_converitble<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K,V>::value_type>` is `true`
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
    * @param stream CUDA stream used for insert
@@ -225,15 +231,19 @@ class static_multimap {
    * @brief Inserts key/value pairs in the range `[first, first + n)` if `pred`
    * of the corresponding stencil returns true.
    *
-   * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the map's `value_type`
-   * @tparam StencilIt Device accessible stencil iterator
-   * @tparam Predicate Unary predicate function type
+   * The key/value pair `*(first + i)` is inserted if `pred( *(stencil+i) )` returns true.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * `std::is_converitble<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K,V>::value_type>` is `true`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is convertible to
+   * Predicate's argument type
+   * @tparam Predicate Unary predicate callable
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
    * @param stencil Beginning of the stencil sequence
-   * @param n Number of elements to insert
-   * @param pred Predicate to test on the given stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
@@ -243,16 +253,17 @@ class static_multimap {
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
    *
-   * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
+   * Stores `true` or `false` to `(output + i)` indicating if the key `*(first + i)` exists in the
+   * map.
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `key_type`
    * @tparam OutputIt Device accessible output iterator whose `value_type` is
-   * convertible to the map's `mapped_type`
-   * @tparam KeyEqual Binary callable type
+   * convertible from `bool`
+   * @tparam KeyEqual Binary callable type used to compare two keys for equality
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param output_begin Beginning of the output sequence indicating whether each key is present
    * @param stream CUDA stream used for contains
    * @param key_equal The binary function to compare two keys for equality
    */
@@ -334,7 +345,7 @@ class static_multimap {
                                cudaStream_t stream = 0) const;
 
   /**
-   * @brief Finds all the values corresponding to all keys in the range `[first, last)`.
+   * @brief Retrieves all the values corresponding to all keys in the range `[first, last)`.
    *
    * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
    * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
@@ -362,7 +373,7 @@ class static_multimap {
                     KeyEqual key_equal  = KeyEqual{}) const;
 
   /**
-   * @brief Finds all the matches corresponding to all keys in the range `[first, last)`.
+   * @brief Retrieves all the matches corresponding to all keys in the range `[first, last)`.
    *
    * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
    * unspecified locations in `[output_begin, output_end)`. Else, copies `k` and the empty value
@@ -391,7 +402,7 @@ class static_multimap {
                           KeyEqual key_equal  = KeyEqual{}) const;
 
   /**
-   * @brief Finds all pairs matching the input probe pair in the range `[first, last)`.
+   * @brief Retrieves all pairs matching the input probe pair in the range `[first, last)`.
    *
    * if pair_equal(*(first + i), slot[j]) returns true, then *(first+i) is stored to
    * `probe_output_begin`, and slot[j] is stored to `contained_output_begin`.
@@ -422,7 +433,7 @@ class static_multimap {
                             cudaStream_t stream = 0) const;
 
   /**
-   * @brief Finds all pairs matching the input probe pair in the range `[first, last)`.
+   * @brief Retrieves all pairs matching the input probe pair in the range `[first, last)`.
    *
    * if pair_equal(*(first + i), slot[j]) returns true, then *(first+i) is stored to
    * `probe_output_begin`, and slot[j] is stored to `contained_output_begin`. If *(first+i) doesn't
@@ -468,6 +479,13 @@ class static_multimap {
    * @return The number of elements for each vector load.
    */
   static constexpr uint32_t vector_width() noexcept { return ProbeSequence::vector_width(); }
+
+  /**
+   * @brief Indicate the warp size.
+   *
+   * @return The warp size.
+   */
+  static constexpr uint32_t warp_size() noexcept { return 32u; }
 
   class device_view_base {
    protected:
