@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cuco/detail/util.hpp>
+
 namespace cuco {
 namespace detail {
 
@@ -20164,9 +20166,6 @@ constexpr std::size_t compute_prime(std::size_t num) noexcept
   return num;
 }
 
-// safe division
-#define SDIV(x, y) (((x) + (y)-1) / (y))
-
 /**
  * @brief Calculates the valid capacity based on `cg_size` , `vector_width`
  * and the initial `capacity`.
@@ -20192,5 +20191,4 @@ constexpr std::size_t get_valid_capacity(std::size_t capacity) noexcept
 }
 
 }  // namespace detail
-
 }  // namespace cuco

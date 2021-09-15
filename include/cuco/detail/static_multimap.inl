@@ -17,6 +17,7 @@
 #include <thrust/tuple.h>
 
 #include <cuco/detail/bitwise_compare.cuh>
+#include <cuco/detail/util.hpp>
 
 namespace cuco {
 
@@ -44,17 +45,9 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::static_multimap(
     slots_{slot_allocator_.allocate(capacity_, stream_), delete_slots_}
 {
   auto constexpr block_size = 128;
-  int grid_size{-1};
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &grid_size,
+  auto const grid_size      = cuco::detail::get_grid_size(
     detail::initialize<atomic_key_type, atomic_mapped_type, Key, Value, pair_atomic_type>,
-    block_size,
-    0);
-  int dev_id{-1};
-  cudaGetDevice(&dev_id);
-  int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
-  grid_size *= num_sms;
+    block_size);
 
   detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream_>>>(
     slots_.get(), empty_key_sentinel, empty_value_sentinel, get_capacity());
@@ -74,14 +67,8 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert(InputI
   auto view     = get_device_mutable_view();
 
   auto constexpr block_size = 128;
-  int grid_size{-1};
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &grid_size, detail::insert<block_size, cg_size(), InputIt, device_mutable_view>, block_size, 0);
-  int dev_id{-1};
-  cudaGetDevice(&dev_id);
-  int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
-  grid_size *= num_sms;
+  auto const grid_size      = cuco::detail::get_grid_size(
+    detail::insert<block_size, cg_size(), InputIt, device_mutable_view>, block_size);
 
   detail::insert<block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view);
@@ -101,17 +88,9 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::insert_if(
   auto view         = get_device_mutable_view();
 
   auto constexpr block_size = 128;
-  int grid_size{-1};
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &grid_size,
+  auto const grid_size      = cuco::detail::get_grid_size(
     detail::insert_if_n<block_size, cg_size(), InputIt, StencilIt, device_mutable_view, Predicate>,
-    block_size,
-    0);
-  int dev_id{-1};
-  cudaGetDevice(&dev_id);
-  int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
-  grid_size *= num_sms;
+    block_size);
 
   detail::insert_if_n<block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, stencil, num_elements, view, pred);
@@ -131,17 +110,8 @@ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::contains(
   auto view     = get_device_view();
 
   auto constexpr block_size = 128;
-  int grid_size{-1};
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &grid_size,
-    detail::contains<block_size, cg_size(), InputIt, OutputIt, device_view, KeyEqual>,
-    block_size,
-    0);
-  int dev_id{-1};
-  cudaGetDevice(&dev_id);
-  int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
-  grid_size *= num_sms;
+  auto const grid_size      = cuco::detail::get_grid_size(
+    detail::contains<block_size, cg_size(), InputIt, OutputIt, device_view, KeyEqual>, block_size);
 
   detail::contains<block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, key_equal);
@@ -163,17 +133,9 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(
   constexpr bool is_outer = false;
 
   auto constexpr block_size = 128;
-  int grid_size{-1};
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &grid_size,
+  auto const grid_size      = cuco::detail::get_grid_size(
     detail::count<block_size, cg_size(), is_outer, InputIt, atomic_ctr_type, device_view, KeyEqual>,
-    block_size,
-    0);
-  int dev_id{-1};
-  cudaGetDevice(&dev_id);
-  int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
-  grid_size *= num_sms;
+    block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -202,17 +164,9 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count_
   constexpr bool is_outer = true;
 
   auto constexpr block_size = 128;
-  int grid_size{-1};
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &grid_size,
+  auto const grid_size      = cuco::detail::get_grid_size(
     detail::count<block_size, cg_size(), is_outer, InputIt, atomic_ctr_type, device_view, KeyEqual>,
-    block_size,
-    0);
-  int dev_id{-1};
-  cudaGetDevice(&dev_id);
-  int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
-  grid_size *= num_sms;
+    block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -241,18 +195,10 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   constexpr bool is_outer = false;
 
   auto constexpr block_size = 128;
-  int grid_size{-1};
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &grid_size,
+  auto const grid_size      = cuco::detail::get_grid_size(
     detail::
       pair_count<block_size, cg_size(), is_outer, InputIt, atomic_ctr_type, device_view, PairEqual>,
-    block_size,
-    0);
-  int dev_id{-1};
-  cudaGetDevice(&dev_id);
-  int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
-  grid_size *= num_sms;
+    block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -281,18 +227,10 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   constexpr bool is_outer = true;
 
   auto constexpr block_size = 128;
-  int grid_size{-1};
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &grid_size,
+  auto const grid_size      = cuco::detail::get_grid_size(
     detail::
       pair_count<block_size, cg_size(), is_outer, InputIt, atomic_ctr_type, device_view, PairEqual>,
-    block_size,
-    0);
-  int dev_id{-1};
-  cudaGetDevice(&dev_id);
-  int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
-  grid_size *= num_sms;
+    block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -323,41 +261,34 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   constexpr bool is_outer    = false;
 
   auto constexpr block_size = 128;
-  int grid_size{-1};
-  if constexpr (uses_vector_load()) {
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
-                                                  detail::vectorized_retrieve<block_size,
-                                                                              warp_size(),
-                                                                              cg_size(),
-                                                                              buffer_size,
-                                                                              is_outer,
-                                                                              InputIt,
-                                                                              OutputIt,
-                                                                              atomic_ctr_type,
-                                                                              device_view,
-                                                                              KeyEqual>,
-                                                  block_size,
-                                                  0);
-  } else {
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
-                                                  detail::retrieve<block_size,
-                                                                   warp_size(),
-                                                                   cg_size(),
-                                                                   buffer_size,
-                                                                   is_outer,
-                                                                   InputIt,
-                                                                   OutputIt,
-                                                                   atomic_ctr_type,
-                                                                   device_view,
-                                                                   KeyEqual>,
-                                                  block_size,
-                                                  0);
-  }
-  int dev_id{-1};
-  cudaGetDevice(&dev_id);
-  int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
-  grid_size *= num_sms;
+  auto const grid_size      = [&]() {
+    if constexpr (uses_vector_load()) {
+      return detail::get_grid_size(detail::vectorized_retrieve<block_size,
+                                                               warp_size(),
+                                                               cg_size(),
+                                                               buffer_size,
+                                                               is_outer,
+                                                               InputIt,
+                                                               OutputIt,
+                                                               atomic_ctr_type,
+                                                               device_view,
+                                                               KeyEqual>,
+                                   block_size);
+    }
+    if constexpr (not uses_vector_load()) {
+      return detail::get_grid_size(detail::retrieve<block_size,
+                                                    warp_size(),
+                                                    cg_size(),
+                                                    buffer_size,
+                                                    is_outer,
+                                                    InputIt,
+                                                    OutputIt,
+                                                    atomic_ctr_type,
+                                                    device_view,
+                                                    KeyEqual>,
+                                   block_size);
+    }
+  }();
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -396,41 +327,34 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
   constexpr bool is_outer    = true;
 
   auto constexpr block_size = 128;
-  int grid_size{-1};
-  if constexpr (uses_vector_load()) {
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
-                                                  detail::vectorized_retrieve<block_size,
-                                                                              warp_size(),
-                                                                              cg_size(),
-                                                                              buffer_size,
-                                                                              is_outer,
-                                                                              InputIt,
-                                                                              OutputIt,
-                                                                              atomic_ctr_type,
-                                                                              device_view,
-                                                                              KeyEqual>,
-                                                  block_size,
-                                                  0);
-  } else {
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
-                                                  detail::retrieve<block_size,
-                                                                   warp_size(),
-                                                                   cg_size(),
-                                                                   buffer_size,
-                                                                   is_outer,
-                                                                   InputIt,
-                                                                   OutputIt,
-                                                                   atomic_ctr_type,
-                                                                   device_view,
-                                                                   KeyEqual>,
-                                                  block_size,
-                                                  0);
-  }
-  int dev_id{-1};
-  cudaGetDevice(&dev_id);
-  int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
-  grid_size *= num_sms;
+  auto const grid_size      = [&]() {
+    if constexpr (uses_vector_load()) {
+      return detail::get_grid_size(detail::vectorized_retrieve<block_size,
+                                                               warp_size(),
+                                                               cg_size(),
+                                                               buffer_size,
+                                                               is_outer,
+                                                               InputIt,
+                                                               OutputIt,
+                                                               atomic_ctr_type,
+                                                               device_view,
+                                                               KeyEqual>,
+                                   block_size);
+    }
+    if constexpr (not uses_vector_load()) {
+      return detail::get_grid_size(detail::retrieve<block_size,
+                                                    warp_size(),
+                                                    cg_size(),
+                                                    buffer_size,
+                                                    is_outer,
+                                                    InputIt,
+                                                    OutputIt,
+                                                    atomic_ctr_type,
+                                                    device_view,
+                                                    KeyEqual>,
+                                   block_size);
+    }
+  }();
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -474,43 +398,36 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_r
   constexpr bool is_outer    = false;
 
   auto constexpr block_size = 128;
-  int grid_size{-1};
-  if constexpr (uses_vector_load()) {
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
-                                                  detail::vectorized_pair_retrieve<block_size,
-                                                                                   warp_size(),
-                                                                                   cg_size(),
-                                                                                   buffer_size,
-                                                                                   is_outer,
-                                                                                   InputIt,
-                                                                                   OutputZipIt1,
-                                                                                   OutputZipIt2,
-                                                                                   atomic_ctr_type,
-                                                                                   device_view,
-                                                                                   PairEqual>,
-                                                  block_size,
-                                                  0);
-  } else {
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
-                                                  detail::pair_retrieve<block_size,
-                                                                        warp_size(),
-                                                                        cg_size(),
-                                                                        buffer_size,
-                                                                        is_outer,
-                                                                        InputIt,
-                                                                        OutputZipIt1,
-                                                                        OutputZipIt2,
-                                                                        atomic_ctr_type,
-                                                                        device_view,
-                                                                        PairEqual>,
-                                                  block_size,
-                                                  0);
-  }
-  int dev_id{-1};
-  cudaGetDevice(&dev_id);
-  int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
-  grid_size *= num_sms;
+  auto const grid_size      = [&]() {
+    if constexpr (uses_vector_load()) {
+      return detail::get_grid_size(detail::vectorized_pair_retrieve<block_size,
+                                                                    warp_size(),
+                                                                    cg_size(),
+                                                                    buffer_size,
+                                                                    is_outer,
+                                                                    InputIt,
+                                                                    OutputZipIt1,
+                                                                    OutputZipIt2,
+                                                                    atomic_ctr_type,
+                                                                    device_view,
+                                                                    PairEqual>,
+                                   block_size);
+    }
+    if constexpr (not uses_vector_load()) {
+      return detail::get_grid_size(detail::pair_retrieve<block_size,
+                                                         warp_size(),
+                                                         cg_size(),
+                                                         buffer_size,
+                                                         is_outer,
+                                                         InputIt,
+                                                         OutputZipIt1,
+                                                         OutputZipIt2,
+                                                         atomic_ctr_type,
+                                                         device_view,
+                                                         PairEqual>,
+                                   block_size);
+    }
+  }();
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -563,43 +480,36 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_r
   constexpr bool is_outer    = true;
 
   auto constexpr block_size = 128;
-  int grid_size{-1};
-  if constexpr (uses_vector_load()) {
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
-                                                  detail::vectorized_pair_retrieve<block_size,
-                                                                                   warp_size(),
-                                                                                   cg_size(),
-                                                                                   buffer_size,
-                                                                                   is_outer,
-                                                                                   InputIt,
-                                                                                   OutputZipIt1,
-                                                                                   OutputZipIt2,
-                                                                                   atomic_ctr_type,
-                                                                                   device_view,
-                                                                                   PairEqual>,
-                                                  block_size,
-                                                  0);
-  } else {
-    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size,
-                                                  detail::pair_retrieve<block_size,
-                                                                        warp_size(),
-                                                                        cg_size(),
-                                                                        buffer_size,
-                                                                        is_outer,
-                                                                        InputIt,
-                                                                        OutputZipIt1,
-                                                                        OutputZipIt2,
-                                                                        atomic_ctr_type,
-                                                                        device_view,
-                                                                        PairEqual>,
-                                                  block_size,
-                                                  0);
-  }
-  int dev_id{-1};
-  cudaGetDevice(&dev_id);
-  int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
-  grid_size *= num_sms;
+  auto const grid_size      = [&]() {
+    if constexpr (uses_vector_load()) {
+      return detail::get_grid_size(detail::vectorized_pair_retrieve<block_size,
+                                                                    warp_size(),
+                                                                    cg_size(),
+                                                                    buffer_size,
+                                                                    is_outer,
+                                                                    InputIt,
+                                                                    OutputZipIt1,
+                                                                    OutputZipIt2,
+                                                                    atomic_ctr_type,
+                                                                    device_view,
+                                                                    PairEqual>,
+                                   block_size);
+    }
+    if constexpr (not uses_vector_load()) {
+      return detail::get_grid_size(detail::pair_retrieve<block_size,
+                                                         warp_size(),
+                                                         cg_size(),
+                                                         buffer_size,
+                                                         is_outer,
+                                                         InputIt,
+                                                         OutputZipIt1,
+                                                         OutputZipIt2,
+                                                         atomic_ctr_type,
+                                                         device_view,
+                                                         PairEqual>,
+                                   block_size);
+    }
+  }();
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
