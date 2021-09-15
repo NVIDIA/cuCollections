@@ -160,6 +160,7 @@ class static_multimap {
   static_multimap()                  = default;
   static_multimap(static_multimap&&) = default;
   static_multimap& operator=(static_multimap&&) = default;
+  ~static_multimap()                            = default;
 
   /**
    * @brief Indicate if concurrent insert/find is supported for the key/value types.
@@ -207,12 +208,6 @@ class static_multimap {
                   Value empty_value_sentinel,
                   cudaStream_t stream    = 0,
                   Allocator const& alloc = Allocator{});
-
-  /**
-   * @brief Destroys the map and frees its contents.
-   *
-   */
-  ~static_multimap();
 
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
@@ -474,9 +469,9 @@ class static_multimap {
   static constexpr bool uses_vector_load() noexcept { return ProbeSequence::uses_vector_load(); }
 
   /**
-   * @brief The number of elements for each vector load
+   * @brief The number of elements in each vector load
    *
-   * @return The number of elements for each vector load.
+   * @return The number of elements in each vector load.
    */
   static constexpr uint32_t vector_width() noexcept { return ProbeSequence::vector_width(); }
 
@@ -486,6 +481,28 @@ class static_multimap {
    * @return The warp size.
    */
   static constexpr uint32_t warp_size() noexcept { return 32u; }
+
+  struct counter_deleter {
+    counter_deleter(counter_allocator_type& a, cudaStream_t& s) : allocator{a}, stream{s} {}
+
+    void operator()(atomic_ctr_type* ptr) { allocator.deallocate(ptr, 1, stream); }
+
+    counter_allocator_type& allocator;
+    cudaStream_t& stream;
+  };
+
+  struct slot_deleter {
+    slot_deleter(slot_allocator_type& a, size_t& c, cudaStream_t& s)
+      : allocator{a}, capacity{c}, stream{s}
+    {
+    }
+
+    void operator()(pair_atomic_type* ptr) { allocator.deallocate(ptr, capacity, stream); }
+
+    slot_allocator_type& allocator;
+    size_t& capacity;
+    cudaStream_t& stream;
+  };
 
   class device_view_base {
    protected:
@@ -718,8 +735,8 @@ class static_multimap {
                                               value_type const& insert_pair) noexcept;
 
     /**
-     * @brief Inserts the specified key/value pair with a CAS of the key and a dependent write of
-     * the value.
+     * @brief Inserts the specified key/value pair with a CAS of the key and a dependent write
+     * of the value.
      *
      * @param current_slot The slot to insert
      * @param insert_pair The pair to insert
@@ -838,8 +855,8 @@ class static_multimap {
      * @tparam CG The type of the cooperative thread group
      * @param g The cooperative thread group used to copy the slots
      * @param source_device_view `device_view` to copy from
-     * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
-     * the ownership of the memory
+     * @param memory_to_use Array large enough to support `capacity` elements. Object does not
+     * take the ownership of the memory
      * @return Copy of passed `device_view`
      */
     template <typename CG>
@@ -1004,8 +1021,8 @@ class static_multimap {
      * loads with per-warp shared memory buffer.
      *
      * For keys `k = *(first + i)` existing in the map, copies `k` and all associated values to
-     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k` and
-     * the empty value sentinel into the output only if `is_outer` is true.
+     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k`
+     * and the empty value sentinel into the output only if `is_outer` is true.
      *
      * @tparam buffer_size Size of the output buffer
      * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
@@ -1046,8 +1063,8 @@ class static_multimap {
      * loads with per-cg shared memory buffer.
      *
      * For keys `k = *(first + i)` existing in the map, copies `k` and all associated values to
-     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k` and
-     * the empty value sentinel into the output only if `is_outer` is true.
+     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k`
+     * and the empty value sentinel into the output only if `is_outer` is true.
      *
      * @tparam cg_size The number of threads in CUDA Cooperative Groups
      * @tparam buffer_size Size of the output buffer
@@ -1085,10 +1102,11 @@ class static_multimap {
      * @brief Find all the matches of a given pair contained in multimap using vector
      * loads with per-warp shared memory buffer.
      *
-     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
+     * in
      * `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
-     * `[contained_output_begin, contained_output_end)`. In case of non-matches, copies `p` and the
-     * empty value sentinels into the output only if `is_outer` is true.
+     * `[contained_output_begin, contained_output_end)`. In case of non-matches, copies `p` and
+     * the empty value sentinels into the output only if `is_outer` is true.
      *
      * @tparam buffer_size Size of the output buffer
      * @tparam is_outer Boolean flag indicating whether outer join is peformed or not
@@ -1106,7 +1124,8 @@ class static_multimap {
      * @param contained_output_buffer Buffer of the matched contained pair sequence
      * @param num_matches Size of the output sequence
      * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
-     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained
+     * pairs
      * @param pair_equal The binary callable used to compare two pairs for equality
      */
     template <uint32_t buffer_size,
@@ -1132,10 +1151,11 @@ class static_multimap {
      * @brief Find all the matches of a given pair contained in multimap using scalar
      * loads with per-cg shared memory buffer.
      *
-     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
+     * in
      * `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
-     * `[contained_output_begin, contained_output_end)`. In case of non-matches, copies `p` and the
-     * empty value sentinels into the output only if `is_outer` is true.
+     * `[contained_output_begin, contained_output_end)`. In case of non-matches, copies `p` and
+     * the empty value sentinels into the output only if `is_outer` is true.
      *
      * @tparam cg_size The number of threads in CUDA Cooperative Groups
      * @tparam buffer_size Size of the output buffer
@@ -1152,7 +1172,8 @@ class static_multimap {
      * @param contained_output_buffer Buffer of the matched contained pair sequence
      * @param num_matches Size of the output sequence
      * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
-     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained
+     * pairs
      * @param pair_equal The binary callable used to compare two pairs for equality
      */
     template <uint32_t cg_size,
@@ -1233,7 +1254,8 @@ class static_multimap {
      * @param contained_output_buffer Buffer of the matched contained pair sequence
      * @param num_matches Size of the output sequence
      * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
-     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained
+     * pairs
      */
     template <typename CG, typename atomicT, typename OutputZipIt1, typename OutputZipIt2>
     __inline__ __device__ void flush_output_buffer(CG const& g,
@@ -1336,8 +1358,8 @@ class static_multimap {
      * loads with per-warp shared memory buffer.
      *
      * For keys `k = *(first + i)` existing in the map, copies `k` and all associated values to
-     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k` and
-     * the empty value sentinel into the output only if `is_outer` is true.
+     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k`
+     * and the empty value sentinel into the output only if `is_outer` is true.
      *
      * @tparam buffer_size Size of the output buffer
      * @tparam warpT Warp (Cooperative Group) type
@@ -1376,8 +1398,8 @@ class static_multimap {
      * loads with per-warp shared memory buffer.
      *
      * For keys `k = *(first + i)` existing in the map, copies `k` and all associated values to
-     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k` and
-     * the empty value sentinel into the output only if `is_outer` is true.
+     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k`
+     * and the empty value sentinel into the output only if `is_outer` is true.
      *
      * @tparam buffer_size Size of the output buffer
      * @tparam warpT Warp (Cooperative Group) type
@@ -1453,8 +1475,8 @@ class static_multimap {
      * loads with per-cg shared memory buffer.
      *
      * For keys `k = *(first + i)` existing in the map, copies `k` and all associated values to
-     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k` and
-     * the empty value sentinel into the output.
+     * unspecified locations in `[output_begin, output_end)`. In case of non-matches, copies `k`
+     * and the empty value sentinel into the output.
      *
      * @tparam cg_size The number of threads in CUDA Cooperative Groups
      * @tparam buffer_size Size of the output buffer
@@ -1490,7 +1512,8 @@ class static_multimap {
      * @brief Find all the matches of a given pair contained in multimap using vector
      * loads with per-warp shared memory buffer.
      *
-     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
+     * in
      * `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
      * `[contained_output_begin, contained_output_end)`.
      *
@@ -1509,7 +1532,8 @@ class static_multimap {
      * @param contained_output_buffer Buffer of the matched contained pair sequence
      * @param num_matches Size of the output sequence
      * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
-     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained
+     * pairs
      * @param pair_equal The binary callable used to compare two pairs for equality
      */
     template <uint32_t buffer_size,
@@ -1534,10 +1558,11 @@ class static_multimap {
      * @brief Find all the matches of a given pair contained in multimap using vector
      * loads with per-warp shared memory buffer.
      *
-     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
+     * in
      * `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
-     * `[contained_output_begin, contained_output_end)`. In case of non-matches, copies `p` and the
-     * empty value sentinels into the output.
+     * `[contained_output_begin, contained_output_end)`. In case of non-matches, copies `p` and
+     * the empty value sentinels into the output.
      *
      * @tparam buffer_size Size of the output buffer
      * @tparam warpT Warp (Cooperative Group) type
@@ -1554,7 +1579,8 @@ class static_multimap {
      * @param contained_output_buffer Buffer of the matched contained pair sequence
      * @param num_matches Size of the output sequence
      * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
-     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained
+     * pairs
      * @param pair_equal The binary callable used to compare two pairs for equality
      */
     template <uint32_t buffer_size,
@@ -1579,7 +1605,8 @@ class static_multimap {
      * @brief Find all the matches of a given pair contained in multimap using scalar
      * loads with per-cg shared memory buffer.
      *
-     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
+     * in
      * `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
      * `[contained_output_begin, contained_output_end)`.
      *
@@ -1597,7 +1624,8 @@ class static_multimap {
      * @param contained_output_buffer Buffer of the matched contained pair sequence
      * @param num_matches Size of the output sequence
      * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
-     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained
+     * pairs
      * @param pair_equal The binary callable used to compare two pairs for equality
      */
     template <uint32_t cg_size,
@@ -1621,10 +1649,11 @@ class static_multimap {
      * @brief Find all the matches of a given pair contained in multimap using scalar
      * loads with per-cg shared memory buffer.
      *
-     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
+     * in
      * `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
-     * `[contained_output_begin, contained_output_end)`. In case of non-matches, copies `p` and the
-     * empty value sentinels into the output.
+     * `[contained_output_begin, contained_output_end)`. In case of non-matches, copies `p` and
+     * the empty value sentinels into the output.
      *
      * @tparam cg_size The number of threads in CUDA Cooperative Groups
      * @tparam buffer_size Size of the output buffer
@@ -1640,7 +1669,8 @@ class static_multimap {
      * @param contained_output_buffer Buffer of the matched contained pair sequence
      * @param num_matches Size of the output sequence
      * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
-     * @param contained_output_begin Beginning of the output sequence of the matched contained pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained
+     * pairs
      * @param pair_equal The binary callable used to compare two pairs for equality
      */
     template <uint32_t cg_size,
@@ -1698,29 +1728,28 @@ class static_multimap {
   Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
 
   /**
-   * @brief Constructs a device_view object based on the members of the `static_multimap` object.
+   * @brief Constructs a device_view object based on the members of the `static_multimap`
+   * object.
    *
    * @return A device_view object based on the members of the `static_multimap` object
    */
   device_view get_device_view() const noexcept
   {
-    return device_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
+    return device_view(slots_.get(), capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }
 
   /**
-   * @brief Constructs a device_mutable_view object based on the members of the `static_multimap`
-   * object
+   * @brief Constructs a device_mutable_view object based on the members of the
+   * `static_multimap` object
    *
    * @return A device_mutable_view object based on the members of the `static_multimap` object
    */
   device_mutable_view get_device_mutable_view() const noexcept
   {
-    return device_mutable_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
+    return device_mutable_view(slots_.get(), capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }
 
  private:
-  pair_atomic_type* slots_{nullptr};            ///< Pointer to flat slots storage
-  atomic_ctr_type* d_counter_{nullptr};         ///< Preallocated device counter
   std::size_t capacity_{};                      ///< Total number of slots
   std::size_t size_{};                          ///< Number of keys in map
   Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
@@ -1728,7 +1757,13 @@ class static_multimap {
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
   cudaStream_t stream_{};                       ///< CUDA stream used for initialization
-};                                              // class static_multimap
+  counter_deleter delete_counter_{};            ///< Custom counter deleter
+  slot_deleter delete_slots_{};                 ///< Custom slot deleter
+  std::unique_ptr<atomic_ctr_type, counter_deleter> d_counter_;  ///< Preallocated device counter
+  std::unique_ptr<pair_atomic_type, slot_deleter> slots_;        ///< Pointer to flat slots storage
+
+};  // class static_multimap
+
 }  // namespace cuco
 
 #include <cuco/detail/static_multimap.inl>

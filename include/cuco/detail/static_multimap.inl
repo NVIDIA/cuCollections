@@ -31,21 +31,18 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::static_multimap(
   Value empty_value_sentinel,
   cudaStream_t stream,
   Allocator const& alloc)
-  : empty_key_sentinel_{empty_key_sentinel},
+  : capacity_{cuco::detail::get_valid_capacity<cg_size(), vector_width(), uses_vector_load()>(
+      capacity)},
+    empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
-    slot_allocator_{alloc},
     counter_allocator_{alloc},
-    stream_{stream}
+    slot_allocator_{alloc},
+    stream_{stream},
+    delete_counter_{counter_allocator_, stream_},
+    delete_slots_{slot_allocator_, capacity_, stream_},
+    d_counter_{counter_allocator_.allocate(1, stream_), delete_counter_},
+    slots_{slot_allocator_.allocate(capacity_, stream_), delete_slots_}
 {
-  if constexpr (uses_vector_load()) {
-    capacity_ = cuco::detail::get_valid_capacity<cg_size() * vector_width()>(capacity);
-  } else {
-    capacity_ = cuco::detail::get_valid_capacity<cg_size()>(capacity);
-  }
-
-  d_counter_ = counter_allocator_.allocate(1, stream_);
-  slots_     = slot_allocator_.allocate(get_capacity(), stream_);
-
   auto constexpr block_size = 128;
   int grid_size{-1};
   cudaOccupancyMaxActiveBlocksPerMultiprocessor(
@@ -60,18 +57,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::static_multimap(
   grid_size *= num_sms;
 
   detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream_>>>(
-    slots_, empty_key_sentinel, empty_value_sentinel, get_capacity());
-}
-
-template <typename Key,
-          typename Value,
-          class ProbeSequence,
-          cuda::thread_scope Scope,
-          typename Allocator>
-static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::~static_multimap()
-{
-  counter_allocator_.deallocate(d_counter_, 1, stream_);
-  slot_allocator_.deallocate(slots_, get_capacity(), stream_);
+    slots_.get(), empty_key_sentinel, empty_value_sentinel, get_capacity());
 }
 
 template <typename Key,
@@ -189,13 +175,13 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count(
   cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
   grid_size *= num_sms;
 
-  cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
+  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
   detail::count<block_size, cg_size(), is_outer>
-    <<<grid_size, block_size, 0, stream>>>(first, last, d_counter_, view, key_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, last, d_counter_.get(), view, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_counter, d_counter_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+    &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   return h_counter;
@@ -228,13 +214,13 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::count_
   cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
   grid_size *= num_sms;
 
-  cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
+  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
   detail::count<block_size, cg_size(), is_outer>
-    <<<grid_size, block_size, 0, stream>>>(first, last, d_counter_, view, key_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, last, d_counter_.get(), view, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_counter, d_counter_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+    &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   return h_counter;
@@ -268,13 +254,13 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
   grid_size *= num_sms;
 
-  cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
+  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
   detail::pair_count<block_size, cg_size(), is_outer>
-    <<<grid_size, block_size, 0, stream>>>(first, last, d_counter_, view, pair_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, last, d_counter_.get(), view, pair_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_counter, d_counter_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+    &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   return h_counter;
@@ -308,13 +294,13 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_c
   cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
   grid_size *= num_sms;
 
-  cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
+  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
   detail::pair_count<block_size, cg_size(), is_outer>
-    <<<grid_size, block_size, 0, stream>>>(first, last, d_counter_, view, pair_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, last, d_counter_.get(), view, pair_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_counter, d_counter_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+    &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   return h_counter;
@@ -373,20 +359,20 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve(
   cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
   grid_size *= num_sms;
 
-  cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
+  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
   if constexpr (uses_vector_load()) {
     detail::vectorized_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
       <<<grid_size, block_size, 0, stream>>>(
-        first, last, output_begin, d_counter_, view, key_equal);
+        first, last, output_begin, d_counter_.get(), view, key_equal);
   } else {
     detail::retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
       <<<grid_size, block_size, 0, stream>>>(
-        first, last, output_begin, d_counter_, view, key_equal);
+        first, last, output_begin, d_counter_.get(), view, key_equal);
   }
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_counter, d_counter_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+    &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   auto output_end = output_begin + h_counter;
@@ -446,20 +432,20 @@ OutputIt static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::retrieve_
   cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
   grid_size *= num_sms;
 
-  cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
+  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
   if constexpr (uses_vector_load()) {
     detail::vectorized_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
       <<<grid_size, block_size, 0, stream>>>(
-        first, last, output_begin, d_counter_, view, key_equal);
+        first, last, output_begin, d_counter_.get(), view, key_equal);
   } else {
     detail::retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
       <<<grid_size, block_size, 0, stream>>>(
-        first, last, output_begin, d_counter_, view, key_equal);
+        first, last, output_begin, d_counter_.get(), view, key_equal);
   }
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_counter, d_counter_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+    &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   auto output_end = output_begin + h_counter;
@@ -526,20 +512,30 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_r
   cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
   grid_size *= num_sms;
 
-  cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
+  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
   if constexpr (uses_vector_load()) {
     detail::vectorized_pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
-      <<<grid_size, block_size, 0, stream>>>(
-        first, last, probe_output_begin, contained_output_begin, d_counter_, view, pair_equal);
+      <<<grid_size, block_size, 0, stream>>>(first,
+                                             last,
+                                             probe_output_begin,
+                                             contained_output_begin,
+                                             d_counter_.get(),
+                                             view,
+                                             pair_equal);
   } else {
     detail::pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
-      <<<grid_size, block_size, 0, stream>>>(
-        first, last, probe_output_begin, contained_output_begin, d_counter_, view, pair_equal);
+      <<<grid_size, block_size, 0, stream>>>(first,
+                                             last,
+                                             probe_output_begin,
+                                             contained_output_begin,
+                                             d_counter_.get(),
+                                             view,
+                                             pair_equal);
   }
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_counter, d_counter_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+    &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   return h_counter;
@@ -605,20 +601,30 @@ std::size_t static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::pair_r
   cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
   grid_size *= num_sms;
 
-  cudaMemsetAsync(d_counter_, 0, sizeof(atomic_ctr_type), stream);
+  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
   if constexpr (uses_vector_load()) {
     detail::vectorized_pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
-      <<<grid_size, block_size, 0, stream>>>(
-        first, last, probe_output_begin, contained_output_begin, d_counter_, view, pair_equal);
+      <<<grid_size, block_size, 0, stream>>>(first,
+                                             last,
+                                             probe_output_begin,
+                                             contained_output_begin,
+                                             d_counter_.get(),
+                                             view,
+                                             pair_equal);
   } else {
     detail::pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
-      <<<grid_size, block_size, 0, stream>>>(
-        first, last, probe_output_begin, contained_output_begin, d_counter_, view, pair_equal);
+      <<<grid_size, block_size, 0, stream>>>(first,
+                                             last,
+                                             probe_output_begin,
+                                             contained_output_begin,
+                                             d_counter_.get(),
+                                             view,
+                                             pair_equal);
   }
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_counter, d_counter_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+    &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   return h_counter;

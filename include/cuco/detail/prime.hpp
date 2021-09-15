@@ -17,10 +17,8 @@
 #pragma once
 
 namespace cuco {
-
 namespace detail {
 
-// prime numbers with ~131072 offset
 constexpr std::array<std::uint64_t, 140746> primes = {
   2,           3,           5,           7,           13,          19,          29,
   37,          43,          53,          59,          67,          73,          79,
@@ -20170,18 +20168,27 @@ constexpr std::size_t compute_prime(std::size_t num) noexcept
 #define SDIV(x, y) (((x) + (y)-1) / (y))
 
 /**
- * @brief Calculates the adjusted/valid capacity based on `CGSize` and the initial `capacity`.
+ * @brief Calculates the valid capacity based on `cg_size` , `vector_width`
+ * and the initial `capacity`.
  *
- * @tparam CGSize Cooperative Group size
+ * @tparam cg_size Cooperative Group size
+ * @tparam vector_width Length of vector load
+ * @tparam uses_vector_load If vector load is used
+ *
  * @param capacity The initially requested capacity
- * @return An adjusted capacity greater than or equal to `capacity`
+ * @return A valid capacity no smaller than the requested `capacity`
  */
-template <std::size_t CGSize>
+template <uint32_t cg_size, uint32_t vector_width, bool uses_vector_load>
 constexpr std::size_t get_valid_capacity(std::size_t capacity) noexcept
 {
-  auto const c         = SDIV(capacity, CGSize);
+  auto const stride = [&]() {
+    if constexpr (uses_vector_load) { return cg_size * vector_width; }
+    if constexpr (not uses_vector_load) { return cg_size; }
+  }();
+
+  auto const c         = SDIV(capacity, stride);
   auto const min_prime = std::lower_bound(primes.begin(), primes.end(), c);
-  return *min_prime * CGSize;
+  return *min_prime * stride;
 }
 
 }  // namespace detail
