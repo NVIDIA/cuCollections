@@ -85,10 +85,10 @@ namespace cuco {
  * The two types are separate to prevent erroneous concurrent insert/find
  * operations.
  *
- * Loading two consecutive slots instead of one for small pairs can improve cache utilization since
- * 16B memory loads are natively supported at the SASS/hardware level. This `vector load` method is
- * implicitly applied to all involved operations (e.g. `insert`, `count`, and `retrieve`, etc.) when
- * pairs are packable (see `multimap::uses_vector_load` logic).
+ * By default, query operations (e.g. `count` and `retrieve`) take `Key` as input and do not include
+ * non-matches in the output. APIs with `_outer` suffix should be used if non-match handling is
+ * desired. The `pair_` prefix indicates that the input data are key-value pairs whose type can be
+ * converted to multimap's `value_type`.
  *
  * Example:
  * \code{.cpp}
@@ -119,9 +119,9 @@ namespace cuco {
  *
  * @tparam Key Type used for keys
  * @tparam Value Type of the mapped values
- * @tparam ProbeSequence Probe sequence used in multimap
- * @tparam Scope The scope in which insert/find operations will be performed by
- * individual threads.
+ * @tparam ProbeSequence Probe sequence defined in `detail/probe_sequence.cuh`
+ * @tparam Scope The scope in which multimap operations will be performed by
+ * individual threads
  * @tparam Allocator Type of allocator used for device storage
  */
 template <typename Key,
@@ -214,7 +214,7 @@ class static_multimap {
    *
    * @tparam InputIt Device accessible random access input iterator where
    * `std::is_converitble<std::iterator_traits<InputIt>::value_type,
-   * static_multimap<K,V>::value_type>` is `true`
+   * static_multimap<K, V>::value_type>` is `true`
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
    * @param stream CUDA stream used for insert
@@ -230,7 +230,7 @@ class static_multimap {
    *
    * @tparam InputIt Device accessible random access input iterator where
    * `std::is_converitble<std::iterator_traits<InputIt>::value_type,
-   * static_multimap<K,V>::value_type>` is `true`
+   * static_multimap<K, V>::value_type>` is `true`
    * @tparam StencilIt Device accessible random access iterator whose value_type is convertible to
    * Predicate's argument type
    * @tparam Predicate Unary predicate callable
@@ -462,26 +462,27 @@ class static_multimap {
 
  private:
   /**
-   * @brief Indicate if vector load is used.
+   * @brief Indicates if vector-load is used.
    *
-   * @return Boolean indicating if vector load is used.
+   * Users have no explicit control on whether vector-load is used.
+   *
+   * @return Boolean indicating if vector-load is used.
    */
   static constexpr bool uses_vector_load() noexcept { return ProbeSequence::uses_vector_load(); }
 
   /**
-   * @brief The number of elements in each vector load
-   *
-   * @return The number of elements in each vector load.
+   * @brief Returns the number of pairs loaded with each vector-load
    */
   static constexpr uint32_t vector_width() noexcept { return ProbeSequence::vector_width(); }
 
   /**
-   * @brief Indicate the warp size.
-   *
-   * @return The warp size.
+   * @brief Returns the warp size.
    */
   static constexpr uint32_t warp_size() noexcept { return 32u; }
 
+  /**
+   * @brief Custom deleter for unique pointer of device counter.
+   */
   struct counter_deleter {
     counter_deleter(counter_allocator_type& a, cudaStream_t& s) : allocator{a}, stream{s} {}
 
@@ -491,6 +492,9 @@ class static_multimap {
     cudaStream_t& stream;
   };
 
+  /**
+   * @brief Custom deleter for unique pointer of slots.
+   */
   struct slot_deleter {
     slot_deleter(slot_allocator_type& a, size_t& c, cudaStream_t& s)
       : allocator{a}, capacity{c}, stream{s}
@@ -514,16 +518,16 @@ class static_multimap {
     using const_iterator = pair_atomic_type const*;
 
     /**
-     * @brief Indicate if vector load is used.
+     * @brief Indicates if vector-load is used.
      *
-     * @return Boolean indicating if vector load is used.
+     * Users have no explicit control on whether vector-load is used.
+     *
+     * @return Boolean indicating if vector-load is used.
      */
     static constexpr bool uses_vector_load() noexcept { return ProbeSequence::uses_vector_load(); }
 
     /**
-     * @brief The number of elements for each vector load
-     *
-     * @return The number of elements for each vector load.
+     * @brief Returns the number of pairs loaded with each vector-load
      */
     static constexpr uint32_t vector_width() noexcept { return ProbeSequence::vector_width(); }
 
@@ -536,7 +540,7 @@ class static_multimap {
     __device__ void load_pair_array(value_type* arr, const_iterator current_slot) noexcept;
 
    private:
-    ProbeSequence probe_sequence_;
+    ProbeSequence probe_sequence_;  ///< Probe sequence used to probe the hash map
     Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
 
@@ -1689,7 +1693,6 @@ class static_multimap {
                                         OutputZipIt1 probe_output_begin,
                                         OutputZipIt2 contained_output_begin,
                                         PairEqual pair_equal) noexcept;
-
   };  // class device_view
 
   /**
@@ -1756,13 +1759,12 @@ class static_multimap {
   Value empty_value_sentinel_{};                ///< Initial value of empty slot
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
-  cudaStream_t stream_{};                       ///< CUDA stream used for initialization
+  cudaStream_t stream_{};                       ///< CUDA stream used for ctor/dtor
   counter_deleter delete_counter_{};            ///< Custom counter deleter
-  slot_deleter delete_slots_{};                 ///< Custom slot deleter
-  std::unique_ptr<atomic_ctr_type, counter_deleter> d_counter_;  ///< Preallocated device counter
-  std::unique_ptr<pair_atomic_type, slot_deleter> slots_;        ///< Pointer to flat slots storage
-
-};  // class static_multimap
+  slot_deleter delete_slots_{};                 ///< Custom slots deleter
+  std::unique_ptr<atomic_ctr_type, counter_deleter> d_counter_{};  ///< Preallocated device counter
+  std::unique_ptr<pair_atomic_type, slot_deleter> slots_{};  ///< Pointer to flat slots storage
+};                                                           // class static_multimap
 
 }  // namespace cuco
 
