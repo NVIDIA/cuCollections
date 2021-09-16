@@ -157,7 +157,6 @@ class static_multimap {
   static_multimap(static_multimap const&) = delete;
   static_multimap& operator=(static_multimap const&) = delete;
 
-  static_multimap()                  = default;
   static_multimap(static_multimap&&) = default;
   static_multimap& operator=(static_multimap&&) = default;
   ~static_multimap()                            = default;
@@ -178,6 +177,11 @@ class static_multimap {
    * @return The CG size.
    */
   static constexpr uint32_t cg_size() noexcept { return ProbeSequence::cg_size(); }
+
+  /**
+   * @brief Default constructor.
+   */
+  static_multimap();
 
   /**
    * @brief Construct a fixed-size map with the specified capacity and sentinel values.
@@ -1760,8 +1764,8 @@ class static_multimap {
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
   cudaStream_t stream_{};                       ///< CUDA stream used for ctor/dtor
-  counter_deleter delete_counter_{};            ///< Custom counter deleter
-  slot_deleter delete_slots_{};                 ///< Custom slots deleter
+  counter_deleter delete_counter_;              ///< Custom counter deleter
+  slot_deleter delete_slots_;                   ///< Custom slots deleter
   std::unique_ptr<atomic_ctr_type, counter_deleter> d_counter_{};  ///< Preallocated device counter
   std::unique_ptr<pair_atomic_type, slot_deleter> slots_{};  ///< Pointer to flat slots storage
 };                                                           // class static_multimap
