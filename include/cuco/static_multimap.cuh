@@ -490,7 +490,18 @@ class static_multimap {
   struct counter_deleter {
     counter_deleter(counter_allocator_type& a, cudaStream_t& s) : allocator{a}, stream{s} {}
 
+    counter_deleter(counter_deleter const&) = default;
+
     void operator()(atomic_ctr_type* ptr) { allocator.deallocate(ptr, 1, stream); }
+
+    counter_deleter& operator=(counter_deleter&& other)
+    {
+      if (this != &other) {
+        allocator = other.allocator;
+        stream    = other.stream;
+      }
+      return *this;
+    }
 
     counter_allocator_type& allocator;
     cudaStream_t& stream;
@@ -505,7 +516,19 @@ class static_multimap {
     {
     }
 
+    slot_deleter(slot_deleter const&) = default;
+
     void operator()(pair_atomic_type* ptr) { allocator.deallocate(ptr, capacity, stream); }
+
+    slot_deleter& operator=(slot_deleter&& other)
+    {
+      if (this != &other) {
+        allocator = other.allocator;
+        capacity  = other.capacity;
+        stream    = other.stream;
+      }
+      return *this;
+    }
 
     slot_allocator_type& allocator;
     size_t& capacity;
