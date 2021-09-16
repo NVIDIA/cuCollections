@@ -32,9 +32,7 @@
 
 // cg::memcpy_aysnc is supported for CUDA 11.1 and up
 #if defined(CUDART_VERSION) && (CUDART_VERSION >= 11100)
-#define SUPPORTS_CG_MEMCPY_ASYNC 1
-#else
-#define SUPPORTS_CG_MEMCPY_ASYNC 0
+#define CUCO_HAS_CG_MEMCPY_ASYNC
 #endif
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
@@ -1227,29 +1225,6 @@ class static_multimap {
 
    public:
     /**
-     * @brief Flushes per-CG buffer into the output sequence using CG memcpy_async.
-     *
-     * @tparam CG Cooperative Group type
-     * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt Device accessible output iterator whose `value_type` is
-     * convertible to the map's `mapped_type`
-     * @param g The Cooperative Group used to flush output buffer
-     * @param num_outputs Number of valid output in the buffer
-     * @param output_buffer Buffer of the key/value pair sequence
-     * @param num_matches Size of the output sequence
-     * @param output_begin Beginning of the output sequence of key/value pairs
-     */
-    template <typename CG, typename atomicT, typename OutputIt>
-    __inline__ __device__
-      std::enable_if_t<thrust::is_contiguous_iterator<OutputIt>::value and SUPPORTS_CG_MEMCPY_ASYNC,
-                       void>
-      flush_output_buffer(CG const& g,
-                          uint32_t const num_outputs,
-                          value_type* output_buffer,
-                          atomicT* num_matches,
-                          OutputIt output_begin) noexcept;
-
-    /**
      * @brief Flushes per-CG buffer into the output sequence.
      *
      * @tparam CG Cooperative Group type
@@ -1263,14 +1238,11 @@ class static_multimap {
      * @param output_begin Beginning of the output sequence of key/value pairs
      */
     template <typename CG, typename atomicT, typename OutputIt>
-    __inline__ __device__ std::enable_if_t<not(thrust::is_contiguous_iterator<OutputIt>::value and
-                                               SUPPORTS_CG_MEMCPY_ASYNC),
-                                           void>
-    flush_output_buffer(CG const& g,
-                        uint32_t const num_outputs,
-                        value_type* output_buffer,
-                        atomicT* num_matches,
-                        OutputIt output_begin) noexcept;
+    __inline__ __device__ void flush_output_buffer(CG const& g,
+                                                   uint32_t const num_outputs,
+                                                   value_type* output_buffer,
+                                                   atomicT* num_matches,
+                                                   OutputIt output_begin) noexcept;
 
     /**
      * @brief Flushes per-CG buffer into the output sequences.

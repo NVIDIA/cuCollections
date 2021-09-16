@@ -1380,44 +1380,7 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator>
 template <typename CG, typename atomicT, typename OutputIt>
-__inline__ __device__
-  std::enable_if_t<thrust::is_contiguous_iterator<OutputIt>::value and SUPPORTS_CG_MEMCPY_ASYNC,
-                   void>
-  static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_output_buffer(
-    CG const& g,
-    uint32_t const num_outputs,
-    value_type* output_buffer,
-    atomicT* num_matches,
-    OutputIt output_begin) noexcept
-{
-  std::size_t offset;
-  const auto lane_id = g.thread_rank();
-  if (0 == lane_id) {
-    offset = num_matches->fetch_add(num_outputs, cuda::std::memory_order_relaxed);
-  }
-  offset = g.shfl(offset, 0);
-
-#if defined(CUCO_HAS_CUDA_BARRIER)
-  cooperative_groups::memcpy_async(
-    g,
-    output_begin + offset,
-    output_buffer,
-    cuda::aligned_size_t<alignof(value_type)>(sizeof(value_type) * num_outputs));
-#else
-  cooperative_groups::memcpy_async(
-    g, output_begin + offset, output_buffer, sizeof(value_type) * num_outputs);
-#endif
-}
-
-template <typename Key,
-          typename Value,
-          class ProbeSequence,
-          cuda::thread_scope Scope,
-          typename Allocator>
-template <typename CG, typename atomicT, typename OutputIt>
-__inline__ __device__ std::enable_if_t<not(thrust::is_contiguous_iterator<OutputIt>::value and
-                                           SUPPORTS_CG_MEMCPY_ASYNC),
-                                       void>
+__inline__ __device__ void
 static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush_output_buffer(
   CG const& g,
   uint32_t const num_outputs,
@@ -1432,8 +1395,27 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::flush
   }
   offset = g.shfl(offset, 0);
 
-  for (auto index = lane_id; index < num_outputs; index += g.size()) {
-    *(output_begin + offset + index) = output_buffer[index];
+  if constexpr (thrust::is_contiguous_iterator_v<OutputIt>) {
+#if defined(CUCO_HAS_CG_MEMCPY_ASYNC)
+#if defined(CUCO_HAS_CUDA_BARRIER)
+    cooperative_groups::memcpy_async(
+      g,
+      output_begin + offset,
+      output_buffer,
+      cuda::aligned_size_t<alignof(value_type)>(sizeof(value_type) * num_outputs));
+#else
+    cooperative_groups::memcpy_async(
+      g, output_begin + offset, output_buffer, sizeof(value_type) * num_outputs);
+#endif  // end CUCO_HAS_CUDA_BARRIER
+#else
+    for (auto index = lane_id; index < num_outputs; index += g.size()) {
+      *(output_begin + offset + index) = output_buffer[index];
+    }
+#endif  // end CUCO_HAS_CG_MEMCPY_ASYNC
+  } else {
+    for (auto index = lane_id; index < num_outputs; index += g.size()) {
+      *(output_begin + offset + index) = output_buffer[index];
+    }
   }
 }
 
