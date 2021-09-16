@@ -143,7 +143,7 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
    */
   __host__ __device__ explicit linear_probing(iterator slots,
                                               std::size_t capacity,
-                                              Hash hash = cuco::detail::MurmurHash3_32<Key>{})
+                                              Hash hash = Hash{})
     : probe_sequence_base<Key, Value, CGSize, Scope>{slots, capacity}, hash_(hash)
   {
   }
@@ -244,11 +244,10 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, Scope> {
    * @param hash1 First hasher to hash each key
    * @param hash2 Second hasher to determine step size
    */
-  __host__ __device__ explicit double_hashing(
-    iterator slots,
-    std::size_t capacity,
-    Hash1 hash1 = cuco::detail::MurmurHash3_32<Key>{},
-    Hash2 hash2 = cuco::detail::MurmurHash3_32<Key>{}) noexcept
+  __host__ __device__ explicit double_hashing(iterator slots,
+                                              std::size_t capacity,
+                                              Hash1 hash1 = Hash1{},
+                                              Hash2 hash2 = Hash2{}) noexcept
     : probe_sequence_base<Key, Value, CGSize, Scope>{slots, capacity}, hash1_{hash1}, hash2_{hash2}
   {
   }
