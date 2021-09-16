@@ -61,32 +61,7 @@ struct pair_equal {
 
 }  // namespace
 
-enum class dist_type { UNIQUE, DUAL, UNIFORM, GAUSSIAN };
 enum class probe_sequence { linear_probing, double_hashing };
-
-template <dist_type Dist, typename Key, typename OutputIt>
-static void generate_keys(OutputIt output_begin, OutputIt output_end)
-{
-  auto num_items = std::distance(output_begin, output_end);
-
-  std::random_device rd;
-  std::mt19937 gen{rd()};
-
-  switch (Dist) {
-    case dist_type::UNIQUE: {
-      for (auto i = 0; i < num_items; ++i) {
-        output_begin[i] = i;
-      }
-      break;
-    }
-    case dist_type::DUAL: {
-      for (auto i = 0; i < num_items; ++i) {
-        output_begin[i] = i % (num_items / 2);
-      }
-      break;
-    }
-  }
-}
 
 template <typename Map, typename PairIt, typename KeyIt, typename ResultIt>
 __inline__ void test_multiplicity_two(
@@ -148,48 +123,40 @@ __inline__ void test_multiplicity_two(
   }
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "Multiplicity equals two",
-  "",
-  ((typename Key, typename Value, dist_type Dist, probe_sequence Probe), Key, Value, Dist, Probe),
-  (int32_t, int32_t, dist_type::DUAL, probe_sequence::linear_probing),
-  (int32_t, int64_t, dist_type::DUAL, probe_sequence::linear_probing),
-  (int64_t, int64_t, dist_type::DUAL, probe_sequence::linear_probing),
-  (int32_t, int32_t, dist_type::DUAL, probe_sequence::double_hashing),
-  (int32_t, int64_t, dist_type::DUAL, probe_sequence::double_hashing),
-  (int64_t, int64_t, dist_type::DUAL, probe_sequence::double_hashing))
+TEMPLATE_TEST_CASE_SIG("Multiplicity equals two",
+                       "",
+                       ((typename Key, typename Value, probe_sequence Probe), Key, Value, Probe),
+                       (int32_t, int32_t, probe_sequence::linear_probing),
+                       (int32_t, int64_t, probe_sequence::linear_probing),
+                       (int64_t, int64_t, probe_sequence::linear_probing),
+                       (int32_t, int32_t, probe_sequence::double_hashing),
+                       (int32_t, int64_t, probe_sequence::double_hashing),
+                       (int64_t, int64_t, probe_sequence::double_hashing))
 {
   constexpr std::size_t num_items{4};
 
-  std::vector<Key> h_keys(num_items);
-  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_items);
+  thrust::device_vector<Key> d_keys(num_items / 2);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_items);
 
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
-
-  for (auto i = 0; i < num_items; ++i) {
-    Key key           = h_keys[i];
-    Value val         = i;
-    h_pairs[i].first  = key;
-    h_pairs[i].second = val;
-  }
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
-
-  // Get unique keys
-  std::set<Key> key_set(h_keys.begin(), h_keys.end());
-  std::vector<Key> h_unique_keys(key_set.begin(), key_set.end());
-  thrust::device_vector<Key> d_unique_keys(h_unique_keys);
+  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
+  // multiplicity = 2
+  thrust::transform(thrust::device,
+                    thrust::counting_iterator<int>(0),
+                    thrust::counting_iterator<int>(num_items),
+                    d_pairs.begin(),
+                    [] __device__(auto i) {
+                      return cuco::pair_type<Key, Value>{i / 2, i};
+                    });
 
   thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num_items);
 
   if constexpr (Probe == probe_sequence::linear_probing) {
     cuco::static_multimap<Key, Value, cuco::detail::linear_probing<Key, Value, 1>> map{5, -1, -1};
-    test_multiplicity_two(
-      map, d_pairs.begin(), d_unique_keys.begin(), d_results.begin(), num_items);
+    test_multiplicity_two(map, d_pairs.begin(), d_keys.begin(), d_results.begin(), num_items);
   }
   if constexpr (Probe == probe_sequence::double_hashing) {
     cuco::static_multimap<Key, Value> map{5, -1, -1};
-    test_multiplicity_two(
-      map, d_pairs.begin(), d_unique_keys.begin(), d_results.begin(), num_items);
+    test_multiplicity_two(map, d_pairs.begin(), d_keys.begin(), d_results.begin(), num_items);
   }
 }
 
@@ -227,31 +194,30 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
   }
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "Tests of non-matches",
-  "",
-  ((typename Key, typename Value, dist_type Dist, probe_sequence Probe), Key, Value, Dist, Probe),
-  (int32_t, int32_t, dist_type::UNIQUE, probe_sequence::linear_probing),
-  (int32_t, int64_t, dist_type::UNIQUE, probe_sequence::linear_probing),
-  (int64_t, int64_t, dist_type::UNIQUE, probe_sequence::linear_probing),
-  (int32_t, int32_t, dist_type::UNIQUE, probe_sequence::double_hashing),
-  (int32_t, int64_t, dist_type::UNIQUE, probe_sequence::double_hashing),
-  (int64_t, int64_t, dist_type::UNIQUE, probe_sequence::double_hashing))
+TEMPLATE_TEST_CASE_SIG("Tests of non-matches",
+                       "",
+                       ((typename Key, typename Value, probe_sequence Probe), Key, Value, Probe),
+                       (int32_t, int32_t, probe_sequence::linear_probing),
+                       (int32_t, int64_t, probe_sequence::linear_probing),
+                       (int64_t, int64_t, probe_sequence::linear_probing),
+                       (int32_t, int32_t, probe_sequence::double_hashing),
+                       (int32_t, int64_t, probe_sequence::double_hashing),
+                       (int64_t, int64_t, probe_sequence::double_hashing))
 {
   constexpr std::size_t num_keys{1'000'000};
 
-  std::vector<Key> h_keys(num_keys);
-  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
+  thrust::device_vector<Key> d_keys(num_keys);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_keys);
 
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
-
-  for (auto i = 0; i < num_keys; ++i) {
-    h_pairs[i].first  = h_keys[i] / 2;
-    h_pairs[i].second = h_keys[i];
-  }
-
-  thrust::device_vector<Key> d_keys(h_keys);
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
+  // multiplicity = 2
+  thrust::transform(thrust::device,
+                    thrust::counting_iterator<int>(0),
+                    thrust::counting_iterator<int>(num_keys),
+                    d_pairs.begin(),
+                    [] __device__(auto i) {
+                      return cuco::pair_type<Key, Value>{i / 2, i};
+                    });
 
   if constexpr (Probe == probe_sequence::linear_probing) {
     cuco::static_multimap<Key, Value, cuco::detail::linear_probing<Key, Value, 1>> map{
@@ -277,31 +243,30 @@ __inline__ void test_insert_if(Map& map, PairIt pair_begin, KeyIt key_begin, std
   REQUIRE(num * 2 == size);
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "Tests of insert_if",
-  "",
-  ((typename Key, typename Value, dist_type Dist, probe_sequence Probe), Key, Value, Dist, Probe),
-  (int32_t, int32_t, dist_type::UNIQUE, probe_sequence::linear_probing),
-  (int32_t, int64_t, dist_type::UNIQUE, probe_sequence::linear_probing),
-  (int64_t, int64_t, dist_type::UNIQUE, probe_sequence::linear_probing),
-  (int32_t, int32_t, dist_type::UNIQUE, probe_sequence::double_hashing),
-  (int32_t, int64_t, dist_type::UNIQUE, probe_sequence::double_hashing),
-  (int64_t, int64_t, dist_type::UNIQUE, probe_sequence::double_hashing))
+TEMPLATE_TEST_CASE_SIG("Tests of insert_if",
+                       "",
+                       ((typename Key, typename Value, probe_sequence Probe), Key, Value, Probe),
+                       (int32_t, int32_t, probe_sequence::linear_probing),
+                       (int32_t, int64_t, probe_sequence::linear_probing),
+                       (int64_t, int64_t, probe_sequence::linear_probing),
+                       (int32_t, int32_t, probe_sequence::double_hashing),
+                       (int32_t, int64_t, probe_sequence::double_hashing),
+                       (int64_t, int64_t, probe_sequence::double_hashing))
 {
   constexpr std::size_t num_keys{1'000};
 
-  std::vector<Key> h_keys(num_keys);
-  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
+  thrust::device_vector<Key> d_keys(num_keys);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_keys);
 
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
-
-  for (auto i = 0; i < num_keys; ++i) {
-    h_pairs[i].first  = h_keys[i];
-    h_pairs[i].second = h_keys[i];
-  }
-
-  thrust::device_vector<Key> d_keys(h_keys);
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
+  // multiplicity = 1
+  thrust::transform(thrust::device,
+                    thrust::counting_iterator<int>(0),
+                    thrust::counting_iterator<int>(num_keys),
+                    d_pairs.begin(),
+                    [] __device__(auto i) {
+                      return cuco::pair_type<Key, Value>{i, i};
+                    });
 
   if constexpr (Probe == probe_sequence::linear_probing) {
     cuco::static_multimap<Key, Value, cuco::detail::linear_probing<Key, Value, 1>> map{
@@ -314,22 +279,24 @@ TEMPLATE_TEST_CASE_SIG(
   }
 }
 
-template <typename Map, typename Key, typename Value>
-__inline__ void test_pair_functions(Map& map,
-                                    std::vector<cuco::pair_type<Key, Value>>& h_pairs,
-                                    thrust::device_vector<cuco::pair_type<Key, Value>>& d_pairs,
-                                    std::size_t num_pairs)
+template <typename Key, typename Value, typename Map, typename PairIt>
+__inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num_pairs)
 {
-  map.insert(d_pairs.begin(), d_pairs.end());
+  map.insert(pair_begin, pair_begin + num_pairs);
+  cudaStreamSynchronize(0);
 
-  for (auto i = 0; i < num_pairs; ++i) {
-    h_pairs[i].first = i;
-  }
-  d_pairs = h_pairs;
+  // query pair matching rate = 50%
+  thrust::transform(thrust::device,
+                    thrust::counting_iterator<int>(0),
+                    thrust::counting_iterator<int>(num_pairs),
+                    pair_begin,
+                    [] __device__(auto i) {
+                      return cuco::pair_type<Key, Value>{i, i};
+                    });
 
   SECTION("Output of pair_count and pair_retrieve should be coherent.")
   {
-    auto num = map.pair_count(d_pairs.begin(), d_pairs.end(), pair_equal<Key, Value>{});
+    auto num = map.pair_count(pair_begin, pair_begin + num_pairs, pair_equal<Key, Value>{});
 
     auto out1_zip = thrust::make_zip_iterator(
       thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
@@ -339,14 +306,14 @@ __inline__ void test_pair_functions(Map& map,
     REQUIRE(num == num_pairs);
 
     auto size = map.pair_retrieve(
-      d_pairs.begin(), d_pairs.end(), out1_zip, out2_zip, pair_equal<Key, Value>{});
+      pair_begin, pair_begin + num_pairs, out1_zip, out2_zip, pair_equal<Key, Value>{});
 
     REQUIRE(size == num_pairs);
   }
 
   SECTION("Output of pair_count_outer and pair_retrieve_outer should be coherent.")
   {
-    auto num = map.pair_count_outer(d_pairs.begin(), d_pairs.end(), pair_equal<Key, Value>{});
+    auto num = map.pair_count_outer(pair_begin, pair_begin + num_pairs, pair_equal<Key, Value>{});
 
     auto out1_zip = thrust::make_zip_iterator(
       thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
@@ -356,45 +323,41 @@ __inline__ void test_pair_functions(Map& map,
     REQUIRE(num == (num_pairs + num_pairs / 2));
 
     auto size = map.pair_retrieve_outer(
-      d_pairs.begin(), d_pairs.end(), out1_zip, out2_zip, pair_equal<Key, Value>{});
+      pair_begin, pair_begin + num_pairs, out1_zip, out2_zip, pair_equal<Key, Value>{});
 
     REQUIRE(size == (num_pairs + num_pairs / 2));
   }
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "Tests of pair functions",
-  "",
-  ((typename Key, typename Value, dist_type Dist, probe_sequence Probe), Key, Value, Dist, Probe),
-  (int32_t, int32_t, dist_type::UNIQUE, probe_sequence::linear_probing),
-  (int32_t, int64_t, dist_type::UNIQUE, probe_sequence::linear_probing),
-  (int64_t, int64_t, dist_type::UNIQUE, probe_sequence::linear_probing),
-  (int32_t, int32_t, dist_type::UNIQUE, probe_sequence::double_hashing),
-  (int32_t, int64_t, dist_type::UNIQUE, probe_sequence::double_hashing),
-  (int64_t, int64_t, dist_type::UNIQUE, probe_sequence::double_hashing))
+TEMPLATE_TEST_CASE_SIG("Tests of pair functions",
+                       "",
+                       ((typename Key, typename Value, probe_sequence Probe), Key, Value, Probe),
+                       (int32_t, int32_t, probe_sequence::linear_probing),
+                       (int32_t, int64_t, probe_sequence::linear_probing),
+                       (int64_t, int64_t, probe_sequence::linear_probing),
+                       (int32_t, int32_t, probe_sequence::double_hashing),
+                       (int32_t, int64_t, probe_sequence::double_hashing),
+                       (int64_t, int64_t, probe_sequence::double_hashing))
 {
   constexpr std::size_t num_pairs{4};
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_pairs);
 
-  std::vector<Key> h_keys(num_pairs);
-  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_pairs);
-
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
-
-  for (auto i = 0; i < num_pairs; ++i) {
-    h_pairs[i].first  = h_keys[i] / 2;
-    h_pairs[i].second = h_keys[i];
-  }
-
-  thrust::device_vector<Key> d_keys(h_keys);
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+  // pair multiplicity = 2
+  thrust::transform(thrust::device,
+                    thrust::counting_iterator<int>(0),
+                    thrust::counting_iterator<int>(num_pairs),
+                    d_pairs.begin(),
+                    [] __device__(auto i) {
+                      return cuco::pair_type<Key, Value>{i / 2, i};
+                    });
 
   if constexpr (Probe == probe_sequence::linear_probing) {
     cuco::static_multimap<Key, Value, cuco::detail::linear_probing<Key, Value, 1>> map{
       num_pairs * 2, -1, -1};
-    test_pair_functions(map, h_pairs, d_pairs, num_pairs);
+    test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
   }
   if constexpr (Probe == probe_sequence::double_hashing) {
     cuco::static_multimap<Key, Value> map{num_pairs * 2, -1, -1};
-    test_pair_functions(map, h_pairs, d_pairs, num_pairs);
+    test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
   }
 }
