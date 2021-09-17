@@ -74,19 +74,35 @@ __device__ void ReleaseLock(CG const& g, int *l) {
 }
 
 /**
+* Copy pairs from src to dst
+*
+* @param g The cooperative group that will perform the copy
+* @param dst_start Iterator to the beginning of the destination array
+* @param src_start Iterator to the beginning of the source array
+* @param src_end Iterator to the end of the source array
+*/
+template <typename InputIt1, typename InputIt2, typename CG>
+__device__ void CopyPairs(CG const& g, InputIt1 dst_start,
+                          InputIt2 src_start, InputIt2 src_end) {
+  auto dst = dst_start + g.thread_rank();
+  for (auto src = src_start + g.thread_rank();
+       src < src_end; dst += g.size(), src += g.size()) {
+    *dst = *src;
+  }
+}
+
+/**
 * Copy node_size pairs from src to dst
 *
 * @param g The cooperative group that will perform the copy
-* @param dst Pointer to the beginning of the destination array
-* @param src Pointer to the beginning of the source array
+* @param dst_start Iterator to the beginning of the destination array
+* @param src_start Iterator to the beginning of the source array
+* @param num_pairs Number of pairs to copy
 */
-template <typename Key, typename Value, typename CG>
-__device__ void CopyPairs(CG const& g, Pair<Key, Value> *dst,
-                          Pair<Key, Value> *src,
-                          size_t node_size) {
-  for (size_t i = g.thread_rank(); i < node_size; i += g.size()) {
-    dst[i] = src[i];
-  }
+template <typename InputIt1, typename InputIt2, typename CG>
+__device__ void CopyPairs(CG const& g, InputIt1 dst_start,
+                          InputIt2 src_start, size_t num_pairs) {
+  CopyPairs(g, dst_start, src_start, src_start + num_pairs);
 }
 
 /*
@@ -676,7 +692,7 @@ __device__ void Sink(CG const& g,
 * elements
 *
 * @param g The cooperative group that will perform the push
-* @param elements The array of elements to add
+* @param elements Iterator for the elements to be inserted
 * @param heap The array of pairs that stores the heap itself
 * @param size Pointer to the number of pairs currently in the heap
 * @param node_size Size of the nodes in the heap
@@ -685,9 +701,10 @@ __device__ void Sink(CG const& g,
 *                           heap
 * @param shmem The shared memory layout for this cooperative group
 */
-template <bool Max, typename Key, typename Value, typename CG>
+template <bool Max, typename InputIt, typename Key,
+          typename Value, typename CG>
 __device__ void PushSingleNode(CG const& g,
-                                 Pair<Key, Value> *elements,
+                                 InputIt elements,
                                  Pair<Key, Value> *heap,
                                  int *size,
                                  size_t node_size,
@@ -698,7 +715,7 @@ __device__ void PushSingleNode(CG const& g,
   int lane = g.thread_rank();
   int dim = g.size();
 
-  CopyPairs(g, shmem.A, elements, node_size);
+  CopyPairs(g, shmem.A, elements, elements + node_size);
 
   g.sync();
 
@@ -727,7 +744,8 @@ __device__ void PushSingleNode(CG const& g,
 * Remove exactly node_size elements from the heap and place them
 * in elements
 *
-* @param elements The array of elements to insert into
+* @param g The cooperative group that will perform the pop
+* @param elements Iterator to the elements to write to
 * @param heap The array of pairs that stores the heap itself
 * @param size Pointer to the number of pairs currently in the heap
 * @param node_size Size of the nodes in the heap
@@ -740,9 +758,10 @@ __device__ void PushSingleNode(CG const& g,
 * @param node_capacity Maximum capacity of the heap in nodes
 * @param shmem The shared memory layout for this cooperative group
 */
-template <bool Max, typename Key, typename Value, typename CG>
+template <bool Max, typename OutputIt, typename Key,
+          typename Value, typename CG>
 __device__ void PopSingleNode(CG const& g,
-                              Pair<Key, Value> *elements,
+                              OutputIt elements,
                               Pair<Key, Value> *heap,
                               int *size,
                               size_t node_size,
@@ -781,8 +800,8 @@ __device__ void PopSingleNode(CG const& g,
 
   // Copy the root to the output array
 
-  CopyPairs(g, &elements[out_idx * node_size], &heap[node_size],
-            node_size);
+  CopyPairs(g, elements + out_idx * node_size, &heap[node_size],
+            &heap[node_size] + node_size);
 
   g.sync();
 
@@ -837,9 +856,10 @@ __device__ void PopSingleNode(CG const& g,
 * @param node_capacity Maximum capacity of the heap in nodes
 * @param shmem The shared memory layout for this cooperative group
 */
-template <bool Max, typename Key, typename Value, typename CG>
+template <bool Max, typename InputIt, typename Key,
+          typename Value, typename CG>
 __device__ void PopPartialNode(CG const& g,
-                               Pair<Key, Value> *elements,
+                               InputIt elements,
                                size_t num_elements,
                                Pair<Key, Value> *heap,
                                int *size,
@@ -982,9 +1002,10 @@ __device__ void PopPartialNode(CG const& g,
 *                           heap
 * @param shmem The shared memory layout for this cooperative group
 */
-template <bool Max, typename Key, typename Value, typename CG>
+template <bool Max, typename InputIt, typename Key,
+          typename Value, typename CG>
 __device__ void PushPartialNode(CG const& g,
-                                Pair<Key, Value> *elements,
+                                InputIt elements,
                                 size_t p_ins_size,
                                 Pair<Key, Value> *heap,
                                 int *size,
@@ -1105,8 +1126,8 @@ __device__ void PushPartialNode(CG const& g,
 * @param temp_node A temporary array large enough to store
                    sizeof(Pair<Key, Value>) * node_size bytes
 */
-template <bool Max, typename Key, typename Value>
-__global__ void PushKernel(Pair<Key, Value> *elements,
+template <bool Max, typename OutputIt, typename Key, typename Value>
+__global__ void PushKernel(OutputIt elements,
                            size_t num_elements,
                            Pair<Key, Value> *heap,
                            int *size,
@@ -1162,8 +1183,9 @@ __global__ void PushKernel(Pair<Key, Value> *elements,
 * @param temp_node A temporary array large enough to store
                    sizeof(Pair<Key, Value>) * node_size bytes
 */
-template <bool Max, typename Key, typename Value>
-__global__ void PushKernelWarp(Pair<Key, Value> *elements,
+template <bool Max, typename InputIt, typename Key,
+          typename Value>
+__global__ void PushKernelWarp(InputIt elements,
                            size_t num_elements,
                            Pair<Key, Value> *heap,
                            int *size,
@@ -1223,8 +1245,8 @@ __global__ void PushKernelWarp(Pair<Key, Value> *elements,
 * @param p_buffer_size Number of pairs in the heap's partial buffer
 * @param pop_tracker Pointer to an integer in global memory initialized to 0
 */
-template <bool Max, typename Key, typename Value>
-__global__ void PopKernelWarp(Pair<Key, Value> *elements,
+template <bool Max, typename OutputIt, typename Key, typename Value>
+__global__ void PopKernelWarp(OutputIt elements,
                            size_t num_elements,
                            Pair<Key, Value> *heap,
                            int *size,
@@ -1294,8 +1316,8 @@ __global__ void PopKernelWarp(Pair<Key, Value> *elements,
 * @param p_buffer_size Number of pairs in the heap's partial buffer
 * @param pop_tracker Pointer to an integer in global memory initialized to 0
 */
-template <bool Max, typename Key, typename Value>
-__global__ void PopKernel(Pair<Key, Value> *elements,
+template <bool Max, typename OutputIt, typename Key, typename Value>
+__global__ void PopKernel(OutputIt elements,
                            size_t num_elements,
                            Pair<Key, Value> *heap,
                            int *size,

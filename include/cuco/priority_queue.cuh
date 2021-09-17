@@ -59,9 +59,12 @@ class priority_queue {
   priority_queue(size_t initial_capacity, size_t node_size = 1024);
 
   /**
-   * @brief Push num_elements elements into the priority queue
+   * @brief Push elements into the priority queue
    *
-   * @param elements Array of elements to add to the queue
+   * @tparam InputIt Device accessible input iterator whose `value_type`
+   *        can be converted to Pair<Key, Value>
+   * @param first Beginning of the sequence of elements
+   * @param last End of the sequence of elements
    * @param num_elements Number of elements to add to the queue
    * @param block_size Block size to use for the internal kernel launch
    * @param grid_size Grid size for the internal kernel launch
@@ -70,16 +73,20 @@ class priority_queue {
    * @param stream The stream in which the underlying GPU operations will be
    *               run
    */
-  void push(Pair<Key, Value> *elements, size_t num_elements,
+  template <typename InputIt>
+  void push(InputIt first, InputIt last,
             int block_size = 256, int grid_size = 64000,
             bool warp_level = false,
             cudaStream_t stream = 0);
 
   /**
-   * @brief Remove the num_elements elements with the lowest keys from the priority
-   * queue and place them in out in ascending sorted order by key
+   * @brief Remove a sequence of the lowest (when Max == false) or the
+   *        highest (when Max == true) elements
    *
-   * @param out The array in which the removed elements will be placed
+   * @tparam OutputIt Device accessible output iterator whose `value_type`
+   *        can be converted to Pair<Key, Value>
+   * @param first Beginning of the sequence of output elements
+   * @param last End of the sequence of output elements
    * @param num_elements The number of elements to be removed
    * @param block_size Block size to use for the internal kernel launch
    * @param grid_size Grid size for the internal kernel launch
@@ -88,7 +95,8 @@ class priority_queue {
    * @param stream The stream in which the underlying GPU operations will be
    *               run
    */
-  void pop(Pair<Key, Value> *out, size_t num_elements,
+  template <typename OutputIt>
+  void pop(OutputIt first, OutputIt last,
            int block_size = 512, int grid_size = 32000,
            bool warp_level = false,
            cudaStream_t stream = 0);
@@ -118,29 +126,33 @@ class priority_queue {
      * @brief Push a single node or less elements into the priority queue
      *
      * @tparam CG Cooperative Group type
+     * @tparam Device accessible iterator whose `value_type` is convertible
+     *         to Pair<Key, Value>
      * @param g The cooperative group that will perform the operation
-     * @param elements Array of elements to add to the queue
-     * @param num_elements Number of elements to add to the queue
+     * @param first The beginning of the sequence of elements to insert
+     * @param last The end of the sequence of elements to insert
      * @param Pointer to a contiguous section of memory large enough
      *        to hold get_shmem_size(g.size()) bytes
      */
-    template <typename CG>
-    __device__ void push(CG const& g, Pair<Key, Value> *elements,
-                         size_t num_elements, void *temp_storage);
+    template <typename CG, typename InputIt>
+    __device__ void push(CG const& g, InputIt first,
+                         InputIt last, void *temp_storage);
 
     /**
      * @brief Pop a single node or less elements from the priority queue
      *
      * @tparam CG Cooperative Group type
+     * @tparam Device accessible iterator whose `value_type` is convertible to
+               Pair<Key, Value>
      * @param g The cooperative group that will perform the operation
-     * @param out Array of elements to put the removed elements in 
-     * @param num_elements Number of elements to remove from the queue
+     * @param first The beginning of the sequence of elements to output into
+     * @param last The end of the sequence of elements to output into
      * @param Pointer to a contiguous section of memory large enough
      *        to hold get_shmem_size(g.size()) bytes
      */
-    template <typename CG>
-    __device__ void pop(CG const& g, Pair<Key, Value> *out,
-                        size_t num_elements, void *temp_storage);
+    template <typename CG, typename OutputIt>
+    __device__ void pop(CG const& g, OutputIt first,
+                        OutputIt last, void *temp_storage);
 
     /**
      * @brief Returns the node size of the queue's underlying heap

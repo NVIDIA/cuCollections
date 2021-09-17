@@ -19,7 +19,8 @@ __global__ void DeviceAPIInsert(
   thread_block g = this_thread_block(); 
   for (size_t i = blockIdx.x * view.get_node_size();
        i < num_elements; i += gridDim.x * view.get_node_size()) {
-    view.push(g, elements + i, min(view.get_node_size(), num_elements - i),
+    view.push(g, elements + i,
+              elements + i + min(view.get_node_size(), num_elements - i),
               shmem);
   }
 }
@@ -34,7 +35,8 @@ __global__ void DeviceAPIDelete(
   thread_block g = this_thread_block(); 
   for (size_t i = blockIdx.x * view.get_node_size();
        i < num_elements; i += gridDim.x * view.get_node_size()) {
-    view.pop(g, out + i, min(view.get_node_size(), num_elements - i), shmem);
+    view.pop(g, out + i,
+             out + i + min(view.get_node_size(), num_elements - i), shmem);
   }
 }
 
@@ -64,7 +66,7 @@ float TimeInsert(priority_queue<uint32_t, uint32_t> &pq,
                             Pair<uint32_t, uint32_t> *d_elements,
                             size_t num_keys) {
   return TimeCode([&]() {
-    pq.push(d_elements, num_keys);
+    pq.push(d_elements, d_elements + num_keys);
   });
 }
 
@@ -94,7 +96,7 @@ float TimeDelete(priority_queue<uint32_t, uint32_t> &pq,
                             Pair<uint32_t, uint32_t> *d_elements,
                             size_t num_keys) {
   return TimeCode([&]() {
-    pq.pop(d_elements, num_keys);
+    pq.pop(d_elements, d_elements + num_keys);
   });
 }
 

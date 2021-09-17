@@ -31,7 +31,7 @@ void Insert(priority_queue<Key, Value, Max> &pq,
   CUCO_CUDA_TRY(cudaMemcpy(d_elements, &elements[0], num_bytes,
                       cudaMemcpyHostToDevice));
 
-  pq.push(d_elements, elements.size(), 512, 32000, warp_level);
+  pq.push(d_elements, d_elements + elements.size(), 512, 32000, warp_level);
 
   CUCO_CUDA_TRY(cudaFree(d_elements));
 }
@@ -48,7 +48,7 @@ std::vector<Pair<Key, Value>> Delete(priority_queue<Key, Value, Max> &pq,
 
   CUCO_CUDA_TRY(cudaMalloc((void**)&d_elements, num_bytes));
 
-  pq.pop(d_elements, num_elements, 512, 32, warp_level);
+  pq.pop(d_elements, d_elements + num_elements, 512, 32, warp_level);
 
   std::vector<Pair<Key, Value>> result(num_elements);
 
@@ -69,7 +69,8 @@ __global__ void DeviceAPIInsert(
   thread_block g = this_thread_block(); 
   for (size_t i = blockIdx.x * view.get_node_size();
        i < num_elements; i += gridDim.x * view.get_node_size()) {
-    view.push(g, elements + i, min(view.get_node_size(), num_elements - i),
+    view.push(g, elements + i, elements + i
+                               + min(view.get_node_size(), num_elements - i),
               shmem);
   }
 }
@@ -84,7 +85,8 @@ __global__ void DeviceAPIDelete(
   thread_block g = this_thread_block(); 
   for (size_t i = blockIdx.x * view.get_node_size();
        i < num_elements; i += gridDim.x * view.get_node_size()) {
-    view.pop(g, out + i, min(view.get_node_size(), num_elements - i), shmem);
+    view.pop(g, out + i, out +
+             i + min(view.get_node_size(), num_elements - i), shmem);
   }
 }
 
@@ -101,7 +103,7 @@ __global__ void DeviceAPIInsertWarp(
                   + warp.meta_group_rank() * view.get_node_size();
        i < num_elements; 
        i += gridDim.x * view.get_node_size() * blockDim.x / kWarpSize) {
-    view.push(warp, elements + i, min(view.get_node_size(),
+    view.push(warp, elements + i, elements + i + min(view.get_node_size(),
               num_elements - i), (char*)shmem + warp.meta_group_rank()
                                    * view.get_shmem_size(kWarpSize));
   }
@@ -116,7 +118,8 @@ __global__ void DeviceAPIDeleteWarp(
   thread_block g = this_thread_block(); 
   for (size_t i = blockIdx.x * view.get_node_size();
        i < num_elements; i += gridDim.x * view.get_node_size()) {
-    view.pop(g, out + i, min(view.get_node_size(), num_elements - i), shmem);
+    view.pop(g, out + i, out + i + min(view.get_node_size(),
+             num_elements - i), shmem);
   }
 }
 // Each test case is composed of a name

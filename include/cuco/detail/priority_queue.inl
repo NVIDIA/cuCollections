@@ -53,8 +53,9 @@ priority_queue<Key, Value, Max>::~priority_queue() {
 
 
 template <typename Key, typename Value, bool Max>
-void priority_queue<Key, Value, Max>::push(Pair<Key, Value> *elements,
-                                           size_t num_elements,
+template <typename InputIt>
+void priority_queue<Key, Value, Max>::push(InputIt first,
+                                           InputIt last,
                                            int block_size,
                                            int grid_size,
                                            bool warp_level,
@@ -66,12 +67,12 @@ void priority_queue<Key, Value, Max>::push(Pair<Key, Value> *elements,
   if (!warp_level) {
     PushKernel<Max><<<kNumBlocks, kBlockSize,
                  get_shmem_size(kBlockSize), stream>>>
-              (elements, num_elements, d_heap_, d_size_,
+              (first, last - first, d_heap_, d_size_,
                node_size_, d_locks_, d_p_buffer_size_, lowest_level_start_);
   } else {
     PushKernelWarp<Max><<<kNumBlocks, kBlockSize,
                  get_shmem_size(32) * kBlockSize / 32, stream>>>
-              (elements, num_elements, d_heap_, d_size_,
+              (first, last - first, d_heap_, d_size_,
                node_size_, d_locks_, d_p_buffer_size_,
                lowest_level_start_, get_shmem_size(32));
   }
@@ -80,8 +81,9 @@ void priority_queue<Key, Value, Max>::push(Pair<Key, Value> *elements,
 }
 
 template <typename Key, typename Value, bool Max>
-void priority_queue<Key, Value, Max>::pop(Pair<Key, Value> *out,
-                                          size_t num_elements,
+template <typename OutputIt>
+void priority_queue<Key, Value, Max>::pop(OutputIt first,
+                                          OutputIt last,
                                           int block_size,
                                           int grid_size,
                                           bool warp_level,
@@ -94,13 +96,13 @@ void priority_queue<Key, Value, Max>::pop(Pair<Key, Value> *out,
   if (!warp_level) {
     PopKernel<Max><<<kNumBlocks, kBlockSize,
                  get_shmem_size(kBlockSize), stream>>>
-             (out, num_elements, d_heap_, d_size_,
+             (first, last - first, d_heap_, d_size_,
               node_size_, d_locks_, d_p_buffer_size_,
               d_pop_tracker_, lowest_level_start_, node_capacity_);
   } else {
     PopKernelWarp<Max><<<kNumBlocks, kBlockSize,
                  get_shmem_size(32) * kBlockSize / 32, stream>>>
-             (out, num_elements, d_heap_, d_size_,
+             (first, last - first, d_heap_, d_size_,
               node_size_, d_locks_, d_p_buffer_size_,
               d_pop_tracker_, lowest_level_start_,
               node_capacity_, get_shmem_size(32));
@@ -111,32 +113,32 @@ void priority_queue<Key, Value, Max>::pop(Pair<Key, Value> *out,
 }
 
 template <typename Key, typename Value, bool Max>
-template <typename CG>
+template <typename CG, typename InputIt>
 __device__ void priority_queue<Key, Value, Max>::device_mutable_view::push(
                                                   CG const& g,
-                                                  Pair<Key, Value> *elements,
-                                                  size_t num_elements,
+                                                  InputIt first,
+                                                  InputIt last,
                                                   void *temp_storage) {
 
   SharedMemoryLayout<Key, Value> shmem =
        GetSharedMemoryLayout<Key, Value>((int*)temp_storage,
                                          g.size(), node_size_);
-  if (num_elements == node_size_) {
-    PushSingleNode<Max>(g, elements, d_heap_, d_size_, node_size_,
+  if (last - first == node_size_) {
+    PushSingleNode<Max>(g, first, d_heap_, d_size_, node_size_,
                    d_locks_, lowest_level_start_, shmem);
-  } else if (num_elements < node_size_) {
-    PushPartialNode<Max>(g, elements, num_elements, d_heap_,
+  } else if (last - first < node_size_) {
+    PushPartialNode<Max>(g, first, last - first, d_heap_,
                          d_size_, node_size_, d_locks_,
                          d_p_buffer_size_, lowest_level_start_, shmem);
   }
 }
 
 template <typename Key, typename Value, bool Max>
-template <typename CG>
+template <typename CG, typename OutputIt>
 __device__ void priority_queue<Key, Value, Max>::device_mutable_view::pop(
                                                       CG const& g,
-                                                      Pair<Key, Value> *out,
-                                                      size_t num_elements,
+                                                      OutputIt first,
+                                                      OutputIt last,
                                                       void *temp_storage) {
   int pop_tracker = 0;
 
@@ -144,12 +146,12 @@ __device__ void priority_queue<Key, Value, Max>::device_mutable_view::pop(
        GetSharedMemoryLayout<Key, Value>((int*)temp_storage,
                                          g.size(), node_size_);
 
-  if (num_elements == node_size_) {
-    PopSingleNode<Max>(g, out, d_heap_, d_size_, node_size_, d_locks_,
+  if (last - first == node_size_) {
+    PopSingleNode<Max>(g, first, d_heap_, d_size_, node_size_, d_locks_,
                   d_p_buffer_size_, &pop_tracker, lowest_level_start_,
                   node_capacity_, shmem);
   } else {
-    PopPartialNode<Max>(g, out, num_elements, d_heap_, d_size_, node_size_,
+    PopPartialNode<Max>(g, first, last - first, d_heap_, d_size_, node_size_,
                    d_locks_, d_p_buffer_size_, lowest_level_start_,
                    node_capacity_, shmem);
   }
