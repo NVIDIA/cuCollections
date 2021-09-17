@@ -50,18 +50,206 @@ bool none_of(Iterator begin, Iterator end, Predicate p)
   return not all_of(begin, end, p);
 }
 
-template <typename Key, typename Value>
-struct pair_equal {
-  __host__ __device__ bool operator()(const cuco::pair_type<Key, Value>& lhs,
-                                      const cuco::pair_type<Key, Value>& rhs) const
-  {
-    return lhs.first == rhs.first;
-  }
-};
-
 }  // namespace
 
 enum class probe_sequence { linear_probing, double_hashing };
+
+// User-defined key type
+// Need to specify alignment to WAR libcu++ bug where cuda::atomic fails for underaligned types:
+// https://github.com/NVIDIA/libcudacxx/issues/160
+struct alignas(8) key_pair {
+  int32_t a;
+  int32_t b;
+};
+
+struct hash_key_pair {
+  __device__ uint32_t operator()(key_pair k) { return k.a; };
+};
+
+struct key_pair_equals {
+  __device__ bool operator()(const key_pair& lhs, const key_pair& rhs)
+  {
+    return std::tie(lhs.a, lhs.b) == std::tie(rhs.a, rhs.b);
+  }
+};
+
+struct alignas(8) value_pair {
+  int32_t f;
+  int32_t s;
+};
+
+#define SIZE 10
+__device__ int A[SIZE];
+
+template <typename T>
+struct custom_equals {
+  __device__ bool operator()(T lhs, T rhs) { return A[lhs] == A[rhs]; }
+};
+
+template <typename Key, typename Value, typename Map, typename PairIt, typename KeyIt>
+__inline__ void test_custom_key_value_type(Map& map,
+                                           PairIt pair_begin,
+                                           KeyIt key_begin,
+                                           size_t num_pairs)
+{
+  constexpr cudaStream_t stream = 0;
+
+  SECTION("All inserted keys-value pairs should be correctly recovered during find")
+  {
+    map.insert(pair_begin, pair_begin + num_pairs);
+
+    auto count = map.count(key_begin, key_begin + num_pairs, stream, key_pair_equals{});
+    REQUIRE(count == num_pairs);
+
+    thrust::device_vector<cuco::pair_type<Key, Value>> found_pairs(num_pairs);
+    auto output_end = map.retrieve(
+      key_begin, key_begin + num_pairs, found_pairs.begin(), stream, key_pair_equals{});
+    auto size = output_end - found_pairs.begin();
+
+    REQUIRE(size == num_pairs);
+
+    // sort before compare
+    thrust::sort(
+      thrust::device,
+      found_pairs.begin(),
+      found_pairs.end(),
+      [] __device__(const cuco::pair_type<Key, Value>& lhs,
+                    const cuco::pair_type<Key, Value>& rhs) { return lhs.first.a < rhs.first.a; });
+
+    REQUIRE(thrust::equal(
+      thrust::device,
+      pair_begin,
+      pair_begin + num_pairs,
+      found_pairs.begin(),
+      [] __device__(cuco::pair_type<Key, Value> lhs, cuco::pair_type<Key, Value> rhs) {
+        return lhs.first.a == rhs.first.a;
+      }));
+  }
+
+  SECTION("Outer functions include non-matches in the output while normal functions don't")
+  {
+    map.insert(pair_begin, pair_begin + num_pairs);
+
+    auto const num = num_pairs * 2;
+    thrust::device_vector<Key> query_keys(num);
+    auto query_key_begin = query_keys.begin();
+    thrust::transform(thrust::device,
+                      thrust::counting_iterator<int>(0),
+                      thrust::counting_iterator<int>(num),
+                      query_key_begin,
+                      [] __device__(auto i) {
+                        return Key{i, i};
+                      });
+
+    auto count = map.count(query_key_begin, query_key_begin + num, stream, key_pair_equals{});
+    REQUIRE(count == num_pairs);
+
+    auto count_outer =
+      map.count_outer(query_key_begin, query_key_begin + num, stream, key_pair_equals{});
+    REQUIRE(count_outer == num);
+
+    ////////////////////// tests of retreive
+    thrust::device_vector<cuco::pair_type<Key, Value>> found_pairs(num_pairs);
+    auto output_end = map.retrieve(
+      query_key_begin, query_key_begin + num, found_pairs.begin(), stream, key_pair_equals{});
+    auto size = output_end - found_pairs.begin();
+
+    REQUIRE(size == num_pairs);
+
+    // sort before compare
+    thrust::sort(
+      thrust::device,
+      found_pairs.begin(),
+      found_pairs.end(),
+      [] __device__(const cuco::pair_type<Key, Value>& lhs,
+                    const cuco::pair_type<Key, Value>& rhs) { return lhs.first.a < rhs.first.a; });
+
+    REQUIRE(thrust::equal(
+      thrust::device,
+      pair_begin,
+      pair_begin + num_pairs,
+      found_pairs.begin(),
+      [] __device__(cuco::pair_type<Key, Value> lhs, cuco::pair_type<Key, Value> rhs) {
+        return lhs.first.a == rhs.first.a;
+      }));
+
+    ////////////////////// tests of retreive_outer
+    found_pairs.resize(num);
+    output_end = map.retrieve_outer(
+      query_key_begin, query_key_begin + num, found_pairs.begin(), stream, key_pair_equals{});
+    auto size_outer = output_end - found_pairs.begin();
+
+    REQUIRE(size_outer == num);
+  }
+
+  SECTION("All inserted keys-value pairs should be contained")
+  {
+    thrust::device_vector<bool> contained(num_pairs);
+    map.insert(pair_begin, pair_begin + num_pairs);
+    map.contains(key_begin, key_begin + num_pairs, contained.begin(), stream, key_pair_equals{});
+    REQUIRE(all_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+  }
+
+  SECTION("Non-inserted keys-value pairs should not be contained")
+  {
+    thrust::device_vector<bool> contained(num_pairs);
+    map.contains(key_begin, key_begin + num_pairs, contained.begin(), stream, key_pair_equals{});
+    REQUIRE(
+      none_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+  }
+}
+
+TEMPLATE_TEST_CASE_SIG("User defined key and value type",
+                       "",
+                       ((probe_sequence Probe), Probe),
+                       (probe_sequence::linear_probing),
+                       (probe_sequence::double_hashing))
+{
+  using Key   = key_pair;
+  using Value = value_pair;
+
+  auto constexpr sentinel_key   = Key{-1, -1};
+  auto constexpr sentinel_value = Value{-1, -1};
+
+  constexpr std::size_t num_pairs = 100;
+  constexpr std::size_t capacity  = num_pairs * 2;
+
+  thrust::device_vector<Key> insert_keys(num_pairs);
+  thrust::device_vector<Value> insert_values(num_pairs);
+
+  thrust::transform(thrust::device,
+                    thrust::counting_iterator<int>(0),
+                    thrust::counting_iterator<int>(num_pairs),
+                    insert_keys.begin(),
+                    [] __device__(auto i) {
+                      return Key{i, i};
+                    });
+
+  thrust::transform(thrust::device,
+                    thrust::counting_iterator<int>(0),
+                    thrust::counting_iterator<int>(num_pairs),
+                    insert_values.begin(),
+                    [] __device__(auto i) {
+                      return Value{i, i};
+                    });
+  auto insert_pairs =
+    thrust::make_zip_iterator(thrust::make_tuple(insert_keys.begin(), insert_values.begin()));
+
+  if constexpr (Probe == probe_sequence::linear_probing) {
+    cuco::static_multimap<key_pair,
+                          value_pair,
+                          cuco::detail::linear_probing<key_pair, value_pair, 1, hash_key_pair>>
+      map{capacity, sentinel_key, sentinel_value};
+    test_custom_key_value_type<Key, Value>(map, insert_pairs, insert_keys.begin(), num_pairs);
+  }
+  if constexpr (Probe == probe_sequence::double_hashing) {
+    cuco::static_multimap<Key,
+                          Value,
+                          cuco::detail::double_hashing<Key, Value, 2, hash_key_pair, hash_key_pair>>
+      map{capacity, sentinel_key, sentinel_value};
+    test_custom_key_value_type<Key, Value>(map, insert_pairs, insert_keys.begin(), num_pairs);
+  }
+}
 
 template <typename Map, typename PairIt, typename KeyIt, typename ResultIt>
 __inline__ void test_multiplicity_two(
@@ -278,6 +466,16 @@ TEMPLATE_TEST_CASE_SIG("Tests of insert_if",
     test_insert_if<Key>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }
 }
+
+// Custom pair equal
+template <typename Key, typename Value>
+struct pair_equal {
+  __device__ bool operator()(const cuco::pair_type<Key, Value>& lhs,
+                             const cuco::pair_type<Key, Value>& rhs) const
+  {
+    return lhs.first == rhs.first;
+  }
+};
 
 template <typename Key, typename Value, typename Map, typename PairIt>
 __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num_pairs)
