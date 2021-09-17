@@ -117,15 +117,21 @@ namespace cuco {
  *
  * @tparam Key Type used for keys
  * @tparam Value Type of the mapped values
- * @tparam ProbeSequence Probe sequence defined in `detail/probe_sequence.cuh`
  * @tparam Scope The scope in which multimap operations will be performed by
  * individual threads
+ * @tparam ProbeSequence Probe sequence chosen between `cuco::detail::linear_probing`
+ * and `cuco::detail::double_hashing`. (see `detail/probe_sequences.cuh`)
  * @tparam Allocator Type of allocator used for device storage
  */
 template <typename Key,
           typename Value,
-          class ProbeSequence      = cuco::detail::double_hashing<Key, Value>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
+          class ProbeSequence      = cuco::detail::double_hashing<Key,
+                                                             Value,
+                                                             2,
+                                                             cuco::detail::MurmurHash3_32<Key>,
+                                                             cuco::detail::MurmurHash3_32<Key>,
+                                                             Scope>,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_multimap {
   static_assert(

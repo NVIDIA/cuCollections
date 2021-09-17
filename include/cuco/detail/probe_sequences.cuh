@@ -112,6 +112,8 @@ class probe_sequence_base {
  * - Use linear probing only when collisions are rare. e.g. low occupancy or low multiplicity.
  * - `CGSize` = 1 or 2 when hash map is small (10'000'000 or less), 4 or 8 otherwise.
  *
+ * `Hash` should be callable object type.
+ *
  * @tparam Key Type used for keys
  * @tparam Value Type of the mapped values
  * @tparam CGSize Number of threads in CUDA Cooperative Groups
@@ -211,6 +213,8 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
  * performance when dealing with high multiplicty and/or high occupancy use cases. Performance
  * hints:
  * - `CGSize` = 1 or 2 when hash map is small (10'000'000 or less), 4 or 8 otherwise.
+ *
+ * `Hash1` and `Hash2` should be callable object type.
  *
  * @tparam Key Type used for keys
  * @tparam Value Type of the mapped values
