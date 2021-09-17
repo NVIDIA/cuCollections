@@ -1543,7 +1543,7 @@ __device__ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::de
 {
   constexpr bool is_outer = false;
   retrieve_impl<buffer_size, is_outer>(
-    warp, g, k, warp_counter, output_buffer, num_matches, output_begin);
+    warp, g, k, warp_counter, output_buffer, num_matches, output_begin, key_equal);
 }
 
 template <typename Key,
@@ -1570,7 +1570,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
 {
   constexpr bool is_outer = true;
   retrieve_impl<buffer_size, is_outer>(
-    warp, g, k, warp_counter, output_buffer, num_matches, output_begin);
+    warp, g, k, warp_counter, output_buffer, num_matches, output_begin, key_equal);
 }
 
 template <typename Key,
@@ -1595,7 +1595,7 @@ __device__ void static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::de
 {
   constexpr bool is_outer = false;
   retrieve_impl<cg_size, buffer_size, is_outer>(
-    g, k, cg_counter, output_buffer, num_matches, output_begin);
+    g, k, cg_counter, output_buffer, num_matches, output_begin, key_equal);
 }
 
 template <typename Key,
@@ -1621,7 +1621,7 @@ static_multimap<Key, Value, ProbeSequence, Scope, Allocator>::device_view::retri
 {
   constexpr bool is_outer = true;
   retrieve_impl<cg_size, buffer_size, is_outer>(
-    g, k, cg_counter, output_buffer, num_matches, output_begin);
+    g, k, cg_counter, output_buffer, num_matches, output_begin, key_equal);
 }
 
 template <typename Key,

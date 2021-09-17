@@ -942,9 +942,10 @@ class static_multimap {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <bool uses_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<uses_vector_load, bool> contains_impl(
-      CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <bool uses_vector_load, typename CG, typename KeyEqual>
+    __device__ std::enable_if_t<uses_vector_load, bool> contains_impl(CG g,
+                                                                      Key const& k,
+                                                                      KeyEqual key_equal) noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map using scalar loads.
@@ -965,9 +966,9 @@ class static_multimap {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <bool uses_vector_load, typename CG, typename KeyEqual = thrust::equal_to<key_type>>
+    template <bool uses_vector_load, typename CG, typename KeyEqual>
     __device__ std::enable_if_t<not uses_vector_load, bool> contains_impl(
-      CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
+      CG g, Key const& k, KeyEqual key_equal) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap using vector loads.
@@ -982,12 +983,9 @@ class static_multimap {
      * for equality
      * @return Number of matches found by the current thread
      */
-    template <bool uses_vector_load,
-              bool is_outer,
-              typename CG,
-              typename KeyEqual = thrust::equal_to<key_type>>
+    template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
     __device__ std::enable_if_t<uses_vector_load, std::size_t> count_impl(
-      CG const& g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
+      CG const& g, Key const& k, KeyEqual key_equal) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap using scalar loads.
@@ -1002,12 +1000,9 @@ class static_multimap {
      * for equality
      * @return Number of matches found by the current thread
      */
-    template <bool uses_vector_load,
-              bool is_outer,
-              typename CG,
-              typename KeyEqual = thrust::equal_to<key_type>>
+    template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
     __device__ std::enable_if_t<not uses_vector_load, std::size_t> count_impl(
-      CG const& g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
+      CG const& g, Key const& k, KeyEqual key_equal) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key/value pair contained in multimap using vector
@@ -1077,7 +1072,7 @@ class static_multimap {
               typename CG,
               typename atomicT,
               typename OutputIt,
-              typename KeyEqual = thrust::equal_to<key_type>>
+              typename KeyEqual>
     __device__ void retrieve_impl(warpT const& warp,
                                   CG const& g,
                                   Key const& k,
@@ -1085,7 +1080,7 @@ class static_multimap {
                                   value_type* output_buffer,
                                   atomicT* num_matches,
                                   OutputIt output_begin,
-                                  KeyEqual key_equal = KeyEqual{}) noexcept;
+                                  KeyEqual key_equal) noexcept;
 
     /**
      * @brief Find all the matches of a given key contained in multimap using scalar
@@ -1118,14 +1113,14 @@ class static_multimap {
               typename CG,
               typename atomicT,
               typename OutputIt,
-              typename KeyEqual = thrust::equal_to<key_type>>
+              typename KeyEqual>
     __device__ void retrieve_impl(CG const& g,
                                   Key const& k,
                                   uint32_t* cg_counter,
                                   value_type* output_buffer,
                                   atomicT* num_matches,
                                   OutputIt output_begin,
-                                  KeyEqual key_equal = KeyEqual{}) noexcept;
+                                  KeyEqual key_equal) noexcept;
 
     /**
      * @brief Find all the matches of a given pair contained in multimap using vector
