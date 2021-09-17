@@ -269,14 +269,14 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, Scope> {
     std::size_t index;
     auto const hash_value = hash1_(k);
     if constexpr (uses_vector_load()) {
-      // step size in range [1, capacity-1] * cg_size * vector_width
-      step_size_ = (hash2_(k + 1) % (capacity_ / (cg_size() * vector_width()) - 1) + 1) *
-                   cg_size() * vector_width();
+      // step size in range [1, prime - 1] * cg_size * vector_width
+      step_size_ = (hash2_(k) % (capacity_ / (cg_size() * vector_width()) - 1) + 1) * cg_size() *
+                   vector_width();
       index = hash_value % (capacity_ / (cg_size() * vector_width())) * cg_size() * vector_width() +
               g.thread_rank() * vector_width();
     } else {
-      // step size in range [1, capacity-1] * cg_size
-      step_size_ = (hash2_(k + 1) % (capacity_ / cg_size() - 1) + 1) * cg_size();
+      // step size in range [1, prime - 1] * cg_size
+      step_size_ = (hash2_(k) % (capacity_ / cg_size() - 1) + 1) * cg_size();
       index      = (hash_value + g.thread_rank()) % capacity_;
     }
     return slots_ + index;
