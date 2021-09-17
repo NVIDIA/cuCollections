@@ -13,6 +13,8 @@
 
 #include <cooperative_groups.h>
 
+#include <thrust/device_vector.h>
+
 using namespace cooperative_groups;
 using namespace cuco;
 
@@ -1159,6 +1161,44 @@ TestCase cases[] = {
                          << " got "
                          << result_vec[i].key << " " <<
                          result_vec[i].value << std::endl;
+        }
+        result = result && next;
+      }
+
+      return result;
+    }
+  },
+
+  {"test_insert_10M_thrust_device_vec_iterator", []() {
+      int num_keys = 10e6;
+
+      srand(0);
+
+      priority_queue<int32_t, int32_t> pq(num_keys);
+
+      std::vector<int32_t> std_vec;
+
+      IntIntVector input(num_keys);
+      for (int i = 0; i < num_keys; i++) {
+        int32_t next = rand();
+        input[i] = {next, 1};
+        std_vec.push_back(next);
+      }
+
+      thrust::device_vector<Pair<int32_t, int32_t>> d_input(input);
+
+      pq.push(d_input.begin(), d_input.end());
+
+      std::sort(std_vec.begin(), std_vec.end());
+
+      auto result_vec = Delete(pq, num_keys);
+
+      bool result = true;
+      for (int i = 0; i < num_keys; i++) {
+        bool next = result_vec[i].key == std_vec[i];
+        if (result && !next) {
+          std::cout << i << ": " << " expected " << std_vec[i] << " got "
+                    << result_vec[i].key << std::endl;
         }
         result = result && next;
       }
