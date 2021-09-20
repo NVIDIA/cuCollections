@@ -60,6 +60,7 @@ enum class probe_sequence { linear_probing, double_hashing };
 struct alignas(8) key_pair {
   int32_t a;
   int32_t b;
+  __device__ bool operator!=(key_pair const& other) const { return a != other.a and b != other.b; }
 };
 
 struct hash_key_pair {
@@ -92,6 +93,9 @@ __inline__ void test_custom_key_value_type(Map& map,
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
   {
     map.insert(pair_begin, pair_begin + num_pairs);
+
+    auto res = map.get_size();
+    REQUIRE(res == num_pairs);
 
     auto count = map.count(key_begin, key_begin + num_pairs, stream, key_pair_equals{});
     REQUIRE(count == num_pairs);
@@ -193,14 +197,21 @@ __inline__ void test_custom_key_value_type(Map& map,
 
   SECTION("All inserted keys-value pairs should be contained")
   {
-    thrust::device_vector<bool> contained(num_pairs);
     map.insert(pair_begin, pair_begin + num_pairs);
+
+    auto size = map.get_size();
+    REQUIRE(size == num_pairs);
+
+    thrust::device_vector<bool> contained(num_pairs);
     map.contains(key_begin, key_begin + num_pairs, contained.begin(), stream, key_pair_equals{});
     REQUIRE(all_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
+    auto size = map.get_size();
+    REQUIRE(size == 0);
+
     thrust::device_vector<bool> contained(num_pairs);
     map.contains(key_begin, key_begin + num_pairs, contained.begin(), stream, key_pair_equals{});
     REQUIRE(
@@ -272,6 +283,9 @@ __inline__ void test_multiplicity_two(
 
   SECTION("Non-inserted key/value pairs should not be contained.")
   {
+    auto size = map.get_size();
+    REQUIRE(size == 0);
+
     map.contains(key_begin, key_begin + num_keys, d_contained.begin());
 
     REQUIRE(
@@ -282,6 +296,9 @@ __inline__ void test_multiplicity_two(
 
   SECTION("All inserted key/value pairs should be contained.")
   {
+    auto size = map.get_size();
+    REQUIRE(size == num_items);
+
     map.contains(key_begin, key_begin + num_keys, d_contained.begin());
 
     REQUIRE(
@@ -409,6 +426,9 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
 {
   map.insert(pair_begin, pair_begin + num_keys);
 
+  auto res = map.get_size();
+  REQUIRE(res == num_keys);
+
   SECTION("Output of count and retrieve should be coherent.")
   {
     auto num = map.count(key_begin, key_begin + num_keys);
@@ -535,8 +555,10 @@ __inline__ void test_insert_if(Map& map, PairIt pair_begin, KeyIt key_begin, std
 
   map.insert_if(pair_begin, pair_begin + size, key_begin, pred_lambda);
 
-  auto num = map.count(key_begin, key_begin + size);
+  auto res = map.get_size();
+  REQUIRE(res * 2 == size);
 
+  auto num = map.count(key_begin, key_begin + size);
   REQUIRE(num * 2 == size);
 }
 
@@ -594,6 +616,9 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
 {
   map.insert(pair_begin, pair_begin + num_pairs);
   cudaStreamSynchronize(0);
+
+  auto res = map.get_size();
+  REQUIRE(res == num_pairs);
 
   // query pair matching rate = 50%
   thrust::transform(thrust::device,

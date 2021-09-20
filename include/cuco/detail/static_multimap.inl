@@ -19,6 +19,18 @@
 #include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/util.hpp>
 
+namespace {
+/**
+ * @brief Device functor used to determine if a slot is filled.
+ */
+template <typename Key>
+struct slot_is_filled {
+  slot_is_filled(Key s) : empty_key_sentinel{s} {}
+  __device__ bool operator()(Key const& k) { return k != empty_key_sentinel; }
+  Key empty_key_sentinel;
+};
+}  // anonymous namespace
+
 namespace cuco {
 
 template <typename Key,
@@ -1770,6 +1782,33 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
                                                      probe_output_begin,
                                                      contained_output_begin,
                                                      pair_equal);
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          class ProbeSequence,
+          typename Allocator>
+std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::get_size(
+  cudaStream_t stream) const noexcept
+{
+  auto begin = thrust::make_transform_iterator(
+    raw_slots(), [] __device__(cuco::pair_type<Key, Value> const& pair) { return pair.first; });
+  slot_is_filled<Key> filled(empty_key_sentinel_);
+
+  return thrust::count_if(thrust::cuda::par.on(stream), begin, begin + capacity_, filled);
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          class ProbeSequence,
+          typename Allocator>
+float static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::get_load_factor(
+  cudaStream_t stream) const noexcept
+{
+  auto size = get_size(stream);
+  return static_cast<float>(size) / static_cast<float>(capacity_);
 }
 
 }  // namespace cuco

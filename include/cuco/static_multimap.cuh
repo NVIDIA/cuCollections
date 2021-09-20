@@ -1712,6 +1712,26 @@ class static_multimap {
   };  // class device_view
 
   /**
+   * @brief Return the raw pointer of the hash map slots.
+   */
+  value_type* raw_slots() noexcept
+  {
+    // Unsafe access to the slots stripping away their atomic-ness to allow non-atomic access.
+    // TODO: to be replace by atomic_ref when it's ready
+    return reinterpret_cast<value_type*>(slots_.get());
+  }
+
+  /**
+   * @brief Return the raw pointer of the hash map slots.
+   */
+  value_type const* raw_slots() const noexcept
+  {
+    // Unsafe access to the slots stripping away their atomic-ness to allow non-atomic access.
+    // TODO: to be replace by atomic_ref when it's ready
+    return reinterpret_cast<value_type const*>(slots_.get());
+  }
+
+  /**
    * @brief Gets the maximum number of elements the hash map can hold.
    *
    * @return The maximum number of elements the hash map can hold
@@ -1721,16 +1741,18 @@ class static_multimap {
   /**
    * @brief Gets the number of elements in the hash map.
    *
+   * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the map
    */
-  std::size_t get_size() const noexcept { return size_; }
+  std::size_t get_size(cudaStream_t stream = 0) const noexcept;
 
   /**
    * @brief Gets the load factor of the hash map.
    *
+   * @param stream CUDA stream used to get the load factor
    * @return The load factor of the hash map
    */
-  float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; }
+  float get_load_factor(cudaStream_t stream = 0) const noexcept;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
@@ -1770,7 +1792,6 @@ class static_multimap {
 
  private:
   std::size_t capacity_{};                      ///< Total number of slots
-  std::size_t size_{};                          ///< Number of keys in map
   Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
   Value empty_value_sentinel_{};                ///< Initial value of empty slot
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
