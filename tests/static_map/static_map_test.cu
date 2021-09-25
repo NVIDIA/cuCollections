@@ -159,22 +159,22 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   auto const sentinel_key   = Key{-1};
   auto const sentinel_value = Value{-1};
 
-  constexpr std::size_t num_pairs = 100;
-  constexpr std::size_t capacity  = num_pairs * 2;
+  constexpr std::size_t num      = 100;
+  constexpr std::size_t capacity = num * 2;
   cuco::static_map<Key, Value> map{capacity, sentinel_key, sentinel_value};
 
-  thrust::device_vector<Key> insert_keys(num_pairs);
-  thrust::device_vector<Value> insert_values(num_pairs);
+  thrust::device_vector<Key> insert_keys(num);
+  thrust::device_vector<Value> insert_values(num);
 
   thrust::transform(thrust::device,
                     thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num_pairs),
+                    thrust::counting_iterator<int>(num),
                     insert_keys.begin(),
                     [] __device__(auto i) { return Key{i}; });
 
   thrust::transform(thrust::device,
                     thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num_pairs),
+                    thrust::counting_iterator<int>(num),
                     insert_values.begin(),
                     [] __device__(auto i) { return Value{i}; });
 
@@ -183,10 +183,10 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
   {
-    thrust::device_vector<Value> found_values(num_pairs);
-    map.insert(insert_pairs, insert_pairs + num_pairs, hash_custom_key{}, custom_key_equals{});
+    thrust::device_vector<Value> found_values(num);
+    map.insert(insert_pairs, insert_pairs + num, hash_custom_key{}, custom_key_equals{});
 
-    REQUIRE(num_pairs == map.get_size());
+    REQUIRE(num == map.get_size());
 
     map.find(insert_keys.begin(),
              insert_keys.end(),
@@ -205,8 +205,8 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
   SECTION("All inserted keys-value pairs should be contained")
   {
-    thrust::device_vector<bool> contained(num_pairs);
-    map.insert(insert_pairs, insert_pairs + num_pairs, hash_custom_key{}, custom_key_equals{});
+    thrust::device_vector<bool> contained(num);
+    map.insert(insert_pairs, insert_pairs + num, hash_custom_key{}, custom_key_equals{});
     map.contains(insert_keys.begin(),
                  insert_keys.end(),
                  contained.begin(),
@@ -217,7 +217,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
-    thrust::device_vector<bool> contained(num_pairs);
+    thrust::device_vector<bool> contained(num);
     map.contains(insert_keys.begin(),
                  insert_keys.end(),
                  contained.begin(),
@@ -231,7 +231,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   {
     auto m_view = map.get_device_mutable_view();
     REQUIRE(all_of(insert_pairs,
-                   insert_pairs + num_pairs,
+                   insert_pairs + num,
                    [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
                      return m_view.insert(pair, hash_custom_key{}, custom_key_equals{});
                    }));
@@ -243,7 +243,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     {
       auto view = map.get_device_view();
       REQUIRE(all_of(insert_pairs,
-                     insert_pairs + num_pairs,
+                     insert_pairs + num,
                      [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
                        return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) ==
                               view.end();
@@ -254,7 +254,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     {
       auto const view = map.get_device_view();
       REQUIRE(all_of(insert_pairs,
-                     insert_pairs + num_pairs,
+                     insert_pairs + num,
                      [view] __device__(cuco::pair_type<Key, Value> const& pair) {
                        return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) ==
                               view.end();
