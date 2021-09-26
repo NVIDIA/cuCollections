@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-#include <algorithm>
 #include <limits>
 
-#include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
+#include <thrust/logical.h>
 #include <thrust/transform.h>
 
 #include <catch2/catch.hpp>
@@ -30,30 +29,7 @@
 // for a function-scope static __shared__ variable within a __device__/__global__ function"
 #pragma diag_suppress static_var_with_dynamic_init
 
-namespace {
 namespace cg = cooperative_groups;
-
-// Thrust logical algorithms (any_of/all_of/none_of) don't work with device
-// lambdas: See https://github.com/thrust/thrust/issues/1062
-template <typename Iterator, typename Predicate>
-bool all_of(Iterator begin, Iterator end, Predicate p)
-{
-  auto size = thrust::distance(begin, end);
-  return size == thrust::count_if(begin, end, p);
-}
-
-template <typename Iterator, typename Predicate>
-bool any_of(Iterator begin, Iterator end, Predicate p)
-{
-  return thrust::count_if(begin, end, p) > 0;
-}
-
-template <typename Iterator, typename Predicate>
-bool none_of(Iterator begin, Iterator end, Predicate p)
-{
-  return not all_of(begin, end, p);
-}
-}  // namespace
 
 enum class dist_type { UNIQUE, UNIFORM, GAUSSIAN };
 
@@ -102,6 +78,7 @@ struct alignas(8) key_pair_type {
   }
 };
 
+// User-defined key type
 template <typename T>
 struct large_key_type {
   T a;
@@ -117,22 +94,7 @@ struct large_key_type {
   }
 };
 
-struct hash_custom_key {
-  template <typename custom_type>
-  __device__ uint32_t operator()(custom_type k)
-  {
-    return k.a;
-  };
-};
-
-struct custom_key_equals {
-  template <typename custom_type>
-  __device__ bool operator()(custom_type lhs, custom_type rhs)
-  {
-    return std::tie(lhs.a, lhs.b) == std::tie(rhs.a, rhs.b);
-  }
-};
-
+// User-defined value type
 template <typename T>
 struct alignas(8) value_pair_type {
   T f;
@@ -147,6 +109,24 @@ struct alignas(8) value_pair_type {
   }
 };
 
+// User-defined device hasher
+struct hash_custom_key {
+  template <typename custom_type>
+  __device__ uint32_t operator()(custom_type k)
+  {
+    return k.a;
+  };
+};
+
+// User-defined device key equality
+struct custom_key_equals {
+  template <typename custom_type>
+  __device__ bool operator()(custom_type lhs, custom_type rhs)
+  {
+    return std::tie(lhs.a, lhs.b) == std::tie(rhs.a, rhs.b);
+  }
+};
+
 #define SIZE 10
 __device__ int A[SIZE];
 
@@ -158,10 +138,13 @@ struct custom_equals {
 TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                        "",
                        ((typename Key, typename Value), Key, Value),
-                       (key_pair_type<int32_t>, value_pair_type<int32_t>),
+// A key/value type larger than 8B is supported only for sm_70 and up
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 700)
                        (key_pair_type<int64_t>, value_pair_type<int32_t>),
                        (key_pair_type<int64_t>, value_pair_type<int64_t>),
-                       (large_key_type<int32_t>, value_pair_type<int32_t>))
+                       (large_key_type<int32_t>, value_pair_type<int32_t>),
+#endif
+                       (key_pair_type<int32_t>, value_pair_type<int32_t>))
 {
   auto const sentinel_key   = Key{-1};
   auto const sentinel_value = Value{-1};
