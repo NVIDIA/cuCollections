@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,21 @@
  * limitations under the License.
  */
 
+#include <algorithm>
+#include <limits>
+
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
 #include <thrust/transform.h>
-#include <algorithm>
+
 #include <catch2/catch.hpp>
+
 #include <cuco/static_map.cuh>
-#include <limits>
+
+// Disable warning for `__shared__ cuda::atomic`: "dynamic initialization is not supported
+// for a function-scope static __shared__ variable within a __device__/__global__ function"
+#pragma diag_suppress static_var_with_dynamic_init
 
 namespace {
 namespace cg = cooperative_groups;
