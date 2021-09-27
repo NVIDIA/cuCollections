@@ -22,7 +22,8 @@
 
 // User-defined key type
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
-struct custom_key_type {
+// Manual alignment required due to WAR libcu++ bug where cuda::atomic fails for underaligned types
+struct alignas(8) custom_key_type {
   int32_t a;
   int32_t b;
 
