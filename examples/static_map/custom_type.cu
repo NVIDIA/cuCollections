@@ -21,6 +21,22 @@
 #include <cuco/static_map.cuh>
 
 // User-defined key type
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
+struct custom_key_type {
+  int32_t a;
+  int32_t b;
+
+  __host__ __device__ custom_key_type() {}
+  __host__ __device__ custom_key_type(int32_t x) : a{x}, b{x} {}
+
+  // Device equality operator is mandatory
+  __device__ bool operator==(custom_key_type const& other) const
+  {
+    return a == other.a and b == other.b;
+  }
+};
+#else
+// Key type larger than 8B only supported for sm_70 and up
 struct custom_key_type {
   int32_t a;
   int32_t b;
@@ -35,6 +51,7 @@ struct custom_key_type {
     return a == other.a and b == other.b and c == other.c;
   }
 };
+#endif
 
 // User-defined value type
 // Manual alignment required due to WAR libcu++ bug where cuda::atomic fails for underaligned types
@@ -55,7 +72,7 @@ struct custom_hash {
 struct custom_key_equals {
   __device__ bool operator()(custom_key_type const& lhs, custom_key_type const& rhs)
   {
-    return std::tie(lhs.a, lhs.b, lhs.c) == std::tie(rhs.a, rhs.b, rhs.c);
+    return lhs.a == rhs.a;
   }
 };
 
