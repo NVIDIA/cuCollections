@@ -41,6 +41,7 @@ function(ConfigureTest TEST_NAME TEST_SRC)
                    ${TEST_SRC}
                    $<TARGET_OBJECTS:CatchMain>) # Link in the CatchMain object file
     target_link_libraries(${TEST_NAME} Catch2::Catch2 cuco CUDA::cudart)
+    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     set_target_properties(${TEST_NAME} PROPERTIES
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     target_compile_options(${TEST_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)

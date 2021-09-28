@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-#include <thrust/count.h>
+#include <random>
+
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
-#include <algorithm>
+
 #include <catch2/catch.hpp>
 #include <cuco/dynamic_map.cuh>
-#include <random>
+
+#include <util.hpp>
 
 enum class dist_type {
   UNIQUE,
@@ -54,30 +56,6 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end) {
       break;
   }
 }
-
-namespace {
-// Thrust logical algorithms (any_of/all_of/none_of) don't work with device
-// lambdas: See https://github.com/thrust/thrust/issues/1062
-template <typename Iterator, typename Predicate>
-bool all_of(Iterator begin, Iterator end, Predicate p)
-{
-  auto size = thrust::distance(begin, end);
-  return size == thrust::count_if(begin, end, p);
-}
-
-template <typename Iterator, typename Predicate>
-bool any_of(Iterator begin, Iterator end, Predicate p)
-{
-  return thrust::count_if(begin, end, p) > 0;
-}
-
-template <typename Iterator, typename Predicate>
-bool none_of(Iterator begin, Iterator end, Predicate p)
-{
-  return not all_of(begin, end, p);
-}
-}  // namespace
-
 
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys", "", 
                        ((typename T, dist_type Dist), T, Dist),
