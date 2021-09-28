@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -176,6 +176,8 @@ class static_map {
   using allocator_type     = Allocator;
   using slot_allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
+  using counter_allocator_type =
+    typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
 
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
   static_assert(atomic_key_type::is_always_lock_free,
@@ -1080,13 +1082,14 @@ class static_map {
   }
 
  private:
-  pair_atomic_type* slots_{nullptr};      ///< Pointer to flat slots storage
-  std::size_t capacity_{};                ///< Total number of slots
-  std::size_t size_{};                    ///< Number of keys in map
-  Key empty_key_sentinel_{};              ///< Key value that represents an empty slot
-  Value empty_value_sentinel_{};          ///< Initial value of empty slot
-  atomic_ctr_type* num_successes_{};      ///< Number of successfully inserted keys on insert
-  slot_allocator_type slot_allocator_{};  ///< Allocator used to allocate slots
+  pair_atomic_type* slots_{nullptr};            ///< Pointer to flat slots storage
+  std::size_t capacity_{};                      ///< Total number of slots
+  std::size_t size_{};                          ///< Number of keys in map
+  Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};                ///< Initial value of empty slot
+  atomic_ctr_type* num_successes_{};            ///< Number of successfully inserted keys on insert
+  slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
+  counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
 };
 }  // namespace cuco
 
