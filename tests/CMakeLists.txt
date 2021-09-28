@@ -1,3 +1,18 @@
+#=============================================================================
+# Copyright (c) 2018-2021, NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#=============================================================================
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
 include(CTest)
@@ -23,7 +38,7 @@ target_link_libraries(CatchMain Catch2::Catch2)
 ###################################################################################################
 function(ConfigureTest TEST_NAME TEST_SRC)
     add_executable(${TEST_NAME}
-                   "${TEST_SRC}"
+                   ${TEST_SRC}
                    $<TARGET_OBJECTS:CatchMain>) # Link in the CatchMain object file
     target_link_libraries(${TEST_NAME} Catch2::Catch2 cuco CUDA::cudart)
     set_target_properties(${TEST_NAME} PROPERTIES
@@ -35,13 +50,13 @@ endfunction(ConfigureTest)
 ###################################################################################################
 ### test sources ##################################################################################
 ###################################################################################################
-set(STATIC_MAP_TEST_SRC
-    "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_test.cu")
 
-ConfigureTest(STATIC_MAP_TEST "${STATIC_MAP_TEST_SRC}")
-####################################################################################################
-set(DYNAMIC_MAP_TEST_SRC
-    "${CMAKE_CURRENT_SOURCE_DIR}/dynamic_map/dynamic_map_test.cu")
+###################################################################################################
+# - static_map tests ------------------------------------------------------------------------------
+ConfigureTest(STATIC_MAP_TEST
+    static_map/static_map_test.cu)
 
-ConfigureTest(DYNAMIC_MAP_TEST "${DYNAMIC_MAP_TEST_SRC}")
-####################################################################################################
+###################################################################################################
+# - static_map tests ------------------------------------------------------------------------------
+ConfigureTest(DYNAMIC_MAP_TEST
+    dynamic_map/dynamic_map_test.cu)
