@@ -36,9 +36,8 @@ add_library(CatchMain OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/catch_main.cpp)
 target_link_libraries(CatchMain Catch2::Catch2)
 
 ###################################################################################################
-function(ConfigureTest TEST_NAME TEST_SRC)
-    add_executable(${TEST_NAME}
-                   ${TEST_SRC}
+function(ConfigureTest TEST_NAME)
+    add_executable(${TEST_NAME} ${ARGN}
                    $<TARGET_OBJECTS:CatchMain>) # Link in the CatchMain object file
     target_link_libraries(${TEST_NAME} Catch2::Catch2 cuco CUDA::cudart)
     target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -55,9 +54,11 @@ endfunction(ConfigureTest)
 ###################################################################################################
 # - static_map tests ------------------------------------------------------------------------------
 ConfigureTest(STATIC_MAP_TEST
-    static_map/static_map_test.cu)
+    static_map/custom_type_test.cu
+    static_map/unique_sequence_test.cu
+    static_map/shared_memory_test.cu)
 
 ###################################################################################################
 # - static_map tests ------------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_MAP_TEST
-    dynamic_map/dynamic_map_test.cu)
+    dynamic_map/unique_sequence_test.cu)
