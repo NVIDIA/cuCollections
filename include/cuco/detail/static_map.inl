@@ -26,7 +26,8 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
   : capacity_{std::max(capacity, std::size_t{1})},  // to avoid dereferencing a nullptr (Issue #72)
     empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
-    slot_allocator_{alloc}
+    slot_allocator_{alloc},
+    counter_allocator_{alloc}
 {
   slots_         = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
   num_successes_ = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
@@ -61,6 +62,8 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 
+  // TODO: memset an atomic variable is unsafe
+  static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
   CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type)));
   std::size_t h_num_successes;
 
