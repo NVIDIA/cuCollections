@@ -18,7 +18,6 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
-#include <thrust/logical.h>
 #include <thrust/transform.h>
 
 #include <catch2/catch.hpp>
@@ -29,7 +28,29 @@
 // for a function-scope static __shared__ variable within a __device__/__global__ function"
 #pragma diag_suppress static_var_with_dynamic_init
 
+namespace {
 namespace cg = cooperative_groups;
+
+// User-defined logical algorithms to reduce compilation time
+template <typename Iterator, typename Predicate>
+bool all_of(Iterator begin, Iterator end, Predicate p)
+{
+  auto size = thrust::distance(begin, end);
+  return size == thrust::count_if(begin, end, p);
+}
+
+template <typename Iterator, typename Predicate>
+bool any_of(Iterator begin, Iterator end, Predicate p)
+{
+  return thrust::count_if(begin, end, p) > 0;
+}
+
+template <typename Iterator, typename Predicate>
+bool none_of(Iterator begin, Iterator end, Predicate p)
+{
+  return not all_of(begin, end, p);
+}
+}  // namespace
 
 enum class dist_type { UNIQUE, UNIFORM, GAUSSIAN };
 
@@ -138,14 +159,21 @@ struct custom_equals {
 TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                        "",
                        ((typename Key, typename Value), Key, Value),
-// A key/value type larger than 8B is supported only for sm_70 and up
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 700)
                        (key_pair_type<int64_t>, value_pair_type<int32_t>),
                        (key_pair_type<int64_t>, value_pair_type<int64_t>),
                        (large_key_type<int32_t>, value_pair_type<int32_t>),
-#endif
                        (key_pair_type<int32_t>, value_pair_type<int32_t>))
 {
+  constexpr int volta_major_number = 7;
+
+  // Retrieve major compute capability version number
+  int dev_id, cap_major;
+  cudaGetDevice(&dev_id);
+  cudaDeviceGetAttribute(&cap_major, cudaDevAttrComputeCapabilityMajor, dev_id);
+
+  // Key type larger than 8B only supported for sm_70 and up
+  if (sizeof(Key) > 8 and cap_major < volta_major_number) { return; }
+
   auto const sentinel_key   = Key{-1};
   auto const sentinel_value = Value{-1};
 
