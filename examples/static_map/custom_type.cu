@@ -21,38 +21,36 @@
 #include <cuco/static_map.cuh>
 
 // User-defined key type
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
 // Manual alignment required due to WAR libcu++ bug where cuda::atomic fails for underaligned types
-struct alignas(8) custom_key_type {
+struct alignas(8) key_pair_type {
   int32_t a;
   int32_t b;
 
-  __host__ __device__ custom_key_type() {}
-  __host__ __device__ custom_key_type(int32_t x) : a{x}, b{x} {}
+  __host__ __device__ key_pair_type() {}
+  __host__ __device__ key_pair_type(int32_t x) : a{x}, b{x} {}
 
   // Device equality operator is mandatory
-  __device__ bool operator==(custom_key_type const& other) const
+  __device__ bool operator==(key_pair_type const& other) const
   {
     return a == other.a and b == other.b;
   }
 };
-#else
+
 // Key type larger than 8B only supported for sm_70 and up
-struct custom_key_type {
+struct key_triplet_type {
   int32_t a;
   int32_t b;
   int32_t c;
 
-  __host__ __device__ custom_key_type() {}
-  __host__ __device__ custom_key_type(int32_t x) : a{x}, b{x}, c{x} {}
+  __host__ __device__ key_triplet_type() {}
+  __host__ __device__ key_triplet_type(int32_t x) : a{x}, b{x}, c{x} {}
 
   // Device equality operator is mandatory
-  __device__ bool operator==(custom_key_type const& other) const
+  __device__ bool operator==(key_triplet_type const& other) const
   {
     return a == other.a and b == other.b and c == other.c;
   }
 };
-#endif
 
 // User-defined value type
 // Manual alignment required due to WAR libcu++ bug where cuda::atomic fails for underaligned types
@@ -66,18 +64,24 @@ struct alignas(8) custom_value_type {
 
 // User-defined device hash callable
 struct custom_hash {
-  __device__ uint32_t operator()(custom_key_type k) { return k.a; };
+  template <typename key_type>
+  __device__ uint32_t operator()(key_type k)
+  {
+    return k.a;
+  };
 };
 
 // User-defined device key equal callable
 struct custom_key_equals {
-  __device__ bool operator()(custom_key_type const& lhs, custom_key_type const& rhs)
+  template <typename key_type>
+  __device__ bool operator()(key_type const& lhs, key_type const& rhs)
   {
     return lhs.a == rhs.a;
   }
 };
 
-int main(void)
+template <typename custom_key_type>
+void run_example()
 {
   constexpr std::size_t num_pairs = 80'000;
 
@@ -118,6 +122,25 @@ int main(void)
   // All inserted keys are contained
   assert(
     thrust::all_of(contained.begin(), contained.end(), [] __device__(auto const& b) { return b; }));
+}
+
+int main(void)
+{
+  constexpr int volta_major_number = 7;
+
+  // Retrieve major compute capability version number
+  int dev_id, cap_major;
+  cudaGetDevice(&dev_id);
+  cudaDeviceGetAttribute(&cap_major, cudaDevAttrComputeCapabilityMajor, dev_id);
+
+  // Run 8B-key example on Pascal
+  if (cap_major < volta_major_number) {
+    run_example<key_pair_type>();
+  }
+  // 12B-key example on sm_70 and up
+  else {
+    run_example<key_triplet_type>();
+  }
 
   return 0;
 }
