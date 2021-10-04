@@ -83,6 +83,13 @@ if ("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_LIST_DIR}")
   set(default_build_option_state ON)
 endif()
 
+foreach(arch IN LISTS CMAKE_CUDA_ARCHITECTURES)
+  if("${arch}" MATCHES "60")
+    add_compile_definitions(BUILD_PASCAL_CODE)
+    break()
+  endif()
+endforeach()
+
 option(BUILD_TESTS "Configure CMake to build tests" ${default_build_option_state})
 option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ${default_build_option_state})
 option(BUILD_EXAMPLES "Configure CMake to build examples" ${default_build_option_state})

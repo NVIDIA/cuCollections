@@ -159,21 +159,13 @@ struct custom_equals {
 TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                        "",
                        ((typename Key, typename Value), Key, Value),
+#ifndef BUILD_PASCAL_CODE  // Key type larger than 8B only supported for sm_70 and up
                        (key_pair_type<int64_t>, value_pair_type<int32_t>),
                        (key_pair_type<int64_t>, value_pair_type<int64_t>),
                        (large_key_type<int32_t>, value_pair_type<int32_t>),
+#endif
                        (key_pair_type<int32_t>, value_pair_type<int32_t>))
 {
-  constexpr int volta_major_number = 7;
-
-  // Retrieve major compute capability version number
-  int dev_id, cap_major;
-  cudaGetDevice(&dev_id);
-  cudaDeviceGetAttribute(&cap_major, cudaDevAttrComputeCapabilityMajor, dev_id);
-
-  // Key type larger than 8B only supported for sm_70 and up
-  if (sizeof(Key) > 8 and cap_major < volta_major_number) { return; }
-
   auto const sentinel_key   = Key{-1};
   auto const sentinel_value = Value{-1};
 
