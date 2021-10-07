@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <thrust/count.h>
+#include <thrust/iterator/transform_iterator.h>
 #include <thrust/tuple.h>
 
 #include <cuco/detail/bitwise_compare.cuh>
