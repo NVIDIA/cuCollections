@@ -40,19 +40,6 @@ template <typename Key,
           cuda::thread_scope Scope,
           class ProbeSequence,
           typename Allocator>
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::static_multimap()
-  : delete_counter_{counter_allocator_, stream_},
-    delete_slots_{slot_allocator_, capacity_, stream_},
-    d_counter_{nullptr, delete_counter_},
-    slots_{nullptr, delete_slots_}
-{
-}
-
-template <typename Key,
-          typename Value,
-          cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::static_multimap(
   std::size_t capacity,
   Key empty_key_sentinel,

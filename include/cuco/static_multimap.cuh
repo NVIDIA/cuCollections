@@ -191,11 +191,6 @@ class static_multimap {
   static constexpr uint32_t cg_size() noexcept { return ProbeSequence::cg_size(); }
 
   /**
-   * @brief Default constructor.
-   */
-  static_multimap();
-
-  /**
    * @brief Construct a statically-sized map with the specified initial capacity,
    * sentinel values and CUDA stream.
    *
