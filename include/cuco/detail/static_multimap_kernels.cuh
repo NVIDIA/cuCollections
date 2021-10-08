@@ -65,7 +65,7 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
  * inserts
  * @tparam InputIt Device accessible random access input iterator where
- * `std::is_converitble<std::iterator_traits<InputIt>::value_type,
+ * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
  * static_multimap<K, V>::value_type>` is `true`
  * @tparam viewT Type of device view allowing access of hash map storage
  *
@@ -102,16 +102,18 @@ __global__ void insert(InputIt first, InputIt last, viewT view)
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
  * inserts
  * @tparam InputIt Device accessible random access input iterator where
- * `std::is_converitble<std::iterator_traits<InputIt>::value_type,
+ * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
  * static_multimap<K, V>::value_type>` is `true`
- * @tparam StencilIt Device accessible stencil iterator
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
  * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam Predicate Unary predicate function type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+ * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
  * @param first Beginning of the sequence of key/value pairs
  * @param s Beginning of the stencil sequence
  * @param n Number of elements to insert
  * @param view Mutable device view used to access the hash map's slot storage
- * @param pred Predicate to test on the given stencil sequence
+ * @param pred Predicate to test on every element in the range `[s, s + n)`
  */
 template <uint32_t block_size,
           uint32_t tile_size,
@@ -149,8 +151,7 @@ __global__ void insert_if_n(InputIt first, StencilIt s, std::size_t n, viewT vie
  * @tparam tile_size The number of threads in the Cooperative Groups
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
- * @tparam OutputIt Device accessible output iterator whose `value_type` is
- * convertible to the map's `mapped_type`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is `bool`
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of keys
@@ -194,8 +195,11 @@ __global__ void contains(
 }
 
 /**
- * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap. If `is_outer`
- * is true, the corresponding occurrence for non-matches is 1. Otherwise, it's 0.
+ * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
+ *
+ * For each key, `k = *(first + i)`, counts all matching keys, `k'`, as determined by `key_equal(k,
+ * k')` and stores the sum of all matches for all keys to `num_matches`. If `k` does not have any
+ * matches, it contributes 1 to the final sum only if `is_outer` is true.
  *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
@@ -250,13 +254,16 @@ __global__ void count(
 
 /**
  * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap.
- * The occurrence of non-matches is `1` if `is_outer` is `true`. Otherwise it's `0`.
+ *
+ * For pair, `p = *(first + i)`, counts all matching pairs, `p'`, as determined by `pair_equal(p,
+ * p')` and stores the sum of all matches for all pairs to `num_matches`. If `p` does not have any
+ * matches, it contributes 1 to the final sum only if `is_outer` is true.
  *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
  * @tparam is_outer Boolean flag indicating whether non-matches are counted
  * @tparam InputIt Device accessible random access input iterator where
- * `std::is_converitble<std::iterator_traits<InputIt>::value_type,
+ * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
  * static_multimap<K, V>::value_type>` is `true`
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
@@ -307,14 +314,12 @@ __global__ void pair_count(
  * @brief Retrieves all the values corresponding to all keys in the range `[first, last)`
  * using vector loads combined with per-block shared memory buffer.
  *
- * The `vectorized_` prefix indicates that the vector load method is used.
- *
- * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
- * unspecified locations in `[output_begin, output_begin + *num_matches - 1)`. Copies `k` and
- * the empty value sentinel into the output only when `is_outer` is `true`.
+ * For key `k = *(first + i)` existing in the map, copies `k` and all associated values to
+ * unspecified locations in `[output_begin, output_end)`. If `k` does not have any matches, copies
+ * `k` and `empty_value_sentinel()` into the output only if `is_outer` is true.
  *
  * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
- * output_begin + *num_matches - 1)`. Use `count()` to determine the number of matching keys.
+ * output_begin + *num_matches - 1)`. Use `count()` to determine the size of the output range.
  *
  * @tparam block_size The size of the thread block
  * @tparam warp_size The size of the warp
@@ -324,7 +329,7 @@ __global__ void pair_count(
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
- * convertible to the map's `mapped_type`
+ * constructible from the map's `value_type`
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam KeyEqual Binary callable type
@@ -409,12 +414,12 @@ __global__ void vectorized_retrieve(InputIt first,
  * @brief Retrieves all the values corresponding to all keys in the range `[first, last)` using
  * scalar loads combined with per-CG shared memory buffer.
  *
- * If the key `k = *(first + i)` exists in the map, copies `k` and all associated values to
- * unspecified locations in `[output_begin, output_begin + *num_matches - 1)`. Copies `k` and
- * the empty value sentinel into the output only when `is_outer` is `true`.
+ * For key `k = *(first + i)` existing in the map, copies `k` and all associated values to
+ * unspecified locations in `[output_begin, output_end)`. If `k` does not have any matches, copies
+ * `k` and `empty_value_sentinel()` into the output only if `is_outer` is true.
  *
  * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
- * output_begin + *num_matches - 1)`. Use `count()` to determine the number of matching keys.
+ * output_begin + *num_matches - 1)`. Use `count()` to determine the size of the output range.
  *
  * @tparam block_size The size of the thread block
  * @tparam warp_size The size of the warp
@@ -424,7 +429,7 @@ __global__ void vectorized_retrieve(InputIt first,
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
- * convertible to the map's `mapped_type`
+ * constructible from the map's `value_type`
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam KeyEqual Binary callable type
@@ -490,8 +495,6 @@ __global__ void retrieve(InputIt first,
  * @brief Retrieves all pairs matching the input probe pair in the range `[first, last)`
  * using vector loads combined with per-block shared memory buffer.
  *
- * The `vectorized_` prefix indicates that the vector load method is used.
- *
  * If pair_equal(*(first + i), slot[j]) returns true, then *(first+i) is stored to unspecified
  * locations in `probe_output_begin`, and slot[j] is stored to unspecified locations in
  * `contained_output_begin`. If the given pair has no matches in the map, copies *(first + i) in
@@ -499,7 +502,7 @@ __global__ void retrieve(InputIt first,
  * `contained_output_begin` only when `is_outer` is `true`.
  *
  * Behavior is undefined if the total number of matching pairs exceeds `std::distance(output_begin,
- * output_begin + *num_matches - 1)`. Use `pair_count()` to determine the number of matching keys.
+ * output_begin + *num_matches - 1)`. Use `pair_count()` to determine the size of the output range.
  *
  * @tparam block_size The size of the thread block
  * @tparam warp_size The size of the warp
@@ -507,12 +510,12 @@ __global__ void retrieve(InputIt first,
  * @tparam buffer_size Size of the output buffer
  * @tparam is_outer Boolean flag indicating whether non-matches are included in the output
  * @tparam InputIt Device accessible random access input iterator where
- * `std::is_converitble<std::iterator_traits<InputIt>::value_type,
+ * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
  * static_multimap<K, V>::value_type>` is `true`
  * @tparam OutputIt1 Device accessible output iterator whose `value_type` is
- * convertible to the map's `value_type`
+ * constructible from the map's `value_type`
  * @tparam OutputIt2 Device accessible output iterator whose `value_type` is
- * convertible to the map's `value_type`
+ * constructible from the map's `value_type`
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam PairEqual Binary callable type
@@ -617,7 +620,7 @@ __global__ void vectorized_pair_retrieve(InputIt first,
  * `contained_output_begin` only when `is_outer` is `true`.
  *
  * Behavior is undefined if the total number of matching pairs exceeds `std::distance(output_begin,
- * output_begin + *num_matches - 1)`. Use `pair_count()` to determine the number of matching keys.
+ * output_begin + *num_matches - 1)`. Use `pair_count()` to determine the size of the output range.
  *
  * @tparam block_size The size of the thread block
  * @tparam warp_size The size of the warp
@@ -625,12 +628,12 @@ __global__ void vectorized_pair_retrieve(InputIt first,
  * @tparam buffer_size Size of the output buffer
  * @tparam is_outer Boolean flag indicating whether non-matches are included in the output
  * @tparam InputIt Device accessible random access input iterator where
- * `std::is_converitble<std::iterator_traits<InputIt>::value_type,
+ * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
  * static_multimap<K, V>::value_type>` is `true`
  * @tparam OutputIt1 Device accessible output iterator whose `value_type` is
- * convertible to the map's `value_type`
+ * constructible from the map's `value_type`
  * @tparam OutputIt2 Device accessible output iterator whose `value_type` is
- * convertible to the map's `value_type`
+ * constructible from the map's `value_type`
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam PairEqual Binary callable type
