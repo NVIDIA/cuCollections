@@ -408,12 +408,13 @@ template <typename Key,
           cuda::thread_scope Scope,
           class ProbeSequence,
           typename Allocator>
-template <typename InputIt, typename OutputZipIt1, typename OutputZipIt2, typename PairEqual>
-std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_retrieve(
+template <typename InputIt, typename OutputIt1, typename OutputIt2, typename PairEqual>
+std::pair<OutputIt1, OutputIt2>
+static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_retrieve(
   InputIt first,
   InputIt last,
-  OutputZipIt1 probe_output_begin,
-  OutputZipIt2 contained_output_begin,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
   PairEqual pair_equal,
   cudaStream_t stream) const
 {
@@ -433,8 +434,8 @@ std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_r
                                                                     buffer_size,
                                                                     is_outer,
                                                                     InputIt,
-                                                                    OutputZipIt1,
-                                                                    OutputZipIt2,
+                                                                    OutputIt1,
+                                                                    OutputIt2,
                                                                     atomic_ctr_type,
                                                                     device_view,
                                                                     PairEqual>,
@@ -447,8 +448,8 @@ std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_r
                                                          buffer_size,
                                                          is_outer,
                                                          InputIt,
-                                                         OutputZipIt1,
-                                                         OutputZipIt2,
+                                                         OutputIt1,
+                                                         OutputIt2,
                                                          atomic_ctr_type,
                                                          device_view,
                                                          PairEqual>,
@@ -482,7 +483,7 @@ std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_r
     &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
-  return h_counter;
+  return std::make_pair(probe_output_begin + h_counter, contained_output_begin + h_counter);
 }
 
 template <typename Key,
@@ -490,12 +491,13 @@ template <typename Key,
           cuda::thread_scope Scope,
           class ProbeSequence,
           typename Allocator>
-template <typename InputIt, typename OutputZipIt1, typename OutputZipIt2, typename PairEqual>
-std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_retrieve_outer(
+template <typename InputIt, typename OutputIt1, typename OutputIt2, typename PairEqual>
+std::pair<OutputIt1, OutputIt2>
+static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_retrieve_outer(
   InputIt first,
   InputIt last,
-  OutputZipIt1 probe_output_begin,
-  OutputZipIt2 contained_output_begin,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
   PairEqual pair_equal,
   cudaStream_t stream) const
 {
@@ -515,8 +517,8 @@ std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_r
                                                                     buffer_size,
                                                                     is_outer,
                                                                     InputIt,
-                                                                    OutputZipIt1,
-                                                                    OutputZipIt2,
+                                                                    OutputIt1,
+                                                                    OutputIt2,
                                                                     atomic_ctr_type,
                                                                     device_view,
                                                                     PairEqual>,
@@ -529,8 +531,8 @@ std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_r
                                                          buffer_size,
                                                          is_outer,
                                                          InputIt,
-                                                         OutputZipIt1,
-                                                         OutputZipIt2,
+                                                         OutputIt1,
+                                                         OutputIt2,
                                                          atomic_ctr_type,
                                                          device_view,
                                                          PairEqual>,
@@ -564,7 +566,7 @@ std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_r
     &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
-  return h_counter;
+  return std::make_pair(probe_output_begin + h_counter, contained_output_begin + h_counter);
 }
 
 template <typename Key,
@@ -1207,8 +1209,8 @@ template <uint32_t buffer_size,
           typename warpT,
           typename CG,
           typename atomicT,
-          typename OutputZipIt1,
-          typename OutputZipIt2,
+          typename OutputIt1,
+          typename OutputIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve_impl(
@@ -1219,8 +1221,8 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputZipIt1 probe_output_begin,
-  OutputZipIt2 contained_output_begin,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
   PairEqual pair_equal) noexcept
 {
   const uint32_t cg_lane_id = g.thread_rank();
@@ -1309,8 +1311,8 @@ template <uint32_t cg_size,
           bool is_outer,
           typename CG,
           typename atomicT,
-          typename OutputZipIt1,
-          typename OutputZipIt2,
+          typename OutputIt1,
+          typename OutputIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve_impl(
@@ -1320,8 +1322,8 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputZipIt1 probe_output_begin,
-  OutputZipIt2 contained_output_begin,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
   PairEqual pair_equal) noexcept
 {
   const uint32_t lane_id = g.thread_rank();
@@ -1438,7 +1440,7 @@ template <typename Key,
           cuda::thread_scope Scope,
           class ProbeSequence,
           typename Allocator>
-template <typename CG, typename atomicT, typename OutputZipIt1, typename OutputZipIt2>
+template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
 __inline__ __device__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::flush_output_buffer(
   CG const& g,
@@ -1446,8 +1448,8 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::flush
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputZipIt1 probe_output_begin,
-  OutputZipIt2 contained_output_begin) noexcept
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin) noexcept
 {
   std::size_t offset;
   const auto lane_id = g.thread_rank();
@@ -1647,8 +1649,8 @@ template <uint32_t buffer_size,
           typename warpT,
           typename CG,
           typename atomicT,
-          typename OutputZipIt1,
-          typename OutputZipIt2,
+          typename OutputIt1,
+          typename OutputIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve(
@@ -1659,8 +1661,8 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputZipIt1 probe_output_begin,
-  OutputZipIt2 contained_output_begin,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = false;
@@ -1685,8 +1687,8 @@ template <uint32_t buffer_size,
           typename warpT,
           typename CG,
           typename atomicT,
-          typename OutputZipIt1,
-          typename OutputZipIt2,
+          typename OutputIt1,
+          typename OutputIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve_outer(
@@ -1697,8 +1699,8 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputZipIt1 probe_output_begin,
-  OutputZipIt2 contained_output_begin,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = true;
@@ -1723,8 +1725,8 @@ template <uint32_t cg_size,
           uint32_t buffer_size,
           typename CG,
           typename atomicT,
-          typename OutputZipIt1,
-          typename OutputZipIt2,
+          typename OutputIt1,
+          typename OutputIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve(
@@ -1734,8 +1736,8 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputZipIt1 probe_output_begin,
-  OutputZipIt2 contained_output_begin,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = false;
@@ -1759,8 +1761,8 @@ template <uint32_t cg_size,
           uint32_t buffer_size,
           typename CG,
           typename atomicT,
-          typename OutputZipIt1,
-          typename OutputZipIt2,
+          typename OutputIt1,
+          typename OutputIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve_outer(
@@ -1770,8 +1772,8 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
-  OutputZipIt1 probe_output_begin,
-  OutputZipIt2 contained_output_begin,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = true;

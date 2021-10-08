@@ -151,7 +151,7 @@ __global__ void insert_if_n(InputIt first, StencilIt s, std::size_t n, viewT vie
  * @tparam tile_size The number of threads in the Cooperative Groups
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
- * @tparam OutputIt Device accessible output iterator whose `value_type` is `bool`
+ * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from `bool`
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of keys
@@ -512,10 +512,10 @@ __global__ void retrieve(InputIt first,
  * @tparam InputIt Device accessible random access input iterator where
  * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
  * static_multimap<K, V>::value_type>` is `true`
- * @tparam OutputIt1 Device accessible output iterator whose `value_type` is
- * constructible from the map's `value_type`
- * @tparam OutputIt2 Device accessible output iterator whose `value_type` is
- * constructible from the map's `value_type`
+ * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+ * `InputIt`s `value_type`.
+ * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+ * the map's `value_type`.
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam PairEqual Binary callable type
@@ -630,10 +630,10 @@ __global__ void vectorized_pair_retrieve(InputIt first,
  * @tparam InputIt Device accessible random access input iterator where
  * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
  * static_multimap<K, V>::value_type>` is `true`
- * @tparam OutputIt1 Device accessible output iterator whose `value_type` is
- * constructible from the map's `value_type`
- * @tparam OutputIt2 Device accessible output iterator whose `value_type` is
- * constructible from the map's `value_type`
+ * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+ * `InputIt`s `value_type`.
+ * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+ * the map's `value_type`.
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam PairEqual Binary callable type

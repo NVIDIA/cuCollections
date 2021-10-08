@@ -633,34 +633,34 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
   {
     auto num = map.pair_count(pair_begin, pair_begin + num_pairs, pair_equal<Key, Value>{});
 
-    auto out1_zip = thrust::make_zip_iterator(
+    auto out1_begin = thrust::make_zip_iterator(
       thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
-    auto out2_zip = thrust::make_zip_iterator(
+    auto out2_begin = thrust::make_zip_iterator(
       thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
 
     REQUIRE(num == num_pairs);
 
-    auto size = map.pair_retrieve(
-      pair_begin, pair_begin + num_pairs, out1_zip, out2_zip, pair_equal<Key, Value>{});
+    auto [out1_end, out2_end] = map.pair_retrieve(
+      pair_begin, pair_begin + num_pairs, out1_begin, out2_begin, pair_equal<Key, Value>{});
 
-    REQUIRE(size == num_pairs);
+    REQUIRE((out1_end - out1_begin) == num_pairs);
   }
 
   SECTION("Output of pair_count_outer and pair_retrieve_outer should be coherent.")
   {
     auto num = map.pair_count_outer(pair_begin, pair_begin + num_pairs, pair_equal<Key, Value>{});
 
-    auto out1_zip = thrust::make_zip_iterator(
+    auto out1_begin = thrust::make_zip_iterator(
       thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
-    auto out2_zip = thrust::make_zip_iterator(
+    auto out2_begin = thrust::make_zip_iterator(
       thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
 
     REQUIRE(num == (num_pairs + num_pairs / 2));
 
-    auto size = map.pair_retrieve_outer(
-      pair_begin, pair_begin + num_pairs, out1_zip, out2_zip, pair_equal<Key, Value>{});
+    auto [out1_end, out2_end] = map.pair_retrieve_outer(
+      pair_begin, pair_begin + num_pairs, out1_begin, out2_begin, pair_equal<Key, Value>{});
 
-    REQUIRE(size == (num_pairs + num_pairs / 2));
+    REQUIRE((out1_end - out1_begin) == (num_pairs + num_pairs / 2));
   }
 }
 
