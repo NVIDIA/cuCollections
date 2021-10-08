@@ -54,7 +54,7 @@ class dynamic_map;
  * `cuco::detail::is_packable` constexpr).
  *
  * Current limitations:
- * - Requires keys and values that where `cuco::is_bitwise_comparable<T>::value` is true
+ * - Requires keys and values that where `cuco::is_bitwise_comparable_v<T>` is true
  *    - Comparisons against the "sentinel" values will always be done with bitwise comparisons.
  * - Does not support erasing keys
  * - Capacity is fixed and will not grow automatically
@@ -119,14 +119,14 @@ template <typename Key,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_map {
   static_assert(
-    cuco::is_bitwise_comparable<Key>::value,
+    cuco::is_bitwise_comparable_v<Key>,
     "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable<Key>.");
+    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
-  static_assert(cuco::is_bitwise_comparable<Value>::value,
+  static_assert(cuco::is_bitwise_comparable_v<Value>,
                 "Value type must have unique object representations or have been explicitly "
                 "declared as safe for bitwise comparison via specialization of "
-                "cuco::is_bitwise_comparable<Value>.");
+                "cuco::is_bitwise_comparable_v<Value>.");
 
   friend class dynamic_map<Key, Value, Scope, Allocator>;
 

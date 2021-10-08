@@ -44,6 +44,9 @@ struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_represen
   : std::true_type {
 };
 
+template <typename T>
+inline constexpr bool is_bitwise_comparable_v = is_bitwise_comparable<T>::value;
+
 /**
  * @brief Declares that a type `Type` is bitwise comparable.
  *

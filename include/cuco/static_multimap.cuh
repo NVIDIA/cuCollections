@@ -55,7 +55,7 @@ namespace cuco {
  * `static_multimap<Key, Value>::supports_concurrent_insert_find()` is true.
  *
  * Current limitations:
- * - Requires keys and values where `cuco::is_bitwise_comparable<T>::value` is true
+ * - Requires keys and values where `cuco::is_bitwise_comparable_v<T>` is true
  * - Comparisons against the "sentinel" values will always be done with bitwise comparisons
  * Therefore, the objects must have unique, bitwise object representations (e.g., no padding bits).
  * - Does not support erasing keys
@@ -135,14 +135,14 @@ template <typename Key,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_multimap {
   static_assert(
-    cuco::is_bitwise_comparable<Key>::value,
+    cuco::is_bitwise_comparable_v<Key>,
     "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable<Key>.");
+    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
   static_assert(
-    cuco::is_bitwise_comparable<Value>::value,
+    cuco::is_bitwise_comparable_v<Value>,
     "Value type must have unique object representations or have been explicitly declared as safe "
-    "for bitwise comparison via specialization of cuco::is_bitwise_comparable<Value>.");
+    "for bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Value>.");
 
  public:
   using value_type         = cuco::pair_type<Key, Value>;
