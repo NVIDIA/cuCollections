@@ -1244,6 +1244,12 @@ class static_multimap {
     /**
      * @brief Flushes per-CG buffer into the output sequence.
      *
+     * CUDA Cooperative Group, `g`, loads `num_outputs` key-value pairs from `output_buffer` and
+     * writes them into global memory in a coalesced fashion. CG-wide `memcpy_sync` is used if
+     * `CUCO_HAS_CG_MEMCPY_ASYNC` is defined and `thrust::is_contiguous_iterator_v<OutputIt>`
+     * returns true. All threads of `g` must be active due to implicit CG-wide synchronization
+     * during flushing.
+     *
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
@@ -1263,6 +1269,11 @@ class static_multimap {
 
     /**
      * @brief Flushes per-CG buffer into the output sequences.
+     *
+     * CUDA Cooperative Group, `g`, loads `num_outputs` elements from `probe_output_buffer` and
+     * `num_outputs` elements from `contained_output_buffer`, then writes them into global memory
+     * started from `probe_output_begin` and `contained_output_begin` respectively. All threads of
+     * `g` must be active due to implicit CG-wide synchronization during flushing.
      *
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
