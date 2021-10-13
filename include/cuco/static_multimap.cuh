@@ -1102,7 +1102,7 @@ class static_multimap {
 
     /**
      * @brief Retrieves all the matches of a given key contained in multimap using scalar
-     * loads with per-cg shared memory buffer.
+     * loads with per-CG shared memory buffer.
      *
      * For key `k` existing in the map, copies `k` and all associated values to unspecified
      * locations in `[output_begin, output_end)`. If `k` does not have any matches, copies `k` and
@@ -1193,7 +1193,7 @@ class static_multimap {
 
     /**
      * @brief Retrieves all the matches of a given pair contained in multimap using scalar
-     * loads with per-cg shared memory buffer.
+     * loads with per-CG shared memory buffer.
      *
      * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
      * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
@@ -1244,8 +1244,8 @@ class static_multimap {
     /**
      * @brief Flushes per-CG buffer into the output sequence.
      *
-     * CUDA Cooperative Group, `g`, loads `num_outputs` key-value pairs from `output_buffer` and
-     * writes them into global memory in a coalesced fashion. CG-wide `memcpy_sync` is used if
+     * A given CUDA Cooperative Group, `g`, loads `num_outputs` key-value pairs from `output_buffer`
+     * and writes them into global memory in a coalesced fashion. CG-wide `memcpy_sync` is used if
      * `CUCO_HAS_CG_MEMCPY_ASYNC` is defined and `thrust::is_contiguous_iterator_v<OutputIt>`
      * returns true. All threads of `g` must be active due to implicit CG-wide synchronization
      * during flushing.
@@ -1270,10 +1270,10 @@ class static_multimap {
     /**
      * @brief Flushes per-CG buffer into the output sequences.
      *
-     * CUDA Cooperative Group, `g`, loads `num_outputs` elements from `probe_output_buffer` and
-     * `num_outputs` elements from `contained_output_buffer`, then writes them into global memory
-     * started from `probe_output_begin` and `contained_output_begin` respectively. All threads of
-     * `g` must be active due to implicit CG-wide synchronization during flushing.
+     * A given CUDA Cooperative Group, `g`, loads `num_outputs` elements from `probe_output_buffer`
+     * and `num_outputs` elements from `contained_output_buffer`, then writes them into global
+     * memory started from `probe_output_begin` and `contained_output_begin` respectively. All
+     * threads of `g` must be active due to implicit CG-wide synchronization during flushing.
      *
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
@@ -1479,7 +1479,7 @@ class static_multimap {
 
     /**
      * @brief Retrieves all the matches of a given key contained in multimap using scalar
-     * loads with per-cg shared memory buffer.
+     * loads with per-CG shared memory buffer.
      *
      * For key `k` existing in the map, copies `k` and all associated values to unspecified
      * locations in `[output_begin, output_end)`.
@@ -1516,7 +1516,7 @@ class static_multimap {
 
     /**
      * @brief Retrieves all the matches of a given key contained in multimap using scalar
-     * loads with per-cg shared memory buffer.
+     * loads with per-CG shared memory buffer.
      *
      * For key `k` existing in the map, copies `k` and all associated values to unspecified
      * locations in `[output_begin, output_end)`. If `k` does not have any matches, copies `k` and
@@ -1649,7 +1649,7 @@ class static_multimap {
 
     /**
      * @brief Retrieves all the matches of a given pair contained in multimap using scalar
-     * loads with per-cg shared memory buffer.
+     * loads with per-CG shared memory buffer.
      *
      * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
      * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
@@ -1694,7 +1694,7 @@ class static_multimap {
 
     /**
      * @brief Retrieves all the matches of a given pair contained in multimap using scalar
-     * loads with per-cg shared memory buffer.
+     * loads with per-CG shared memory buffer.
      *
      * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
      * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in

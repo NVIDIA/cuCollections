@@ -312,7 +312,7 @@ __global__ void pair_count(
 
 /**
  * @brief Retrieves all the values corresponding to all keys in the range `[first, last)`
- * using vector loads combined with per-block shared memory buffer.
+ * using vector loads combined with per-warp shared memory buffer.
  *
  * For key `k = *(first + i)` existing in the map, copies `k` and all associated values to
  * unspecified locations in `[output_begin, output_end)`. If `k` does not have any matches, copies
@@ -493,7 +493,7 @@ __global__ void retrieve(InputIt first,
 
 /**
  * @brief Retrieves all pairs matching the input probe pair in the range `[first, last)`
- * using vector loads combined with per-block shared memory buffer.
+ * using vector loads combined with per-warp shared memory buffer.
  *
  * If pair_equal(*(first + i), slot[j]) returns true, then *(first+i) is stored to unspecified
  * locations in `probe_output_begin`, and slot[j] is stored to unspecified locations in
