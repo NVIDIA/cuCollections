@@ -165,6 +165,9 @@ void static_shmem_insert_kernel(std::size_t num_keys, std::size_t multiplicity, 
 
     // Placeholder predicated store to inject artificial side-effects and keep compiler from discarding
     // the code above
+    if(pred){
+        *do_not_use = result;
+    }
 }
 
 template <typename Key, typename Value, op_type Op, nvbench::int32_t Capacity, Extent E>
