@@ -1410,15 +1410,11 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::flush
     cooperative_groups::memcpy_async(
       g, output_begin + offset, output_buffer, sizeof(value_type) * num_outputs);
 #endif  // end CUCO_HAS_CUDA_BARRIER
-#else
-    for (auto index = lane_id; index < num_outputs; index += g.size()) {
-      *(output_begin + offset + index) = output_buffer[index];
-    }
+    return;
 #endif  // end CUCO_HAS_CG_MEMCPY_ASYNC
-  } else {
-    for (auto index = lane_id; index < num_outputs; index += g.size()) {
-      *(output_begin + offset + index) = output_buffer[index];
-    }
+  }
+  for (auto index = lane_id; index < num_outputs; index += g.size()) {
+    *(output_begin + offset + index) = output_buffer[index];
   }
 }
 
