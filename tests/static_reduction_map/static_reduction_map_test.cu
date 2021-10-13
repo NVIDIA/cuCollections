@@ -110,11 +110,11 @@ __global__ void static_reduction_map_shared_memory_kernel(bool* key_found)
   using Value = typename MapType::mapped_type;
 
   namespace cg            = cooperative_groups;
-  using mutable_view_type = typename MapType::device_mutable_view;
-  using view_type         = typename MapType::device_view;
+  using mutable_view_type = typename MapType::device_mutable_view<N>;
+  using view_type         = typename MapType::device_view<N>;
+  #pragma diag_suppress static_var_with_dynamic_init
   __shared__ typename mutable_view_type::slot_type slots[N];
-  auto map =
-    mutable_view_type::make_from_uninitialized_slots(cg::this_thread_block(), &slots[0], N, -1);
+  auto map = mutable_view_type::make_from_uninitialized_slots(cg::this_thread_block(), slots, -1);
 
   auto g            = cg::this_thread_block();
   std::size_t index = threadIdx.x + blockIdx.x * blockDim.x;

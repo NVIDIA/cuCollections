@@ -197,9 +197,10 @@ template <typename ReductionOp,
           typename Value,
           cuda::thread_scope Scope,
           typename Allocator>
+template <std::size_t Extent>
 template <typename Hash, typename KeyEqual>
 __device__ bool
-static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_view::insert(
+static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_view<Extent>::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot{initial_slot(insert_pair.first, hash)};
@@ -232,9 +233,10 @@ template <typename ReductionOp,
           typename Value,
           cuda::thread_scope Scope,
           typename Allocator>
+template <std::size_t Extent>
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool
-static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_view::insert(
+static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_mutable_view<Extent>::insert(
   CG const& g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, insert_pair.first, hash);
@@ -299,10 +301,11 @@ template <typename ReductionOp,
           typename Value,
           cuda::thread_scope Scope,
           typename Allocator>
+template <std::size_t Extent>          
 template <typename Hash, typename KeyEqual>
 __device__
-  typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::iterator
-  static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::find(
+  typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view<Extent>::iterator
+  static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view<Extent>::find(
     Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(k, hash);
@@ -326,10 +329,11 @@ template <typename ReductionOp,
           typename Value,
           cuda::thread_scope Scope,
           typename Allocator>
+template <std::size_t Extent>          
 template <typename Hash, typename KeyEqual>
-__device__ typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::
+__device__ typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view<Extent>::
   const_iterator
-  static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::find(
+  static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view<Extent>::find(
     Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(k, hash);
@@ -353,10 +357,11 @@ template <typename ReductionOp,
           typename Value,
           cuda::thread_scope Scope,
           typename Allocator>
+template <std::size_t Extent>          
 template <typename CG, typename Hash, typename KeyEqual>
 __device__
-  typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::iterator
-  static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::find(
+  typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view<Extent>::iterator
+  static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view<Extent>::find(
     CG const& g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
@@ -394,10 +399,11 @@ template <typename ReductionOp,
           typename Value,
           cuda::thread_scope Scope,
           typename Allocator>
+template <std::size_t Extent>          
 template <typename CG, typename Hash, typename KeyEqual>
-__device__ typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::
+__device__ typename static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view<Extent>::
   const_iterator
-  static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::find(
+  static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view<Extent>::find(
     CG const& g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
@@ -437,9 +443,10 @@ template <typename ReductionOp,
           typename Value,
           cuda::thread_scope Scope,
           typename Allocator>
+template <std::size_t Extent>          
 template <typename Hash, typename KeyEqual>
 __device__ bool
-static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::contains(
+static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view<Extent>::contains(
   Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(k, hash);
@@ -460,9 +467,10 @@ template <typename ReductionOp,
           typename Value,
           cuda::thread_scope Scope,
           typename Allocator>
+template <std::size_t Extent>          
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool
-static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view::contains(
+static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::device_view<Extent>::contains(
   CG const& g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k, hash);

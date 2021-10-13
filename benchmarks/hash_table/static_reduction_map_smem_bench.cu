@@ -82,15 +82,13 @@ void static_reduction_map_smem_insert_bench(cuda_benchmark::controller &controll
   }
 
   controller.benchmark(std::string{full_bench_name}, [=] __device__(cuda_benchmark::state & state) {
-    using map_type = typename cuco::
-      static_reduction_map<typename cuco::reduce_add<Value>, Key, Value, cuda::thread_scope_block>;
-    using map_view_type = typename map_type::device_mutable_view;
+    using map_type = typename cuco::static_reduction_map<typename cuco::reduce_add<Value>, Key, Value, cuda::thread_scope_block>;
+    using map_view_type = typename map_type::device_mutable_view<>;
 
     __shared__ char sm_buffer[max_smem_bytes];
 
     auto g   = cooperative_groups::this_thread_block();
-    auto map = map_view_type::make_from_uninitialized_slots(
-      g, reinterpret_cast<typename map_type::slot_type *>(&sm_buffer[0]), capacity, ~Key(0));
+    auto map = map_view_type::make_from_uninitialized_slots(g, reinterpret_cast<typename map_type::slot_type *>(&sm_buffer[0]), capacity, ~Key(0));
 
     g.sync();
 
