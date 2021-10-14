@@ -534,14 +534,14 @@ class static_reduction_map {
      * @brief Gets the binary op
      *
      */
-    __device__ ReductionOp get_op() const noexcept { return op_; }
+    __host__ __device__ ReductionOp get_op() const noexcept { return op_; }
 
     /**
      * @brief Gets slots array.
      *
      * @return Slots array
      */
-    __device__ 
+    __host__ __device__ 
     constexpr slot_type* get_slots() noexcept { return storage_.ptr; }
 
     /**
@@ -549,7 +549,7 @@ class static_reduction_map {
      *
      * @return Slots array
      */
-    __device__ 
+    __host__ __device__ 
     constexpr slot_type const* get_slots() const noexcept { return storage_.ptr; }
 
     /**
@@ -590,7 +590,7 @@ class static_reduction_map {
      *
      * @return Iterator to the first slot
      */
-    __device__ 
+    __host__ __device__ 
     constexpr iterator begin_slot() noexcept { return get_slots(); }
 
     /**
@@ -606,7 +606,7 @@ class static_reduction_map {
      *
      * @return Iterator to the first slot
      */
-    __device__ 
+    __host__ __device__ 
     constexpr const_iterator begin_slot() const noexcept { return get_slots(); }
 
     /**
