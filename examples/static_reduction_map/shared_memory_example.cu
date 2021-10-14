@@ -32,11 +32,12 @@ __global__ void static_reduction_map_shared_memory_kernel(OutputIt key_found)
 
   namespace cg = cooperative_groups;
   // define a mutable view for insert operations
-  using mutable_view_type = typename MapType::device_mutable_view;
+  using mutable_view_type = typename MapType::device_mutable_view<>;
   // define a immutable view for find/contains operations
-  using view_type = typename MapType::device_view;
+  using view_type = typename MapType::device_view<>;
 
   // hash table storage in shared memory
+  #pragma diag_suppress static_var_with_dynamic_init
   __shared__ typename mutable_view_type::slot_type slots[Capacity];
 
   // construct the table from the provided array in shared memory
