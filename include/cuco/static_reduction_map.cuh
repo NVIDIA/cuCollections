@@ -722,6 +722,7 @@ class static_reduction_map {
       Key empty_key_sentinel,
       ReductionOp reduction_op = {}) noexcept
     {
+      static_assert(extent == dynamic_extent or N == extent);
       device_view_base<Extent>::initialize_slots(g, slots, N, empty_key_sentinel, ReductionOp::identity);
       return device_mutable_view<Extent>{slots, empty_key_sentinel, reduction_op};
     }
