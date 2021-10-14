@@ -178,7 +178,7 @@ void static_shmem(nvbench::state& state,
 
    auto const occupancy = state.get_float64("Occupancy");
    auto const num_keys = static_cast<std::size_t>(std::floor(Capacity * occupancy));
-   auto const multiplicity = 1;
+   auto const multiplicity = state.get_int64("Multiplicity");
 
    if(num_keys > Capacity){
        throw;
@@ -208,7 +208,8 @@ NVBENCH_BENCH_TYPES(static_shmem,
                     NVBENCH_TYPE_AXES(key_type_range, value_type_range, op_type_range, capacity_range, extent_options))
                     .set_name("Insert Static vs Dynamic Extent")
                     .set_type_axes_names({"Key", "Value", "ReductionOp", "Capacity", "Extent"})
-                    .add_float64_axis("Occupancy", nvbench::range(0.5, 0.9, 0.1));
+                    .add_int64_axis("Multiplicity", {1}) 
+                    .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1));
 
 
 template <typename Key, typename Value, op_type Op>
