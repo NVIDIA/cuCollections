@@ -679,6 +679,8 @@ class static_reduction_map {
     using const_iterator = typename device_view_base<Extent>::const_iterator;
     using slot_type      = typename device_view_base<Extent>::slot_type;
 
+    static constexpr std::size_t extent = device_view_base<Extent>::extent;
+
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
