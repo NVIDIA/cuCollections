@@ -79,9 +79,6 @@ struct alignas(8) value_pair {
   int32_t s;
 };
 
-#define SIZE 10
-__device__ int A[SIZE];
-
 template <typename Key, typename Value, typename Map, typename PairIt, typename KeyIt>
 __inline__ void test_custom_key_value_type(Map& map,
                                            PairIt pair_begin,
