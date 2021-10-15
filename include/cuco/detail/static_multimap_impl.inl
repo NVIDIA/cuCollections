@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <cuco/static_multimap.cuh>
-
 #include <cuco/detail/bitwise_compare.cuh>
 
 namespace cuco {
