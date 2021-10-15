@@ -551,155 +551,9 @@ class static_multimap {
     cudaStream_t& stream;
   };
 
-  class device_view_base {
-   protected:
-    // Import member type definitions from `static_multimap`
-    using value_type     = value_type;
-    using key_type       = Key;
-    using mapped_type    = Value;
-    using iterator       = pair_atomic_type*;
-    using const_iterator = pair_atomic_type const*;
-
-    /**
-     * @brief Indicates if vector-load is used.
-     *
-     * Users have no explicit control on whether vector-load is used.
-     *
-     * @return Boolean indicating if vector-load is used.
-     */
-    static constexpr bool uses_vector_load() noexcept { return ProbeSequence::uses_vector_load(); }
-
-    /**
-     * @brief Returns the number of pairs loaded with each vector-load
-     */
-    static constexpr uint32_t vector_width() noexcept { return ProbeSequence::vector_width(); }
-
-    /**
-     * @brief Load two key/value pairs from the given slot to the target pair array.
-     *
-     * @param arr The pair array to be loaded
-     * @param current_slot The given slot to load from
-     */
-    __device__ void load_pair_array(value_type* arr, const_iterator current_slot) noexcept;
-
-   private:
-    ProbeSequence probe_sequence_;  ///< Probe sequence used to probe the hash map
-    Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
-    Value empty_value_sentinel_{};  ///< Initial Value of empty slot
-
-   public:
-    __host__ __device__ device_view_base(pair_atomic_type* slots,
-                                         std::size_t capacity,
-                                         Key empty_key_sentinel,
-                                         Value empty_value_sentinel) noexcept
-      : probe_sequence_{slots, capacity},
-        empty_key_sentinel_{empty_key_sentinel},
-        empty_value_sentinel_{empty_value_sentinel}
-    {
-    }
-
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ pair_atomic_type* get_slots() noexcept { return probe_sequence_.get_slots(); }
-
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ pair_atomic_type const* get_slots() const noexcept
-    {
-      return probe_sequence_.get_slots();
-    }
-
-    /**
-     * @brief Returns the initial slot for a given key `k`
-     *
-     * To be used for Cooperative Group based probing.
-     *
-     * @tparam CG Cooperative Group type
-     * @param g the Cooperative Group for which the initial slot is needed
-     * @param k The key to get the slot for
-     * @return Pointer to the initial slot for `k`
-     */
-    template <typename CG>
-    __device__ iterator initial_slot(CG const& g, Key const& k) noexcept
-    {
-      return probe_sequence_.initial_slot(g, k);
-    }
-
-    /**
-     * @brief Returns the initial slot for a given key `k`
-     *
-     * To be used for Cooperative Group based probing.
-     *
-     * @tparam CG Cooperative Group type
-     * @param g the Cooperative Group for which the initial slot is needed
-     * @param k The key to get the slot for
-     * @return Pointer to the initial slot for `k`
-     */
-    template <typename CG>
-    __device__ const_iterator initial_slot(CG g, Key const& k) const noexcept
-    {
-      return probe_sequence_.initial_slot(g, k);
-    }
-
-    /**
-     * @brief Given a slot `s`, returns the next slot.
-     *
-     * If `s` is the last slot, wraps back around to the first slot. To
-     * be used for Cooperative Group based probing.
-     *
-     * @param s The slot to advance
-     * @return The next slot after `s`
-     */
-    __device__ iterator next_slot(iterator s) noexcept { return probe_sequence_.next_slot(s); }
-
-    /**
-     * @brief Given a slot `s`, returns the next slot.
-     *
-     * If `s` is the last slot, wraps back around to the first slot. To
-     * be used for Cooperative Group based probing.
-     *
-     * @param s The slot to advance
-     * @return The next slot after `s`
-     */
-    __device__ const_iterator next_slot(const_iterator s) const noexcept
-    {
-      return probe_sequence_.next_slot(s);
-    }
-
-   public:
-    /**
-     * @brief Gets the maximum number of elements the hash map can hold.
-     *
-     * @return The maximum number of elements the hash map can hold
-     */
-    __host__ __device__ std::size_t get_capacity() const noexcept
-    {
-      return probe_sequence_.get_capacity();
-    }
-
-    /**
-     * @brief Gets the sentinel value used to represent an empty key slot.
-     *
-     * @return The sentinel value used to represent an empty key slot
-     */
-    __host__ __device__ Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
-
-    /**
-     * @brief Gets the sentinel value used to represent an empty value slot.
-     *
-     * @return The sentinel value used to represent an empty value slot
-     */
-    __host__ __device__ Value get_empty_value_sentinel() const noexcept
-    {
-      return empty_value_sentinel_;
-    }
-  };
+  class device_view_impl_base;
+  class device_mutable_view_impl;
+  class device_view_impl;
 
  public:
   /**
@@ -722,13 +576,14 @@ class static_multimap {
    *                  });
    * \endcode
    */
-  class device_mutable_view : public device_view_base {
+  class device_mutable_view {
    public:
-    using value_type     = typename device_view_base::value_type;
-    using key_type       = typename device_view_base::key_type;
-    using mapped_type    = typename device_view_base::mapped_type;
-    using iterator       = typename device_view_base::iterator;
-    using const_iterator = typename device_view_base::const_iterator;
+    // Import member type definitions from `static_multimap`
+    using value_type     = value_type;
+    using key_type       = Key;
+    using mapped_type    = Value;
+    using iterator       = pair_atomic_type*;
+    using const_iterator = pair_atomic_type const*;
 
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
@@ -745,82 +600,10 @@ class static_multimap {
                                             std::size_t capacity,
                                             Key empty_key_sentinel,
                                             Value empty_value_sentinel) noexcept
-      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+      : impl_{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
     }
 
-   private:
-    /**
-     * @brief Enumeration of the possible results of attempting to insert into a hash bucket.
-     */
-    enum class insert_result {
-      CONTINUE,  ///< Insert did not succeed, continue trying to insert
-      SUCCESS,   ///< New pair inserted successfully
-      DUPLICATE  ///< Insert did not succeed, key is already present
-    };
-
-    /**
-     * @brief Inserts the specified key/value pair with one single CAS operation.
-     *
-     * @param current_slot The slot to insert
-     * @param insert_pair The pair to insert
-     * @param key_equal The binary callable used to compare two keys for
-     * equality
-     * @return An insert result from the `insert_resullt` enumeration.
-     */
-    __device__ insert_result packed_cas(iterator current_slot,
-                                        value_type const& insert_pair) noexcept;
-
-    /**
-     * @brief Inserts the specified key/value pair with two back-to-back CAS operations.
-     *
-     * @param current_slot The slot to insert
-     * @param insert_pair The pair to insert
-     * @return An insert result from the `insert_resullt` enumeration.
-     */
-    __device__ insert_result back_to_back_cas(iterator current_slot,
-                                              value_type const& insert_pair) noexcept;
-
-    /**
-     * @brief Inserts the specified key/value pair with a CAS of the key and a dependent write
-     * of the value.
-     *
-     * @param current_slot The slot to insert
-     * @param insert_pair The pair to insert
-     * @return An insert result from the `insert_resullt` enumeration.
-     */
-    __device__ insert_result cas_dependent_write(iterator current_slot,
-                                                 value_type const& insert_pair) noexcept;
-
-    /**
-     * @brief Inserts the specified key/value pair into the map using vector loads.
-     *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
-     * @tparam CG Cooperative Group type
-     *
-     * @param g The Cooperative Group that performs the insert
-     * @param insert_pair The pair to insert
-     * @return void.
-     */
-    template <bool uses_vector_load, typename CG>
-    __device__ std::enable_if_t<uses_vector_load, void> insert_impl(
-      CG g, value_type const& insert_pair) noexcept;
-
-    /**
-     * @brief Inserts the specified key/value pair into the map using scalar loads.
-     *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
-     * @tparam CG Cooperative Group type
-     *
-     * @param g The Cooperative Group that performs the insert
-     * @param insert_pair The pair to insert
-     * @return void.
-     */
-    template <bool uses_vector_load, typename CG>
-    __device__ std::enable_if_t<not uses_vector_load, void> insert_impl(
-      CG g, value_type const& insert_pair) noexcept;
-
-   public:
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
@@ -832,6 +615,9 @@ class static_multimap {
      */
     template <typename CG>
     __device__ void insert(CG g, value_type const& insert_pair) noexcept;
+
+   private:
+    device_mutable_view_impl impl_;
   };  // class device mutable view
 
   /**
@@ -842,13 +628,14 @@ class static_multimap {
    * value.
    *
    */
-  class device_view : public device_view_base {
+  class device_view {
    public:
-    using value_type     = typename device_view_base::value_type;
-    using key_type       = typename device_view_base::key_type;
-    using mapped_type    = typename device_view_base::mapped_type;
-    using iterator       = typename device_view_base::iterator;
-    using const_iterator = typename device_view_base::const_iterator;
+    // Import member type definitions from `static_multimap`
+    using value_type     = value_type;
+    using key_type       = Key;
+    using mapped_type    = Value;
+    using iterator       = pair_atomic_type*;
+    using const_iterator = pair_atomic_type const*;
 
     /**
      * @brief Construct a view of the first `capacity` slots of the
@@ -865,8 +652,49 @@ class static_multimap {
                                     std::size_t capacity,
                                     Key empty_key_sentinel,
                                     Value empty_value_sentinel) noexcept
-      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+      : impl_{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
+    }
+
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __device__ pair_atomic_type* get_slots() noexcept { return impl_.get_slots(); }
+
+    /**
+     * @brief Gets slots array.
+     *
+     * @return Slots array
+     */
+    __device__ pair_atomic_type const* get_slots() const noexcept { return impl_.get_slots(); }
+
+    /**
+     * @brief Gets the maximum number of elements the hash map can hold.
+     *
+     * @return The maximum number of elements the hash map can hold
+     */
+    __host__ __device__ std::size_t get_capacity() const noexcept { return impl_.get_capacity(); }
+
+    /**
+     * @brief Gets the sentinel value used to represent an empty key slot.
+     *
+     * @return The sentinel value used to represent an empty key slot
+     */
+    __host__ __device__ Key get_empty_key_sentinel() const noexcept
+    {
+      return impl_.get_empty_key_sentinel();
+    }
+
+    /**
+     * @brief Gets the sentinel value used to represent an empty value slot.
+     *
+     * @return The sentinel value used to represent an empty value slot
+     */
+    __host__ __device__ Value get_empty_value_sentinel() const noexcept
+    {
+      return impl_.get_empty_value_sentinel();
     }
 
     /**
@@ -874,30 +702,6 @@ class static_multimap {
      *
      * This function is intended to be used to create shared memory copies of small static maps,
      * although global memory can be used as well.
-     *
-     * Example:
-     * @code{.cpp}
-     * template <typename MapType, int CAPACITY>
-     * __global__ void use_device_view(const typename MapType::device_view device_view,
-     *                                 map_key_t const* const keys_to_search,
-     *                                 map_value_t* const values_found,
-     *                                 const size_t number_of_elements)
-     * {
-     *     const size_t index = blockIdx.x * blockDim.x + threadIdx.x;
-     *
-     *     __shared__ typename MapType::pair_atomic_type sm_buffer[CAPACITY];
-     *
-     *     auto g = cg::this_thread_block();
-     *
-     *     const map_t::device_view sm_static_multimap = device_view.make_copy(g,
-     *                                                                    sm_buffer);
-     *
-     *     for (size_t i = g.thread_rank(); i < number_of_elements; i += g.size())
-     *     {
-     *         values_found[i] = sm_static_multimap.find(keys_to_search[i])->second;
-     *     }
-     * }
-     * @endcode
      *
      * @tparam CG The type of the cooperative thread group
      * @param g The cooperative thread group used to copy the slots
@@ -909,338 +713,8 @@ class static_multimap {
     template <typename CG>
     __device__ static device_view make_copy(CG g,
                                             pair_atomic_type* const memory_to_use,
-                                            device_view source_device_view) noexcept
-    {
-#if defined(CUCO_HAS_CUDA_BARRIER)
-      __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
-      if (g.thread_rank() == 0) { init(&barrier, g.size()); }
-      g.sync();
+                                            device_view source_device_view) noexcept;
 
-      cuda::memcpy_async(g,
-                         memory_to_use,
-                         source_device_view.get_slots(),
-                         sizeof(pair_atomic_type) * source_device_view.get_capacity(),
-                         barrier);
-
-      barrier.arrive_and_wait();
-#else
-      pair_atomic_type const* const slots_ptr = source_device_view.get_slots();
-      for (std::size_t i = g.thread_rank(); i < source_device_view.get_capacity(); i += g.size()) {
-        new (&memory_to_use[i].first)
-          atomic_key_type{slots_ptr[i].first.load(cuda::memory_order_relaxed)};
-        new (&memory_to_use[i].second)
-          atomic_mapped_type{slots_ptr[i].second.load(cuda::memory_order_relaxed)};
-      }
-      g.sync();
-#endif
-
-      return device_view(memory_to_use,
-                         source_device_view.get_capacity(),
-                         source_device_view.get_empty_key_sentinel(),
-                         source_device_view.get_empty_value_sentinel());
-    }
-
-   private:
-    /**
-     * @brief Indicates whether the key `k` exists in the map using vector loads.
-     *
-     * If the key `k` was inserted into the map, `contains` returns
-     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single `contains` operation. This provides a
-     * significant boost in throughput compared to the non Cooperative Group based
-     * `contains` at moderate to high load factors.
-     *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
-     * @tparam CG Cooperative Group type
-     * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to perform the contains operation
-     * @param k The key to search for
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return A boolean indicating whether the key/value pair
-     * containing `k` was inserted
-     */
-    template <bool uses_vector_load, typename CG, typename KeyEqual>
-    __device__ std::enable_if_t<uses_vector_load, bool> contains_impl(CG g,
-                                                                      Key const& k,
-                                                                      KeyEqual key_equal) noexcept;
-
-    /**
-     * @brief Indicates whether the key `k` exists in the map using scalar loads.
-     *
-     * If the key `k` was inserted into the map, `contains` returns
-     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single `contains` operation. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `contains` at moderate to high load factors.
-     *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
-     * @tparam CG Cooperative Group type
-     * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to perform the contains operation
-     * @param k The key to search for
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return A boolean indicating whether the key/value pair
-     * containing `k` was inserted
-     */
-    template <bool uses_vector_load, typename CG, typename KeyEqual>
-    __device__ std::enable_if_t<not uses_vector_load, bool> contains_impl(
-      CG g, Key const& k, KeyEqual key_equal) noexcept;
-
-    /**
-     * @brief Counts the occurrence of a given key contained in multimap using vector loads.
-     *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed
-     * @tparam CG Cooperative Group type
-     * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to perform the count operation
-     * @param k The key to search for
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return Number of matches found by the current thread
-     */
-    template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
-    __device__ std::enable_if_t<uses_vector_load, std::size_t> count_impl(
-      CG const& g, Key const& k, KeyEqual key_equal) noexcept;
-
-    /**
-     * @brief Counts the occurrence of a given key contained in multimap using scalar loads.
-     *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed
-     * @tparam CG Cooperative Group type
-     * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to perform the count operation
-     * @param k The key to search for
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return Number of matches found by the current thread
-     */
-    template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
-    __device__ std::enable_if_t<not uses_vector_load, std::size_t> count_impl(
-      CG const& g, Key const& k, KeyEqual key_equal) noexcept;
-
-    /**
-     * @brief Counts the occurrence of a given key/value pair contained in multimap using vector
-     * loads.
-     *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed
-     * @tparam CG Cooperative Group type
-     * @tparam PairEqual Binary callable type
-     * @param g The Cooperative Group used to perform the pair_count operation
-     * @param pair The pair to search for
-     * @param pair_equal The binary callable used to compare two pairs
-     * for equality
-     * @return Number of matches found by the current thread
-     */
-    template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
-    __device__ std::enable_if_t<uses_vector_load, std::size_t> pair_count_impl(
-      CG const& g, value_type const& pair, PairEqual pair_equal) noexcept;
-
-    /**
-     * @brief Counts the occurrence of a given key/value pair contained in multimap using scalar
-     * loads.
-     *
-     * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed
-     * @tparam CG Cooperative Group type
-     * @tparam PairEqual Binary callable type
-     * @param g The Cooperative Group used to perform the pair_count operation
-     * @param pair The pair to search for
-     * @param pair_equal The binary callable used to compare two pairs
-     * for equality
-     * @return Number of matches found by the current thread
-     */
-    template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
-    __device__ std::enable_if_t<not uses_vector_load, std::size_t> pair_count_impl(
-      CG const& g, value_type const& pair, PairEqual pair_equal) noexcept;
-
-    /**
-     * @brief Retrieves all the matches of a given key contained in multimap using vector
-     * loads with per-warp shared memory buffer.
-     *
-     * For key `k` existing in the map, copies `k` and all associated values to unspecified
-     * locations in `[output_begin, output_end)`. If `k` does not have any matches, copies `k` and
-     * `empty_value_sentinel()` into the output only if `is_outer` is true.
-     *
-     * @tparam buffer_size Size of the output buffer
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed
-     * @tparam warpT Warp (Cooperative Group) type
-     * @tparam CG Cooperative Group type
-     * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt Device accessible output iterator whose `value_type` is
-     * constructible from the map's `value_type`
-     * @tparam KeyEqual Binary callable type
-     * @param warp The Cooperative Group (or warp) used to flush output buffer
-     * @param g The Cooperative Group used to retrieve
-     * @param k The key to search for
-     * @param warp_counter Pointer to the warp counter
-     * @param output_buffer Shared memory buffer of the key/value pair sequence
-     * @param num_matches Size of the output sequence
-     * @param output_begin Beginning of the output sequence of key/value pairs
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     */
-    template <uint32_t buffer_size,
-              bool is_outer,
-              typename warpT,
-              typename CG,
-              typename atomicT,
-              typename OutputIt,
-              typename KeyEqual>
-    __device__ void retrieve_impl(warpT const& warp,
-                                  CG const& g,
-                                  Key const& k,
-                                  uint32_t* warp_counter,
-                                  value_type* output_buffer,
-                                  atomicT* num_matches,
-                                  OutputIt output_begin,
-                                  KeyEqual key_equal) noexcept;
-
-    /**
-     * @brief Retrieves all the matches of a given key contained in multimap using scalar
-     * loads with per-CG shared memory buffer.
-     *
-     * For key `k` existing in the map, copies `k` and all associated values to unspecified
-     * locations in `[output_begin, output_end)`. If `k` does not have any matches, copies `k` and
-     * `empty_value_sentinel()` into the output only if `is_outer` is true.
-     *
-     * @tparam cg_size The number of threads in CUDA Cooperative Groups
-     * @tparam buffer_size Size of the output buffer
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed
-     * @tparam CG Cooperative Group type
-     * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt Device accessible output iterator whose `value_type` is
-     * constructible from the map's `value_type`
-     * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to retrieve
-     * @param k The key to search for
-     * @param cg_counter Pointer to the CG counter
-     * @param output_buffer Shared memory buffer of the key/value pair sequence
-     * @param num_matches Size of the output sequence
-     * @param output_begin Beginning of the output sequence of key/value pairs
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     */
-    template <uint32_t cg_size,
-              uint32_t buffer_size,
-              bool is_outer,
-              typename CG,
-              typename atomicT,
-              typename OutputIt,
-              typename KeyEqual>
-    __device__ void retrieve_impl(CG const& g,
-                                  Key const& k,
-                                  uint32_t* cg_counter,
-                                  value_type* output_buffer,
-                                  atomicT* num_matches,
-                                  OutputIt output_begin,
-                                  KeyEqual key_equal) noexcept;
-
-    /**
-     * @brief Retrieves all the matches of a given pair contained in multimap using vector
-     * loads with per-warp shared memory buffer.
-     *
-     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
-     * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
-     * `[contained_output_begin, contained_output_end)`. If `p` does not have any matches, copies
-     * `p` and a pair of `empty_key_sentinel` and `empty_value_sentinel` into the output only if
-     * `is_outer` is true.
-     *
-     * @tparam buffer_size Size of the output buffer
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed
-     * @tparam warpT Warp (Cooperative Group) type
-     * @tparam CG Cooperative Group type
-     * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
-     * `InputIt`s `value_type`.
-     * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
-     * the map's `value_type`.
-     * @tparam PairEqual Binary callable type
-     * @param warp The Cooperative Group (or warp) used to flush output buffer
-     * @param g The Cooperative Group used to retrieve
-     * @param pair The pair to search for
-     * @param warp_counter Pointer to the warp counter
-     * @param probe_output_buffer Buffer of the matched probe pair sequence
-     * @param contained_output_buffer Buffer of the matched contained pair sequence
-     * @param num_matches Size of the output sequence
-     * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
-     * @param contained_output_begin Beginning of the output sequence of the matched contained
-     * pairs
-     * @param pair_equal The binary callable used to compare two pairs for equality
-     */
-    template <uint32_t buffer_size,
-              bool is_outer,
-              typename warpT,
-              typename CG,
-              typename atomicT,
-              typename OutputIt1,
-              typename OutputIt2,
-              typename PairEqual>
-    __device__ void pair_retrieve_impl(warpT const& warp,
-                                       CG const& g,
-                                       value_type const& pair,
-                                       uint32_t* warp_counter,
-                                       value_type* probe_output_buffer,
-                                       value_type* contained_output_buffer,
-                                       atomicT* num_matches,
-                                       OutputIt1 probe_output_begin,
-                                       OutputIt2 contained_output_begin,
-                                       PairEqual pair_equal) noexcept;
-
-    /**
-     * @brief Retrieves all the matches of a given pair contained in multimap using scalar
-     * loads with per-CG shared memory buffer.
-     *
-     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
-     * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
-     * `[contained_output_begin, contained_output_end)`. If `p` does not have any matches, copies
-     * `p` and a pair of `empty_key_sentinel` and `empty_value_sentinel` into the output only if
-     * `is_outer` is true.
-     *
-     * @tparam cg_size The number of threads in CUDA Cooperative Groups
-     * @tparam buffer_size Size of the output buffer
-     * @tparam is_outer Boolean flag indicating whether outer join is peformed
-     * @tparam CG Cooperative Group type
-     * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
-     * `InputIt`s `value_type`.
-     * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
-     * the map's `value_type`.
-     * @tparam PairEqual Binary callable type
-     * @param g The Cooperative Group used to retrieve
-     * @param pair The pair to search for
-     * @param cg_counter Pointer to the CG counter
-     * @param probe_output_buffer Buffer of the matched probe pair sequence
-     * @param contained_output_buffer Buffer of the matched contained pair sequence
-     * @param num_matches Size of the output sequence
-     * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
-     * @param contained_output_begin Beginning of the output sequence of the matched contained
-     * pairs
-     * @param pair_equal The binary callable used to compare two pairs for equality
-     */
-    template <uint32_t cg_size,
-              uint32_t buffer_size,
-              bool is_outer,
-              typename CG,
-              typename atomicT,
-              typename OutputIt1,
-              typename OutputIt2,
-              typename PairEqual>
-    __device__ void pair_retrieve_impl(CG const& g,
-                                       value_type const& pair,
-                                       uint32_t* cg_counter,
-                                       value_type* probe_output_buffer,
-                                       value_type* contained_output_buffer,
-                                       atomicT* num_matches,
-                                       OutputIt1 probe_output_begin,
-                                       OutputIt2 contained_output_begin,
-                                       PairEqual pair_equal) noexcept;
-
-   public:
     /**
      * @brief Flushes per-CG buffer into the output sequence.
      *
@@ -1737,6 +1211,9 @@ class static_multimap {
                                         OutputIt1 probe_output_begin,
                                         OutputIt2 contained_output_begin,
                                         PairEqual pair_equal) noexcept;
+
+   private:
+    device_view_impl impl_;
   };  // class device_view
 
   /**
@@ -1834,3 +1311,4 @@ class static_multimap {
 }  // namespace cuco
 
 #include <cuco/detail/static_multimap.inl>
+#include <cuco/detail/static_multimap_impl.inl>
