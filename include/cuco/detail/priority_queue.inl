@@ -6,11 +6,27 @@
 
 namespace cuco {
 
-template <typename Key, typename Value, bool Max>
-priority_queue<Key, Value, Max>::priority_queue(size_t initial_capacity,
-                                                size_t node_size) {
+template <typename Key, typename Value, bool Max, typename Allocator>
+priority_queue<Key, Value, Max, Allocator>::priority_queue
+                                               (size_t initial_capacity,
+                                                size_t node_size,
+						Allocator const& allocator) :
+	                                        allocator_{allocator} {
 
   node_size_ = node_size;
+  
+  using int_allocator_type = typename std::allocator_traits<Allocator>
+	                        ::rebind_alloc<int>;
+
+  using pair_allocator_type = typename std::allocator_traits<Allocator>
+	                                  ::rebind_alloc<Pair<Key, Value>>;
+  
+  using size_t_allocator_type = typename std::allocator_traits<Allocator>
+	                                  ::rebind_alloc<size_t>;
+
+  int_allocator_type int_allocator{allocator};
+  pair_allocator_type pair_allocator{allocator};
+  size_t_allocator_type size_t_allocator{allocator};
 
   // Round up to the nearest multiple of node size
   int nodes = ((initial_capacity + node_size_ - 1) / node_size_);
@@ -20,30 +36,35 @@ priority_queue<Key, Value, Max>::priority_queue(size_t initial_capacity,
 
   // Allocate device variables
 
-  CUCO_CUDA_TRY(cudaMalloc((void**)&d_size_, sizeof(int)));
+  d_size_ = std::allocator_traits<int_allocator_type>::allocate(int_allocator,
+		                                          (size_t)sizeof(int));
 
   CUCO_CUDA_TRY(cudaMemset(d_size_, 0, sizeof(int)));
 
-  CUCO_CUDA_TRY(cudaMalloc((void**)&d_p_buffer_size_, sizeof(size_t)));
+  d_p_buffer_size_ = std::allocator_traits<size_t_allocator_type>::allocate(
+		                                              size_t_allocator,
+							      sizeof(size_t));
 
   CUCO_CUDA_TRY(cudaMemset(d_p_buffer_size_, 0, sizeof(size_t)));
 
-  CUCO_CUDA_TRY(cudaMalloc((void**)&d_heap_,
-                          sizeof(Pair<Key, Value>)
-                          * (node_capacity_ * node_size_ + node_size_)));
+  d_heap_ = std::allocator_traits<pair_allocator_type>::allocate(pair_allocator,
+		            sizeof(Pair<Key, Value>)
+			    * (node_capacity_ * node_size_ + node_size_));
 
-  CUCO_CUDA_TRY(cudaMalloc((void**)&d_locks_,
-             sizeof(int) * (node_capacity_ + 1)));
+  d_locks_ = std::allocator_traits<int_allocator_type>::allocate(int_allocator,
+		                          sizeof(int) * (node_capacity_ + 1));
 
   CUCO_CUDA_TRY(cudaMemset(d_locks_, 0,
                           sizeof(int) * (node_capacity_ + 1)));
 
-  CUCO_CUDA_TRY(cudaMalloc((void**)&d_pop_tracker_, sizeof(int)));
+  d_pop_tracker_ = std::allocator_traits<int_allocator_type>::allocate(
+		                               int_allocator,
+					       sizeof(int));
 
 }
 
-template <typename Key, typename Value, bool Max>
-priority_queue<Key, Value, Max>::~priority_queue() {
+template <typename Key, typename Value, bool Max, typename Allocator>
+priority_queue<Key, Value, Max, Allocator>::~priority_queue() {
   CUCO_ASSERT_CUDA_SUCCESS(cudaFree(d_size_));
   CUCO_ASSERT_CUDA_SUCCESS(cudaFree(d_p_buffer_size_));
   CUCO_ASSERT_CUDA_SUCCESS(cudaFree(d_heap_));
@@ -52,9 +73,9 @@ priority_queue<Key, Value, Max>::~priority_queue() {
 }
 
 
-template <typename Key, typename Value, bool Max>
+template <typename Key, typename Value, bool Max, typename Allocator>
 template <typename InputIt>
-void priority_queue<Key, Value, Max>::push(InputIt first,
+void priority_queue<Key, Value, Max, Allocator>::push(InputIt first,
                                            InputIt last,
                                            int block_size,
                                            int grid_size,
@@ -80,9 +101,9 @@ void priority_queue<Key, Value, Max>::push(InputIt first,
   CUCO_CUDA_TRY(cudaGetLastError());
 }
 
-template <typename Key, typename Value, bool Max>
+template <typename Key, typename Value, bool Max, typename Allocator>
 template <typename OutputIt>
-void priority_queue<Key, Value, Max>::pop(OutputIt first,
+void priority_queue<Key, Value, Max, Allocator>::pop(OutputIt first,
                                           OutputIt last,
                                           int block_size,
                                           int grid_size,
@@ -112,9 +133,10 @@ void priority_queue<Key, Value, Max>::pop(OutputIt first,
   CUCO_CUDA_TRY(cudaGetLastError());
 }
 
-template <typename Key, typename Value, bool Max>
+template <typename Key, typename Value, bool Max, typename Allocator>
 template <typename CG, typename InputIt>
-__device__ void priority_queue<Key, Value, Max>::device_mutable_view::push(
+__device__ void priority_queue<Key, Value, Max, Allocator>
+                                 ::device_mutable_view::push(
                                                   CG const& g,
                                                   InputIt first,
                                                   InputIt last,
@@ -133,9 +155,10 @@ __device__ void priority_queue<Key, Value, Max>::device_mutable_view::push(
   }
 }
 
-template <typename Key, typename Value, bool Max>
+template <typename Key, typename Value, bool Max, typename Allocator>
 template <typename CG, typename OutputIt>
-__device__ void priority_queue<Key, Value, Max>::device_mutable_view::pop(
+__device__ void priority_queue<Key, Value, Max, Allocator>
+                                       ::device_mutable_view::pop(
                                                       CG const& g,
                                                       OutputIt first,
                                                       OutputIt last,

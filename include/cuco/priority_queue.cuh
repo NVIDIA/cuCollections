@@ -3,6 +3,7 @@
 #include <vector>
 #include <utility>
 #include <cuco/detail/pq_pair.cuh>
+#include <cuco/allocator.hpp>
 
 namespace cuco {
 
@@ -45,7 +46,8 @@ namespace cuco {
 *             keys in the queue, otherwise, pop operations yeild the elements
 *             with the largest keys
 */
-template <typename Key, typename Value, bool Max = false>
+template <typename Key, typename Value, bool Max = false,
+	  typename Allocator = cuco::cuda_allocator<char>>
 class priority_queue {
 
  public:
@@ -56,7 +58,8 @@ class priority_queue {
    * @param node_size The size of the nodes in the underlying heap data
    *        structure
    */
-  priority_queue(size_t initial_capacity, size_t node_size = 1024);
+  priority_queue(size_t initial_capacity, size_t node_size = 1024,
+		 Allocator const& alloc = Allocator{});
 
   /**
    * @brief Push elements into the priority queue
@@ -238,6 +241,7 @@ class priority_queue {
   int *d_pop_tracker_;       ///< Variable used to track where in its output
                              ///  array a pop operation should place a given
                              ///  popped node
+  Allocator allocator_;
 };
 
 }
