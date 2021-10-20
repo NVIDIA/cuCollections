@@ -20,8 +20,8 @@ using namespace cuco;
 
 // Inserts elements into pq, managing memory allocation
 // and copying to the device
-template <typename Key, typename Value, bool Max>
-void Insert(priority_queue<Key, Value, Max> &pq,
+template <typename Key, typename Value, typename Compare>
+void Insert(priority_queue<Key, Value, Compare> &pq,
             const std::vector<Pair<Key, Value>> &elements,
             bool warp_level = false) {
   Pair<Key, Value> *d_elements;
@@ -40,8 +40,8 @@ void Insert(priority_queue<Key, Value, Max> &pq,
 
 // Deletes num_elements elements from pq and returns them,
 // managing device memory
-template <typename Key, typename Value, bool Max>
-std::vector<Pair<Key, Value>> Delete(priority_queue<Key, Value, Max> &pq,
+template <typename Key, typename Value, typename Compare>
+std::vector<Pair<Key, Value>> Delete(priority_queue<Key, Value, Compare> &pq,
                                      size_t num_elements,
                                      bool warp_level = false) {
   Pair<Key, Value> *d_elements;
@@ -723,7 +723,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t, true> pq(num_keys);
+      priority_queue<int32_t, int32_t, thrust::greater<int32_t>> pq(num_keys);
 
       std::vector<int32_t> std_vec;
 

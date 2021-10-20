@@ -6,8 +6,8 @@
 
 namespace cuco {
 
-template <typename Key, typename Value, bool Max, typename Allocator>
-priority_queue<Key, Value, Max, Allocator>::priority_queue
+template <typename Key, typename Value, typename Compare, typename Allocator>
+priority_queue<Key, Value, Compare, Allocator>::priority_queue
                                                (size_t initial_capacity,
                                                 size_t node_size,
 						Allocator const& allocator) :
@@ -52,8 +52,8 @@ priority_queue<Key, Value, Max, Allocator>::priority_queue
 
 }
 
-template <typename Key, typename Value, bool Max, typename Allocator>
-priority_queue<Key, Value, Max, Allocator>::~priority_queue() {
+template <typename Key, typename Value, typename Compare, typename Allocator>
+priority_queue<Key, Value, Compare, Allocator>::~priority_queue() {
   std::allocator_traits<int_allocator_type>::deallocate(int_allocator_,
 		                                        d_size_, 1);
   std::allocator_traits<size_t_allocator_type>::deallocate(size_t_allocator_,
@@ -70,9 +70,9 @@ priority_queue<Key, Value, Max, Allocator>::~priority_queue() {
 }
 
 
-template <typename Key, typename Value, bool Max, typename Allocator>
+template <typename Key, typename Value, typename Compare, typename Allocator>
 template <typename InputIt>
-void priority_queue<Key, Value, Max, Allocator>::push(InputIt first,
+void priority_queue<Key, Value, Compare, Allocator>::push(InputIt first,
                                            InputIt last,
                                            int block_size,
                                            int grid_size,
@@ -83,24 +83,25 @@ void priority_queue<Key, Value, Max, Allocator>::push(InputIt first,
   const int kNumBlocks = grid_size;
 
   if (!warp_level) {
-    PushKernel<Max><<<kNumBlocks, kBlockSize,
+    PushKernel<<<kNumBlocks, kBlockSize,
                  get_shmem_size(kBlockSize), stream>>>
               (first, last - first, d_heap_, d_size_,
-               node_size_, d_locks_, d_p_buffer_size_, lowest_level_start_);
+               node_size_, d_locks_, d_p_buffer_size_, lowest_level_start_,
+	       compare_);
   } else {
-    PushKernelWarp<Max><<<kNumBlocks, kBlockSize,
+    PushKernelWarp<<<kNumBlocks, kBlockSize,
                  get_shmem_size(32) * kBlockSize / 32, stream>>>
               (first, last - first, d_heap_, d_size_,
                node_size_, d_locks_, d_p_buffer_size_,
-               lowest_level_start_, get_shmem_size(32));
+               lowest_level_start_, get_shmem_size(32), compare_);
   }
 
   CUCO_CUDA_TRY(cudaGetLastError());
 }
 
-template <typename Key, typename Value, bool Max, typename Allocator>
+template <typename Key, typename Value, typename Compare, typename Allocator>
 template <typename OutputIt>
-void priority_queue<Key, Value, Max, Allocator>::pop(OutputIt first,
+void priority_queue<Key, Value, Compare, Allocator>::pop(OutputIt first,
                                           OutputIt last,
                                           int block_size,
                                           int grid_size,
@@ -112,27 +113,27 @@ void priority_queue<Key, Value, Max, Allocator>::pop(OutputIt first,
 
   cudaMemset(d_pop_tracker_, 0, sizeof(int));
   if (!warp_level) {
-    PopKernel<Max><<<kNumBlocks, kBlockSize,
+    PopKernel<<<kNumBlocks, kBlockSize,
                  get_shmem_size(kBlockSize), stream>>>
              (first, last - first, d_heap_, d_size_,
               node_size_, d_locks_, d_p_buffer_size_,
-              d_pop_tracker_, lowest_level_start_, node_capacity_);
+              d_pop_tracker_, lowest_level_start_, node_capacity_, compare_);
   } else {
-    PopKernelWarp<Max><<<kNumBlocks, kBlockSize,
+    PopKernelWarp<<<kNumBlocks, kBlockSize,
                  get_shmem_size(32) * kBlockSize / 32, stream>>>
              (first, last - first, d_heap_, d_size_,
               node_size_, d_locks_, d_p_buffer_size_,
               d_pop_tracker_, lowest_level_start_,
-              node_capacity_, get_shmem_size(32));
+              node_capacity_, get_shmem_size(32), compare_);
 
   }
 
   CUCO_CUDA_TRY(cudaGetLastError());
 }
 
-template <typename Key, typename Value, bool Max, typename Allocator>
+template <typename Key, typename Value, typename Compare, typename Allocator>
 template <typename CG, typename InputIt>
-__device__ void priority_queue<Key, Value, Max, Allocator>
+__device__ void priority_queue<Key, Value, Compare, Allocator>
                                  ::device_mutable_view::push(
                                                   CG const& g,
                                                   InputIt first,
@@ -143,18 +144,19 @@ __device__ void priority_queue<Key, Value, Max, Allocator>
        GetSharedMemoryLayout<Key, Value>((int*)temp_storage,
                                          g.size(), node_size_);
   if (last - first == node_size_) {
-    PushSingleNode<Max>(g, first, d_heap_, d_size_, node_size_,
-                   d_locks_, lowest_level_start_, shmem);
+    PushSingleNode(g, first, d_heap_, d_size_, node_size_,
+                   d_locks_, lowest_level_start_, shmem, compare_);
   } else if (last - first < node_size_) {
-    PushPartialNode<Max>(g, first, last - first, d_heap_,
+    PushPartialNode(g, first, last - first, d_heap_,
                          d_size_, node_size_, d_locks_,
-                         d_p_buffer_size_, lowest_level_start_, shmem);
+                         d_p_buffer_size_, lowest_level_start_, shmem,
+			 compare_);
   }
 }
 
-template <typename Key, typename Value, bool Max, typename Allocator>
+template <typename Key, typename Value, typename Compare, typename Allocator>
 template <typename CG, typename OutputIt>
-__device__ void priority_queue<Key, Value, Max, Allocator>
+__device__ void priority_queue<Key, Value, Compare, Allocator>
                                        ::device_mutable_view::pop(
                                                       CG const& g,
                                                       OutputIt first,
@@ -167,13 +169,13 @@ __device__ void priority_queue<Key, Value, Max, Allocator>
                                          g.size(), node_size_);
 
   if (last - first == node_size_) {
-    PopSingleNode<Max>(g, first, d_heap_, d_size_, node_size_, d_locks_,
+    PopSingleNode(g, first, d_heap_, d_size_, node_size_, d_locks_,
                   d_p_buffer_size_, &pop_tracker, lowest_level_start_,
-                  node_capacity_, shmem);
+                  node_capacity_, shmem, compare_);
   } else {
-    PopPartialNode<Max>(g, first, last - first, d_heap_, d_size_, node_size_,
+    PopPartialNode(g, first, last - first, d_heap_, d_size_, node_size_,
                    d_locks_, d_p_buffer_size_, lowest_level_start_,
-                   node_capacity_, shmem);
+                   node_capacity_, shmem, compare_);
   }
 }
 

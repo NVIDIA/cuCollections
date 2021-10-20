@@ -5,6 +5,8 @@
 #include <cuco/detail/pq_pair.cuh>
 #include <cuco/allocator.hpp>
 
+#include <thrust/functional.h>
+
 namespace cuco {
 
 /*
@@ -46,7 +48,7 @@ namespace cuco {
 *             keys in the queue, otherwise, pop operations yeild the elements
 *             with the largest keys
 */
-template <typename Key, typename Value, bool Max = false,
+template <typename Key, typename Value, typename Compare = thrust::less<Key>,
 	  typename Allocator = cuco::cuda_allocator<char>>
 class priority_queue {
 
@@ -197,14 +199,16 @@ class priority_queue {
                                             size_t *d_p_buffer_size,
                                             int *d_locks,
                                             int lowest_level_start,
-                                            int node_capacity)
+                                            int node_capacity,
+					    Compare const& compare)
       : node_size_(node_size),
         d_heap_(d_heap),
         d_size_(d_size),
         d_p_buffer_size_(d_p_buffer_size),
         d_locks_(d_locks),
         lowest_level_start_(lowest_level_start),
-        node_capacity_(node_capacity)
+        node_capacity_(node_capacity),
+	compare_(compare)
     {
     }
 
@@ -217,6 +221,7 @@ class priority_queue {
     int *d_size_;
     size_t *d_p_buffer_size_;
     int *d_locks_;
+    Compare compare_;
   };
 
   /*
@@ -228,7 +233,8 @@ class priority_queue {
   */
   device_mutable_view get_mutable_device_view() {
     return device_mutable_view(node_size_, d_heap_, d_size_, d_p_buffer_size_,
-                               d_locks_, lowest_level_start_, node_capacity_);
+                               d_locks_, lowest_level_start_, node_capacity_,
+			       compare_);
   }
 
  private:
@@ -254,6 +260,8 @@ class priority_queue {
   int_allocator_type int_allocator_;
   pair_allocator_type pair_allocator_;
   size_t_allocator_type size_t_allocator_;
+
+  Compare compare_{};
 };
 
 }
