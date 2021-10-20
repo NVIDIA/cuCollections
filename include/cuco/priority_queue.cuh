@@ -50,6 +50,15 @@ template <typename Key, typename Value, bool Max = false,
 	  typename Allocator = cuco::cuda_allocator<char>>
 class priority_queue {
 
+  using int_allocator_type = typename std::allocator_traits<Allocator>
+	                        ::rebind_alloc<int>;
+
+  using pair_allocator_type = typename std::allocator_traits<Allocator>
+	                                  ::rebind_alloc<Pair<Key, Value>>;
+  
+  using size_t_allocator_type = typename std::allocator_traits<Allocator>
+	                                  ::rebind_alloc<size_t>;
+
  public:
   /**
    * @brief Construct a priority queue
@@ -242,6 +251,9 @@ class priority_queue {
                              ///  array a pop operation should place a given
                              ///  popped node
   Allocator allocator_;
+  int_allocator_type int_allocator_;
+  pair_allocator_type pair_allocator_;
+  size_t_allocator_type size_t_allocator_;
 };
 
 }

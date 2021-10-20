@@ -11,23 +11,13 @@ priority_queue<Key, Value, Max, Allocator>::priority_queue
                                                (size_t initial_capacity,
                                                 size_t node_size,
 						Allocator const& allocator) :
-	                                        allocator_{allocator} {
+	                                        allocator_{allocator},
+					        int_allocator_{allocator},
+					        pair_allocator_{allocator},
+					        size_t_allocator_{allocator} {
 
   node_size_ = node_size;
   
-  using int_allocator_type = typename std::allocator_traits<Allocator>
-	                        ::rebind_alloc<int>;
-
-  using pair_allocator_type = typename std::allocator_traits<Allocator>
-	                                  ::rebind_alloc<Pair<Key, Value>>;
-  
-  using size_t_allocator_type = typename std::allocator_traits<Allocator>
-	                                  ::rebind_alloc<size_t>;
-
-  int_allocator_type int_allocator{allocator};
-  pair_allocator_type pair_allocator{allocator};
-  size_t_allocator_type size_t_allocator{allocator};
-
   // Round up to the nearest multiple of node size
   int nodes = ((initial_capacity + node_size_ - 1) / node_size_);
 
@@ -36,40 +26,47 @@ priority_queue<Key, Value, Max, Allocator>::priority_queue
 
   // Allocate device variables
 
-  d_size_ = std::allocator_traits<int_allocator_type>::allocate(int_allocator,
-		                                          (size_t)sizeof(int));
+  d_size_ = std::allocator_traits<int_allocator_type>::allocate(int_allocator_,
+		                                                1);
 
   CUCO_CUDA_TRY(cudaMemset(d_size_, 0, sizeof(int)));
 
   d_p_buffer_size_ = std::allocator_traits<size_t_allocator_type>::allocate(
-		                                              size_t_allocator,
-							      sizeof(size_t));
+		                                              size_t_allocator_,
+							      1);
 
   CUCO_CUDA_TRY(cudaMemset(d_p_buffer_size_, 0, sizeof(size_t)));
 
-  d_heap_ = std::allocator_traits<pair_allocator_type>::allocate(pair_allocator,
-		            sizeof(Pair<Key, Value>)
-			    * (node_capacity_ * node_size_ + node_size_));
+  d_heap_ = std::allocator_traits<pair_allocator_type>::allocate(pair_allocator_,
+		                       node_capacity_ * node_size_ + node_size_);
 
-  d_locks_ = std::allocator_traits<int_allocator_type>::allocate(int_allocator,
-		                          sizeof(int) * (node_capacity_ + 1));
+  d_locks_ = std::allocator_traits<int_allocator_type>::allocate(int_allocator_,
+		                                             node_capacity_ + 1);
 
   CUCO_CUDA_TRY(cudaMemset(d_locks_, 0,
                           sizeof(int) * (node_capacity_ + 1)));
 
   d_pop_tracker_ = std::allocator_traits<int_allocator_type>::allocate(
-		                               int_allocator,
-					       sizeof(int));
+		                               int_allocator_,
+					       1);
 
 }
 
 template <typename Key, typename Value, bool Max, typename Allocator>
 priority_queue<Key, Value, Max, Allocator>::~priority_queue() {
-  CUCO_ASSERT_CUDA_SUCCESS(cudaFree(d_size_));
-  CUCO_ASSERT_CUDA_SUCCESS(cudaFree(d_p_buffer_size_));
-  CUCO_ASSERT_CUDA_SUCCESS(cudaFree(d_heap_));
-  CUCO_ASSERT_CUDA_SUCCESS(cudaFree(d_locks_));
-  CUCO_ASSERT_CUDA_SUCCESS(cudaFree(d_pop_tracker_));
+  std::allocator_traits<int_allocator_type>::deallocate(int_allocator_,
+		                                        d_size_, 1);
+  std::allocator_traits<size_t_allocator_type>::deallocate(size_t_allocator_,
+		                                        d_p_buffer_size_, 1);
+  std::allocator_traits<pair_allocator_type>::deallocate(pair_allocator_,
+		                                         d_heap_,
+			        node_capacity_ * node_size_ + node_size_);
+  std::allocator_traits<int_allocator_type>::deallocate(int_allocator_,
+		                                        d_locks_,
+				                    node_capacity_ + 1);
+  std::allocator_traits<int_allocator_type>::deallocate(int_allocator_,
+		                                        d_pop_tracker_,
+				                        1);
 }
 
 
