@@ -16,11 +16,11 @@ constexpr int kRootIdx = 1;
 * queue's kernels and functions.
 * Ideally, this temp storage is in shared memory
 */
-template <typename Key, typename Value>
+template <typename T>
 struct SharedMemoryLayout {
   int *intersections;
-  Pair<Key, Value> *A;
-  Pair<Key, Value> *B;
+  T *A;
+  T *B;
 };
 
 /*
@@ -33,13 +33,13 @@ struct SharedMemoryLayout {
 * @param node_size Size of the nodes in this priority queue
 * @returns The memory layout for the given group dimension and node size
 */
-template <typename Key, typename Value>
-__device__ SharedMemoryLayout<Key, Value> GetSharedMemoryLayout(
+template <typename T>
+__device__ SharedMemoryLayout<T> GetSharedMemoryLayout(
            int *s, int dim, size_t node_size) {
 
-  SharedMemoryLayout<Key, Value> result;
+  SharedMemoryLayout<T> result;
   result.intersections = s;
-  result.A = (Pair<Key, Value>*)(s + 2 * (dim + 1));
+  result.A = (T*)(s + 2 * (dim + 1));
   result.B = result.A + node_size;
   return result; 
 }
@@ -120,14 +120,14 @@ __device__ void CopyPairs(CG const& g, InputIt1 dst_start,
 * @param node_size The size of arrays a, b, lo, and hi
 * @param shmem The shared memory layout for this cooperative group
 */
-template <typename Key, typename Value, typename CG, typename Compare>
+template <typename T, typename CG, typename Compare>
 __device__ void MergeAndSort(CG const& g,
-                               Pair<Key, Value> *a,
-                               Pair<Key, Value> *b,
-                               Pair<Key, Value> *lo,
-                               Pair<Key, Value> *hi,
+                               T *a,
+                               T *b,
+                               T *lo,
+                               T *hi,
                                size_t node_size,
-                               SharedMemoryLayout<Key, Value> shmem,
+                               SharedMemoryLayout<T> shmem,
 			       Compare const& compare) {
   MergeAndSort(g, a, b, lo, hi, node_size,
 	       node_size, node_size, shmem, compare);
@@ -155,23 +155,23 @@ __device__ void MergeAndSort(CG const& g,
 *                  hi
 * @param shmem The shared memory layout for this cooperative group
 */
-template <typename Key, typename Value, typename CG, typename Compare>
+template <typename T, typename CG, typename Compare>
 __device__ void MergeAndSort(CG const& g,
-                               Pair<Key, Value> *a,
-                               Pair<Key, Value> *b,
-                               Pair<Key, Value> *lo,
-                               Pair<Key, Value> *hi,
+                               T *a,
+                               T *b,
+                               T *lo,
+                               T *hi,
                                size_t num_elements_a,
                                size_t num_elements_b,
                                size_t node_size,
-                               SharedMemoryLayout<Key, Value> shmem,
+                               SharedMemoryLayout<T> shmem,
 			       Compare const& compare) {
 
   int lane = g.thread_rank();
   int dim = g.size();
 
   if (num_elements_a == node_size &&
-      compare(a[node_size - 1].key, b[0].key)) {
+      compare(a[node_size - 1], b[0])) {
 
     CopyPairs(g, lo, a, num_elements_a);
 
@@ -180,7 +180,7 @@ __device__ void MergeAndSort(CG const& g,
   }
 
   if (num_elements_b == node_size &&
-      compare(b[node_size - 1].key, a[0].key)) {
+      compare(b[node_size - 1], a[0])) {
 
     CopyPairs(g, hi, a, num_elements_a);
 
@@ -226,7 +226,7 @@ __device__ void MergeAndSort(CG const& g,
 
       if (i >= num_elements_a) {
         leftmost_zero = i;
-      } else if (j >= num_elements_b || compare(a[i].key, b[j].key)) {
+      } else if (j >= num_elements_b || compare(a[i], b[j])) {
         rightmost_one = i;
       } else {
         leftmost_zero = i;
@@ -256,8 +256,8 @@ __device__ void MergeAndSort(CG const& g,
 
   // Merge our partition into the output arrays
   while (i < i_max && j < j_max) {
-    Pair<Key, Value> next_element;
-    if (compare(a[i].key, b[j].key)) {
+    T next_element;
+    if (compare(a[i], b[j])) {
       next_element = a[i];
       i++;
     } else {
@@ -308,10 +308,10 @@ __device__ void MergeAndSort(CG const& g,
 * @param temp A temporary array containing space for at least the nearest
 *             power of two greater than len pairs
 */
-template <typename Key, typename Value, typename CG, typename Compare>
-__device__ void PBSort(CG const& g, Pair<Key, Value> *start, size_t len,
+template <typename T, typename CG, typename Compare>
+__device__ void PBSort(CG const& g, T *start, size_t len,
                               size_t node_size,
-                              Pair<Key, Value> *temp,
+                              T *temp,
 			      Compare const& compare) {
 
 
@@ -334,7 +334,7 @@ __device__ void PBSort(CG const& g, Pair<Key, Value> *start, size_t len,
         int right = left + jump;
         if ((i / start_jump) % 2 == 0) {
           if (!mask[left] || (mask[right] &&
-              !compare(start[left].key, start[right].key))) {
+              !compare(start[left], start[right]))) {
             auto temp = start[left];
             start[left] = start[right];
             start[right] = temp;
@@ -345,7 +345,7 @@ __device__ void PBSort(CG const& g, Pair<Key, Value> *start, size_t len,
           }
         } else {
           if (!mask[right] || (mask[left]
-              && compare(start[left].key, start[right].key))) {
+              && compare(start[left], start[right]))) {
             auto temp = start[left];
             start[left] = start[right];
             start[right] = temp;
@@ -366,7 +366,7 @@ __device__ void PBSort(CG const& g, Pair<Key, Value> *start, size_t len,
       int left = (i / jump) * jump * 2 + i % jump;
       int right = left + jump;
       if (!mask[left] || (mask[right]
-          && !compare(start[left].key, start[right].key))) {
+          && !compare(start[left], start[right]))) {
         auto temp = start[left];
         start[left] = start[right];
         start[right] = temp;
@@ -492,15 +492,15 @@ __device__ int RightChild(int x, int lowest_level_start) {
 *                           heap
 * @param shmem The shared memory layout for this cooperative group
 */
-template <typename Key, typename Value, typename CG, typename Compare>
+template <typename T, typename CG, typename Compare>
 __device__ void Swim(CG const& g,
                      int cur_node,
-                     Pair<Key, Value> *heap,
+                     T *heap,
                      int *size,
                      size_t node_size,
                      int *locks,
                      int lowest_level_start,
-                     SharedMemoryLayout<Key, Value> shmem,
+                     SharedMemoryLayout<T> shmem,
 		     Compare const& compare) {
 
   int lane = g.thread_rank();
@@ -514,8 +514,8 @@ __device__ void Swim(CG const& g,
 
     // If the heap property is already satisfied for this node and its
     // parent we are done
-    if (!compare(heap[cur_node * node_size].key,
-        heap[parent * node_size + node_size - 1].key)) {
+    if (!compare(heap[cur_node * node_size],
+        heap[parent * node_size + node_size - 1])) {
       ReleaseLock(g, &(locks[parent]));
       break;
     }
@@ -556,16 +556,16 @@ __device__ void Swim(CG const& g,
 * @param node_capacity Max capacity of the heap in nodes
 * @param shmem The shared memory layout for this cooperative group
 */
-template <typename Key, typename Value, typename CG, typename Compare>
+template <typename T, typename CG, typename Compare>
 __device__ void Sink(CG const& g,
-                     Pair<Key, Value> *heap,
+                     T *heap,
                      int *size,
                      size_t node_size,
                      int *locks,
                      size_t *p_buffer_size,
                      int lowest_level_start,
                      int node_capacity,
-                     SharedMemoryLayout<Key, Value> shmem,
+                     SharedMemoryLayout<T> shmem,
 		     Compare const& compare) {
 
   size_t cur = kRootIdx;
@@ -605,8 +605,8 @@ __device__ void Sink(CG const& g,
         // In order to ensure we preserve the heap property,
         // we put the largest node_size elements in the child
         // that previously contained the largest element
-        if (!compare(heap[(left+1) * node_size - 1].key,
-            heap[(right+1) * node_size - 1].key)) {
+        if (!compare(heap[(left+1) * node_size - 1],
+            heap[(right+1) * node_size - 1])) {
           hi = left;
           lo = right;
         } else {
@@ -616,8 +616,8 @@ __device__ void Sink(CG const& g,
 
         // Skip the merge and sort if the nodes are already correctly
         // sorted
-        if (!compare(heap[(lo+1) * node_size - 1].key,
-            heap[hi * node_size].key)) {
+        if (!compare(heap[(lo+1) * node_size - 1],
+            heap[hi * node_size])) {
           MergeAndSort(g, &heap[left * node_size],
                          &heap[right * node_size],
                          shmem.A,
@@ -647,8 +647,8 @@ __device__ void Sink(CG const& g,
     //
     // TODO: can this ever even occur? In the paper this is done because
     // a max placeholder value is used to indicate unused nodes in the heap
-    if (!compare(heap[lo * node_size].key,
-        heap[(cur + 1) * node_size - 1].key)) {
+    if (!compare(heap[lo * node_size],
+        heap[(cur + 1) * node_size - 1])) {
       ReleaseLock(g, &locks[lo]);
       ReleaseLock(g, &locks[cur]);
       return;
@@ -692,16 +692,15 @@ __device__ void Sink(CG const& g,
 *                           heap
 * @param shmem The shared memory layout for this cooperative group
 */
-template <typename InputIt, typename Key,
-          typename Value, typename Compare, typename CG>
+template <typename InputIt, typename T, typename Compare, typename CG>
 __device__ void PushSingleNode(CG const& g,
                                  InputIt elements,
-                                 Pair<Key, Value> *heap,
+                                 T *heap,
                                  int *size,
                                  size_t node_size,
                                  int *locks,
                                  int lowest_level_start,
-                                 SharedMemoryLayout<Key, Value> shmem,
+                                 SharedMemoryLayout<T> shmem,
 				 Compare const& compare) {
 
   int lane = g.thread_rank();
@@ -750,11 +749,10 @@ __device__ void PushSingleNode(CG const& g,
 * @param node_capacity Maximum capacity of the heap in nodes
 * @param shmem The shared memory layout for this cooperative group
 */
-template <typename OutputIt, typename Key,
-          typename Value, typename Compare, typename CG>
+template <typename OutputIt, typename T, typename Compare, typename CG>
 __device__ void PopSingleNode(CG const& g,
                               OutputIt elements,
-                              Pair<Key, Value> *heap,
+                              T *heap,
                               int *size,
                               size_t node_size,
                               int *locks,
@@ -762,7 +760,7 @@ __device__ void PopSingleNode(CG const& g,
                               int *pop_tracker,
                               int lowest_level_start,
                               int node_capacity,
-                              SharedMemoryLayout<Key, Value> shmem,
+                              SharedMemoryLayout<T> shmem,
 			      Compare const& compare) {
 
   int lane = g.thread_rank();
@@ -850,19 +848,18 @@ __device__ void PopSingleNode(CG const& g,
 * @param node_capacity Maximum capacity of the heap in nodes
 * @param shmem The shared memory layout for this cooperative group
 */
-template <typename InputIt, typename Key,
-          typename Value, typename Compare, typename CG>
+template <typename InputIt, typename T, typename Compare, typename CG>
 __device__ void PopPartialNode(CG const& g,
                                InputIt elements,
                                size_t num_elements,
-                               Pair<Key, Value> *heap,
+                               T *heap,
                                int *size,
                                size_t node_size,
                                int *locks,
                                size_t *p_buffer_size,
                                int lowest_level_start,
                                int node_capacity,
-                               SharedMemoryLayout<Key, Value> shmem,
+                               SharedMemoryLayout<T> shmem,
 			       Compare const& compare) {
   int lane = g.thread_rank();
   int dim = g.size();
@@ -928,7 +925,7 @@ __device__ void PopPartialNode(CG const& g,
       MergeAndSort(g, &heap[kPBufferIdx],
                       &heap[kRootIdx * node_size] + num_elements,
                       shmem.A,
-                      (Pair<Key, Value>*)nullptr,
+                      (T*)nullptr,
                       *p_buffer_size,
                       node_size - num_elements,
                       node_size,
@@ -1001,18 +998,17 @@ __device__ void PopPartialNode(CG const& g,
 *                           heap
 * @param shmem The shared memory layout for this cooperative group
 */
-template <typename InputIt, typename Key,
-          typename Value, typename Compare, typename CG>
+template <typename InputIt, typename T, typename Compare, typename CG>
 __device__ void PushPartialNode(CG const& g,
                                 InputIt elements,
                                 size_t p_ins_size,
-                                Pair<Key, Value> *heap,
+                                T *heap,
                                 int *size,
                                 size_t node_size,
                                 int *locks,
                                 size_t *p_buffer_size, 
                                 int lowest_level_start,
-                                SharedMemoryLayout<Key, Value> shmem,
+                                SharedMemoryLayout<T> shmem,
 				Compare const& compare) {
 
   int lane = g.thread_rank();
@@ -1076,7 +1072,7 @@ __device__ void PushPartialNode(CG const& g,
     MergeAndSort(g, shmem.B,
                    &heap[kPBufferIdx],
                    shmem.A,
-                   (Pair<Key, Value> *)nullptr,
+                   (T*)nullptr,
                    p_ins_size,
                    *p_buffer_size,
                    node_size,
@@ -1127,22 +1123,22 @@ __device__ void PushPartialNode(CG const& g,
 * @param locks Array of locks, one for each node in the heap
 * @param p_buffer_size Number of pairs in the heap's partial buffer
 * @param temp_node A temporary array large enough to store
-                   sizeof(Pair<Key, Value>) * node_size bytes
+                   sizeof(T) * node_size bytes
 */
-template <typename OutputIt, typename Key, typename Value, typename Compare>
+template <typename OutputIt, typename T, typename Compare>
 __global__ void PushKernel(OutputIt elements,
                            size_t num_elements,
-                           Pair<Key, Value> *heap,
+                           T *heap,
                            int *size,
                            size_t node_size,
                            int *locks,
                            size_t *p_buffer_size,
                            int lowest_level_start,
-			   Compare const& compare) {
+			   Compare compare) {
 
   extern __shared__ int s[];
 
-  SharedMemoryLayout<Key, Value> shmem = GetSharedMemoryLayout<Key, Value>(s,
+  SharedMemoryLayout<T> shmem = GetSharedMemoryLayout<T>(s,
                                               blockDim.x, node_size);
 
   // We push as many elements as possible as full nodes,
@@ -1185,20 +1181,19 @@ __global__ void PushKernel(OutputIt elements,
 * @param locks Array of locks, one for each node in the heap
 * @param p_buffer_size Number of pairs in the heap's partial buffer
 * @param temp_node A temporary array large enough to store
-                   sizeof(Pair<Key, Value>) * node_size bytes
+                   sizeof(T) * node_size bytes
 */
-template <typename InputIt, typename Key,
-          typename Value, typename Compare>
+template <typename InputIt, typename T, typename Compare>
 __global__ void PushKernelWarp(InputIt elements,
                            size_t num_elements,
-                           Pair<Key, Value> *heap,
+                           T *heap,
                            int *size,
                            size_t node_size,
                            int *locks,
                            size_t *p_buffer_size,
                            int lowest_level_start,
                            int bytes_shmem_per_warp,
-			   Compare const& compare) {
+			   Compare compare) {
 
   extern __shared__ char sh[];
 
@@ -1208,7 +1203,7 @@ __global__ void PushKernelWarp(InputIt elements,
   thread_block block = this_thread_block();
   thread_block_tile<32> warp = tiled_partition<32>(block); 
 
-  SharedMemoryLayout<Key, Value> shmem = GetSharedMemoryLayout<Key, Value>(
+  SharedMemoryLayout<T> shmem = GetSharedMemoryLayout<T>(
                   (int*)(sh + bytes_shmem_per_warp * warp.meta_group_rank()),
                          32, node_size);
 
@@ -1250,10 +1245,10 @@ __global__ void PushKernelWarp(InputIt elements,
 * @param p_buffer_size Number of pairs in the heap's partial buffer
 * @param pop_tracker Pointer to an integer in global memory initialized to 0
 */
-template <typename OutputIt, typename Key, typename Value, typename Compare>
+template <typename OutputIt, typename T, typename Compare>
 __global__ void PopKernelWarp(OutputIt elements,
                            size_t num_elements,
-                           Pair<Key, Value> *heap,
+                           T *heap,
                            int *size,
                            size_t node_size,
                            int *locks,
@@ -1262,7 +1257,7 @@ __global__ void PopKernelWarp(OutputIt elements,
                            int lowest_level_start,
                            int node_capacity,
                            int bytes_shmem_per_warp,
-			   Compare const& compare) {
+			   Compare compare) {
 
   // We use pop_tracker to ensure that each thread block inserts its node
   // at the correct location in the output array
@@ -1273,7 +1268,7 @@ __global__ void PopKernelWarp(OutputIt elements,
   thread_block block = this_thread_block();
   thread_block_tile<32> warp = tiled_partition<32>(block); 
 
-  SharedMemoryLayout<Key, Value> shmem = GetSharedMemoryLayout<Key, Value>(
+  SharedMemoryLayout<T> shmem = GetSharedMemoryLayout<T>(
                    (int*)(sh + bytes_shmem_per_warp * warp.meta_group_rank()), 
                           32, node_size);
 
@@ -1322,10 +1317,10 @@ __global__ void PopKernelWarp(OutputIt elements,
 * @param p_buffer_size Number of pairs in the heap's partial buffer
 * @param pop_tracker Pointer to an integer in global memory initialized to 0
 */
-template <typename OutputIt, typename Key, typename Value, typename Compare>
+template <typename OutputIt, typename T, typename Compare>
 __global__ void PopKernel(OutputIt elements,
                            size_t num_elements,
-                           Pair<Key, Value> *heap,
+                           T *heap,
                            int *size,
                            size_t node_size,
                            int *locks,
@@ -1333,7 +1328,7 @@ __global__ void PopKernel(OutputIt elements,
                            int *pop_tracker,
                            int lowest_level_start,
                            int node_capacity,
-			   Compare const& compare) {
+			   Compare compare) {
 
   // We use pop_tracker to ensure that each thread block inserts its node
   // at the correct location in the output array
@@ -1341,7 +1336,7 @@ __global__ void PopKernel(OutputIt elements,
 
   extern __shared__ int s[];
 
-  SharedMemoryLayout<Key, Value> shmem = GetSharedMemoryLayout<Key, Value>(s,
+  SharedMemoryLayout<T> shmem = GetSharedMemoryLayout<T>(s,
                                                        blockDim.x, node_size);
 
   thread_block g = this_thread_block();

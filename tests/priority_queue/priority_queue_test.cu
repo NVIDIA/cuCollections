@@ -21,7 +21,7 @@ using namespace cuco;
 // Inserts elements into pq, managing memory allocation
 // and copying to the device
 template <typename Key, typename Value, typename Compare>
-void Insert(priority_queue<Key, Value, Compare> &pq,
+void Insert(priority_queue<Pair<Key, Value>, Compare> &pq,
             const std::vector<Pair<Key, Value>> &elements,
             bool warp_level = false) {
   Pair<Key, Value> *d_elements;
@@ -41,7 +41,7 @@ void Insert(priority_queue<Key, Value, Compare> &pq,
 // Deletes num_elements elements from pq and returns them,
 // managing device memory
 template <typename Key, typename Value, typename Compare>
-std::vector<Pair<Key, Value>> Delete(priority_queue<Key, Value, Compare> &pq,
+std::vector<Pair<Key, Value>> Delete(priority_queue<Pair<Key, Value>, Compare> &pq,
                                      size_t num_elements,
                                      bool warp_level = false) {
   Pair<Key, Value> *d_elements;
@@ -64,7 +64,7 @@ std::vector<Pair<Key, Value>> Delete(priority_queue<Key, Value, Compare> &pq,
 
 template <typename Key, typename Value>
 __global__ void DeviceAPIInsert(
-                typename priority_queue<Key, Value>::device_mutable_view view,
+                typename priority_queue<Pair<Key, Value>>::device_mutable_view view,
                 Pair<Key, Value> *elements,
                 size_t num_elements) {
   extern __shared__ int shmem[];
@@ -79,7 +79,7 @@ __global__ void DeviceAPIInsert(
 
 template <typename Key, typename Value>
 __global__ void DeviceAPIDelete(
-                typename priority_queue<Key, Value>::device_mutable_view view,
+                typename priority_queue<Pair<Key, Value>>::device_mutable_view view,
                 Pair<Key, Value> *out,
                 size_t num_elements) {
 
@@ -94,7 +94,7 @@ __global__ void DeviceAPIDelete(
 
 template <typename Key, typename Value>
 __global__ void DeviceAPIInsertWarp(
-                typename priority_queue<Key, Value>::device_mutable_view view,
+                typename priority_queue<Pair<Key, Value>>::device_mutable_view view,
                 Pair<Key, Value> *elements,
                 size_t num_elements) {
   extern __shared__ int shmem[];
@@ -113,7 +113,7 @@ __global__ void DeviceAPIInsertWarp(
 
 template <typename Key, typename Value>
 __global__ void DeviceAPIDeleteWarp(
-        typename priority_queue<Key, Value>::device_mutable_view view,
+        typename priority_queue<Pair<Key, Value>>::device_mutable_view view,
         Pair<Key, Value> *out,
         size_t num_elements) {
   extern __shared__ int shmem[];
@@ -141,7 +141,7 @@ using FloatIntVector = std::vector<Pair<float, int32_t>>;
 TestCase cases[] = {
 
   {"test_insert_1", []() {
-      priority_queue<int32_t, int32_t> pq(1000);
+      priority_queue<Pair<int32_t, int32_t>> pq(1000);
       IntIntVector result = {{1, 1}};
       Insert(pq, {{1, 1}});
       return Delete(pq, 1) == result;
@@ -149,14 +149,15 @@ TestCase cases[] = {
   },
 
   {"test_insert_descending_seq", []() {
-      const int kNodeSize = 1024;
+      const int kNodeSize = 8;
 
       srand(0);
 
       // Choose some reasonably large number of elements
       int count = rand() % 1000000 + 10000;
+      //int count = 9;
 
-      priority_queue<int32_t, int32_t> pq(count, kNodeSize);
+      priority_queue<Pair<int32_t, int32_t>> pq(count, kNodeSize);
 
       IntIntVector input;
 
@@ -174,7 +175,11 @@ TestCase cases[] = {
         Insert(pq, {e});
       }
 
-      return Delete(pq, count) == result;
+      auto out = Delete(pq, count);
+      //for (int i = 0; i < out.size(); i++) {
+      //  std::cout << out[i].key << " " << result[i].key << std::endl;
+      //}
+      return out == result;
     }
   },
 
@@ -184,7 +189,7 @@ TestCase cases[] = {
       // Choose some number of elements less than the node size
       int count = rand() % kNodeSize;
 
-      priority_queue<int32_t, int32_t> pq(count, kNodeSize);
+      priority_queue<Pair<int32_t, int32_t>> pq(count, kNodeSize);
 
       IntIntVector input;
 
@@ -227,7 +232,7 @@ TestCase cases[] = {
       // buffer
       int count = 600;
 
-      priority_queue<int32_t, int32_t> pq(count * 2, kNodeSize);
+      priority_queue<Pair<int32_t, int32_t>> pq(count * 2, kNodeSize);
 
       IntIntVector input;
       IntIntVector input2;
@@ -269,7 +274,7 @@ TestCase cases[] = {
       // individual elements
       int count = rand() % kNodeSize;
 
-      priority_queue<int32_t, int32_t> pq(count, kNodeSize);
+      priority_queue<Pair<int32_t, int32_t>> pq(count, kNodeSize);
 
       IntIntVector input;
 
@@ -296,7 +301,7 @@ TestCase cases[] = {
       // Choose some reasonably large number of keys
       int count = rand() % 1000000 + 10000;
 
-      priority_queue<int32_t, int32_t> pq(count, kNodeSize);
+      priority_queue<Pair<int32_t, int32_t>> pq(count, kNodeSize);
 
       IntIntVector input;
 
@@ -340,7 +345,7 @@ TestCase cases[] = {
       // tests full node insertion
       int count = rand() % kNodeSize * 100 + 10 * kNodeSize;
 
-      priority_queue<int32_t, int32_t> pq(count, kNodeSize);
+      priority_queue<Pair<int32_t, int32_t>> pq(count, kNodeSize);
 
       IntIntVector input;
 
@@ -381,7 +386,7 @@ TestCase cases[] = {
       // Choose some reasonably large number of nodes
       const int kNodes = rand() % 1000 + 50;
 
-      priority_queue<int32_t, int32_t> pq(kNodeSize * kNodes, kNodeSize);
+      priority_queue<Pair<int32_t, int32_t>> pq(kNodeSize * kNodes, kNodeSize);
 
       for (int i = kNodes - 1; i >= 0; i--) {
 
@@ -415,7 +420,7 @@ TestCase cases[] = {
       const int kNodeSize = 1024;
       // Choose some reasonably large number of nodes
       const int kNodes = rand() % 1000 + 50;
-      priority_queue<int32_t, int32_t> pq(kNodeSize * kNodes, kNodeSize);
+      priority_queue<Pair<int32_t, int32_t>> pq(kNodeSize * kNodes, kNodeSize);
 
       for (int i = kNodes - 1; i >= 0; i--) {
 
@@ -456,7 +461,7 @@ TestCase cases[] = {
       // Choose some reasonably large number of keys
       int count = rand() % 100000 + 10000;
 
-      priority_queue<int32_t, int64_t> pq(count);
+      priority_queue<Pair<int32_t, int64_t>> pq(count);
 
       IntLongVector input;
 
@@ -497,7 +502,7 @@ TestCase cases[] = {
       // Choose some reasonably large number of keys
       int count = rand() % 100000 + 10000;
 
-      priority_queue<float, int32_t> pq(count);
+      priority_queue<Pair<float, int32_t>> pq(count);
 
       FloatIntVector input;
 
@@ -537,7 +542,7 @@ TestCase cases[] = {
       // Choose some reasonably large number of keys
       int count = rand() % 100000 + 10000;
 
-      priority_queue<int32_t, int32_t> pq(count);
+      priority_queue<Pair<int32_t, int32_t>> pq(count);
 
       IntIntVector input(count);
       for (int i = 0; i < count; i++) {
@@ -571,7 +576,7 @@ TestCase cases[] = {
       // Choose some reasonably large number of keys
       int count = rand() % 100000 + 10000;
 
-      priority_queue<int32_t, int32_t> pq(count);
+      priority_queue<Pair<int32_t, int32_t>> pq(count);
 
       // Create some elements with negative and very large
       // and very small keys
@@ -614,7 +619,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t> pq(num_keys);
+      priority_queue<Pair<int32_t, int32_t>> pq(num_keys);
 
       std::vector<int32_t> std_vec;
 
@@ -650,7 +655,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t> pq(num_keys);
+      priority_queue<Pair<int32_t, int32_t>> pq(num_keys);
 
       std::vector<int32_t> std_vec;
 
@@ -687,7 +692,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t> pq(num_keys, kNodeSize);
+      priority_queue<Pair<int32_t, int32_t>> pq(num_keys, kNodeSize);
 
       std::vector<int32_t> std_vec;
 
@@ -723,7 +728,8 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t, thrust::greater<int32_t>> pq(num_keys);
+      priority_queue<Pair<int32_t, int32_t>,
+	             thrust::greater<Pair<int32_t, int32_t>>> pq(num_keys);
 
       std::vector<int32_t> std_vec;
 
@@ -760,7 +766,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t> pq(num_keys, kNodeSize);
+      priority_queue<Pair<int32_t, int32_t>> pq(num_keys, kNodeSize);
 
       std::vector<int32_t> std_vec;
 
@@ -797,7 +803,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t> pq(num_keys);
+      priority_queue<Pair<int32_t, int32_t>> pq(num_keys);
 
       std::vector<int32_t> std_vec;
 
@@ -834,7 +840,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t> pq(num_keys);
+      priority_queue<Pair<int32_t, int32_t>> pq(num_keys);
 
       std::vector<int32_t> std_vec;
 
@@ -876,7 +882,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t> pq(num_keys);
+      priority_queue<Pair<int32_t, int32_t>> pq(num_keys);
 
       std::vector<int32_t> std_vec;
       IntIntVector input;
@@ -932,7 +938,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t> pq(num_keys);
+      priority_queue<Pair<int32_t, int32_t>> pq(num_keys);
 
       IntIntVector std_vec;
 
@@ -993,7 +999,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t> pq(num_keys, kNodeSize);
+      priority_queue<Pair<int32_t, int32_t>> pq(num_keys, kNodeSize);
 
       IntIntVector std_vec;
 
@@ -1053,7 +1059,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t> pq(num_keys);
+      priority_queue<Pair<int32_t, int32_t>> pq(num_keys);
 
       IntIntVector std_vec;
 
@@ -1114,7 +1120,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t> pq(num_keys, kNodeSize);
+      priority_queue<Pair<int32_t, int32_t>> pq(num_keys, kNodeSize);
 
       IntIntVector std_vec;
 
@@ -1174,7 +1180,7 @@ TestCase cases[] = {
 
       srand(0);
 
-      priority_queue<int32_t, int32_t> pq(num_keys);
+      priority_queue<Pair<int32_t, int32_t>> pq(num_keys);
 
       std::vector<int32_t> std_vec;
 

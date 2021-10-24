@@ -6,14 +6,14 @@
 
 namespace cuco {
 
-template <typename Key, typename Value, typename Compare, typename Allocator>
-priority_queue<Key, Value, Compare, Allocator>::priority_queue
+template <typename T, typename Compare, typename Allocator>
+priority_queue<T, Compare, Allocator>::priority_queue
                                                (size_t initial_capacity,
                                                 size_t node_size,
 						Allocator const& allocator) :
 	                                        allocator_{allocator},
 					        int_allocator_{allocator},
-					        pair_allocator_{allocator},
+					        t_allocator_{allocator},
 					        size_t_allocator_{allocator} {
 
   node_size_ = node_size;
@@ -37,7 +37,7 @@ priority_queue<Key, Value, Compare, Allocator>::priority_queue
 
   CUCO_CUDA_TRY(cudaMemset(d_p_buffer_size_, 0, sizeof(size_t)));
 
-  d_heap_ = std::allocator_traits<pair_allocator_type>::allocate(pair_allocator_,
+  d_heap_ = std::allocator_traits<t_allocator_type>::allocate(t_allocator_,
 		                       node_capacity_ * node_size_ + node_size_);
 
   d_locks_ = std::allocator_traits<int_allocator_type>::allocate(int_allocator_,
@@ -52,13 +52,13 @@ priority_queue<Key, Value, Compare, Allocator>::priority_queue
 
 }
 
-template <typename Key, typename Value, typename Compare, typename Allocator>
-priority_queue<Key, Value, Compare, Allocator>::~priority_queue() {
+template <typename T, typename Compare, typename Allocator>
+priority_queue<T, Compare, Allocator>::~priority_queue() {
   std::allocator_traits<int_allocator_type>::deallocate(int_allocator_,
 		                                        d_size_, 1);
   std::allocator_traits<size_t_allocator_type>::deallocate(size_t_allocator_,
 		                                        d_p_buffer_size_, 1);
-  std::allocator_traits<pair_allocator_type>::deallocate(pair_allocator_,
+  std::allocator_traits<t_allocator_type>::deallocate(t_allocator_,
 		                                         d_heap_,
 			        node_capacity_ * node_size_ + node_size_);
   std::allocator_traits<int_allocator_type>::deallocate(int_allocator_,
@@ -70,9 +70,9 @@ priority_queue<Key, Value, Compare, Allocator>::~priority_queue() {
 }
 
 
-template <typename Key, typename Value, typename Compare, typename Allocator>
+template <typename T, typename Compare, typename Allocator>
 template <typename InputIt>
-void priority_queue<Key, Value, Compare, Allocator>::push(InputIt first,
+void priority_queue<T, Compare, Allocator>::push(InputIt first,
                                            InputIt last,
                                            int block_size,
                                            int grid_size,
@@ -99,9 +99,9 @@ void priority_queue<Key, Value, Compare, Allocator>::push(InputIt first,
   CUCO_CUDA_TRY(cudaGetLastError());
 }
 
-template <typename Key, typename Value, typename Compare, typename Allocator>
+template <typename T, typename Compare, typename Allocator>
 template <typename OutputIt>
-void priority_queue<Key, Value, Compare, Allocator>::pop(OutputIt first,
+void priority_queue<T, Compare, Allocator>::pop(OutputIt first,
                                           OutputIt last,
                                           int block_size,
                                           int grid_size,
@@ -131,17 +131,17 @@ void priority_queue<Key, Value, Compare, Allocator>::pop(OutputIt first,
   CUCO_CUDA_TRY(cudaGetLastError());
 }
 
-template <typename Key, typename Value, typename Compare, typename Allocator>
+template <typename T, typename Compare, typename Allocator>
 template <typename CG, typename InputIt>
-__device__ void priority_queue<Key, Value, Compare, Allocator>
+__device__ void priority_queue<T, Compare, Allocator>
                                  ::device_mutable_view::push(
                                                   CG const& g,
                                                   InputIt first,
                                                   InputIt last,
                                                   void *temp_storage) {
 
-  SharedMemoryLayout<Key, Value> shmem =
-       GetSharedMemoryLayout<Key, Value>((int*)temp_storage,
+  SharedMemoryLayout<T> shmem =
+       GetSharedMemoryLayout<T>((int*)temp_storage,
                                          g.size(), node_size_);
   if (last - first == node_size_) {
     PushSingleNode(g, first, d_heap_, d_size_, node_size_,
@@ -154,9 +154,9 @@ __device__ void priority_queue<Key, Value, Compare, Allocator>
   }
 }
 
-template <typename Key, typename Value, typename Compare, typename Allocator>
+template <typename T, typename Compare, typename Allocator>
 template <typename CG, typename OutputIt>
-__device__ void priority_queue<Key, Value, Compare, Allocator>
+__device__ void priority_queue<T, Compare, Allocator>
                                        ::device_mutable_view::pop(
                                                       CG const& g,
                                                       OutputIt first,
@@ -164,8 +164,8 @@ __device__ void priority_queue<Key, Value, Compare, Allocator>
                                                       void *temp_storage) {
   int pop_tracker = 0;
 
-  SharedMemoryLayout<Key, Value> shmem =
-       GetSharedMemoryLayout<Key, Value>((int*)temp_storage,
+  SharedMemoryLayout<T> shmem =
+       GetSharedMemoryLayout<T>((int*)temp_storage,
                                          g.size(), node_size_);
 
   if (last - first == node_size_) {

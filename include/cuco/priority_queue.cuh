@@ -48,15 +48,15 @@ namespace cuco {
 *             keys in the queue, otherwise, pop operations yeild the elements
 *             with the largest keys
 */
-template <typename Key, typename Value, typename Compare = thrust::less<Key>,
+template <typename T, typename Compare = thrust::less<T>,
 	  typename Allocator = cuco::cuda_allocator<char>>
 class priority_queue {
 
   using int_allocator_type = typename std::allocator_traits<Allocator>
 	                        ::rebind_alloc<int>;
 
-  using pair_allocator_type = typename std::allocator_traits<Allocator>
-	                                  ::rebind_alloc<Pair<Key, Value>>;
+  using t_allocator_type = typename std::allocator_traits<Allocator>
+	                                  ::rebind_alloc<T>;
   
   using size_t_allocator_type = typename std::allocator_traits<Allocator>
 	                                  ::rebind_alloc<size_t>;
@@ -76,7 +76,7 @@ class priority_queue {
    * @brief Push elements into the priority queue
    *
    * @tparam InputIt Device accessible input iterator whose `value_type`
-   *        can be converted to Pair<Key, Value>
+   *        can be converted to T
    * @param first Beginning of the sequence of elements
    * @param last End of the sequence of elements
    * @param num_elements Number of elements to add to the queue
@@ -98,7 +98,7 @@ class priority_queue {
    *        highest (when Max == true) elements
    *
    * @tparam OutputIt Device accessible output iterator whose `value_type`
-   *        can be converted to Pair<Key, Value>
+   *        can be converted to T
    * @param first Beginning of the sequence of output elements
    * @param last End of the sequence of output elements
    * @param num_elements The number of elements to be removed
@@ -124,7 +124,7 @@ class priority_queue {
   */
   int get_shmem_size(int block_size) {
     int intersection_bytes = 2 * (block_size + 1) * sizeof(int);
-    int node_bytes = node_size_ * sizeof(Pair<Key, Value>);
+    int node_bytes = node_size_ * sizeof(T);
     return intersection_bytes + 2 * node_bytes;
   }
 
@@ -141,7 +141,7 @@ class priority_queue {
      *
      * @tparam CG Cooperative Group type
      * @tparam Device accessible iterator whose `value_type` is convertible
-     *         to Pair<Key, Value>
+     *         to T
      * @param g The cooperative group that will perform the operation
      * @param first The beginning of the sequence of elements to insert
      * @param last The end of the sequence of elements to insert
@@ -157,7 +157,7 @@ class priority_queue {
      *
      * @tparam CG Cooperative Group type
      * @tparam Device accessible iterator whose `value_type` is convertible to
-               Pair<Key, Value>
+               T
      * @param g The cooperative group that will perform the operation
      * @param first The beginning of the sequence of elements to output into
      * @param last The end of the sequence of elements to output into
@@ -189,12 +189,12 @@ class priority_queue {
     */
     __device__ int get_shmem_size(int block_size) {
       int intersection_bytes = 2 * (block_size + 1) * sizeof(int);
-      int node_bytes = node_size_ * sizeof(Pair<Key, Value>);
+      int node_bytes = node_size_ * sizeof(T);
       return intersection_bytes + 2 * node_bytes;
     }
 
     __host__ __device__ device_mutable_view(size_t node_size,
-                                            Pair<Key, Value> *d_heap,
+                                            T *d_heap,
                                             int *d_size,
                                             size_t *d_p_buffer_size,
                                             int *d_locks,
@@ -217,7 +217,7 @@ class priority_queue {
     int lowest_level_start_;
     int node_capacity_;
 
-    Pair<Key, Value> *d_heap_;
+    T *d_heap_;
     int *d_size_;
     size_t *d_p_buffer_size_;
     int *d_locks_;
@@ -243,7 +243,7 @@ class priority_queue {
                              ///  heap's lowest level
   int node_capacity_;        ///< Capacity of the heap in nodes
 
-  Pair<Key, Value> *d_heap_; ///< Pointer to an array of nodes, the 0th node
+  T *d_heap_; ///< Pointer to an array of nodes, the 0th node
                              ///  being the heap's partial buffer, and nodes
                              ///  1..(node_capacity_) being the heap, where the
                              ///  1st node is the root
@@ -258,7 +258,7 @@ class priority_queue {
                              ///  popped node
   Allocator allocator_;
   int_allocator_type int_allocator_;
-  pair_allocator_type pair_allocator_;
+  t_allocator_type t_allocator_;
   size_t_allocator_type size_t_allocator_;
 
   Compare compare_{};

@@ -1,5 +1,6 @@
 #pragma once
 
+
 namespace cuco {
 
 template <typename Key, typename Value>
@@ -18,4 +19,16 @@ bool operator==(const Pair<Key, Value> &a, const Pair<Key, Value> &b) {
   return a.key == b.key && a.value == b.value;
 }
 
+
+template <typename Key, typename Value>
+__device__ __host__ bool operator>(const Pair<Key, Value> &a, const Pair<Key, Value> &b) {
+  return a.key > b.key;
 }
+
+template <typename Key, typename Value>
+__device__ __host__ bool operator<(const Pair<Key, Value> &a, const Pair<Key, Value> &b) {
+  return a.key < b.key;
+}
+
+}
+
