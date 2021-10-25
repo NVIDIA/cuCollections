@@ -375,62 +375,34 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_retrieve(
 
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
+  constexpr auto block_size  = 128;
   constexpr bool is_outer    = false;
 
-  auto constexpr block_size = 128;
-  auto const grid_size      = [&]() {
-    if constexpr (uses_vector_load()) {
-      return detail::get_grid_size(detail::vectorized_pair_retrieve<block_size,
-                                                                    warp_size(),
-                                                                    cg_size(),
-                                                                    buffer_size,
-                                                                    is_outer,
-                                                                    InputIt,
-                                                                    OutputIt1,
-                                                                    OutputIt2,
-                                                                    atomic_ctr_type,
-                                                                    device_view,
-                                                                    PairEqual>,
-                                   block_size);
-    }
-    if constexpr (not uses_vector_load()) {
-      return detail::get_grid_size(detail::pair_retrieve<block_size,
-                                                         warp_size(),
-                                                         cg_size(),
-                                                         buffer_size,
-                                                         is_outer,
-                                                         InputIt,
-                                                         OutputIt1,
-                                                         OutputIt2,
-                                                         atomic_ctr_type,
-                                                         device_view,
-                                                         PairEqual>,
-                                   block_size);
-    }
+  auto const flushing_cg_size = [&]() {
+    if constexpr (uses_vector_load()) { return warp_size(); }
+    return cg_size();
   }();
+
+  auto const grid_size = detail::get_grid_size(detail::pair_retrieve<block_size,
+                                                                     flushing_cg_size,
+                                                                     cg_size(),
+                                                                     buffer_size,
+                                                                     is_outer,
+                                                                     InputIt,
+                                                                     OutputIt1,
+                                                                     OutputIt2,
+                                                                     atomic_ctr_type,
+                                                                     device_view,
+                                                                     PairEqual>,
+                                               block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
-  if constexpr (uses_vector_load()) {
-    detail::vectorized_pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
-      <<<grid_size, block_size, 0, stream>>>(first,
-                                             last,
-                                             probe_output_begin,
-                                             contained_output_begin,
-                                             d_counter_.get(),
-                                             view,
-                                             pair_equal);
-  } else {
-    detail::pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
-      <<<grid_size, block_size, 0, stream>>>(first,
-                                             last,
-                                             probe_output_begin,
-                                             contained_output_begin,
-                                             d_counter_.get(),
-                                             view,
-                                             pair_equal);
-  }
+  detail::pair_retrieve<block_size, flushing_cg_size, cg_size(), buffer_size, is_outer>
+    <<<grid_size, block_size, 0, stream>>>(
+      first, last, probe_output_begin, contained_output_begin, d_counter_.get(), view, pair_equal);
+
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
@@ -458,62 +430,34 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_retrieve_oute
 
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
+  constexpr auto block_size  = 128;
   constexpr bool is_outer    = true;
 
-  auto constexpr block_size = 128;
-  auto const grid_size      = [&]() {
-    if constexpr (uses_vector_load()) {
-      return detail::get_grid_size(detail::vectorized_pair_retrieve<block_size,
-                                                                    warp_size(),
-                                                                    cg_size(),
-                                                                    buffer_size,
-                                                                    is_outer,
-                                                                    InputIt,
-                                                                    OutputIt1,
-                                                                    OutputIt2,
-                                                                    atomic_ctr_type,
-                                                                    device_view,
-                                                                    PairEqual>,
-                                   block_size);
-    }
-    if constexpr (not uses_vector_load()) {
-      return detail::get_grid_size(detail::pair_retrieve<block_size,
-                                                         warp_size(),
-                                                         cg_size(),
-                                                         buffer_size,
-                                                         is_outer,
-                                                         InputIt,
-                                                         OutputIt1,
-                                                         OutputIt2,
-                                                         atomic_ctr_type,
-                                                         device_view,
-                                                         PairEqual>,
-                                   block_size);
-    }
+  auto const flushing_cg_size = [&]() {
+    if constexpr (uses_vector_load()) { return warp_size(); }
+    return cg_size();
   }();
+
+  auto const grid_size = detail::get_grid_size(detail::pair_retrieve<block_size,
+                                                                     flushing_cg_size,
+                                                                     cg_size(),
+                                                                     buffer_size,
+                                                                     is_outer,
+                                                                     InputIt,
+                                                                     OutputIt1,
+                                                                     OutputIt2,
+                                                                     atomic_ctr_type,
+                                                                     device_view,
+                                                                     PairEqual>,
+                                               block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
-  if constexpr (uses_vector_load()) {
-    detail::vectorized_pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
-      <<<grid_size, block_size, 0, stream>>>(first,
-                                             last,
-                                             probe_output_begin,
-                                             contained_output_begin,
-                                             d_counter_.get(),
-                                             view,
-                                             pair_equal);
-  } else {
-    detail::pair_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
-      <<<grid_size, block_size, 0, stream>>>(first,
-                                             last,
-                                             probe_output_begin,
-                                             contained_output_begin,
-                                             d_counter_.get(),
-                                             view,
-                                             pair_equal);
-  }
+  detail::pair_retrieve<block_size, flushing_cg_size, cg_size(), buffer_size, is_outer>
+    <<<grid_size, block_size, 0, stream>>>(
+      first, last, probe_output_begin, contained_output_begin, d_counter_.get(), view, pair_equal);
+
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
@@ -766,18 +710,18 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <uint32_t buffer_size,
-          typename warpT,
-          typename CG,
+          typename FlushingCG,
+          typename ProbingCG,
           typename atomicT,
           typename OutputIt1,
           typename OutputIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve(
-  warpT const& warp,
-  CG const& g,
+  FlushingCG const& flushing_cg,
+  ProbingCG const& probing_cg,
   value_type const& pair,
-  uint32_t* warp_counter,
+  uint32_t* flushing_cg_counter,
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
@@ -786,16 +730,29 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = false;
-  impl_.pair_retrieve<buffer_size, is_outer>(warp,
-                                             g,
-                                             pair,
-                                             warp_counter,
-                                             probe_output_buffer,
-                                             contained_output_buffer,
-                                             num_matches,
-                                             probe_output_begin,
-                                             contained_output_begin,
-                                             pair_equal);
+  if constexpr (uses_vector_load()) {
+    impl_.pair_retrieve<buffer_size, is_outer>(flushing_cg,
+                                               probing_cg,
+                                               pair,
+                                               flushing_cg_counter,
+                                               probe_output_buffer,
+                                               contained_output_buffer,
+                                               num_matches,
+                                               probe_output_begin,
+                                               contained_output_begin,
+                                               pair_equal);
+  } else  // In the case of scalar load, flushing CG is the same as probing CG
+  {
+    impl_.pair_retrieve<buffer_size, is_outer>(probing_cg,
+                                               pair,
+                                               flushing_cg_counter,
+                                               probe_output_buffer,
+                                               contained_output_buffer,
+                                               num_matches,
+                                               probe_output_begin,
+                                               contained_output_begin,
+                                               pair_equal);
+  }
 }
 
 template <typename Key,
@@ -804,18 +761,18 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <uint32_t buffer_size,
-          typename warpT,
-          typename CG,
+          typename FlushingCG,
+          typename ProbingCG,
           typename atomicT,
           typename OutputIt1,
           typename OutputIt2,
           typename PairEqual>
 __device__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve_outer(
-  warpT const& warp,
-  CG const& g,
+  FlushingCG const& flushing_cg,
+  ProbingCG const& probing_cg,
   value_type const& pair,
-  uint32_t* warp_counter,
+  uint32_t* flushing_cg_counter,
   value_type* probe_output_buffer,
   value_type* contained_output_buffer,
   atomicT* num_matches,
@@ -824,88 +781,29 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = true;
-  impl_.pair_retrieve<buffer_size, is_outer>(warp,
-                                             g,
-                                             pair,
-                                             warp_counter,
-                                             probe_output_buffer,
-                                             contained_output_buffer,
-                                             num_matches,
-                                             probe_output_begin,
-                                             contained_output_begin,
-                                             pair_equal);
-}
-
-template <typename Key,
-          typename Value,
-          cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
-template <uint32_t cg_size,
-          uint32_t buffer_size,
-          typename CG,
-          typename atomicT,
-          typename OutputIt1,
-          typename OutputIt2,
-          typename PairEqual>
-__device__ void
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve(
-  CG const& g,
-  value_type const& pair,
-  uint32_t* cg_counter,
-  value_type* probe_output_buffer,
-  value_type* contained_output_buffer,
-  atomicT* num_matches,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin,
-  PairEqual pair_equal) noexcept
-{
-  constexpr bool is_outer = false;
-  impl_.pair_retrieve<cg_size, buffer_size, is_outer>(g,
-                                                      pair,
-                                                      cg_counter,
-                                                      probe_output_buffer,
-                                                      contained_output_buffer,
-                                                      num_matches,
-                                                      probe_output_begin,
-                                                      contained_output_begin,
-                                                      pair_equal);
-}
-
-template <typename Key,
-          typename Value,
-          cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
-template <uint32_t cg_size,
-          uint32_t buffer_size,
-          typename CG,
-          typename atomicT,
-          typename OutputIt1,
-          typename OutputIt2,
-          typename PairEqual>
-__device__ void
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve_outer(
-  CG const& g,
-  value_type const& pair,
-  uint32_t* cg_counter,
-  value_type* probe_output_buffer,
-  value_type* contained_output_buffer,
-  atomicT* num_matches,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin,
-  PairEqual pair_equal) noexcept
-{
-  constexpr bool is_outer = true;
-  impl_.pair_retrieve<cg_size, buffer_size, is_outer>(g,
-                                                      pair,
-                                                      cg_counter,
-                                                      probe_output_buffer,
-                                                      contained_output_buffer,
-                                                      num_matches,
-                                                      probe_output_begin,
-                                                      contained_output_begin,
-                                                      pair_equal);
+  if constexpr (uses_vector_load()) {
+    impl_.pair_retrieve<buffer_size, is_outer>(flushing_cg,
+                                               probing_cg,
+                                               pair,
+                                               flushing_cg_counter,
+                                               probe_output_buffer,
+                                               contained_output_buffer,
+                                               num_matches,
+                                               probe_output_begin,
+                                               contained_output_begin,
+                                               pair_equal);
+  } else  // In the case of scalar load, flushing CG is the same as probing CG
+  {
+    impl_.pair_retrieve<buffer_size, is_outer>(probing_cg,
+                                               pair,
+                                               flushing_cg_counter,
+                                               probe_output_buffer,
+                                               contained_output_buffer,
+                                               num_matches,
+                                               probe_output_begin,
+                                               contained_output_begin,
+                                               pair_equal);
+  }
 }
 
 template <typename Key,
