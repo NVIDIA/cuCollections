@@ -42,7 +42,7 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/probe_sequences.cuh>
-#include <cuco/detail/static_multimap/static_multimap_kernels.cuh>
+#include <cuco/detail/static_multimap/kernels.cuh>
 
 namespace cuco {
 
@@ -879,23 +879,23 @@ class static_multimap {
                                             PairEqual pair_equal) noexcept;
 
     /**
-     * @brief Retrieves all the matches of a given key contained in multimap using vector
-     * loads with per-warp shared memory buffer.
+     * @brief Retrieves all the matches of a given key contained in multimap with per-flushing-CG
+     * shared memory buffer.
      *
      * For key `k` existing in the map, copies `k` and all associated values to unspecified
      * locations in `[output_begin, output_end)`.
      *
      * @tparam buffer_size Size of the output buffer
-     * @tparam warpT Warp (Cooperative Group) type
-     * @tparam CG Cooperative Group type
+     * @tparam FlushingCG Type of Cooperative Group used to flush output buffer
+     * @tparam ProbingCG Type of Cooperative Group for parallel retrieval
      * @tparam atomicT Type of atomic storage
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
      * constructible from the map's `value_type`
      * @tparam KeyEqual Binary callable type
-     * @param warp The Cooperative Group (or warp) used to flush output buffer
-     * @param g The Cooperative Group used to retrieve
+     * @param flushing_cg The Cooperative Group used to flush output buffer
+     * @param probing_cg The Cooperative Group used to retrieve
      * @param k The key to search for
-     * @param warp_counter Pointer to the warp counter
+     * @param flushing_cg_counter Pointer to flushing_cg counter
      * @param output_buffer Shared memory buffer of the key/value pair sequence
      * @param num_matches Size of the output sequence
      * @param output_begin Beginning of the output sequence of key/value pairs
@@ -903,39 +903,39 @@ class static_multimap {
      * for equality
      */
     template <uint32_t buffer_size,
-              typename warpT,
-              typename CG,
+              typename FlushingCG,
+              typename ProbingCG,
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void retrieve(warpT const& warp,
-                             CG const& g,
+    __device__ void retrieve(FlushingCG const& flushing_cg,
+                             ProbingCG const& probing_cg,
                              Key const& k,
-                             uint32_t* warp_counter,
+                             uint32_t* flushing_cg_counter,
                              value_type* output_buffer,
                              atomicT* num_matches,
                              OutputIt output_begin,
                              KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
-     * @brief Retrieves all the matches of a given key contained in multimap using vector
-     * loads with per-warp shared memory buffer.
+     * @brief Retrieves all the matches of a given key contained in multimap with per-flushing-CG
+     * shared memory buffer.
      *
      * For key `k` existing in the map, copies `k` and all associated values to unspecified
      * locations in `[output_begin, output_end)`. If `k` does not have any matches, copies `k` and
      * `empty_value_sentinel()` into the output.
      *
      * @tparam buffer_size Size of the output buffer
-     * @tparam warpT Warp (Cooperative Group) type
-     * @tparam CG Cooperative Group type
+     * @tparam FlushingCG Type of Cooperative Group used to flush output buffer
+     * @tparam ProbingCG Type of Cooperative Group for parallel retrieval
      * @tparam atomicT Type of atomic storage
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
      * constructible from the map's `value_type`
      * @tparam KeyEqual Binary callable type
-     * @param warp The Cooperative Group (or warp) used to flush output buffer
-     * @param g The Cooperative Group used to retrieve
+     * @param flushing_cg The Cooperative Group used to flush output buffer
+     * @param probing_cg The Cooperative Group used to retrieve
      * @param k The key to search for
-     * @param warp_counter Pointer to the warp counter
+     * @param flushing_cg_counter Pointer to flushing_cg counter
      * @param output_buffer Shared memory buffer of the key/value pair sequence
      * @param num_matches Size of the output sequence
      * @param output_begin Beginning of the output sequence of key/value pairs
@@ -943,90 +943,15 @@ class static_multimap {
      * for equality
      */
     template <uint32_t buffer_size,
-              typename warpT,
-              typename CG,
+              typename FlushingCG,
+              typename ProbingCG,
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void retrieve_outer(warpT const& warp,
-                                   CG const& g,
+    __device__ void retrieve_outer(FlushingCG const& flushing_cg,
+                                   ProbingCG const& probing_cg,
                                    Key const& k,
-                                   uint32_t* warp_counter,
-                                   value_type* output_buffer,
-                                   atomicT* num_matches,
-                                   OutputIt output_begin,
-                                   KeyEqual key_equal = KeyEqual{}) noexcept;
-
-    /**
-     * @brief Retrieves all the matches of a given key contained in multimap using scalar
-     * loads with per-CG shared memory buffer.
-     *
-     * For key `k` existing in the map, copies `k` and all associated values to unspecified
-     * locations in `[output_begin, output_end)`.
-     *
-     * @tparam cg_size The number of threads in CUDA Cooperative Groups
-     * @tparam buffer_size Size of the output buffer
-     * @tparam CG Cooperative Group type
-     * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt Device accessible output iterator whose `value_type` is
-     * constructible from the map's `value_type`
-     * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to retrieve
-     * @param k The key to search for
-     * @param cg_counter Pointer to the CG counter
-     * @param output_buffer Shared memory buffer of the key/value pair sequence
-     * @param num_matches Size of the output sequence
-     * @param output_begin Beginning of the output sequence of key/value pairs
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     */
-    template <uint32_t cg_size,
-              uint32_t buffer_size,
-              typename CG,
-              typename atomicT,
-              typename OutputIt,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void retrieve(CG const& g,
-                             Key const& k,
-                             uint32_t* cg_counter,
-                             value_type* output_buffer,
-                             atomicT* num_matches,
-                             OutputIt output_begin,
-                             KeyEqual key_equal = KeyEqual{}) noexcept;
-
-    /**
-     * @brief Retrieves all the matches of a given key contained in multimap using scalar
-     * loads with per-CG shared memory buffer.
-     *
-     * For key `k` existing in the map, copies `k` and all associated values to unspecified
-     * locations in `[output_begin, output_end)`. If `k` does not have any matches, copies `k` and
-     * `empty_value_sentinel` into the output.
-     *
-     * @tparam cg_size The number of threads in CUDA Cooperative Groups
-     * @tparam buffer_size Size of the output buffer
-     * @tparam CG Cooperative Group type
-     * @tparam atomicT Type of atomic storage
-     * @tparam OutputIt Device accessible output iterator whose `value_type` is
-     * constructible from the map's `value_type`
-     * @tparam KeyEqual Binary callable type
-     * @param g The Cooperative Group used to retrieve
-     * @param k The key to search for
-     * @param cg_counter Pointer to the CG counter
-     * @param output_buffer Shared memory buffer of the key/value pair sequence
-     * @param num_matches Size of the output sequence
-     * @param output_begin Beginning of the output sequence of key/value pairs
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     */
-    template <uint32_t cg_size,
-              uint32_t buffer_size,
-              typename CG,
-              typename atomicT,
-              typename OutputIt,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void retrieve_outer(CG const& g,
-                                   Key const& k,
-                                   uint32_t* cg_counter,
+                                   uint32_t* flushing_cg_counter,
                                    value_type* output_buffer,
                                    atomicT* num_matches,
                                    OutputIt output_begin,

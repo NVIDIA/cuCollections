@@ -322,8 +322,8 @@ __global__ void pair_count(
  * output_begin + *num_matches - 1)`. Use `count()` to determine the size of the output range.
  *
  * @tparam block_size The size of the thread block
- * @tparam warp_size The size of the warp
- * @tparam tile_size The number of threads in the Cooperative Groups
+ * @tparam flushing_cg_size The size of the CG for flushing output buffers
+ * @tparam probing_cg_size The size of the CG for parallel retrievals
  * @tparam buffer_size Size of the output buffer
  * @tparam is_outer Boolean flag indicating whether non-matches are included in the output
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -341,108 +341,8 @@ __global__ void pair_count(
  * @param key_equal The binary function to compare two keys for equality
  */
 template <uint32_t block_size,
-          uint32_t warp_size,
-          uint32_t tile_size,
-          uint32_t buffer_size,
-          bool is_outer,
-          typename InputIt,
-          typename OutputIt,
-          typename atomicT,
-          typename viewT,
-          typename KeyEqual>
-__global__ void vectorized_retrieve(InputIt first,
-                                    InputIt last,
-                                    OutputIt output_begin,
-                                    atomicT* num_matches,
-                                    viewT view,
-                                    KeyEqual key_equal)
-{
-  using pair_type = typename viewT::value_type;
-
-  constexpr uint32_t num_warps = block_size / warp_size;
-  const uint32_t warp_id       = threadIdx.x / warp_size;
-
-  auto warp    = cg::tiled_partition<warp_size>(cg::this_thread_block());
-  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid / tile_size;
-
-  __shared__ pair_type output_buffer[num_warps][buffer_size];
-  // TODO: replace this with shared memory cuda::atomic variables once the dynamiic initialization
-  // warning issue is solved __shared__ atomicT toto_countter[num_warps];
-  __shared__ uint32_t warp_counter[num_warps];
-
-  if (warp.thread_rank() == 0) { warp_counter[warp_id] = 0; }
-
-  while (warp.any(first + key_idx < last)) {
-    bool active_flag = first + key_idx < last;
-    auto active_warp = cg::binary_partition<warp_size>(warp, active_flag);
-
-    if (active_flag) {
-      auto key = *(first + key_idx);
-      if constexpr (is_outer) {
-        view.retrieve_outer<buffer_size>(active_warp,
-                                         tile,
-                                         key,
-                                         &warp_counter[warp_id],
-                                         output_buffer[warp_id],
-                                         num_matches,
-                                         output_begin,
-                                         key_equal);
-      } else {
-        view.retrieve<buffer_size>(active_warp,
-                                   tile,
-                                   key,
-                                   &warp_counter[warp_id],
-                                   output_buffer[warp_id],
-                                   num_matches,
-                                   output_begin,
-                                   key_equal);
-      }
-    }
-    key_idx += (gridDim.x * block_size) / tile_size;
-  }
-
-  // Final flush of output buffer
-  if (warp_counter[warp_id] > 0) {
-    view.flush_output_buffer(
-      warp, warp_counter[warp_id], output_buffer[warp_id], num_matches, output_begin);
-  }
-}
-
-/**
- * @brief Retrieves all the values corresponding to all keys in the range `[first, last)` using
- * scalar loads combined with per-CG shared memory buffer.
- *
- * For key `k = *(first + i)` existing in the map, copies `k` and all associated values to
- * unspecified locations in `[output_begin, output_end)`. If `k` does not have any matches, copies
- * `k` and `empty_value_sentinel()` into the output only if `is_outer` is true.
- *
- * Behavior is undefined if the total number of matching keys exceeds `std::distance(output_begin,
- * output_begin + *num_matches - 1)`. Use `count()` to determine the size of the output range.
- *
- * @tparam block_size The size of the thread block
- * @tparam warp_size The size of the warp
- * @tparam tile_size The number of threads in the Cooperative Groups
- * @tparam buffer_size Size of the output buffer
- * @tparam is_outer Boolean flag indicating whether non-matches are included in the output
- * @tparam InputIt Device accessible input iterator whose `value_type` is
- * convertible to the map's `key_type`
- * @tparam OutputIt Device accessible output iterator whose `value_type` is
- * constructible from the map's `value_type`
- * @tparam atomicT Type of atomic storage
- * @tparam viewT Type of device view allowing access of hash map storage
- * @tparam KeyEqual Binary callable type
- * @param first Beginning of the sequence of keys
- * @param last End of the sequence of keys
- * @param output_begin Beginning of the sequence of values retrieved for each key
- * @param num_matches Size of the output sequence
- * @param view Device view used to access the hash map's slot storage
- * @param key_equal The binary function to compare two keys for equality
- */
-template <uint32_t block_size,
-          uint32_t warp_size,
-          uint32_t tile_size,
+          uint32_t flushing_cg_size,
+          uint32_t probing_cg_size,
           uint32_t buffer_size,
           bool is_outer,
           typename InputIt,
@@ -459,35 +359,57 @@ __global__ void retrieve(InputIt first,
 {
   using pair_type = typename viewT::value_type;
 
-  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid / tile_size;
+  constexpr uint32_t num_flushing_cgs = block_size / flushing_cg_size;
+  const uint32_t flushing_cg_id       = threadIdx.x / flushing_cg_size;
 
-  constexpr uint32_t num_cgs = block_size / tile_size;
-  const uint32_t cg_id       = threadIdx.x / tile_size;
-  const uint32_t lane_id     = tile.thread_rank();
+  auto flushing_cg = cg::tiled_partition<flushing_cg_size>(cg::this_thread_block());
+  auto probing_cg  = cg::tiled_partition<probing_cg_size>(cg::this_thread_block());
+  auto tid         = block_size * blockIdx.x + threadIdx.x;
+  auto key_idx     = tid / probing_cg_size;
 
-  __shared__ pair_type output_buffer[num_cgs][buffer_size];
-  __shared__ uint32_t cg_counter[num_cgs];
+  __shared__ pair_type output_buffer[num_flushing_cgs][buffer_size];
+  // TODO: replace this with shared memory cuda::atomic variables once the dynamiic initialization
+  // warning issue is solved __shared__ atomicT counter[num_flushing_cgs][buffer_size];
+  __shared__ uint32_t flushing_cg_counter[num_flushing_cgs];
 
-  if (lane_id == 0) { cg_counter[cg_id] = 0; }
+  if (flushing_cg.thread_rank() == 0) { flushing_cg_counter[flushing_cg_id] = 0; }
 
-  while (first + key_idx < last) {
-    auto key = *(first + key_idx);
-    if constexpr (is_outer) {
-      view.retrieve_outer<tile_size, buffer_size>(
-        tile, key, &cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin, key_equal);
-    } else {
-      view.retrieve<tile_size, buffer_size>(
-        tile, key, &cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin, key_equal);
+  while (flushing_cg.any(first + key_idx < last)) {
+    bool active_flag        = first + key_idx < last;
+    auto active_flushing_cg = cg::binary_partition<flushing_cg_size>(flushing_cg, active_flag);
+
+    if (active_flag) {
+      auto key = *(first + key_idx);
+      if constexpr (is_outer) {
+        view.retrieve_outer<buffer_size>(active_flushing_cg,
+                                         probing_cg,
+                                         key,
+                                         &flushing_cg_counter[flushing_cg_id],
+                                         output_buffer[flushing_cg_id],
+                                         num_matches,
+                                         output_begin,
+                                         key_equal);
+      } else {
+        view.retrieve<buffer_size>(active_flushing_cg,
+                                   probing_cg,
+                                   key,
+                                   &flushing_cg_counter[flushing_cg_id],
+                                   output_buffer[flushing_cg_id],
+                                   num_matches,
+                                   output_begin,
+                                   key_equal);
+      }
     }
-    key_idx += (gridDim.x * block_size) / tile_size;
+    key_idx += (gridDim.x * block_size) / probing_cg_size;
   }
 
   // Final flush of output buffer
-  if (cg_counter[cg_id] > 0) {
-    view.flush_output_buffer(
-      tile, cg_counter[cg_id], output_buffer[cg_id], num_matches, output_begin);
+  if (flushing_cg_counter[flushing_cg_id] > 0) {
+    view.flush_output_buffer(flushing_cg,
+                             flushing_cg_counter[flushing_cg_id],
+                             output_buffer[flushing_cg_id],
+                             num_matches,
+                             output_begin);
   }
 }
 

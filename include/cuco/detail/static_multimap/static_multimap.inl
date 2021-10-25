@@ -271,50 +271,33 @@ OutputIt static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::retrieve(
 
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
+  constexpr auto block_size  = 128;
   constexpr bool is_outer    = false;
 
-  auto constexpr block_size = 128;
-  auto const grid_size      = [&]() {
-    if constexpr (uses_vector_load()) {
-      return detail::get_grid_size(detail::vectorized_retrieve<block_size,
-                                                               warp_size(),
-                                                               cg_size(),
-                                                               buffer_size,
-                                                               is_outer,
-                                                               InputIt,
-                                                               OutputIt,
-                                                               atomic_ctr_type,
-                                                               device_view,
-                                                               KeyEqual>,
-                                   block_size);
-    }
-    if constexpr (not uses_vector_load()) {
-      return detail::get_grid_size(detail::retrieve<block_size,
-                                                    warp_size(),
-                                                    cg_size(),
-                                                    buffer_size,
-                                                    is_outer,
-                                                    InputIt,
-                                                    OutputIt,
-                                                    atomic_ctr_type,
-                                                    device_view,
-                                                    KeyEqual>,
-                                   block_size);
-    }
+  auto const flushing_cg_size = [&]() {
+    if constexpr (uses_vector_load()) { return warp_size(); }
+    return cg_size();
   }();
+
+  auto const grid_size = detail::get_grid_size(detail::retrieve<block_size,
+                                                                flushing_cg_size,
+                                                                cg_size(),
+                                                                buffer_size,
+                                                                is_outer,
+                                                                InputIt,
+                                                                OutputIt,
+                                                                atomic_ctr_type,
+                                                                device_view,
+                                                                KeyEqual>,
+                                               block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
-  if constexpr (uses_vector_load()) {
-    detail::vectorized_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
-      <<<grid_size, block_size, 0, stream>>>(
-        first, last, output_begin, d_counter_.get(), view, key_equal);
-  } else {
-    detail::retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
-      <<<grid_size, block_size, 0, stream>>>(
-        first, last, output_begin, d_counter_.get(), view, key_equal);
-  }
+  detail::retrieve<block_size, flushing_cg_size, cg_size(), buffer_size, is_outer>
+    <<<grid_size, block_size, 0, stream>>>(
+      first, last, output_begin, d_counter_.get(), view, key_equal);
+
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
@@ -337,50 +320,33 @@ OutputIt static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::retrieve_
 
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
+  constexpr auto block_size  = 128;
   constexpr bool is_outer    = true;
 
-  auto constexpr block_size = 128;
-  auto const grid_size      = [&]() {
-    if constexpr (uses_vector_load()) {
-      return detail::get_grid_size(detail::vectorized_retrieve<block_size,
-                                                               warp_size(),
-                                                               cg_size(),
-                                                               buffer_size,
-                                                               is_outer,
-                                                               InputIt,
-                                                               OutputIt,
-                                                               atomic_ctr_type,
-                                                               device_view,
-                                                               KeyEqual>,
-                                   block_size);
-    }
-    if constexpr (not uses_vector_load()) {
-      return detail::get_grid_size(detail::retrieve<block_size,
-                                                    warp_size(),
-                                                    cg_size(),
-                                                    buffer_size,
-                                                    is_outer,
-                                                    InputIt,
-                                                    OutputIt,
-                                                    atomic_ctr_type,
-                                                    device_view,
-                                                    KeyEqual>,
-                                   block_size);
-    }
+  auto const flushing_cg_size = [&]() {
+    if constexpr (uses_vector_load()) { return warp_size(); }
+    return cg_size();
   }();
+
+  auto const grid_size = detail::get_grid_size(detail::retrieve<block_size,
+                                                                flushing_cg_size,
+                                                                cg_size(),
+                                                                buffer_size,
+                                                                is_outer,
+                                                                InputIt,
+                                                                OutputIt,
+                                                                atomic_ctr_type,
+                                                                device_view,
+                                                                KeyEqual>,
+                                               block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
 
-  if constexpr (uses_vector_load()) {
-    detail::vectorized_retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
-      <<<grid_size, block_size, 0, stream>>>(
-        first, last, output_begin, d_counter_.get(), view, key_equal);
-  } else {
-    detail::retrieve<block_size, warp_size(), cg_size(), buffer_size, is_outer>
-      <<<grid_size, block_size, 0, stream>>>(
-        first, last, output_begin, d_counter_.get(), view, key_equal);
-  }
+  detail::retrieve<block_size, flushing_cg_size, cg_size(), buffer_size, is_outer>
+    <<<grid_size, block_size, 0, stream>>>(
+      first, last, output_begin, d_counter_.get(), view, key_equal);
+
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
@@ -723,24 +689,36 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <uint32_t buffer_size,
-          typename warpT,
-          typename CG,
+          typename FlushingCG,
+          typename ProbingCG,
           typename atomicT,
           typename OutputIt,
           typename KeyEqual>
 __device__ void static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::retrieve(
-  warpT const& warp,
-  CG const& g,
+  FlushingCG const& flushing_cg,
+  ProbingCG const& probing_cg,
   Key const& k,
-  uint32_t* warp_counter,
+  uint32_t* flushing_cg_counter,
   value_type* output_buffer,
   atomicT* num_matches,
   OutputIt output_begin,
   KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = false;
-  impl_.retrieve<buffer_size, is_outer>(
-    warp, g, k, warp_counter, output_buffer, num_matches, output_begin, key_equal);
+  if constexpr (uses_vector_load()) {
+    impl_.retrieve<buffer_size, is_outer>(flushing_cg,
+                                          probing_cg,
+                                          k,
+                                          flushing_cg_counter,
+                                          output_buffer,
+                                          num_matches,
+                                          output_begin,
+                                          key_equal);
+  } else  // In the case of scalar load, flushing CG is the same as probing CG
+  {
+    impl_.retrieve<buffer_size, is_outer>(
+      probing_cg, k, flushing_cg_counter, output_buffer, num_matches, output_begin, key_equal);
+  }
 }
 
 template <typename Key,
@@ -749,76 +727,37 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <uint32_t buffer_size,
-          typename warpT,
-          typename CG,
+          typename FlushingCG,
+          typename ProbingCG,
           typename atomicT,
           typename OutputIt,
           typename KeyEqual>
 __device__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::retrieve_outer(
-  warpT const& warp,
-  CG const& g,
+  FlushingCG const& flushing_cg,
+  ProbingCG const& probing_cg,
   Key const& k,
-  uint32_t* warp_counter,
+  uint32_t* flushing_cg_counter,
   value_type* output_buffer,
   atomicT* num_matches,
   OutputIt output_begin,
   KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = true;
-  impl_.retrieve<buffer_size, is_outer>(
-    warp, g, k, warp_counter, output_buffer, num_matches, output_begin, key_equal);
-}
-
-template <typename Key,
-          typename Value,
-          cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
-template <uint32_t cg_size,
-          uint32_t buffer_size,
-          typename CG,
-          typename atomicT,
-          typename OutputIt,
-          typename KeyEqual>
-__device__ void static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::retrieve(
-  CG const& g,
-  Key const& k,
-  uint32_t* cg_counter,
-  value_type* output_buffer,
-  atomicT* num_matches,
-  OutputIt output_begin,
-  KeyEqual key_equal) noexcept
-{
-  constexpr bool is_outer = false;
-  impl_.retrieve<cg_size, buffer_size, is_outer>(
-    g, k, cg_counter, output_buffer, num_matches, output_begin, key_equal);
-}
-
-template <typename Key,
-          typename Value,
-          cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
-template <uint32_t cg_size,
-          uint32_t buffer_size,
-          typename CG,
-          typename atomicT,
-          typename OutputIt,
-          typename KeyEqual>
-__device__ void
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::retrieve_outer(
-  CG const& g,
-  Key const& k,
-  uint32_t* cg_counter,
-  value_type* output_buffer,
-  atomicT* num_matches,
-  OutputIt output_begin,
-  KeyEqual key_equal) noexcept
-{
-  constexpr bool is_outer = true;
-  impl_.retrieve<cg_size, buffer_size, is_outer>(
-    g, k, cg_counter, output_buffer, num_matches, output_begin, key_equal);
+  if constexpr (uses_vector_load()) {
+    impl_.retrieve<buffer_size, is_outer>(flushing_cg,
+                                          probing_cg,
+                                          k,
+                                          flushing_cg_counter,
+                                          output_buffer,
+                                          num_matches,
+                                          output_begin,
+                                          key_equal);
+  } else  // In the case of scalar load, flushing CG is the same as probing CG
+  {
+    impl_.retrieve<buffer_size, is_outer>(
+      probing_cg, k, flushing_cg_counter, output_buffer, num_matches, output_begin, key_equal);
+  }
 }
 
 template <typename Key,

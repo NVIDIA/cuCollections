@@ -840,7 +840,7 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
 
   /**
    * @brief Retrieves all the matches of a given key contained in multimap using vector
-   * loads with per-warp shared memory buffer.
+   * loads with per-flushing-CG shared memory buffer.
    *
    * For key `k` existing in the map, copies `k` and all associated values to unspecified
    * locations in `[output_begin, output_end)`. If `k` does not have any matches, copies `k` and
@@ -848,16 +848,16 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    *
    * @tparam buffer_size Size of the output buffer
    * @tparam is_outer Boolean flag indicating whether outer join is peformed
-   * @tparam warpT Warp (Cooperative Group) type
-   * @tparam CG Cooperative Group type
+   * @tparam FlushingCG Type of Cooperative Group used to flush output buffer
+   * @tparam ProbingCG Type of Cooperative Group used to retrieve
    * @tparam atomicT Type of atomic storage
    * @tparam OutputIt Device accessible output iterator whose `value_type` is
    * constructible from the map's `value_type`
    * @tparam KeyEqual Binary callable type
-   * @param warp The Cooperative Group (or warp) used to flush output buffer
-   * @param g The Cooperative Group used to retrieve
+   * @param flushing_cg The Cooperative Group used to flush output buffer
+   * @param probing_cg The Cooperative Group used to retrieve
    * @param k The key to search for
-   * @param warp_counter Pointer to the warp counter
+   * @param flushing_cg_counter Pointer to the flushing cg counter
    * @param output_buffer Shared memory buffer of the key/value pair sequence
    * @param num_matches Size of the output sequence
    * @param output_begin Beginning of the output sequence of key/value pairs
@@ -866,28 +866,28 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    */
   template <uint32_t buffer_size,
             bool is_outer,
-            typename warpT,
-            typename CG,
+            typename FlushingCG,
+            typename ProbingCG,
             typename atomicT,
             typename OutputIt,
             typename KeyEqual>
-  __device__ void retrieve(warpT const& warp,
-                           CG const& g,
+  __device__ void retrieve(FlushingCG const& flushing_cg,
+                           ProbingCG const& probing_cg,
                            Key const& k,
-                           uint32_t* warp_counter,
+                           uint32_t* flushing_cg_counter,
                            value_type* output_buffer,
                            atomicT* num_matches,
                            OutputIt output_begin,
                            KeyEqual key_equal) noexcept
   {
-    const uint32_t cg_lane_id = g.thread_rank();
+    const uint32_t cg_lane_id = probing_cg.thread_rank();
 
-    auto current_slot = initial_slot(g, k);
+    auto current_slot = initial_slot(probing_cg, k);
 
     bool running                      = true;
     [[maybe_unused]] bool found_match = false;
 
-    while (warp.any(running)) {
+    while (flushing_cg.any(running)) {
       if (running) {
         value_type arr[2];
         load_pair_array(&arr[0], current_slot);
@@ -898,8 +898,8 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
           detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
         auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
         auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
-        auto const first_exists  = g.ballot(first_equals);
-        auto const second_exists = g.ballot(second_equals);
+        auto const first_exists  = probing_cg.ballot(first_equals);
+        auto const second_exists = probing_cg.ballot(second_equals);
 
         if (first_exists or second_exists) {
           if constexpr (is_outer) { found_match = true; }
@@ -909,9 +909,9 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
 
           uint32_t output_idx;
           if (0 == cg_lane_id) {
-            output_idx = atomicAdd(warp_counter, (num_first_matches + num_second_matches));
+            output_idx = atomicAdd(flushing_cg_counter, (num_first_matches + num_second_matches));
           }
-          output_idx = g.shfl(output_idx, 0);
+          output_idx = probing_cg.shfl(output_idx, 0);
 
           if (first_equals) {
             auto lane_offset = __popc(first_exists & ((1 << cg_lane_id) - 1));
@@ -926,11 +926,11 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
               cuco::make_pair<Key, Value>(std::move(key), std::move(arr[1].second));
           }
         }
-        if (g.any(first_slot_is_empty or second_slot_is_empty)) {
+        if (probing_cg.any(first_slot_is_empty or second_slot_is_empty)) {
           running = false;
           if constexpr (is_outer) {
             if ((not found_match) && (cg_lane_id == 0)) {
-              auto output_idx           = atomicAdd(warp_counter, 1);
+              auto output_idx           = atomicAdd(flushing_cg_counter, 1);
               Key key                   = k;
               output_buffer[output_idx] = cuco::make_pair<Key, Value>(
                 std::move(key), std::move(this->get_empty_value_sentinel()));
@@ -939,11 +939,12 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
         }
       }  // if running
 
-      warp.sync();
-      if (*warp_counter + warp.size() * vector_width() > buffer_size) {
-        flush_output_buffer(warp, *warp_counter, output_buffer, num_matches, output_begin);
+      flushing_cg.sync();
+      if (*flushing_cg_counter + flushing_cg.size() * vector_width() > buffer_size) {
+        flush_output_buffer(
+          flushing_cg, *flushing_cg_counter, output_buffer, num_matches, output_begin);
         // First lane reset warp-level counter
-        if (warp.thread_rank() == 0) { *warp_counter = 0; }
+        if (flushing_cg.thread_rank() == 0) { *flushing_cg_counter = 0; }
       }
 
       current_slot = next_slot(current_slot);
@@ -958,7 +959,6 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * locations in `[output_begin, output_end)`. If `k` does not have any matches, copies `k` and
    * `empty_value_sentinel()` into the output only if `is_outer` is true.
    *
-   * @tparam cg_size The number of threads in CUDA Cooperative Groups
    * @tparam buffer_size Size of the output buffer
    * @tparam is_outer Boolean flag indicating whether outer join is peformed
    * @tparam CG Cooperative Group type
@@ -975,8 +975,7 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * @param key_equal The binary callable used to compare two keys
    * for equality
    */
-  template <uint32_t cg_size,
-            uint32_t buffer_size,
+  template <uint32_t buffer_size,
             bool is_outer,
             typename CG,
             typename atomicT,
@@ -1037,7 +1036,7 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
       g.sync();
 
       // Flush if the next iteration won't fit into buffer
-      if ((*cg_counter + cg_size) > buffer_size) {
+      if ((*cg_counter + g.size()) > buffer_size) {
         flush_output_buffer(g, *cg_counter, output_buffer, num_matches, output_begin);
         // First lane reset CG-level counter
         if (lane_id == 0) { *cg_counter = 0; }
