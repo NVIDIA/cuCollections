@@ -42,7 +42,7 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/probe_sequences.cuh>
-#include <cuco/detail/static_multimap_kernels.cuh>
+#include <cuco/detail/static_multimap/static_multimap_kernels.cuh>
 
 namespace cuco {
 
@@ -1310,5 +1310,5 @@ class static_multimap {
 
 }  // namespace cuco
 
-#include <cuco/detail/static_multimap.inl>
-#include <cuco/detail/static_multimap_impl.inl>
+#include <cuco/detail/static_multimap/device_view_impl.inl>
+#include <cuco/detail/static_multimap/static_multimap.inl>
