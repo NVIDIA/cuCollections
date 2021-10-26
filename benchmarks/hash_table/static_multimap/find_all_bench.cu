@@ -75,6 +75,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
   cuco::static_multimap<Key,
                         Value,
                         cuda::thread_scope_device,
+                        cuco::cuda_allocator<char>,
                         cuco::detail::double_hashing<Key, Value, CGSize>>
     map{size, -1, -1};
   map.insert(d_pairs.begin(), d_pairs.end());

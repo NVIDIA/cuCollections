@@ -21,9 +21,9 @@ namespace cuco {
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
-class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_impl_base {
+          typename Allocator,
+          class ProbeSequence>
+class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_impl_base {
  private:
   ProbeSequence probe_sequence_;  ///< Probe sequence used to probe the hash map
   Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
@@ -194,9 +194,9 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
-class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_mutable_view_impl
+          typename Allocator,
+          class ProbeSequence>
+class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutable_view_impl
   : public device_view_impl_base {
  public:
   using value_type     = typename device_view_impl_base::value_type;
@@ -429,9 +429,9 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_mutab
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
-class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_impl
+          typename Allocator,
+          class ProbeSequence>
+class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_impl
   : public device_view_impl_base {
  public:
   using value_type     = typename device_view_impl_base::value_type;

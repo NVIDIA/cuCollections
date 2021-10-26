@@ -37,9 +37,9 @@ namespace cuco {
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::static_multimap(
+          typename Allocator,
+          class ProbeSequence>
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
   std::size_t capacity,
   Key empty_key_sentinel,
   Value empty_value_sentinel,
@@ -69,10 +69,10 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::static_multimap(
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename InputIt>
-void static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::insert(InputIt first,
+void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::insert(InputIt first,
                                                                           InputIt last,
                                                                           cudaStream_t stream)
 {
@@ -91,10 +91,10 @@ void static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::insert(InputI
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename InputIt, typename StencilIt, typename Predicate>
-void static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::insert_if(
+void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::insert_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream)
 {
   auto num_elements = std::distance(first, last);
@@ -113,10 +113,10 @@ void static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::insert_if(
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename InputIt, typename OutputIt, typename KeyEqual>
-void static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::contains(
+void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
 {
   auto num_keys = std::distance(first, last);
@@ -134,10 +134,10 @@ void static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::contains(
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename InputIt, typename KeyEqual>
-std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::count(
+std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::count(
   InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal) const
 {
   auto num_keys = std::distance(first, last);
@@ -165,10 +165,10 @@ std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::count(
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename InputIt, typename KeyEqual>
-std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::count_outer(
+std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::count_outer(
   InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal) const
 {
   auto num_keys = std::distance(first, last);
@@ -196,10 +196,10 @@ std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::count_
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename InputIt, typename PairEqual>
-std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_count(
+std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_count(
   InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream) const
 {
   auto num_keys = std::distance(first, last);
@@ -228,10 +228,10 @@ std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_c
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename InputIt, typename PairEqual>
-std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_count_outer(
+std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_count_outer(
   InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream) const
 {
   auto num_keys = std::distance(first, last);
@@ -260,10 +260,10 @@ std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_c
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename InputIt, typename OutputIt, typename KeyEqual>
-OutputIt static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::retrieve(
+OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
 {
   auto num_keys = std::distance(first, last);
@@ -309,10 +309,10 @@ OutputIt static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::retrieve(
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename InputIt, typename OutputIt, typename KeyEqual>
-OutputIt static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::retrieve_outer(
+OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve_outer(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
 {
   auto num_keys = std::distance(first, last);
@@ -358,11 +358,11 @@ OutputIt static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::retrieve_
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename InputIt, typename OutputIt1, typename OutputIt2, typename PairEqual>
 std::pair<OutputIt1, OutputIt2>
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_retrieve(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve(
   InputIt first,
   InputIt last,
   OutputIt1 probe_output_begin,
@@ -413,11 +413,11 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_retrieve(
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename InputIt, typename OutputIt1, typename OutputIt2, typename PairEqual>
 std::pair<OutputIt1, OutputIt2>
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_retrieve_outer(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve_outer(
   InputIt first,
   InputIt last,
   OutputIt1 probe_output_begin,
@@ -468,11 +468,11 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::pair_retrieve_oute
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename CG>
 __device__ __forceinline__ void
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_mutable_view::insert(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutable_view::insert(
   CG g, value_type const& insert_pair) noexcept
 {
   impl_.insert<uses_vector_load()>(g, insert_pair);
@@ -481,11 +481,11 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_mutable_vie
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename CG>
-__device__ __forceinline__ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::make_copy(
+__device__ __forceinline__ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::make_copy(
   CG g, pair_atomic_type* const memory_to_use, device_view source_device_view) noexcept
 {
 #if defined(CUCO_HAS_CUDA_BARRIER)
@@ -520,11 +520,11 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::make_
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename CG, typename atomicT, typename OutputIt>
 __device__ __forceinline__ void
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::flush_output_buffer(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::flush_output_buffer(
   CG const& g,
   uint32_t const num_outputs,
   value_type* output_buffer,
@@ -537,11 +537,11 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::flush
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
 __device__ __forceinline__ void
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::flush_output_buffer(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::flush_output_buffer(
   CG const& g,
   uint32_t const num_outputs,
   value_type* probe_output_buffer,
@@ -562,11 +562,11 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::flush
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename CG, typename KeyEqual>
 __device__ __forceinline__ bool
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::contains(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::contains(
   CG g, Key const& k, KeyEqual key_equal) noexcept
 {
   return impl_.contains<uses_vector_load()>(g, k, key_equal);
@@ -575,11 +575,11 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::conta
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename CG, typename KeyEqual>
 __device__ __forceinline__ std::size_t
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::count(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::count(
   CG const& g, Key const& k, KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = false;
@@ -589,11 +589,11 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::count
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename CG, typename KeyEqual>
 __device__ __forceinline__ std::size_t
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::count_outer(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::count_outer(
   CG const& g, Key const& k, KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = true;
@@ -603,11 +603,11 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::count
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename CG, typename PairEqual>
 __device__ __forceinline__ std::size_t
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_count(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_count(
   CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = false;
@@ -617,11 +617,11 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <typename CG, typename PairEqual>
 __device__ __forceinline__ std::size_t
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_count_outer(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_count_outer(
   CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = true;
@@ -631,8 +631,8 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <uint32_t buffer_size,
           typename FlushingCG,
           typename ProbingCG,
@@ -640,7 +640,7 @@ template <uint32_t buffer_size,
           typename OutputIt,
           typename KeyEqual>
 __device__ __forceinline__ void
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::retrieve(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::retrieve(
   FlushingCG const& flushing_cg,
   ProbingCG const& probing_cg,
   Key const& k,
@@ -670,8 +670,8 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::retri
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <uint32_t buffer_size,
           typename FlushingCG,
           typename ProbingCG,
@@ -679,7 +679,7 @@ template <uint32_t buffer_size,
           typename OutputIt,
           typename KeyEqual>
 __device__ __forceinline__ void
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::retrieve_outer(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::retrieve_outer(
   FlushingCG const& flushing_cg,
   ProbingCG const& probing_cg,
   Key const& k,
@@ -709,8 +709,8 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::retri
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <uint32_t buffer_size,
           typename FlushingCG,
           typename ProbingCG,
@@ -719,7 +719,7 @@ template <uint32_t buffer_size,
           typename OutputIt2,
           typename PairEqual>
 __device__ __forceinline__ void
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve(
   FlushingCG const& flushing_cg,
   ProbingCG const& probing_cg,
   value_type const& pair,
@@ -760,8 +760,8 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
+          typename Allocator,
+          class ProbeSequence>
 template <uint32_t buffer_size,
           typename FlushingCG,
           typename ProbingCG,
@@ -770,7 +770,7 @@ template <uint32_t buffer_size,
           typename OutputIt2,
           typename PairEqual>
 __device__ __forceinline__ void
-static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve_outer(
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve_outer(
   FlushingCG const& flushing_cg,
   ProbingCG const& probing_cg,
   value_type const& pair,
@@ -811,9 +811,9 @@ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
-std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::get_size(
+          typename Allocator,
+          class ProbeSequence>
+std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::get_size(
   cudaStream_t stream) const noexcept
 {
   auto begin = thrust::make_transform_iterator(
@@ -826,9 +826,9 @@ std::size_t static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::get_si
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
-          class ProbeSequence,
-          typename Allocator>
-float static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::get_load_factor(
+          typename Allocator,
+          class ProbeSequence>
+float static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::get_load_factor(
   cudaStream_t stream) const noexcept
 {
   auto size = get_size(stream);
