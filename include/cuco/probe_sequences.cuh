@@ -81,7 +81,7 @@ class linear_probing : public detail::probe_sequence_base<Key, Value, CGSize, Sc
     auto const hash_value = [&]() {
       auto const tmp = hash_(k);
       if constexpr (uses_vector_load()) {
-        // ensure initial hash value is always even
+        // initial hash value is always even
         return tmp + tmp % 2;
       }
       if constexpr (not uses_vector_load()) { return tmp; }
