@@ -88,17 +88,20 @@ class probe_sequence_base {
   /**
    * @brief Returns the capacity of the hash map.
    */
-  __host__ __device__ std::size_t get_capacity() const noexcept { return capacity_; }
+  __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
+  {
+    return capacity_;
+  }
 
   /**
    * @brief Returns slots array.
    */
-  __device__ iterator get_slots() noexcept { return slots_; }
+  __device__ __forceinline__ iterator get_slots() noexcept { return slots_; }
 
   /**
    * @brief Returns slots array.
    */
-  __device__ const_iterator get_slots() const noexcept { return slots_; }
+  __device__ __forceinline__ const_iterator get_slots() const noexcept { return slots_; }
 
  protected:
   iterator slots_;              ///< Pointer to beginning of the hash map slots
@@ -161,7 +164,7 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
    * @return Pointer to the initial slot for `k`
    */
   template <typename CG>
-  __device__ iterator initial_slot(CG const& g, Key const k) noexcept
+  __device__ __forceinline__ iterator initial_slot(CG const& g, Key const k) noexcept
   {
     auto const hash_value = [&]() {
       auto const tmp = hash_(k);
@@ -190,7 +193,7 @@ class linear_probing : public probe_sequence_base<Key, Value, CGSize, Scope> {
    * @param s The slot to advance
    * @return The next slot after `s`
    */
-  __device__ iterator next_slot(iterator s) noexcept
+  __device__ __forceinline__ iterator next_slot(iterator s) noexcept
   {
     std::size_t index = s - slots_;
     std::size_t offset;
@@ -270,7 +273,7 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, Scope> {
    * @return Pointer to the initial slot for `k`
    */
   template <typename CG>
-  __device__ iterator initial_slot(CG const& g, Key const k) noexcept
+  __device__ __forceinline__ iterator initial_slot(CG const& g, Key const k) noexcept
   {
     std::size_t index;
     auto const hash_value = hash1_(k);
@@ -296,7 +299,7 @@ class double_hashing : public probe_sequence_base<Key, Value, CGSize, Scope> {
    * @param s The slot to advance
    * @return The next slot after `s`
    */
-  __device__ iterator next_slot(iterator s) noexcept
+  __device__ __forceinline__ iterator next_slot(iterator s) noexcept
   {
     std::size_t index = s - slots_;
     return &slots_[(index + step_size_) % capacity_];

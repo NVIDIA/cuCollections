@@ -184,7 +184,8 @@ class static_multimap {
    *
    * @return Boolean indicating if concurrent insert/find is supported.
    */
-  __host__ __device__ static constexpr bool supports_concurrent_insert_find() noexcept
+  __host__ __device__ __forceinline__ static constexpr bool
+  supports_concurrent_insert_find() noexcept
   {
     return cuco::detail::is_packable<value_type>();
   }
@@ -194,7 +195,10 @@ class static_multimap {
    *
    * @return The CG size.
    */
-  static constexpr uint32_t cg_size() noexcept { return ProbeSequence::cg_size(); }
+  __host__ __device__ __forceinline__ static constexpr uint32_t cg_size() noexcept
+  {
+    return ProbeSequence::cg_size();
+  }
 
   /**
    * @brief Construct a statically-sized map with the specified initial capacity,
@@ -620,7 +624,7 @@ class static_multimap {
      * @return void.
      */
     template <typename CG>
-    __device__ void insert(CG g, value_type const& insert_pair) noexcept;
+    __device__ __forceinline__ void insert(CG g, value_type const& insert_pair) noexcept;
 
    private:
     device_mutable_view_impl impl_;
@@ -667,28 +671,34 @@ class static_multimap {
      *
      * @return Slots array
      */
-    __device__ pair_atomic_type* get_slots() noexcept { return impl_.get_slots(); }
+    __device__ __forceinline__ pair_atomic_type* get_slots() noexcept { return impl_.get_slots(); }
 
     /**
      * @brief Gets slots array.
      *
      * @return Slots array
      */
-    __device__ pair_atomic_type const* get_slots() const noexcept { return impl_.get_slots(); }
+    __device__ __forceinline__ pair_atomic_type const* get_slots() const noexcept
+    {
+      return impl_.get_slots();
+    }
 
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
      *
      * @return The maximum number of elements the hash map can hold
      */
-    __host__ __device__ std::size_t get_capacity() const noexcept { return impl_.get_capacity(); }
+    __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
+    {
+      return impl_.get_capacity();
+    }
 
     /**
      * @brief Gets the sentinel value used to represent an empty key slot.
      *
      * @return The sentinel value used to represent an empty key slot
      */
-    __host__ __device__ Key get_empty_key_sentinel() const noexcept
+    __host__ __device__ __forceinline__ Key get_empty_key_sentinel() const noexcept
     {
       return impl_.get_empty_key_sentinel();
     }
@@ -698,7 +708,7 @@ class static_multimap {
      *
      * @return The sentinel value used to represent an empty value slot
      */
-    __host__ __device__ Value get_empty_value_sentinel() const noexcept
+    __host__ __device__ __forceinline__ Value get_empty_value_sentinel() const noexcept
     {
       return impl_.get_empty_value_sentinel();
     }
@@ -717,9 +727,8 @@ class static_multimap {
      * @return Copy of passed `device_view`
      */
     template <typename CG>
-    __device__ static device_view make_copy(CG g,
-                                            pair_atomic_type* const memory_to_use,
-                                            device_view source_device_view) noexcept;
+    __device__ __forceinline__ static device_view make_copy(
+      CG g, pair_atomic_type* const memory_to_use, device_view source_device_view) noexcept;
 
     /**
      * @brief Flushes per-CG buffer into the output sequence.
@@ -741,11 +750,11 @@ class static_multimap {
      * @param output_begin Beginning of the output sequence of key/value pairs
      */
     template <typename CG, typename atomicT, typename OutputIt>
-    __inline__ __device__ void flush_output_buffer(CG const& g,
-                                                   uint32_t const num_outputs,
-                                                   value_type* output_buffer,
-                                                   atomicT* num_matches,
-                                                   OutputIt output_begin) noexcept;
+    __device__ __forceinline__ void flush_output_buffer(CG const& g,
+                                                        uint32_t const num_outputs,
+                                                        value_type* output_buffer,
+                                                        atomicT* num_matches,
+                                                        OutputIt output_begin) noexcept;
 
     /**
      * @brief Flushes per-CG buffer into the output sequences.
@@ -771,13 +780,13 @@ class static_multimap {
      * pairs
      */
     template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
-    __inline__ __device__ void flush_output_buffer(CG const& g,
-                                                   uint32_t const num_outputs,
-                                                   value_type* probe_output_buffer,
-                                                   value_type* contained_output_buffer,
-                                                   atomicT* num_matches,
-                                                   OutputIt1 probe_output_begin,
-                                                   OutputIt2 contained_output_begin) noexcept;
+    __device__ __forceinline__ void flush_output_buffer(CG const& g,
+                                                        uint32_t const num_outputs,
+                                                        value_type* probe_output_buffer,
+                                                        value_type* contained_output_buffer,
+                                                        atomicT* num_matches,
+                                                        OutputIt1 probe_output_begin,
+                                                        OutputIt2 contained_output_begin) noexcept;
 
     /**
      * @brief Indicates whether the key `k` exists in the map.
@@ -798,7 +807,9 @@ class static_multimap {
      * containing `k` was inserted
      */
     template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(CG g, Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ __forceinline__ bool contains(CG g,
+                                             Key const& k,
+                                             KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap.
@@ -815,9 +826,9 @@ class static_multimap {
      * @return Number of matches found by the current thread
      */
     template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::size_t count(CG const& g,
-                                 Key const& k,
-                                 KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ __forceinline__ std::size_t count(CG const& g,
+                                                 Key const& k,
+                                                 KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap. If no
@@ -835,9 +846,9 @@ class static_multimap {
      * @return Number of matches found by the current thread
      */
     template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::size_t count_outer(CG const& g,
-                                       Key const& k,
-                                       KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ __forceinline__ std::size_t count_outer(CG const& g,
+                                                       Key const& k,
+                                                       KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key/value pair contained in multimap.
@@ -854,9 +865,9 @@ class static_multimap {
      * @return Number of matches found by the current thread
      */
     template <typename CG, typename PairEqual>
-    __device__ std::size_t pair_count(CG const& g,
-                                      value_type const& pair,
-                                      PairEqual pair_equal) noexcept;
+    __device__ __forceinline__ std::size_t pair_count(CG const& g,
+                                                      value_type const& pair,
+                                                      PairEqual pair_equal) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key/value pair contained in multimap.
@@ -874,9 +885,9 @@ class static_multimap {
      * @return Number of matches found by the current thread
      */
     template <typename CG, typename PairEqual>
-    __device__ std::size_t pair_count_outer(CG const& g,
-                                            value_type const& pair,
-                                            PairEqual pair_equal) noexcept;
+    __device__ __forceinline__ std::size_t pair_count_outer(CG const& g,
+                                                            value_type const& pair,
+                                                            PairEqual pair_equal) noexcept;
 
     /**
      * @brief Retrieves all the matches of a given key contained in multimap with per-flushing-CG
@@ -908,14 +919,14 @@ class static_multimap {
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void retrieve(FlushingCG const& flushing_cg,
-                             ProbingCG const& probing_cg,
-                             Key const& k,
-                             uint32_t* flushing_cg_counter,
-                             value_type* output_buffer,
-                             atomicT* num_matches,
-                             OutputIt output_begin,
-                             KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ __forceinline__ void retrieve(FlushingCG const& flushing_cg,
+                                             ProbingCG const& probing_cg,
+                                             Key const& k,
+                                             uint32_t* flushing_cg_counter,
+                                             value_type* output_buffer,
+                                             atomicT* num_matches,
+                                             OutputIt output_begin,
+                                             KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Retrieves all the matches of a given key contained in multimap with per-flushing-CG
@@ -948,14 +959,14 @@ class static_multimap {
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ void retrieve_outer(FlushingCG const& flushing_cg,
-                                   ProbingCG const& probing_cg,
-                                   Key const& k,
-                                   uint32_t* flushing_cg_counter,
-                                   value_type* output_buffer,
-                                   atomicT* num_matches,
-                                   OutputIt output_begin,
-                                   KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ __forceinline__ void retrieve_outer(FlushingCG const& flushing_cg,
+                                                   ProbingCG const& probing_cg,
+                                                   Key const& k,
+                                                   uint32_t* flushing_cg_counter,
+                                                   value_type* output_buffer,
+                                                   atomicT* num_matches,
+                                                   OutputIt output_begin,
+                                                   KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Retrieves all the matches of a given pair contained in multimap with per-flushing-CG
@@ -993,16 +1004,16 @@ class static_multimap {
               typename OutputIt1,
               typename OutputIt2,
               typename PairEqual>
-    __device__ void pair_retrieve(FlushingCG const& flushing_cg,
-                                  ProbingCG const& probing_cg,
-                                  value_type const& pair,
-                                  uint32_t* warp_counter,
-                                  value_type* probe_output_buffer,
-                                  value_type* contained_output_buffer,
-                                  atomicT* num_matches,
-                                  OutputIt1 probe_output_begin,
-                                  OutputIt2 contained_output_begin,
-                                  PairEqual pair_equal) noexcept;
+    __device__ __forceinline__ void pair_retrieve(FlushingCG const& flushing_cg,
+                                                  ProbingCG const& probing_cg,
+                                                  value_type const& pair,
+                                                  uint32_t* warp_counter,
+                                                  value_type* probe_output_buffer,
+                                                  value_type* contained_output_buffer,
+                                                  atomicT* num_matches,
+                                                  OutputIt1 probe_output_begin,
+                                                  OutputIt2 contained_output_begin,
+                                                  PairEqual pair_equal) noexcept;
 
     /**
      * @brief Retrieves all the matches of a given pair contained in multimap with per-flushing-CG
@@ -1041,16 +1052,16 @@ class static_multimap {
               typename OutputIt1,
               typename OutputIt2,
               typename PairEqual>
-    __device__ void pair_retrieve_outer(FlushingCG const& flushing_cg,
-                                        ProbingCG const& probing_cg,
-                                        value_type const& pair,
-                                        uint32_t* flushing_cg_counter,
-                                        value_type* probe_output_buffer,
-                                        value_type* contained_output_buffer,
-                                        atomicT* num_matches,
-                                        OutputIt1 probe_output_begin,
-                                        OutputIt2 contained_output_begin,
-                                        PairEqual pair_equal) noexcept;
+    __device__ __forceinline__ void pair_retrieve_outer(FlushingCG const& flushing_cg,
+                                                        ProbingCG const& probing_cg,
+                                                        value_type const& pair,
+                                                        uint32_t* flushing_cg_counter,
+                                                        value_type* probe_output_buffer,
+                                                        value_type* contained_output_buffer,
+                                                        atomicT* num_matches,
+                                                        OutputIt1 probe_output_begin,
+                                                        OutputIt2 contained_output_begin,
+                                                        PairEqual pair_equal) noexcept;
 
    private:
     device_view_impl impl_;

@@ -27,7 +27,7 @@ namespace {
 template <typename Key>
 struct slot_is_filled {
   slot_is_filled(Key s) : empty_key_sentinel{s} {}
-  __device__ bool operator()(Key const& k) { return k != empty_key_sentinel; }
+  __device__ __forceinline__ bool operator()(Key const& k) { return k != empty_key_sentinel; }
   Key empty_key_sentinel;
 };
 }  // anonymous namespace
@@ -471,7 +471,7 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <typename CG>
-__device__ void
+__device__ __forceinline__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_mutable_view::insert(
   CG g, value_type const& insert_pair) noexcept
 {
@@ -484,7 +484,7 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <typename CG>
-__device__ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view
+__device__ __forceinline__ static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::make_copy(
   CG g, pair_atomic_type* const memory_to_use, device_view source_device_view) noexcept
 {
@@ -523,7 +523,7 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <typename CG, typename atomicT, typename OutputIt>
-__inline__ __device__ void
+__device__ __forceinline__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::flush_output_buffer(
   CG const& g,
   uint32_t const num_outputs,
@@ -540,7 +540,7 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
-__inline__ __device__ void
+__device__ __forceinline__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::flush_output_buffer(
   CG const& g,
   uint32_t const num_outputs,
@@ -565,7 +565,8 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <typename CG, typename KeyEqual>
-__device__ bool static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::contains(
+__device__ __forceinline__ bool
+static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::contains(
   CG g, Key const& k, KeyEqual key_equal) noexcept
 {
   return impl_.contains<uses_vector_load()>(g, k, key_equal);
@@ -577,7 +578,7 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <typename CG, typename KeyEqual>
-__device__ std::size_t
+__device__ __forceinline__ std::size_t
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::count(
   CG const& g, Key const& k, KeyEqual key_equal) noexcept
 {
@@ -591,7 +592,7 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <typename CG, typename KeyEqual>
-__device__ std::size_t
+__device__ __forceinline__ std::size_t
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::count_outer(
   CG const& g, Key const& k, KeyEqual key_equal) noexcept
 {
@@ -605,7 +606,7 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <typename CG, typename PairEqual>
-__device__ std::size_t
+__device__ __forceinline__ std::size_t
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_count(
   CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
 {
@@ -619,7 +620,7 @@ template <typename Key,
           class ProbeSequence,
           typename Allocator>
 template <typename CG, typename PairEqual>
-__device__ std::size_t
+__device__ __forceinline__ std::size_t
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_count_outer(
   CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
 {
@@ -638,7 +639,8 @@ template <uint32_t buffer_size,
           typename atomicT,
           typename OutputIt,
           typename KeyEqual>
-__device__ void static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::retrieve(
+__device__ __forceinline__ void
+static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::retrieve(
   FlushingCG const& flushing_cg,
   ProbingCG const& probing_cg,
   Key const& k,
@@ -676,7 +678,7 @@ template <uint32_t buffer_size,
           typename atomicT,
           typename OutputIt,
           typename KeyEqual>
-__device__ void
+__device__ __forceinline__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::retrieve_outer(
   FlushingCG const& flushing_cg,
   ProbingCG const& probing_cg,
@@ -716,7 +718,7 @@ template <uint32_t buffer_size,
           typename OutputIt1,
           typename OutputIt2,
           typename PairEqual>
-__device__ void
+__device__ __forceinline__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve(
   FlushingCG const& flushing_cg,
   ProbingCG const& probing_cg,
@@ -767,7 +769,7 @@ template <uint32_t buffer_size,
           typename OutputIt1,
           typename OutputIt2,
           typename PairEqual>
-__device__ void
+__device__ __forceinline__ void
 static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view::pair_retrieve_outer(
   FlushingCG const& flushing_cg,
   ProbingCG const& probing_cg,

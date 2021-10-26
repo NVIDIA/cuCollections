@@ -66,14 +66,17 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    *
    * @return Slots array
    */
-  __device__ pair_atomic_type* get_slots() noexcept { return probe_sequence_.get_slots(); }
+  __device__ __forceinline__ pair_atomic_type* get_slots() noexcept
+  {
+    return probe_sequence_.get_slots();
+  }
 
   /**
    * @brief Gets slots array.
    *
    * @return Slots array
    */
-  __device__ pair_atomic_type const* get_slots() const noexcept
+  __device__ __forceinline__ pair_atomic_type const* get_slots() const noexcept
   {
     return probe_sequence_.get_slots();
   }
@@ -89,7 +92,7 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * @return Pointer to the initial slot for `k`
    */
   template <typename CG>
-  __device__ iterator initial_slot(CG const& g, Key const& k) noexcept
+  __device__ __forceinline__ iterator initial_slot(CG const& g, Key const& k) noexcept
   {
     return probe_sequence_.initial_slot(g, k);
   }
@@ -105,7 +108,7 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * @return Pointer to the initial slot for `k`
    */
   template <typename CG>
-  __device__ const_iterator initial_slot(CG g, Key const& k) const noexcept
+  __device__ __forceinline__ const_iterator initial_slot(CG g, Key const& k) const noexcept
   {
     return probe_sequence_.initial_slot(g, k);
   }
@@ -119,7 +122,10 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * @param s The slot to advance
    * @return The next slot after `s`
    */
-  __device__ iterator next_slot(iterator s) noexcept { return probe_sequence_.next_slot(s); }
+  __device__ __forceinline__ iterator next_slot(iterator s) noexcept
+  {
+    return probe_sequence_.next_slot(s);
+  }
 
   /**
    * @brief Given a slot `s`, returns the next slot.
@@ -130,7 +136,7 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * @param s The slot to advance
    * @return The next slot after `s`
    */
-  __device__ const_iterator next_slot(const_iterator s) const noexcept
+  __device__ __forceinline__ const_iterator next_slot(const_iterator s) const noexcept
   {
     return probe_sequence_.next_slot(s);
   }
@@ -140,7 +146,7 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    *
    * @return The maximum number of elements the hash map can hold
    */
-  __host__ __device__ std::size_t get_capacity() const noexcept
+  __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
   {
     return probe_sequence_.get_capacity();
   }
@@ -150,14 +156,17 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  __host__ __device__ Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+  __host__ __device__ __forceinline__ Key get_empty_key_sentinel() const noexcept
+  {
+    return empty_key_sentinel_;
+  }
 
   /**
    * @brief Gets the sentinel value used to represent an empty value slot.
    *
    * @return The sentinel value used to represent an empty value slot
    */
-  __host__ __device__ Value get_empty_value_sentinel() const noexcept
+  __host__ __device__ __forceinline__ Value get_empty_value_sentinel() const noexcept
   {
     return empty_value_sentinel_;
   }
@@ -168,7 +177,8 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * @param arr The pair array to be loaded
    * @param current_slot The given slot to load from
    */
-  __device__ void load_pair_array(value_type* arr, const_iterator current_slot) noexcept
+  __device__ __forceinline__ void load_pair_array(value_type* arr,
+                                                  const_iterator current_slot) noexcept
   {
     if constexpr (sizeof(value_type) == 4) {
       auto const tmp = *reinterpret_cast<ushort4 const*>(current_slot);
@@ -214,7 +224,8 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_mutab
    * equality
    * @return An insert result from the `insert_resullt` enumeration.
    */
-  __device__ insert_result packed_cas(iterator current_slot, value_type const& insert_pair) noexcept
+  __device__ __forceinline__ insert_result packed_cas(iterator current_slot,
+                                                      value_type const& insert_pair) noexcept
   {
     auto expected_key   = this->get_empty_key_sentinel();
     auto expected_value = this->get_empty_value_sentinel();
@@ -241,8 +252,8 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_mutab
    * @param insert_pair The pair to insert
    * @return An insert result from the `insert_resullt` enumeration.
    */
-  __device__ insert_result back_to_back_cas(iterator current_slot,
-                                            value_type const& insert_pair) noexcept
+  __device__ __forceinline__ insert_result back_to_back_cas(iterator current_slot,
+                                                            value_type const& insert_pair) noexcept
   {
     using cuda::std::memory_order_relaxed;
 
@@ -281,8 +292,8 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_mutab
    * @param insert_pair The pair to insert
    * @return An insert result from the `insert_resullt` enumeration.
    */
-  __device__ insert_result cas_dependent_write(iterator current_slot,
-                                               value_type const& insert_pair) noexcept
+  __device__ __forceinline__ insert_result
+  cas_dependent_write(iterator current_slot, value_type const& insert_pair) noexcept
   {
     using cuda::std::memory_order_relaxed;
     auto expected_key = this->get_empty_key_sentinel();
@@ -321,8 +332,8 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_mutab
    * @return void.
    */
   template <bool uses_vector_load, typename CG>
-  __device__ std::enable_if_t<uses_vector_load, void> insert(CG g,
-                                                             value_type const& insert_pair) noexcept
+  __device__ __forceinline__ std::enable_if_t<uses_vector_load, void> insert(
+    CG g, value_type const& insert_pair) noexcept
   {
     auto current_slot = initial_slot(g, insert_pair.first);
     while (true) {
@@ -372,7 +383,7 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_mutab
    * @return void.
    */
   template <bool uses_vector_load, typename CG>
-  __device__ std::enable_if_t<not uses_vector_load, void> insert(
+  __device__ __forceinline__ std::enable_if_t<not uses_vector_load, void> insert(
     CG g, value_type const& insert_pair) noexcept
   {
     auto current_slot = initial_slot(g, insert_pair.first);
@@ -457,11 +468,11 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * @param output_begin Beginning of the output sequence of key/value pairs
    */
   template <typename CG, typename atomicT, typename OutputIt>
-  __inline__ __device__ void flush_output_buffer(CG const& g,
-                                                 uint32_t const num_outputs,
-                                                 value_type* output_buffer,
-                                                 atomicT* num_matches,
-                                                 OutputIt output_begin) noexcept
+  __device__ __forceinline__ void flush_output_buffer(CG const& g,
+                                                      uint32_t const num_outputs,
+                                                      value_type* output_buffer,
+                                                      atomicT* num_matches,
+                                                      OutputIt output_begin) noexcept
   {
     std::size_t offset;
     const auto lane_id = g.thread_rank();
@@ -514,13 +525,13 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * pairs
    */
   template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
-  __inline__ __device__ void flush_output_buffer(CG const& g,
-                                                 uint32_t const num_outputs,
-                                                 value_type* probe_output_buffer,
-                                                 value_type* contained_output_buffer,
-                                                 atomicT* num_matches,
-                                                 OutputIt1 probe_output_begin,
-                                                 OutputIt2 contained_output_begin) noexcept
+  __device__ __forceinline__ void flush_output_buffer(CG const& g,
+                                                      uint32_t const num_outputs,
+                                                      value_type* probe_output_buffer,
+                                                      value_type* contained_output_buffer,
+                                                      atomicT* num_matches,
+                                                      OutputIt1 probe_output_begin,
+                                                      OutputIt2 contained_output_begin) noexcept
   {
     std::size_t offset;
     const auto lane_id = g.thread_rank();
@@ -559,9 +570,8 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * containing `k` was inserted
    */
   template <bool uses_vector_load, typename CG, typename KeyEqual>
-  __device__ std::enable_if_t<uses_vector_load, bool> contains(CG g,
-                                                               Key const& k,
-                                                               KeyEqual key_equal) noexcept
+  __device__ __forceinline__ std::enable_if_t<uses_vector_load, bool> contains(
+    CG g, Key const& k, KeyEqual key_equal) noexcept
   {
     auto current_slot = initial_slot(g, k);
 
@@ -608,9 +618,8 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * containing `k` was inserted
    */
   template <bool uses_vector_load, typename CG, typename KeyEqual>
-  __device__ std::enable_if_t<not uses_vector_load, bool> contains(CG g,
-                                                                   Key const& k,
-                                                                   KeyEqual key_equal) noexcept
+  __device__ __forceinline__ std::enable_if_t<not uses_vector_load, bool> contains(
+    CG g, Key const& k, KeyEqual key_equal) noexcept
   {
     auto current_slot = initial_slot(g, k);
 
@@ -651,9 +660,8 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * @return Number of matches found by the current thread
    */
   template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
-  __device__ std::enable_if_t<uses_vector_load, std::size_t> count(CG const& g,
-                                                                   Key const& k,
-                                                                   KeyEqual key_equal) noexcept
+  __device__ __forceinline__ std::enable_if_t<uses_vector_load, std::size_t> count(
+    CG const& g, Key const& k, KeyEqual key_equal) noexcept
   {
     std::size_t count = 0;
     auto current_slot = initial_slot(g, k);
@@ -702,9 +710,8 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * @return Number of matches found by the current thread
    */
   template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
-  __device__ std::enable_if_t<not uses_vector_load, std::size_t> count(CG const& g,
-                                                                       Key const& k,
-                                                                       KeyEqual key_equal) noexcept
+  __device__ __forceinline__ std::enable_if_t<not uses_vector_load, std::size_t> count(
+    CG const& g, Key const& k, KeyEqual key_equal) noexcept
   {
     std::size_t count = 0;
     auto current_slot = initial_slot(g, k);
@@ -751,7 +758,7 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * @return Number of matches found by the current thread
    */
   template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
-  __device__ std::enable_if_t<uses_vector_load, std::size_t> pair_count(
+  __device__ __forceinline__ std::enable_if_t<uses_vector_load, std::size_t> pair_count(
     CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
   {
     std::size_t count = 0;
@@ -804,7 +811,7 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
    * @return Number of matches found by the current thread
    */
   template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
-  __device__ std::enable_if_t<not uses_vector_load, std::size_t> pair_count(
+  __device__ __forceinline__ std::enable_if_t<not uses_vector_load, std::size_t> pair_count(
     CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
   {
     std::size_t count = 0;
@@ -871,14 +878,14 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
             typename atomicT,
             typename OutputIt,
             typename KeyEqual>
-  __device__ void retrieve(FlushingCG const& flushing_cg,
-                           ProbingCG const& probing_cg,
-                           Key const& k,
-                           uint32_t* flushing_cg_counter,
-                           value_type* output_buffer,
-                           atomicT* num_matches,
-                           OutputIt output_begin,
-                           KeyEqual key_equal) noexcept
+  __device__ __forceinline__ void retrieve(FlushingCG const& flushing_cg,
+                                           ProbingCG const& probing_cg,
+                                           Key const& k,
+                                           uint32_t* flushing_cg_counter,
+                                           value_type* output_buffer,
+                                           atomicT* num_matches,
+                                           OutputIt output_begin,
+                                           KeyEqual key_equal) noexcept
   {
     const uint32_t cg_lane_id = probing_cg.thread_rank();
 
@@ -981,13 +988,13 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
             typename atomicT,
             typename OutputIt,
             typename KeyEqual>
-  __device__ void retrieve(CG const& g,
-                           Key const& k,
-                           uint32_t* cg_counter,
-                           value_type* output_buffer,
-                           atomicT* num_matches,
-                           OutputIt output_begin,
-                           KeyEqual key_equal) noexcept
+  __device__ __forceinline__ void retrieve(CG const& g,
+                                           Key const& k,
+                                           uint32_t* cg_counter,
+                                           value_type* output_buffer,
+                                           atomicT* num_matches,
+                                           OutputIt output_begin,
+                                           KeyEqual key_equal) noexcept
   {
     const uint32_t lane_id = g.thread_rank();
 
@@ -1085,16 +1092,16 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
             typename OutputIt1,
             typename OutputIt2,
             typename PairEqual>
-  __device__ void pair_retrieve(FlushingCG const& flushing_cg,
-                                ProbingCG const& probing_cg,
-                                value_type const& pair,
-                                uint32_t* flushing_cg_counter,
-                                value_type* probe_output_buffer,
-                                value_type* contained_output_buffer,
-                                atomicT* num_matches,
-                                OutputIt1 probe_output_begin,
-                                OutputIt2 contained_output_begin,
-                                PairEqual pair_equal) noexcept
+  __device__ __forceinline__ void pair_retrieve(FlushingCG const& flushing_cg,
+                                                ProbingCG const& probing_cg,
+                                                value_type const& pair,
+                                                uint32_t* flushing_cg_counter,
+                                                value_type* probe_output_buffer,
+                                                value_type* contained_output_buffer,
+                                                atomicT* num_matches,
+                                                OutputIt1 probe_output_begin,
+                                                OutputIt2 contained_output_begin,
+                                                PairEqual pair_equal) noexcept
   {
     const uint32_t cg_lane_id = probing_cg.thread_rank();
 
@@ -1209,15 +1216,15 @@ class static_multimap<Key, Value, Scope, ProbeSequence, Allocator>::device_view_
             typename OutputIt1,
             typename OutputIt2,
             typename PairEqual>
-  __device__ void pair_retrieve(CG const& g,
-                                value_type const& pair,
-                                uint32_t* cg_counter,
-                                value_type* probe_output_buffer,
-                                value_type* contained_output_buffer,
-                                atomicT* num_matches,
-                                OutputIt1 probe_output_begin,
-                                OutputIt2 contained_output_begin,
-                                PairEqual pair_equal) noexcept
+  __device__ __forceinline__ void pair_retrieve(CG const& g,
+                                                value_type const& pair,
+                                                uint32_t* cg_counter,
+                                                value_type* probe_output_buffer,
+                                                value_type* contained_output_buffer,
+                                                atomicT* num_matches,
+                                                OutputIt1 probe_output_begin,
+                                                OutputIt2 contained_output_begin,
+                                                PairEqual pair_equal) noexcept
   {
     const uint32_t lane_id = g.thread_rank();
 
