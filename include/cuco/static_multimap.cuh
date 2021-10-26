@@ -23,6 +23,7 @@
 #include <memory>
 
 #include <cuco/allocator.hpp>
+#include <cuco/probe_sequences.cuh>
 #include <cuco/traits.hpp>
 
 #if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
@@ -41,7 +42,6 @@
 
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
-#include <cuco/detail/probe_sequences.cuh>
 #include <cuco/detail/static_multimap/kernels.cuh>
 
 namespace cuco {
@@ -135,12 +135,12 @@ template <typename Key,
           typename Value,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>,
-          class ProbeSequence      = cuco::detail::double_hashing<Key,
-                                                             Value,
-                                                             2,
-                                                             cuco::detail::MurmurHash3_32<Key>,
-                                                             cuco::detail::MurmurHash3_32<Key>,
-                                                             Scope>>
+          class ProbeSequence      = cuco::double_hashing<Key,
+                                                     Value,
+                                                     2,
+                                                     cuco::detail::MurmurHash3_32<Key>,
+                                                     cuco::detail::MurmurHash3_32<Key>,
+                                                     Scope>>
 class static_multimap {
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
