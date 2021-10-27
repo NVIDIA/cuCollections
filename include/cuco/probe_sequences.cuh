@@ -21,25 +21,6 @@
 namespace cuco {
 
 /**
- * @brief Base class of public probe sequence. This class should not be used directly.
- *
- * @tparam CGSize Size of CUDA Cooperative Groups
- */
-template <uint32_t CGSize>
-class probe_sequence_base {
- protected:
-  /**
-   * @brief Returns the size of the CUDA cooperative thread group.
-   */
-  static constexpr std::size_t cg_size = CGSize;
-
-  /**
-   * @brief Returns the number of elements loaded with each vector load.
-   */
-  static constexpr uint32_t vector_width() noexcept { return 2u; }
-};
-
-/**
  * @brief Public linear probing scheme class.
  *
  * Linear probing is efficient when few collisions are present. Performance hints:
@@ -52,10 +33,11 @@ class probe_sequence_base {
  * @tparam Hash Unary callable type
  */
 template <uint32_t CGSize, typename Hash>
-class linear_probing : public probe_sequence_base<CGSize> {
+class linear_probing : public detail::probe_sequence_base<CGSize> {
  public:
-  using probe_sequence_base<CGSize>::cg_size;
-  using probe_sequence_base<CGSize>::vector_width;
+  using probe_sequence_base_type = detail::probe_sequence_base<CGSize>;
+  using probe_sequence_base_type::cg_size;
+  using probe_sequence_base_type::vector_width;
 
   template <typename Key, typename Value, cuda::thread_scope Scope>
   using impl = detail::linear_probing_impl<Key, Value, Scope, vector_width(), CGSize, Hash>;
@@ -77,10 +59,11 @@ class linear_probing : public probe_sequence_base<CGSize> {
  * @tparam Hash2 Unary callable type
  */
 template <uint32_t CGSize, typename Hash1, typename Hash2>
-class double_hashing : public probe_sequence_base<CGSize> {
+class double_hashing : public detail::probe_sequence_base<CGSize> {
  public:
-  using probe_sequence_base<CGSize>::cg_size;
-  using probe_sequence_base<CGSize>::vector_width;
+  using probe_sequence_base_type = detail::probe_sequence_base<CGSize>;
+  using probe_sequence_base_type::cg_size;
+  using probe_sequence_base_type::vector_width;
 
   template <typename Key, typename Value, cuda::thread_scope Scope>
   using impl = detail::double_hashing_impl<Key, Value, Scope, vector_width(), CGSize, Hash1, Hash2>;

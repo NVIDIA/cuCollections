@@ -148,9 +148,10 @@ class static_multimap {
     "Value type must have unique object representations or have been explicitly declared as safe "
     "for bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Value>.");
 
-  static_assert(std::is_base_of_v<cuco::probe_sequence_base<ProbeSequence::cg_size>, ProbeSequence>,
-                "ProbeSequence must be a specialization of either cuco::double_hashing or "
-                "cuco::linear_probing");
+  static_assert(
+    std::is_base_of_v<cuco::detail::probe_sequence_base<ProbeSequence::cg_size>, ProbeSequence>,
+    "ProbeSequence must be a specialization of either cuco::double_hashing or "
+    "cuco::linear_probing");
 
  public:
   using value_type         = cuco::pair_type<Key, Value>;

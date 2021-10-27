@@ -24,6 +24,25 @@
 namespace cuco {
 namespace detail {
 
+/**
+ * @brief Base class of public probe sequence. This class should not be used directly.
+ *
+ * @tparam CGSize Size of CUDA Cooperative Groups
+ */
+template <uint32_t CGSize>
+class probe_sequence_base {
+ protected:
+  /**
+   * @brief Returns the size of the CUDA cooperative thread group.
+   */
+  static constexpr std::size_t cg_size = CGSize;
+
+  /**
+   * @brief Returns the number of elements loaded with each vector load.
+   */
+  static constexpr uint32_t vector_width() noexcept { return 2u; }
+};
+
 /*
  * @brief Base class of probe sequence implementation.
  *
