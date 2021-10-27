@@ -39,8 +39,13 @@ namespace detail {
  * @tparam Scope The scope in which multimap operations will be performed by
  * individual threads
  */
-template <typename Key, typename Value, cuda::thread_scope Scope, uint32_t CGSize, typename Hash>
-class linear_probing {
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          uint32_t VectorWidth,
+          int32_t CGSize,
+          typename Hash>
+class linear_probing_impl {
  public:
   using value_type         = cuco::pair_type<Key, Value>;
   using key_type           = Key;
@@ -52,14 +57,14 @@ class linear_probing {
   using const_iterator     = pair_atomic_type const*;
 
   /**
+   * @brief Returns the number of elements loaded with each vector-load.
+   */
+  static constexpr uint32_t vector_width = VectorWidth;
+
+  /**
    * @brief Returns the size of the CUDA cooperative thread group.
    */
   static constexpr std::size_t cg_size = CGSize;
-
-  /**
-   * @brief Returns the number of elements loaded with each vector-load.
-   */
-  __host__ __device__ static constexpr uint32_t vector_width() noexcept { return 2u; }
 
   /**
    * @brief Indicates if vector-load is used.
@@ -80,7 +85,7 @@ class linear_probing {
    * @param capacity Capacity of the hash map
    * @param hash Unary function to hash each key
    */
-  __host__ __device__ explicit linear_probing(iterator slots, std::size_t capacity)
+  __host__ __device__ explicit linear_probing_impl(iterator slots, std::size_t capacity)
     : slots_{slots}, capacity_{capacity}, hash_{Hash{}}
   {
   }
@@ -126,7 +131,7 @@ class linear_probing {
     }();
 
     auto const offset = [&]() {
-      if constexpr (uses_vector_load()) { return g.thread_rank() * vector_width(); }
+      if constexpr (uses_vector_load()) { return g.thread_rank() * vector_width; }
       if constexpr (not uses_vector_load()) { return g.thread_rank(); }
     }();
 
@@ -148,7 +153,7 @@ class linear_probing {
     std::size_t index = s - slots_;
     std::size_t offset;
     if constexpr (uses_vector_load()) {
-      offset = cg_size * vector_width();
+      offset = cg_size * vector_width;
     } else {
       offset = cg_size;
     }
@@ -181,10 +186,11 @@ class linear_probing {
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
+          uint32_t VectorWidth,
           uint32_t CGSize,
           typename Hash1,
           typename Hash2>
-class double_hashing {
+class double_hashing_impl {
  public:
   using value_type         = cuco::pair_type<Key, Value>;
   using key_type           = Key;
@@ -196,14 +202,14 @@ class double_hashing {
   using const_iterator     = pair_atomic_type const*;
 
   /**
+   * @brief Returns the number of elements loaded with each vector-load.
+   */
+  static constexpr uint32_t vector_width = VectorWidth;
+
+  /**
    * @brief Returns the size of the CUDA cooperative thread group.
    */
   static constexpr std::size_t cg_size = CGSize;
-
-  /**
-   * @brief Returns the number of elements loaded with each vector-load.
-   */
-  __host__ __device__ static constexpr uint32_t vector_width() noexcept { return 2u; }
 
   /**
    * @brief Indicates if vector-load is used.
@@ -227,7 +233,7 @@ class double_hashing {
    * @param hash1 First hasher to hash each key
    * @param hash2 Second hasher to determine step size
    */
-  __host__ __device__ explicit double_hashing(iterator slots, std::size_t capacity)
+  __host__ __device__ explicit double_hashing_impl(iterator slots, std::size_t capacity)
     : slots_{slots}, capacity_{capacity}, hash1_{Hash1{}}, hash2_{Hash2{}}, step_size_{}
   {
   }
@@ -268,9 +274,9 @@ class double_hashing {
     if constexpr (uses_vector_load()) {
       // step size in range [1, prime - 1] * cg_size * vector_width
       step_size_ =
-        (hash2_(k) % (capacity_ / (cg_size * vector_width()) - 1) + 1) * cg_size * vector_width();
-      index = hash_value % (capacity_ / (cg_size * vector_width())) * cg_size * vector_width() +
-              g.thread_rank() * vector_width();
+        (hash2_(k) % (capacity_ / (cg_size * vector_width) - 1) + 1) * cg_size * vector_width;
+      index = hash_value % (capacity_ / (cg_size * vector_width)) * cg_size * vector_width +
+              g.thread_rank() * vector_width;
     } else {
       // step size in range [1, prime - 1] * cg_size
       step_size_ = (hash2_(k) % (capacity_ / cg_size - 1) + 1) * cg_size;
@@ -316,7 +322,7 @@ class double_hashing {
  * individual threads
  */
 template <typename ProbeImpl, typename Key, typename Value, cuda::thread_scope Scope>
-class probe_sequence_base : public ProbeImpl::template impl<Key, Value, Scope> {
+class probe_sequence : public ProbeImpl::template impl<Key, Value, Scope> {
  public:
   using value_type         = cuco::pair_type<Key, Value>;
   using key_type           = Key;
@@ -335,39 +341,11 @@ class probe_sequence_base : public ProbeImpl::template impl<Key, Value, Scope> {
    * @param slots Pointer to beginning of the hash map slots
    * @param capacity Capacity of the hash map
    */
-  __host__ __device__ explicit probe_sequence_base(iterator slots, std::size_t capacity)
+  __host__ __device__ explicit probe_sequence(iterator slots, std::size_t capacity)
     : ProbeImpl::template impl<Key, Value, Scope>{slots, capacity}
   {
   }
-};  // class probe_sequence_base
+};  // class probe_sequence
+
 }  // namespace detail
-
-template <uint32_t CGSize, typename Hash>
-class linear_probing {
- public:
-  static constexpr std::size_t cg_size = CGSize;
-
-  /**
-   * @brief Returns the number of elements loaded with each vector-load.
-   */
-  __host__ __device__ static constexpr uint32_t vector_width() noexcept { return 2u; }
-
-  template <typename Key, typename Value, cuda::thread_scope Scope>
-  using impl = typename detail::linear_probing<Key, Value, Scope, CGSize, Hash>;
-};
-
-template <uint32_t CGSize, typename Hash1, typename Hash2>
-class double_hashing {
- public:
-  static constexpr std::size_t cg_size = CGSize;
-
-  /**
-   * @brief Returns the number of elements loaded with each vector-load.
-   */
-  __host__ __device__ static constexpr uint32_t vector_width() noexcept { return 2u; }
-
-  template <typename Key, typename Value, cuda::thread_scope Scope>
-  using impl = typename detail::double_hashing<Key, Value, Scope, CGSize, Hash1, Hash2>;
-};
-
 }  // namespace cuco

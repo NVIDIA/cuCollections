@@ -23,6 +23,7 @@
 #include <memory>
 
 #include <cuco/allocator.hpp>
+#include <cuco/probe_sequences.cuh>
 #include <cuco/traits.hpp>
 
 #if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
@@ -41,7 +42,6 @@
 
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
-#include <cuco/detail/probe_sequence_base.cuh>
 #include <cuco/detail/static_multimap/kernels.cuh>
 
 namespace cuco {
@@ -147,13 +147,10 @@ class static_multimap {
     cuco::is_bitwise_comparable_v<Value>,
     "Value type must have unique object representations or have been explicitly declared as safe "
     "for bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Value>.");
-  /*
-    static_assert(std::is_base_of_v<
-                    cuco::detail::probe_sequence_base<Key, Value, ProbeSequence::cg_size(), Scope>,
-                    ProbeSequence>,
-                  "ProbeSequence must be a specialization of either cuco::detail::double_hashing or
-    " "cuco::detail::linear_probing");
-                  */
+
+  static_assert(std::is_base_of_v<cuco::probe_sequence_base<ProbeSequence::cg_size>, ProbeSequence>,
+                "ProbeSequence must be a specialization of either cuco::double_hashing or "
+                "cuco::linear_probing");
 
  public:
   using value_type         = cuco::pair_type<Key, Value>;
@@ -168,7 +165,7 @@ class static_multimap {
     typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
   using counter_allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
-  using probe_sequence_type = detail::probe_sequence_base<ProbeSequence, Key, Value, Scope>;
+  using probe_sequence_type = detail::probe_sequence<ProbeSequence, Key, Value, Scope>;
 
   static_multimap(static_multimap const&) = delete;
   static_multimap& operator=(static_multimap const&) = delete;
