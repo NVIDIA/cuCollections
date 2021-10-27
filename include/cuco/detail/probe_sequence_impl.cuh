@@ -24,6 +24,22 @@
 namespace cuco {
 namespace detail {
 
+/*
+ * @brief Base class of probe sequence implementation.
+ *
+ * Hash map operations are generally memory-bandwidth bound. A vector-load loads two consecutive
+ * slots instead of one to fully utilize the 16B memory load supported by SASS/hardware thus
+ * improve memory throughput. This method (flagged by `uses_vector_load` logic) is implicitly
+ * applied to all hash map operations (e.g. `insert`, `count`, and `retrieve`, etc.) when pairs
+ * are packable (see `cuco::detail::is_packable` logic).
+ *
+ * @tparam Key Type used for keys
+ * @tparam Value Type of the mapped values
+ * @tparam Scope The scope in which multimap operations will be performed by
+ * individual threads
+ * @tparam VectorWidth Length of vector load
+ * @tparam CGSize Size of CUDA Cooperative Groups
+ */
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
@@ -98,17 +114,13 @@ class probe_sequence_impl_base {
 /**
  * @brief Cooperative Groups based Linear probing scheme.
  *
- * Linear probing is efficient only when few collisions are present. Performance hints:
- * - Use linear probing only when collisions are rare. e.g. low occupancy or low multiplicity.
- * - `CGSize` = 1 or 2 when hash map is small (10'000'000 or less), 4 or 8 otherwise.
- *
- * `Hash` should be callable object type.
- *
  * @tparam Key Type used for keys
  * @tparam Value Type of the mapped values
- * @tparam Hash Unary callable type
  * @tparam Scope The scope in which multimap operations will be performed by
  * individual threads
+ * @tparam VectorWidth Length of vector load
+ * @tparam CGSize Size of CUDA Cooperative Groups
+ * @tparam Hash Unary callable type
  */
 template <typename Key,
           typename Value,
@@ -201,8 +213,8 @@ class linear_probing_impl
   }
 
  private:
-  Hash hash_;
-};  // class linear_probing
+  Hash hash_;  ///< The unary callable used to hash the key
+};             // class linear_probing
 
 /**
  * @brief Cooperative Groups based double hashing scheme.
@@ -216,10 +228,12 @@ class linear_probing_impl
  *
  * @tparam Key Type used for keys
  * @tparam Value Type of the mapped values
- * @tparam Hash1 Unary callable type
- * @tparam Hash2 Unary callable type
  * @tparam Scope The scope in which multimap operations will be performed by
  * individual threads
+ * @tparam VectorWidth Length of vector load
+ * @tparam CGSize Size of CUDA Cooperative Groups
+ * @tparam Hash1 Unary callable type
+ * @tparam Hash2 Unary callable type
  */
 template <typename Key,
           typename Value,
@@ -259,7 +273,10 @@ class double_hashing_impl
    * @param hash2 Second hasher to determine step size
    */
   __host__ __device__ explicit double_hashing_impl(iterator slots, std::size_t capacity)
-    : probe_sequence_impl_base_type{slots, capacity}, hash1_{Hash1{}}, hash2_{Hash2{}}, step_size_{}
+    : probe_sequence_impl_base_type{slots, capacity},
+      hash1_{Hash1{}},
+      hash2_{Hash2{1}},
+      step_size_{}
   {
   }
 
@@ -308,20 +325,15 @@ class double_hashing_impl
   }
 
  private:
-  Hash1 hash1_;
-  Hash2 hash2_;
+  Hash1 hash1_;            ///< The first unary callable used to hash the key
+  Hash2 hash2_;            ///< The second unary callable used to determine step size
   std::size_t step_size_;  ///< The step stride when searching for the next slot
 };                         // class double_hashing
 
 /**
- * @brief Base class for a hash map probe sequence. This class should not be used directly.
+ * @brief Probe sequence used internally by hash map.
  *
- * Hash map operations are generally memory-bandwidth bound. A vector-load loads two consecutive
- * slots instead of one to fully utilize the 16B memory load supported by SASS/hardware thus
- * improve memory throughput. This method (flagged by `uses_vector_load` logic) is implicitly
- * applied to all hash map operations (e.g. `insert`, `count`, and `retrieve`, etc.) when pairs
- * are packable (see `cuco::detail::is_packable` logic).
- *
+ * @tparam ProbeImpl Type of probe sequence implementation
  * @tparam Key Type used for keys
  * @tparam Value Type of the mapped values
  * @tparam Scope The scope in which multimap operations will be performed by
@@ -330,16 +342,7 @@ class double_hashing_impl
 template <typename ProbeImpl, typename Key, typename Value, cuda::thread_scope Scope>
 class probe_sequence : public ProbeImpl::template impl<Key, Value, Scope> {
  public:
-  using value_type         = cuco::pair_type<Key, Value>;
-  using key_type           = Key;
-  using mapped_type        = Value;
-  using atomic_key_type    = cuda::atomic<key_type, Scope>;
-  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
-  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
-  using iterator           = pair_atomic_type*;
-  using const_iterator     = pair_atomic_type const*;
-
-  static constexpr std::size_t cg_size = ProbeImpl::cg_size;
+  using impl_type = typename ProbeImpl::template impl<Key, Value, Scope>;
 
   /**
    * @brief Constructs a probe sequence based on the given hash map features.
@@ -347,8 +350,9 @@ class probe_sequence : public ProbeImpl::template impl<Key, Value, Scope> {
    * @param slots Pointer to beginning of the hash map slots
    * @param capacity Capacity of the hash map
    */
-  __host__ __device__ explicit probe_sequence(iterator slots, std::size_t capacity)
-    : ProbeImpl::template impl<Key, Value, Scope>{slots, capacity}
+  __host__ __device__ explicit probe_sequence(typename impl_type::iterator slots,
+                                              std::size_t capacity)
+    : impl_type{slots, capacity}
   {
   }
 };  // class probe_sequence

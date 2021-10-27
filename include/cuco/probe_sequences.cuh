@@ -20,6 +20,11 @@
 
 namespace cuco {
 
+/**
+ * @brief Base class of public probe sequence. This class should not be used directly.
+ *
+ * @tparam CGSize Size of CUDA Cooperative Groups
+ */
 template <uint32_t CGSize>
 class probe_sequence_base {
  public:
@@ -34,6 +39,18 @@ class probe_sequence_base {
   static constexpr uint32_t vector_width() noexcept { return 2u; }
 };
 
+/**
+ * @brief Public linear probing scheme class.
+ *
+ * Linear probing is efficient when few collisions are present. Performance hints:
+ * - Use linear probing when collisions are rare. e.g. low occupancy or low multiplicity.
+ * - `CGSize` = 1 or 2 when hash map is small (10'000'000 or less), 4 or 8 otherwise.
+ *
+ * `Hash` should be callable object type.
+ *
+ * @tparam CGSize Size of CUDA Cooperative Groups
+ * @tparam Hash Unary callable type
+ */
 template <uint32_t CGSize, typename Hash>
 class linear_probing : public probe_sequence_base<CGSize> {
  public:
@@ -44,6 +61,21 @@ class linear_probing : public probe_sequence_base<CGSize> {
   using impl = detail::linear_probing_impl<Key, Value, Scope, vector_width(), CGSize, Hash>;
 };
 
+/**
+ *
+ * @brief Public double hashing scheme class.
+ *
+ * Default probe sequence for `cuco::static_multimap`. Double hashing shows superior
+ * performance when dealing with high multiplicty and/or high occupancy use cases. Performance
+ * hints:
+ * - `CGSize` = 1 or 2 when hash map is small (10'000'000 or less), 4 or 8 otherwise.
+ *
+ * `Hash1` and `Hash2` should be callable object type.
+ *
+ * @tparam CGSize Size of CUDA Cooperative Groups
+ * @tparam Hash1 Unary callable type
+ * @tparam Hash2 Unary callable type
+ */
 template <uint32_t CGSize, typename Hash1, typename Hash2>
 class double_hashing : public probe_sequence_base<CGSize> {
  public:
