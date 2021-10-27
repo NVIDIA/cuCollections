@@ -27,7 +27,7 @@ namespace cuco {
  */
 template <uint32_t CGSize>
 class probe_sequence_base {
- public:
+ protected:
   /**
    * @brief Returns the size of the CUDA cooperative thread group.
    */
