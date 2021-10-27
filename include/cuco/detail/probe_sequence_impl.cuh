@@ -24,29 +24,13 @@
 namespace cuco {
 namespace detail {
 
-/**
- * @brief Cooperative Groups based Linear probing scheme.
- *
- * Linear probing is efficient only when few collisions are present. Performance hints:
- * - Use linear probing only when collisions are rare. e.g. low occupancy or low multiplicity.
- * - `CGSize` = 1 or 2 when hash map is small (10'000'000 or less), 4 or 8 otherwise.
- *
- * `Hash` should be callable object type.
- *
- * @tparam Key Type used for keys
- * @tparam Value Type of the mapped values
- * @tparam Hash Unary callable type
- * @tparam Scope The scope in which multimap operations will be performed by
- * individual threads
- */
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
           uint32_t VectorWidth,
-          int32_t CGSize,
-          typename Hash>
-class linear_probing_impl {
- public:
+          uint32_t CGSize>
+class probe_sequence_impl_base {
+ protected:
   using value_type         = cuco::pair_type<Key, Value>;
   using key_type           = Key;
   using mapped_type        = Value;
@@ -79,14 +63,13 @@ class linear_probing_impl {
   }
 
   /**
-   * @brief Constructs a linear probing scheme based on the given hash map features.
+   * @brief Constructs a probe sequence based on the given hash map features.
    *
    * @param slots Pointer to beginning of the hash map slots
    * @param capacity Capacity of the hash map
-   * @param hash Unary function to hash each key
    */
-  __host__ __device__ explicit linear_probing_impl(iterator slots, std::size_t capacity)
-    : slots_{slots}, capacity_{capacity}, hash_{Hash{}}
+  __host__ __device__ explicit probe_sequence_impl_base(iterator slots, std::size_t capacity)
+    : slots_{slots}, capacity_{capacity}
   {
   }
 
@@ -107,6 +90,63 @@ class linear_probing_impl {
    * @brief Returns slots array.
    */
   __device__ __forceinline__ const_iterator get_slots() const noexcept { return slots_; }
+
+  iterator slots_;              ///< Pointer to beginning of the hash map slots
+  const std::size_t capacity_;  ///< Total number of slots
+};                              // class probe_sequence_impl_base
+
+/**
+ * @brief Cooperative Groups based Linear probing scheme.
+ *
+ * Linear probing is efficient only when few collisions are present. Performance hints:
+ * - Use linear probing only when collisions are rare. e.g. low occupancy or low multiplicity.
+ * - `CGSize` = 1 or 2 when hash map is small (10'000'000 or less), 4 or 8 otherwise.
+ *
+ * `Hash` should be callable object type.
+ *
+ * @tparam Key Type used for keys
+ * @tparam Value Type of the mapped values
+ * @tparam Hash Unary callable type
+ * @tparam Scope The scope in which multimap operations will be performed by
+ * individual threads
+ */
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          uint32_t VectorWidth,
+          int32_t CGSize,
+          typename Hash>
+class linear_probing_impl
+  : public probe_sequence_impl_base<Key, Value, Scope, VectorWidth, CGSize> {
+ public:
+  using probe_sequence_impl_base_type =
+    probe_sequence_impl_base<Key, Value, Scope, VectorWidth, CGSize>;
+  using value_type         = typename probe_sequence_impl_base_type::value_type;
+  using key_type           = typename probe_sequence_impl_base_type::key_type;
+  using mapped_type        = typename probe_sequence_impl_base_type::mapped_type;
+  using atomic_key_type    = typename probe_sequence_impl_base_type::atomic_key_type;
+  using atomic_mapped_type = typename probe_sequence_impl_base_type::atomic_mapped_type;
+  using pair_atomic_type   = typename probe_sequence_impl_base_type::pair_atomic_type;
+  using iterator           = typename probe_sequence_impl_base_type::iterator;
+  using const_iterator     = typename probe_sequence_impl_base_type::const_iterator;
+
+  using probe_sequence_impl_base_type::capacity_;
+  using probe_sequence_impl_base_type::cg_size;
+  using probe_sequence_impl_base_type::slots_;
+  using probe_sequence_impl_base_type::uses_vector_load;
+  using probe_sequence_impl_base_type::vector_width;
+
+  /**
+   * @brief Constructs a linear probing scheme based on the given hash map features.
+   *
+   * @param slots Pointer to beginning of the hash map slots
+   * @param capacity Capacity of the hash map
+   * @param hash Unary function to hash each key
+   */
+  __host__ __device__ explicit linear_probing_impl(iterator slots, std::size_t capacity)
+    : probe_sequence_impl_base_type{slots, capacity}, hash_{Hash{}}
+  {
+  }
 
   /**
    * @brief Returns the initial slot for a given key `k`.
@@ -160,9 +200,7 @@ class linear_probing_impl {
     return &slots_[(index + offset) % capacity_];
   }
 
- protected:
-  iterator slots_;              ///< Pointer to beginning of the hash map slots
-  const std::size_t capacity_;  ///< Total number of slots
+ private:
   Hash hash_;
 };  // class linear_probing
 
@@ -190,38 +228,25 @@ template <typename Key,
           uint32_t CGSize,
           typename Hash1,
           typename Hash2>
-class double_hashing_impl {
+class double_hashing_impl
+  : public probe_sequence_impl_base<Key, Value, Scope, VectorWidth, CGSize> {
  public:
-  using value_type         = cuco::pair_type<Key, Value>;
-  using key_type           = Key;
-  using mapped_type        = Value;
-  using atomic_key_type    = cuda::atomic<key_type, Scope>;
-  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
-  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
-  using iterator           = pair_atomic_type*;
-  using const_iterator     = pair_atomic_type const*;
+  using probe_sequence_impl_base_type =
+    probe_sequence_impl_base<Key, Value, Scope, VectorWidth, CGSize>;
+  using value_type         = typename probe_sequence_impl_base_type::value_type;
+  using key_type           = typename probe_sequence_impl_base_type::key_type;
+  using mapped_type        = typename probe_sequence_impl_base_type::mapped_type;
+  using atomic_key_type    = typename probe_sequence_impl_base_type::atomic_key_type;
+  using atomic_mapped_type = typename probe_sequence_impl_base_type::atomic_mapped_type;
+  using pair_atomic_type   = typename probe_sequence_impl_base_type::pair_atomic_type;
+  using iterator           = typename probe_sequence_impl_base_type::iterator;
+  using const_iterator     = typename probe_sequence_impl_base_type::const_iterator;
 
-  /**
-   * @brief Returns the number of elements loaded with each vector-load.
-   */
-  static constexpr uint32_t vector_width = VectorWidth;
-
-  /**
-   * @brief Returns the size of the CUDA cooperative thread group.
-   */
-  static constexpr std::size_t cg_size = CGSize;
-
-  /**
-   * @brief Indicates if vector-load is used.
-   *
-   * Users have no explicit control on whether vector-load is used.
-   *
-   * @return Boolean indicating if vector-load is used.
-   */
-  __host__ __device__ static constexpr bool uses_vector_load() noexcept
-  {
-    return cuco::detail::is_packable<value_type>();
-  }
+  using probe_sequence_impl_base_type::capacity_;
+  using probe_sequence_impl_base_type::cg_size;
+  using probe_sequence_impl_base_type::slots_;
+  using probe_sequence_impl_base_type::uses_vector_load;
+  using probe_sequence_impl_base_type::vector_width;
 
   /**
    * @brief Constructs a double hashing scheme based on the given hash map features.
@@ -234,27 +259,10 @@ class double_hashing_impl {
    * @param hash2 Second hasher to determine step size
    */
   __host__ __device__ explicit double_hashing_impl(iterator slots, std::size_t capacity)
-    : slots_{slots}, capacity_{capacity}, hash1_{Hash1{}}, hash2_{Hash2{}}, step_size_{}
+    : probe_sequence_impl_base_type{slots, capacity}, hash1_{Hash1{}}, hash2_{Hash2{}}, step_size_{}
   {
   }
 
-  /**
-   * @brief Returns the capacity of the hash map.
-   */
-  __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
-  {
-    return capacity_;
-  }
-
-  /**
-   * @brief Returns slots array.
-   */
-  __device__ __forceinline__ iterator get_slots() noexcept { return slots_; }
-
-  /**
-   * @brief Returns slots array.
-   */
-  __device__ __forceinline__ const_iterator get_slots() const noexcept { return slots_; }
   /**
    * @brief Returns the initial slot for a given key `k`.
    *
@@ -299,9 +307,7 @@ class double_hashing_impl {
     return &slots_[(index + step_size_) % capacity_];
   }
 
- protected:
-  iterator slots_;              ///< Pointer to beginning of the hash map slots
-  const std::size_t capacity_;  ///< Total number of slots
+ private:
   Hash1 hash1_;
   Hash2 hash2_;
   std::size_t step_size_;  ///< The step stride when searching for the next slot
