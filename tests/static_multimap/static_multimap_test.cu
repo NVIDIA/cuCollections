@@ -257,7 +257,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                           value_pair,
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
-                          cuco::linear_probing<key_pair, value_pair, 1, hash_key_pair>>
+                          cuco::linear_probing<1, hash_key_pair>>
       map{capacity, sentinel_key, sentinel_value};
     test_custom_key_value_type<Key, Value>(map, insert_pairs, insert_keys.begin(), num_pairs);
   }
@@ -408,7 +408,7 @@ TEMPLATE_TEST_CASE_SIG("Multiplicity equals two",
                           Value,
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
-                          cuco::linear_probing<Key, Value, 1>>
+                          cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
       map{5, -1, -1};
     test_multiplicity_two<Key, Value>(
       map, d_pairs.begin(), d_keys.begin(), d_results.begin(), num_items);
@@ -537,7 +537,7 @@ TEMPLATE_TEST_CASE_SIG("Tests of non-matches",
                           Value,
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
-                          cuco::linear_probing<Key, Value, 1>>
+                          cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
       map{num_keys * 2, -1, -1};
     test_non_matches<Key, Value>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }
@@ -592,7 +592,7 @@ TEMPLATE_TEST_CASE_SIG("Tests of insert_if",
                           Value,
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
-                          cuco::linear_probing<Key, Value, 1>>
+                          cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
       map{num_keys * 2, -1, -1};
     test_insert_if<Key>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }
@@ -692,7 +692,7 @@ TEMPLATE_TEST_CASE_SIG("Tests of pair functions",
                           Value,
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
-                          cuco::linear_probing<Key, Value, 1>>
+                          cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
       map{num_pairs * 2, -1, -1};
     test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
   }

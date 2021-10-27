@@ -24,18 +24,14 @@ template <typename Key,
           typename Allocator,
           class ProbeSequence>
 class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_impl_base {
- private:
-  ProbeSequence probe_sequence_;  ///< Probe sequence used to probe the hash map
-  Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
-  Value empty_value_sentinel_{};  ///< Initial Value of empty slot
-
  protected:
   // Import member type definitions from `static_multimap`
-  using value_type     = value_type;
-  using key_type       = Key;
-  using mapped_type    = Value;
-  using iterator       = pair_atomic_type*;
-  using const_iterator = pair_atomic_type const*;
+  using value_type          = value_type;
+  using key_type            = Key;
+  using mapped_type         = Value;
+  using iterator            = pair_atomic_type*;
+  using const_iterator      = pair_atomic_type const*;
+  using probe_sequence_type = probe_sequence_type;
 
   /**
    * @brief Indicates if vector-load is used.
@@ -44,12 +40,15 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @return Boolean indicating if vector-load is used.
    */
-  static constexpr bool uses_vector_load() noexcept { return ProbeSequence::uses_vector_load(); }
+  static constexpr bool uses_vector_load() noexcept
+  {
+    return probe_sequence_type::uses_vector_load();
+  }
 
   /**
    * @brief Returns the number of pairs loaded with each vector-load
    */
-  static constexpr uint32_t vector_width() noexcept { return ProbeSequence::vector_width(); }
+  static constexpr uint32_t vector_width() noexcept { return probe_sequence_type::vector_width(); }
 
   __host__ __device__ device_view_impl_base(pair_atomic_type* slots,
                                             std::size_t capacity,
@@ -189,7 +188,11 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     }
   }
 
-};  // class device_view_impl_base
+ private:
+  probe_sequence_type probe_sequence_;  ///< Probe sequence used to probe the hash map
+  Key empty_key_sentinel_{};            ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};        ///< Initial Value of empty slot
+};                                      // class device_view_impl_base
 
 template <typename Key,
           typename Value,

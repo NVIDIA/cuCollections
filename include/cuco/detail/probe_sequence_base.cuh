@@ -25,23 +25,23 @@ namespace cuco {
 namespace detail {
 
 /**
- * @brief Base class for a hash map probe sequence. This class should not be used directly.
+ * @brief Cooperative Groups based Linear probing scheme.
  *
- * Hash map operations are generally memory-bandwidth bound. A vector-load loads two consecutive
- * slots instead of one to fully utilize the 16B memory load supported by SASS/hardware thus
- * improve memory throughput. This method (flagged by `uses_vector_load` logic) is implicitly
- * applied to all hash map operations (e.g. `insert`, `count`, and `retrieve`, etc.) when pairs
- * are packable (see `cuco::detail::is_packable` logic).
+ * Linear probing is efficient only when few collisions are present. Performance hints:
+ * - Use linear probing only when collisions are rare. e.g. low occupancy or low multiplicity.
+ * - `CGSize` = 1 or 2 when hash map is small (10'000'000 or less), 4 or 8 otherwise.
+ *
+ * `Hash` should be callable object type.
  *
  * @tparam Key Type used for keys
  * @tparam Value Type of the mapped values
- * @tparam CGSize Number of threads in CUDA Cooperative Groups
+ * @tparam Hash Unary callable type
  * @tparam Scope The scope in which multimap operations will be performed by
  * individual threads
  */
-template <typename Key, typename Value, uint32_t CGSize, cuda::thread_scope Scope>
-class probe_sequence_base {
- protected:
+template <typename Key, typename Value, cuda::thread_scope Scope, uint32_t CGSize, typename Hash>
+class linear_probing {
+ public:
   using value_type         = cuco::pair_type<Key, Value>;
   using key_type           = Key;
   using mapped_type        = Value;
@@ -51,11 +51,10 @@ class probe_sequence_base {
   using iterator           = pair_atomic_type*;
   using const_iterator     = pair_atomic_type const*;
 
- public:
   /**
    * @brief Returns the size of the CUDA cooperative thread group.
    */
-  __host__ __device__ static constexpr uint32_t cg_size() noexcept { return CGSize; }
+  static constexpr std::size_t cg_size = CGSize;
 
   /**
    * @brief Returns the number of elements loaded with each vector-load.
@@ -75,13 +74,14 @@ class probe_sequence_base {
   }
 
   /**
-   * @brief Constructs a probe sequence based on the given hash map features.
+   * @brief Constructs a linear probing scheme based on the given hash map features.
    *
    * @param slots Pointer to beginning of the hash map slots
    * @param capacity Capacity of the hash map
+   * @param hash Unary function to hash each key
    */
-  __host__ __device__ explicit probe_sequence_base(iterator slots, std::size_t capacity)
-    : slots_{slots}, capacity_{capacity}
+  __host__ __device__ explicit linear_probing(iterator slots, std::size_t capacity)
+    : slots_{slots}, capacity_{capacity}, hash_{Hash{}}
   {
   }
 
@@ -103,10 +103,271 @@ class probe_sequence_base {
    */
   __device__ __forceinline__ const_iterator get_slots() const noexcept { return slots_; }
 
+  /**
+   * @brief Returns the initial slot for a given key `k`.
+   *
+   * If vector-load is enabled, the return slot is always even to avoid illegal memory access.
+   *
+   * @tparam CG CUDA Cooperative Groups type
+   * @param g the Cooperative Group for which the initial slot is needed
+   * @param k The key to get the slot for
+   * @return Pointer to the initial slot for `k`
+   */
+  template <typename CG>
+  __device__ __forceinline__ iterator initial_slot(CG const& g, Key const k) noexcept
+  {
+    auto const hash_value = [&]() {
+      auto const tmp = hash_(k);
+      if constexpr (uses_vector_load()) {
+        // initial hash value is always even
+        return tmp + tmp % 2;
+      }
+      if constexpr (not uses_vector_load()) { return tmp; }
+    }();
+
+    auto const offset = [&]() {
+      if constexpr (uses_vector_load()) { return g.thread_rank() * vector_width(); }
+      if constexpr (not uses_vector_load()) { return g.thread_rank(); }
+    }();
+
+    // Each CG accesses to a window of (`cg_size` * `vector_width`)
+    // slots if vector-load is used or `cg_size` slots otherwise
+    return &slots_[(hash_value + offset) % capacity_];
+  }
+
+  /**
+   * @brief Given a slot `s`, returns the next slot.
+   *
+   * If `s` is the last slot, wraps back around to the first slot.
+   *
+   * @param s The slot to advance
+   * @return The next slot after `s`
+   */
+  __device__ __forceinline__ iterator next_slot(iterator s) noexcept
+  {
+    std::size_t index = s - slots_;
+    std::size_t offset;
+    if constexpr (uses_vector_load()) {
+      offset = cg_size * vector_width();
+    } else {
+      offset = cg_size;
+    }
+    return &slots_[(index + offset) % capacity_];
+  }
+
  protected:
   iterator slots_;              ///< Pointer to beginning of the hash map slots
   const std::size_t capacity_;  ///< Total number of slots
-};                              // class probe_sequence_base
+  Hash hash_;
+};  // class linear_probing
 
+/**
+ * @brief Cooperative Groups based double hashing scheme.
+ *
+ * Default probe sequence for `cuco::static_multimap`. Double hashing shows superior
+ * performance when dealing with high multiplicty and/or high occupancy use cases. Performance
+ * hints:
+ * - `CGSize` = 1 or 2 when hash map is small (10'000'000 or less), 4 or 8 otherwise.
+ *
+ * `Hash1` and `Hash2` should be callable object type.
+ *
+ * @tparam Key Type used for keys
+ * @tparam Value Type of the mapped values
+ * @tparam Hash1 Unary callable type
+ * @tparam Hash2 Unary callable type
+ * @tparam Scope The scope in which multimap operations will be performed by
+ * individual threads
+ */
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          uint32_t CGSize,
+          typename Hash1,
+          typename Hash2>
+class double_hashing {
+ public:
+  using value_type         = cuco::pair_type<Key, Value>;
+  using key_type           = Key;
+  using mapped_type        = Value;
+  using atomic_key_type    = cuda::atomic<key_type, Scope>;
+  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
+  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  using iterator           = pair_atomic_type*;
+  using const_iterator     = pair_atomic_type const*;
+
+  /**
+   * @brief Returns the size of the CUDA cooperative thread group.
+   */
+  static constexpr std::size_t cg_size = CGSize;
+
+  /**
+   * @brief Returns the number of elements loaded with each vector-load.
+   */
+  __host__ __device__ static constexpr uint32_t vector_width() noexcept { return 2u; }
+
+  /**
+   * @brief Indicates if vector-load is used.
+   *
+   * Users have no explicit control on whether vector-load is used.
+   *
+   * @return Boolean indicating if vector-load is used.
+   */
+  __host__ __device__ static constexpr bool uses_vector_load() noexcept
+  {
+    return cuco::detail::is_packable<value_type>();
+  }
+
+  /**
+   * @brief Constructs a double hashing scheme based on the given hash map features.
+   *
+   * `hash2` takes a different seed to reduce the chance of secondary clustering.
+   *
+   * @param slots Pointer to beginning of the hash map slots
+   * @param capacity Capacity of the hash map
+   * @param hash1 First hasher to hash each key
+   * @param hash2 Second hasher to determine step size
+   */
+  __host__ __device__ explicit double_hashing(iterator slots, std::size_t capacity)
+    : slots_{slots}, capacity_{capacity}, hash1_{Hash1{}}, hash2_{Hash2{}}, step_size_{}
+  {
+  }
+
+  /**
+   * @brief Returns the capacity of the hash map.
+   */
+  __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
+  {
+    return capacity_;
+  }
+
+  /**
+   * @brief Returns slots array.
+   */
+  __device__ __forceinline__ iterator get_slots() noexcept { return slots_; }
+
+  /**
+   * @brief Returns slots array.
+   */
+  __device__ __forceinline__ const_iterator get_slots() const noexcept { return slots_; }
+  /**
+   * @brief Returns the initial slot for a given key `k`.
+   *
+   * If vector-load is enabled, the return slot is always a multiple of (`cg_size` * `vector_width`)
+   * to avoid illegal memory access.
+   *
+   * @tparam CG CUDA Cooperative Groups type
+   * @param g the Cooperative Group for which the initial slot is needed
+   * @param k The key to get the slot for
+   * @return Pointer to the initial slot for `k`
+   */
+  template <typename CG>
+  __device__ __forceinline__ iterator initial_slot(CG const& g, Key const k) noexcept
+  {
+    std::size_t index;
+    auto const hash_value = hash1_(k);
+    if constexpr (uses_vector_load()) {
+      // step size in range [1, prime - 1] * cg_size * vector_width
+      step_size_ =
+        (hash2_(k) % (capacity_ / (cg_size * vector_width()) - 1) + 1) * cg_size * vector_width();
+      index = hash_value % (capacity_ / (cg_size * vector_width())) * cg_size * vector_width() +
+              g.thread_rank() * vector_width();
+    } else {
+      // step size in range [1, prime - 1] * cg_size
+      step_size_ = (hash2_(k) % (capacity_ / cg_size - 1) + 1) * cg_size;
+      index      = (hash_value + g.thread_rank()) % capacity_;
+    }
+    return slots_ + index;
+  }
+
+  /**
+   * @brief Given a slot `s`, returns the next slot.
+   *
+   * If `s` is the last slot, wraps back around to the first slot.
+   *
+   * @param s The slot to advance
+   * @return The next slot after `s`
+   */
+  __device__ __forceinline__ iterator next_slot(iterator s) noexcept
+  {
+    std::size_t index = s - slots_;
+    return &slots_[(index + step_size_) % capacity_];
+  }
+
+ protected:
+  iterator slots_;              ///< Pointer to beginning of the hash map slots
+  const std::size_t capacity_;  ///< Total number of slots
+  Hash1 hash1_;
+  Hash2 hash2_;
+  std::size_t step_size_;  ///< The step stride when searching for the next slot
+};                         // class double_hashing
+
+/**
+ * @brief Base class for a hash map probe sequence. This class should not be used directly.
+ *
+ * Hash map operations are generally memory-bandwidth bound. A vector-load loads two consecutive
+ * slots instead of one to fully utilize the 16B memory load supported by SASS/hardware thus
+ * improve memory throughput. This method (flagged by `uses_vector_load` logic) is implicitly
+ * applied to all hash map operations (e.g. `insert`, `count`, and `retrieve`, etc.) when pairs
+ * are packable (see `cuco::detail::is_packable` logic).
+ *
+ * @tparam Key Type used for keys
+ * @tparam Value Type of the mapped values
+ * @tparam Scope The scope in which multimap operations will be performed by
+ * individual threads
+ */
+template <typename ProbeImpl, typename Key, typename Value, cuda::thread_scope Scope>
+class probe_sequence_base : public ProbeImpl::template impl<Key, Value, Scope> {
+ public:
+  using value_type         = cuco::pair_type<Key, Value>;
+  using key_type           = Key;
+  using mapped_type        = Value;
+  using atomic_key_type    = cuda::atomic<key_type, Scope>;
+  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
+  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  using iterator           = pair_atomic_type*;
+  using const_iterator     = pair_atomic_type const*;
+
+  static constexpr std::size_t cg_size = ProbeImpl::cg_size;
+
+  /**
+   * @brief Constructs a probe sequence based on the given hash map features.
+   *
+   * @param slots Pointer to beginning of the hash map slots
+   * @param capacity Capacity of the hash map
+   */
+  __host__ __device__ explicit probe_sequence_base(iterator slots, std::size_t capacity)
+    : ProbeImpl::template impl<Key, Value, Scope>{slots, capacity}
+  {
+  }
+};  // class probe_sequence_base
 }  // namespace detail
+
+template <uint32_t CGSize, typename Hash>
+class linear_probing {
+ public:
+  static constexpr std::size_t cg_size = CGSize;
+
+  /**
+   * @brief Returns the number of elements loaded with each vector-load.
+   */
+  __host__ __device__ static constexpr uint32_t vector_width() noexcept { return 2u; }
+
+  template <typename Key, typename Value, cuda::thread_scope Scope>
+  using impl = typename detail::linear_probing<Key, Value, Scope, CGSize, Hash>;
+};
+
+template <uint32_t CGSize, typename Hash1, typename Hash2>
+class double_hashing {
+ public:
+  static constexpr std::size_t cg_size = CGSize;
+
+  /**
+   * @brief Returns the number of elements loaded with each vector-load.
+   */
+  __host__ __device__ static constexpr uint32_t vector_width() noexcept { return 2u; }
+
+  template <typename Key, typename Value, cuda::thread_scope Scope>
+  using impl = typename detail::double_hashing<Key, Value, Scope, CGSize, Hash1, Hash2>;
+};
+
 }  // namespace cuco
