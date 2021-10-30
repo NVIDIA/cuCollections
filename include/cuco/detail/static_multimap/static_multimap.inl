@@ -266,14 +266,23 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve(
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
   constexpr auto block_size  = 128;
   constexpr auto is_outer    = false;
-  constexpr auto stride      = 1;
 
   auto const flushing_cg_size = [&]() {
     if constexpr (uses_vector_load()) { return warp_size(); }
     return cg_size();
   }();
 
-  auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto const grid_size = detail::get_grid_size(detail::retrieve<block_size,
+                                                                flushing_cg_size,
+                                                                cg_size(),
+                                                                buffer_size,
+                                                                is_outer,
+                                                                InputIt,
+                                                                OutputIt,
+                                                                atomic_ctr_type,
+                                                                device_view,
+                                                                KeyEqual>,
+                                               block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
@@ -306,14 +315,23 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve_
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
   constexpr auto block_size  = 128;
   constexpr auto is_outer    = true;
-  constexpr auto stride      = 1;
 
   auto const flushing_cg_size = [&]() {
     if constexpr (uses_vector_load()) { return warp_size(); }
     return cg_size();
   }();
 
-  auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto const grid_size = detail::get_grid_size(detail::retrieve<block_size,
+                                                                flushing_cg_size,
+                                                                cg_size(),
+                                                                buffer_size,
+                                                                is_outer,
+                                                                InputIt,
+                                                                OutputIt,
+                                                                atomic_ctr_type,
+                                                                device_view,
+                                                                KeyEqual>,
+                                               block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
   std::size_t h_counter;
