@@ -46,7 +46,7 @@ static void generate_multikeys(OutputIt output_begin,
  *
  */
 template <typename Key, typename Value, nvbench::int32_t CGSize, nvbench::int32_t BufferSize>
-std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_retrieve(
   nvbench::state& state,
   nvbench::type_list<Key, Value, nvbench::enum_type<CGSize>, nvbench::enum_type<BufferSize>>)
 {
@@ -91,7 +91,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_find_all(
 }
 
 template <typename Key, typename Value, nvbench::int32_t CGSize, nvbench::int32_t BufferSize>
-std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_find_all(
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_retrieve(
   nvbench::state& state,
   nvbench::type_list<Key, Value, nvbench::enum_type<CGSize>, nvbench::enum_type<BufferSize>>)
 {
@@ -103,7 +103,7 @@ using value_type  = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using cg_size     = nvbench::enum_type_list<1, 2, 4, 8, 16, 32>;
 using buffer_size = nvbench::enum_type_list<1, 2, 4, 8, 16>;
 
-NVBENCH_BENCH_TYPES(nvbench_find_all,
+NVBENCH_BENCH_TYPES(nvbench_retrieve,
                     NVBENCH_TYPE_AXES(key_type, value_type, cg_size, nvbench::enum_type_list<2>))
   .set_type_axes_names({"Key", "Value", "CGSize", "BufferSize"})
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
@@ -113,7 +113,7 @@ NVBENCH_BENCH_TYPES(nvbench_find_all,
   .add_int64_power_of_two_axis("Multiplicity", nvbench::range(0, 8, 1));
 
 NVBENCH_BENCH_TYPES(
-  nvbench_find_all,
+  nvbench_retrieve,
   NVBENCH_TYPE_AXES(key_type, value_type, nvbench::enum_type_list<8>, buffer_size))
   .set_type_axes_names({"Key", "Value", "CGSize", "BufferSize"})
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
