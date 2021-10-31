@@ -89,9 +89,9 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
 }
 
 template <typename Key, typename OutputIt>
-static void generate_prob_keys(double const matching_rate,
-                               OutputIt output_begin,
-                               OutputIt output_end)
+static void generate_probe_keys(double const matching_rate,
+                                OutputIt output_begin,
+                                OutputIt output_end)
 {
   auto const num_keys = std::distance(output_begin, output_end);
   auto const max      = std::numeric_limits<Key>::max();
