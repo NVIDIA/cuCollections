@@ -142,10 +142,10 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::count(
   auto num_keys = std::distance(first, last);
   auto view     = get_device_view();
 
-  bool constexpr is_outer = false;
-
+  auto constexpr is_outer   = false;
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
+
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
@@ -172,10 +172,10 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::count_
   auto num_keys = std::distance(first, last);
   auto view     = get_device_view();
 
-  bool constexpr is_outer = true;
-
+  auto constexpr is_outer   = true;
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
+
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
@@ -443,10 +443,10 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-template <typename CG>
 __device__ __forceinline__ void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutable_view::insert(
-  CG g, value_type const& insert_pair) noexcept
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+  value_type const& insert_pair) noexcept
 {
   impl_.insert<uses_vector_load()>(g, insert_pair);
 }
@@ -537,10 +537,12 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-template <typename CG, typename KeyEqual>
+template <typename KeyEqual>
 __device__ __forceinline__ bool
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::contains(
-  CG g, Key const& k, KeyEqual key_equal) noexcept
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+  Key const& k,
+  KeyEqual key_equal) noexcept
 {
   return impl_.contains<uses_vector_load()>(g, k, key_equal);
 }
@@ -550,10 +552,12 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-template <typename CG, typename KeyEqual>
+template <typename KeyEqual>
 __device__ __forceinline__ std::size_t
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::count(
-  CG const& g, Key const& k, KeyEqual key_equal) noexcept
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+  Key const& k,
+  KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = false;
   return impl_.count<uses_vector_load(), is_outer>(g, k, key_equal);
@@ -564,10 +568,12 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-template <typename CG, typename KeyEqual>
+template <typename KeyEqual>
 __device__ __forceinline__ std::size_t
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::count_outer(
-  CG const& g, Key const& k, KeyEqual key_equal) noexcept
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+  Key const& k,
+  KeyEqual key_equal) noexcept
 {
   constexpr bool is_outer = true;
   return impl_.count<uses_vector_load(), is_outer>(g, k, key_equal);
@@ -578,10 +584,12 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-template <typename CG, typename PairEqual>
+template <typename PairEqual>
 __device__ __forceinline__ std::size_t
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_count(
-  CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+  value_type const& pair,
+  PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = false;
   return impl_.pair_count<uses_vector_load(), is_outer>(g, pair, pair_equal);
@@ -592,10 +600,12 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-template <typename CG, typename PairEqual>
+template <typename PairEqual>
 __device__ __forceinline__ std::size_t
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_count_outer(
-  CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+  value_type const& pair,
+  PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = true;
   return impl_.pair_count<uses_vector_load(), is_outer>(g, pair, pair_equal);
@@ -608,14 +618,13 @@ template <typename Key,
           class ProbeSequence>
 template <uint32_t buffer_size,
           typename FlushingCG,
-          typename ProbingCG,
           typename atomicT,
           typename OutputIt,
           typename KeyEqual>
 __device__ __forceinline__ void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::retrieve(
   FlushingCG const& flushing_cg,
-  ProbingCG const& probing_cg,
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
   Key const& k,
   uint32_t* flushing_cg_counter,
   value_type* output_buffer,
@@ -647,14 +656,13 @@ template <typename Key,
           class ProbeSequence>
 template <uint32_t buffer_size,
           typename FlushingCG,
-          typename ProbingCG,
           typename atomicT,
           typename OutputIt,
           typename KeyEqual>
 __device__ __forceinline__ void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::retrieve_outer(
   FlushingCG const& flushing_cg,
-  ProbingCG const& probing_cg,
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
   Key const& k,
   uint32_t* flushing_cg_counter,
   value_type* output_buffer,
@@ -686,7 +694,6 @@ template <typename Key,
           class ProbeSequence>
 template <uint32_t buffer_size,
           typename FlushingCG,
-          typename ProbingCG,
           typename atomicT,
           typename OutputIt1,
           typename OutputIt2,
@@ -694,7 +701,7 @@ template <uint32_t buffer_size,
 __device__ __forceinline__ void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve(
   FlushingCG const& flushing_cg,
-  ProbingCG const& probing_cg,
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
   value_type const& pair,
   uint32_t* flushing_cg_counter,
   value_type* probe_output_buffer,
@@ -737,7 +744,6 @@ template <typename Key,
           class ProbeSequence>
 template <uint32_t buffer_size,
           typename FlushingCG,
-          typename ProbingCG,
           typename atomicT,
           typename OutputIt1,
           typename OutputIt2,
@@ -745,7 +751,7 @@ template <uint32_t buffer_size,
 __device__ __forceinline__ void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve_outer(
   FlushingCG const& flushing_cg,
-  ProbingCG const& probing_cg,
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
   value_type const& pair,
   uint32_t* flushing_cg_counter,
   value_type* probe_output_buffer,

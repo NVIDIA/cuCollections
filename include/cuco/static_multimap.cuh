@@ -616,14 +616,13 @@ class static_multimap {
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
-     * @tparam CG Cooperative Group type
-     *
      * @param g The Cooperative Group that performs the insert
      * @param insert_pair The pair to insert
      * @return void.
      */
-    template <typename CG>
-    __device__ __forceinline__ void insert(CG g, value_type const& insert_pair) noexcept;
+    __device__ __forceinline__ void insert(
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+      value_type const& insert_pair) noexcept;
 
    private:
     device_mutable_view_impl impl_;
@@ -796,7 +795,6 @@ class static_multimap {
      * significant boost in throughput compared to the non Cooperative Group
      * `contains` at moderate to high load factors.
      *
-     * @tparam CG Cooperative Group type
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The key to search for
@@ -805,10 +803,11 @@ class static_multimap {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ __forceinline__ bool contains(CG g,
-                                             Key const& k,
-                                             KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ __forceinline__ bool contains(
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+      Key const& k,
+      KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap.
@@ -816,7 +815,6 @@ class static_multimap {
      * For a given key, `k`, counts all matching keys, `k'`, as determined by `key_equal(k, k')` and
      * returns the sum of all matches for `k`.
      *
-     * @tparam CG Cooperative Group type
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
@@ -824,10 +822,11 @@ class static_multimap {
      * for equality
      * @return Number of matches found by the current thread
      */
-    template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ __forceinline__ std::size_t count(CG const& g,
-                                                 Key const& k,
-                                                 KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ __forceinline__ std::size_t count(
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+      Key const& k,
+      KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap. If no
@@ -836,7 +835,6 @@ class static_multimap {
      * For a given key, `k`, counts all matching keys, `k'`, as determined by `key_equal(k, k')` and
      * returns the sum of all matches for `k`. If `k` does not have any matches, returns 1.
      *
-     * @tparam CG Cooperative Group type
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
@@ -844,10 +842,11 @@ class static_multimap {
      * for equality
      * @return Number of matches found by the current thread
      */
-    template <typename CG, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ __forceinline__ std::size_t count_outer(CG const& g,
-                                                       Key const& k,
-                                                       KeyEqual key_equal = KeyEqual{}) noexcept;
+    template <typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ __forceinline__ std::size_t count_outer(
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+      Key const& k,
+      KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key/value pair contained in multimap.
@@ -855,7 +854,6 @@ class static_multimap {
      * For a given pair, `p`, counts all matching pairs, `p'`, as determined by `pair_equal(p, p')`
      * and returns the sum of all matches for `p`.
      *
-     * @tparam CG Cooperative Group type
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to perform the pair_count operation
      * @param pair The pair to search for
@@ -863,10 +861,11 @@ class static_multimap {
      * for equality
      * @return Number of matches found by the current thread
      */
-    template <typename CG, typename PairEqual>
-    __device__ __forceinline__ std::size_t pair_count(CG const& g,
-                                                      value_type const& pair,
-                                                      PairEqual pair_equal) noexcept;
+    template <typename PairEqual>
+    __device__ __forceinline__ std::size_t pair_count(
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+      value_type const& pair,
+      PairEqual pair_equal) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key/value pair contained in multimap.
@@ -875,7 +874,6 @@ class static_multimap {
      * For a given pair, `p`, counts all matching pairs, `p'`, as determined by `pair_equal(p, p')`
      * and returns the sum of all matches for `p`. If `p` does not have any matches, returns 1.
      *
-     * @tparam CG Cooperative Group type
      * @tparam PairEqual Binary callable type
      * @param g The Cooperative Group used to perform the pair_count operation
      * @param pair The pair to search for
@@ -883,10 +881,11 @@ class static_multimap {
      * for equality
      * @return Number of matches found by the current thread
      */
-    template <typename CG, typename PairEqual>
-    __device__ __forceinline__ std::size_t pair_count_outer(CG const& g,
-                                                            value_type const& pair,
-                                                            PairEqual pair_equal) noexcept;
+    template <typename PairEqual>
+    __device__ __forceinline__ std::size_t pair_count_outer(
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+      value_type const& pair,
+      PairEqual pair_equal) noexcept;
 
     /**
      * @brief Retrieves all the matches of a given key contained in multimap with per-flushing-CG
@@ -897,7 +896,6 @@ class static_multimap {
      *
      * @tparam buffer_size Size of the output buffer
      * @tparam FlushingCG Type of Cooperative Group used to flush output buffer
-     * @tparam ProbingCG Type of Cooperative Group for parallel retrieval
      * @tparam atomicT Type of atomic storage
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
      * constructible from the map's `value_type`
@@ -914,18 +912,18 @@ class static_multimap {
      */
     template <uint32_t buffer_size,
               typename FlushingCG,
-              typename ProbingCG,
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ __forceinline__ void retrieve(FlushingCG const& flushing_cg,
-                                             ProbingCG const& probing_cg,
-                                             Key const& k,
-                                             uint32_t* flushing_cg_counter,
-                                             value_type* output_buffer,
-                                             atomicT* num_matches,
-                                             OutputIt output_begin,
-                                             KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ __forceinline__ void retrieve(
+      FlushingCG const& flushing_cg,
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
+      Key const& k,
+      uint32_t* flushing_cg_counter,
+      value_type* output_buffer,
+      atomicT* num_matches,
+      OutputIt output_begin,
+      KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Retrieves all the matches of a given key contained in multimap with per-flushing-CG
@@ -937,7 +935,6 @@ class static_multimap {
      *
      * @tparam buffer_size Size of the output buffer
      * @tparam FlushingCG Type of Cooperative Group used to flush output buffer
-     * @tparam ProbingCG Type of Cooperative Group for parallel retrieval
      * @tparam atomicT Type of atomic storage
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
      * constructible from the map's `value_type`
@@ -954,18 +951,18 @@ class static_multimap {
      */
     template <uint32_t buffer_size,
               typename FlushingCG,
-              typename ProbingCG,
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ __forceinline__ void retrieve_outer(FlushingCG const& flushing_cg,
-                                                   ProbingCG const& probing_cg,
-                                                   Key const& k,
-                                                   uint32_t* flushing_cg_counter,
-                                                   value_type* output_buffer,
-                                                   atomicT* num_matches,
-                                                   OutputIt output_begin,
-                                                   KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ __forceinline__ void retrieve_outer(
+      FlushingCG const& flushing_cg,
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
+      Key const& k,
+      uint32_t* flushing_cg_counter,
+      value_type* output_buffer,
+      atomicT* num_matches,
+      OutputIt output_begin,
+      KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Retrieves all the matches of a given pair contained in multimap with per-flushing-CG
@@ -977,7 +974,6 @@ class static_multimap {
      *
      * @tparam buffer_size Size of the output buffer
      * @tparam FlushingCG Type of Cooperative Group used to flush output buffer
-     * @tparam ProbingCG Type of Cooperative Group for parallel retrieval
      * @tparam atomicT Type of atomic storage
      * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
      * `InputIt`s `value_type`.
@@ -998,21 +994,21 @@ class static_multimap {
      */
     template <uint32_t buffer_size,
               typename FlushingCG,
-              typename ProbingCG,
               typename atomicT,
               typename OutputIt1,
               typename OutputIt2,
               typename PairEqual>
-    __device__ __forceinline__ void pair_retrieve(FlushingCG const& flushing_cg,
-                                                  ProbingCG const& probing_cg,
-                                                  value_type const& pair,
-                                                  uint32_t* warp_counter,
-                                                  value_type* probe_output_buffer,
-                                                  value_type* contained_output_buffer,
-                                                  atomicT* num_matches,
-                                                  OutputIt1 probe_output_begin,
-                                                  OutputIt2 contained_output_begin,
-                                                  PairEqual pair_equal) noexcept;
+    __device__ __forceinline__ void pair_retrieve(
+      FlushingCG const& flushing_cg,
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
+      value_type const& pair,
+      uint32_t* warp_counter,
+      value_type* probe_output_buffer,
+      value_type* contained_output_buffer,
+      atomicT* num_matches,
+      OutputIt1 probe_output_begin,
+      OutputIt2 contained_output_begin,
+      PairEqual pair_equal) noexcept;
 
     /**
      * @brief Retrieves all the matches of a given pair contained in multimap with per-flushing-CG
@@ -1025,7 +1021,6 @@ class static_multimap {
      *
      * @tparam buffer_size Size of the output buffer
      * @tparam FlushingCG Type of Cooperative Group used to flush output buffer
-     * @tparam ProbingCG Type of Cooperative Group for parallel retrieval
      * @tparam atomicT Type of atomic storage
      * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
      * `InputIt`s `value_type`.
@@ -1046,21 +1041,21 @@ class static_multimap {
      */
     template <uint32_t buffer_size,
               typename FlushingCG,
-              typename ProbingCG,
               typename atomicT,
               typename OutputIt1,
               typename OutputIt2,
               typename PairEqual>
-    __device__ __forceinline__ void pair_retrieve_outer(FlushingCG const& flushing_cg,
-                                                        ProbingCG const& probing_cg,
-                                                        value_type const& pair,
-                                                        uint32_t* flushing_cg_counter,
-                                                        value_type* probe_output_buffer,
-                                                        value_type* contained_output_buffer,
-                                                        atomicT* num_matches,
-                                                        OutputIt1 probe_output_begin,
-                                                        OutputIt2 contained_output_begin,
-                                                        PairEqual pair_equal) noexcept;
+    __device__ __forceinline__ void pair_retrieve_outer(
+      FlushingCG const& flushing_cg,
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
+      value_type const& pair,
+      uint32_t* flushing_cg_counter,
+      value_type* probe_output_buffer,
+      value_type* contained_output_buffer,
+      atomicT* num_matches,
+      OutputIt1 probe_output_begin,
+      OutputIt2 contained_output_begin,
+      PairEqual pair_equal) noexcept;
 
    private:
     device_view_impl impl_;
