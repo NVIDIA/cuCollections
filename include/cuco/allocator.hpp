@@ -29,16 +29,20 @@ class cuda_allocator {
 
   template <class U>
   cuda_allocator(cuda_allocator<U> const&) noexcept
-  { }
+  {
+  }
 
-  value_type* allocate(std::size_t n)
+  value_type* allocate(std::size_t n, cudaStream_t stream = 0)
   {
     value_type* p;
     CUCO_CUDA_TRY(cudaMalloc(&p, sizeof(value_type) * n));
     return p;
   }
 
-  void deallocate(value_type* p, std::size_t) { CUCO_CUDA_TRY(cudaFree(p)); }
+  void deallocate(value_type* p, std::size_t, cudaStream_t stream = 0)
+  {
+    CUCO_CUDA_TRY(cudaFree(p));
+  }
 };
 
 template <typename T, typename U>

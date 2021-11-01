@@ -92,6 +92,7 @@ class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
  public:
+  using value_type                = cuco::pair_type<Key, Value>;
   using key_type                  = Key;
   using mapped_type               = Value;
   using atomic_ctr_type           = cuda::atomic<std::size_t, Scope>;
