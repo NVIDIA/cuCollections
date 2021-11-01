@@ -12,13 +12,13 @@
 # the License.
 # =============================================================================
 
-# Use CPM to find or clone thrust
+# Use CPM to find or clone libcudacxx
 function(find_and_configure_libcudacxx VERSION)
     rapids_cpm_find(
         libcudacxx         ${VERSION}
         CPM_ARGS
             GIT_REPOSITORY https://github.com/NVIDIA/libcudacxx.git
-            GIT_TAG        ${VERSION}
+            GIT_TAG        ${VERSION}-ea
             GIT_SHALLOW    TRUE
             DOWNLOAD_ONLY  TRUE
     )
@@ -31,4 +31,4 @@ function(find_and_configure_libcudacxx VERSION)
     install(DIRECTORY ${libcudacxx_SOURCE_DIR}/libcxx/include/ DESTINATION include/cuco/libcxx/include)
 endfunction()
 
-find_and_configure_libcudacxx(1.4.0)
+find_and_configure_libcudacxx(1.7.0) # CMake find_package takes number only

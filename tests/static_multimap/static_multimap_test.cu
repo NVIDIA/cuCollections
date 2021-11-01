@@ -55,9 +55,7 @@ bool none_of(Iterator begin, Iterator end, Predicate p)
 enum class probe_sequence { linear_probing, double_hashing };
 
 // User-defined key type
-// Need to specify alignment to WAR libcu++ bug where cuda::atomic fails for underaligned types:
-// https://github.com/NVIDIA/libcudacxx/issues/160
-struct alignas(8) key_pair {
+struct key_pair {
   int32_t a;
   int32_t b;
   __device__ bool operator!=(key_pair const& other) const { return a != other.a and b != other.b; }
@@ -74,7 +72,7 @@ struct key_pair_equals {
   }
 };
 
-struct alignas(8) value_pair {
+struct value_pair {
   int32_t f;
   int32_t s;
 };

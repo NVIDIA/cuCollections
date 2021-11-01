@@ -22,19 +22,12 @@
 
 // User-defined key type
 #ifdef BUILD_PASCAL_CODE
-// Manual alignment required due to WAR libcu++ bug where cuda::atomic fails for underaligned types
-struct alignas(8) custom_key_type {
+struct custom_key_type {
   int32_t a;
   int32_t b;
 
   __host__ __device__ custom_key_type() {}
   __host__ __device__ custom_key_type(int32_t x) : a{x}, b{x} {}
-
-  // Device equality operator is mandatory
-  __device__ bool operator==(custom_key_type const& other) const
-  {
-    return a == other.a and b == other.b;
-  }
 };
 #else
 // Key type larger than 8B only supported for sm_70 and up
@@ -46,7 +39,8 @@ struct custom_key_type {
   __host__ __device__ custom_key_type() {}
   __host__ __device__ custom_key_type(int32_t x) : a{x}, b{x}, c{x} {}
 
-  // Device equality operator is mandatory
+  // Device equality operator is mandatory due to libcudacxx bug:
+  // https://github.com/NVIDIA/libcudacxx/issues/223
   __device__ bool operator==(custom_key_type const& other) const
   {
     return a == other.a and b == other.b and c == other.c;
@@ -55,8 +49,7 @@ struct custom_key_type {
 #endif
 
 // User-defined value type
-// Manual alignment required due to WAR libcu++ bug where cuda::atomic fails for underaligned types
-struct alignas(8) custom_value_type {
+struct custom_value_type {
   int32_t f;
   int32_t s;
 

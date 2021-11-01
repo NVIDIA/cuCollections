@@ -83,16 +83,16 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
 }
 
 // User-defined key type
-// Need to specify alignment to WAR libcu++ bug where cuda::atomic fails for underaligned types:
-// https://github.com/NVIDIA/libcudacxx/issues/160
 template <typename T>
-struct alignas(8) key_pair_type {
+struct key_pair_type {
   T a;
   T b;
 
   __host__ __device__ key_pair_type() {}
   __host__ __device__ key_pair_type(T x) : a{x}, b{x} {}
 
+  // Device equality operator is mandatory due to libcudacxx bug:
+  // https://github.com/NVIDIA/libcudacxx/issues/223
   __device__ bool operator==(key_pair_type const& other) const
   {
     return a == other.a and b == other.b;
@@ -109,6 +109,8 @@ struct large_key_type {
   __host__ __device__ large_key_type() {}
   __host__ __device__ large_key_type(T x) : a{x}, b{x}, c{x} {}
 
+  // Device equality operator is mandatory due to libcudacxx bug:
+  // https://github.com/NVIDIA/libcudacxx/issues/223
   __device__ bool operator==(large_key_type const& other) const
   {
     return a == other.a and b == other.b and c == other.c;
@@ -117,7 +119,7 @@ struct large_key_type {
 
 // User-defined value type
 template <typename T>
-struct alignas(8) value_pair_type {
+struct value_pair_type {
   T f;
   T s;
 
