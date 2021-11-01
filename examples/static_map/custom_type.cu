@@ -90,13 +90,10 @@ int main(void)
   auto const empty_key_sentinel   = custom_key_type{-1};
   auto const empty_value_sentinel = custom_value_type{-1};
 
-  thrust::device_vector<thrust::pair<custom_key_type, custom_value_type>> pairs(num_pairs);
   // Create a sequence of 80'000 pairs
-  thrust::transform(
-    thrust::make_counting_iterator<int>(0),
-    thrust::make_counting_iterator<int>(num_pairs),
-    pairs.begin(),
-    [] __device__(auto i) { return thrust::make_pair(custom_key_type{i}, custom_value_type{i}); });
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<int32_t>(0),
+    [] __device__(auto i) { return cuco::make_pair(custom_key_type{i}, custom_value_type{i}); });
 
   // Construct a map with 100,000 slots using the given empty key/value sentinels. Note the
   // capacity is chosen knowing we will insert 80,000 keys, for an load factor of 80%.
@@ -104,7 +101,7 @@ int main(void)
     100'000, empty_key_sentinel, empty_value_sentinel};
 
   // Inserts all pairs into the map by using the custom hasher and custom equality callable
-  map.insert(pairs.begin(), pairs.end(), custom_hash{}, custom_key_equals{});
+  map.insert(pairs_begin, pairs_begin + num_pairs, custom_hash{}, custom_key_equals{});
 
   // Reproduce inserted keys
   auto insert_keys =
