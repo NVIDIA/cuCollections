@@ -193,7 +193,8 @@ class static_map {
   static_map(std::size_t capacity,
              Key empty_key_sentinel,
              Value empty_value_sentinel,
-             Allocator const& alloc = Allocator{});
+             Allocator const& alloc = Allocator{},
+             cudaStream_t stream = NULL);
 
   /**
    * @brief Destroys the map and frees its contents.
@@ -219,7 +220,8 @@ class static_map {
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
+  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{},
+                cudaStream_t stream = NULL);
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -247,7 +249,8 @@ class static_map {
             InputIt last,
             OutputIt output_begin,
             Hash hash          = Hash{},
-            KeyEqual key_equal = KeyEqual{});
+            KeyEqual key_equal = KeyEqual{},
+            cudaStream_t stream = NULL);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -274,7 +277,8 @@ class static_map {
                 InputIt last,
                 OutputIt output_begin,
                 Hash hash          = Hash{},
-                KeyEqual key_equal = KeyEqual{});
+                KeyEqual key_equal = KeyEqual{},
+                cudaStream_t stream = NULL);
 
  private:
   class device_view_base {
@@ -1056,6 +1060,7 @@ class static_map {
   atomic_ctr_type* num_successes_{};            ///< Number of successfully inserted keys on insert
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
+  cudaStream_t exec_stream_{};                  ///< Cuda stream for allocator and execution
 };
 }  // namespace cuco
 
