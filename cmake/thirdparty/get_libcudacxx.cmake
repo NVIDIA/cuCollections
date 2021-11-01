@@ -31,4 +31,4 @@ function(find_and_configure_libcudacxx VERSION)
     install(DIRECTORY ${libcudacxx_SOURCE_DIR}/libcxx/include/ DESTINATION include/cuco/libcxx/include)
 endfunction()
 
-find_and_configure_libcudacxx(1.7.0) # CMake find_package takes number only
+find_and_configure_libcudacxx(1.7.0) # CMake find_package takes numbers only
