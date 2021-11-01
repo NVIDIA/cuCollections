@@ -18,3 +18,4 @@ endfunction(ConfigureExample)
 ###################################################################################################
 
 ConfigureExample(STATIC_MAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_example.cu")
+ConfigureExample(STATIC_MULTIMAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_multimap/static_multimap_example.cu")
