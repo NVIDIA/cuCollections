@@ -20,3 +20,7 @@ endfunction(ConfigureExample)
 ConfigureExample(STATIC_MAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_example.cu")
 ConfigureExample(CUSTOM_TYPE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/custom_type.cu")
 ConfigureExample(STATIC_MULTIMAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_multimap/static_multimap_example.cu")
+
+if("60" IN_LIST CMAKE_CUDA_ARCHITECTURES)
+  target_compile_definitions(CUSTOM_TYPE PRIVATE CUCO_NO_INDEPENDENT_THREADS)
+endif()

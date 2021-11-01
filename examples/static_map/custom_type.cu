@@ -21,7 +21,7 @@
 #include <cuco/static_map.cuh>
 
 // User-defined key type
-#ifdef BUILD_PASCAL_CODE
+#ifdef CUCO_NO_INDEPENDENT_THREADS
 struct custom_key_type {
   int32_t a;
   int32_t b;

@@ -39,6 +39,10 @@ set(STATIC_MAP_TEST_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_test.cu")
 
 ConfigureTest(STATIC_MAP_TEST "${STATIC_MAP_TEST_SRC}")
+
+if("60" IN_LIST CMAKE_CUDA_ARCHITECTURES)
+  target_compile_definitions(STATIC_MAP_TEST PRIVATE CUCO_NO_INDEPENDENT_THREADS)
+endif()
 ####################################################################################################
 set(DYNAMIC_MAP_TEST_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/dynamic_map/dynamic_map_test.cu")
