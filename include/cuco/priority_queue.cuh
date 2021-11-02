@@ -2,7 +2,6 @@
 
 #include <vector>
 #include <utility>
-#include <cuco/detail/pq_pair.cuh>
 #include <cuco/allocator.hpp>
 
 #include <thrust/functional.h>

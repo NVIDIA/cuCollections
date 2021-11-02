@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cuco/detail/pq_pair.cuh>
 #include <cooperative_groups.h>
 #include <assert.h>
 
