@@ -1,14 +1,10 @@
-#include <iostream>
 #include <vector>
 #include <cstdint>
-#include <cstdlib>
+#include <random>
 
 #include <benchmark/benchmark.h>
 
-#include <cuda_runtime.h>
-
 #include <cuco/priority_queue.cuh>
-#include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
 
 #include <thrust/device_vector.h>
@@ -22,20 +18,30 @@ struct pair_less {
   }
 };
 
-constexpr int NUM_KEYS = 128e6;
+template<typename Key, typename Value, typename OutputIt>
+static void generate_keys_uniform(OutputIt output_begin, OutputIt output_end) {
+  std::random_device rd;
+  std::mt19937 gen{rd()};
 
-template <typename Key, typename Value>
+  auto num_keys = std::distance(output_begin, output_end);
+
+  for (auto i = 0; i < num_keys; ++i) {
+    output_begin[i] = {static_cast<Key>(gen()), static_cast<Value>(gen())};
+  }
+}
+
+template <typename Key, typename Value, int NumKeys>
 static void BM_insert(::benchmark::State& state)
 {
-  srand(0);
   for (auto _ : state) {
     state.PauseTiming();
-    priority_queue<pair<Key, Value>, pair_less<pair<Key, Value>>> pq(NUM_KEYS);
-    std::vector<pair<Key, Value>> h_pairs(NUM_KEYS);
-    for (auto &p : h_pairs) {
-      p = {rand(), rand()};
-    }
+
+    priority_queue<pair<Key, Value>, pair_less<pair<Key, Value>>> pq(NumKeys);
+
+    std::vector<pair<Key, Value>> h_pairs(NumKeys);
+    generate_keys_uniform<Key, Value>(h_pairs.begin(), h_pairs.end());
     thrust::device_vector<pair<Key, Value>> d_pairs(h_pairs);
+
     state.ResumeTiming();
     pq.push(d_pairs.begin(), d_pairs.end());
     cudaDeviceSynchronize();
@@ -43,20 +49,21 @@ static void BM_insert(::benchmark::State& state)
   
 }
 
-template <typename Key, typename Value>
+template <typename Key, typename Value, int NumKeys>
 static void BM_delete(::benchmark::State& state)
 {
-  srand(0);
   for (auto _ : state) {
     state.PauseTiming();
-    priority_queue<pair<Key, Value>, pair_less<pair<Key, Value>>> pq(NUM_KEYS);
-    std::vector<pair<Key, Value>> h_pairs(NUM_KEYS);
-    for (auto &p : h_pairs) {
-      p = {rand(), rand()};
-    }
+
+    priority_queue<pair<Key, Value>, pair_less<pair<Key, Value>>> pq(NumKeys);
+
+    std::vector<pair<Key, Value>> h_pairs(NumKeys);
+    generate_keys_uniform<Key, Value>(h_pairs.begin(), h_pairs.end());
     thrust::device_vector<pair<Key, Value>> d_pairs(h_pairs);
+
     pq.push(d_pairs.begin(), d_pairs.end());
     cudaDeviceSynchronize();
+
     state.ResumeTiming();
     pq.pop(d_pairs.begin(), d_pairs.end());
     cudaDeviceSynchronize();
@@ -64,17 +71,14 @@ static void BM_delete(::benchmark::State& state)
   
 }
 
-BENCHMARK_TEMPLATE(BM_insert, int, int)
+BENCHMARK_TEMPLATE(BM_insert, int, int, 128'000'000)
   ->Unit(benchmark::kMillisecond);
 
-BENCHMARK_TEMPLATE(BM_delete, int, int)
+BENCHMARK_TEMPLATE(BM_delete, int, int, 128'000'000)
   ->Unit(benchmark::kMillisecond);
 
+BENCHMARK_TEMPLATE(BM_insert, int, int, 256'000'000)
+  ->Unit(benchmark::kMillisecond);
 
-/*
-int main() {
-
-  InsertThenDelete();
-
-  return 0;
-}*/
+BENCHMARK_TEMPLATE(BM_delete, int, int, 256'000'000)
+  ->Unit(benchmark::kMillisecond);
