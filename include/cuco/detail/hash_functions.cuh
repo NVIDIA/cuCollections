@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, NVIDIA CORPORATION.
+ * Copyright (c) 2017-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,8 @@ struct MurmurHash3_32 {
   using result_type   = uint32_t;
 
   __host__ __device__ constexpr MurmurHash3_32() : m_seed(0) {}
+
+  __host__ __device__ constexpr MurmurHash3_32(uint32_t seed) : m_seed(seed) {}
 
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {

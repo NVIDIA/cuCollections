@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,24 +26,24 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
   : capacity_{std::max(capacity, std::size_t{1})},  // to avoid dereferencing a nullptr (Issue #72)
     empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
-    slot_allocator_{alloc}
+    slot_allocator_{alloc},
+    counter_allocator_{alloc}
 {
-  slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
+  slots_         = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
+  num_successes_ = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
 
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
   auto const grid_size      = (capacity_ + stride * block_size - 1) / (stride * block_size);
   detail::initialize<block_size, atomic_key_type, atomic_mapped_type>
     <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, capacity_);
-
-  CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_map<Key, Value, Scope, Allocator>::~static_map()
 {
   std::allocator_traits<slot_allocator_type>::deallocate(slot_allocator_, slots_, capacity_);
-  CUCO_ASSERT_CUDA_SUCCESS(cudaFree(num_successes_));
+  std::allocator_traits<counter_allocator_type>::deallocate(counter_allocator_, num_successes_, 1);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -62,16 +62,18 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 
-  *num_successes_ = 0;
-  int device_id;
-  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
+  // TODO: memset an atomic variable is unsafe
+  static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
+  CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type)));
+  std::size_t h_num_successes;
 
   detail::insert<block_size, tile_size>
     <<<grid_size, block_size>>>(first, first + num_keys, num_successes_, view, hash, key_equal);
+  CUCO_CUDA_TRY(cudaMemcpyAsync(
+    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost));
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  size_ += num_successes_->load(cuda::std::memory_order_relaxed);
+  size_ += h_num_successes;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>

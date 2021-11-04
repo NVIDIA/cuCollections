@@ -12,23 +12,24 @@
 # the License.
 # =============================================================================
 
-# Use CPM to find or clone thrust
-function(find_and_configure_libcudacxx VERSION)
-    rapids_cpm_find(
-        libcudacxx         ${VERSION}
-        CPM_ARGS
-            GIT_REPOSITORY https://github.com/NVIDIA/libcudacxx.git
-            GIT_TAG        ${VERSION}
-            GIT_SHALLOW    TRUE
-            DOWNLOAD_ONLY  TRUE
-    )
-    # TODO: Once libcu++ exports a target, use that instead
-    add_library(libcudacxx INTERFACE)
-    target_include_directories(libcudacxx
-        INTERFACE   $<BUILD_INTERFACE:${libcudacxx_SOURCE_DIR}/include>
-                    $<INSTALL_INTERFACE:include/cuco/libcudacxx>)
-    install(DIRECTORY ${libcudacxx_SOURCE_DIR}/include/ DESTINATION include/cuco/libcudacxx)
-    install(DIRECTORY ${libcudacxx_SOURCE_DIR}/libcxx/include/ DESTINATION include/cuco/libcxx/include)
+# Use CPM to find or clone libcudacxx
+function(find_and_configure_libcudacxx)
+    include(${rapids-cmake-dir}/cpm/libcudacxx.cmake)
+    include(${rapids-cmake-dir}/cpm/package_override.cmake)
+
+    file(WRITE ${CMAKE_BINARY_DIR}/libcudacxx.json [=[
+      {
+      "packages" : {
+      "libcudacxx" : {
+      "version" : "1.7.0",
+      "git_url" : "https://github.com/NVIDIA/libcudacxx.git",
+      "git_tag" : "1.7.0-ea"
+      }}
+    }]=])
+    rapids_cpm_package_override(${CMAKE_BINARY_DIR}/libcudacxx.json)
+    rapids_cpm_libcudacxx(BUILD_EXPORT_SET cuco-exports
+                          INSTALL_EXPORT_SET cuco-exports)
+    set(LIBCUDACXX_INCLUDE_DIR "${libcudacxx_SOURCE_DIR}/include" PARENT_SCOPE)
 endfunction()
 
-find_and_configure_libcudacxx(1.4.0)
+find_and_configure_libcudacxx()

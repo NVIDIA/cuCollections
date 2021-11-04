@@ -55,10 +55,24 @@ endfunction(ConfigureTest)
 # - static_map tests ------------------------------------------------------------------------------
 ConfigureTest(STATIC_MAP_TEST
     static_map/custom_type_test.cu
-    static_map/unique_sequence_test.cu
-    static_map/shared_memory_test.cu)
+    static_map/key_sentinel_test.cu
+    static_map/shared_memory_test.cu
+    static_map/unique_sequence_test.cu)
 
 ###################################################################################################
-# - static_map tests ------------------------------------------------------------------------------
+# - dynamic_map tests -----------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_MAP_TEST
     dynamic_map/unique_sequence_test.cu)
+
+###################################################################################################
+# - static_multimap tests -------------------------------------------------------------------------
+ConfigureTest(STATIC_MULTIMAP_TEST
+    static_multimap/static_multimap_test.cu)
+
+###################################################################################################
+foreach(arch IN LISTS CMAKE_CUDA_ARCHITECTURES)
+    if("${arch}" MATCHES "60")
+      target_compile_definitions(STATIC_MAP_TEST PRIVATE CUCO_NO_INDEPENDENT_THREADS)
+        break()
+    endif()
+endforeach()

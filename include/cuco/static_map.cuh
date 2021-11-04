@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@
 #include <memory>
 
 #include <cuco/allocator.hpp>
+#include <cuco/traits.hpp>
 
 #if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
   (__CUDA_ARCH__ >= 700)
@@ -45,41 +46,6 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 class dynamic_map;
 
 /**
- * @brief Customization point that can be specialized to indicate that it is safe to perform bitwise
- * equality comparisons on objects of type `T`.
- *
- * By default, only types where `std::has_unique_object_representations_v<T>` is true are safe for
- * bitwise equality. However, this can be too restrictive for some types, e.g., floating point
- * types.
- *
- * User-defined specializations of `is_bitwise_comparable` are allowed, but it is the users
- * responsibility to ensure values do not occur that would lead to unexpected behavior. For example,
- * if a `NaN` bit pattern were used as the empty sentinel value, it may not compare bitwise equal to
- * other `NaN` bit patterns.
- *
- */
-template <typename T, typename = void>
-struct is_bitwise_comparable : std::false_type {
-};
-
-/// By default, only types with unique object representations are allowed
-template <typename T>
-struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_representations_v<T>>>
-  : std::true_type {
-};
-
-/**
- * @brief Declares that a type `Type` is bitwise comparable.
- *
- */
-#define CUCO_DECLARE_BITWISE_COMPARABLE(Type)           \
-  namespace cuco {                                      \
-  template <>                                           \
-  struct is_bitwise_comparable<Type> : std::true_type { \
-  };                                                    \
-  }
-
-/**
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs with unique keys.
  *
@@ -88,7 +54,7 @@ struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_represen
  * `cuco::detail::is_packable` constexpr).
  *
  * Current limitations:
- * - Requires keys and values that where `cuco::is_bitwise_comparable<T>::value` is true
+ * - Requires keys and values that where `cuco::is_bitwise_comparable_v<T>` is true
  *    - Comparisons against the "sentinel" values will always be done with bitwise comparisons.
  * - Does not support erasing keys
  * - Capacity is fixed and will not grow automatically
@@ -153,14 +119,14 @@ template <typename Key,
           typename Allocator       = cuco::cuda_allocator<char>>
 class static_map {
   static_assert(
-    is_bitwise_comparable<Key>::value,
+    cuco::is_bitwise_comparable_v<Key>,
     "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable<Key>.");
+    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
-  static_assert(is_bitwise_comparable<Value>::value,
+  static_assert(cuco::is_bitwise_comparable_v<Value>,
                 "Value type must have unique object representations or have been explicitly "
                 "declared as safe for bitwise comparison via specialization of "
-                "cuco::is_bitwise_comparable<Value>.");
+                "cuco::is_bitwise_comparable_v<Value>.");
 
   friend class dynamic_map<Key, Value, Scope, Allocator>;
 
@@ -176,6 +142,8 @@ class static_map {
   using allocator_type     = Allocator;
   using slot_allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
+  using counter_allocator_type =
+    typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
 
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
   static_assert(atomic_key_type::is_always_lock_free,
@@ -1080,13 +1048,14 @@ class static_map {
   }
 
  private:
-  pair_atomic_type* slots_{nullptr};      ///< Pointer to flat slots storage
-  std::size_t capacity_{};                ///< Total number of slots
-  std::size_t size_{};                    ///< Number of keys in map
-  Key empty_key_sentinel_{};              ///< Key value that represents an empty slot
-  Value empty_value_sentinel_{};          ///< Initial value of empty slot
-  atomic_ctr_type* num_successes_{};      ///< Number of successfully inserted keys on insert
-  slot_allocator_type slot_allocator_{};  ///< Allocator used to allocate slots
+  pair_atomic_type* slots_{nullptr};            ///< Pointer to flat slots storage
+  std::size_t capacity_{};                      ///< Total number of slots
+  std::size_t size_{};                          ///< Number of keys in map
+  Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};                ///< Initial value of empty slot
+  atomic_ctr_type* num_successes_{};            ///< Number of successfully inserted keys on insert
+  slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
+  counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
 };
 }  // namespace cuco
 
