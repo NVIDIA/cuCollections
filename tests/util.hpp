@@ -20,6 +20,8 @@
 
 namespace cg = cooperative_groups;
 
+enum class probe_sequence { linear_probing, double_hashing };
+
 // User-defined logical algorithms to reduce compilation time
 template <typename Iterator, typename Predicate>
 bool all_of(Iterator begin, Iterator end, Predicate p)

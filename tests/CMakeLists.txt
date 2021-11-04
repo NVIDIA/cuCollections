@@ -67,7 +67,11 @@ ConfigureTest(DYNAMIC_MAP_TEST
 ###################################################################################################
 # - static_multimap tests -------------------------------------------------------------------------
 ConfigureTest(STATIC_MULTIMAP_TEST
-    static_multimap/static_multimap_test.cu)
+    static_multimap/custom_type_test.cu
+    static_multimap/insert_if_test.cu
+    static_multimap/multiplicity_test.cu
+    static_multimap/non_match_test.cu
+    static_multimap/pair_function_test.cu)
 
 ###################################################################################################
 foreach(arch IN LISTS CMAKE_CUDA_ARCHITECTURES)
