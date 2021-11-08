@@ -17,10 +17,8 @@
 #include <limits>
 
 #include <thrust/device_vector.h>
-#include <thrust/for_each.h>
-#include <thrust/transform.h>
-
 #include <catch2/catch.hpp>
+
 #include <cuco/static_map.cuh>
 
 #include <util.hpp>

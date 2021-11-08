@@ -15,10 +15,8 @@
  */
 
 #include <thrust/device_vector.h>
-#include <thrust/for_each.h>
-#include <thrust/transform.h>
-
 #include <catch2/catch.hpp>
+
 #include <cuco/static_map.cuh>
 
 #include <util.hpp>
@@ -39,17 +37,13 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_keys);
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   thrust::sequence(thrust::device, d_values.begin(), d_values.end());
-  thrust::transform(thrust::device,
-                    thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num_keys),
-                    d_pairs.begin(),
-                    [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i, i};
-                    });
+
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<int>(0),
+    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
 
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);
@@ -57,7 +51,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   // bulk function test cases
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
   {
-    map.insert(d_pairs.begin(), d_pairs.end());
+    map.insert(pairs_begin, pairs_begin + num_keys);
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), d_values.begin()));
 
@@ -68,7 +62,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
 
   SECTION("All inserted keys-value pairs should be contained")
   {
-    map.insert(d_pairs.begin(), d_pairs.end());
+    map.insert(pairs_begin, pairs_begin + num_keys);
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
     REQUIRE(
@@ -85,8 +79,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
 
   SECTION("Inserting unique keys should return insert success.")
   {
-    REQUIRE(all_of(d_pairs.begin(),
-                   d_pairs.end(),
+    REQUIRE(all_of(pairs_begin,
+                   pairs_begin + num_keys,
                    [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
                      return m_view.insert(pair);
                    }));
@@ -96,18 +90,19 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   {
     SECTION("non-const view")
     {
-      REQUIRE(all_of(d_pairs.begin(),
-                     d_pairs.end(),
+      REQUIRE(all_of(pairs_begin,
+                     pairs_begin + num_keys,
                      [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
                        return view.find(pair.first) == view.end();
                      }));
     }
     SECTION("const view")
     {
-      REQUIRE(all_of(
-        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
-          return view.find(pair.first) == view.end();
-        }));
+      REQUIRE(all_of(pairs_begin,
+                     pairs_begin + num_keys,
+                     [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+                       return view.find(pair.first) == view.end();
+                     }));
     }
   }
 
@@ -115,8 +110,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   {
     // Bulk insert keys
     thrust::for_each(thrust::device,
-                     d_pairs.begin(),
-                     d_pairs.end(),
+                     pairs_begin,
+                     pairs_begin + num_keys,
                      [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
                        m_view.insert(pair);
                      });
@@ -124,8 +119,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     SECTION("non-const view")
     {
       // All keys should be found
-      REQUIRE(all_of(d_pairs.begin(),
-                     d_pairs.end(),
+      REQUIRE(all_of(pairs_begin,
+                     pairs_begin + num_keys,
                      [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
                        auto const found = view.find(pair.first);
                        return (found != view.end()) and (found->first.load() == pair.first and
@@ -135,12 +130,13 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     SECTION("const view")
     {
       // All keys should be found
-      REQUIRE(all_of(
-        d_pairs.begin(), d_pairs.end(), [view] __device__(cuco::pair_type<Key, Value> const& pair) {
-          auto const found = view.find(pair.first);
-          return (found != view.end()) and
-                 (found->first.load() == pair.first and found->second.load() == pair.second);
-        }));
+      REQUIRE(all_of(pairs_begin,
+                     pairs_begin + num_keys,
+                     [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+                       auto const found = view.find(pair.first);
+                       return (found != view.end()) and (found->first.load() == pair.first and
+                                                         found->second.load() == pair.second);
+                     }));
     }
   }
 }

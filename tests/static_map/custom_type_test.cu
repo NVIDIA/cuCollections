@@ -15,9 +15,6 @@
  */
 
 #include <thrust/device_vector.h>
-#include <thrust/for_each.h>
-#include <thrust/transform.h>
-
 #include <catch2/catch.hpp>
 
 #include <cuco/static_map.cuh>
@@ -112,20 +109,9 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   thrust::device_vector<Key> insert_keys(num);
   thrust::device_vector<Value> insert_values(num);
 
-  thrust::transform(thrust::device,
-                    thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num),
-                    insert_keys.begin(),
-                    [] __device__(auto i) { return Key{i}; });
-
-  thrust::transform(thrust::device,
-                    thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num),
-                    insert_values.begin(),
-                    [] __device__(auto i) { return Value{i}; });
-
-  auto insert_pairs =
-    thrust::make_zip_iterator(thrust::make_tuple(insert_keys.begin(), insert_values.begin()));
+  auto insert_pairs = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<int>(0),
+    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
 
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
   {
