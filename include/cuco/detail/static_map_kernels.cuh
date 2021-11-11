@@ -199,9 +199,9 @@ __global__ void insert_if(
     if (pred(*(stencil + i))) {
       typename viewT::value_type const insert_pair{*it};
       if (view.insert(insert_pair, hash, key_equal)) { thread_num_successes++; }
-      it += gridDim.x * block_size;
     }
-    ++i;
+    it += gridDim.x * block_size;
+    i += gridDim.x * block_size;
   }
 
   // compute number of successfully inserted elements for each block
