@@ -190,6 +190,18 @@ TEST_CASE("User defined key and value type", "")
       none_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
+  SECTION("All inserted keys-value pairs should be contained")
+  {
+    thrust::device_vector<bool> contained(num_pairs);
+    map.insert(insert_pairs, insert_pairs + num_pairs, hash_key_pair{}, key_pair_equals{});
+    auto view = map.get_device_view();
+    REQUIRE(all_of(insert_pairs,
+                   insert_pairs + num_pairs,
+                   [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+                     return view.contains(pair.first, hash_key_pair{}, key_pair_equals{});
+                   }));
+  }
+
   SECTION("Inserting unique keys should return insert success.")
   {
     auto m_view = map.get_device_mutable_view();
