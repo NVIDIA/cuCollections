@@ -157,6 +157,60 @@ __global__ void insert(
 }
 
 /**
+ * @brief Inserts all key/value pairs in the range `[first, last)`.
+ *
+ * If multiple keys in `[first, last)` compare equal, it is unspecified which
+ * element is inserted.
+ *
+ * @tparam block_size
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `value_type`
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of key/value pairs
+ * @param last End of the sequence of key/value pairs
+ * @param num_successes The number of successfully inserted key/value pairs
+ * @param view Mutable device view used to access the hash map's slot storage
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function used to compare two keys for equality
+ */
+template <std::size_t block_size,
+          typename InputIt,
+          typename atomicT,
+          typename viewT,
+          typename StencilIt,
+          typename Predicate,
+          typename Hash,
+          typename KeyEqual>
+__global__ void insert_if(
+  InputIt first, InputIt last, atomicT* num_successes, viewT view, StencilIt stencil, Predicate pred, Hash hash, KeyEqual key_equal)
+{
+  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  std::size_t thread_num_successes = 0;
+
+  auto tid = block_size * blockIdx.x + threadIdx.x;
+  auto it  = first + tid;
+  auto i = tid;
+
+  while (it < last) {
+    if (pred(*(stencil + i))) {
+      typename viewT::value_type const insert_pair{*it};
+      if (view.insert(insert_pair, hash, key_equal)) { thread_num_successes++; }
+      it += gridDim.x * block_size;
+    }
+    ++i;
+  }
+
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
+  if (threadIdx.x == 0) { *num_successes += block_num_successes; }
+}
+
+/**
  * @brief Finds the values corresponding to all keys in the range `[first, last)`.
  *
  * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`.
