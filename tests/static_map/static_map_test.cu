@@ -24,10 +24,6 @@
 
 #include <cuco/static_map.cuh>
 
-// Disable warning for `__shared__ cuda::atomic`: "dynamic initialization is not supported
-// for a function-scope static __shared__ variable within a __device__/__global__ function"
-#pragma diag_suppress static_var_with_dynamic_init
-
 namespace {
 namespace cg = cooperative_groups;
 
