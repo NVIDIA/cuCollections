@@ -237,14 +237,13 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
   SECTION("All inserted keys-value pairs should be contained")
   {
-    thrust::device_vector<bool> contained(num_pairs);
-    map.insert(insert_pairs, insert_pairs + num_pairs, hash_key_pair{}, key_pair_equals{});
+    thrust::device_vector<bool> contained(num);
+    map.insert(insert_pairs, insert_pairs + num, hash_custom_key{}, custom_key_equals{});
     auto view = map.get_device_view();
-    REQUIRE(all_of(insert_pairs,
-                   insert_pairs + num_pairs,
-                   [view] __device__(cuco::pair_type<Key, Value> const& pair) {
-                     return view.contains(pair.first, hash_key_pair{}, key_pair_equals{});
-                   }));
+    REQUIRE(all_of(
+      insert_pairs, insert_pairs + num, [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+        return view.contains(pair.first, hash_custom_key{}, custom_key_equals{});
+      }));
   }
 
   SECTION("Inserting unique keys should return insert success.")
