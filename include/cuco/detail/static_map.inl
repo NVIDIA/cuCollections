@@ -441,14 +441,14 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
-  Key const& k, Hash hash, KeyEqual key_equal) noexcept
+  Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    if (detail::bitwise_compare(existing_key, empty_key_sentinel_)) { return false; }
+    if (detail::bitwise_compare(existing_key, this->empty_key_sentinel_)) { return false; }
 
     if (key_equal(existing_key, k)) { return true; }
 
@@ -459,7 +459,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
-  CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
+  CG g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 

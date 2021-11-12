@@ -287,13 +287,11 @@ class static_map {
     using const_iterator = pair_atomic_type const*;
     using slot_type      = slot_type;
 
-   private:
-    pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
-    std::size_t capacity_{};        ///< Total number of slots
     Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
+    pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
+    std::size_t capacity_{};        ///< Total number of slots
 
-   protected:
     __host__ __device__ device_view_base(pair_atomic_type* slots,
                                          std::size_t capacity,
                                          Key empty_key_sentinel,
@@ -961,7 +959,7 @@ class static_map {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool contains(Key const& k,
                              Hash hash          = Hash{},
-                             KeyEqual key_equal = KeyEqual{}) noexcept;
+                             KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
@@ -989,7 +987,7 @@ class static_map {
     __device__ bool contains(CG g,
                              Key const& k,
                              Hash hash          = Hash{},
-                             KeyEqual key_equal = KeyEqual{}) noexcept;
+                             KeyEqual key_equal = KeyEqual{}) const noexcept;
   };  // class device_view
 
   /**
