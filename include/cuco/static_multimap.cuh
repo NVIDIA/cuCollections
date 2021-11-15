@@ -536,7 +536,7 @@ class static_multimap {
 
     counter_deleter(counter_deleter const&) = default;
 
-    void operator()(atomic_ctr_type* ptr) { allocator.deallocate(ptr, 1, stream); }
+    void operator()(atomic_ctr_type* ptr) { allocator.deallocate(ptr, 1); }
 
     counter_allocator_type& allocator;
     cudaStream_t& stream;
@@ -553,7 +553,7 @@ class static_multimap {
 
     slot_deleter(slot_deleter const&) = default;
 
-    void operator()(pair_atomic_type* ptr) { allocator.deallocate(ptr, capacity, stream); }
+    void operator()(pair_atomic_type* ptr) { allocator.deallocate(ptr, capacity); }
 
     slot_allocator_type& allocator;
     size_t& capacity;

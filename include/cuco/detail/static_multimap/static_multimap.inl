@@ -54,8 +54,8 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
     stream_{stream},
     delete_counter_{counter_allocator_, stream_},
     delete_slots_{slot_allocator_, capacity_, stream_},
-    d_counter_{counter_allocator_.allocate(1, stream_), delete_counter_},
-    slots_{slot_allocator_.allocate(capacity_, stream_), delete_slots_}
+    d_counter_{counter_allocator_.allocate(1), delete_counter_},
+    slots_{slot_allocator_.allocate(capacity_), delete_slots_}
 {
   auto constexpr block_size = 128;
   auto constexpr stride     = 4;
