@@ -51,9 +51,8 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
     empty_value_sentinel_{empty_value_sentinel},
     counter_allocator_{alloc},
     slot_allocator_{alloc},
-    stream_{stream},
-    delete_counter_{counter_allocator_, stream_},
-    delete_slots_{slot_allocator_, capacity_, stream_},
+    delete_counter_{counter_allocator_},
+    delete_slots_{slot_allocator_, capacity_},
     d_counter_{counter_allocator_.allocate(1), delete_counter_},
     slots_{slot_allocator_.allocate(capacity_), delete_slots_}
 {
@@ -61,7 +60,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
   auto constexpr stride     = 4;
   auto const grid_size      = (get_capacity() + stride * block_size - 1) / (stride * block_size);
 
-  detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream_>>>(
+  detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream>>>(
     slots_.get(), empty_key_sentinel, empty_value_sentinel, get_capacity());
 }
 
