@@ -257,7 +257,7 @@ class static_map {
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `key_type`
    * @tparam OutputIt Device accessible output iterator whose `value_type` is
-   * convertible to the map's `mapped_type`
+   * constructible from `bool`.
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of keys
@@ -284,12 +284,12 @@ class static_map {
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `key_type`
    * @tparam OutputIt Device accessible output iterator whose `value_type` is
-   * convertible to the map's `mapped_type`
+   * constructible from `bool`.
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param output_begin Beginning of the output sequence to which a `bool` is assigned indicating the presence of each key.
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    */
@@ -301,7 +301,8 @@ class static_map {
                  InputIt last,
                  OutputIt output_begin,
                  Hash hash          = Hash{},
-                 KeyEqual key_equal = KeyEqual{});
+                 KeyEqual key_equal = KeyEqual{},
+                 cudaStream_t stream = 0);
 
  private:
   class device_view_base {

@@ -117,7 +117,7 @@ void static_map<Key, Value, Scope, Allocator>::contains(
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::is_absent(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
+  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
@@ -129,8 +129,8 @@ void static_map<Key, Value, Scope, Allocator>::is_absent(
   auto view             = get_device_view();
 
   detail::check_contains<block_size, tile_size, false>
-    <<<grid_size, block_size>>>(first, last, output_begin, view, hash, key_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
