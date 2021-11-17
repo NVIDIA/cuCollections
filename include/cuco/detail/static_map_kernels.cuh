@@ -184,23 +184,21 @@ template <std::size_t block_size,
           typename Predicate,
           typename Hash,
           typename KeyEqual>
-__global__ void insert_if(
-  InputIt first, InputIt last, atomicT* num_successes, viewT view, StencilIt stencil, Predicate pred, Hash hash, KeyEqual key_equal)
+__global__ void insert_if_n(
+  InputIt first, std::size_t n, atomicT* num_successes, viewT view, StencilIt stencil, Predicate pred, Hash hash, KeyEqual key_equal)
 {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
   auto tid = block_size * blockIdx.x + threadIdx.x;
-  auto it  = first + tid;
   auto i = tid;
 
-  while (it < last) {
+  while (i < n) {
     if (pred(*(stencil + i))) {
-      typename viewT::value_type const insert_pair{*it};
+      typename viewT::value_type const insert_pair{*(first + i)};
       if (view.insert(insert_pair, hash, key_equal)) { thread_num_successes++; }
     }
-    it += gridDim.x * block_size;
     i += gridDim.x * block_size;
   }
 
