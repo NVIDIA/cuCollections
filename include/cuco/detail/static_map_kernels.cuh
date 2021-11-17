@@ -157,22 +157,30 @@ __global__ void insert(
 }
 
 /**
- * @brief Inserts all key/value pairs in the range `[first, last)`.
+ * @brief Inserts key/value pairs in the range `[first, first + n)` if `pred` of the
+ * corresponding stencil returns true.
  *
  * If multiple keys in `[first, last)` compare equal, it is unspecified which
  * element is inserted.
  *
- * @tparam block_size
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform insert
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `value_type`
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of key/value pairs
- * @param last End of the sequence of key/value pairs
+ * @param n Number of elements to insert
  * @param num_successes The number of successfully inserted key/value pairs
  * @param view Mutable device view used to access the hash map's slot storage
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[s, s + n)`
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function used to compare two keys for equality
  */
@@ -201,13 +209,15 @@ __global__ void insert_if_n(
       typename viewT::value_type const insert_pair{*(first + i)};
       if (view.insert(tile, insert_pair, hash, key_equal)) { thread_num_successes++; }
     }
-    i += gridDim.x * block_size;
+    i += (gridDim.x * block_size) / tile_size;
   }
 
   // compute number of successfully inserted elements for each block
   // and atomically add to the grand total
   std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
-  if (threadIdx.x == 0) { *num_successes += block_num_successes; }
+  if (threadIdx.x == 0) {
+    num_matches->fetch_add(block_num_matches, cuda::std::memory_order_relaxed);
+  }
 }
 
 /**

@@ -240,6 +240,8 @@ class static_map {
    * @param stencil Beginning of the stencil sequence
    * @param pred Predicate to test on every element in the range `[stencil, stencil +
    * std::distance(first, last))`
+   * @param hash The unary function to hash each key
+   * @param key_equal The binary function to compare two keys for equality
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt,
