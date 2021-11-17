@@ -28,27 +28,24 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
     empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
     slot_allocator_{alloc},
-    counter_allocator_{alloc},
-    exec_stream_{stream}
+    counter_allocator_{alloc}
 {
-  // allocator should allocate memory accessible by the exec_stream_
-  slots_         = slot_allocator_.allocate(capacity_, exec_stream_);
-  num_successes_ = counter_allocator_.allocate(1, exec_stream_);
+  slots_         = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
+  num_successes_ = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
 
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
   auto const grid_size      = (capacity_ + stride * block_size - 1) / (stride * block_size);
   detail::initialize<block_size, atomic_key_type, atomic_mapped_type>
-    <<<grid_size, block_size, 0, exec_stream_>>>(slots_, empty_key_sentinel, empty_value_sentinel,
+    <<<grid_size, block_size, 0, stream>>>(slots_, empty_key_sentinel, empty_value_sentinel,
                                                   capacity_);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_map<Key, Value, Scope, Allocator>::~static_map()
 {
-  // use exec_stream_ parameter param
-  slot_allocator_.deallocate(slots_, capacity_, exec_stream_);
-  counter_allocator_.deallocate(num_successes_, 1, exec_stream_);
+  std::allocator_traits<slot_allocator_type>::deallocate(slot_allocator_, slots_, capacity_);
+  std::allocator_traits<counter_allocator_type>::deallocate(counter_allocator_, num_successes_, 1);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -79,9 +76,8 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost,
     stream));
-  // stream'd execution assumes sync not required
-  if (stream == 0)
-    CUCO_CUDA_TRY(cudaStreamSynchronize(stream)); // ensures legacy behavior
+  
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream)); // stream sync to ensure h_num_successes is updated
 
   size_ += h_num_successes;
 }
@@ -103,9 +99,7 @@ void static_map<Key, Value, Scope, Allocator>::find(
 
   detail::find<block_size, tile_size, Value>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
-  // stream'd execution assumes sync not required
-  if (stream == 0)
-    CUCO_CUDA_TRY(cudaStreamSynchronize(stream)); // ensures legacy behavior
+
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -125,9 +119,6 @@ void static_map<Key, Value, Scope, Allocator>::contains(
 
   detail::contains<block_size, tile_size>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
-  // stream'd execution assumes sync not required
-  if (stream == 0)
-    CUCO_CUDA_TRY(cudaStreamSynchronize(stream)); // ensures legacy behavior
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>

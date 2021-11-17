@@ -204,7 +204,7 @@ class static_map {
   ~static_map();
 
   /**
-   * @brief Inserts all key/value pairs in the range `[first, last)`.
+   * @brief Inserts all key/value pairs in the range `[first, last)`. This function is synchronous.
    *
    * If multiple keys in `[first, last)` compare equal, it is unspecified which
    * element is inserted.
@@ -217,7 +217,7 @@ class static_map {
    * @param last End of the sequence of key/value pairs
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
-   * @param stream Stream used for executing the kernels, blocking execution for NULL stream
+   * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
@@ -226,7 +226,8 @@ class static_map {
                 cudaStream_t stream = 0);
 
   /**
-   * @brief Finds the values corresponding to all keys in the range `[first, last)`.
+   * @brief Asynchronous function, finds the values corresponding to all keys
+   * in the range `[first, last)`.
    *
    * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin +
    * i)`. Else, copies the empty value sentinel.
@@ -242,7 +243,7 @@ class static_map {
    * @param output_begin Beginning of the sequence of values retrieved for each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
-   * @param stream Stream used for executing the kernels, blocking execution for NULL stream
+   * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
             typename OutputIt,
@@ -256,7 +257,8 @@ class static_map {
             cudaStream_t stream = 0);
 
   /**
-   * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+   * @brief Asynchronous function, indicates whether the keys in the range 
+   * `[first, last)` are contained in the map.
    *
    * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
    *
@@ -271,7 +273,7 @@ class static_map {
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
-   * @param stream Stream used for executing the kernels, blocking execution for NULL stream
+   * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
             typename OutputIt,
@@ -1064,7 +1066,6 @@ class static_map {
   atomic_ctr_type* num_successes_{};            ///< Number of successfully inserted keys on insert
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
-  cudaStream_t exec_stream_{};                  ///< Cuda stream for allocator and execution
 };
 }  // namespace cuco
 
