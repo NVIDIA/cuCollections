@@ -276,6 +276,33 @@ class static_map {
                 Hash hash          = Hash{},
                 KeyEqual key_equal = KeyEqual{});
 
+  /**
+   * @brief Indicates whether the keys in the range `[first, last)` are missing from the map.
+   *
+   * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` does not exist in the map.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the map's `key_type`
+   * @tparam OutputIt Device accessible output iterator whose `value_type` is
+   * convertible to the map's `mapped_type`
+   * @tparam Hash Unary callable type
+   * @tparam KeyEqual Binary callable type
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param hash The unary function to apply to hash each key
+   * @param key_equal The binary function to compare two keys for equality
+   */
+  template <typename InputIt,
+            typename OutputIt,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+            typename KeyEqual = thrust::equal_to<key_type>>
+  void is_absent(InputIt first,
+                 InputIt last,
+                 OutputIt output_begin,
+                 Hash hash          = Hash{},
+                 KeyEqual key_equal = KeyEqual{});
+
  private:
   class device_view_base {
    protected:

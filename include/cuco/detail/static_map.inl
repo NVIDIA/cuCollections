@@ -109,7 +109,26 @@ void static_map<Key, Value, Scope, Allocator>::contains(
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_view();
 
-  detail::contains<block_size, tile_size>
+  detail::check_contains<block_size, tile_size, true>
+    <<<grid_size, block_size>>>(first, last, output_begin, view, hash, key_equal);
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
+void static_map<Key, Value, Scope, Allocator>::is_absent(
+  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
+{
+  auto num_keys = std::distance(first, last);
+  if (num_keys == 0) { return; }
+
+  auto const block_size = 128;
+  auto const stride     = 1;
+  auto const tile_size  = 4;
+  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view             = get_device_view();
+
+  detail::check_contains<block_size, tile_size, false>
     <<<grid_size, block_size>>>(first, last, output_begin, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }

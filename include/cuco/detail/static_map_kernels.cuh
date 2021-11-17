@@ -278,11 +278,12 @@ __global__ void find(
 }
 
 /**
- * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+ * @brief Indicates whether the keys in the range `[first, last)` are contained in (or missing from) the map.
  *
- * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
+ * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists/does not exist in the map.
  *
  * @tparam block_size The size of the thread block
+ * @tparam present If false, check whether elements are absent rather than checking for their presence.
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
@@ -298,12 +299,13 @@ __global__ void find(
  * @param key_equal The binary function to compare two keys for equality
  */
 template <std::size_t block_size,
+          bool present,
           typename InputIt,
           typename OutputIt,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void contains(
+__global__ void check_contains(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
   auto tid     = block_size * blockIdx.x + threadIdx.x;
@@ -320,7 +322,11 @@ __global__ void contains(
      * to global, we no longer rely on L1, preventing the increase in sector stores from
      * L2 to global and improving performance.
      */
-    writeBuffer[threadIdx.x] = view.contains(key, hash, key_equal);
+    if constexpr (present) {
+        writeBuffer[threadIdx.x] = view.contains(key, hash, key_equal);
+    } else {
+        writeBuffer[threadIdx.x] = !view.contains(key, hash, key_equal);
+    }
     __syncthreads();
     *(output_begin + key_idx) = writeBuffer[threadIdx.x];
     key_idx += gridDim.x * block_size;
@@ -328,9 +334,9 @@ __global__ void contains(
 }
 
 /**
- * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+ * @brief Indicates whether the keys in the range `[first, last)` are contained in (or missing from) the map.
  *
- * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
+ * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists/does not exist in the map.
  * Uses the CUDA Cooperative Groups API to leverage groups of multiple threads to perform the
  * contains operation for each key. This provides a significant boost in throughput compared
  * to the non Cooperative Group `contains` at moderate to high load factors.
@@ -338,6 +344,7 @@ __global__ void contains(
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
  * inserts
+ * @tparam present If false, check whether elements are absent rather than checking for their presence.
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
@@ -354,12 +361,13 @@ __global__ void contains(
  */
 template <std::size_t block_size,
           uint32_t tile_size,
+          bool present,
           typename InputIt,
           typename OutputIt,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void contains(
+__global__ void check_contains(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
@@ -369,7 +377,13 @@ __global__ void contains(
 
   while (first + key_idx < last) {
     auto key   = *(first + key_idx);
-    auto found = view.contains(tile, key, hash, key_equal);
+    auto found = [&] () {
+        if constexpr (present) {
+            return view.contains(tile, key, hash, key_equal);
+        } else {
+            return !view.contains(tile, key, hash, key_equal);
+        }
+    }();
 
     /*
      * The ld.relaxed.gpu instruction used in view.find causes L1 to
