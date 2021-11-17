@@ -178,6 +178,18 @@ TEST_CASE("User defined key and value type", "")
     REQUIRE(all_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
+  SECTION("No inserted keys-value pairs should be absent")
+  {
+    thrust::device_vector<bool> absent(num_pairs);
+    map.insert(insert_pairs, insert_pairs + num_pairs, hash_key_pair{}, key_pair_equals{});
+    map.is_absent(insert_keys.begin(),
+                  insert_keys.end(),
+                  absent.begin(),
+                  hash_key_pair{},
+                  key_pair_equals{});
+    REQUIRE(none_of(absent.begin(), absent.end(), [] __device__(bool const& b) { return b; }));
+  }
+
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
     thrust::device_vector<bool> contained(num_pairs);
@@ -188,6 +200,18 @@ TEST_CASE("User defined key and value type", "")
                  key_pair_equals{});
     REQUIRE(
       none_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+  }
+
+  SECTION("Non-inserted keys-value pairs should be absent")
+  {
+    thrust::device_vector<bool> absent(num_pairs);
+    map.is_absent(insert_keys.begin(),
+                  insert_keys.end(),
+                  absent.begin(),
+                  hash_key_pair{},
+                  key_pair_equals{});
+    REQUIRE(
+      all_of(absent.begin(), absent.end(), [] __device__(bool const& b) { return b; }));
   }
 
   SECTION("All inserted keys-value pairs should be contained")
