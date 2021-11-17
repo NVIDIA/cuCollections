@@ -193,16 +193,22 @@ template <std::size_t block_size,
           typename Predicate,
           typename Hash,
           typename KeyEqual>
-__global__ void insert_if_n(
-  InputIt first, std::size_t n, atomicT* num_successes, viewT view, StencilIt stencil, Predicate pred, Hash hash, KeyEqual key_equal)
+__global__ void insert_if_n(InputIt first,
+                            std::size_t n,
+                            atomicT* num_successes,
+                            viewT view,
+                            StencilIt stencil,
+                            Predicate pred,
+                            Hash hash,
+                            KeyEqual key_equal)
 {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  auto tile      = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid = block_size * blockIdx.x + threadIdx.x;
-  auto i = tid / tile_size;
+  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid  = block_size * blockIdx.x + threadIdx.x;
+  auto i    = tid / tile_size;
 
   while (i < n) {
     if (pred(*(stencil + i))) {
@@ -216,7 +222,7 @@ __global__ void insert_if_n(
   // and atomically add to the grand total
   std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
   if (threadIdx.x == 0) {
-    num_matches->fetch_add(block_num_matches, cuda::std::memory_order_relaxed);
+    num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
 }
 

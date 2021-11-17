@@ -249,8 +249,13 @@ class static_map {
             typename Predicate,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert_if(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}, cudaStream_t stream = 0);
+  void insert_if(InputIt first,
+                 InputIt last,
+                 StencilIt stencil,
+                 Predicate pred,
+                 Hash hash           = Hash{},
+                 KeyEqual key_equal  = KeyEqual{},
+                 cudaStream_t stream = 0);
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.

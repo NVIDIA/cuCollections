@@ -77,7 +77,11 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <typename InputIt, typename StencilIt, typename Predicate, typename Hash, typename KeyEqual>
+template <typename InputIt,
+          typename StencilIt,
+          typename Predicate,
+          typename Hash,
+          typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
                                                          InputIt last,
                                                          StencilIt stencil,
@@ -92,8 +96,8 @@ void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
   auto constexpr tile_size  = 4;
-  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_mutable_view();
+  auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_mutable_view();
 
   // TODO: memset an atomic variable is unsafe
   static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
@@ -101,8 +105,8 @@ void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
   std::size_t h_num_successes;
 
   // TODO: Should I specialize the version with a tile size?
-  detail::insert_if_n<block_size, tile_size>
-    <<<grid_size, block_size, 0, stream>>>(first, num_keys, num_successes_, view, stencil, pred, hash, key_equal);
+  detail::insert_if_n<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
+    first, num_keys, num_successes_, view, stencil, pred, hash, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
