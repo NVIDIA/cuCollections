@@ -104,7 +104,6 @@ void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
   CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_num_successes;
 
-  // TODO: Should I specialize the version with a tile size?
   detail::insert_if_n<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
     first, num_keys, num_successes_, view, stencil, pred, hash, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
