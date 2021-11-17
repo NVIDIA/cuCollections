@@ -177,6 +177,7 @@ __global__ void insert(
  * @param key_equal The binary function used to compare two keys for equality
  */
 template <std::size_t block_size,
+          uint32_t tile_size,
           typename InputIt,
           typename atomicT,
           typename viewT,
@@ -191,13 +192,14 @@ __global__ void insert_if_n(
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
+  auto tile      = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid = block_size * blockIdx.x + threadIdx.x;
-  auto i = tid;
+  auto i = tid / tile_size;
 
   while (i < n) {
     if (pred(*(stencil + i))) {
       typename viewT::value_type const insert_pair{*(first + i)};
-      if (view.insert(insert_pair, hash, key_equal)) { thread_num_successes++; }
+      if (view.insert(tile, insert_pair, hash, key_equal)) { thread_num_successes++; }
     }
     i += gridDim.x * block_size;
   }
