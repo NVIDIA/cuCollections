@@ -226,8 +226,43 @@ class static_map {
                 cudaStream_t stream = 0);
 
   /**
-   * @brief Asynchronous function, finds the values corresponding to all keys
-   * in the range `[first, last)`.
+   * @brief Inserts key/value pairs in the range `[first, last)` if `pred`
+   * of the corresponding stencil returns true.
+   *
+   * The key/value pair `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the map's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+   * @tparam Hash Unary callable type
+   * @tparam KeyEqual Binary callable type
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param hash The unary function to hash each key
+   * @param key_equal The binary function to compare two keys for equality
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt,
+            typename StencilIt,
+            typename Predicate,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+            typename KeyEqual = thrust::equal_to<key_type>>
+  void insert_if(InputIt first,
+                 InputIt last,
+                 StencilIt stencil,
+                 Predicate pred,
+                 Hash hash           = Hash{},
+                 KeyEqual key_equal  = KeyEqual{},
+                 cudaStream_t stream = 0);
+
+  /**
+   * @brief Finds the values corresponding to all keys in the range `[first, last)`.
    *
    * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin +
    * i)`. Else, copies the empty value sentinel.
@@ -297,13 +332,11 @@ class static_map {
     using const_iterator = pair_atomic_type const*;
     using slot_type      = slot_type;
 
-   private:
-    pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
-    std::size_t capacity_{};        ///< Total number of slots
     Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
+    pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
+    std::size_t capacity_{};        ///< Total number of slots
 
-   protected:
     __host__ __device__ device_view_base(pair_atomic_type* slots,
                                          std::size_t capacity,
                                          Key empty_key_sentinel,
@@ -971,7 +1004,7 @@ class static_map {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool contains(Key const& k,
                              Hash hash          = Hash{},
-                             KeyEqual key_equal = KeyEqual{}) noexcept;
+                             KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
@@ -999,7 +1032,7 @@ class static_map {
     __device__ bool contains(CG g,
                              Key const& k,
                              Hash hash          = Hash{},
-                             KeyEqual key_equal = KeyEqual{}) noexcept;
+                             KeyEqual key_equal = KeyEqual{}) const noexcept;
   };  // class device_view
 
   /**
