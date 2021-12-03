@@ -225,19 +225,19 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
   SECTION("All conditionally inserted keys-value pairs should be contained")
   {
-    thrust::device_vector<bool> contained(num_pairs);
+    thrust::device_vector<bool> contained(num);
     map.insert_if(
       insert_pairs,
-      insert_pairs + num_pairs,
+      insert_pairs + num,
       thrust::counting_iterator<int>(0),
       [] __device__(auto const& key) { return (key % 2) == 0; },
-      hash_key_pair{},
-      key_pair_equals{});
+      hash_custom_key{},
+      custom_key_equals{});
     map.contains(insert_keys.begin(),
                  insert_keys.end(),
                  contained.begin(),
-                 hash_key_pair{},
-                 key_pair_equals{});
+                 hash_custom_key{},
+                 custom_key_equals{});
 
     REQUIRE(thrust::equal(thrust::device,
                           contained.begin(),

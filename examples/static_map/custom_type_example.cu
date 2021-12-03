@@ -83,7 +83,7 @@ int main(void)
   auto const empty_key_sentinel   = custom_key_type{-1};
   auto const empty_value_sentinel = custom_value_type{-1};
 
-  // Create a sequence of 80'000 pairs
+  // Create an iterator of input key/value pairs
   auto pairs_begin = thrust::make_transform_iterator(
     thrust::make_counting_iterator<int32_t>(0),
     [] __device__(auto i) { return cuco::make_pair(custom_key_type{i}, custom_value_type{i}); });
@@ -93,7 +93,7 @@ int main(void)
   cuco::static_map<custom_key_type, custom_value_type> map{
     100'000, empty_key_sentinel, empty_value_sentinel};
 
-  // Inserts all pairs into the map by using the custom hasher and custom equality callable
+  // Inserts 80,000 pairs into the map by using the custom hasher and custom equality callable
   map.insert(pairs_begin, pairs_begin + num_pairs, custom_hash{}, custom_key_equals{});
 
   // Reproduce inserted keys
