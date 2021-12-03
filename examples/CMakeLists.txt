@@ -24,6 +24,6 @@ ConfigureExample(STATIC_MULTIMAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_mul
 foreach(arch IN LISTS CMAKE_CUDA_ARCHITECTURES)
     if("${arch}" MATCHES "60")
       target_compile_definitions(CUSTOM_TYPE_EXAMPLE PRIVATE CUCO_NO_INDEPENDENT_THREADS)
-        break()
+      break()
     endif()
 endforeach()
