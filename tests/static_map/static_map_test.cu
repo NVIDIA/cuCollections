@@ -223,6 +223,31 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     REQUIRE(all_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
+  SECTION("All conditionally inserted keys-value pairs should be contained")
+  {
+    thrust::device_vector<bool> contained(num_pairs);
+    map.insert_if(
+      insert_pairs,
+      insert_pairs + num_pairs,
+      thrust::counting_iterator<int>(0),
+      [] __device__(auto const& key) { return (key % 2) == 0; },
+      hash_key_pair{},
+      key_pair_equals{});
+    map.contains(insert_keys.begin(),
+                 insert_keys.end(),
+                 contained.begin(),
+                 hash_key_pair{},
+                 key_pair_equals{});
+
+    REQUIRE(thrust::equal(thrust::device,
+                          contained.begin(),
+                          contained.end(),
+                          thrust::counting_iterator<int>(0),
+                          [] __device__(auto const& idx_contained, auto const& idx) {
+                            return ((idx % 2) == 0) == idx_contained;
+                          }));
+  }
+
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
     thrust::device_vector<bool> contained(num);

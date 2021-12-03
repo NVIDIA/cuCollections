@@ -532,32 +532,27 @@ class static_multimap {
    * @brief Custom deleter for unique pointer of device counter.
    */
   struct counter_deleter {
-    counter_deleter(counter_allocator_type& a, cudaStream_t& s) : allocator{a}, stream{s} {}
+    counter_deleter(counter_allocator_type& a) : allocator{a} {}
 
     counter_deleter(counter_deleter const&) = default;
 
-    void operator()(atomic_ctr_type* ptr) { allocator.deallocate(ptr, 1, stream); }
+    void operator()(atomic_ctr_type* ptr) { allocator.deallocate(ptr, 1); }
 
     counter_allocator_type& allocator;
-    cudaStream_t& stream;
   };
 
   /**
    * @brief Custom deleter for unique pointer of slots.
    */
   struct slot_deleter {
-    slot_deleter(slot_allocator_type& a, size_t& c, cudaStream_t& s)
-      : allocator{a}, capacity{c}, stream{s}
-    {
-    }
+    slot_deleter(slot_allocator_type& a, size_t& c) : allocator{a}, capacity{c} {}
 
     slot_deleter(slot_deleter const&) = default;
 
-    void operator()(pair_atomic_type* ptr) { allocator.deallocate(ptr, capacity, stream); }
+    void operator()(pair_atomic_type* ptr) { allocator.deallocate(ptr, capacity); }
 
     slot_allocator_type& allocator;
     size_t& capacity;
-    cudaStream_t& stream;
   };
 
   class device_view_impl_base;
@@ -1146,7 +1141,6 @@ class static_multimap {
   Value empty_value_sentinel_{};                ///< Initial value of empty slot
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
-  cudaStream_t stream_{};                       ///< CUDA stream used for ctor/dtor
   counter_deleter delete_counter_;              ///< Custom counter deleter
   slot_deleter delete_slots_;                   ///< Custom slots deleter
   std::unique_ptr<atomic_ctr_type, counter_deleter> d_counter_{};  ///< Preallocated device counter
