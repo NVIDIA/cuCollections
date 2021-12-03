@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,20 @@
  * limitations under the License.
  */
 
-#include <thrust/count.h>
+#include <limits>
+
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
 #include <thrust/transform.h>
-#include <algorithm>
+
 #include <catch2/catch.hpp>
+
 #include <cuco/static_map.cuh>
-#include <limits>
 
 namespace {
 namespace cg = cooperative_groups;
 
-// Thrust logical algorithms (any_of/all_of/none_of) don't work with device
-// lambdas: See https://github.com/thrust/thrust/issues/1062
+// User-defined logical algorithms to reduce compilation time
 template <typename Iterator, typename Predicate>
 bool all_of(Iterator begin, Iterator end, Predicate p)
 {
@@ -79,27 +79,71 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
 }
 
 // User-defined key type
-// Need to specify alignment to WAR libcu++ bug where cuda::atomic fails for underaligned types:
-// https://github.com/NVIDIA/libcudacxx/issues/160
-struct alignas(8) key_pair {
-  int32_t a;
-  int32_t b;
-};
+template <typename T>
+struct key_pair_type {
+  T a;
+  T b;
 
-struct hash_key_pair {
-  __device__ uint32_t operator()(key_pair k) { return k.a; };
-};
+  __host__ __device__ key_pair_type() {}
+  __host__ __device__ key_pair_type(T x) : a{x}, b{x} {}
 
-struct key_pair_equals {
-  __device__ bool operator()(key_pair lhs, key_pair rhs)
+  // Device equality operator is mandatory due to libcudacxx bug:
+  // https://github.com/NVIDIA/libcudacxx/issues/223
+  __device__ bool operator==(key_pair_type const& other) const
   {
-    return std::tie(lhs.a, lhs.b) == std::tie(rhs.a, rhs.b);
+    return a == other.a and b == other.b;
   }
 };
 
-struct alignas(8) value_pair {
-  int32_t f;
-  int32_t s;
+// User-defined key type
+template <typename T>
+struct large_key_type {
+  T a;
+  T b;
+  T c;
+
+  __host__ __device__ large_key_type() {}
+  __host__ __device__ large_key_type(T x) : a{x}, b{x}, c{x} {}
+
+  // Device equality operator is mandatory due to libcudacxx bug:
+  // https://github.com/NVIDIA/libcudacxx/issues/223
+  __device__ bool operator==(large_key_type const& other) const
+  {
+    return a == other.a and b == other.b and c == other.c;
+  }
+};
+
+// User-defined value type
+template <typename T>
+struct value_pair_type {
+  T f;
+  T s;
+
+  __host__ __device__ value_pair_type() {}
+  __host__ __device__ value_pair_type(T x) : f{x}, s{x} {}
+
+  __device__ bool operator==(value_pair_type const& other) const
+  {
+    return f == other.f and s == other.s;
+  }
+};
+
+// User-defined device hasher
+struct hash_custom_key {
+  template <typename custom_type>
+  __device__ uint32_t operator()(custom_type k)
+  {
+    return k.a;
+  };
+};
+
+// User-defined device key equality
+struct custom_key_equals {
+  template <typename custom_type>
+  __device__ bool operator()(custom_type lhs, custom_type rhs)
+  {
+    return std::tie(lhs.a, lhs.b) == std::tie(rhs.a, rhs.b);
+  }
 };
 
 #define SIZE 10
@@ -110,89 +154,90 @@ struct custom_equals {
   __device__ bool operator()(T lhs, T rhs) { return A[lhs] == A[rhs]; }
 };
 
-TEST_CASE("User defined key and value type", "")
+TEMPLATE_TEST_CASE_SIG("User defined key and value type",
+                       "",
+                       ((typename Key, typename Value), Key, Value),
+#ifndef CUCO_NO_INDEPENDENT_THREADS  // Key type larger than 8B only supported for sm_70 and up
+                       (key_pair_type<int64_t>, value_pair_type<int32_t>),
+                       (key_pair_type<int64_t>, value_pair_type<int64_t>),
+                       (large_key_type<int32_t>, value_pair_type<int32_t>),
+#endif
+                       (key_pair_type<int32_t>, value_pair_type<int32_t>))
 {
-  using Key   = key_pair;
-  using Value = value_pair;
+  auto const sentinel_key   = Key{-1};
+  auto const sentinel_value = Value{-1};
 
-  auto constexpr sentinel_key   = Key{-1, -1};
-  auto constexpr sentinel_value = Value{-1, -1};
+  constexpr std::size_t num      = 100;
+  constexpr std::size_t capacity = num * 2;
+  cuco::static_map<Key, Value> map{capacity, sentinel_key, sentinel_value};
 
-  constexpr std::size_t num_pairs = 100;
-  constexpr std::size_t capacity  = num_pairs * 2;
-  cuco::static_map<key_pair, value_pair> map{capacity, sentinel_key, sentinel_value};
-
-  thrust::device_vector<Key> insert_keys(num_pairs);
-  thrust::device_vector<Value> insert_values(num_pairs);
+  thrust::device_vector<Key> insert_keys(num);
+  thrust::device_vector<Value> insert_values(num);
 
   thrust::transform(thrust::device,
                     thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num_pairs),
+                    thrust::counting_iterator<int>(num),
                     insert_keys.begin(),
-                    [] __device__(auto i) {
-                      return Key{i, i};
-                    });
+                    [] __device__(auto i) { return Key{i}; });
 
   thrust::transform(thrust::device,
                     thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num_pairs),
+                    thrust::counting_iterator<int>(num),
                     insert_values.begin(),
-                    [] __device__(auto i) {
-                      return Value{i, i};
-                    });
+                    [] __device__(auto i) { return Value{i}; });
 
   auto insert_pairs =
     thrust::make_zip_iterator(thrust::make_tuple(insert_keys.begin(), insert_values.begin()));
 
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
   {
-    thrust::device_vector<Value> found_values(num_pairs);
-    map.insert(insert_pairs, insert_pairs + num_pairs, hash_key_pair{}, key_pair_equals{});
+    thrust::device_vector<Value> found_values(num);
+    map.insert(insert_pairs, insert_pairs + num, hash_custom_key{}, custom_key_equals{});
 
-    REQUIRE(num_pairs == map.get_size());
+    REQUIRE(num == map.get_size());
 
     map.find(insert_keys.begin(),
              insert_keys.end(),
              found_values.begin(),
-             hash_key_pair{},
-             key_pair_equals{});
+             hash_custom_key{},
+             custom_key_equals{});
 
     REQUIRE(thrust::equal(thrust::device,
                           insert_values.begin(),
                           insert_values.end(),
                           found_values.begin(),
-                          [] __device__(value_pair lhs, value_pair rhs) {
+                          [] __device__(Value lhs, Value rhs) {
                             return std::tie(lhs.f, lhs.s) == std::tie(rhs.f, rhs.s);
                           }));
   }
 
   SECTION("All inserted keys-value pairs should be contained")
   {
-    thrust::device_vector<bool> contained(num_pairs);
-    map.insert(insert_pairs, insert_pairs + num_pairs, hash_key_pair{}, key_pair_equals{});
+    thrust::device_vector<bool> contained(num);
+    map.insert(insert_pairs, insert_pairs + num, hash_custom_key{}, custom_key_equals{});
     map.contains(insert_keys.begin(),
                  insert_keys.end(),
                  contained.begin(),
-                 hash_key_pair{},
-                 key_pair_equals{});
+                 hash_custom_key{},
+                 custom_key_equals{});
     REQUIRE(all_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
   SECTION("All conditionally inserted keys-value pairs should be contained")
   {
-    thrust::device_vector<bool> contained(num_pairs);
+    thrust::device_vector<bool> contained(num);
     map.insert_if(
       insert_pairs,
-      insert_pairs + num_pairs,
+      insert_pairs + num,
       thrust::counting_iterator<int>(0),
       [] __device__(auto const& key) { return (key % 2) == 0; },
-      hash_key_pair{},
-      key_pair_equals{});
+      hash_custom_key{},
+      custom_key_equals{});
     map.contains(insert_keys.begin(),
                  insert_keys.end(),
                  contained.begin(),
-                 hash_key_pair{},
-                 key_pair_equals{});
+                 hash_custom_key{},
+                 custom_key_equals{});
 
     REQUIRE(thrust::equal(thrust::device,
                           contained.begin(),
@@ -205,35 +250,34 @@ TEST_CASE("User defined key and value type", "")
 
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
-    thrust::device_vector<bool> contained(num_pairs);
+    thrust::device_vector<bool> contained(num);
     map.contains(insert_keys.begin(),
                  insert_keys.end(),
                  contained.begin(),
-                 hash_key_pair{},
-                 key_pair_equals{});
+                 hash_custom_key{},
+                 custom_key_equals{});
     REQUIRE(
       none_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
   SECTION("All inserted keys-value pairs should be contained")
   {
-    thrust::device_vector<bool> contained(num_pairs);
-    map.insert(insert_pairs, insert_pairs + num_pairs, hash_key_pair{}, key_pair_equals{});
+    thrust::device_vector<bool> contained(num);
+    map.insert(insert_pairs, insert_pairs + num, hash_custom_key{}, custom_key_equals{});
     auto view = map.get_device_view();
-    REQUIRE(all_of(insert_pairs,
-                   insert_pairs + num_pairs,
-                   [view] __device__(cuco::pair_type<Key, Value> const& pair) {
-                     return view.contains(pair.first, hash_key_pair{}, key_pair_equals{});
-                   }));
+    REQUIRE(all_of(
+      insert_pairs, insert_pairs + num, [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+        return view.contains(pair.first, hash_custom_key{}, custom_key_equals{});
+      }));
   }
 
   SECTION("Inserting unique keys should return insert success.")
   {
     auto m_view = map.get_device_mutable_view();
     REQUIRE(all_of(insert_pairs,
-                   insert_pairs + num_pairs,
+                   insert_pairs + num,
                    [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                     return m_view.insert(pair, hash_key_pair{}, key_pair_equals{});
+                     return m_view.insert(pair, hash_custom_key{}, custom_key_equals{});
                    }));
   }
 
@@ -243,9 +287,9 @@ TEST_CASE("User defined key and value type", "")
     {
       auto view = map.get_device_view();
       REQUIRE(all_of(insert_pairs,
-                     insert_pairs + num_pairs,
+                     insert_pairs + num,
                      [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                       return view.find(pair.first, hash_key_pair{}, key_pair_equals{}) ==
+                       return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) ==
                               view.end();
                      }));
     }
@@ -254,9 +298,9 @@ TEST_CASE("User defined key and value type", "")
     {
       auto const view = map.get_device_view();
       REQUIRE(all_of(insert_pairs,
-                     insert_pairs + num_pairs,
+                     insert_pairs + num,
                      [view] __device__(cuco::pair_type<Key, Value> const& pair) {
-                       return view.find(pair.first, hash_key_pair{}, key_pair_equals{}) ==
+                       return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) ==
                               view.end();
                      }));
     }
