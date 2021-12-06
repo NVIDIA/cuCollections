@@ -973,6 +973,7 @@ class static_multimap {
      * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
      * the map's `value_type`.
      * @tparam PairEqual Binary callable type
+     * @param probing_cg The Cooperative Group used to retrieve
      * @param pair The pair to search for
      * @param num_matches Size of the output sequence
      * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
@@ -981,11 +982,13 @@ class static_multimap {
      * @param pair_equal The binary callable used to compare two pairs for equality
      */
     template <typename atomicT, typename OutputIt1, typename OutputIt2, typename PairEqual>
-    __device__ __forceinline__ void pair_retrieve(value_type const& pair,
-                                                  atomicT* num_matches,
-                                                  OutputIt1 probe_output_begin,
-                                                  OutputIt2 contained_output_begin,
-                                                  PairEqual pair_equal) noexcept;
+    __device__ __forceinline__ void pair_retrieve(
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
+      value_type const& pair,
+      atomicT* num_matches,
+      OutputIt1 probe_output_begin,
+      OutputIt2 contained_output_begin,
+      PairEqual pair_equal) noexcept;
 
     /**
      * @brief Retrieves all the matches of a given pair contained in multimap with per-flushing-CG
@@ -1048,6 +1051,7 @@ class static_multimap {
      * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
      * the map's `value_type`.
      * @tparam PairEqual Binary callable type
+     * @param probing_cg The Cooperative Group used to retrieve
      * @param pair The pair to search for
      * @param num_matches Size of the output sequence
      * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
@@ -1056,11 +1060,13 @@ class static_multimap {
      * @param pair_equal The binary callable used to compare two pairs for equality
      */
     template <typename atomicT, typename OutputIt1, typename OutputIt2, typename PairEqual>
-    __device__ __forceinline__ void pair_retrieve_outer(value_type const& pair,
-                                                        atomicT* num_matches,
-                                                        OutputIt1 probe_output_begin,
-                                                        OutputIt2 contained_output_begin,
-                                                        PairEqual pair_equal) noexcept;
+    __device__ __forceinline__ void pair_retrieve_outer(
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
+      value_type const& pair,
+      atomicT* num_matches,
+      OutputIt1 probe_output_begin,
+      OutputIt2 contained_output_begin,
+      PairEqual pair_equal) noexcept;
 
     /**
      * @brief Retrieves all the matches of a given pair contained in multimap with per-flushing-CG
