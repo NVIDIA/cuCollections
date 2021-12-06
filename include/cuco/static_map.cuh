@@ -189,7 +189,7 @@ class static_map {
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param alloc Allocator used for allocating device storage
-   * @param stream Stream used for executing the kernels, blocking execution for NULL stream
+   * @param stream Stream used for executing the kernels
    */
   static_map(std::size_t capacity,
              Key empty_key_sentinel,
@@ -204,7 +204,9 @@ class static_map {
   ~static_map();
 
   /**
-   * @brief Inserts all key/value pairs in the range `[first, last)`. This function is synchronous.
+   * @brief Inserts all key/value pairs in the range `[first, last)`.
+   *
+   * This function synchronizes `stream`. 
    *
    * If multiple keys in `[first, last)` compare equal, it is unspecified which
    * element is inserted.
@@ -292,7 +294,7 @@ class static_map {
             cudaStream_t stream = 0);
 
   /**
-   * @brief Asynchronous function, indicates whether the keys in the range 
+   * @brief Indicates whether the keys in the range 
    * `[first, last)` are contained in the map.
    *
    * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
