@@ -960,6 +960,34 @@ class static_multimap {
       KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
+     * @brief Retrieves all the matches of a given pair contained in multimap without using shared
+     * memory buffer
+     *
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
+     * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
+     * `[contained_output_begin, contained_output_end)`.
+     *
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+     * `InputIt`s `value_type`.
+     * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+     * the map's `value_type`.
+     * @tparam PairEqual Binary callable type
+     * @param pair The pair to search for
+     * @param num_matches Size of the output sequence
+     * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained
+     * pairs
+     * @param pair_equal The binary callable used to compare two pairs for equality
+     */
+    template <typename atomicT, typename OutputIt1, typename OutputIt2, typename PairEqual>
+    __device__ __forceinline__ void pair_retrieve(value_type const& pair,
+                                                  atomicT* num_matches,
+                                                  OutputIt1 probe_output_begin,
+                                                  OutputIt2 contained_output_begin,
+                                                  PairEqual pair_equal) noexcept;
+
+    /**
      * @brief Retrieves all the matches of a given pair contained in multimap with per-flushing-CG
      * shared memory buffer.
      *
@@ -1004,6 +1032,35 @@ class static_multimap {
       OutputIt1 probe_output_begin,
       OutputIt2 contained_output_begin,
       PairEqual pair_equal) noexcept;
+
+    /**
+     * @brief Retrieves all the matches of a given pair contained in multimap without using shared
+     * memory buffer
+     *
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
+     * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
+     * `[contained_output_begin, contained_output_end)`. If `p` does not have any matches, copies
+     * `p` and a pair of `empty_key_sentinel` and `empty_value_sentinel` into the output.
+     *
+     * @tparam atomicT Type of atomic storage
+     * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+     * `InputIt`s `value_type`.
+     * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+     * the map's `value_type`.
+     * @tparam PairEqual Binary callable type
+     * @param pair The pair to search for
+     * @param num_matches Size of the output sequence
+     * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
+     * @param contained_output_begin Beginning of the output sequence of the matched contained
+     * pairs
+     * @param pair_equal The binary callable used to compare two pairs for equality
+     */
+    template <typename atomicT, typename OutputIt1, typename OutputIt2, typename PairEqual>
+    __device__ __forceinline__ void pair_retrieve_outer(value_type const& pair,
+                                                        atomicT* num_matches,
+                                                        OutputIt1 probe_output_begin,
+                                                        OutputIt2 contained_output_begin,
+                                                        PairEqual pair_equal) noexcept;
 
     /**
      * @brief Retrieves all the matches of a given pair contained in multimap with per-flushing-CG
