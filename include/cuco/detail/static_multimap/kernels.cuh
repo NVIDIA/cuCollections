@@ -425,6 +425,74 @@ __global__ void retrieve(InputIt first,
  * output_begin + *num_matches - 1)`. Use `pair_count()` to determine the size of the output range.
  *
  * @tparam block_size The size of the thread block
+ * @tparam probing_cg_size The size of the CG for parallel retrievals
+ * @tparam buffer_size Size of the output buffer
+ * @tparam is_outer Boolean flag indicating whether non-matches are included in the output
+ * @tparam InputIt Device accessible random access input iterator where
+ * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
+ * static_multimap<K, V>::value_type>` is `true`
+ * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+ * `InputIt`s `value_type`.
+ * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+ * the map's `value_type`.
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam PairEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param probe_output_begin Beginning of the sequence of the matched probe pairs
+ * @param contained_output_begin Beginning of the sequence of the matched contained pairs
+ * @param num_matches Size of the output sequence
+ * @param view Device view used to access the hash map's slot storage
+ * @param pair_equal The binary function to compare two pairs for equality
+ */
+template <uint32_t block_size,
+          uint32_t probing_cg_size,
+          bool is_outer,
+          typename InputIt,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename atomicT,
+          typename viewT,
+          typename PairEqual>
+__global__ void pair_retrieve(InputIt first,
+                              InputIt last,
+                              OutputIt1 probe_output_begin,
+                              OutputIt2 contained_output_begin,
+                              atomicT* num_matches,
+                              viewT view,
+                              PairEqual pair_equal)
+{
+  auto probing_cg = cg::tiled_partition<probing_cg_size>(cg::this_thread_block());
+  auto tid        = block_size * blockIdx.x + threadIdx.x;
+  auto pair_idx   = tid / probing_cg_size;
+
+  while (first + pair_idx < last) {
+    pair_type pair = *(first + pair_idx);
+    if constexpr (is_outer) {
+      view.pair_retrieve_outer(
+        probing_cg, pair, num_matches, probe_output_begin, contained_output_begin, pair_equal);
+    } else {
+      view.pair_retrieve(
+        probing_cg, pair, num_matches, probe_output_begin, contained_output_begin, pair_equal);
+    }
+    pair_idx += (gridDim.x * block_size) / probing_cg_size;
+  }
+}
+
+/**
+ * @brief Retrieves all pairs matching the input probe pair in the range `[first, last)`.
+ *
+ * If pair_equal(*(first + i), slot[j]) returns true, then *(first+i) is stored to unspecified
+ * locations in `probe_output_begin`, and slot[j] is stored to unspecified locations in
+ * `contained_output_begin`. If the given pair has no matches in the map, copies *(first + i) in
+ * `probe_output_begin` and a pair of `empty_key_sentinel` and `empty_value_sentinel` in
+ * `contained_output_begin` only when `is_outer` is `true`.
+ *
+ * Behavior is undefined if the total number of matching pairs exceeds `std::distance(output_begin,
+ * output_begin + *num_matches - 1)`. Use `pair_count()` to determine the size of the output range.
+ *
+ * @tparam block_size The size of the thread block
  * @tparam flushing_cg_size The size of the CG used to flush output buffers
  * @tparam probing_cg_size The size of the CG for parallel retrievals
  * @tparam buffer_size Size of the output buffer
