@@ -691,6 +691,26 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
+template <typename atomicT, typename OutputIt1, typename OutputIt2, typename PairEqual>
+__device__ __forceinline__ void
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve(
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
+  value_type const& pair,
+  atomicT* num_matches,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
+  PairEqual pair_equal) noexcept
+{
+  constexpr bool is_outer = false;
+  impl_.pair_retrieve<is_outer, uses_vector_load()>(
+    probing_cg, pair, num_matches, probe_output_begin, contained_output_begin, pair_equal);
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
 template <uint32_t buffer_size,
           typename FlushingCG,
           typename atomicT,
@@ -734,6 +754,26 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_
                                                contained_output_begin,
                                                pair_equal);
   }
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
+template <typename atomicT, typename OutputIt1, typename OutputIt2, typename PairEqual>
+__device__ __forceinline__ void
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve_outer(
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
+  value_type const& pair,
+  atomicT* num_matches,
+  OutputIt1 probe_output_begin,
+  OutputIt2 contained_output_begin,
+  PairEqual pair_equal) noexcept
+{
+  constexpr bool is_outer = true;
+  impl_.pair_retrieve<is_outer, uses_vector_load()>(
+    probing_cg, pair, num_matches, probe_output_begin, contained_output_begin, pair_equal);
 }
 
 template <typename Key,
