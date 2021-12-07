@@ -1122,40 +1122,23 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       }
 
       if (first_equals) {
-        auto output_idx = counter.fetch_add(1, memory_order_relaxed);
-        // TODO: `=` operator cannot work here
-        // *(probe_output_begin + output_idx)     = pair;
-        // *(contained_output_begin + output_idx) = arr[0];
-        thrust::get<0>(*(probe_output_begin + output_idx))     = pair.first;
-        thrust::get<1>(*(probe_output_begin + output_idx))     = pair.second;
-        thrust::get<0>(*(contained_output_begin + output_idx)) = arr[0].first;
-        thrust::get<1>(*(contained_output_begin + output_idx)) = arr[0].second;
+        auto output_idx                        = counter.fetch_add(1, memory_order_relaxed);
+        *(probe_output_begin + output_idx)     = pair;
+        *(contained_output_begin + output_idx) = arr[0];
       }
       if (second_equals) {
-        auto output_idx = counter.fetch_add(1, memory_order_relaxed);
-        // TODO: `=` operator cannot work here
-        // *(probe_output_begin + output_idx)     = pair;
-        // *(contained_output_begin + output_idx) = arr[1];
-        thrust::get<0>(*(probe_output_begin + output_idx))     = pair.first;
-        thrust::get<1>(*(probe_output_begin + output_idx))     = pair.second;
-        thrust::get<0>(*(contained_output_begin + output_idx)) = arr[1].first;
-        thrust::get<1>(*(contained_output_begin + output_idx)) = arr[1].second;
+        auto output_idx                        = counter.fetch_add(1, memory_order_relaxed);
+        *(probe_output_begin + output_idx)     = pair;
+        *(contained_output_begin + output_idx) = arr[1];
       }
 
       if (probing_cg.any(first_slot_is_empty or second_slot_is_empty)) {
         if constexpr (is_outer) {
           if ((not found_match) and lane_id == 0) {
-            auto output_idx = counter.fetch_add(1, memory_order_relaxed);
-            // TODO: `=` operator cannot work here
-            //  *(probe_output_begin + output_idx) = pair;
-            //  *(contained_output_begin + output_idx) =
-            //  cuco::make_pair<Key, Value>(std::move(this->get_empty_key_sentinel()),
-            //                            std::move(this->get_empty_value_sentinel()));
-            thrust::get<0>(*(probe_output_begin + output_idx))     = pair.first;
-            thrust::get<1>(*(probe_output_begin + output_idx))     = pair.second;
-            thrust::get<0>(*(contained_output_begin + output_idx)) = this->get_empty_key_sentinel();
-            thrust::get<1>(*(contained_output_begin + output_idx)) =
-              this->get_empty_value_sentinel();
+            auto output_idx                        = counter.fetch_add(1, memory_order_relaxed);
+            *(probe_output_begin + output_idx)     = pair;
+            *(contained_output_begin + output_idx) = cuco::make_pair<Key, Value>(
+              this->get_empty_key_sentinel(), this->get_empty_value_sentinel());
           }
         }
         return;  // exit if any slot in the current window is empty
@@ -1232,30 +1215,18 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       }
 
       if (equals) {
-        auto output_idx = counter.fetch_add(1, memory_order_relaxed);
-        // TODO: `=` operator cannot work here
-        // *(probe_output_begin + output_idx)     = pair;
-        // *(contained_output_begin + output_idx) = slot_contents;
-        thrust::get<0>(*(probe_output_begin + output_idx))     = pair.first;
-        thrust::get<1>(*(probe_output_begin + output_idx))     = pair.second;
-        thrust::get<0>(*(contained_output_begin + output_idx)) = slot_contents.first;
-        thrust::get<1>(*(contained_output_begin + output_idx)) = slot_contents.second;
+        auto output_idx                        = counter.fetch_add(1, memory_order_relaxed);
+        *(probe_output_begin + output_idx)     = pair;
+        *(contained_output_begin + output_idx) = slot_contents;
       }
 
       if (probing_cg.any(slot_is_empty)) {
         if constexpr (is_outer) {
           if ((not found_match) and lane_id == 0) {
-            auto output_idx = counter.fetch_add(1, memory_order_relaxed);
-            // TODO: `=` operator cannot work here
-            //  *(probe_output_begin + output_idx) = pair;
-            //  *(contained_output_begin + output_idx) =
-            //  cuco::make_pair<Key, Value>(std::move(this->get_empty_key_sentinel()),
-            //                            std::move(this->get_empty_value_sentinel()));
-            thrust::get<0>(*(probe_output_begin + output_idx))     = pair.first;
-            thrust::get<1>(*(probe_output_begin + output_idx))     = pair.second;
-            thrust::get<0>(*(contained_output_begin + output_idx)) = this->get_empty_key_sentinel();
-            thrust::get<1>(*(contained_output_begin + output_idx)) =
-              this->get_empty_value_sentinel();
+            auto output_idx                        = counter.fetch_add(1, memory_order_relaxed);
+            *(probe_output_begin + output_idx)     = pair;
+            *(contained_output_begin + output_idx) = cuco::make_pair<Key, Value>(
+              this->get_empty_key_sentinel(), this->get_empty_value_sentinel());
           }
         }
         return;  // exit if any slot in the current window is empty
