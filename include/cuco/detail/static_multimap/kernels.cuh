@@ -426,7 +426,6 @@ __global__ void retrieve(InputIt first,
  *
  * @tparam block_size The size of the thread block
  * @tparam probing_cg_size The size of the CG for parallel retrievals
- * @tparam buffer_size Size of the output buffer
  * @tparam is_outer Boolean flag indicating whether non-matches are included in the output
  * @tparam InputIt Device accessible random access input iterator where
  * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
