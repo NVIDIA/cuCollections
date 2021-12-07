@@ -1057,6 +1057,182 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
 
   /**
    * @brief Retrieves all the matches of a given pair contained in multimap using vector
+   * loads without shared memory buffer.
+   *
+   * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
+   * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
+   * `[contained_output_begin, contained_output_end)`. If `p` does not have any matches, copies
+   * `p` and a pair of `empty_key_sentinel` and `empty_value_sentinel` into the output only if
+   * `is_outer` is true.
+   *
+   * @tparam is_outer Boolean flag indicating whether outer join is peformed
+   * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
+   * @tparam ProbingCG Type of Cooperative Group used to retrieve
+   * @tparam atomicT Type of atomic storage
+   * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+   * `InputIt`s `value_type`.
+   * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `value_type`.
+   * @tparam PairEqual Binary callable type
+   * @param probing_cg The Cooperative Group used to retrieve
+   * @param pair The pair to search for
+   * @param num_matches Size of the output sequence
+   * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
+   * @param contained_output_begin Beginning of the output sequence of the matched contained
+   * pairs
+   * @param pair_equal The binary callable used to compare two pairs for equality
+   */
+  template <bool is_outer,
+            bool uses_vector_load typename ProbingCG,
+            typename atomicT,
+            typename OutputIt1,
+            typename OutputIt2,
+            typename PairEqual>
+  __device__ __forceinline__ std::enable_if_t<uses_vector_load, void> pair_retrieve(
+    ProbingCG const& probing_cg,
+    value_type const& pair,
+    atomicT* num_matches,
+    OutputIt1 probe_output_begin,
+    OutputIt2 contained_output_begin,
+    PairEqual pair_equal) noexcept
+  {
+    auto current_slot                 = initial_slot(probing_cg, pair.first);
+    [[maybe_unused]] auto found_match = false;
+
+    while (true) {
+      value_type arr[2];
+      load_pair_array(&arr[0], current_slot);
+
+      auto const first_slot_is_empty =
+        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+      auto const second_slot_is_empty =
+        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+      auto const first_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
+      auto const second_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
+
+      if constexpr (is_outer) {
+        auto const exists = probing_cg.any(first_equals or second_equals);
+        if (exists) { found_match = true; }
+      }
+
+      using cuda::std::memory_order_relaxed;
+
+      if (first_equals) {
+        auto output_idx                        = num_matches->fetch_add(1, memory_order_relaxed);
+        *(probe_output_begin + output_idx)     = pair;
+        *(contained_output_begin + output_idx) = arr[0];
+      }
+      if (second_equals) {
+        auto output_idx                        = num_matches->fetch_add(1, memory_order_relaxed);
+        *(probe_output_begin + output_idx)     = pair;
+        *(contained_output_begin + output_idx) = arr[1];
+      }
+
+      if (probing_cg.any(first_slot_is_empty or second_slot_is_empty)) {
+        if constexpr (is_outer) {
+          if ((not found_match) and probing_cg.thread_rank() == 0) {
+            auto output_idx                    = num_matches->fetch_add(1, memory_order_relaxed);
+            *(probe_output_begin + output_idx) = pair;
+            *(contained_output_begin + output_idx) =
+              cuco::make_pair<Key, Value>(std::move(this->get_empty_key_sentinel()),
+                                          std::move(this->get_empty_value_sentinel()));
+          }
+        }
+        return;  // exit if any slot in the window is empty
+      }
+
+      current_slot = next_slot(current_slot);
+    }  // while
+  }
+
+  /**
+   * @brief Retrieves all the matches of a given pair contained in multimap using scalar
+   * loads without shared memory buffer.
+   *
+   * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
+   * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
+   * `[contained_output_begin, contained_output_end)`. If `p` does not have any matches, copies
+   * `p` and a pair of `empty_key_sentinel` and `empty_value_sentinel` into the output only if
+   * `is_outer` is true.
+   *
+   * @tparam is_outer Boolean flag indicating whether outer join is peformed
+   * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
+   * @tparam ProbingCG Type of Cooperative Group used to retrieve
+   * @tparam atomicT Type of atomic storage
+   * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+   * `InputIt`s `value_type`.
+   * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `value_type`.
+   * @tparam PairEqual Binary callable type
+   * @param probing_cg The Cooperative Group used to retrieve
+   * @param pair The pair to search for
+   * @param num_matches Size of the output sequence
+   * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
+   * @param contained_output_begin Beginning of the output sequence of the matched contained
+   * pairs
+   * @param pair_equal The binary callable used to compare two pairs for equality
+   */
+  template <bool is_outer,
+            bool uses_vector_load,
+            typename ProbingCG,
+            typename atomicT,
+            typename OutputIt1,
+            typename OutputIt2,
+            typename PairEqual>
+  __device__ __forceinline__ std::enable_if_t<not uses_vector_load, void> pair_retrieve(
+    ProbingCG const& probing_cg,
+    value_type const& pair,
+    atomicT* num_matches,
+    OutputIt1 probe_output_begin,
+    OutputIt2 contained_output_begin,
+    PairEqual pair_equal) noexcept
+  {
+    auto current_slot                 = initial_slot(probing_cg, pair.first);
+    [[maybe_unused]] auto found_match = false;
+
+    while (true) {
+      // TODO: Replace reinterpret_cast with atomic ref when possible. The current implementation
+      // is unsafe!
+      static_assert(sizeof(Key) == sizeof(cuda::atomic<Key>));
+      static_assert(sizeof(Value) == sizeof(cuda::atomic<Value>));
+      value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
+
+      auto const slot_is_empty =
+        detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
+      auto const equals = (not slot_is_empty and pair_equal(slot_contents, pair));
+
+      if constexpr (is_outer) {
+        auto const exists = probing_cg.any(equals);
+        if (exists) { found_match = true; }
+      }
+
+      using cuda::std::memory_order_relaxed;
+
+      if (equals) {
+        auto output_idx                        = num_matches->fetch_add(1, memory_order_relaxed);
+        *(probe_output_begin + output_idx)     = pair;
+        *(contained_output_begin + output_idx) = arr[0];
+      }
+
+      if (probing_cg.any(slot_is_empty)) {
+        if constexpr (is_outer) {
+          if ((not found_match) and probing_cg.thread_rank() == 0) {
+            auto output_idx                    = num_matches->fetch_add(1, memory_order_relaxed);
+            *(probe_output_begin + output_idx) = pair;
+            *(contained_output_begin + output_idx) =
+              cuco::make_pair<Key, Value>(std::move(this->get_empty_key_sentinel()),
+                                          std::move(this->get_empty_value_sentinel()));
+          }
+        }
+        return;  // exit if any slot in the window is empty
+      }
+
+      current_slot = next_slot(current_slot);
+    }  // while
+  }
+
+  /**
+   * @brief Retrieves all the matches of a given pair contained in multimap using vector
    * loads with per-flushing-CG shared memory buffer.
    *
    * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
