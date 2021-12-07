@@ -1119,24 +1119,40 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       using cuda::std::memory_order_relaxed;
 
       if (first_equals) {
-        auto output_idx                        = num_matches->fetch_add(1, memory_order_relaxed);
-        *(probe_output_begin + output_idx)     = pair;
-        *(contained_output_begin + output_idx) = arr[0];
+        auto output_idx = num_matches->fetch_add(1, memory_order_relaxed);
+        // TODO: `=` operator cannot work here
+        // *(probe_output_begin + output_idx)     = pair;
+        // *(contained_output_begin + output_idx) = arr[0];
+        thrust::get<0>(*(probe_output_begin + output_idx))     = pair.first;
+        thrust::get<1>(*(probe_output_begin + output_idx))     = pair.second;
+        thrust::get<0>(*(contained_output_begin + output_idx)) = arr[0].first;
+        thrust::get<1>(*(contained_output_begin + output_idx)) = arr[0].second;
       }
       if (second_equals) {
-        auto output_idx                        = num_matches->fetch_add(1, memory_order_relaxed);
-        *(probe_output_begin + output_idx)     = pair;
-        *(contained_output_begin + output_idx) = arr[1];
+        auto output_idx = num_matches->fetch_add(1, memory_order_relaxed);
+        // TODO: `=` operator cannot work here
+        // *(probe_output_begin + output_idx)     = pair;
+        // *(contained_output_begin + output_idx) = arr[1];
+        thrust::get<0>(*(probe_output_begin + output_idx))     = pair.first;
+        thrust::get<1>(*(probe_output_begin + output_idx))     = pair.second;
+        thrust::get<0>(*(contained_output_begin + output_idx)) = arr[1].first;
+        thrust::get<1>(*(contained_output_begin + output_idx)) = arr[1].second;
       }
 
       if (probing_cg.any(first_slot_is_empty or second_slot_is_empty)) {
         if constexpr (is_outer) {
           if ((not found_match) and probing_cg.thread_rank() == 0) {
-            auto output_idx                    = num_matches->fetch_add(1, memory_order_relaxed);
-            *(probe_output_begin + output_idx) = pair;
-            *(contained_output_begin + output_idx) =
-              cuco::make_pair<Key, Value>(std::move(this->get_empty_key_sentinel()),
-                                          std::move(this->get_empty_value_sentinel()));
+            auto output_idx = num_matches->fetch_add(1, memory_order_relaxed);
+            // TODO: `=` operator cannot work here
+            //  *(probe_output_begin + output_idx) = pair;
+            //  *(contained_output_begin + output_idx) =
+            //  cuco::make_pair<Key, Value>(std::move(this->get_empty_key_sentinel()),
+            //                            std::move(this->get_empty_value_sentinel()));
+            thrust::get<0>(*(probe_output_begin + output_idx))     = pair.first;
+            thrust::get<1>(*(probe_output_begin + output_idx))     = pair.second;
+            thrust::get<0>(*(contained_output_begin + output_idx)) = this->get_empty_key_sentinel();
+            thrust::get<1>(*(contained_output_begin + output_idx)) =
+              this->get_empty_value_sentinel();
           }
         }
         return;  // exit if any slot in the window is empty
@@ -1210,19 +1226,30 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       using cuda::std::memory_order_relaxed;
 
       if (equals) {
-        auto output_idx                        = num_matches->fetch_add(1, memory_order_relaxed);
-        *(probe_output_begin + output_idx)     = pair;
-        *(contained_output_begin + output_idx) = slot_contents;
+        auto output_idx = num_matches->fetch_add(1, memory_order_relaxed);
+        // TODO: `=` operator cannot work here
+        // *(probe_output_begin + output_idx)     = pair;
+        // *(contained_output_begin + output_idx) = slot_contents;
+        thrust::get<0>(*(probe_output_begin + output_idx))     = pair.first;
+        thrust::get<1>(*(probe_output_begin + output_idx))     = pair.second;
+        thrust::get<0>(*(contained_output_begin + output_idx)) = slot_contents.first;
+        thrust::get<1>(*(contained_output_begin + output_idx)) = slot_contents.second;
       }
 
       if (probing_cg.any(slot_is_empty)) {
         if constexpr (is_outer) {
           if ((not found_match) and probing_cg.thread_rank() == 0) {
-            auto output_idx                    = num_matches->fetch_add(1, memory_order_relaxed);
-            *(probe_output_begin + output_idx) = pair;
-            *(contained_output_begin + output_idx) =
-              cuco::make_pair<Key, Value>(std::move(this->get_empty_key_sentinel()),
-                                          std::move(this->get_empty_value_sentinel()));
+            auto output_idx = num_matches->fetch_add(1, memory_order_relaxed);
+            // TODO: `=` operator cannot work here
+            //  *(probe_output_begin + output_idx) = pair;
+            //  *(contained_output_begin + output_idx) =
+            //  cuco::make_pair<Key, Value>(std::move(this->get_empty_key_sentinel()),
+            //                            std::move(this->get_empty_value_sentinel()));
+            thrust::get<0>(*(probe_output_begin + output_idx))     = pair.first;
+            thrust::get<1>(*(probe_output_begin + output_idx))     = pair.second;
+            thrust::get<0>(*(contained_output_begin + output_idx)) = this->get_empty_key_sentinel();
+            thrust::get<1>(*(contained_output_begin + output_idx)) =
+              this->get_empty_value_sentinel();
           }
         }
         return;  // exit if any slot in the window is empty
