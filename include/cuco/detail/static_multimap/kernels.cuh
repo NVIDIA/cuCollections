@@ -463,6 +463,8 @@ __global__ void pair_retrieve(InputIt first,
                               viewT view,
                               PairEqual pair_equal)
 {
+  using pair_type = typename viewT::value_type;
+
   auto probing_cg = cg::tiled_partition<probing_cg_size>(cg::this_thread_block());
   auto tid        = block_size * blockIdx.x + threadIdx.x;
   auto pair_idx   = tid / probing_cg_size;

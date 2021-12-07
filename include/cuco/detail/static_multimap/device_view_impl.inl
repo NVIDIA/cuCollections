@@ -1083,7 +1083,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @param pair_equal The binary callable used to compare two pairs for equality
    */
   template <bool is_outer,
-            bool uses_vector_load typename ProbingCG,
+            bool uses_vector_load,
+            typename ProbingCG,
             typename atomicT,
             typename OutputIt1,
             typename OutputIt2,
@@ -1211,7 +1212,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       if (equals) {
         auto output_idx                        = num_matches->fetch_add(1, memory_order_relaxed);
         *(probe_output_begin + output_idx)     = pair;
-        *(contained_output_begin + output_idx) = arr[0];
+        *(contained_output_begin + output_idx) = slot_contents;
       }
 
       if (probing_cg.any(slot_is_empty)) {
