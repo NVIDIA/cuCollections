@@ -189,11 +189,13 @@ class static_map {
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param alloc Allocator used for allocating device storage
+   * @param stream Stream used for executing the kernels
    */
   static_map(std::size_t capacity,
              Key empty_key_sentinel,
              Value empty_value_sentinel,
-             Allocator const& alloc = Allocator{});
+             Allocator const& alloc = Allocator{},
+             cudaStream_t stream = 0);
 
   /**
    * @brief Destroys the map and frees its contents.
@@ -203,6 +205,8 @@ class static_map {
 
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
+   *
+   * This function synchronizes `stream`. 
    *
    * If multiple keys in `[first, last)` compare equal, it is unspecified which
    * element is inserted.
@@ -215,11 +219,13 @@ class static_map {
    * @param last End of the sequence of key/value pairs
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
+   * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
+  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{},
+                cudaStream_t stream = 0);
 
   /**
    * @brief Inserts key/value pairs in the range `[first, last)` if `pred`
@@ -274,6 +280,7 @@ class static_map {
    * @param output_begin Beginning of the sequence of values retrieved for each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
+   * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
             typename OutputIt,
@@ -283,10 +290,12 @@ class static_map {
             InputIt last,
             OutputIt output_begin,
             Hash hash          = Hash{},
-            KeyEqual key_equal = KeyEqual{});
+            KeyEqual key_equal = KeyEqual{},
+            cudaStream_t stream = 0);
 
   /**
-   * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+   * @brief Indicates whether the keys in the range 
+   * `[first, last)` are contained in the map.
    *
    * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
    *
@@ -301,6 +310,7 @@ class static_map {
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
+   * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
             typename OutputIt,
@@ -310,7 +320,8 @@ class static_map {
                 InputIt last,
                 OutputIt output_begin,
                 Hash hash          = Hash{},
-                KeyEqual key_equal = KeyEqual{});
+                KeyEqual key_equal = KeyEqual{},
+                cudaStream_t stream = 0);
 
  private:
   class device_view_base {
