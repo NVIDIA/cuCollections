@@ -1093,6 +1093,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     OutputIt2 contained_output_begin,
     PairEqual pair_equal) noexcept
   {
+    using ProbePairType     = typename thrust::iterator_traits<OutputIt1>::value_type;
+    using ContainedPairType = typename thrust::iterator_traits<OutputIt2>::value_type;
+
     auto const lane_id                = probing_cg.thread_rank();
     auto current_slot                 = initial_slot(probing_cg, pair.first);
     [[maybe_unused]] auto found_match = false;
@@ -1117,21 +1120,21 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
 
         if (first_equals) {
           auto lane_offset                        = __popc(first_exists & ((1 << lane_id) - 1));
-          *(probe_output_begin + lane_offset)     = pair;
-          *(contained_output_begin + lane_offset) = arr[0];
+          *(probe_output_begin + lane_offset)     = ProbePairType{pair};
+          *(contained_output_begin + lane_offset) = ContainedPairType{arr[0]};
         }
         if (second_equals) {
           auto lane_offset = __popc(second_exists & ((1 << lane_id) - 1));
-          *(probe_output_begin + num_first_matches + lane_id)     = pair;
-          *(contained_output_begin + num_first_matches + lane_id) = arr[1];
+          *(probe_output_begin + num_first_matches + lane_id)     = ProbePairType{pair};
+          *(contained_output_begin + num_first_matches + lane_id) = ContainedPairType{arr[1]};
         }
       }
       if (probing_cg.any(first_slot_is_empty or second_slot_is_empty)) {
         if constexpr (is_outer) {
           if ((not found_match) and lane_id == 0) {
-            *(probe_output_begin)     = pair;
-            *(contained_output_begin) = cuco::make_pair<Key, Value>(
-              this->get_empty_key_sentinel(), this->get_empty_value_sentinel());
+            *(probe_output_begin)     = ProbePairType{pair};
+            *(contained_output_begin) = ContainedPairType{cuco::make_pair<Key, Value>(
+              this->get_empty_key_sentinel(), this->get_empty_value_sentinel())};
           }
         }
         return;  // exit if any slot in the current window is empty
@@ -1179,6 +1182,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     OutputIt2 contained_output_begin,
     PairEqual pair_equal) noexcept
   {
+    using ProbePairType     = typename thrust::iterator_traits<OutputIt1>::value_type;
+    using ContainedPairType = typename thrust::iterator_traits<OutputIt2>::value_type;
+
     auto const lane_id                = probing_cg.thread_rank();
     auto current_slot                 = initial_slot(probing_cg, pair.first);
     [[maybe_unused]] auto found_match = false;
@@ -1200,16 +1206,16 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
 
         if (equals) {
           auto const lane_offset                  = __popc(exists & ((1 << lane_id) - 1));
-          *(probe_output_begin + lane_offset)     = pair;
-          *(contained_output_begin + lane_offset) = slot_contents;
+          *(probe_output_begin + lane_offset)     = ProbePairType{pair};
+          *(contained_output_begin + lane_offset) = ContainedPairType{slot_contents};
         }
       }
       if (probing_cg.any(slot_is_empty)) {
         if constexpr (is_outer) {
           if ((not found_match) and lane_id == 0) {
-            *(probe_output_begin)     = pair;
-            *(contained_output_begin) = cuco::make_pair<Key, Value>(
-              this->get_empty_key_sentinel(), this->get_empty_value_sentinel());
+            *(probe_output_begin)     = ProbePairType{pair};
+            *(contained_output_begin) = ContainedPairType{cuco::make_pair<Key, Value>(
+              this->get_empty_key_sentinel(), this->get_empty_value_sentinel())};
           }
         }
         return;  // exit if any slot in the current window is empty
