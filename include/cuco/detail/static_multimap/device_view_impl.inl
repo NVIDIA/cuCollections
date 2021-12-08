@@ -1093,17 +1093,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     OutputIt2 contained_output_begin,
     PairEqual pair_equal) noexcept
   {
-    using cuda::std::memory_order_relaxed;
-
     auto const lane_id                = probing_cg.thread_rank();
     auto current_slot                 = initial_slot(probing_cg, pair.first);
     [[maybe_unused]] auto found_match = false;
-
-    __shared__ atomic_ctr_type counter;
-    if (lane_id == 0) { counter.store(0, memory_order_relaxed); }
-
-    // no need to sync if `is_outer` is `true` due to the upcoming `cg.any()`
-    if constexpr (not is_outer) { probing_cg.sync(); }
 
     while (true) {
       value_type arr[2];
@@ -1115,29 +1107,30 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
       auto const first_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
       auto const second_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
+      auto const first_exists  = probing_cg.ballot(first_equals);
+      auto const second_exists = probing_cg.ballot(second_equals);
 
-      if constexpr (is_outer) {
-        auto const exists = probing_cg.any(first_equals or second_equals);
-        if (exists) { found_match = true; }
-      }
+      if (first_exists or second_exists) {
+        if constexpr (is_outer) { found_match = true; }
 
-      if (first_equals) {
-        auto output_idx                        = counter.fetch_add(1, memory_order_relaxed);
-        *(probe_output_begin + output_idx)     = pair;
-        *(contained_output_begin + output_idx) = arr[0];
-      }
-      if (second_equals) {
-        auto output_idx                        = counter.fetch_add(1, memory_order_relaxed);
-        *(probe_output_begin + output_idx)     = pair;
-        *(contained_output_begin + output_idx) = arr[1];
-      }
+        auto const num_first_matches = __popc(first_exists);
 
+        if (first_equals) {
+          auto lane_offset                        = __popc(first_exists & ((1 << lane_id) - 1));
+          *(probe_output_begin + lane_offset)     = pair;
+          *(contained_output_begin + lane_offset) = arr[0];
+        }
+        if (second_equals) {
+          auto lane_offset = __popc(second_exists & ((1 << lane_id) - 1));
+          *(probe_output_begin + num_first_matches + lane_id)     = pair;
+          *(contained_output_begin + num_first_matches + lane_id) = arr[1];
+        }
+      }
       if (probing_cg.any(first_slot_is_empty or second_slot_is_empty)) {
         if constexpr (is_outer) {
           if ((not found_match) and lane_id == 0) {
-            auto output_idx                        = counter.fetch_add(1, memory_order_relaxed);
-            *(probe_output_begin + output_idx)     = pair;
-            *(contained_output_begin + output_idx) = cuco::make_pair<Key, Value>(
+            *(probe_output_begin)     = pair;
+            *(contained_output_begin) = cuco::make_pair<Key, Value>(
               this->get_empty_key_sentinel(), this->get_empty_value_sentinel());
           }
         }
@@ -1186,17 +1179,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     OutputIt2 contained_output_begin,
     PairEqual pair_equal) noexcept
   {
-    using cuda::std::memory_order_relaxed;
-
     auto const lane_id                = probing_cg.thread_rank();
     auto current_slot                 = initial_slot(probing_cg, pair.first);
     [[maybe_unused]] auto found_match = false;
-
-    __shared__ atomic_ctr_type counter;
-    if (lane_id == 0) { counter.store(0, memory_order_relaxed); }
-
-    // no need to sync if `is_outer` is `true` due to the upcoming `cg.any()`
-    if constexpr (not is_outer) { probing_cg.sync(); }
 
     while (true) {
       // TODO: Replace reinterpret_cast with atomic ref when possible. The current implementation
@@ -1208,24 +1193,22 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       auto const slot_is_empty =
         detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
       auto const equals = (not slot_is_empty and pair_equal(slot_contents, pair));
+      auto const exists = probing_cg.ballot(equals);
 
-      if constexpr (is_outer) {
-        auto const exists = probing_cg.any(equals);
-        if (exists) { found_match = true; }
+      if (exists) {
+        if constexpr (is_outer) { found_match = true; }
+
+        if (equals) {
+          auto const lane_offset                  = __popc(exists & ((1 << lane_id) - 1));
+          *(probe_output_begin + lane_offset)     = pair;
+          *(contained_output_begin + lane_offset) = slot_contents;
+        }
       }
-
-      if (equals) {
-        auto output_idx                        = counter.fetch_add(1, memory_order_relaxed);
-        *(probe_output_begin + output_idx)     = pair;
-        *(contained_output_begin + output_idx) = slot_contents;
-      }
-
       if (probing_cg.any(slot_is_empty)) {
         if constexpr (is_outer) {
           if ((not found_match) and lane_id == 0) {
-            auto output_idx                        = counter.fetch_add(1, memory_order_relaxed);
-            *(probe_output_begin + output_idx)     = pair;
-            *(contained_output_begin + output_idx) = cuco::make_pair<Key, Value>(
+            *(probe_output_begin)     = pair;
+            *(contained_output_begin) = cuco::make_pair<Key, Value>(
               this->get_empty_key_sentinel(), this->get_empty_value_sentinel());
           }
         }
