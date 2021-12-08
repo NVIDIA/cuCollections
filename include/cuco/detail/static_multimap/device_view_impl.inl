@@ -1100,6 +1100,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     auto current_slot                 = initial_slot(probing_cg, pair.first);
     [[maybe_unused]] auto found_match = false;
 
+    auto num_matches = 0;
+
     while (true) {
       value_type arr[2];
       load_pair_array(&arr[0], current_slot);
@@ -1119,15 +1121,18 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         auto const num_first_matches = __popc(first_exists);
 
         if (first_equals) {
-          auto lane_offset                        = __popc(first_exists & ((1 << lane_id) - 1));
-          *(probe_output_begin + lane_offset)     = ProbePairType{pair};
-          *(contained_output_begin + lane_offset) = ContainedPairType{arr[0]};
+          auto lane_offset = __popc(first_exists & ((1 << lane_id) - 1));
+          *(probe_output_begin + num_matches + lane_offset)     = ProbePairType{pair};
+          *(contained_output_begin + num_matches + lane_offset) = ContainedPairType{arr[0]};
         }
         if (second_equals) {
           auto lane_offset = __popc(second_exists & ((1 << lane_id) - 1));
-          *(probe_output_begin + num_first_matches + lane_id)     = ProbePairType{pair};
-          *(contained_output_begin + num_first_matches + lane_id) = ContainedPairType{arr[1]};
+          *(probe_output_begin + num_matches + num_first_matches + lane_offset) =
+            ProbePairType{pair};
+          *(contained_output_begin + num_matches + num_first_matches + lane_offset) =
+            ContainedPairType{arr[1]};
         }
+        num_matches += (num_first_matches + __popc(second_exists));
       }
       if (probing_cg.any(first_slot_is_empty or second_slot_is_empty)) {
         if constexpr (is_outer) {
@@ -1189,6 +1194,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     auto current_slot                 = initial_slot(probing_cg, pair.first);
     [[maybe_unused]] auto found_match = false;
 
+    auto num_matches = 0;
+
     while (true) {
       // TODO: Replace reinterpret_cast with atomic ref when possible. The current implementation
       // is unsafe!
@@ -1205,10 +1212,11 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         if constexpr (is_outer) { found_match = true; }
 
         if (equals) {
-          auto const lane_offset                  = __popc(exists & ((1 << lane_id) - 1));
-          *(probe_output_begin + lane_offset)     = ProbePairType{pair};
-          *(contained_output_begin + lane_offset) = ContainedPairType{slot_contents};
+          auto const lane_offset                            = __popc(exists & ((1 << lane_id) - 1));
+          *(probe_output_begin + num_matches + lane_offset) = ProbePairType{pair};
+          *(contained_output_begin + num_matches + lane_offset) = ContainedPairType{slot_contents};
         }
+        num_matches += __popc(exists);
       }
       if (probing_cg.any(slot_is_empty)) {
         if constexpr (is_outer) {
