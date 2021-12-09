@@ -37,8 +37,8 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
   auto constexpr stride     = 4;
   auto const grid_size      = (capacity_ + stride * block_size - 1) / (stride * block_size);
   detail::initialize<block_size, atomic_key_type, atomic_mapped_type>
-    <<<grid_size, block_size, 0, stream>>>(slots_, empty_key_sentinel, empty_value_sentinel,
-                                                  capacity_);
+    <<<grid_size, block_size, 0, stream>>>(
+      slots_, empty_key_sentinel, empty_value_sentinel, capacity_);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -50,11 +50,8 @@ static_map<Key, Value, Scope, Allocator>::~static_map()
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
-void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
-                                                      InputIt last,
-                                                      Hash hash,
-                                                      KeyEqual key_equal,
-                                                      cudaStream_t stream)
+void static_map<Key, Value, Scope, Allocator>::insert(
+  InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
@@ -70,14 +67,12 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
   CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_num_successes;
 
-  detail::insert<block_size, tile_size>
-    <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, num_successes_,
-                                                  view, hash, key_equal);
+  detail::insert<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
+    first, first + num_keys, num_successes_, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost,
-    stream));
-  
-  CUCO_CUDA_TRY(cudaStreamSynchronize(stream)); // stream sync to ensure h_num_successes is updated
+    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
 
   size_ += h_num_successes;
 }
@@ -121,9 +116,12 @@ void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void static_map<Key, Value, Scope, Allocator>::find(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal,
-  cudaStream_t stream)
+void static_map<Key, Value, Scope, Allocator>::find(InputIt first,
+                                                    InputIt last,
+                                                    OutputIt output_begin,
+                                                    Hash hash,
+                                                    KeyEqual key_equal,
+                                                    cudaStream_t stream)
 {
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
@@ -136,14 +134,16 @@ void static_map<Key, Value, Scope, Allocator>::find(
 
   detail::find<block_size, tile_size, Value>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
-
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void static_map<Key, Value, Scope, Allocator>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal,
-  cudaStream_t stream)
+void static_map<Key, Value, Scope, Allocator>::contains(InputIt first,
+                                                        InputIt last,
+                                                        OutputIt output_begin,
+                                                        Hash hash,
+                                                        KeyEqual key_equal,
+                                                        cudaStream_t stream)
 {
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }

@@ -32,7 +32,8 @@ int main(void)
   // for an load factor of 50%.
   cudaStream_t str;
   cudaStreamCreate(&str);
-  cuco::static_map<int, int> map{100'000, empty_key_sentinel, empty_value_sentinel, cuco::cuda_allocator<char>{}, str};
+  cuco::static_map<int, int> map{
+    100'000, empty_key_sentinel, empty_value_sentinel, cuco::cuda_allocator<char>{}, str};
 
   thrust::device_vector<thrust::pair<int, int>> pairs(50'000);
 
@@ -43,8 +44,8 @@ int main(void)
                     [] __device__(auto i) { return thrust::make_pair(i, i); });
 
   // Inserts all pairs into the map
-  map.insert(pairs.begin(), pairs.end(), cuco::detail::MurmurHash3_32<int>{},
-              thrust::equal_to<int>{}, str);
+  map.insert(
+    pairs.begin(), pairs.end(), cuco::detail::MurmurHash3_32<int>{}, thrust::equal_to<int>{}, str);
 
   // Sequence of keys {0, 1, 2, ...}
   thrust::device_vector<int> keys_to_find(50'000);
@@ -53,8 +54,12 @@ int main(void)
 
   // Finds all keys {0, 1, 2, ...} and stores associated values into `found_values`
   // If a key `keys_to_find[i]` doesn't exist, `found_values[i] == empty_value_sentinel`
-  map.find(keys_to_find.begin(), keys_to_find.end(), found_values.begin(),
-            cuco::detail::MurmurHash3_32<int>{}, thrust::equal_to<int>{}, str);
+  map.find(keys_to_find.begin(),
+           keys_to_find.end(),
+           found_values.begin(),
+           cuco::detail::MurmurHash3_32<int>{},
+           thrust::equal_to<int>{},
+           str);
   cudaStreamSynchronize(str);
 
   return 0;

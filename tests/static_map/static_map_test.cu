@@ -32,7 +32,7 @@ template <typename Iterator, typename Predicate>
 bool all_of(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = 0)
 {
   auto size = thrust::distance(begin, end);
-  auto out = thrust::count_if(thrust::cuda::par.on(stream), begin, end, p);
+  auto out  = thrust::count_if(thrust::cuda::par.on(stream), begin, end, p);
   cudaStreamSynchronize(stream);
   return size == out;
 }
@@ -516,8 +516,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
   cudaStreamCreate(&stream);
 
   constexpr std::size_t num_keys{500'000};
-  cuco::static_map<Key, Value> map{1'000'000, -1, -1,
-                                    cuco::cuda_allocator<char>{}, stream};
+  cuco::static_map<Key, Value> map{1'000'000, -1, -1, cuco::cuda_allocator<char>{}, stream};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();
@@ -542,7 +541,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);
 
-  auto hash_fn = cuco::detail::MurmurHash3_32<Key>{};
+  auto hash_fn  = cuco::detail::MurmurHash3_32<Key>{};
   auto equal_fn = thrust::equal_to<Value>{};
 
   // bulk function test cases
@@ -550,22 +549,22 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
   {
     map.insert(d_pairs.begin(), d_pairs.end(), hash_fn, equal_fn, stream);
     map.find(d_keys.begin(), d_keys.end(), d_results.begin(), hash_fn, equal_fn, stream);
-    //cudaStreamSynchronize(stream);
+    // cudaStreamSynchronize(stream);
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), d_values.begin()));
 
-    REQUIRE(all_of(zip, zip + num_keys, [] __device__(auto const& p) {
-      return thrust::get<0>(p) == thrust::get<1>(p);
-    }, stream));
+    REQUIRE(all_of(
+      zip,
+      zip + num_keys,
+      [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); },
+      stream));
   }
   SECTION("All inserted keys-value pairs should be contained")
   {
     map.insert(d_pairs.begin(), d_pairs.end(), hash_fn, equal_fn, stream);
-    map.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), hash_fn,
-                    equal_fn, stream);
+    map.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), hash_fn, equal_fn, stream);
 
-    REQUIRE(
-      all_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; },
-      stream));
+    REQUIRE(all_of(
+      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }, stream));
   }
 
   cudaStreamDestroy(stream);

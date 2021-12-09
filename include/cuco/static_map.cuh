@@ -195,7 +195,7 @@ class static_map {
              Key empty_key_sentinel,
              Value empty_value_sentinel,
              Allocator const& alloc = Allocator{},
-             cudaStream_t stream = 0);
+             cudaStream_t stream    = 0);
 
   /**
    * @brief Destroys the map and frees its contents.
@@ -206,7 +206,7 @@ class static_map {
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
    *
-   * This function synchronizes `stream`. 
+   * This function synchronizes `stream`.
    *
    * If multiple keys in `[first, last)` compare equal, it is unspecified which
    * element is inserted.
@@ -224,8 +224,11 @@ class static_map {
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{},
-                cudaStream_t stream = 0);
+  void insert(InputIt first,
+              InputIt last,
+              Hash hash           = Hash{},
+              KeyEqual key_equal  = KeyEqual{},
+              cudaStream_t stream = 0);
 
   /**
    * @brief Inserts key/value pairs in the range `[first, last)` if `pred`
@@ -289,12 +292,12 @@ class static_map {
   void find(InputIt first,
             InputIt last,
             OutputIt output_begin,
-            Hash hash          = Hash{},
-            KeyEqual key_equal = KeyEqual{},
+            Hash hash           = Hash{},
+            KeyEqual key_equal  = KeyEqual{},
             cudaStream_t stream = 0);
 
   /**
-   * @brief Indicates whether the keys in the range 
+   * @brief Indicates whether the keys in the range
    * `[first, last)` are contained in the map.
    *
    * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
@@ -319,8 +322,8 @@ class static_map {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                Hash hash          = Hash{},
-                KeyEqual key_equal = KeyEqual{},
+                Hash hash           = Hash{},
+                KeyEqual key_equal  = KeyEqual{},
                 cudaStream_t stream = 0);
 
  private:
