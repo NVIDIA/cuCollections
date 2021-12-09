@@ -15,6 +15,7 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
+#include <cuco/detail/utils.cuh>
 
 namespace cuco {
 
@@ -924,13 +925,13 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
           output_idx = probing_cg.shfl(output_idx, 0);
 
           if (first_equals) {
-            auto lane_offset = __popc(first_exists & ((1 << cg_lane_id) - 1));
+            auto lane_offset = detail::count_least_significant_bits(first_exists, cg_lane_id);
             Key key          = k;
             output_buffer[output_idx + lane_offset] =
               cuco::make_pair<Key, Value>(std::move(key), std::move(arr[0].second));
           }
           if (second_equals) {
-            auto lane_offset = __popc(second_exists & ((1 << cg_lane_id) - 1));
+            auto lane_offset = detail::count_least_significant_bits(second_exists, cg_lane_id);
             Key key          = k;
             output_buffer[output_idx + num_first_matches + lane_offset] =
               cuco::make_pair<Key, Value>(std::move(key), std::move(arr[1].second));
@@ -1024,7 +1025,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         auto num_matches = __popc(exists);
         if (equals) {
           // Each match computes its lane-level offset
-          auto lane_offset = __popc(exists & ((1 << lane_id) - 1));
+          auto lane_offset = detail::count_least_significant_bits(exists, lane_id);
           Key key          = k;
           output_buffer[output_idx + lane_offset] =
             cuco::make_pair<Key, Value>(std::move(key), std::move(slot_contents.second));
@@ -1121,12 +1122,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         auto const num_first_matches = __popc(first_exists);
 
         if (first_equals) {
-          auto lane_offset = __popc(first_exists & ((1 << lane_id) - 1));
+          auto lane_offset = detail::count_least_significant_bits(first_exists, lane_id);
           *(probe_output_begin + num_matches + lane_offset)     = ProbePairType{pair};
           *(contained_output_begin + num_matches + lane_offset) = ContainedPairType{arr[0]};
         }
         if (second_equals) {
-          auto lane_offset = __popc(second_exists & ((1 << lane_id) - 1));
+          auto lane_offset = detail::count_least_significant_bits(second_exists, lane_id);
           *(probe_output_begin + num_matches + num_first_matches + lane_offset) =
             ProbePairType{pair};
           *(contained_output_begin + num_matches + num_first_matches + lane_offset) =
@@ -1212,8 +1213,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         if constexpr (is_outer) { found_match = true; }
 
         if (equals) {
-          auto const lane_offset                            = __popc(exists & ((1 << lane_id) - 1));
-          *(probe_output_begin + num_matches + lane_offset) = ProbePairType{pair};
+          auto const lane_offset = detail::count_least_significant_bits(exists, lane_id);
+          *(probe_output_begin + num_matches + lane_offset)     = ProbePairType{pair};
           *(contained_output_begin + num_matches + lane_offset) = ContainedPairType{slot_contents};
         }
         num_matches += __popc(exists);
@@ -1319,12 +1320,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
           output_idx = probing_cg.shfl(output_idx, 0);
 
           if (first_equals) {
-            auto lane_offset = __popc(first_exists & ((1 << cg_lane_id) - 1));
+            auto lane_offset = detail::count_least_significant_bits(first_exists, cg_lane_id);
             probe_output_buffer[output_idx + lane_offset]     = pair;
             contained_output_buffer[output_idx + lane_offset] = arr[0];
           }
           if (second_equals) {
-            auto lane_offset = __popc(second_exists & ((1 << cg_lane_id) - 1));
+            auto lane_offset = detail::count_least_significant_bits(second_exists, cg_lane_id);
             probe_output_buffer[output_idx + num_first_matches + lane_offset]     = pair;
             contained_output_buffer[output_idx + num_first_matches + lane_offset] = arr[1];
           }
@@ -1433,7 +1434,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         auto num_matches = __popc(exists);
         if (equals) {
           // Each match computes its lane-level offset
-          auto lane_offset                                  = __popc(exists & ((1 << lane_id) - 1));
+          auto lane_offset = detail::count_least_significant_bits(exists, lane_id);
           probe_output_buffer[output_idx + lane_offset]     = pair;
           contained_output_buffer[output_idx + lane_offset] = slot_contents;
         }
