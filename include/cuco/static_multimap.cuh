@@ -963,9 +963,11 @@ class static_multimap {
      * @brief Retrieves all the matches of a given pair contained in multimap without using shared
      * memory buffer
      *
-     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
-     * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
-     * `[contained_output_begin, contained_output_end)`.
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * `[probe_output_begin, probe_output_begin + n)` and copies slot[j] to unspecified locations in
+     * `[contained_output_begin, contained_output_begin + n)`. It's users responsibility to ensure
+     * these locations are valid and no other threads will attempt to write to overlapping
+     * locations.
      *
      * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
      * `InputIt`s `value_type`.
@@ -1037,10 +1039,12 @@ class static_multimap {
      * @brief Retrieves all the matches of a given pair contained in multimap without using shared
      * memory buffer
      *
-     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
-     * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
-     * `[contained_output_begin, contained_output_end)`. If `p` does not have any matches, copies
-     * `p` and a pair of `empty_key_sentinel` and `empty_value_sentinel` into the output.
+     * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+     * `[probe_output_begin, probe_output_begin + n)` and copies slot[j] to unspecified locations in
+     * `[contained_output_begin, contained_output_begin + n)`. It's users responsibility to ensure
+     * these locations are valid and no other threads will attempt to write to overlapping
+     * locations. If `p` does not have any matches, copies `p` and a pair of `empty_key_sentinel`
+     * and `empty_value_sentinel` into the output.
      *
      * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
      * `InputIt`s `value_type`.

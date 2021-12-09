@@ -1060,11 +1060,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @brief Retrieves all the matches of a given pair contained in multimap using vector
    * loads without shared memory buffer.
    *
-   * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
-   * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
-   * `[contained_output_begin, contained_output_end)`. If `p` does not have any matches, copies
-   * `p` and a pair of `empty_key_sentinel` and `empty_value_sentinel` into the output only if
-   * `is_outer` is true.
+   * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+   * `[probe_output_begin, probe_output_begin + n)` and copies slot[j] to unspecified locations in
+   * `[contained_output_begin, contained_output_begin + n)`. It's users responsibility to ensure
+   * these locations are valid and no other threads will attempt to write to overlapping locations.
+   * If `p` does not have any matches, copies `p` and a pair of `empty_key_sentinel` and
+   * `empty_value_sentinel` into the output only if `is_outer` is true.
    *
    * @tparam is_outer Boolean flag indicating whether outer join is peformed
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
@@ -1154,11 +1155,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @brief Retrieves all the matches of a given pair contained in multimap using scalar
    * loads without shared memory buffer.
    *
-   * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations
-   * in `[probe_output_begin, probe_output_end)` and copies slot[j] to unspecified locations in
-   * `[contained_output_begin, contained_output_end)`. If `p` does not have any matches, copies
-   * `p` and a pair of `empty_key_sentinel` and `empty_value_sentinel` into the output only if
-   * `is_outer` is true.
+   * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
+   * `[probe_output_begin, probe_output_begin + n)` and copies slot[j] to unspecified locations in
+   * `[contained_output_begin, contained_output_begin + n)`. It's users responsibility to ensure
+   * these locations are valid and no other threads will attempt to write to overlapping locations.
+   * If `p` does not have any matches, copies `p` and a pair of `empty_key_sentinel` and
+   * `empty_value_sentinel` into the output only if `is_outer` is true.
    *
    * @tparam is_outer Boolean flag indicating whether outer join is peformed
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
