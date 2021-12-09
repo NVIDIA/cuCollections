@@ -18,7 +18,7 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/tuple.h>
 
-#include <cuco/detail/util.hpp>
+#include <cuco/detail/utils.hpp>
 
 namespace {
 /**

@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/util.hpp>
+#include <cuco/detail/utils.hpp>
 
 namespace cuco {
 namespace detail {
