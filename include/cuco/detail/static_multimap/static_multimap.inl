@@ -691,18 +691,29 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-template <typename OutputIt1, typename OutputIt2, typename PairEqual>
+template <typename OutputIt1,
+          typename OutputIt2,
+          typename OutputIt3,
+          typename OutputIt4,
+          typename PairEqual>
 __device__ __forceinline__ void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
   value_type const& pair,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin,
+  OutputIt1 probe_key_begin,
+  OutputIt2 probe_val_begin,
+  OutputIt3 contained_key_begin,
+  OutputIt4 contained_val_begin,
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = false;
-  impl_.pair_retrieve<is_outer, uses_vector_load()>(
-    probing_cg, pair, probe_output_begin, contained_output_begin, pair_equal);
+  impl_.pair_retrieve<is_outer, uses_vector_load()>(probing_cg,
+                                                    pair,
+                                                    probe_key_begin,
+                                                    probe_val_begin,
+                                                    contained_key_begin,
+                                                    contained_val_begin,
+                                                    pair_equal);
 }
 
 template <typename Key,
@@ -760,18 +771,29 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-template <typename OutputIt1, typename OutputIt2, typename PairEqual>
+template <typename OutputIt1,
+          typename OutputIt2,
+          typename OutputIt3,
+          typename OutputIt4,
+          typename PairEqual>
 __device__ __forceinline__ void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve_outer(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
   value_type const& pair,
-  OutputIt1 probe_output_begin,
-  OutputIt2 contained_output_begin,
+  OutputIt1 probe_key_begin,
+  OutputIt2 probe_val_begin,
+  OutputIt3 contained_key_begin,
+  OutputIt4 contained_val_begin,
   PairEqual pair_equal) noexcept
 {
   constexpr bool is_outer = true;
-  impl_.pair_retrieve<is_outer, uses_vector_load()>(
-    probing_cg, pair, probe_output_begin, contained_output_begin, pair_equal);
+  impl_.pair_retrieve<is_outer, uses_vector_load()>(probing_cg,
+                                                    pair,
+                                                    probe_key_begin,
+                                                    probe_val_begin,
+                                                    contained_key_begin,
+                                                    contained_val_begin,
+                                                    pair_equal);
 }
 
 template <typename Key,

@@ -1060,26 +1060,32 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @brief Retrieves all the matches of a given pair contained in multimap using vector
    * loads without shared memory buffer.
    *
-   * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
-   * `[probe_output_begin, probe_output_begin + n)` and copies slot[j] to unspecified locations in
-   * `[contained_output_begin, contained_output_begin + n)`. It's users responsibility to ensure
-   * these locations are valid and no other threads will attempt to write to overlapping locations.
-   * If `p` does not have any matches, copies `p` and a pair of `empty_key_sentinel` and
-   * `empty_value_sentinel` into the output only if `is_outer` is true.
+   * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p.first` and `p.second` to
+   * unspecified locations started at `probe_key_begin` and `probe_val_begin`, and copies
+   * `slot[j].first` and `slot[j].second` to unspecified locations started at `contained_key_begin`
+   * and `contained_val_begin`. It's users responsibility to ensure these locations are valid and no
+   * other threads will attempt to write to overlapping locations. If `p` does not have any matches,
+   * copies `p` and a pair of `empty_key_sentinel` and `empty_value_sentinel` into the output only
+   * if `is_outer` is true.
    *
    * @tparam is_outer Boolean flag indicating whether outer join is peformed
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
    * @tparam ProbingCG Type of Cooperative Group used to retrieve
    * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
-   * `InputIt`s `value_type`.
+   * `pair`'s `Key` type.
    * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
-   * the map's `value_type`.
+   * `pair`'s `Value` type.
+   * @tparam OutputIt3 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `key_type`.
+   * @tparam OutputIt4 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `mapped_type`.
    * @tparam PairEqual Binary callable type
    * @param probing_cg The Cooperative Group used to retrieve
    * @param pair The pair to search for
-   * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
-   * @param contained_output_begin Beginning of the output sequence of the matched contained
-   * pairs
+   * @param probe_key_begin Beginning of the output sequence of the matched probe keys
+   * @param probe_val_begin Beginning of the output sequence of the matched probe values
+   * @param contained_key_begin Beginning of the output sequence of the matched contained keys
+   * @param contained_val_begin Beginning of the output sequence of the matched contained values
    * @param pair_equal The binary callable used to compare two pairs for equality
    */
   template <bool is_outer,
@@ -1087,17 +1093,18 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             typename ProbingCG,
             typename OutputIt1,
             typename OutputIt2,
+            typename OutputIt3,
+            typename OutputIt4,
             typename PairEqual>
   __device__ __forceinline__ std::enable_if_t<uses_vector_load, void> pair_retrieve(
     ProbingCG const& probing_cg,
     value_type const& pair,
-    OutputIt1 probe_output_begin,
-    OutputIt2 contained_output_begin,
+    OutputIt1 probe_key_begin,
+    OutputIt2 probe_val_begin,
+    OutputIt3 contained_key_begin,
+    OutputIt4 contained_val_begin,
     PairEqual pair_equal) noexcept
   {
-    using ProbePairType     = typename thrust::iterator_traits<OutputIt1>::value_type;
-    using ContainedPairType = typename thrust::iterator_traits<OutputIt2>::value_type;
-
     auto const lane_id                = probing_cg.thread_rank();
     auto current_slot                 = initial_slot(probing_cg, pair.first);
     [[maybe_unused]] auto found_match = false;
@@ -1123,25 +1130,32 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         auto const num_first_matches = __popc(first_exists);
 
         if (first_equals) {
-          auto lane_offset = detail::count_least_significant_bits(first_exists, lane_id);
-          *(probe_output_begin + num_matches + lane_offset)     = ProbePairType{pair};
-          *(contained_output_begin + num_matches + lane_offset) = ContainedPairType{arr[0]};
+          auto lane_offset      = detail::count_least_significant_bits(first_exists, lane_id);
+          auto const output_idx = num_matches + lane_offset;
+
+          *(probe_key_begin + output_idx)     = pair.first;
+          *(probe_val_begin + output_idx)     = pair.second;
+          *(contained_key_begin + output_idx) = arr[0].first;
+          *(contained_val_begin + output_idx) = arr[0].second;
         }
         if (second_equals) {
-          auto lane_offset = detail::count_least_significant_bits(second_exists, lane_id);
-          *(probe_output_begin + num_matches + num_first_matches + lane_offset) =
-            ProbePairType{pair};
-          *(contained_output_begin + num_matches + num_first_matches + lane_offset) =
-            ContainedPairType{arr[1]};
+          auto const lane_offset = detail::count_least_significant_bits(second_exists, lane_id);
+          auto const output_idx  = num_matches + num_first_matches + lane_offset;
+
+          *(probe_key_begin + output_idx)     = pair.first;
+          *(probe_val_begin + output_idx)     = pair.second;
+          *(contained_key_begin + output_idx) = arr[1].first;
+          *(contained_val_begin + output_idx) = arr[1].second;
         }
         num_matches += (num_first_matches + __popc(second_exists));
       }
       if (probing_cg.any(first_slot_is_empty or second_slot_is_empty)) {
         if constexpr (is_outer) {
           if ((not found_match) and lane_id == 0) {
-            *(probe_output_begin)     = ProbePairType{pair};
-            *(contained_output_begin) = ContainedPairType{cuco::make_pair<Key, Value>(
-              this->get_empty_key_sentinel(), this->get_empty_value_sentinel())};
+            *(probe_key_begin)     = pair.first;
+            *(probe_val_begin)     = pair.second;
+            *(contained_key_begin) = this->get_empty_key_sentinel();
+            *(contained_val_begin) = this->get_empty_value_sentinel();
           }
         }
         return;  // exit if any slot in the current window is empty
@@ -1155,26 +1169,32 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @brief Retrieves all the matches of a given pair contained in multimap using scalar
    * loads without shared memory buffer.
    *
-   * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p` to unspecified locations in
-   * `[probe_output_begin, probe_output_begin + n)` and copies slot[j] to unspecified locations in
-   * `[contained_output_begin, contained_output_begin + n)`. It's users responsibility to ensure
-   * these locations are valid and no other threads will attempt to write to overlapping locations.
-   * If `p` does not have any matches, copies `p` and a pair of `empty_key_sentinel` and
-   * `empty_value_sentinel` into the output only if `is_outer` is true.
+   * For pair `p`, if pair_equal(p, slot[j]) returns true, copies `p.first` and `p.second` to
+   * unspecified locations started at `probe_key_begin` and `probe_val_begin`, and copies
+   * `slot[j].first` and `slot[j].second` to unspecified locations started at `contained_key_begin`
+   * and `contained_val_begin`. It's users responsibility to ensure these locations are valid and no
+   * other threads will attempt to write to overlapping locations. If `p` does not have any matches,
+   * copies `p` and a pair of `empty_key_sentinel` and `empty_value_sentinel` into the output only
+   * if `is_outer` is true.
    *
    * @tparam is_outer Boolean flag indicating whether outer join is peformed
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
    * @tparam ProbingCG Type of Cooperative Group used to retrieve
    * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
-   * `InputIt`s `value_type`.
+   * `pair`'s `Key` type.
    * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
-   * the map's `value_type`.
+   * `pair`'s `Value` type.
+   * @tparam OutputIt3 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `key_type`.
+   * @tparam OutputIt4 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `mapped_type`.
    * @tparam PairEqual Binary callable type
    * @param probing_cg The Cooperative Group used to retrieve
    * @param pair The pair to search for
-   * @param probe_output_begin Beginning of the output sequence of the matched probe pairs
-   * @param contained_output_begin Beginning of the output sequence of the matched contained
-   * pairs
+   * @param probe_key_begin Beginning of the output sequence of the matched probe keys
+   * @param probe_val_begin Beginning of the output sequence of the matched probe values
+   * @param contained_key_begin Beginning of the output sequence of the matched contained keys
+   * @param contained_val_begin Beginning of the output sequence of the matched contained values
    * @param pair_equal The binary callable used to compare two pairs for equality
    */
   template <bool is_outer,
@@ -1182,12 +1202,16 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             typename ProbingCG,
             typename OutputIt1,
             typename OutputIt2,
+            typename OutputIt3,
+            typename OutputIt4,
             typename PairEqual>
   __device__ __forceinline__ std::enable_if_t<not uses_vector_load, void> pair_retrieve(
     ProbingCG const& probing_cg,
     value_type const& pair,
-    OutputIt1 probe_output_begin,
-    OutputIt2 contained_output_begin,
+    OutputIt1 probe_key_begin,
+    OutputIt2 probe_val_begin,
+    OutputIt3 contained_key_begin,
+    OutputIt4 contained_val_begin,
     PairEqual pair_equal) noexcept
   {
     using ProbePairType     = typename thrust::iterator_traits<OutputIt1>::value_type;
@@ -1216,17 +1240,22 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
 
         if (equals) {
           auto const lane_offset = detail::count_least_significant_bits(exists, lane_id);
-          *(probe_output_begin + num_matches + lane_offset)     = ProbePairType{pair};
-          *(contained_output_begin + num_matches + lane_offset) = ContainedPairType{slot_contents};
+          auto const output_idx  = num_matches + lane_offset;
+
+          *(probe_key_begin + output_idx)     = pair.first;
+          *(probe_val_begin + output_idx)     = pair.second;
+          *(contained_key_begin + output_idx) = slot_contents.first;
+          *(contained_val_begin + output_idx) = slot_contents.second;
         }
         num_matches += __popc(exists);
       }
       if (probing_cg.any(slot_is_empty)) {
         if constexpr (is_outer) {
           if ((not found_match) and lane_id == 0) {
-            *(probe_output_begin)     = ProbePairType{pair};
-            *(contained_output_begin) = ContainedPairType{cuco::make_pair<Key, Value>(
-              this->get_empty_key_sentinel(), this->get_empty_value_sentinel())};
+            *(probe_key_begin)     = pair.first;
+            *(probe_val_begin)     = pair.second;
+            *(contained_key_begin) = this->get_empty_key_sentinel();
+            *(contained_val_begin) = this->get_empty_value_sentinel();
           }
         }
         return;  // exit if any slot in the current window is empty

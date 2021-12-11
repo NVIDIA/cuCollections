@@ -705,13 +705,17 @@ template <uint32_t block_size,
           typename InputIt,
           typename OutputIt1,
           typename OutputIt2,
+          typename OutputIt3,
+          typename OutputIt4,
           typename ScanIt,
           typename viewT,
           typename PairEqual>
 __global__ void custom_pair_retrieve_outer(InputIt first,
                                            InputIt last,
-                                           OutputIt1 probe_output_begin,
-                                           OutputIt2 contained_output_begin,
+                                           OutputIt1 probe_key_begin,
+                                           OutputIt2 probe_val_begin,
+                                           OutputIt3 contained_key_begin,
+                                           OutputIt4 contained_val_begin,
                                            ScanIt scan_begin,
                                            viewT view,
                                            PairEqual pair_equal)
@@ -723,8 +727,13 @@ __global__ void custom_pair_retrieve_outer(InputIt first,
   while (first + pair_idx < last) {
     auto const offset = *(scan_begin + pair_idx);
     auto const pair   = *(first + pair_idx);
-    view.pair_retrieve_outer(
-      g, pair, probe_output_begin + offset, contained_output_begin + offset, pair_equal);
+    view.pair_retrieve_outer(g,
+                             pair,
+                             probe_key_begin + offset,
+                             probe_val_begin + offset,
+                             contained_key_begin + offset,
+                             contained_val_begin + offset,
+                             pair_equal);
     pair_idx += (gridDim.x * block_size) / cg_size;
   }
 }
@@ -777,65 +786,60 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
   auto num = map.pair_count_outer(pair_begin, pair_begin + num_pairs, pair_equal<Key, Value>{});
   REQUIRE(num == gold_size);
 
-  thrust::device_vector<cuco::pair_type<Key, Value>> probe_pairs(gold_size);
-  thrust::device_vector<cuco::pair_type<Key, Value>> contained_pairs(gold_size);
+  thrust::device_vector<Key> probe_keys(gold_size);
+  thrust::device_vector<Value> probe_vals(gold_size);
+  thrust::device_vector<Key> contained_keys(gold_size);
+  thrust::device_vector<Value> contained_vals(gold_size);
 
   custom_pair_retrieve_outer<block_size, cg_size>
     <<<grid_size, block_size>>>(pair_begin,
                                 pair_begin + num_pairs,
-                                probe_pairs.begin(),
-                                contained_pairs.begin(),
+                                probe_keys.begin(),
+                                probe_vals.begin(),
+                                contained_keys.begin(),
+                                contained_vals.begin(),
                                 d_scan.begin(),
                                 view,
                                 pair_equal<Key, Value>{});
 
   // sort before compare
-  thrust::sort(thrust::device,
-               probe_pairs.begin(),
-               probe_pairs.end(),
-               [] __device__(const cuco::pair<Key, Value>& lhs, const cuco::pair<Key, Value>& rhs) {
-                 if (lhs.first == rhs.first) { return lhs.second < rhs.second; }
-                 return lhs.first < rhs.first;
-               });
-  thrust::sort(thrust::device,
-               contained_pairs.begin(),
-               contained_pairs.end(),
-               [] __device__(const cuco::pair<Key, Value>& lhs, const cuco::pair<Key, Value>& rhs) {
-                 if (lhs.first == rhs.first) { return lhs.second < rhs.second; }
-                 return lhs.first < rhs.first;
-               });
+  thrust::sort(thrust::device, probe_keys.begin(), probe_keys.end());
+  thrust::sort(thrust::device, probe_vals.begin(), probe_vals.end());
+  thrust::sort(thrust::device, contained_keys.begin(), contained_keys.end());
+  thrust::sort(thrust::device, contained_vals.begin(), contained_vals.end());
 
   // set gold references
-  auto gold_probe_pairs = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<int>(0), [num_pairs] __device__(auto i) {
-      if (i < num_pairs) { return cuco::pair<Key, Value>{i / 2, i / 2}; }
-      auto val = i - (num_pairs / 2);
-      return cuco::pair<Key, Value>{val, val};
-    });
-  auto gold_contained_pairs = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<int>(0), [num_pairs] __device__(auto i) {
-      if (i < num_pairs / 2) { return cuco::pair<Key, Value>{-1, -1}; }
-      auto val = i - (num_pairs / 2);
-      return cuco::pair<Key, Value>{val / 2, val};
-    });
+  auto gold_probe         = thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
+                                                    [num_pairs] __device__(auto i) {
+                                                      if (i < num_pairs) { return i / 2; }
+                                                      return i - (int(num_pairs) / 2);
+                                                    });
+  auto gold_contained_key = thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
+                                                            [num_pairs] __device__(auto i) {
+                                                              if (i < num_pairs / 2) { return -1; }
+                                                              return (i - (int(num_pairs) / 2)) / 2;
+                                                            });
+  auto gold_contained_val = thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
+                                                            [num_pairs] __device__(auto i) {
+                                                              if (i < num_pairs / 2) { return -1; }
+                                                              return i - (int(num_pairs) / 2);
+                                                            });
 
   REQUIRE(
-    thrust::equal(thrust::device,
-                  probe_pairs.begin(),
-                  probe_pairs.begin() + gold_size,
-                  gold_probe_pairs,
-                  [] __device__(cuco::pair_type<Key, Value> lhs, cuco::pair_type<Key, Value> rhs) {
-                    return lhs.first == rhs.first and lhs.second == rhs.second;
-                  }));
+    thrust::equal(thrust::device, probe_keys.begin(), probe_keys.begin() + gold_size, gold_probe));
 
   REQUIRE(
-    thrust::equal(thrust::device,
-                  contained_pairs.begin(),
-                  contained_pairs.begin() + gold_size,
-                  gold_contained_pairs,
-                  [] __device__(cuco::pair_type<Key, Value> lhs, cuco::pair_type<Key, Value> rhs) {
-                    return lhs.first == rhs.first and lhs.second == rhs.second;
-                  }));
+    thrust::equal(thrust::device, probe_vals.begin(), probe_vals.begin() + gold_size, gold_probe));
+
+  REQUIRE(thrust::equal(thrust::device,
+                        contained_keys.begin(),
+                        contained_keys.begin() + gold_size,
+                        gold_contained_key));
+
+  REQUIRE(thrust::equal(thrust::device,
+                        contained_vals.begin(),
+                        contained_vals.begin() + gold_size,
+                        gold_contained_val));
 }
 
 TEMPLATE_TEST_CASE_SIG("Tests of non-shared-memory pair_retrieve",
