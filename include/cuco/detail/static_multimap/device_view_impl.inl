@@ -1061,14 +1061,16 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   /**
    * @brief Retrieves all the matches of a given pair using vector loads.
    *
-   * For pair `p` with `n = pair_count(cg, p, pair_equal)` matching pairs, if `pair_equal(p,
-   * slot)` returns true, stores `probe_key_begin[j] = p.first`, `probe_val_begin[j] = p.second`,
-   * `contained_key_begin[j] = slot.first`, and `contained_val_begin[j] = slot.second` for an
-   * unspecified value of `j` where `0 <= j < n`. Concurrent reads or writes to any of the output
-   * ranges results in undefined behavior. Behavior is undefined if the extent of any of the
-   * output ranges is less than `n`. If `p` does not have any matches, stores `probe_key_begin[0]
-   * = p.first`, `probe_val_begin[0] = p.second`, `contained_key_begin[0] = empty_key_sentinel`,
-   * and `contained_val_begin[0] = empty_value_sentinel` only if `is_outer` is true.
+   * For pair `p` with `n` matching pairs, if `pair_equal(p, slot)` returns true, stores
+   * `probe_key_begin[j] = p.first`, `probe_val_begin[j] = p.second`, `contained_key_begin[j] =
+   * slot.first`, and `contained_val_begin[j] = slot.second` for an unspecified value of `j` where
+   * `0 <= j < n`. If `p` does not have any matches, stores `probe_key_begin[0] = p.first`,
+   * `probe_val_begin[0] = p.second`, `contained_key_begin[0] = empty_key_sentinel`, and
+   * `contained_val_begin[0] = empty_value_sentinel` only if `is_outer` is true.
+   *
+   * Concurrent reads or writes to any of the output ranges results in undefined behavior.
+   *
+   * Behavior is undefined if the extent of any of the output ranges is less than `n`.
    *
    * @tparam is_outer Boolean flag indicating whether outer join is peformed
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
@@ -1170,14 +1172,16 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   /**
    * @brief Retrieves all the matches of a given pair using scalar loads.
    *
-   * For pair `p` with `n = pair_count(cg, p, pair_equal)` matching pairs, if `pair_equal(p,
-   * slot)` returns true, stores `probe_key_begin[j] = p.first`, `probe_val_begin[j] = p.second`,
-   * `contained_key_begin[j] = slot.first`, and `contained_val_begin[j] = slot.second` for an
-   * unspecified value of `j` where `0 <= j < n`. Concurrent reads or writes to any of the output
-   * ranges results in undefined behavior. Behavior is undefined if the extent of any of the
-   * output ranges is less than `n`. If `p` does not have any matches, stores `probe_key_begin[0]
-   * = p.first`, `probe_val_begin[0] = p.second`, `contained_key_begin[0] = empty_key_sentinel`,
-   * and `contained_val_begin[0] = empty_value_sentinel` only if `is_outer` is true.
+   * For pair `p` with `n` matching pairs, if `pair_equal(p, slot)` returns true, stores
+   * `probe_key_begin[j] = p.first`, `probe_val_begin[j] = p.second`, `contained_key_begin[j] =
+   * slot.first`, and `contained_val_begin[j] = slot.second` for an unspecified value of `j` where
+   * `0 <= j < n`. If `p` does not have any matches, stores `probe_key_begin[0] = p.first`,
+   * `probe_val_begin[0] = p.second`, `contained_key_begin[0] = empty_key_sentinel`, and
+   * `contained_val_begin[0] = empty_value_sentinel` only if `is_outer` is true.
+   *
+   * Concurrent reads or writes to any of the output ranges results in undefined behavior.
+   *
+   * Behavior is undefined if the extent of any of the output ranges is less than `n`.
    *
    * @tparam is_outer Boolean flag indicating whether outer join is peformed
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used

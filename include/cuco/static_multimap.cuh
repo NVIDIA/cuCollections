@@ -965,9 +965,11 @@ class static_multimap {
      * For pair `p` with `n = pair_count(cg, p, pair_equal)` matching pairs, if `pair_equal(p,
      * slot)` returns true, stores `probe_key_begin[j] = p.first`, `probe_val_begin[j] = p.second`,
      * `contained_key_begin[j] = slot.first`, and `contained_val_begin[j] = slot.second` for an
-     * unspecified value of `j` where `0 <= j < n`. Concurrent reads or writes to any of the output
-     * ranges results in undefined behavior. Behavior is undefined if the extent of any of the
-     * output ranges is less than `n`.
+     * unspecified value of `j` where `0 <= j < n`.
+     *
+     * Concurrent reads or writes to any of the output ranges results in undefined behavior.
+     *
+     * Behavior is undefined if the extent of any of the output ranges is less than `n`.
      *
      * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
      * `pair`'s `Key` type.
@@ -1049,14 +1051,16 @@ class static_multimap {
     /**
      * @brief Retrieves all the matches of a given pair
      *
-     * For pair `p` with `n = pair_count(cg, p, pair_equal)` matching pairs, if `pair_equal(p,
+     * For pair `p` with `n = pair_count_outer(cg, p, pair_equal)` matching pairs, if `pair_equal(p,
      * slot)` returns true, stores `probe_key_begin[j] = p.first`, `probe_val_begin[j] = p.second`,
      * `contained_key_begin[j] = slot.first`, and `contained_val_begin[j] = slot.second` for an
-     * unspecified value of `j` where `0 <= j < n`. Concurrent reads or writes to any of the output
-     * ranges results in undefined behavior. Behavior is undefined if the extent of any of the
-     * output ranges is less than `n`. If `p` does not have any matches, stores `probe_key_begin[0]
-     * = p.first`, `probe_val_begin[0] = p.second`, `contained_key_begin[0] = empty_key_sentinel`,
-     * and `contained_val_begin[0] = empty_value_sentinel`.
+     * unspecified value of `j` where `0 <= j < n`. If `p` does not have any matches, stores
+     * `probe_key_begin[0] = p.first`, `probe_val_begin[0] = p.second`, `contained_key_begin[0] =
+     * empty_key_sentinel`, and `contained_val_begin[0] = empty_value_sentinel`.
+     *
+     * Concurrent reads or writes to any of the output ranges results in undefined behavior.
+     *
+     * Behavior is undefined if the extent of any of the output ranges is less than `n`.
      *
      * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
      * `pair`'s `Key` type.
