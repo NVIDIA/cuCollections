@@ -559,106 +559,27 @@ class static_multimap {
   class device_mutable_view_impl;
   class device_view_impl;
 
- public:
-  /**
-   * @brief Mutable, non-owning view-type that may be used in device code to
-   * perform singular inserts into the map.
-   *
-   * `device_mutable_view` is trivially-copyable and is intended to be passed by
-   * value.
-   *
-   * Example:
-   * \code{.cpp}
-   * cuco::static_multimap<int,int> m{100'000, -1, -1};
-   *
-   * // Inserts a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
-   * thrust::for_each(thrust::make_counting_iterator(0),
-   *                  thrust::make_counting_iterator(50'000),
-   *                  [map = m.get_device_mutable_view()]
-   *                  __device__ (auto i) mutable {
-   *                     map.insert(thrust::make_pair(i,i));
-   *                  });
-   * \endcode
-   */
-  class device_mutable_view {
-   public:
+  template <typename ViewImpl>
+  class device_view_base {
+   protected:
     // Import member type definitions from `static_multimap`
-    using value_type     = value_type;
-    using key_type       = Key;
-    using mapped_type    = Value;
-    using iterator       = pair_atomic_type*;
-    using const_iterator = pair_atomic_type const*;
+    using value_type          = value_type;
+    using key_type            = Key;
+    using mapped_type         = Value;
+    using pair_atomic_type    = pair_atomic_type;
+    using iterator            = pair_atomic_type*;
+    using const_iterator      = pair_atomic_type const*;
+    using probe_sequence_type = probe_sequence_type;
 
-    /**
-     * @brief Construct a mutable view of the first `capacity` slots of the
-     * slots array pointed to by `slots`.
-     *
-     * @param slots Pointer to beginning of initialized slots array
-     * @param capacity The number of slots viewed by this object
-     * @param empty_key_sentinel The reserved value for keys to represent empty
-     * slots
-     * @param empty_value_sentinel The reserved value for mapped values to
-     * represent empty slots
-     */
-    __host__ __device__ device_mutable_view(pair_atomic_type* slots,
-                                            std::size_t capacity,
-                                            Key empty_key_sentinel,
-                                            Value empty_value_sentinel) noexcept
+    __host__ __device__ device_view_base(pair_atomic_type* slots,
+                                         std::size_t capacity,
+                                         Key empty_key_sentinel,
+                                         Value empty_value_sentinel) noexcept
       : impl_{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
     }
 
-    /**
-     * @brief Inserts the specified key/value pair into the map.
-     *
-     * @param g The Cooperative Group that performs the insert
-     * @param insert_pair The pair to insert
-     * @return void.
-     */
-    __device__ __forceinline__ void insert(
-      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
-      value_type const& insert_pair) noexcept;
-
-   private:
-    device_mutable_view_impl impl_;
-  };  // class device mutable view
-
-  /**
-   * @brief Non-owning view-type that may be used in device code to
-   * perform singular find and contains operations for the map.
-   *
-   * `device_view` is trivially-copyable and is intended to be passed by
-   * value.
-   *
-   */
-  class device_view {
    public:
-    // Import member type definitions from `static_multimap`
-    using value_type     = value_type;
-    using key_type       = Key;
-    using mapped_type    = Value;
-    using iterator       = pair_atomic_type*;
-    using const_iterator = pair_atomic_type const*;
-
-    /**
-     * @brief Construct a view of the first `capacity` slots of the
-     * slots array pointed to by `slots`.
-     *
-     * @param slots Pointer to beginning of initialized slots array
-     * @param capacity The number of slots viewed by this object
-     * @param empty_key_sentinel The reserved value for keys to represent empty
-     * slots
-     * @param empty_value_sentinel The reserved value for mapped values to
-     * represent empty slots
-     */
-    __host__ __device__ device_view(pair_atomic_type* slots,
-                                    std::size_t capacity,
-                                    Key empty_key_sentinel,
-                                    Value empty_value_sentinel) noexcept
-      : impl_{slots, capacity, empty_key_sentinel, empty_value_sentinel}
-    {
-    }
-
     /**
      * @brief Gets slots array.
      *
@@ -704,6 +625,110 @@ class static_multimap {
     __host__ __device__ __forceinline__ Value get_empty_value_sentinel() const noexcept
     {
       return impl_.get_empty_value_sentinel();
+    }
+
+   protected:
+    ViewImpl impl_;
+  };  // class device_view_base
+
+ public:
+  /**
+   * @brief Mutable, non-owning view-type that may be used in device code to
+   * perform singular inserts into the map.
+   *
+   * `device_mutable_view` is trivially-copyable and is intended to be passed by
+   * value.
+   *
+   * Example:
+   * \code{.cpp}
+   * cuco::static_multimap<int,int> m{100'000, -1, -1};
+   *
+   * // Inserts a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
+   * thrust::for_each(thrust::make_counting_iterator(0),
+   *                  thrust::make_counting_iterator(50'000),
+   *                  [map = m.get_device_mutable_view()]
+   *                  __device__ (auto i) mutable {
+   *                     map.insert(thrust::make_pair(i,i));
+   *                  });
+   * \endcode
+   */
+  class device_mutable_view : public device_view_base<device_mutable_view_impl> {
+   public:
+    using view_base_type = device_view_base<device_mutable_view_impl>;
+    using value_type     = typename view_base_type::value_type;
+    using key_type       = typename view_base_type::key_type;
+    using mapped_type    = typename view_base_type::mapped_type;
+    using iterator       = typename view_base_type::iterator;
+    using const_iterator = typename view_base_type::const_iterator;
+
+    /**
+     * @brief Construct a mutable view of the first `capacity` slots of the
+     * slots array pointed to by `slots`.
+     *
+     * @param slots Pointer to beginning of initialized slots array
+     * @param capacity The number of slots viewed by this object
+     * @param empty_key_sentinel The reserved value for keys to represent empty
+     * slots
+     * @param empty_value_sentinel The reserved value for mapped values to
+     * represent empty slots
+     */
+    __host__ __device__ device_mutable_view(pair_atomic_type* slots,
+                                            std::size_t capacity,
+                                            Key empty_key_sentinel,
+                                            Value empty_value_sentinel) noexcept
+      : view_base_type{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+    {
+    }
+
+    /**
+     * @brief Inserts the specified key/value pair into the map.
+     *
+     * @param g The Cooperative Group that performs the insert
+     * @param insert_pair The pair to insert
+     * @return void.
+     */
+    __device__ __forceinline__ void insert(
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+      value_type const& insert_pair) noexcept;
+
+   private:
+    using device_view_base<device_mutable_view_impl>::impl_;
+  };  // class device mutable view
+
+  /**
+   * @brief Non-owning view-type that may be used in device code to
+   * perform singular find and contains operations for the map.
+   *
+   * `device_view` is trivially-copyable and is intended to be passed by
+   * value.
+   *
+   */
+  class device_view : public device_view_base<device_view_impl> {
+   public:
+    using view_base_type = device_view_base<device_view_impl>;
+    using value_type     = typename view_base_type::value_type;
+    using key_type       = typename view_base_type::key_type;
+    using mapped_type    = typename view_base_type::mapped_type;
+    using iterator       = typename view_base_type::iterator;
+    using const_iterator = typename view_base_type::const_iterator;
+
+    /**
+     * @brief Construct a view of the first `capacity` slots of the
+     * slots array pointed to by `slots`.
+     *
+     * @param slots Pointer to beginning of initialized slots array
+     * @param capacity The number of slots viewed by this object
+     * @param empty_key_sentinel The reserved value for keys to represent empty
+     * slots
+     * @param empty_value_sentinel The reserved value for mapped values to
+     * represent empty slots
+     */
+    __host__ __device__ device_view(pair_atomic_type* slots,
+                                    std::size_t capacity,
+                                    Key empty_key_sentinel,
+                                    Value empty_value_sentinel) noexcept
+      : view_base_type{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+    {
     }
 
     /**
@@ -1053,7 +1078,7 @@ class static_multimap {
       PairEqual pair_equal) noexcept;
 
    private:
-    device_view_impl impl_;
+    using device_view_base<device_view_impl>::impl_;
   };  // class device_view
 
   /**

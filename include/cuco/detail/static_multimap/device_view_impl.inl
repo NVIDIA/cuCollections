@@ -24,27 +24,6 @@ template <typename Key,
           typename Allocator,
           class ProbeSequence>
 class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_impl_base {
- public:
-  /**
-   * @brief Gets the sentinel value used to represent an empty key slot.
-   *
-   * @return The sentinel value used to represent an empty key slot
-   */
-  __host__ __device__ __forceinline__ Key get_empty_key_sentinel() const noexcept
-  {
-    return empty_key_sentinel_;
-  }
-
-  /**
-   * @brief Gets the sentinel value used to represent an empty value slot.
-   *
-   * @return The sentinel value used to represent an empty value slot
-   */
-  __host__ __device__ __forceinline__ Value get_empty_value_sentinel() const noexcept
-  {
-    return empty_value_sentinel_;
-  }
-
  protected:
   // Import member type definitions from `static_multimap`
   using value_type          = value_type;
@@ -79,26 +58,6 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       empty_key_sentinel_{empty_key_sentinel},
       empty_value_sentinel_{empty_value_sentinel}
   {
-  }
-
-  /**
-   * @brief Gets slots array.
-   *
-   * @return Slots array
-   */
-  __device__ __forceinline__ pair_atomic_type* get_slots() noexcept
-  {
-    return probe_sequence_.get_slots();
-  }
-
-  /**
-   * @brief Gets slots array.
-   *
-   * @return Slots array
-   */
-  __device__ __forceinline__ pair_atomic_type const* get_slots() const noexcept
-  {
-    return probe_sequence_.get_slots();
   }
 
   /**
@@ -162,16 +121,6 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   }
 
   /**
-   * @brief Gets the maximum number of elements the hash map can hold.
-   *
-   * @return The maximum number of elements the hash map can hold
-   */
-  __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
-  {
-    return probe_sequence_.get_capacity();
-  }
-
-  /**
    * @brief Load two key/value pairs from the given slot to the target pair array.
    *
    * @param arr The pair array to be loaded
@@ -187,6 +136,57 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       auto const tmp = *reinterpret_cast<uint4 const*>(current_slot);
       memcpy(&arr[0], &tmp, 2 * sizeof(value_type));
     }
+  }
+
+ public:
+  /**
+   * @brief Gets the sentinel value used to represent an empty key slot.
+   *
+   * @return The sentinel value used to represent an empty key slot
+   */
+  __host__ __device__ __forceinline__ Key get_empty_key_sentinel() const noexcept
+  {
+    return empty_key_sentinel_;
+  }
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty value slot.
+   *
+   * @return The sentinel value used to represent an empty value slot
+   */
+  __host__ __device__ __forceinline__ Value get_empty_value_sentinel() const noexcept
+  {
+    return empty_value_sentinel_;
+  }
+
+  /**
+   * @brief Gets slots array.
+   *
+   * @return Slots array
+   */
+  __device__ __forceinline__ pair_atomic_type* get_slots() noexcept
+  {
+    return probe_sequence_.get_slots();
+  }
+
+  /**
+   * @brief Gets slots array.
+   *
+   * @return Slots array
+   */
+  __device__ __forceinline__ pair_atomic_type const* get_slots() const noexcept
+  {
+    return probe_sequence_.get_slots();
+  }
+
+  /**
+   * @brief Gets the maximum number of elements the hash map can hold.
+   *
+   * @return The maximum number of elements the hash map can hold
+   */
+  __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
+  {
+    return probe_sequence_.get_capacity();
   }
 
  private:

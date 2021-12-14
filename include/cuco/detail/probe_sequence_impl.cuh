@@ -108,6 +108,7 @@ class probe_sequence_impl_base {
   {
   }
 
+ public:
   /**
    * @brief Returns the capacity of the hash map.
    */
@@ -126,6 +127,7 @@ class probe_sequence_impl_base {
    */
   __device__ __forceinline__ const_iterator get_slots() const noexcept { return slots_; }
 
+ protected:
   iterator slots_;              ///< Pointer to beginning of the hash map slots
   const std::size_t capacity_;  ///< Total number of slots
 };                              // class probe_sequence_impl_base
