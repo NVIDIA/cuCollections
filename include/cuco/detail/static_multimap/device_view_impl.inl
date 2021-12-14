@@ -1216,9 +1216,6 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     OutputIt4 contained_val_begin,
     PairEqual pair_equal) noexcept
   {
-    using ProbePairType     = typename thrust::iterator_traits<OutputIt1>::value_type;
-    using ContainedPairType = typename thrust::iterator_traits<OutputIt2>::value_type;
-
     auto const lane_id                = probing_cg.thread_rank();
     auto current_slot                 = initial_slot(probing_cg, pair.first);
     [[maybe_unused]] auto found_match = false;
