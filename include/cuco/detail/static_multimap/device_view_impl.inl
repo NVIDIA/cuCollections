@@ -15,6 +15,7 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
+#include <cuco/detail/utils.cuh>
 
 namespace cuco {
 
@@ -915,8 +916,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         if (first_exists or second_exists) {
           if constexpr (is_outer) { found_match = true; }
 
-          auto num_first_matches  = __popc(first_exists);
-          auto num_second_matches = __popc(second_exists);
+          auto const num_first_matches  = __popc(first_exists);
+          auto const num_second_matches = __popc(second_exists);
 
           uint32_t output_idx;
           if (0 == cg_lane_id) {
@@ -925,14 +926,15 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
           output_idx = probing_cg.shfl(output_idx, 0);
 
           if (first_equals) {
-            auto lane_offset = __popc(first_exists & ((1 << cg_lane_id) - 1));
-            Key key          = k;
+            auto const lane_offset = detail::count_least_significant_bits(first_exists, cg_lane_id);
+            Key key                = k;
             output_buffer[output_idx + lane_offset] =
               cuco::make_pair<Key, Value>(std::move(key), std::move(arr[0].second));
           }
           if (second_equals) {
-            auto lane_offset = __popc(second_exists & ((1 << cg_lane_id) - 1));
-            Key key          = k;
+            auto const lane_offset =
+              detail::count_least_significant_bits(second_exists, cg_lane_id);
+            Key key = k;
             output_buffer[output_idx + num_first_matches + lane_offset] =
               cuco::make_pair<Key, Value>(std::move(key), std::move(arr[1].second));
           }
@@ -941,7 +943,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
           running = false;
           if constexpr (is_outer) {
             if ((not found_match) && (cg_lane_id == 0)) {
-              auto output_idx           = atomicAdd(flushing_cg_counter, 1);
+              auto const output_idx     = atomicAdd(flushing_cg_counter, 1);
               Key key                   = k;
               output_buffer[output_idx] = cuco::make_pair<Key, Value>(
                 std::move(key), std::move(this->get_empty_value_sentinel()));
@@ -1016,17 +1018,18 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
 
       auto const slot_is_empty =
         detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
-      auto const equals   = (not slot_is_empty and key_equal(slot_contents.first, k));
+      auto const equals = (not slot_is_empty and key_equal(slot_contents.first, k));
+      auto const exists = g.ballot(equals);
+
       uint32_t output_idx = *cg_counter;
-      auto const exists   = g.ballot(equals);
 
       if (exists) {
         if constexpr (is_outer) { found_match = true; }
-        auto num_matches = __popc(exists);
+        auto const num_matches = __popc(exists);
         if (equals) {
           // Each match computes its lane-level offset
-          auto lane_offset = __popc(exists & ((1 << lane_id) - 1));
-          Key key          = k;
+          auto const lane_offset = detail::count_least_significant_bits(exists, lane_id);
+          Key key                = k;
           output_buffer[output_idx + lane_offset] =
             cuco::make_pair<Key, Value>(std::move(key), std::move(slot_contents.second));
         }
@@ -1054,6 +1057,216 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       }
       current_slot = next_slot(current_slot);
     }  // while running
+  }
+
+  /**
+   * @brief Retrieves all the matches of a given pair using vector loads.
+   *
+   * For pair `p` with `n` matching pairs, if `pair_equal(p, slot)` returns true, stores
+   * `probe_key_begin[j] = p.first`, `probe_val_begin[j] = p.second`, `contained_key_begin[j] =
+   * slot.first`, and `contained_val_begin[j] = slot.second` for an unspecified value of `j` where
+   * `0 <= j < n`. If `p` does not have any matches, stores `probe_key_begin[0] = p.first`,
+   * `probe_val_begin[0] = p.second`, `contained_key_begin[0] = empty_key_sentinel`, and
+   * `contained_val_begin[0] = empty_value_sentinel` only if `is_outer` is true.
+   *
+   * Concurrent reads or writes to any of the output ranges results in undefined behavior.
+   *
+   * Behavior is undefined if the extent of any of the output ranges is less than `n`.
+   *
+   * @tparam is_outer Boolean flag indicating whether outer join is peformed
+   * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
+   * @tparam ProbingCG Type of Cooperative Group used to retrieve
+   * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+   * `pair`'s `Key` type.
+   * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+   * `pair`'s `Value` type.
+   * @tparam OutputIt3 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `key_type`.
+   * @tparam OutputIt4 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `mapped_type`.
+   * @tparam PairEqual Binary callable type
+   * @param probing_cg The Cooperative Group used to retrieve
+   * @param pair The pair to search for
+   * @param probe_key_begin Beginning of the output sequence of the matched probe keys
+   * @param probe_val_begin Beginning of the output sequence of the matched probe values
+   * @param contained_key_begin Beginning of the output sequence of the matched contained keys
+   * @param contained_val_begin Beginning of the output sequence of the matched contained values
+   * @param pair_equal The binary callable used to compare two pairs for equality
+   */
+  template <bool is_outer,
+            bool uses_vector_load,
+            typename ProbingCG,
+            typename OutputIt1,
+            typename OutputIt2,
+            typename OutputIt3,
+            typename OutputIt4,
+            typename PairEqual>
+  __device__ __forceinline__ std::enable_if_t<uses_vector_load, void> pair_retrieve(
+    ProbingCG const& probing_cg,
+    value_type const& pair,
+    OutputIt1 probe_key_begin,
+    OutputIt2 probe_val_begin,
+    OutputIt3 contained_key_begin,
+    OutputIt4 contained_val_begin,
+    PairEqual pair_equal) noexcept
+  {
+    auto const lane_id                = probing_cg.thread_rank();
+    auto current_slot                 = initial_slot(probing_cg, pair.first);
+    [[maybe_unused]] auto found_match = false;
+
+    auto num_matches = 0;
+
+    while (true) {
+      value_type arr[2];
+      load_pair_array(&arr[0], current_slot);
+
+      auto const first_slot_is_empty =
+        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+      auto const second_slot_is_empty =
+        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+      auto const first_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
+      auto const second_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
+      auto const first_exists  = probing_cg.ballot(first_equals);
+      auto const second_exists = probing_cg.ballot(second_equals);
+
+      if (first_exists or second_exists) {
+        if constexpr (is_outer) { found_match = true; }
+
+        auto const num_first_matches = __popc(first_exists);
+
+        if (first_equals) {
+          auto lane_offset      = detail::count_least_significant_bits(first_exists, lane_id);
+          auto const output_idx = num_matches + lane_offset;
+
+          *(probe_key_begin + output_idx)     = pair.first;
+          *(probe_val_begin + output_idx)     = pair.second;
+          *(contained_key_begin + output_idx) = arr[0].first;
+          *(contained_val_begin + output_idx) = arr[0].second;
+        }
+        if (second_equals) {
+          auto const lane_offset = detail::count_least_significant_bits(second_exists, lane_id);
+          auto const output_idx  = num_matches + num_first_matches + lane_offset;
+
+          *(probe_key_begin + output_idx)     = pair.first;
+          *(probe_val_begin + output_idx)     = pair.second;
+          *(contained_key_begin + output_idx) = arr[1].first;
+          *(contained_val_begin + output_idx) = arr[1].second;
+        }
+        num_matches += (num_first_matches + __popc(second_exists));
+      }
+      if (probing_cg.any(first_slot_is_empty or second_slot_is_empty)) {
+        if constexpr (is_outer) {
+          if ((not found_match) and lane_id == 0) {
+            *(probe_key_begin)     = pair.first;
+            *(probe_val_begin)     = pair.second;
+            *(contained_key_begin) = this->get_empty_key_sentinel();
+            *(contained_val_begin) = this->get_empty_value_sentinel();
+          }
+        }
+        return;  // exit if any slot in the current window is empty
+      }
+
+      current_slot = next_slot(current_slot);
+    }  // while
+  }
+
+  /**
+   * @brief Retrieves all the matches of a given pair using scalar loads.
+   *
+   * For pair `p` with `n` matching pairs, if `pair_equal(p, slot)` returns true, stores
+   * `probe_key_begin[j] = p.first`, `probe_val_begin[j] = p.second`, `contained_key_begin[j] =
+   * slot.first`, and `contained_val_begin[j] = slot.second` for an unspecified value of `j` where
+   * `0 <= j < n`. If `p` does not have any matches, stores `probe_key_begin[0] = p.first`,
+   * `probe_val_begin[0] = p.second`, `contained_key_begin[0] = empty_key_sentinel`, and
+   * `contained_val_begin[0] = empty_value_sentinel` only if `is_outer` is true.
+   *
+   * Concurrent reads or writes to any of the output ranges results in undefined behavior.
+   *
+   * Behavior is undefined if the extent of any of the output ranges is less than `n`.
+   *
+   * @tparam is_outer Boolean flag indicating whether outer join is peformed
+   * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
+   * @tparam ProbingCG Type of Cooperative Group used to retrieve
+   * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+   * `pair`'s `Key` type.
+   * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+   * `pair`'s `Value` type.
+   * @tparam OutputIt3 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `key_type`.
+   * @tparam OutputIt4 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `mapped_type`.
+   * @tparam PairEqual Binary callable type
+   * @param probing_cg The Cooperative Group used to retrieve
+   * @param pair The pair to search for
+   * @param probe_key_begin Beginning of the output sequence of the matched probe keys
+   * @param probe_val_begin Beginning of the output sequence of the matched probe values
+   * @param contained_key_begin Beginning of the output sequence of the matched contained keys
+   * @param contained_val_begin Beginning of the output sequence of the matched contained values
+   * @param pair_equal The binary callable used to compare two pairs for equality
+   */
+  template <bool is_outer,
+            bool uses_vector_load,
+            typename ProbingCG,
+            typename OutputIt1,
+            typename OutputIt2,
+            typename OutputIt3,
+            typename OutputIt4,
+            typename PairEqual>
+  __device__ __forceinline__ std::enable_if_t<not uses_vector_load, void> pair_retrieve(
+    ProbingCG const& probing_cg,
+    value_type const& pair,
+    OutputIt1 probe_key_begin,
+    OutputIt2 probe_val_begin,
+    OutputIt3 contained_key_begin,
+    OutputIt4 contained_val_begin,
+    PairEqual pair_equal) noexcept
+  {
+    auto const lane_id                = probing_cg.thread_rank();
+    auto current_slot                 = initial_slot(probing_cg, pair.first);
+    [[maybe_unused]] auto found_match = false;
+
+    auto num_matches = 0;
+
+    while (true) {
+      // TODO: Replace reinterpret_cast with atomic ref when possible. The current implementation
+      // is unsafe!
+      static_assert(sizeof(Key) == sizeof(cuda::atomic<Key>));
+      static_assert(sizeof(Value) == sizeof(cuda::atomic<Value>));
+      value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
+
+      auto const slot_is_empty =
+        detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
+      auto const equals = (not slot_is_empty and pair_equal(slot_contents, pair));
+      auto const exists = probing_cg.ballot(equals);
+
+      if (exists) {
+        if constexpr (is_outer) { found_match = true; }
+
+        if (equals) {
+          auto const lane_offset = detail::count_least_significant_bits(exists, lane_id);
+          auto const output_idx  = num_matches + lane_offset;
+
+          *(probe_key_begin + output_idx)     = pair.first;
+          *(probe_val_begin + output_idx)     = pair.second;
+          *(contained_key_begin + output_idx) = slot_contents.first;
+          *(contained_val_begin + output_idx) = slot_contents.second;
+        }
+        num_matches += __popc(exists);
+      }
+      if (probing_cg.any(slot_is_empty)) {
+        if constexpr (is_outer) {
+          if ((not found_match) and lane_id == 0) {
+            *(probe_key_begin)     = pair.first;
+            *(probe_val_begin)     = pair.second;
+            *(contained_key_begin) = this->get_empty_key_sentinel();
+            *(contained_val_begin) = this->get_empty_value_sentinel();
+          }
+        }
+        return;  // exit if any slot in the current window is empty
+      }
+
+      current_slot = next_slot(current_slot);
+    }  // while
   }
 
   /**
@@ -1132,8 +1345,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         if (first_exists or second_exists) {
           if constexpr (is_outer) { found_match = true; }
 
-          auto num_first_matches  = __popc(first_exists);
-          auto num_second_matches = __popc(second_exists);
+          auto const num_first_matches  = __popc(first_exists);
+          auto const num_second_matches = __popc(second_exists);
 
           uint32_t output_idx;
           if (0 == cg_lane_id) {
@@ -1142,12 +1355,13 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
           output_idx = probing_cg.shfl(output_idx, 0);
 
           if (first_equals) {
-            auto lane_offset = __popc(first_exists & ((1 << cg_lane_id) - 1));
+            auto const lane_offset = detail::count_least_significant_bits(first_exists, cg_lane_id);
             probe_output_buffer[output_idx + lane_offset]     = pair;
             contained_output_buffer[output_idx + lane_offset] = arr[0];
           }
           if (second_equals) {
-            auto lane_offset = __popc(second_exists & ((1 << cg_lane_id) - 1));
+            auto const lane_offset =
+              detail::count_least_significant_bits(second_exists, cg_lane_id);
             probe_output_buffer[output_idx + num_first_matches + lane_offset]     = pair;
             contained_output_buffer[output_idx + num_first_matches + lane_offset] = arr[1];
           }
@@ -1156,7 +1370,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
           running = false;
           if constexpr (is_outer) {
             if ((not found_match) && (cg_lane_id == 0)) {
-              auto output_idx                 = atomicAdd(flushing_cg_counter, 1);
+              auto const output_idx           = atomicAdd(flushing_cg_counter, 1);
               probe_output_buffer[output_idx] = pair;
               contained_output_buffer[output_idx] =
                 cuco::make_pair<Key, Value>(std::move(this->get_empty_key_sentinel()),
@@ -1247,16 +1461,17 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
 
       auto const slot_is_empty =
         detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
-      auto const equals   = (not slot_is_empty and pair_equal(slot_contents, pair));
+      auto const equals = (not slot_is_empty and pair_equal(slot_contents, pair));
+      auto const exists = g.ballot(equals);
+
       uint32_t output_idx = *cg_counter;
-      auto const exists   = g.ballot(equals);
 
       if (exists) {
         if constexpr (is_outer) { found_match = true; }
-        auto num_matches = __popc(exists);
+        auto const num_matches = __popc(exists);
         if (equals) {
           // Each match computes its lane-level offset
-          auto lane_offset                                  = __popc(exists & ((1 << lane_id) - 1));
+          auto const lane_offset = detail::count_least_significant_bits(exists, lane_id);
           probe_output_buffer[output_idx + lane_offset]     = pair;
           contained_output_buffer[output_idx + lane_offset] = slot_contents;
         }

@@ -18,7 +18,7 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/tuple.h>
 
-#include <cuco/detail/util.hpp>
+#include <cuco/detail/utils.hpp>
 
 namespace {
 /**
@@ -691,6 +691,36 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
+template <typename OutputIt1,
+          typename OutputIt2,
+          typename OutputIt3,
+          typename OutputIt4,
+          typename PairEqual>
+__device__ __forceinline__ void
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve(
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
+  value_type const& pair,
+  OutputIt1 probe_key_begin,
+  OutputIt2 probe_val_begin,
+  OutputIt3 contained_key_begin,
+  OutputIt4 contained_val_begin,
+  PairEqual pair_equal) noexcept
+{
+  constexpr bool is_outer = false;
+  impl_.pair_retrieve<is_outer, uses_vector_load()>(probing_cg,
+                                                    pair,
+                                                    probe_key_begin,
+                                                    probe_val_begin,
+                                                    contained_key_begin,
+                                                    contained_val_begin,
+                                                    pair_equal);
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
 template <uint32_t buffer_size,
           typename FlushingCG,
           typename atomicT,
@@ -734,6 +764,36 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_
                                                contained_output_begin,
                                                pair_equal);
   }
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
+template <typename OutputIt1,
+          typename OutputIt2,
+          typename OutputIt3,
+          typename OutputIt4,
+          typename PairEqual>
+__device__ __forceinline__ void
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve_outer(
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
+  value_type const& pair,
+  OutputIt1 probe_key_begin,
+  OutputIt2 probe_val_begin,
+  OutputIt3 contained_key_begin,
+  OutputIt4 contained_val_begin,
+  PairEqual pair_equal) noexcept
+{
+  constexpr bool is_outer = true;
+  impl_.pair_retrieve<is_outer, uses_vector_load()>(probing_cg,
+                                                    pair,
+                                                    probe_key_begin,
+                                                    probe_val_begin,
+                                                    contained_key_begin,
+                                                    contained_val_begin,
+                                                    pair_equal);
 }
 
 template <typename Key,

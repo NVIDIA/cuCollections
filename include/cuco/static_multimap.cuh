@@ -985,6 +985,49 @@ class static_multimap {
       KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
+     * @brief Retrieves all the matches of a given pair
+     *
+     * For pair `p` with `n = pair_count(cg, p, pair_equal)` matching pairs, if `pair_equal(p,
+     * slot)` returns true, stores `probe_key_begin[j] = p.first`, `probe_val_begin[j] = p.second`,
+     * `contained_key_begin[j] = slot.first`, and `contained_val_begin[j] = slot.second` for an
+     * unspecified value of `j` where `0 <= j < n`.
+     *
+     * Concurrent reads or writes to any of the output ranges results in undefined behavior.
+     *
+     * Behavior is undefined if the extent of any of the output ranges is less than `n`.
+     *
+     * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+     * `pair`'s `Key` type.
+     * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+     * `pair`'s `Value` type.
+     * @tparam OutputIt3 Device accessible output iterator whose `value_type` is constructible from
+     * the map's `key_type`.
+     * @tparam OutputIt4 Device accessible output iterator whose `value_type` is constructible from
+     * the map's `mapped_type`.
+     * @tparam PairEqual Binary callable type
+     * @param probing_cg The Cooperative Group used to retrieve
+     * @param pair The pair to search for
+     * @param probe_key_begin Beginning of the output sequence of the matched probe keys
+     * @param probe_val_begin Beginning of the output sequence of the matched probe values
+     * @param contained_key_begin Beginning of the output sequence of the matched contained keys
+     * @param contained_val_begin Beginning of the output sequence of the matched contained values
+     * @param pair_equal The binary callable used to compare two pairs for equality
+     */
+    template <typename OutputIt1,
+              typename OutputIt2,
+              typename OutputIt3,
+              typename OutputIt4,
+              typename PairEqual>
+    __device__ __forceinline__ void pair_retrieve(
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
+      value_type const& pair,
+      OutputIt1 probe_key_begin,
+      OutputIt2 probe_val_begin,
+      OutputIt3 contained_key_begin,
+      OutputIt4 contained_val_begin,
+      PairEqual pair_equal) noexcept;
+
+    /**
      * @brief Retrieves all the matches of a given pair contained in multimap with per-flushing-CG
      * shared memory buffer.
      *
@@ -1028,6 +1071,51 @@ class static_multimap {
       atomicT* num_matches,
       OutputIt1 probe_output_begin,
       OutputIt2 contained_output_begin,
+      PairEqual pair_equal) noexcept;
+
+    /**
+     * @brief Retrieves all the matches of a given pair
+     *
+     * For pair `p` with `n = pair_count_outer(cg, p, pair_equal)` matching pairs, if `pair_equal(p,
+     * slot)` returns true, stores `probe_key_begin[j] = p.first`, `probe_val_begin[j] = p.second`,
+     * `contained_key_begin[j] = slot.first`, and `contained_val_begin[j] = slot.second` for an
+     * unspecified value of `j` where `0 <= j < n`. If `p` does not have any matches, stores
+     * `probe_key_begin[0] = p.first`, `probe_val_begin[0] = p.second`, `contained_key_begin[0] =
+     * empty_key_sentinel`, and `contained_val_begin[0] = empty_value_sentinel`.
+     *
+     * Concurrent reads or writes to any of the output ranges results in undefined behavior.
+     *
+     * Behavior is undefined if the extent of any of the output ranges is less than `n`.
+     *
+     * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+     * `pair`'s `Key` type.
+     * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+     * `pair`'s `Value` type.
+     * @tparam OutputIt3 Device accessible output iterator whose `value_type` is constructible from
+     * the map's `key_type`.
+     * @tparam OutputIt4 Device accessible output iterator whose `value_type` is constructible from
+     * the map's `mapped_type`.
+     * @tparam PairEqual Binary callable type
+     * @param probing_cg The Cooperative Group used to retrieve
+     * @param pair The pair to search for
+     * @param probe_key_begin Beginning of the output sequence of the matched probe keys
+     * @param probe_val_begin Beginning of the output sequence of the matched probe values
+     * @param contained_key_begin Beginning of the output sequence of the matched contained keys
+     * @param contained_val_begin Beginning of the output sequence of the matched contained values
+     * @param pair_equal The binary callable used to compare two pairs for equality
+     */
+    template <typename OutputIt1,
+              typename OutputIt2,
+              typename OutputIt3,
+              typename OutputIt4,
+              typename PairEqual>
+    __device__ __forceinline__ void pair_retrieve_outer(
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
+      value_type const& pair,
+      OutputIt1 probe_key_begin,
+      OutputIt2 probe_val_begin,
+      OutputIt3 contained_key_begin,
+      OutputIt4 contained_val_begin,
       PairEqual pair_equal) noexcept;
 
     /**
