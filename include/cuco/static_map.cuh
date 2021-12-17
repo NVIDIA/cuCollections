@@ -195,7 +195,7 @@ class static_map {
              Key empty_key_sentinel,
              Value empty_value_sentinel,
              Allocator const& alloc = Allocator{},
-             cudaStream_t stream    = 0);
+             cudaStream_t stream    = nullptr);
 
   /**
    * @brief Destroys the map and frees its contents.
@@ -228,7 +228,7 @@ class static_map {
               InputIt last,
               Hash hash           = Hash{},
               KeyEqual key_equal  = KeyEqual{},
-              cudaStream_t stream = 0);
+              cudaStream_t stream = nullptr);
 
   /**
    * @brief Inserts key/value pairs in the range `[first, last)` if `pred`
@@ -264,7 +264,7 @@ class static_map {
                  Predicate pred,
                  Hash hash           = Hash{},
                  KeyEqual key_equal  = KeyEqual{},
-                 cudaStream_t stream = 0);
+                 cudaStream_t stream = nullptr);
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -294,7 +294,7 @@ class static_map {
             OutputIt output_begin,
             Hash hash           = Hash{},
             KeyEqual key_equal  = KeyEqual{},
-            cudaStream_t stream = 0);
+            cudaStream_t stream = nullptr);
 
   /**
    * @brief Indicates whether the keys in the range
@@ -324,7 +324,7 @@ class static_map {
                 OutputIt output_begin,
                 Hash hash           = Hash{},
                 KeyEqual key_equal  = KeyEqual{},
-                cudaStream_t stream = 0);
+                cudaStream_t stream = nullptr);
 
  private:
   class device_view_base {
