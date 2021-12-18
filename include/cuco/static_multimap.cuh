@@ -747,7 +747,7 @@ class static_multimap {
      */
     template <typename CG>
     __device__ __forceinline__ static device_view make_copy(
-      CG g, pair_atomic_type* const memory_to_use, device_view source_device_view) noexcept;
+      CG g, pair_atomic_type* memory_to_use, device_view source_device_view) noexcept;
 
     /**
      * @brief Flushes per-CG buffer into the output sequence.
@@ -770,7 +770,7 @@ class static_multimap {
      */
     template <typename CG, typename atomicT, typename OutputIt>
     __device__ __forceinline__ void flush_output_buffer(CG const& g,
-                                                        uint32_t const num_outputs,
+                                                        uint32_t num_outputs,
                                                         value_type* output_buffer,
                                                         atomicT* num_matches,
                                                         OutputIt output_begin) noexcept;
@@ -800,7 +800,7 @@ class static_multimap {
      */
     template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
     __device__ __forceinline__ void flush_output_buffer(CG const& g,
-                                                        uint32_t const num_outputs,
+                                                        uint32_t num_outputs,
                                                         value_type* probe_output_buffer,
                                                         value_type* contained_output_buffer,
                                                         atomicT* num_matches,
