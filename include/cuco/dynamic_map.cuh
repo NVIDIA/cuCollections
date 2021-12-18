@@ -224,21 +224,24 @@ class dynamic_map {
    *
    * @return The current number of elements in the map
    */
-  std::size_t get_size() const noexcept { return size_; }
+  [[nodiscard]] std::size_t get_size() const noexcept { return size_; }
 
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
    *
    * @return The maximum number of elements the hash map can hold
    */
-  std::size_t get_capacity() const noexcept { return capacity_; }
+  [[nodiscard]] std::size_t get_capacity() const noexcept { return capacity_; }
 
   /**
    * @brief Gets the load factor of the hash map.
    *
    * @return The load factor of the hash map
    */
-  float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; }
+  [[nodiscard]] float get_load_factor() const noexcept
+  {
+    return static_cast<float>(size_) / capacity_;
+  }
 
  private:
   key_type empty_key_sentinel_{};       ///< Key value that represents an empty slot
