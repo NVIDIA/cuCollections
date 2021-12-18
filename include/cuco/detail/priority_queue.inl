@@ -79,7 +79,7 @@ void priority_queue<T, Compare, Allocator>::push(InputIt first,
                                            bool warp_level,
                                            cudaStream_t stream) {
 
-  const int kBlockSize = block_size;
+  const int kBlockSize = min(block_size, (int)node_size_);
   const int kNumBlocks = grid_size;
 
   if (!warp_level) {
@@ -108,7 +108,7 @@ void priority_queue<T, Compare, Allocator>::pop(OutputIt first,
                                           bool warp_level,
                                           cudaStream_t stream) {
   
-  const int kBlockSize = block_size;
+  const int kBlockSize = min(block_size, (int)node_size_);
   const int kNumBlocks = grid_size;
 
   cudaMemset(d_pop_tracker_, 0, sizeof(int));
