@@ -122,9 +122,9 @@ static void generate_element(T &e, std::mt19937 &gen) {
   e = static_cast<T>(gen());
 }
 
-template <>
-void generate_element<KVPair<uint32_t, uint32_t>>
-            (KVPair<uint32_t, uint32_t> &e, std::mt19937 &gen) {
+template <typename K, typename V>
+void generate_element
+            (KVPair<K, V> &e, std::mt19937 &gen) {
   generate_element(e.first, gen);
   generate_element(e.second, gen);
 }
