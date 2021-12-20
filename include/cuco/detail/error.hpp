@@ -32,7 +32,7 @@ struct cuda_error : public std::runtime_error {
 }  // namespace cuco
 
 #define STRINGIFY_DETAIL(x) #x
-#define CUCO_STRINGIFY(x) STRINGIFY_DETAIL(x)
+#define CUCO_STRINGIFY(x)   STRINGIFY_DETAIL(x)
 
 /**
  * @brief Error checking macro for CUDA runtime API functions.
