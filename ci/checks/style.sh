@@ -12,7 +12,7 @@ LANG=C.UTF-8
 conda activate rapids
 
 # Run clang-format and check for a consistent code format
-CLANG_FORMAT=`python cpp/scripts/run-clang-format.py 2>&1`
+CLANG_FORMAT=`python scripts/run-clang-format.py 2>&1`
 CLANG_FORMAT_RETVAL=$?
 
 if [ "$CLANG_FORMAT_RETVAL" != "0" ]; then
