@@ -81,7 +81,7 @@ class cuda_event_timer {
    *                            every iteration.
    * @param[in] stream_ The CUDA stream we are measuring time on.
    */
-  cuda_event_timer(benchmark::State &state,
+  cuda_event_timer(benchmark::State& state,
                    bool flush_l2_cache = false,
                    cudaStream_t stream = nullptr)
     : p_state(&state), stream_(stream)
@@ -97,7 +97,7 @@ class cuda_event_timer {
 
       if (l2_cache_bytes > 0) {
         const int memset_value = 0;
-        int *l2_cache_buffer   = nullptr;
+        int* l2_cache_buffer   = nullptr;
         BENCH_CUDA_TRY(cudaMalloc(&l2_cache_buffer, l2_cache_bytes));
         BENCH_CUDA_TRY(cudaMemsetAsync(l2_cache_buffer, memset_value, l2_cache_bytes, stream_));
         BENCH_CUDA_TRY(cudaFree(l2_cache_buffer));
@@ -130,5 +130,5 @@ class cuda_event_timer {
   cudaEvent_t start_;
   cudaEvent_t stop_;
   cudaStream_t stream_;
-  benchmark::State *p_state;
+  benchmark::State* p_state;
 };

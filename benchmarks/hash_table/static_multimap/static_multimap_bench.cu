@@ -16,9 +16,9 @@
 
 #include <random>
 
+#include <nvbench/nvbench.cuh>
 #include <thrust/device_vector.h>
 #include <thrust/iterator/discard_iterator.h>
-#include <nvbench/nvbench.cuh>
 
 #include <cuco/static_multimap.cuh>
 #include <key_generator.hpp>

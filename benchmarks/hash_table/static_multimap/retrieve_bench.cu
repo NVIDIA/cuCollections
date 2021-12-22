@@ -16,8 +16,8 @@
 
 #include <nvbench/nvbench.cuh>
 
-#include <thrust/device_vector.h>
 #include <random>
+#include <thrust/device_vector.h>
 
 #include "cuco/static_multimap.cuh"
 

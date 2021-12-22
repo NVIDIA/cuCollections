@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
+#include "cuco/static_map.cuh"
 #include <benchmark/benchmark.h>
-#include <thrust/device_vector.h>
-#include <thrust/for_each.h>
 #include <fstream>
 #include <iostream>
 #include <random>
-#include "cuco/static_map.cuh"
+#include <thrust/device_vector.h>
+#include <thrust/for_each.h>
 
 enum class dist_type { UNIQUE, UNIFORM, GAUSSIAN };
 

@@ -17,11 +17,11 @@
 #pragma once
 
 #include <cooperative_groups.h>
-#include <thrust/distance.h>
-#include <thrust/functional.h>
 #include <cub/cub.cuh>
 #include <cuda/std/atomic>
 #include <memory>
+#include <thrust/distance.h>
+#include <thrust/functional.h>
 
 #include <cuco/allocator.hpp>
 #include <cuco/traits.hpp>
