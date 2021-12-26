@@ -87,10 +87,9 @@ class priority_queue {
    *               run
    */
   template <typename InputIt>
-  void push(InputIt first, InputIt last,
+  void push(InputIt first, InputIt last, cudaStream_t stream = 0,
             int block_size = 256, int grid_size = 64000,
-            bool warp_level = false,
-            cudaStream_t stream = 0);
+            bool warp_level = false);
 
   /**
    * @brief Remove a sequence of the lowest (when Max == false) or the
@@ -109,10 +108,9 @@ class priority_queue {
    *               run
    */
   template <typename OutputIt>
-  void pop(OutputIt first, OutputIt last,
+  void pop(OutputIt first, OutputIt last, cudaStream_t stream = 0,
            int block_size = 512, int grid_size = 32000,
-           bool warp_level = false,
-           cudaStream_t stream = 0);
+           bool warp_level = false);
 
   /*
   * @brief Return the amount of shared memory required for operations on the queue
@@ -224,7 +222,7 @@ class priority_queue {
   };
 
   /*
-  * @brief Returns a trivailly-copyable class that can be used to perform 
+  * @brief Returns a trivially-copyable class that can be used to perform 
   *        insertion and deletion of single nodes in device code with
   *        cooperative groups
   *
@@ -252,9 +250,7 @@ class priority_queue {
   int *d_locks_;             ///< Array of locks where `d_locks_[i]` is the
                              ///  lock for the node starting at
                              ///  1d_heap_[node_size * i]`
-  int *d_pop_tracker_;       ///< Variable used to track where in its output
-                             ///  array a pop operation should place a given
-                             ///  popped node
+
   Allocator allocator_;
   int_allocator_type int_allocator_;
   t_allocator_type t_allocator_;
