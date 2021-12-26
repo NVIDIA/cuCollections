@@ -48,6 +48,7 @@ namespace cuco {
 *             with the largest keys
 */
 template <typename T, typename Compare = thrust::less<T>,
+	  bool FavorInsertionPerformance = false,
 	  typename Allocator = cuco::cuda_allocator<char>>
 class priority_queue {
 
@@ -60,6 +61,8 @@ class priority_queue {
   using size_t_allocator_type = typename std::allocator_traits<Allocator>
 	                                  ::rebind_alloc<size_t>;
 
+  const int NodeSize = FavorInsertionPerformance ? 64 : 1024;
+
  public:
   /**
    * @brief Construct a priority queue
@@ -68,8 +71,7 @@ class priority_queue {
    * @param node_size The size of the nodes in the underlying heap data
    *        structure
    */
-  priority_queue(size_t initial_capacity, size_t node_size = 1024,
-		 Allocator const& alloc = Allocator{});
+  priority_queue(size_t initial_capacity, Allocator const& alloc = Allocator{});
 
   /**
    * @brief Push elements into the priority queue
@@ -87,9 +89,7 @@ class priority_queue {
    *               run
    */
   template <typename InputIt>
-  void push(InputIt first, InputIt last, cudaStream_t stream = 0,
-            int block_size = 256, int grid_size = 64000,
-            bool warp_level = false);
+  void push(InputIt first, InputIt last, cudaStream_t stream = 0);
 
   /**
    * @brief Remove a sequence of the lowest (when Max == false) or the
@@ -108,9 +108,7 @@ class priority_queue {
    *               run
    */
   template <typename OutputIt>
-  void pop(OutputIt first, OutputIt last, cudaStream_t stream = 0,
-           int block_size = 512, int grid_size = 32000,
-           bool warp_level = false);
+  void pop(OutputIt first, OutputIt last, cudaStream_t stream = 0);
 
   /*
   * @brief Return the amount of shared memory required for operations on the queue
