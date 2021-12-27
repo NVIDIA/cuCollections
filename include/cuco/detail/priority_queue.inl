@@ -138,6 +138,9 @@ __device__ void priority_queue<T, Compare,
   SharedMemoryLayout<T> shmem =
        GetSharedMemoryLayout<T>((int*)temp_storage,
                                          g.size(), node_size_);
+
+  auto push_size = last - first;
+
   if (last - first == node_size_) {
     PushSingleNode(g, first, d_heap_, d_size_, node_size_,
                    d_locks_, lowest_level_start_, shmem, compare_);

@@ -1,24 +1,15 @@
-#include <iostream>
 #include <vector>
-#include <string>
-#include <cstdint>
-#include <cstdlib>
-#include <queue>
-#include <algorithm>
-#include <unordered_map>
 #include <map>
 
 #include <cuda_runtime.h>
-
-#include <cuco/priority_queue.cuh>
-#include <cuco/detail/error.hpp>
-#include <cuco/detail/pair.cuh>
-
 #include <cooperative_groups.h>
 
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
+
 #include <catch2/catch.hpp>
+
+#include <cuco/priority_queue.cuh>
 
 using namespace cuco;
 

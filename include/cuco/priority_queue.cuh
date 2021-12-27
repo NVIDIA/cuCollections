@@ -15,7 +15,6 @@ namespace cuco {
 * deletions
 *
 * Current limitations:
-* - Only supports trivially comparable key types
 * - Does not support insertion and deletion at the same time
 *   - The implementation of the priority queue is based on 
 *     https://arxiv.org/pdf/1906.06504.pdf, which provides a way to allow
@@ -35,17 +34,17 @@ namespace cuco {
 * The host-side bulk operations `push` and `pop` allow an arbitrary number of
 * elements to be pushed to or popped from the queue.
 *
-* The device-side operations allow a cooperative group to push or pop
-* some number of elements less than or equal to node_size. These device side
+* The device-side operations allow a cooperative group to push or pop from 
+* device code. These device side
 * operations are invoked with a trivially-copyable device view,
 * `device_mutable_view` which can be obtained with the host function 
 * `get_mutable_device_view` and passed to the device.
 *
-* @tparam Key Trivially comparable type used for keys
-* @tparam Value Type of the value to be stored
-* @tparam Max When false, pop operations yield the elements with the smallest
-*             keys in the queue, otherwise, pop operations yeild the elements
-*             with the largest keys
+* @tparam T Type of the elements stored in the queue
+* @tparam Compare Comparison operator used to order the elements in the queue
+* @tparam FavorInsertionPerformance When true, insertion performance is increased at the expense of
+          deletion performance.
+* @tparam Allocator Allocator defining how memory is allocated internally
 */
 template <typename T, typename Compare = thrust::less<T>,
 	  bool FavorInsertionPerformance = false,
@@ -68,8 +67,7 @@ class priority_queue {
    * @brief Construct a priority queue
    *
    * @param initial_capacity The number of elements the priority queue can hold
-   * @param node_size The size of the nodes in the underlying heap data
-   *        structure
+   * @param alloc Allocator used for allocating device storage
    */
   priority_queue(size_t initial_capacity, Allocator const& alloc = Allocator{});
 
@@ -80,30 +78,19 @@ class priority_queue {
    *        can be converted to T
    * @param first Beginning of the sequence of elements
    * @param last End of the sequence of elements
-   * @param num_elements Number of elements to add to the queue
-   * @param block_size Block size to use for the internal kernel launch
-   * @param grid_size Grid size for the internal kernel launch
-   * @param warp_size If true, each node is handled by a single warp, otherwise
-   *                  by a single block
-   * @param stream The stream in which the underlying GPU operations will be
-   *               run
+   * @param stream The stream in which the underlying device operations will be
+   *               executed
    */
   template <typename InputIt>
   void push(InputIt first, InputIt last, cudaStream_t stream = 0);
 
   /**
-   * @brief Remove a sequence of the lowest (when Max == false) or the
-   *        highest (when Max == true) elements
+   * @brief Remove a sequence of the lowest elements ordered by Compare
    *
    * @tparam OutputIt Device accessible output iterator whose `value_type`
    *        can be converted to T
    * @param first Beginning of the sequence of output elements
    * @param last End of the sequence of output elements
-   * @param num_elements The number of elements to be removed
-   * @param block_size Block size to use for the internal kernel launch
-   * @param grid_size Grid size for the internal kernel launch
-   * @param warp_size If true, each node is handled by a single warp, otherwise
-   *                  by a single block
    * @param stream The stream in which the underlying GPU operations will be
    *               run
    */
@@ -132,48 +119,36 @@ class priority_queue {
    public:
 
     /**
-     * @brief Push a single node or less elements into the priority queue
+     * @brief Push elements into the priority queue
      *
      * @tparam CG Cooperative Group type
-     * @tparam Device accessible iterator whose `value_type` is convertible
-     *         to T
+     * @tparam InputIt Device accessible iterator whose `value_type`
+     *         is convertible to T
      * @param g The cooperative group that will perform the operation
      * @param first The beginning of the sequence of elements to insert
      * @param last The end of the sequence of elements to insert
-     * @param Pointer to a contiguous section of memory large enough
-     *        to hold get_shmem_size(g.size()) bytes
+     * @param temp_storage Pointer to a contiguous section of memory
+     *        large enough to hold get_shmem_size(g.size()) bytes
      */
     template <typename CG, typename InputIt>
     __device__ void push(CG const& g, InputIt first,
                          InputIt last, void *temp_storage);
 
     /**
-     * @brief Pop a single node or less elements from the priority queue
+     * @brief Pop elements from the priority queue
      *
      * @tparam CG Cooperative Group type
-     * @tparam Device accessible iterator whose `value_type` is convertible to
-               T
+     * @tparam OutputIt Device accessible iterator whose `value_type`
+     *         is convertible to T
      * @param g The cooperative group that will perform the operation
      * @param first The beginning of the sequence of elements to output into
      * @param last The end of the sequence of elements to output into
-     * @param Pointer to a contiguous section of memory large enough
-     *        to hold get_shmem_size(g.size()) bytes
+     * @param temp_storage Pointer to a contiguous section of memory
+     *        large enough to hold get_shmem_size(g.size()) bytes
      */
     template <typename CG, typename OutputIt>
     __device__ void pop(CG const& g, OutputIt first,
                         OutputIt last, void *temp_storage);
-
-    /**
-     * @brief Returns the node size of the queue's underlying heap
-     *        representation, i.e. the maximum number of elements
-     *        pushable or poppable with a call to the device push
-     *        and pop functions
-     *
-     * @return The underlying node size
-     */
-    __device__ size_t get_node_size() {
-      return node_size_;
-    }
 
     /*
     * @brief Return the amount of temporary storage required for operations
@@ -238,7 +213,7 @@ class priority_queue {
                              ///  heap's lowest level
   int node_capacity_;        ///< Capacity of the heap in nodes
 
-  T *d_heap_; ///< Pointer to an array of nodes, the 0th node
+  T *d_heap_;                ///< Pointer to an array of nodes, the 0th node
                              ///  being the heap's partial buffer, and nodes
                              ///  1..(node_capacity_) being the heap, where the
                              ///  1st node is the root

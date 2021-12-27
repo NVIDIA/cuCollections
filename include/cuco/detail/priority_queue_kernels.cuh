@@ -641,18 +641,6 @@ __device__ void Sink(CG const& g,
       lo = left;
     }
 
-    // If the heap property is already satisfied between the current
-    // node and the lower child, we are done return
-    //
-    // TODO: can this ever even occur? In the paper this is done because
-    // a max placeholder value is used to indicate unused nodes in the heap
-    if (!compare(heap[lo * node_size],
-        heap[(cur + 1) * node_size - 1])) {
-      ReleaseLock(g, &locks[lo]);
-      ReleaseLock(g, &locks[cur]);
-      return;
-    }
-
     MergeAndSort(g, &heap[lo * node_size],
                    &heap[cur * node_size],
                    shmem.A,
@@ -865,10 +853,6 @@ __device__ void PopPartialNode(CG const& g,
   int dim = g.size();
 
   AcquireLock(g, &locks[kRootIdx]);
-  //if (lane == 0) {
-  //  printf("PopPartialNode lock acquired\n", *size);
-  //  printf("Size: %d\n", *size);
-  //}
 
   if (*size == 0) {
     CopyPairs(g, elements, heap, num_elements);
@@ -909,11 +893,6 @@ __device__ void PopPartialNode(CG const& g,
 
       if (lane == 0) {
         *p_buffer_size = *p_buffer_size - num_elements;
-	//printf("size: %d\n", *size);
-	//for (int i = 0; i < node_size; i++) {
-	//  printf("%d ", heap[kPBufferIdx + i]);
-	//}
-	//printf("\n");
       }
 
       g.sync();
@@ -952,11 +931,6 @@ __device__ void PopPartialNode(CG const& g,
 
       if (lane == 0) {
         *size -= 1;
-	//printf("size: %d\n", *size);
-	//for (int i = 0; i < node_size; i++) {
-	//  printf("%d ", heap[kPBufferIdx + i]);
-	//}
-	//printf("\n");
       }
 
       if (tar != kRootIdx) {
@@ -979,41 +953,12 @@ __device__ void PopPartialNode(CG const& g,
                        shmem,
 		       compare);
         g.sync();
-        //if (lane == 0) {
-	//  printf("shmem A:\n");
-        //  for (int i = 0; i < node_size; i++) {
-        //    printf("%lu ", shmem.A[i]);
-        //  }
-	//  printf("\n");
-	//  printf("shmem B:\n");
-        //  for (int i = 0; i < node_size; i++) {
-        //    printf("%lu ", shmem.B[i]);
-        //  }
-        //  printf("\n");
-	//  printf("p_buffer_size: %d\n", *p_buffer_size);
-        //}
-
-        //g.sync();
 
         CopyPairs(g, &heap[node_size], shmem.A, node_size);
 
         CopyPairs(g, heap, shmem.B, *p_buffer_size);
 
         g.sync();
-
-        //if (lane == 0) {
-        //  printf("size: %d\n", *size);
-        //  for (int i = 0; i < node_size; i++) {
-        //    printf("%lu ", heap[kPBufferIdx + i]);
-        //  }
-        //  printf("\n");
-        //  for (int i = 0; i < node_size; i++) {
-        //    printf("%lu ", heap[node_size + i]);
-        //  }
-        //  printf("\n");
-        //}
-
-        //g.sync();
 
         Sink(g, heap, size, node_size, locks,
                   p_buffer_size, lowest_level_start, node_capacity, shmem,
@@ -1276,72 +1221,6 @@ __global__ void PushKernel(OutputIt elements,
 //  }
 //}
 
-/**
-* Remove exactly node_size elements from the heap and place them
-* in elements, using a warp to handle each node rather than a block
-* @param elements The array of elements to insert into
-* @param num_elements The number of elements to remove
-* @param heap The array of pairs that stores the heap itself
-* @param size Pointer to the number of pairs currently in the heap
-* @param node_size Size of the nodes in the heap
-* @param locks Array of locks, one for each node in the heap
-* @param p_buffer_size Number of pairs in the heap's partial buffer
-*/
-//template <typename OutputIt, typename T, typename Compare>
-//__global__ void PopKernelWarp(OutputIt elements,
-//                           size_t num_elements,
-//                           T *heap,
-//                           int *size,
-//                           size_t node_size,
-//                           int *locks,
-//                           size_t *p_buffer_size,
-//                           int lowest_level_start,
-//                           int node_capacity,
-//                           int bytes_shmem_per_warp,
-//			   Compare compare) {
-//
-//  extern __shared__ char sh[];
-//
-//  thread_block block = this_thread_block();
-//  thread_block_tile<32> warp = tiled_partition<32>(block); 
-//
-//  SharedMemoryLayout<T> shmem = GetSharedMemoryLayout<T>(
-//                   (int*)(sh + bytes_shmem_per_warp * warp.meta_group_rank()), 
-//                          32, node_size);
-//
-//  for (size_t i = warp.meta_group_rank() + (blockDim.x / 32) * blockIdx.x;
-//       i < num_elements / node_size;
-//       i += gridDim.x * blockDim.x / 32) {
-//    PopSingleNode(warp, elements, heap, size, node_size, locks,
-//                       p_buffer_size, lowest_level_start,
-//                       node_capacity, shmem, compare);
-//  }
-//
-//  AcquireLock(warp, &locks[kRootIdx]);
-//  // Remove from the partial buffer if there are no nodes
-//  // Only one thread will attempt this deletion because we have acquired
-//  // the root and will increment pop_tracker once we begin the deletion
-//  if (*pop_tracker == num_elements / node_size
-//      && num_elements % node_size != 0) {
-//
-//    if (warp.thread_rank() == 0) {
-//      *pop_tracker += 1;
-//    }
-//
-//    size_t p_del_size = num_elements % node_size;
-//
-//    ReleaseLock(warp, &locks[kRootIdx]);
-//
-//    PopPartialNode(warp, 
-//                   elements + (num_elements / node_size) * node_size,
-//                   p_del_size, heap, size, node_size, locks, p_buffer_size,
-//                   lowest_level_start, node_capacity, shmem, compare);
-//    
-//  } else {
-//    ReleaseLock(warp, &locks[kRootIdx]);
-//  }
-//}
-
 template <typename OutputIt, typename T, typename Compare>
 __global__ void PopPartialNodeKernel(OutputIt elements,
                            size_t num_elements,
@@ -1400,28 +1279,5 @@ __global__ void PopKernel(OutputIt elements,
                        p_buffer_size, lowest_level_start,
                        node_capacity, shmem, compare);
   }
-
-  //AcquireLock(g, &locks[kRootIdx]);
-  // Remove from the partial buffer if there are no nodes
-  // Only one thread will attempt this deletion because we have acquired
-  // the root and will increment pop_tracker once we begin the deletion
-  //if (*pop_tracker == num_elements / node_size
-  //    && num_elements % node_size != 0) {
-
-  //  if (g.thread_rank() == 0) {
-  //    *pop_tracker += 1;
-  //  }
-
-  //  size_t p_del_size = num_elements % node_size;
-
-  //  ReleaseLock(g, &locks[kRootIdx]);
-
-  //  PopPartialNode(g, elements + (num_elements / node_size) * node_size,
-  //                 p_del_size, heap, size, node_size, locks, p_buffer_size,
-  //                 lowest_level_start, node_capacity, shmem, compare);
-  //  
-  //} else {
-  //  ReleaseLock(g, &locks[kRootIdx]);
-  //}
 }
 }
