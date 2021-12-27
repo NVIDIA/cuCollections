@@ -118,6 +118,7 @@ __device__ void CopyPairs(CG const& g, InputIt1 dst_start,
 *           will be placed when the merge is completed
 * @param node_size The size of arrays a, b, lo, and hi
 * @param shmem The shared memory layout for this cooperative group
+* @param compare Comparison operator ordering the elements to be merged
 */
 template <typename T, typename CG, typename Compare>
 __device__ void MergeAndSort(CG const& g,
@@ -153,6 +154,7 @@ __device__ void MergeAndSort(CG const& g,
 *                  elements to insert into lo before starting insertion into
 *                  hi
 * @param shmem The shared memory layout for this cooperative group
+* @param compare Comparison operator ordering the elements to be merged
 */
 template <typename T, typename CG, typename Compare>
 __device__ void MergeAndSort(CG const& g,
@@ -306,6 +308,7 @@ __device__ void MergeAndSort(CG const& g,
 *                  temp can contain
 * @param temp A temporary array containing space for at least the nearest
 *             power of two greater than len pairs
+* @param compare Comparison operator ordering the elements to be sorted
 */
 template <typename T, typename CG, typename Compare>
 __device__ void PBSort(CG const& g, T *start, size_t len,
@@ -490,6 +493,7 @@ __device__ int RightChild(int x, int lowest_level_start) {
 * @param lowest_level_start Index of the first node in the last level of the
 *                           heap
 * @param shmem The shared memory layout for this cooperative group
+* @param compare Comparison operator ordering the elements in the heap
 */
 template <typename T, typename CG, typename Compare>
 __device__ void Swim(CG const& g,
@@ -554,6 +558,7 @@ __device__ void Swim(CG const& g,
 *                           heap
 * @param node_capacity Max capacity of the heap in nodes
 * @param shmem The shared memory layout for this cooperative group
+* @param compare Comparison operator ordering the elements in the heap
 */
 template <typename T, typename CG, typename Compare>
 __device__ void Sink(CG const& g,
@@ -678,6 +683,7 @@ __device__ void Sink(CG const& g,
 * @param lowest_level_start Index of the first node in the last level of the
 *                           heap
 * @param shmem The shared memory layout for this cooperative group
+* @param compare Comparison operator ordering the elements in the heap
 */
 template <typename InputIt, typename T, typename Compare, typename CG>
 __device__ void PushSingleNode(CG const& g,
@@ -733,6 +739,7 @@ __device__ void PushSingleNode(CG const& g,
 *                           heap
 * @param node_capacity Maximum capacity of the heap in nodes
 * @param shmem The shared memory layout for this cooperative group
+* @param compare Comparison operator ordering the elements in the heap
 */
 template <typename OutputIt, typename T, typename Compare, typename CG>
 __device__ void PopSingleNode(CG const& g,
@@ -835,6 +842,7 @@ __device__ void PopSingleNode(CG const& g,
 *                           heap
 * @param node_capacity Maximum capacity of the heap in nodes
 * @param shmem The shared memory layout for this cooperative group
+* @param compare Comparison operator ordering the elements in the heap
 */
 template <typename InputIt, typename T, typename Compare, typename CG>
 __device__ void PopPartialNode(CG const& g,
@@ -985,6 +993,7 @@ __device__ void PopPartialNode(CG const& g,
 * @param lowest_level_start Index of the first node in the last level of the
 *                           heap
 * @param shmem The shared memory layout for this cooperative group
+* @param compare Comparison operator ordering the elements in the heap
 */
 template <typename InputIt, typename T, typename Compare, typename CG>
 __device__ void PushPartialNode(CG const& g,
@@ -1112,6 +1121,8 @@ __device__ void PushPartialNode(CG const& g,
 * @param p_buffer_size Number of pairs in the heap's partial buffer
 * @param temp_node A temporary array large enough to store
                    sizeof(T) * node_size bytes
+* @param lowest_level_start The first index of the heaps lowest layer
+* @param compare Comparison operator ordering the elements in the heap
 */
 template <typename OutputIt, typename T, typename Compare>
 __global__ void PushKernel(OutputIt elements,
@@ -1159,68 +1170,18 @@ __global__ void PushKernel(OutputIt elements,
 }
 
 /**
-* Add num_elements elements into the heap from
-* elements, using a warp to handle each node rather than a block
-* @param elements The array of elements to add
-* @param num_elements The number of elements to be inserted
+* Remove num_elements < node_size elements from the queue
+* @param elements The array of elements to remove
+* @param num_elements The number of elements to be removed
 * @param heap The array of pairs that stores the heap itself
 * @param size Pointer to the number of pairs currently in the heap
 * @param node_size Size of the nodes in the heap
 * @param locks Array of locks, one for each node in the heap
 * @param p_buffer_size Number of pairs in the heap's partial buffer
-* @param temp_node A temporary array large enough to store
-                   sizeof(T) * node_size bytes
+* @param lowest_level_start The first index of the heaps lowest layer
+* @param node_capacity The capacity of the heap in nodes
+* @param compare Comparison operator ordering the elements in the heap
 */
-//template <typename InputIt, typename T, typename Compare>
-//__global__ void PushKernelWarp(InputIt elements,
-//                           size_t num_elements,
-//                           T *heap,
-//                           int *size,
-//                           size_t node_size,
-//                           int *locks,
-//                           size_t *p_buffer_size,
-//                           int lowest_level_start,
-//                           int bytes_shmem_per_warp,
-//			   Compare compare) {
-//
-//  extern __shared__ char sh[];
-//
-//  // We push as many elements as possible as full nodes,
-//  // then deal with the remaining elements as a partial insertion
-//  // below
-//  thread_block block = this_thread_block();
-//  thread_block_tile<32> warp = tiled_partition<32>(block); 
-//
-//  SharedMemoryLayout<T> shmem = GetSharedMemoryLayout<T>(
-//                  (int*)(sh + bytes_shmem_per_warp * warp.meta_group_rank()),
-//                         32, node_size);
-//
-//  for (size_t i = warp.meta_group_rank() * node_size
-//                   + blockIdx.x * node_size * (blockDim.x / 32);
-//       i + node_size <= num_elements;
-//       i += (blockDim.x / 32) * node_size * gridDim.x) {
-//    PushSingleNode(warp, elements + i, heap, size, node_size, locks,
-//                   lowest_level_start, shmem, compare);
-//  }
-//
-//  // We only need one block for partial insertion
-//  if (blockIdx.x != 0 || warp.meta_group_rank() != 0) {
-//    return;
-//  }
-//
-//  // If node_size does not divide num_elements, there are some leftover
-//  // elements for which we must perform a partial insertion
-//  size_t first_not_inserted = (num_elements / node_size)
-//                                             * node_size;
-//
-//  if (first_not_inserted < num_elements) {
-//    size_t p_ins_size = num_elements - first_not_inserted;
-//    PushPartialNode(warp, elements + first_not_inserted, p_ins_size,
-//                         heap, size, node_size, locks, p_buffer_size,
-//                         lowest_level_start, shmem, compare);
-//  }
-//}
-
 template <typename OutputIt, typename T, typename Compare>
 __global__ void PopPartialNodeKernel(OutputIt elements,
                            size_t num_elements,
@@ -1232,6 +1193,7 @@ __global__ void PopPartialNodeKernel(OutputIt elements,
                            int lowest_level_start,
                            int node_capacity,
 			   Compare compare) {
+
   extern __shared__ int s[];
 
   SharedMemoryLayout<T> shmem = GetSharedMemoryLayout<T>(s,
@@ -1244,7 +1206,6 @@ __global__ void PopPartialNodeKernel(OutputIt elements,
 
 }
 
-
 /**
 * Remove exactly node_size elements from the heap and place them
 * in elements
@@ -1255,6 +1216,9 @@ __global__ void PopPartialNodeKernel(OutputIt elements,
 * @param node_size Size of the nodes in the heap
 * @param locks Array of locks, one for each node in the heap
 * @param p_buffer_size Number of pairs in the heap's partial buffer
+* @param lowest_level_start The first index of the heaps lowest layer
+* @param node_capacity The capacity of the heap in nodes
+* @param compare Comparison operator ordering the elements in the heap
 */
 template <typename OutputIt, typename T, typename Compare>
 __global__ void PopKernel(OutputIt elements,
