@@ -65,29 +65,36 @@ std::map<T, size_t> construct_count_map(std::vector<T> &a) {
   return result;
 }
 
-template <typename T>
-bool count_maps_are_equal(std::map<T, size_t> &a, std::map<T, size_t> &b) {
+template <typename T, typename Compare>
+bool is_valid_top_n(std::vector<T> &top_n, std::vector<T> &elements) {
+  auto top_n_map = construct_count_map(top_n);
+  auto elements_map = construct_count_map(elements);
 
-  bool result = true;
-  for (auto &pair : a) {
-    if (b.find(pair.first) != b.end()) {
-      result = result && (b[pair.first]
-		          == pair.second);
-    } else {
+  size_t n = top_n.size();
+
+  // 1. Check that the count of each element in the top n is less than or
+  // equal to the count of that element overall in the queue
+  for (auto &pair : top_n_map) {
+    if (elements_map.find(pair.first) == elements_map.end()
+        || elements_map[pair.first] < pair.second) {
       return false;
     }
   }
 
-  return result;
+  // 2. Check that each element in the top N is not ordered
+  // after the (n - 1)th element of the sorted list of elements
+  std::sort(elements.begin(), elements.end(), Compare{});
 
-}
+  T max = elements[n - 1];
 
-template <typename T>
-bool has_same_elements(std::vector<T> &a, std::vector<T> &b) {
-  auto map_a = construct_count_map(a);
-  auto map_b = construct_count_map(b);
+  for (T &e : top_n) {
+    if (Compare{}(max, e)) {
+      return false;
+    }
+  }
 
-  return count_maps_are_equal(map_a, map_b);
+  return true;
+
 }
 
 template <typename T>
@@ -152,22 +159,9 @@ bool test_insertion_and_deletion(priority_queue<T, Compare> &pq,
 
   auto popped_elements = pop_from_queue(pq, n);
 
-  std::sort(elements.begin(), elements.end(), Compare{});
-
-  std::vector<T> correct_popped_elements(elements.begin(), elements.begin() + n);
-
-  return has_same_elements(correct_popped_elements, popped_elements);
+  return is_valid_top_n<T, Compare>(popped_elements, elements);
 
 }
-
-template <typename T, typename Compare>
-bool test_insertion_and_deletion(priority_queue<T, Compare> &pq,
-		              std::vector<T> &elements) {
-  return test_insertion_and_deletion(pq, elements, elements.size());
-}
-
-
-
 
 TEST_CASE("Single uint32_t element", "")
 {
@@ -176,7 +170,7 @@ TEST_CASE("Single uint32_t element", "")
 
   std::vector<uint32_t> els = {1};
 
-  REQUIRE(test_insertion_and_deletion(pq, els));
+  REQUIRE(test_insertion_and_deletion(pq, els, 1));
 
 }
 
@@ -202,12 +196,8 @@ TEST_CASE("New node created on partial insertion")
 
   auto popped_elements = pop_from_queue(pq, kInsertionSize);
 
-  std::sort(els.begin(), els.end());
-
-  std::vector<uint32_t> correct_popped_elements(els.begin(),
-		                                els.begin() + kInsertionSize);
-
-  REQUIRE(has_same_elements(popped_elements, correct_popped_elements));
+  REQUIRE(is_valid_top_n<uint32_t,
+		         thrust::less<uint32_t>>(popped_elements, els));
 
 }
 
@@ -233,15 +223,9 @@ TEST_CASE("Insert, delete, insert, delete", "") {
 
   auto second_popped_elements = pop_from_queue(pq, kSecondDeletionSize);
 
-  std::vector<T> correct_first_deletion;
+  std::vector<T> remaining_elements;
 
   std::sort(first_insertion_els.begin(), first_insertion_els.end(), Compare{});
-
-  correct_first_deletion.insert(correct_first_deletion.end(),
-		                first_insertion_els.begin(),
-                                first_insertion_els.begin() + kFirstDeletionSize);
-
-  std::vector<T> remaining_elements;
 
   remaining_elements.insert(remaining_elements.end(),
 		            first_insertion_els.begin() + kFirstDeletionSize,
@@ -251,16 +235,9 @@ TEST_CASE("Insert, delete, insert, delete", "") {
 		            second_insertion_els.begin(),
 			    second_insertion_els.end());
 
-  std::sort(remaining_elements.begin(), remaining_elements.end(), Compare{});
-
-  std::vector<T> correct_second_deletion;
-
-  correct_second_deletion.insert(correct_second_deletion.end(),
-		                remaining_elements.begin(),
-                                remaining_elements.begin() + kSecondDeletionSize);
-
-  REQUIRE((has_same_elements(correct_first_deletion, first_popped_elements) &&
-	 has_same_elements(correct_second_deletion, second_popped_elements)));
+  REQUIRE((is_valid_top_n<T, Compare>(first_popped_elements,
+				      first_insertion_els) &&
+	 is_valid_top_n<T, Compare>(second_popped_elements, remaining_elements)));
 
 
 }
@@ -308,12 +285,7 @@ TEST_CASE("Insertion and deletion on different streams", "")
   popped_elements.insert(popped_elements.end(), h_deletion2.begin(),
 		         h_deletion2.end());
 
-  std::sort(elements.begin(), elements.end(), Compare{});
-
-  std::vector<T> expected_popped_elements(elements.begin(),
-		                     elements.begin() + kDeletionSize * 2);
-
-  REQUIRE(has_same_elements(popped_elements, expected_popped_elements));
+  REQUIRE(is_valid_top_n<T, Compare>(popped_elements, elements));
 
   cudaStreamDestroy(stream1);
   cudaStreamDestroy(stream2);
@@ -371,11 +343,8 @@ TEST_CASE("Insertion and deletion with Device API", "")
   std::vector<T> pop_result(h_pop_result.begin(),
 		               h_pop_result.end());
 
-  std::sort(els.begin(), els.end(), Compare{});
 
-  std::vector<T> expected_pop_result(els.begin(), els.begin() + kDeletionSize);
-
-  REQUIRE(has_same_elements(pop_result, expected_pop_result));
+  REQUIRE(is_valid_top_n<T, Compare>(pop_result, els));
 }
 
 TEST_CASE("Concurrent insertion and deletion with Device API", "")
@@ -425,11 +394,7 @@ TEST_CASE("Concurrent insertion and deletion with Device API", "")
   std::vector<T> result(h_deletion1.begin(), h_deletion1.end());
   result.insert(result.end(), h_deletion2.begin(), h_deletion2.end());
 
-  std::sort(els.begin(), els.end(), Compare{});
-
-  std::vector<T> expected(els.begin(), els.begin() + kDeletionSize*2);
-
-  REQUIRE(has_same_elements(result, expected));
+  REQUIRE(is_valid_top_n<T, Compare>(result, els));
 
   cudaStreamDestroy(stream1);
   cudaStreamDestroy(stream2);
