@@ -40,7 +40,7 @@ __device__ SharedMemoryLayout<T> GetSharedMemoryLayout(
   result.intersections = s;
   result.A = (T*)(s + 2 * (dim + 1));
   result.B = result.A + node_size;
-  return result; 
+  return result;
 }
 
 /**
@@ -128,9 +128,9 @@ __device__ void MergeAndSort(CG const& g,
                                T *hi,
                                size_t node_size,
                                SharedMemoryLayout<T> shmem,
-			       Compare const& compare) {
+                               Compare const& compare) {
   MergeAndSort(g, a, b, lo, hi, node_size,
-	       node_size, node_size, shmem, compare);
+               node_size, node_size, shmem, compare);
 }
 
 /**
@@ -166,7 +166,7 @@ __device__ void MergeAndSort(CG const& g,
                                size_t num_elements_b,
                                size_t node_size,
                                SharedMemoryLayout<T> shmem,
-			       Compare const& compare) {
+                               Compare const& compare) {
 
   int lane = g.thread_rank();
   int dim = g.size();
@@ -314,7 +314,7 @@ template <typename T, typename CG, typename Compare>
 __device__ void PBSort(CG const& g, T *start, size_t len,
                               size_t node_size,
                               T *temp,
-			      Compare const& compare) {
+                              Compare const& compare) {
 
 
   int lane = g.thread_rank();
@@ -504,7 +504,7 @@ __device__ void Swim(CG const& g,
                      int *locks,
                      int lowest_level_start,
                      SharedMemoryLayout<T> shmem,
-		     Compare const& compare) {
+                     Compare const& compare) {
 
   int lane = g.thread_rank();
   int dim = g.size();
@@ -529,7 +529,7 @@ __device__ void Swim(CG const& g,
                    shmem.B,
                    node_size,
                    shmem,
-		   compare);
+                   compare);
 
     g.sync();
 
@@ -542,11 +542,11 @@ __device__ void Swim(CG const& g,
   }
 
   ReleaseLock(g, &(locks[cur_node]));
-  
+
 }
 
 /**
-* Sink the root down the heap 
+* Sink the root down the heap
 * Pre: g must hold the root's lock
 *
 * @param g The cooperative group that will perform the operation
@@ -570,7 +570,7 @@ __device__ void Sink(CG const& g,
                      int lowest_level_start,
                      int node_capacity,
                      SharedMemoryLayout<T> shmem,
-		     Compare const& compare) {
+                     Compare const& compare) {
 
   size_t cur = kRootIdx;
 
@@ -628,7 +628,7 @@ __device__ void Sink(CG const& g,
                          shmem.B,
                          node_size,
                          shmem,
-			 compare);
+                         compare);
 
           g.sync();
 
@@ -652,7 +652,7 @@ __device__ void Sink(CG const& g,
                    shmem.B,
                    node_size,
                    shmem,
-		   compare);
+                   compare);
 
     g.sync();
 
@@ -667,7 +667,7 @@ __device__ void Sink(CG const& g,
 
   }
   ReleaseLock(g, &locks[cur]);
-  
+
 }
 
 /**
@@ -694,7 +694,7 @@ __device__ void PushSingleNode(CG const& g,
                                  int *locks,
                                  int lowest_level_start,
                                  SharedMemoryLayout<T> shmem,
-				 Compare const& compare) {
+                                 Compare const& compare) {
 
   int lane = g.thread_rank();
   int dim = g.size();
@@ -752,7 +752,7 @@ __device__ void PopSingleNode(CG const& g,
                               int lowest_level_start,
                               int node_capacity,
                               SharedMemoryLayout<T> shmem,
-			      Compare const& compare) {
+                              Compare const& compare) {
 
   int lane = g.thread_rank();
   int dim = g.size();
@@ -812,7 +812,7 @@ __device__ void PopSingleNode(CG const& g,
                  *p_buffer_size,
                  node_size,
                  shmem,
-		 compare);
+                 compare);
 
   g.sync();
 
@@ -856,7 +856,7 @@ __device__ void PopPartialNode(CG const& g,
                                int lowest_level_start,
                                int node_capacity,
                                SharedMemoryLayout<T> shmem,
-			       Compare const& compare) {
+                               Compare const& compare) {
   int lane = g.thread_rank();
   int dim = g.size();
 
@@ -895,7 +895,7 @@ __device__ void PopPartialNode(CG const& g,
                       node_size - num_elements,
                       node_size,
                       shmem,
-		      compare);
+                      compare);
 
       g.sync();
 
@@ -922,7 +922,7 @@ __device__ void PopPartialNode(CG const& g,
                       node_size - num_elements,
                       node_size,
                       shmem,
-		      compare);
+                      compare);
 
       g.sync();
 
@@ -959,7 +959,7 @@ __device__ void PopPartialNode(CG const& g,
                        *p_buffer_size,
                        node_size,
                        shmem,
-		       compare);
+                       compare);
         g.sync();
 
         CopyPairs(g, &heap[node_size], shmem.A, node_size);
@@ -970,7 +970,7 @@ __device__ void PopPartialNode(CG const& g,
 
         Sink(g, heap, size, node_size, locks,
                   p_buffer_size, lowest_level_start, node_capacity, shmem,
-		  compare);
+                  compare);
       } else {
         ReleaseLock(g, &locks[kRootIdx]);
       }
@@ -1003,10 +1003,10 @@ __device__ void PushPartialNode(CG const& g,
                                 int *size,
                                 size_t node_size,
                                 int *locks,
-                                size_t *p_buffer_size, 
+                                size_t *p_buffer_size,
                                 int lowest_level_start,
                                 SharedMemoryLayout<T> shmem,
-				Compare const& compare) {
+                                Compare const& compare) {
 
   int lane = g.thread_rank();
   int dim = g.size();
@@ -1043,7 +1043,7 @@ __device__ void PushPartialNode(CG const& g,
                    *p_buffer_size,
                    node_size,
                    shmem,
-		   compare);
+                   compare);
 
     if (lane == 0) {
       *p_buffer_size = (*p_buffer_size + p_ins_size) - node_size;
@@ -1074,7 +1074,7 @@ __device__ void PushPartialNode(CG const& g,
                    *p_buffer_size,
                    node_size,
                    shmem,
-		   compare);
+                   compare);
 
     g.sync();
 
@@ -1097,7 +1097,7 @@ __device__ void PushPartialNode(CG const& g,
                      *p_buffer_size,
                      node_size,
                      shmem,
-		     compare);
+                     compare);
       g.sync();
 
       CopyPairs(g, heap, shmem.B, *p_buffer_size);
@@ -1133,7 +1133,7 @@ __global__ void PushKernel(OutputIt elements,
                            int *locks,
                            size_t *p_buffer_size,
                            int lowest_level_start,
-			   Compare compare) {
+                           Compare compare) {
 
   extern __shared__ int s[];
 
@@ -1193,7 +1193,7 @@ __global__ void PopKernel(OutputIt elements,
                            size_t *p_buffer_size,
                            int lowest_level_start,
                            int node_capacity,
-			   Compare compare) {
+                           Compare compare) {
 
   extern __shared__ int s[];
 
