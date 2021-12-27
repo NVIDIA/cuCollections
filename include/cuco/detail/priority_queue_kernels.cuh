@@ -876,22 +876,16 @@ __device__ void PopPartialNode(CG const& g,
 
     size_t n_p_buffer_size = *p_buffer_size - num_elements;
 
-    if (n_p_buffer_size > 0) {
-      size_t remaining = n_p_buffer_size;
-      size_t index = 0;
-      while (remaining > 0) {
-        size_t this_round = min(remaining, num_elements);
-        CopyPairs(g, heap + index, heap + index + num_elements,
-                  this_round);
-        remaining -= this_round;
-        index += this_round;
-        g.sync();
-      }
-    }
+    CopyPairs(g, shmem.A, heap + num_elements, n_p_buffer_size);
+
+    g.sync();
+
+    CopyPairs(g, heap, shmem.A, n_p_buffer_size);
 
     if (lane == 0) {
       *p_buffer_size = n_p_buffer_size;
     }
+
     ReleaseLock(g, &locks[kRootIdx]);
   } else {
 
