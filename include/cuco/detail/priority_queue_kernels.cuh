@@ -1170,43 +1170,6 @@ __global__ void PushKernel(OutputIt elements,
 }
 
 /**
-* Remove num_elements < node_size elements from the queue
-* @param elements The array of elements to remove
-* @param num_elements The number of elements to be removed
-* @param heap The array of pairs that stores the heap itself
-* @param size Pointer to the number of pairs currently in the heap
-* @param node_size Size of the nodes in the heap
-* @param locks Array of locks, one for each node in the heap
-* @param p_buffer_size Number of pairs in the heap's partial buffer
-* @param lowest_level_start The first index of the heaps lowest layer
-* @param node_capacity The capacity of the heap in nodes
-* @param compare Comparison operator ordering the elements in the heap
-*/
-template <typename OutputIt, typename T, typename Compare>
-__global__ void PopPartialNodeKernel(OutputIt elements,
-                           size_t num_elements,
-                           T *heap,
-                           int *size,
-                           size_t node_size,
-                           int *locks,
-                           size_t *p_buffer_size,
-                           int lowest_level_start,
-                           int node_capacity,
-			   Compare compare) {
-
-  extern __shared__ int s[];
-
-  SharedMemoryLayout<T> shmem = GetSharedMemoryLayout<T>(s,
-                                                       blockDim.x, node_size);
-
-  thread_block g = this_thread_block();
-  PopPartialNode(g, elements,
-                   num_elements, heap, size, node_size, locks, p_buffer_size,
-                   lowest_level_start, node_capacity, shmem, compare);
-
-}
-
-/**
 * Remove exactly node_size elements from the heap and place them
 * in elements
 * @param elements The array of elements to insert into
@@ -1243,5 +1206,23 @@ __global__ void PopKernel(OutputIt elements,
                        p_buffer_size, lowest_level_start,
                        node_capacity, shmem, compare);
   }
+
+  // We only need one block for partial deletion
+  if (blockIdx.x != 0) {
+    return;
+  }
+
+  // If node_size does not divide num_elements, there are some leftover
+  // elements for which we must perform a partial deletion
+  size_t first_not_inserted = (num_elements / node_size)
+                                             * node_size;
+
+  if (first_not_inserted < num_elements) {
+    size_t p_del_size = num_elements - first_not_inserted;
+    PopPartialNode(g, elements + first_not_inserted,
+                   p_del_size, heap, size, node_size, locks, p_buffer_size,
+                   lowest_level_start, node_capacity, shmem, compare);
+  }
 }
+
 }

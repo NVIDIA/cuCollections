@@ -305,8 +305,8 @@ __global__ void DeviceAPIDelete(
 
 TEST_CASE("Insertion and deletion with Device API", "")
 {
-  const size_t kInsertionSize = 1000;
-  const size_t kDeletionSize = 500;
+  const size_t kInsertionSize = 2000;
+  const size_t kDeletionSize = 1000;
   using T = uint32_t;
   using Compare = thrust::less<uint32_t>;
 

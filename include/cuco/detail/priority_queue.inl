@@ -100,26 +100,14 @@ void priority_queue<T, Compare, FavorInsertionPerformance,
   const int partial = pop_size % node_size_;
 
   const int kBlockSize = min(256, (int)node_size_);
-  const int kNumBlocks = min(64000, (int)((pop_size - partial) / node_size_));
+  const int kNumBlocks = min(64000,
+		             max(1, (int)((pop_size - partial) / node_size_)));
 
-  if (partial != 0) {
-    PopPartialNodeKernel<<<1, kBlockSize, get_shmem_size(kBlockSize),
-	                   stream>>>
-                        (first, partial, d_heap_, d_size_,
-			 node_size_, d_locks_, d_p_buffer_size_,
-                         lowest_level_start_, node_capacity_, compare_);
-  }
-
-  pop_size -= partial;
-  first += partial;
-
-  if (pop_size > 0) {
-    PopKernel<<<kNumBlocks, kBlockSize,
+  PopKernel<<<kNumBlocks, kBlockSize,
                  get_shmem_size(kBlockSize), stream>>>
              (first, pop_size, d_heap_, d_size_,
               node_size_, d_locks_, d_p_buffer_size_,
               lowest_level_start_, node_capacity_, compare_);
-  }
 
   CUCO_CUDA_TRY(cudaGetLastError());
 }
@@ -140,12 +128,14 @@ __device__ void priority_queue<T, Compare,
                                          g.size(), node_size_);
 
   auto push_size = last - first;
-
-  if (last - first == node_size_) {
-    PushSingleNode(g, first, d_heap_, d_size_, node_size_,
+  for (size_t i = 0; i < push_size / node_size_; i++) {
+    PushSingleNode(g, first + i * node_size_, d_heap_, d_size_, node_size_,
                    d_locks_, lowest_level_start_, shmem, compare_);
-  } else if (last - first < node_size_) {
-    PushPartialNode(g, first, last - first, d_heap_,
+  }
+
+  if (push_size % node_size_ != 0) {
+    PushPartialNode(g, first + (push_size / node_size_) * node_size_,
+		         push_size % node_size_, d_heap_,
                          d_size_, node_size_, d_locks_,
                          d_p_buffer_size_, lowest_level_start_, shmem,
 			 compare_);
@@ -166,12 +156,17 @@ __device__ void priority_queue<T, Compare,
        GetSharedMemoryLayout<T>((int*)temp_storage,
                                          g.size(), node_size_);
 
-  if (last - first == node_size_) {
-    PopSingleNode(g, first, d_heap_, d_size_, node_size_, d_locks_,
+  auto pop_size = last - first;
+  for (size_t i = 0; i < pop_size / node_size_; i++) {
+    PopSingleNode(g, first + i * node_size_,
+		  d_heap_, d_size_, node_size_, d_locks_,
                   d_p_buffer_size_, lowest_level_start_,
                   node_capacity_, shmem, compare_);
-  } else {
-    PopPartialNode(g, first, last - first, d_heap_, d_size_, node_size_,
+  }
+
+  if (pop_size % node_size_ != 0) {
+    PopPartialNode(g, first + (pop_size / node_size_) * node_size_,
+		   last - first, d_heap_, d_size_, node_size_,
                    d_locks_, d_p_buffer_size_, lowest_level_start_,
                    node_capacity_, shmem, compare_);
   }
