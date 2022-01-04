@@ -84,6 +84,40 @@ Binaries will be built into:
 - `build/examples/`
 
 
+## Code Formatting
+
+`cuCollections` uses [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html)
+
+In order to format the C++/CUDA files, navigate to the root (`cuCollections`) directory and run:
+```
+python3 ./scripts/run-clang-format.py -inplace
+```
+
+Additionally, many editors have plugins or extensions that you can set up to automatically run `clang-format` either manually or on file save.
+
+### Pre-commit hooks
+
+Optionally, you may wish to setup [pre-commit hooks](https://pre-commit.com/)
+to automatically run `clang-format` when you make a git commit.
+This can be done by installing `pre-commit` via `conda` or `pip`:
+
+```bash
+conda install -c conda-forge pre_commit
+```
+
+```bash
+pip install pre-commit
+```
+
+and then running:
+
+```bash
+pre-commit install
+```
+
+from the root of the `cuCollections` repository. Now `clang-format` will be run each time you commit changes.
+
+
 ## Data Structures
 
 We plan to add many GPU-accelerated, concurrent data structures to `cuCollections`. As of now, the two flagships are variants of hash tables. 
