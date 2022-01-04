@@ -89,8 +89,8 @@ def parse_args():
         raise Exception("Failed to figure out clang-format version!")
     version = version.group(1)
     if version != EXPECTED_VERSION:
-        raise Exception(
-            "clang-format exe must be v%s found '%s'"
+        print(
+            "Recommended clang-format exe %s found '%s'"
             % (EXPECTED_VERSION, version)
         )
     if len(args.dirs) == 0:
