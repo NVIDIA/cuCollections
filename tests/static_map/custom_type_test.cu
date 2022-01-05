@@ -19,7 +19,7 @@
 
 #include <cuco/static_map.cuh>
 
-#include <util.hpp>
+#include <utils.hpp>
 
 // User-defined key type
 template <typename T>
@@ -138,13 +138,12 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
              hash_custom_key{},
              custom_key_equals{});
 
-    REQUIRE(thrust::equal(thrust::device,
-                          insert_values.begin(),
-                          insert_values.end(),
-                          found_values.begin(),
-                          [] __device__(Value lhs, Value rhs) {
-                            return std::tie(lhs.f, lhs.s) == std::tie(rhs.f, rhs.s);
-                          }));
+    REQUIRE(cuco::test::equal(insert_values.begin(),
+                              insert_values.end(),
+                              found_values.begin(),
+                              [] __device__(Value lhs, Value rhs) {
+                                return std::tie(lhs.f, lhs.s) == std::tie(rhs.f, rhs.s);
+                              }));
   }
 
   SECTION("All inserted keys-value pairs should be contained")
@@ -156,7 +155,8 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                  contained.begin(),
                  hash_custom_key{},
                  custom_key_equals{});
-    REQUIRE(all_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::all_of(
+      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
   SECTION("All conditionally inserted keys-value pairs should be contained")
@@ -175,13 +175,12 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                  hash_custom_key{},
                  custom_key_equals{});
 
-    REQUIRE(thrust::equal(thrust::device,
-                          contained.begin(),
-                          contained.end(),
-                          thrust::counting_iterator<int>(0),
-                          [] __device__(auto const& idx_contained, auto const& idx) {
-                            return ((idx % 2) == 0) == idx_contained;
-                          }));
+    REQUIRE(cuco::test::equal(contained.begin(),
+                              contained.end(),
+                              thrust::counting_iterator<int>(0),
+                              [] __device__(auto const& idx_contained, auto const& idx) {
+                                return ((idx % 2) == 0) == idx_contained;
+                              }));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
@@ -192,8 +191,8 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                  contained.begin(),
                  hash_custom_key{},
                  custom_key_equals{});
-    REQUIRE(
-      none_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::none_of(
+      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
   SECTION("All inserted keys-value pairs should be contained")
@@ -201,7 +200,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     thrust::device_vector<bool> contained(num);
     map.insert(insert_pairs, insert_pairs + num, hash_custom_key{}, custom_key_equals{});
     auto view = map.get_device_view();
-    REQUIRE(all_of(
+    REQUIRE(cuco::test::all_of(
       insert_pairs, insert_pairs + num, [view] __device__(cuco::pair_type<Key, Value> const& pair) {
         return view.contains(pair.first, hash_custom_key{}, custom_key_equals{});
       }));
@@ -210,11 +209,12 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   SECTION("Inserting unique keys should return insert success.")
   {
     auto m_view = map.get_device_mutable_view();
-    REQUIRE(all_of(insert_pairs,
-                   insert_pairs + num,
-                   [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                     return m_view.insert(pair, hash_custom_key{}, custom_key_equals{});
-                   }));
+    REQUIRE(
+      cuco::test::all_of(insert_pairs,
+                         insert_pairs + num,
+                         [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+                           return m_view.insert(pair, hash_custom_key{}, custom_key_equals{});
+                         }));
   }
 
   SECTION("Cannot find any key in an empty hash map")
@@ -222,23 +222,23 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     SECTION("non-const view")
     {
       auto view = map.get_device_view();
-      REQUIRE(all_of(insert_pairs,
-                     insert_pairs + num,
-                     [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                       return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) ==
-                              view.end();
-                     }));
+      REQUIRE(cuco::test::all_of(
+        insert_pairs,
+        insert_pairs + num,
+        [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+          return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) == view.end();
+        }));
     }
 
     SECTION("const view")
     {
       auto const view = map.get_device_view();
-      REQUIRE(all_of(insert_pairs,
-                     insert_pairs + num,
-                     [view] __device__(cuco::pair_type<Key, Value> const& pair) {
-                       return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) ==
-                              view.end();
-                     }));
+      REQUIRE(cuco::test::all_of(
+        insert_pairs,
+        insert_pairs + num,
+        [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+          return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) == view.end();
+        }));
     }
   }
 }

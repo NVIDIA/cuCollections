@@ -19,7 +19,7 @@
 
 #include <cuco/static_multimap.cuh>
 
-#include <util.hpp>
+#include <utils.hpp>
 
 // User-defined key type
 struct key_pair {
@@ -44,13 +44,36 @@ struct value_pair {
   int32_t s;
 };
 
-template <typename Key, typename Value, typename Map, typename PairIt, typename KeyIt>
-__inline__ void test_custom_key_value_type(Map& map,
-                                           PairIt pair_begin,
-                                           KeyIt key_begin,
-                                           size_t num_pairs)
+template <typename Map>
+__inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
 {
+  using Key   = key_pair;
+  using Value = value_pair;
+
   constexpr cudaStream_t stream = 0;
+
+  thrust::device_vector<Key> insert_keys(num_pairs);
+  thrust::device_vector<Value> insert_values(num_pairs);
+
+  thrust::transform(thrust::device,
+                    thrust::counting_iterator<int>(0),
+                    thrust::counting_iterator<int>(num_pairs),
+                    insert_keys.begin(),
+                    [] __device__(auto i) {
+                      return Key{i, i};
+                    });
+
+  thrust::transform(thrust::device,
+                    thrust::counting_iterator<int>(0),
+                    thrust::counting_iterator<int>(num_pairs),
+                    insert_values.begin(),
+                    [] __device__(auto i) {
+                      return Value{i, i};
+                    });
+
+  auto pair_begin =
+    thrust::make_zip_iterator(thrust::make_tuple(insert_keys.begin(), insert_values.begin()));
+  auto key_begin = insert_keys.begin();
 
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
   {
@@ -77,8 +100,7 @@ __inline__ void test_custom_key_value_type(Map& map,
       [] __device__(const cuco::pair_type<Key, Value>& lhs,
                     const cuco::pair_type<Key, Value>& rhs) { return lhs.first.a < rhs.first.a; });
 
-    REQUIRE(thrust::equal(
-      thrust::device,
+    REQUIRE(cuco::test::equal(
       pair_begin,
       pair_begin + num_pairs,
       found_pairs.begin(),
@@ -94,6 +116,7 @@ __inline__ void test_custom_key_value_type(Map& map,
     auto const num = num_pairs * 2;
     thrust::device_vector<Key> query_keys(num);
     auto query_key_begin = query_keys.begin();
+
     thrust::transform(thrust::device,
                       thrust::counting_iterator<int>(0),
                       thrust::counting_iterator<int>(num),
@@ -119,9 +142,7 @@ __inline__ void test_custom_key_value_type(Map& map,
       found_pairs.end(),
       [] __device__(const cuco::pair_type<Key, Value>& lhs,
                     const cuco::pair_type<Key, Value>& rhs) { return lhs.first.a < rhs.first.a; });
-
-    REQUIRE(thrust::equal(
-      thrust::device,
+    REQUIRE(cuco::test::equal(
       pair_begin,
       pair_begin + num_pairs,
       found_pairs.begin(),
@@ -166,7 +187,8 @@ __inline__ void test_custom_key_value_type(Map& map,
 
     thrust::device_vector<bool> contained(num_pairs);
     map.contains(key_begin, key_begin + num_pairs, contained.begin(), stream, key_pair_equals{});
-    REQUIRE(all_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::all_of(
+      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
@@ -176,16 +198,17 @@ __inline__ void test_custom_key_value_type(Map& map,
 
     thrust::device_vector<bool> contained(num_pairs);
     map.contains(key_begin, key_begin + num_pairs, contained.begin(), stream, key_pair_equals{});
-    REQUIRE(
-      none_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+
+    REQUIRE(cuco::test::none_of(
+      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
 }
 
 TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                        "",
-                       ((probe_sequence Probe), Probe),
-                       (probe_sequence::linear_probing),
-                       (probe_sequence::double_hashing))
+                       ((cuco::test::probe_sequence Probe), Probe),
+                       (cuco::test::probe_sequence::linear_probing),
+                       (cuco::test::probe_sequence::double_hashing))
 {
   using Key   = key_pair;
   using Value = value_pair;
@@ -196,38 +219,17 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   constexpr std::size_t num_pairs = 100;
   constexpr std::size_t capacity  = num_pairs * 2;
 
-  thrust::device_vector<Key> insert_keys(num_pairs);
-  thrust::device_vector<Value> insert_values(num_pairs);
-
-  thrust::transform(thrust::device,
-                    thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num_pairs),
-                    insert_keys.begin(),
-                    [] __device__(auto i) {
-                      return Key{i, i};
-                    });
-
-  thrust::transform(thrust::device,
-                    thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num_pairs),
-                    insert_values.begin(),
-                    [] __device__(auto i) {
-                      return Value{i, i};
-                    });
-  auto insert_pairs =
-    thrust::make_zip_iterator(thrust::make_tuple(insert_keys.begin(), insert_values.begin()));
-
-  if constexpr (Probe == probe_sequence::linear_probing) {
-    cuco::static_multimap<key_pair,
-                          value_pair,
+  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
+    cuco::static_multimap<Key,
+                          Value,
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
                           cuco::linear_probing<1, hash_key_pair>>
       map{capacity, sentinel_key, sentinel_value};
-    test_custom_key_value_type<Key, Value>(map, insert_pairs, insert_keys.begin(), num_pairs);
+    test_custom_key_value_type(map, num_pairs);
   }
-  if constexpr (Probe == probe_sequence::double_hashing) {
+  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
     cuco::static_multimap<Key, Value> map{capacity, sentinel_key, sentinel_value};
-    test_custom_key_value_type<Key, Value>(map, insert_pairs, insert_keys.begin(), num_pairs);
+    test_custom_key_value_type(map, num_pairs);
   }
 }

@@ -19,7 +19,7 @@
 
 #include <cuco/static_multimap.cuh>
 
-#include <util.hpp>
+#include <utils.hpp>
 
 template <typename Key, typename Map, typename PairIt, typename KeyIt>
 __inline__ void test_insert_if(Map& map, PairIt pair_begin, KeyIt key_begin, std::size_t size)
@@ -36,15 +36,16 @@ __inline__ void test_insert_if(Map& map, PairIt pair_begin, KeyIt key_begin, std
   REQUIRE(num * 2 == size);
 }
 
-TEMPLATE_TEST_CASE_SIG("Tests of insert_if",
-                       "",
-                       ((typename Key, typename Value, probe_sequence Probe), Key, Value, Probe),
-                       (int32_t, int32_t, probe_sequence::linear_probing),
-                       (int32_t, int64_t, probe_sequence::linear_probing),
-                       (int64_t, int64_t, probe_sequence::linear_probing),
-                       (int32_t, int32_t, probe_sequence::double_hashing),
-                       (int32_t, int64_t, probe_sequence::double_hashing),
-                       (int64_t, int64_t, probe_sequence::double_hashing))
+TEMPLATE_TEST_CASE_SIG(
+  "Tests of insert_if",
+  "",
+  ((typename Key, typename Value, cuco::test::probe_sequence Probe), Key, Value, Probe),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing))
 {
   constexpr std::size_t num_keys{1'000};
 
@@ -61,7 +62,7 @@ TEMPLATE_TEST_CASE_SIG("Tests of insert_if",
                       return cuco::pair_type<Key, Value>{i, i};
                     });
 
-  if constexpr (Probe == probe_sequence::linear_probing) {
+  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
     cuco::static_multimap<Key,
                           Value,
                           cuda::thread_scope_device,
@@ -70,7 +71,7 @@ TEMPLATE_TEST_CASE_SIG("Tests of insert_if",
       map{num_keys * 2, -1, -1};
     test_insert_if<Key>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }
-  if constexpr (Probe == probe_sequence::double_hashing) {
+  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
     cuco::static_multimap<Key, Value> map{num_keys * 2, -1, -1};
     test_insert_if<Key>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }

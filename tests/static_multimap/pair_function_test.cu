@@ -20,7 +20,7 @@
 
 #include <cuco/static_multimap.cuh>
 
-#include <util.hpp>
+#include <utils.hpp>
 
 // Custom pair equal
 template <typename Key, typename Value>
@@ -85,15 +85,16 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Tests of pair functions",
-                       "",
-                       ((typename Key, typename Value, probe_sequence Probe), Key, Value, Probe),
-                       (int32_t, int32_t, probe_sequence::linear_probing),
-                       (int32_t, int64_t, probe_sequence::linear_probing),
-                       (int64_t, int64_t, probe_sequence::linear_probing),
-                       (int32_t, int32_t, probe_sequence::double_hashing),
-                       (int32_t, int64_t, probe_sequence::double_hashing),
-                       (int64_t, int64_t, probe_sequence::double_hashing))
+TEMPLATE_TEST_CASE_SIG(
+  "Tests of pair functions",
+  "",
+  ((typename Key, typename Value, cuco::test::probe_sequence Probe), Key, Value, Probe),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing))
 {
   constexpr std::size_t num_pairs{4};
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_pairs);
@@ -107,7 +108,7 @@ TEMPLATE_TEST_CASE_SIG("Tests of pair functions",
                       return cuco::pair_type<Key, Value>{i / 2, i};
                     });
 
-  if constexpr (Probe == probe_sequence::linear_probing) {
+  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
     cuco::static_multimap<Key,
                           Value,
                           cuda::thread_scope_device,
@@ -116,7 +117,7 @@ TEMPLATE_TEST_CASE_SIG("Tests of pair functions",
       map{num_pairs * 2, -1, -1};
     test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
   }
-  if constexpr (Probe == probe_sequence::double_hashing) {
+  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
     cuco::static_multimap<Key, Value> map{num_pairs * 2, -1, -1};
     test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
   }

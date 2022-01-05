@@ -20,7 +20,7 @@
 
 #include <cuco/static_multimap.cuh>
 
-#include <util.hpp>
+#include <utils.hpp>
 
 // Custom pair equal
 template <typename Key, typename Value>
@@ -52,7 +52,7 @@ __global__ void custom_pair_retrieve_outer(InputIt first,
                                            viewT view,
                                            PairEqual pair_equal)
 {
-  auto g        = cg::tiled_partition<cg_size>(cg::this_thread_block());
+  auto g        = cuco::test::cg::tiled_partition<cg_size>(cuco::test::cg::this_thread_block());
   auto tid      = block_size * blockIdx.x + threadIdx.x;
   auto pair_idx = tid / cg_size;
 
@@ -157,36 +157,36 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
                                                               return i - (int(num_pairs) / 2);
                                                             });
 
-  REQUIRE(
-    thrust::equal(thrust::device, probe_keys.begin(), probe_keys.begin() + gold_size, gold_probe));
+  auto key_equal   = thrust::equal_to<Key>{};
+  auto value_equal = thrust::equal_to<Value>{};
 
   REQUIRE(
-    thrust::equal(thrust::device, probe_vals.begin(), probe_vals.begin() + gold_size, gold_probe));
+    cuco::test::equal(probe_keys.begin(), probe_keys.begin() + gold_size, gold_probe, key_equal));
 
-  REQUIRE(thrust::equal(thrust::device,
-                        contained_keys.begin(),
-                        contained_keys.begin() + gold_size,
-                        gold_contained_key));
+  REQUIRE(
+    cuco::test::equal(probe_vals.begin(), probe_vals.begin() + gold_size, gold_probe, value_equal));
 
-  REQUIRE(thrust::equal(thrust::device,
-                        contained_vals.begin(),
-                        contained_vals.begin() + gold_size,
-                        gold_contained_val));
+  REQUIRE(cuco::test::equal(
+    contained_keys.begin(), contained_keys.begin() + gold_size, gold_contained_key, key_equal));
+
+  REQUIRE(cuco::test::equal(
+    contained_vals.begin(), contained_vals.begin() + gold_size, gold_contained_val, value_equal));
 }
 
-TEMPLATE_TEST_CASE_SIG("Tests of non-shared-memory pair_retrieve",
-                       "",
-                       ((typename Key, typename Value, probe_sequence Probe), Key, Value, Probe),
-                       (int32_t, int32_t, probe_sequence::linear_probing),
-                       (int32_t, int64_t, probe_sequence::linear_probing),
-                       (int64_t, int64_t, probe_sequence::linear_probing),
-                       (int32_t, int32_t, probe_sequence::double_hashing),
-                       (int32_t, int64_t, probe_sequence::double_hashing),
-                       (int64_t, int64_t, probe_sequence::double_hashing))
+TEMPLATE_TEST_CASE_SIG(
+  "Tests of non-shared-memory pair_retrieve",
+  "",
+  ((typename Key, typename Value, cuco::test::probe_sequence Probe), Key, Value, Probe),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing))
 {
   constexpr std::size_t num_pairs{200};
 
-  if constexpr (Probe == probe_sequence::linear_probing) {
+  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
     cuco::static_multimap<Key,
                           Value,
                           cuda::thread_scope_device,
@@ -195,7 +195,7 @@ TEMPLATE_TEST_CASE_SIG("Tests of non-shared-memory pair_retrieve",
       map{num_pairs * 2, -1, -1};
     test_non_shmem_pair_retrieve(map, num_pairs);
   }
-  if constexpr (Probe == probe_sequence::double_hashing) {
+  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
     cuco::static_multimap<Key, Value> map{num_pairs * 2, -1, -1};
     test_non_shmem_pair_retrieve(map, num_pairs);
   }

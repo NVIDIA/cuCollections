@@ -21,7 +21,7 @@
 
 #include <cuco/static_map.cuh>
 
-#include <util.hpp>
+#include <utils.hpp>
 
 template <typename MapType, int CAPACITY>
 __global__ void shared_memory_test_kernel(
@@ -38,7 +38,7 @@ __global__ void shared_memory_test_kernel(
 
   __shared__ typename MapType::pair_atomic_type sm_buffer[CAPACITY];
 
-  auto g = cg::this_thread_block();
+  auto g = cuco::test::cg::this_thread_block();
   typename MapType::device_view sm_device_view =
     MapType::device_view::make_copy(g, sm_buffer, device_views[map_id]);
 
@@ -120,7 +120,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
     auto zip = thrust::make_zip_iterator(
       thrust::make_tuple(d_keys_exist.begin(), d_keys_and_values_correct.begin()));
 
-    REQUIRE(all_of(zip, zip + d_keys_exist.size(), [] __device__(auto const& z) {
+    REQUIRE(cuco::test::all_of(zip, zip + d_keys_exist.size(), [] __device__(auto const& z) {
       return thrust::get<0>(z) and thrust::get<1>(z);
     }));
   }
@@ -141,9 +141,9 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
                                d_keys_exist.data().get(),
                                d_keys_and_values_correct.data().get());
 
-    REQUIRE(none_of(d_keys_exist.begin(), d_keys_exist.end(), [] __device__(const bool key_found) {
-      return key_found;
-    }));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
+                                d_keys_exist.end(),
+                                [] __device__(const bool key_found) { return key_found; }));
   }
 }
 
@@ -177,5 +177,5 @@ TEMPLATE_TEST_CASE("Shared memory slots.", "", int32_t)
   thrust::device_vector<bool> key_found(N, false);
   shared_memory_hash_table_kernel<TestType, TestType, N><<<8, 32>>>(key_found.data().get());
 
-  REQUIRE(all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
+  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
 }

@@ -19,7 +19,7 @@
 
 #include <cuco/static_map.cuh>
 
-#include <util.hpp>
+#include <utils.hpp>
 
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
                        "",
@@ -61,7 +61,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
     // cudaStreamSynchronize(stream);
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), d_values.begin()));
 
-    REQUIRE(all_of(
+    REQUIRE(cuco::test::all_of(
       zip,
       zip + num_keys,
       [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); },
@@ -75,7 +75,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
     map.insert(pairs_begin, pairs_begin + num_keys, hash_fn, equal_fn, stream);
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), hash_fn, equal_fn, stream);
 
-    REQUIRE(all_of(
+    REQUIRE(cuco::test::all_of(
       d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }, stream));
   }
 

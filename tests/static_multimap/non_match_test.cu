@@ -19,7 +19,7 @@
 
 #include <cuco/static_multimap.cuh>
 
-#include <util.hpp>
+#include <utils.hpp>
 
 template <typename Key, typename Value, typename Map, typename PairIt, typename KeyIt>
 __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, std::size_t num_keys)
@@ -52,8 +52,7 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
                    return lhs.second < rhs.second;
                  });
 
-    REQUIRE(thrust::equal(
-      thrust::device,
+    REQUIRE(cuco::test::equal(
       pair_begin,
       pair_begin + num_keys,
       output_begin,
@@ -97,8 +96,7 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
                         return cuco::pair_type<Key, Value>{i - num_keys / 2, -1};
                       });
 
-    REQUIRE(thrust::equal(
-      thrust::device,
+    REQUIRE(cuco::test::equal(
       gold_begin,
       gold_begin + size,
       output_begin,
@@ -108,15 +106,16 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Tests of non-matches",
-                       "",
-                       ((typename Key, typename Value, probe_sequence Probe), Key, Value, Probe),
-                       (int32_t, int32_t, probe_sequence::linear_probing),
-                       (int32_t, int64_t, probe_sequence::linear_probing),
-                       (int64_t, int64_t, probe_sequence::linear_probing),
-                       (int32_t, int32_t, probe_sequence::double_hashing),
-                       (int32_t, int64_t, probe_sequence::double_hashing),
-                       (int64_t, int64_t, probe_sequence::double_hashing))
+TEMPLATE_TEST_CASE_SIG(
+  "Tests of non-matches",
+  "",
+  ((typename Key, typename Value, cuco::test::probe_sequence Probe), Key, Value, Probe),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing))
 {
   constexpr std::size_t num_keys{1'000'000};
 
@@ -133,7 +132,7 @@ TEMPLATE_TEST_CASE_SIG("Tests of non-matches",
                       return cuco::pair_type<Key, Value>{i / 2, i};
                     });
 
-  if constexpr (Probe == probe_sequence::linear_probing) {
+  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
     cuco::static_multimap<Key,
                           Value,
                           cuda::thread_scope_device,
@@ -142,7 +141,7 @@ TEMPLATE_TEST_CASE_SIG("Tests of non-matches",
       map{num_keys * 2, -1, -1};
     test_non_matches<Key, Value>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }
-  if constexpr (Probe == probe_sequence::double_hashing) {
+  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
     cuco::static_multimap<Key, Value> map{num_keys * 2, -1, -1};
     test_non_matches<Key, Value>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }

@@ -19,18 +19,33 @@
 
 #include <cuco/static_multimap.cuh>
 
-#include <util.hpp>
+#include <utils.hpp>
 
-template <typename Key,
-          typename Value,
-          typename Map,
-          typename PairIt,
-          typename KeyIt,
-          typename ResultIt>
-__inline__ void test_multiplicity_two(
-  Map& map, PairIt pair_begin, KeyIt key_begin, ResultIt result_begin, std::size_t num_items)
+template <typename Map>
+__inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
 {
-  auto num_keys = num_items / 2;
+  using Key   = typename Map::key_type;
+  using Value = typename Map::mapped_type;
+
+  thrust::device_vector<Key> d_keys(num_items / 2);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_items);
+
+  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
+  // multiplicity = 2
+  thrust::transform(thrust::device,
+                    thrust::counting_iterator<int>(0),
+                    thrust::counting_iterator<int>(num_items),
+                    d_pairs.begin(),
+                    [] __device__(auto i) {
+                      return cuco::pair_type<Key, Value>{i / 2, i};
+                    });
+
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num_items);
+
+  auto key_begin    = d_keys.begin();
+  auto pair_begin   = d_pairs.begin();
+  auto result_begin = d_results.begin();
+  auto num_keys     = num_items / 2;
   thrust::device_vector<bool> d_contained(num_keys);
 
   SECTION("Non-inserted key/value pairs should not be contained.")
@@ -39,9 +54,8 @@ __inline__ void test_multiplicity_two(
     REQUIRE(size == 0);
 
     map.contains(key_begin, key_begin + num_keys, d_contained.begin());
-
-    REQUIRE(
-      none_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::none_of(
+      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
   map.insert(pair_begin, pair_begin + num_items);
@@ -53,8 +67,8 @@ __inline__ void test_multiplicity_two(
 
     map.contains(key_begin, key_begin + num_keys, d_contained.begin());
 
-    REQUIRE(
-      all_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::all_of(
+      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
   SECTION("Total count should be equal to the number of inserted pairs.")
@@ -80,8 +94,7 @@ __inline__ void test_multiplicity_two(
                    return lhs.second < rhs.second;
                  });
 
-    REQUIRE(thrust::equal(
-      thrust::device,
+    REQUIRE(cuco::test::equal(
       pair_begin,
       pair_begin + num_items,
       output_begin,
@@ -119,8 +132,7 @@ __inline__ void test_multiplicity_two(
                    return lhs.second < rhs.second;
                  });
 
-    REQUIRE(thrust::equal(
-      thrust::device,
+    REQUIRE(cuco::test::equal(
       pair_begin,
       pair_begin + num_items,
       output_begin,
@@ -130,46 +142,30 @@ __inline__ void test_multiplicity_two(
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Multiplicity equals two",
-                       "",
-                       ((typename Key, typename Value, probe_sequence Probe), Key, Value, Probe),
-                       (int32_t, int32_t, probe_sequence::linear_probing),
-                       (int32_t, int64_t, probe_sequence::linear_probing),
-                       (int64_t, int64_t, probe_sequence::linear_probing),
-                       (int32_t, int32_t, probe_sequence::double_hashing),
-                       (int32_t, int64_t, probe_sequence::double_hashing),
-                       (int64_t, int64_t, probe_sequence::double_hashing))
+TEMPLATE_TEST_CASE_SIG(
+  "Multiplicity equals two",
+  "",
+  ((typename Key, typename Value, cuco::test::probe_sequence Probe), Key, Value, Probe),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing))
 {
   constexpr std::size_t num_items{4};
 
-  thrust::device_vector<Key> d_keys(num_items / 2);
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_items);
-
-  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
-  // multiplicity = 2
-  thrust::transform(thrust::device,
-                    thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num_items),
-                    d_pairs.begin(),
-                    [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i / 2, i};
-                    });
-
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num_items);
-
-  if constexpr (Probe == probe_sequence::linear_probing) {
+  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
     cuco::static_multimap<Key,
                           Value,
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
                           cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
       map{5, -1, -1};
-    test_multiplicity_two<Key, Value>(
-      map, d_pairs.begin(), d_keys.begin(), d_results.begin(), num_items);
+    test_multiplicity_two(map, num_items);
   }
-  if constexpr (Probe == probe_sequence::double_hashing) {
+  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
     cuco::static_multimap<Key, Value> map{5, -1, -1};
-    test_multiplicity_two<Key, Value>(
-      map, d_pairs.begin(), d_keys.begin(), d_results.begin(), num_items);
+    test_multiplicity_two(map, num_items);
   }
 }

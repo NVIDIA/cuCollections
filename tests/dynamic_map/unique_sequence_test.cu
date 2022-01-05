@@ -19,7 +19,7 @@
 
 #include <cuco/dynamic_map.cuh>
 
-#include <util.hpp>
+#include <utils.hpp>
 
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        "",
@@ -52,7 +52,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), d_values.begin()));
 
-    REQUIRE(all_of(zip, zip + num_keys, [] __device__(auto const& p) {
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, [] __device__(auto const& p) {
       return thrust::get<0>(p) == thrust::get<1>(p);
     }));
   }
@@ -61,8 +61,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   {
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
 
-    REQUIRE(
-      all_of(d_results.begin(), d_results.end(), [] __device__(auto const& p) { return p == -1; }));
+    REQUIRE(cuco::test::all_of(
+      d_results.begin(), d_results.end(), [] __device__(auto const& p) { return p == -1; }));
   }
 
   SECTION("All inserted keys-value pairs should be contained")
@@ -70,15 +70,15 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     map.insert(pairs_begin, pairs_begin + num_keys);
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
-    REQUIRE(
-      all_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::all_of(
+      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
-    REQUIRE(
-      none_of(d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::none_of(
+      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
   }
 }

@@ -19,7 +19,7 @@
 
 #include <cuco/static_map.cuh>
 
-#include <util.hpp>
+#include <utils.hpp>
 
 #define SIZE 10
 __device__ int A[SIZE];
@@ -54,12 +54,12 @@ TEMPLATE_TEST_CASE_SIG(
   SECTION(
     "Tests of non-CG insert: The custom `key_equal` can never be used to compare against sentinel")
   {
-    REQUIRE(all_of(pairs_begin,
-                   pairs_begin + num_keys,
-                   [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                     return m_view.insert(
-                       pair, cuco::detail::MurmurHash3_32<Key>{}, custom_equals<Key>{});
-                   }));
+    REQUIRE(cuco::test::all_of(
+      pairs_begin,
+      pairs_begin + num_keys,
+      [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+        return m_view.insert(pair, cuco::detail::MurmurHash3_32<Key>{}, custom_equals<Key>{});
+      }));
   }
 
   SECTION(
@@ -70,12 +70,13 @@ TEMPLATE_TEST_CASE_SIG(
                cuco::detail::MurmurHash3_32<Key>{},
                custom_equals<Key>{});
     // All keys inserted via custom `key_equal` should be found
-    REQUIRE(all_of(pairs_begin,
-                   pairs_begin + num_keys,
-                   [view] __device__(cuco::pair_type<Key, Value> const& pair) {
-                     auto const found = view.find(pair.first);
-                     return (found != view.end()) and (found->first.load() == pair.first and
-                                                       found->second.load() == pair.second);
-                   }));
+    REQUIRE(cuco::test::all_of(pairs_begin,
+                               pairs_begin + num_keys,
+                               [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+                                 auto const found = view.find(pair.first);
+                                 return (found != view.end()) and
+                                        (found->first.load() == pair.first and
+                                         found->second.load() == pair.second);
+                               }));
   }
 }
