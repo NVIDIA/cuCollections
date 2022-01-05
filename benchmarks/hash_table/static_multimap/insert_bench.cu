@@ -23,18 +23,17 @@
 #include <key_generator.hpp>
 
 /**
- * @brief A benchmark evaluating multi-value `retrieve` performance:
+ * @brief A benchmark evaluating multi-value `insert` performance:
  * - Total number of insertions: 100'000'000
  * - CG size: 8
  */
 template <typename Key, typename Value, dist_type Dist, nvbench::int32_t Multiplicity>
-std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_retrieve(
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_insert(
   nvbench::state& state,
   nvbench::type_list<Key, Value, nvbench::enum_type<Dist>, nvbench::enum_type<Multiplicity>>)
 {
-  auto const num_keys      = state.get_int64("NumInputs");
-  auto const occupancy     = state.get_float64("Occupancy");
-  auto const matching_rate = state.get_float64("MatchingRate");
+  auto const num_keys  = state.get_int64("NumInputs");
+  auto const occupancy = state.get_float64("Occupancy");
 
   std::size_t const size = num_keys / occupancy;
 
@@ -50,26 +49,23 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_r
     h_pairs[i].second = val;
   }
 
-  generate_probe_keys<Key>(matching_rate, h_keys.begin(), h_keys.end());
-
-  thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
 
   state.add_element_count(num_keys, "NumKeys");
 
-  cuco::static_multimap<Key, Value> map{size, -1, -1};
-  map.insert(d_pairs.begin(), d_pairs.end());
+  state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
+             [&](nvbench::launch& launch, auto& timer) {
+               cuco::static_multimap<Key, Value> map{size, -1, -1};
 
-  auto const output_size = map.count_outer(d_keys.begin(), d_keys.end());
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(output_size);
-
-  state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    map.retrieve_outer(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.get_stream());
-  });
+               // Use timers to explicitly mark the target region
+               timer.start();
+               map.insert(d_pairs.begin(), d_pairs.end(), launch.get_stream());
+               timer.stop();
+             });
 }
 
 template <typename Key, typename Value, dist_type Dist, nvbench::int32_t Multiplicity>
-std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_retrieve(
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_insert(
   nvbench::state& state,
   nvbench::type_list<Key, Value, nvbench::enum_type<Dist>, nvbench::enum_type<Multiplicity>>)
 {
@@ -83,35 +79,21 @@ using d_type =
 
 using multiplicity = nvbench::enum_type_list<1, 2, 4, 8, 16, 32, 64, 128, 256>;
 
-NVBENCH_BENCH_TYPES(nvbench_static_multimap_retrieve,
+NVBENCH_BENCH_TYPES(nvbench_static_multimap_insert,
                     NVBENCH_TYPE_AXES(key_type,
                                       value_type,
                                       nvbench::enum_type_list<dist_type::UNIFORM>,
                                       multiplicity))
-  .set_name("staic_multimap_retrieve_uniform_multiplicity")
+  .set_name("staic_multimap_insert_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution", "Multiplicity"})
-  .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {0.8})
-  .add_float64_axis("MatchingRate", {0.5});
+  .add_float64_axis("Occupancy", {0.8});
 
-NVBENCH_BENCH_TYPES(nvbench_static_multimap_retrieve,
+NVBENCH_BENCH_TYPES(nvbench_static_multimap_insert,
                     NVBENCH_TYPE_AXES(key_type, value_type, d_type, nvbench::enum_type_list<8>))
-  .set_name("staic_multimap_retrieve_occupancy")
+  .set_name("staic_multimap_insert_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution", "Multiplicity"})
-  .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1))
-  .add_float64_axis("MatchingRate", {0.5});
-
-NVBENCH_BENCH_TYPES(nvbench_static_multimap_retrieve,
-                    NVBENCH_TYPE_AXES(key_type, value_type, d_type, nvbench::enum_type_list<8>))
-  .set_name("staic_multimap_retrieve_matching_rate")
-  .set_type_axes_names({"Key", "Value", "Distribution", "Multiplicity"})
-  .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
-  .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {0.8})
-  .add_float64_axis("MatchingRate", {0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1});
+  .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1));
