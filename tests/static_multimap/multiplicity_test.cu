@@ -85,14 +85,13 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
     REQUIRE(size == num_items);
 
     // sort before compare
-    thrust::sort(thrust::device,
-                 output_begin,
-                 output_end,
-                 [] __device__(const cuco::pair_type<Key, Value>& lhs,
-                               const cuco::pair_type<Key, Value>& rhs) {
-                   if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
-                   return lhs.second < rhs.second;
-                 });
+    cuco::test::sort(d_results.data().get(),
+                     num_items,
+                     [] __device__(const cuco::pair_type<Key, Value>& lhs,
+                                   const cuco::pair_type<Key, Value>& rhs) {
+                       if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
+                       return lhs.second < rhs.second;
+                     });
 
     REQUIRE(cuco::test::equal(
       pair_begin,
@@ -123,14 +122,13 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
     REQUIRE(size == size_outer);
 
     // sort before compare
-    thrust::sort(thrust::device,
-                 output_begin,
-                 output_end,
-                 [] __device__(const cuco::pair_type<Key, Value>& lhs,
-                               const cuco::pair_type<Key, Value>& rhs) {
-                   if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
-                   return lhs.second < rhs.second;
-                 });
+    cuco::test::sort(d_results.data().get(),
+                     num_items,
+                     [] __device__(const cuco::pair_type<Key, Value>& lhs,
+                                   const cuco::pair_type<Key, Value>& rhs) {
+                       if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
+                       return lhs.second < rhs.second;
+                     });
 
     REQUIRE(cuco::test::equal(
       pair_begin,

@@ -43,14 +43,13 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
     REQUIRE(size == num_keys);
 
     // sort before compare
-    thrust::sort(thrust::device,
-                 output_begin,
-                 output_end,
-                 [] __device__(const cuco::pair_type<Key, Value>& lhs,
-                               const cuco::pair_type<Key, Value>& rhs) {
-                   if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
-                   return lhs.second < rhs.second;
-                 });
+    cuco::test::sort(output_begin,
+                     num,
+                     [] __device__(const cuco::pair_type<Key, Value>& lhs,
+                                   const cuco::pair_type<Key, Value>& rhs) {
+                       if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
+                       return lhs.second < rhs.second;
+                     });
 
     REQUIRE(cuco::test::equal(
       pair_begin,
@@ -75,14 +74,13 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
     REQUIRE(size == (num_keys + num_keys / 2));
 
     // sort before compare
-    thrust::sort(thrust::device,
-                 output_begin,
-                 output_end,
-                 [] __device__(const cuco::pair_type<Key, Value>& lhs,
-                               const cuco::pair_type<Key, Value>& rhs) {
-                   if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
-                   return lhs.second < rhs.second;
-                 });
+    cuco::test::sort(output_begin,
+                     num,
+                     [] __device__(const cuco::pair_type<Key, Value>& lhs,
+                                   const cuco::pair_type<Key, Value>& rhs) {
+                       if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
+                       return lhs.second < rhs.second;
+                     });
 
     // create gold reference
     thrust::device_vector<cuco::pair_type<Key, Value>> gold(size);
@@ -117,7 +115,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, int64_t, cuco::test::probe_sequence::double_hashing),
   (int64_t, int64_t, cuco::test::probe_sequence::double_hashing))
 {
-  constexpr std::size_t num_keys{1'000'000};
+  constexpr std::size_t num_keys{1'000};
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_keys);

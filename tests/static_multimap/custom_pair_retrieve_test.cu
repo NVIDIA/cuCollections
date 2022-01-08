@@ -135,10 +135,10 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
                                 pair_equal<Key, Value>{});
 
   // sort before compare
-  thrust::sort(thrust::device, probe_keys.begin(), probe_keys.end());
-  thrust::sort(thrust::device, probe_vals.begin(), probe_vals.end());
-  thrust::sort(thrust::device, contained_keys.begin(), contained_keys.end());
-  thrust::sort(thrust::device, contained_vals.begin(), contained_vals.end());
+  cuco::test::sort(probe_keys.data().get(), gold_size);
+  cuco::test::sort(probe_vals.data().get(), gold_size);
+  cuco::test::sort(contained_keys.data().get(), gold_size);
+  cuco::test::sort(contained_vals.data().get(), gold_size);
 
   // set gold references
   auto gold_probe         = thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
