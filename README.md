@@ -86,20 +86,8 @@ Binaries will be built into:
 
 ## Code Formatting
 
-`cuCollections` uses [`clang-format`](https://clang.llvm.org/docs/ClangFormat.html)
-
-In order to format the C++/CUDA files, navigate to the root (`cuCollections`) directory and run:
-```
-python3 ./scripts/run-clang-format.py -inplace
-```
-
-Additionally, many editors have plugins or extensions that you can set up to automatically run `clang-format` either manually or on file save.
-
-### Pre-commit hooks
-
-Optionally, you may wish to setup [pre-commit hooks](https://pre-commit.com/)
-to automatically run `clang-format` when you make a git commit.
-This can be done by installing `pre-commit` via `conda` or `pip`:
+`cuCollections` uses [`pre-commit`](https://pre-commit.com/) along with [`mirrors-clang-format`](https://github.com/pre-commit/mirrors-clang-format) to format the C++/CUDA files.
+To install `pre-commit` via `conda` or `pip`:
 
 ```bash
 conda install -c conda-forge pre_commit
@@ -110,12 +98,20 @@ pip install pre-commit
 ```
 
 and then running:
-
 ```bash
 pre-commit install
 ```
 
-from the root of the `cuCollections` repository. Now `clang-format` will be run each time you commit changes.
+from the root of the `cuCollections` repository. Now code formatting will be run each time you commit changes.
+
+Optionally, you may wish to manually format the code:
+```bash
+pre-commit run clang-format --all-files
+```
+
+### Caveats
+`mirrors-clang-format` guarantees to invoke the correct version of `clang-format` and avoids version mismatches.
+Users should **_NOT_** use `clang-format` directly on the command line to format the code.
 
 
 ## Data Structures
