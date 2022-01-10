@@ -110,7 +110,7 @@ pre-commit run clang-format --all-files
 ```
 
 ### Caveats
-`mirrors-clang-format` guarantees to invoke the correct version of `clang-format` and avoids version mismatches.
+`mirrors-clang-format` guarantees the correct version of `clang-format` and avoids version mismatches.
 Users should **_NOT_** use `clang-format` directly on the command line to format the code.
 
 
