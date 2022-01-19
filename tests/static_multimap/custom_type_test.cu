@@ -94,6 +94,7 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
 
     // sort before compare
     thrust::sort(
+      thrust::device,
       found_pairs.begin(),
       found_pairs.end(),
       [] __device__(const cuco::pair_type<Key, Value>& lhs,
@@ -136,6 +137,7 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
 
     // sort before compare
     thrust::sort(
+      thrust::device,
       found_pairs.begin(),
       found_pairs.end(),
       [] __device__(const cuco::pair_type<Key, Value>& lhs,

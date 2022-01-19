@@ -85,7 +85,8 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
     REQUIRE(size == num_items);
 
     // sort before compare
-    thrust::sort(d_results.begin(),
+    thrust::sort(thrust::device,
+                 d_results.begin(),
                  d_results.end(),
                  [] __device__(const cuco::pair_type<Key, Value>& lhs,
                                const cuco::pair_type<Key, Value>& rhs) {
@@ -122,7 +123,8 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
     REQUIRE(size == size_outer);
 
     // sort before compare
-    thrust::sort(d_results.begin(),
+    thrust::sort(thrust::device,
+                 d_results.begin(),
                  d_results.end(),
                  [] __device__(const cuco::pair_type<Key, Value>& lhs,
                                const cuco::pair_type<Key, Value>& rhs) {
