@@ -47,33 +47,6 @@ __global__ void count_if(
   }
 }
 
-template <typename T, typename Operator>
-__global__ void sort(T* data, int const size, Operator op)
-{
-  auto const n = size - 1;
-
-  for (int i = 0; i <= n; ++i) {
-    auto min_val = data[i];
-    int min_idx  = i;
-
-    // Find the smallest value in the range [left, right].
-    for (int j = i + 1; j <= n; ++j) {
-      auto val_j = data[j];
-
-      if (op(val_j, min_val)) {
-        min_idx = j;
-        min_val = val_j;
-      }
-    }
-
-    // Swap the values.
-    if (i != min_idx) {
-      data[min_idx] = data[i];
-      data[i]       = min_val;
-    }
-  }
-}
-
 }  // namespace detail
 }  // namespace test
 }  // namespace cuco

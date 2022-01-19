@@ -100,11 +100,5 @@ bool equal(Iterator1 begin1, Iterator1 end1, Iterator2 begin2, Predicate p, cuda
   return res == size;
 }
 
-template <typename T, typename Operator = thrust::less<T>>
-void sort(T* data, int const size, Operator op = Operator{}, cudaStream_t stream = 0)
-{
-  detail::sort<<<1, 1, 0, stream>>>(data, size, op);
-}
-
 }  // namespace test
 }  // namespace cuco

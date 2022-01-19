@@ -93,9 +93,9 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
     REQUIRE(size == num_pairs);
 
     // sort before compare
-    cuco::test::sort(
-      found_pairs.data().get(),
-      num_pairs,
+    thrust::sort(
+      found_pairs.begin(),
+      found_pairs.end(),
       [] __device__(const cuco::pair_type<Key, Value>& lhs,
                     const cuco::pair_type<Key, Value>& rhs) { return lhs.first.a < rhs.first.a; });
 
@@ -135,9 +135,9 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
     REQUIRE(size == num_pairs);
 
     // sort before compare
-    cuco::test::sort(
-      found_pairs.data().get(),
-      num_pairs,
+    thrust::sort(
+      found_pairs.begin(),
+      found_pairs.end(),
       [] __device__(const cuco::pair_type<Key, Value>& lhs,
                     const cuco::pair_type<Key, Value>& rhs) { return lhs.first.a < rhs.first.a; });
     REQUIRE(cuco::test::equal(

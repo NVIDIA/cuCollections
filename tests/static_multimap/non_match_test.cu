@@ -43,13 +43,13 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
     REQUIRE(size == num_keys);
 
     // sort before compare
-    cuco::test::sort(output_begin,
-                     num,
-                     [] __device__(const cuco::pair_type<Key, Value>& lhs,
-                                   const cuco::pair_type<Key, Value>& rhs) {
-                       if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
-                       return lhs.second < rhs.second;
-                     });
+    thrust::sort(output_begin,
+                 output_begin + num,
+                 [] __device__(const cuco::pair_type<Key, Value>& lhs,
+                               const cuco::pair_type<Key, Value>& rhs) {
+                   if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
+                   return lhs.second < rhs.second;
+                 });
 
     REQUIRE(cuco::test::equal(
       pair_begin,
@@ -75,7 +75,7 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
 
     // sort before compare
     cuco::test::sort(output_begin,
-                     num,
+                     output_begin + num,
                      [] __device__(const cuco::pair_type<Key, Value>& lhs,
                                    const cuco::pair_type<Key, Value>& rhs) {
                        if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
