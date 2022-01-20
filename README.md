@@ -84,6 +84,36 @@ Binaries will be built into:
 - `build/examples/`
 
 
+## Code Formatting
+
+`cuCollections` uses [`pre-commit`](https://pre-commit.com/) along with [`mirrors-clang-format`](https://github.com/pre-commit/mirrors-clang-format) to format the C++/CUDA files.
+To install `pre-commit` via `conda` or `pip`:
+
+```bash
+conda install -c conda-forge pre_commit
+```
+
+```bash
+pip install pre-commit
+```
+
+and then running:
+```bash
+pre-commit install
+```
+
+from the root of the `cuCollections` repository. Now code formatting will be run each time you commit changes.
+
+Optionally, you may wish to manually format the code:
+```bash
+pre-commit run clang-format --all-files
+```
+
+### Caveats
+`mirrors-clang-format` guarantees the correct version of `clang-format` and avoids version mismatches.
+Users should **_NOT_** use `clang-format` directly on the command line to format the code.
+
+
 ## Data Structures
 
 We plan to add many GPU-accelerated, concurrent data structures to `cuCollections`. As of now, the two flagships are variants of hash tables. 

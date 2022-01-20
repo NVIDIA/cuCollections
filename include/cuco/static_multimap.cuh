@@ -17,10 +17,10 @@
 #pragma once
 
 #include <cooperative_groups.h>
-#include <thrust/distance.h>
-#include <thrust/functional.h>
 #include <cub/cub.cuh>
 #include <memory>
+#include <thrust/distance.h>
+#include <thrust/functional.h>
 
 #include <cuco/allocator.hpp>
 #include <cuco/probe_sequences.cuh>

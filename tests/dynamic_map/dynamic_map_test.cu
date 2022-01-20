@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include <thrust/count.h>
-#include <thrust/device_vector.h>
-#include <thrust/for_each.h>
 #include <algorithm>
 #include <catch2/catch.hpp>
 #include <cuco/dynamic_map.cuh>
 #include <random>
+#include <thrust/count.h>
+#include <thrust/device_vector.h>
+#include <thrust/for_each.h>
 
 enum class dist_type { UNIQUE, UNIFORM, GAUSSIAN };
 
