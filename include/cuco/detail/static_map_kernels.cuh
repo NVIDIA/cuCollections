@@ -213,7 +213,9 @@ __global__ void insert_if_n(InputIt first,
   while (i < n) {
     if (pred(*(stencil + i))) {
       typename viewT::value_type const insert_pair{*(first + i)};
-      if (view.insert(tile, insert_pair, hash, key_equal)) { thread_num_successes++; }
+      if (view.insert(tile, insert_pair, hash, key_equal) and tile.thread_rank() == 0) {
+        thread_num_successes++;
+      }
     }
     i += (gridDim.x * block_size) / tile_size;
   }

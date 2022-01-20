@@ -169,6 +169,9 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
       [] __device__(auto const& key) { return (key % 2) == 0; },
       hash_custom_key{},
       custom_key_equals{});
+
+    REQUIRE(num / 2 == map.get_size());
+
     map.contains(insert_keys.begin(),
                  insert_keys.end(),
                  contained.begin(),
