@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+#include <catch2/catch.hpp>
 #include <thrust/device_vector.h>
 #include <thrust/iterator/discard_iterator.h>
-#include <catch2/catch.hpp>
 
 #include <cuco/static_multimap.cuh>
 

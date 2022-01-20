@@ -16,8 +16,8 @@
 
 #include <random>
 
-#include <thrust/device_vector.h>
 #include <nvbench/nvbench.cuh>
+#include <thrust/device_vector.h>
 
 #include <cuco/static_multimap.cuh>
 #include <key_generator.hpp>

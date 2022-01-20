@@ -16,8 +16,8 @@
 
 #include <limits>
 
-#include <thrust/device_vector.h>
 #include <catch2/catch.hpp>
+#include <thrust/device_vector.h>
 
 #include <cuco/static_map.cuh>
 
