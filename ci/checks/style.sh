@@ -15,10 +15,4 @@ conda activate rapids
 CLANG_FORMAT=`pre-commit run clang-format --all-files 2>&1`
 CLANG_FORMAT_RETVAL=$?
 
-if [ "$CLANG_FORMAT_RETVAL" != "0" ]; then
-  echo -e "\n\n>>>> FAILED: clang format check; begin output\n\n"
-  echo -e "$CLANG_FORMAT"
-  echo -e "\n\n>>>> FAILED: clang format check; end output\n\n"
-else
-  echo -e "\n\n>>>> PASSED: clang format check\n\n"
-fi
+exit ${CLANG_FORMAT_RETVAL}
