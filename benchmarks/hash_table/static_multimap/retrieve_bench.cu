@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#include <random>
-
-#include <thrust/device_vector.h>
-#include <nvbench/nvbench.cuh>
-
 #include <cuco/static_multimap.cuh>
 #include <key_generator.hpp>
+
+#include <thrust/device_vector.h>
+
+#include <nvbench/nvbench.cuh>
+
+#include <random>
 
 /**
  * @brief A benchmark evaluating multi-value `retrieve` performance:

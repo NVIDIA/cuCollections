@@ -17,12 +17,12 @@
 #pragma once
 
 #include <cooperative_groups.h>
-#include <thrust/device_vector.h>
 #include <cub/cub.cuh>
 #include <cuco/detail/dynamic_map_kernels.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/static_map.cuh>
 #include <cuda/std/atomic>
+#include <thrust/device_vector.h>
 
 namespace cuco {
 
