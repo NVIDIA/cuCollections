@@ -22,7 +22,7 @@ ConfigureExample(CUSTOM_TYPE_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/cus
 ConfigureExample(STATIC_MULTIMAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_multimap/static_multimap_example.cu")
 
 foreach(arch IN LISTS CMAKE_CUDA_ARCHITECTURES)
-    if("${arch}" MATCHES "60")
+    if("${arch}" MATCHES "^6")
       target_compile_definitions(CUSTOM_TYPE_EXAMPLE PRIVATE CUCO_NO_INDEPENDENT_THREADS)
       break()
     endif()

@@ -41,7 +41,7 @@ set(STATIC_MAP_TEST_SRC
 ConfigureTest(STATIC_MAP_TEST "${STATIC_MAP_TEST_SRC}")
 
 foreach(arch IN LISTS CMAKE_CUDA_ARCHITECTURES)
-    if("${arch}" MATCHES "60")
+    if("${arch}" MATCHES "^6")
       target_compile_definitions(STATIC_MAP_TEST PRIVATE CUCO_NO_INDEPENDENT_THREADS)
       break()
     endif()
