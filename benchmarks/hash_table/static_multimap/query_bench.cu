@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
+#include <random>
+
+#include <nvbench/nvbench.cuh>
+#include <thrust/device_vector.h>
+
 #include <cuco/static_multimap.cuh>
 #include <key_generator.hpp>
 
-#include <thrust/device_vector.h>
-
-#include <nvbench/nvbench.cuh>
-
-#include <random>
-
 /**
- * @brief A benchmark evaluating multi-value `retrieve` performance:
+ * @brief A benchmark evaluating multi-value query (`count` + `retrieve`) performance:
  * - Total number of insertions: 100'000'000
  * - CG size: 8
  */
 template <typename Key, typename Value, dist_type Dist, nvbench::int32_t Multiplicity>
-std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_retrieve(
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_query(
   nvbench::state& state,
   nvbench::type_list<Key, Value, nvbench::enum_type<Dist>, nvbench::enum_type<Multiplicity>>)
 {
@@ -65,12 +64,13 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_r
   thrust::device_vector<cuco::pair_type<Key, Value>> d_results(output_size);
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
+    auto count = map.count_outer(d_keys.begin(), d_keys.end(), launch.get_stream());
     map.retrieve_outer(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.get_stream());
   });
 }
 
 template <typename Key, typename Value, dist_type Dist, nvbench::int32_t Multiplicity>
-std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_retrieve(
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_query(
   nvbench::state& state,
   nvbench::type_list<Key, Value, nvbench::enum_type<Dist>, nvbench::enum_type<Multiplicity>>)
 {
@@ -84,12 +84,12 @@ using d_type =
 
 using multiplicity = nvbench::enum_type_list<1, 2, 4, 8, 16, 32, 64, 128, 256>;
 
-NVBENCH_BENCH_TYPES(nvbench_static_multimap_retrieve,
+NVBENCH_BENCH_TYPES(nvbench_static_multimap_query,
                     NVBENCH_TYPE_AXES(key_type,
                                       value_type,
                                       nvbench::enum_type_list<dist_type::UNIFORM>,
                                       multiplicity))
-  .set_name("staic_multimap_retrieve_uniform_multiplicity")
+  .set_name("staic_multimap_query_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution", "Multiplicity"})
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
@@ -97,9 +97,9 @@ NVBENCH_BENCH_TYPES(nvbench_static_multimap_retrieve,
   .add_float64_axis("Occupancy", {0.8})
   .add_float64_axis("MatchingRate", {0.5});
 
-NVBENCH_BENCH_TYPES(nvbench_static_multimap_retrieve,
+NVBENCH_BENCH_TYPES(nvbench_static_multimap_query,
                     NVBENCH_TYPE_AXES(key_type, value_type, d_type, nvbench::enum_type_list<8>))
-  .set_name("staic_multimap_retrieve_occupancy")
+  .set_name("staic_multimap_query_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution", "Multiplicity"})
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
@@ -107,9 +107,9 @@ NVBENCH_BENCH_TYPES(nvbench_static_multimap_retrieve,
   .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1))
   .add_float64_axis("MatchingRate", {0.5});
 
-NVBENCH_BENCH_TYPES(nvbench_static_multimap_retrieve,
+NVBENCH_BENCH_TYPES(nvbench_static_multimap_query,
                     NVBENCH_TYPE_AXES(key_type, value_type, d_type, nvbench::enum_type_list<8>))
-  .set_name("staic_multimap_retrieve_matching_rate")
+  .set_name("staic_multimap_query_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution", "Multiplicity"})
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.

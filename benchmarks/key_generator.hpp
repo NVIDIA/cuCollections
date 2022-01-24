@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <nvbench/nvbench.cuh>
+
 #include <limits>
 #include <random>
 
