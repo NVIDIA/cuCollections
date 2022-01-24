@@ -29,6 +29,9 @@ include(rapids-find)
 # * Enable the CMake CUDA language
 rapids_cuda_init_architectures(CUCO)
 
+# this is needed for clang-tidy runs
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 project(CUCO VERSION 0.0.1 LANGUAGES CXX CUDA)
 
 # Write the version header

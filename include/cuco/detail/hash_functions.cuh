@@ -81,12 +81,12 @@ struct MurmurHash3_32 {
   }
 
  private:
-  constexpr __host__ __device__ uint32_t rotl32(uint32_t x, int8_t r) const noexcept
+  [[nodiscard]] constexpr __host__ __device__ uint32_t rotl32(uint32_t x, int8_t r) const noexcept
   {
     return (x << r) | (x >> (32 - r));
   }
 
-  constexpr __host__ __device__ uint32_t fmix32(uint32_t h) const noexcept
+  [[nodiscard]] constexpr __host__ __device__ uint32_t fmix32(uint32_t h) const noexcept
   {
     h ^= h >> 16;
     h *= 0x85ebca6b;

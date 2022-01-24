@@ -222,7 +222,7 @@ class static_multimap {
   static_multimap(std::size_t capacity,
                   Key empty_key_sentinel,
                   Value empty_value_sentinel,
-                  cudaStream_t stream    = 0,
+                  cudaStream_t stream    = nullptr,
                   Allocator const& alloc = Allocator{});
 
   /**
@@ -236,7 +236,7 @@ class static_multimap {
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt>
-  void insert(InputIt first, InputIt last, cudaStream_t stream = 0);
+  void insert(InputIt first, InputIt last, cudaStream_t stream = nullptr);
 
   /**
    * @brief Inserts key/value pairs in the range `[first, first + n)` if `pred`
@@ -260,7 +260,7 @@ class static_multimap {
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
   void insert_if(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream = 0);
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream = nullptr);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -283,7 +283,7 @@ class static_multimap {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                cudaStream_t stream = 0,
+                cudaStream_t stream = nullptr,
                 KeyEqual key_equal  = KeyEqual{}) const;
 
   /**
@@ -303,7 +303,7 @@ class static_multimap {
   template <typename InputIt, typename KeyEqual = thrust::equal_to<key_type>>
   std::size_t count(InputIt first,
                     InputIt last,
-                    cudaStream_t stream = 0,
+                    cudaStream_t stream = nullptr,
                     KeyEqual key_equal  = KeyEqual{}) const;
 
   /**
@@ -325,7 +325,7 @@ class static_multimap {
   template <typename InputIt, typename KeyEqual = thrust::equal_to<key_type>>
   std::size_t count_outer(InputIt first,
                           InputIt last,
-                          cudaStream_t stream = 0,
+                          cudaStream_t stream = nullptr,
                           KeyEqual key_equal  = KeyEqual{}) const;
 
   /**
@@ -348,7 +348,7 @@ class static_multimap {
   std::size_t pair_count(InputIt first,
                          InputIt last,
                          PairEqual pair_equal,
-                         cudaStream_t stream = 0) const;
+                         cudaStream_t stream = nullptr) const;
 
   /**
    * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap.
@@ -372,7 +372,7 @@ class static_multimap {
   std::size_t pair_count_outer(InputIt first,
                                InputIt last,
                                PairEqual pair_equal,
-                               cudaStream_t stream = 0) const;
+                               cudaStream_t stream = nullptr) const;
 
   /**
    * @brief Retrieves all the values corresponding to all keys in the range `[first, last)`.
@@ -399,7 +399,7 @@ class static_multimap {
   OutputIt retrieve(InputIt first,
                     InputIt last,
                     OutputIt output_begin,
-                    cudaStream_t stream = 0,
+                    cudaStream_t stream = nullptr,
                     KeyEqual key_equal  = KeyEqual{}) const;
 
   /**
@@ -428,7 +428,7 @@ class static_multimap {
   OutputIt retrieve_outer(InputIt first,
                           InputIt last,
                           OutputIt output_begin,
-                          cudaStream_t stream = 0,
+                          cudaStream_t stream = nullptr,
                           KeyEqual key_equal  = KeyEqual{}) const;
 
   /**
@@ -465,7 +465,7 @@ class static_multimap {
                                                 OutputIt1 probe_output_begin,
                                                 OutputIt2 contained_output_begin,
                                                 PairEqual pair_equal,
-                                                cudaStream_t stream = 0) const;
+                                                cudaStream_t stream = nullptr) const;
 
   /**
    * @brief Retrieves all pairs matching the input probe pair in the range `[first, last)`.
@@ -503,7 +503,7 @@ class static_multimap {
                                                       OutputIt1 probe_output_begin,
                                                       OutputIt2 contained_output_begin,
                                                       PairEqual pair_equal,
-                                                      cudaStream_t stream = 0) const;
+                                                      cudaStream_t stream = nullptr) const;
 
  private:
   /**
@@ -592,7 +592,7 @@ class static_multimap {
      *
      * @return Slots array
      */
-    __device__ __forceinline__ pair_atomic_type const* get_slots() const noexcept
+    [[nodiscard]] __device__ __forceinline__ pair_atomic_type const* get_slots() const noexcept
     {
       return impl_.get_slots();
     }
@@ -602,7 +602,7 @@ class static_multimap {
      *
      * @return The maximum number of elements the hash map can hold
      */
-    __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
+    [[nodiscard]] __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
     {
       return impl_.get_capacity();
     }
@@ -612,7 +612,7 @@ class static_multimap {
      *
      * @return The sentinel value used to represent an empty key slot
      */
-    __host__ __device__ __forceinline__ Key get_empty_key_sentinel() const noexcept
+    [[nodiscard]] __host__ __device__ __forceinline__ Key get_empty_key_sentinel() const noexcept
     {
       return impl_.get_empty_key_sentinel();
     }
@@ -622,7 +622,8 @@ class static_multimap {
      *
      * @return The sentinel value used to represent an empty value slot
      */
-    __host__ __device__ __forceinline__ Value get_empty_value_sentinel() const noexcept
+    [[nodiscard]] __host__ __device__ __forceinline__ Value
+    get_empty_value_sentinel() const noexcept
     {
       return impl_.get_empty_value_sentinel();
     }
@@ -746,7 +747,7 @@ class static_multimap {
      */
     template <typename CG>
     __device__ __forceinline__ static device_view make_copy(
-      CG g, pair_atomic_type* const memory_to_use, device_view source_device_view) noexcept;
+      CG g, pair_atomic_type* memory_to_use, device_view source_device_view) noexcept;
 
     /**
      * @brief Flushes per-CG buffer into the output sequence.
@@ -769,7 +770,7 @@ class static_multimap {
      */
     template <typename CG, typename atomicT, typename OutputIt>
     __device__ __forceinline__ void flush_output_buffer(CG const& g,
-                                                        uint32_t const num_outputs,
+                                                        uint32_t num_outputs,
                                                         value_type* output_buffer,
                                                         atomicT* num_matches,
                                                         OutputIt output_begin) noexcept;
@@ -799,7 +800,7 @@ class static_multimap {
      */
     template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
     __device__ __forceinline__ void flush_output_buffer(CG const& g,
-                                                        uint32_t const num_outputs,
+                                                        uint32_t num_outputs,
                                                         value_type* probe_output_buffer,
                                                         value_type* contained_output_buffer,
                                                         atomicT* num_matches,
@@ -1182,7 +1183,7 @@ class static_multimap {
   /**
    * @brief Return the raw pointer of the hash map slots.
    */
-  value_type const* raw_slots() const noexcept
+  [[nodiscard]] value_type const* raw_slots() const noexcept
   {
     // Unsafe access to the slots stripping away their atomic-ness to allow non-atomic access.
     // TODO: to be replace by atomic_ref when it's ready
@@ -1194,7 +1195,7 @@ class static_multimap {
    *
    * @return The maximum number of elements the hash map can hold
    */
-  std::size_t get_capacity() const noexcept { return capacity_; }
+  [[nodiscard]] std::size_t get_capacity() const noexcept { return capacity_; }
 
   /**
    * @brief Gets the number of elements in the hash map.
@@ -1202,7 +1203,7 @@ class static_multimap {
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the map
    */
-  std::size_t get_size(cudaStream_t stream = 0) const noexcept;
+  std::size_t get_size(cudaStream_t stream = nullptr) const noexcept;
 
   /**
    * @brief Gets the load factor of the hash map.
@@ -1210,21 +1211,21 @@ class static_multimap {
    * @param stream CUDA stream used to get the load factor
    * @return The load factor of the hash map
    */
-  float get_load_factor(cudaStream_t stream = 0) const noexcept;
+  float get_load_factor(cudaStream_t stream = nullptr) const noexcept;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+  [[nodiscard]] Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
   /**
    * @brief Gets the sentinel value used to represent an empty value slot.
    *
    * @return The sentinel value used to represent an empty value slot
    */
-  Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
+  [[nodiscard]] Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
 
   /**
    * @brief Constructs a device_view object based on the members of the `static_multimap`
@@ -1232,7 +1233,7 @@ class static_multimap {
    *
    * @return A device_view object based on the members of the `static_multimap` object
    */
-  device_view get_device_view() const noexcept
+  [[nodiscard]] device_view get_device_view() const noexcept
   {
     return device_view(slots_.get(), capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }
@@ -1243,7 +1244,7 @@ class static_multimap {
    *
    * @return A device_mutable_view object based on the members of the `static_multimap` object
    */
-  device_mutable_view get_device_mutable_view() const noexcept
+  [[nodiscard]] device_mutable_view get_device_mutable_view() const noexcept
   {
     return device_mutable_view(slots_.get(), capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }

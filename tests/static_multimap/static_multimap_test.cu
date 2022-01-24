@@ -83,7 +83,7 @@ __inline__ void test_custom_key_value_type(Map& map,
                                            KeyIt key_begin,
                                            size_t num_pairs)
 {
-  constexpr cudaStream_t stream = 0;
+  constexpr cudaStream_t stream{nullptr};
 
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
   {
@@ -614,7 +614,7 @@ template <typename Key, typename Value, typename Map, typename PairIt>
 __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num_pairs)
 {
   map.insert(pair_begin, pair_begin + num_pairs);
-  cudaStreamSynchronize(0);
+  cudaStreamSynchronize(nullptr);
 
   auto res = map.get_size();
   REQUIRE(res == num_pairs);

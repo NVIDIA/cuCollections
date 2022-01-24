@@ -81,7 +81,9 @@ class cuda_event_timer {
    *                            every iteration.
    * @param[in] stream_ The CUDA stream we are measuring time on.
    */
-  cuda_event_timer(benchmark::State& state, bool flush_l2_cache = false, cudaStream_t stream = 0)
+  cuda_event_timer(benchmark::State& state,
+                   bool flush_l2_cache = false,
+                   cudaStream_t stream = nullptr)
     : p_state(&state), stream_(stream)
   {
     // flush all of L2$

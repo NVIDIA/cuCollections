@@ -29,7 +29,7 @@ namespace cg = cooperative_groups;
 
 // User-defined logical algorithms to reduce compilation time
 template <typename Iterator, typename Predicate>
-bool all_of(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = 0)
+bool all_of(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = nullptr)
 {
   auto size = thrust::distance(begin, end);
   auto out  = thrust::count_if(thrust::cuda::par.on(stream), begin, end, p);

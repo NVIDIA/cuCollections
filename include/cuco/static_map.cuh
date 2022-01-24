@@ -195,7 +195,7 @@ class static_map {
              Key empty_key_sentinel,
              Value empty_value_sentinel,
              Allocator const& alloc = Allocator{},
-             cudaStream_t stream    = 0);
+             cudaStream_t stream    = nullptr);
 
   /**
    * @brief Destroys the map and frees its contents.
@@ -228,7 +228,7 @@ class static_map {
               InputIt last,
               Hash hash           = Hash{},
               KeyEqual key_equal  = KeyEqual{},
-              cudaStream_t stream = 0);
+              cudaStream_t stream = nullptr);
 
   /**
    * @brief Inserts key/value pairs in the range `[first, last)` if `pred`
@@ -264,7 +264,7 @@ class static_map {
                  Predicate pred,
                  Hash hash           = Hash{},
                  KeyEqual key_equal  = KeyEqual{},
-                 cudaStream_t stream = 0);
+                 cudaStream_t stream = nullptr);
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -294,7 +294,7 @@ class static_map {
             OutputIt output_begin,
             Hash hash           = Hash{},
             KeyEqual key_equal  = KeyEqual{},
-            cudaStream_t stream = 0);
+            cudaStream_t stream = nullptr);
 
   /**
    * @brief Indicates whether the keys in the range
@@ -324,7 +324,7 @@ class static_map {
                 OutputIt output_begin,
                 Hash hash           = Hash{},
                 KeyEqual key_equal  = KeyEqual{},
-                cudaStream_t stream = 0);
+                cudaStream_t stream = nullptr);
 
  private:
   class device_view_base {
@@ -376,7 +376,7 @@ class static_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename Hash>
-    __device__ const_iterator initial_slot(Key const& k, Hash hash) const noexcept
+    [[nodiscard]] __device__ const_iterator initial_slot(Key const& k, Hash hash) const noexcept
     {
       return &slots_[hash(k) % capacity_];
     }
@@ -412,7 +412,9 @@ class static_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename CG, typename Hash>
-    __device__ const_iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
+    [[nodiscard]] __device__ const_iterator initial_slot(CG g,
+                                                         Key const& k,
+                                                         Hash hash) const noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -516,28 +518,37 @@ class static_map {
      *
      * @return Slots array
      */
-    __host__ __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
+    [[nodiscard]] __host__ __device__ pair_atomic_type const* get_slots() const noexcept
+    {
+      return slots_;
+    }
 
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
      *
      * @return The maximum number of elements the hash map can hold
      */
-    __host__ __device__ std::size_t get_capacity() const noexcept { return capacity_; }
+    [[nodiscard]] __host__ __device__ std::size_t get_capacity() const noexcept
+    {
+      return capacity_;
+    }
 
     /**
      * @brief Gets the sentinel value used to represent an empty key slot.
      *
      * @return The sentinel value used to represent an empty key slot
      */
-    __host__ __device__ Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+    [[nodiscard]] __host__ __device__ Key get_empty_key_sentinel() const noexcept
+    {
+      return empty_key_sentinel_;
+    }
 
     /**
      * @brief Gets the sentinel value used to represent an empty value slot.
      *
      * @return The sentinel value used to represent an empty value slot
      */
-    __host__ __device__ Value get_empty_value_sentinel() const noexcept
+    [[nodiscard]] __host__ __device__ Value get_empty_value_sentinel() const noexcept
     {
       return empty_value_sentinel_;
     }
@@ -570,14 +581,17 @@ class static_map {
      *
      * @return Iterator to the first slot
      */
-    __device__ const_iterator begin_slot() const noexcept { return slots_; }
+    [[nodiscard]] __device__ const_iterator begin_slot() const noexcept { return slots_; }
 
     /**
      * @brief Returns a const_iterator to one past the last slot.
      *
      * @return A const_iterator to one past the last slot
      */
-    __host__ __device__ const_iterator end_slot() const noexcept { return slots_ + capacity_; }
+    [[nodiscard]] __host__ __device__ const_iterator end_slot() const noexcept
+    {
+      return slots_ + capacity_;
+    }
 
     /**
      * @brief Returns an iterator to one past the last slot.
@@ -594,7 +608,7 @@ class static_map {
      *
      * @return A const_iterator to one past the last slot
      */
-    __host__ __device__ const_iterator end() const noexcept { return end_slot(); }
+    [[nodiscard]] __host__ __device__ const_iterator end() const noexcept { return end_slot(); }
 
     /**
      * @brief Returns an iterator to one past the last slot.
@@ -934,9 +948,9 @@ class static_map {
      */
     template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ const_iterator find(Key const& k,
-                                   Hash hash          = Hash{},
-                                   KeyEqual key_equal = KeyEqual{}) const noexcept;
+    [[nodiscard]] __device__ const_iterator find(Key const& k,
+                                                 Hash hash          = Hash{},
+                                                 KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Finds the value corresponding to the key `k`.
@@ -987,7 +1001,7 @@ class static_map {
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ const_iterator
+    [[nodiscard]] __device__ const_iterator
     find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
@@ -1045,42 +1059,45 @@ class static_map {
    *
    * @return The maximum number of elements the hash map can hold
    */
-  std::size_t get_capacity() const noexcept { return capacity_; }
+  [[nodiscard]] std::size_t get_capacity() const noexcept { return capacity_; }
 
   /**
    * @brief Gets the number of elements in the hash map.
    *
    * @return The number of elements in the map
    */
-  std::size_t get_size() const noexcept { return size_; }
+  [[nodiscard]] std::size_t get_size() const noexcept { return size_; }
 
   /**
    * @brief Gets the load factor of the hash map.
    *
    * @return The load factor of the hash map
    */
-  float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; }
+  [[nodiscard]] float get_load_factor() const noexcept
+  {
+    return static_cast<float>(size_) / capacity_;
+  }
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+  [[nodiscard]] Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
   /**
    * @brief Gets the sentinel value used to represent an empty value slot.
    *
    * @return The sentinel value used to represent an empty value slot
    */
-  Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
+  [[nodiscard]] Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
 
   /**
    * @brief Constructs a device_view object based on the members of the `static_map` object.
    *
    * @return A device_view object based on the members of the `static_map` object
    */
-  device_view get_device_view() const noexcept
+  [[nodiscard]] device_view get_device_view() const noexcept
   {
     return device_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }
@@ -1090,7 +1107,7 @@ class static_map {
    *
    * @return A device_mutable_view object based on the members of the `static_map` object
    */
-  device_mutable_view get_device_mutable_view() const noexcept
+  [[nodiscard]] device_mutable_view get_device_mutable_view() const noexcept
   {
     return device_mutable_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }
