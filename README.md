@@ -86,8 +86,11 @@ Binaries will be built into:
 
 ## Code Formatting
 
-`cuCollections` uses [`pre-commit`](https://pre-commit.com/) along with [`mirrors-clang-format`](https://github.com/pre-commit/mirrors-clang-format) to format the C++/CUDA files.
-To install `pre-commit` via `conda` or `pip`:
+By default, `cuCollections` uses [`pre-commit.ci`](https://pre-commit.ci/) along with [`mirrors-clang-format`](https://github.com/pre-commit/mirrors-clang-format) to automatically format the C++/CUDA files in a pull request.
+Users should enable the `Allow edits by maintainers` option to get auto-formatting to work.
+
+### Pre-commit hook
+Optionally, you may wish to setup a [`pre-commit`](https://pre-commit.com/) hook to automatically run `clang-format` when you make a git commit. This can be done by installing `pre-commit` via `conda` or `pip`:
 
 ```bash
 conda install -c conda-forge pre_commit
@@ -104,7 +107,7 @@ pre-commit install
 
 from the root of the `cuCollections` repository. Now code formatting will be run each time you commit changes.
 
-Optionally, you may wish to manually format the code:
+You may also wish to manually format the code:
 ```bash
 pre-commit run clang-format --all-files
 ```
