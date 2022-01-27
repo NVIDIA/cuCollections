@@ -168,7 +168,7 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::packed_cas(
   auto expected_value = this->get_empty_value_sentinel();
 
   cuco::detail::pair_converter<value_type> expected_pair{
-    cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value))};
+    cuco::make_pair(expected_key, expected_value)};
   cuco::detail::pair_converter<value_type> new_pair{insert_pair};
 
   auto slot =
