@@ -236,7 +236,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
     auto expected_value = this->get_empty_value_sentinel();
 
     cuco::detail::pair_converter<value_type> expected_pair{
-      cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value))};
+      cuco::make_pair(expected_key, expected_value)};
     cuco::detail::pair_converter<value_type> new_pair{insert_pair};
 
     auto slot = reinterpret_cast<
@@ -927,16 +927,13 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
 
           if (first_equals) {
             auto const lane_offset = detail::count_least_significant_bits(first_exists, cg_lane_id);
-            Key key                = k;
-            output_buffer[output_idx + lane_offset] =
-              cuco::make_pair<Key, Value>(std::move(key), std::move(arr[0].second));
+            output_buffer[output_idx + lane_offset] = cuco::make_pair(k, arr[0].second);
           }
           if (second_equals) {
             auto const lane_offset =
               detail::count_least_significant_bits(second_exists, cg_lane_id);
-            Key key = k;
             output_buffer[output_idx + num_first_matches + lane_offset] =
-              cuco::make_pair<Key, Value>(std::move(key), std::move(arr[1].second));
+              cuco::make_pair(k, arr[1].second);
           }
         }
         if (probing_cg.any(first_slot_is_empty or second_slot_is_empty)) {
@@ -944,9 +941,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
           if constexpr (is_outer) {
             if ((not found_match) && (cg_lane_id == 0)) {
               auto const output_idx     = atomicAdd(flushing_cg_counter, 1);
-              Key key                   = k;
-              output_buffer[output_idx] = cuco::make_pair<Key, Value>(
-                std::move(key), std::move(this->get_empty_value_sentinel()));
+              output_buffer[output_idx] = cuco::make_pair(k, this->get_empty_value_sentinel());
             }
           }
         }
@@ -1029,9 +1024,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         if (equals) {
           // Each match computes its lane-level offset
           auto const lane_offset = detail::count_least_significant_bits(exists, lane_id);
-          Key key                = k;
-          output_buffer[output_idx + lane_offset] =
-            cuco::make_pair<Key, Value>(std::move(key), std::move(slot_contents.second));
+          output_buffer[output_idx + lane_offset] = cuco::make_pair(k, slot_contents.second);
         }
         if (0 == lane_id) { (*cg_counter) += num_matches; }
       }
@@ -1040,9 +1033,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         if constexpr (is_outer) {
           if ((not found_match) && (lane_id == 0)) {
             output_idx                = (*cg_counter)++;
-            Key key                   = k;
-            output_buffer[output_idx] = cuco::make_pair<Key, Value>(
-              std::move(key), std::move(this->get_empty_value_sentinel()));
+            output_buffer[output_idx] = cuco::make_pair(k, this->get_empty_value_sentinel());
           }
         }
       }
@@ -1373,8 +1364,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
               auto const output_idx           = atomicAdd(flushing_cg_counter, 1);
               probe_output_buffer[output_idx] = pair;
               contained_output_buffer[output_idx] =
-                cuco::make_pair<Key, Value>(std::move(this->get_empty_key_sentinel()),
-                                            std::move(this->get_empty_value_sentinel()));
+                cuco::make_pair(this->get_empty_key_sentinel(), this->get_empty_value_sentinel());
             }
           }
         }
@@ -1484,8 +1474,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             output_idx                      = (*cg_counter)++;
             probe_output_buffer[output_idx] = pair;
             contained_output_buffer[output_idx] =
-              cuco::make_pair<Key, Value>(std::move(this->get_empty_key_sentinel()),
-                                          std::move(this->get_empty_value_sentinel()));
+              cuco::make_pair(this->get_empty_key_sentinel(), this->get_empty_value_sentinel());
           }
         }
       }
