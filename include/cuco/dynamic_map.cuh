@@ -17,12 +17,12 @@
 #pragma once
 
 #include <cooperative_groups.h>
-#include <thrust/device_vector.h>
 #include <cub/cub.cuh>
 #include <cuco/detail/dynamic_map_kernels.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/static_map.cuh>
 #include <cuda/std/atomic>
+#include <thrust/device_vector.h>
 
 namespace cuco {
 
@@ -92,6 +92,7 @@ class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
  public:
+  using value_type                = cuco::pair_type<Key, Value>;
   using key_type                  = Key;
   using mapped_type               = Value;
   using atomic_ctr_type           = cuda::atomic<std::size_t, Scope>;

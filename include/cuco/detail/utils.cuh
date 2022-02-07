@@ -11,30 +11,21 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License.
  */
 
 #pragma once
 
-#include <algorithm>
-#include <iterator>
+namespace cuco {
+namespace detail {
 
 /**
- * @brief Count the number of unique elements within a range
+ * @brief For the `n` least significant bits in the given unsigned 32-bit integer `x`,
+ * returns the number of set bits.
  */
-template<typename Iter>
-std::size_t count_unique(Iter begin, Iter end) {
-  using value_type = typename std::iterator_traits<Iter>::value_type;
-
-  const auto size = std::distance(begin, end);
-  std::vector<value_type> v(size);
-  std::copy(begin, end, v.begin());
-  std::sort(v.begin(), v.end());
-
-  return std::distance(v.begin(), std::unique(v.begin(), v.end()));
+__device__ __forceinline__ int32_t count_least_significant_bits(uint32_t x, int32_t n)
+{
+  return __popc(x & (1 << n) - 1);
 }
 
-// safe division
-#ifndef SDIV
-    #define SDIV(x,y)(((x)+(y)-1)/(y))
-#endif
+}  // namespace detail
+}  // namespace cuco

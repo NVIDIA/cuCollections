@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include <thrust/device_vector.h>
-#include <thrust/functional.h>
 #include <cuco/static_reduction_map.cuh>
 #include <key_generator.hpp>
 #include <nvbench/nvbench.cuh>
-#include <util.hpp>
+#include <thrust/device_vector.h>
+#include <thrust/functional.h>
+#include <utils.hpp>
 
 /**
  * @brief Grid search evaluating backoff delay params for cuco::custom_op

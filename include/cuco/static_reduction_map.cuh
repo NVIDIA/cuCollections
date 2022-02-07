@@ -13,19 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #pragma once
 
 #include <cooperative_groups.h>
+#include <cub/cub.cuh>
+#include <cuda/std/atomic>
+#include <memory>
 #include <thrust/copy.h>
 #include <thrust/distance.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/transform_output_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/tuple.h>
-#include <cub/cub.cuh>
-#include <cuda/std/atomic>
-#include <memory>
 
 #include <cuco/allocator.hpp>
 
@@ -38,17 +37,17 @@
 #include <cuda/barrier>
 #endif
 
-#include <cuda.h>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/reduction_ops.cuh>
 #include <cuco/detail/static_reduction_map_kernels.cuh>
 #include <cuco/detail/traits.hpp>
+#include <cuda.h>
 
 namespace cuco {
 
-  static constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
+static constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
 
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
@@ -315,23 +314,20 @@ class static_reduction_map {
                 KeyEqual key_equal  = KeyEqual{});
 
  private:
-
-
-
   template <typename Slot, std::size_t Extent>
-  struct slot_storage{
-      slot_storage() = delete;
-      constexpr explicit slot_storage(Slot* p, std::size_t) noexcept : ptr{p} {}
-      Slot* ptr;
-      static constexpr std::size_t size = Extent;
+  struct slot_storage {
+    slot_storage() = delete;
+    constexpr explicit slot_storage(Slot* p, std::size_t) noexcept : ptr{p} {}
+    Slot* ptr;
+    static constexpr std::size_t size = Extent;
   };
 
   template <typename Slot>
-  struct slot_storage<Slot, dynamic_extent>{
-      slot_storage() = delete;
-      constexpr slot_storage(Slot* p, std::size_t n) noexcept : ptr{p}, size{n} {}
-      Slot* ptr;
-      std::size_t size;
+  struct slot_storage<Slot, dynamic_extent> {
+    slot_storage() = delete;
+    constexpr slot_storage(Slot* p, std::size_t n) noexcept : ptr{p}, size{n} {}
+    Slot* ptr;
+    std::size_t size;
   };
 
   template <std::size_t Extent = dynamic_extent>
@@ -358,22 +354,26 @@ class static_reduction_map {
                                          std::size_t capacity,
                                          Key empty_key_sentinel,
                                          ReductionOp reduction_op) noexcept
-      : storage_{slots, capacity}, 
+      : storage_{slots, capacity},
         empty_key_sentinel_{empty_key_sentinel},
         empty_value_sentinel_{ReductionOp::identity},
         op_{reduction_op}
     {
-        assert(extent == dynamic_extent or capacity == extent);
+      assert(extent == dynamic_extent or capacity == extent);
     }
 
-
-    template<std::size_t N, std::size_t E = Extent, 
-             std::enable_if_t<E == dynamic_extent or N == E>* = nullptr>
-    __host__ __device__
-    constexpr device_view_base(slot_type (&arr)[N], Key empty_key_sentinel, ReductionOp op) 
-    : storage_{arr, N}, empty_key_sentinel_{empty_key_sentinel}, 
-      empty_value_sentinel_{ReductionOp::identity}, op_{op} {}
-
+    template <std::size_t N,
+              std::size_t E                                    = Extent,
+              std::enable_if_t<E == dynamic_extent or N == E>* = nullptr>
+    __host__ __device__ constexpr device_view_base(slot_type (&arr)[N],
+                                                   Key empty_key_sentinel,
+                                                   ReductionOp op)
+      : storage_{arr, N},
+        empty_key_sentinel_{empty_key_sentinel},
+        empty_value_sentinel_{ReductionOp::identity},
+        op_{op}
+    {
+    }
 
     /**
      * @brief Returns the initial slot for a given key `k`
@@ -384,8 +384,7 @@ class static_reduction_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename Hash>
-    __device__ 
-    constexpr iterator initial_slot(Key const& k, Hash hash) noexcept
+    __device__ constexpr iterator initial_slot(Key const& k, Hash hash) noexcept
     {
       return begin_slot() + (hash(k) % get_capacity());
     }
@@ -399,8 +398,7 @@ class static_reduction_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename Hash>
-    __device__ 
-    constexpr const_iterator initial_slot(Key const& k, Hash hash) const noexcept
+    __device__ constexpr const_iterator initial_slot(Key const& k, Hash hash) const noexcept
     {
       return begin_slot() + (hash(k) % get_capacity());
     }
@@ -418,8 +416,7 @@ class static_reduction_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename CG, typename Hash>
-    __device__ 
-    constexpr iterator initial_slot(CG const& g, Key const& k, Hash hash) noexcept
+    __device__ constexpr iterator initial_slot(CG const& g, Key const& k, Hash hash) noexcept
     {
       return begin_slot() + (hash(k) + g.thread_rank()) % get_capacity();
     }
@@ -450,9 +447,7 @@ class static_reduction_map {
      * @param s The slot to advance
      * @return The next slot after `s`
      */
-    __device__ iterator next_slot(iterator s) noexcept { 
-        return (++s < end()) ? s : begin_slot(); 
-    }
+    __device__ iterator next_slot(iterator s) noexcept { return (++s < end()) ? s : begin_slot(); }
 
     /**
      * @brief Given a slot `s`, returns the next slot.
@@ -518,7 +513,8 @@ class static_reduction_map {
      */
 
     template <typename CG>
-    __device__ static void initialize_slots(CG g, slot_type* slots, std::size_t num_slots, Key k, Value v)
+    __device__ static void initialize_slots(
+      CG g, slot_type* slots, std::size_t num_slots, Key k, Value v)
     {
       auto tid = g.thread_rank();
       while (tid < num_slots) {
@@ -541,24 +537,27 @@ class static_reduction_map {
      *
      * @return Slots array
      */
-    __host__ __device__ 
-    constexpr slot_type* get_slots() noexcept { return storage_.ptr; }
+    __host__ __device__ constexpr slot_type* get_slots() noexcept { return storage_.ptr; }
 
     /**
      * @brief Gets slots array.
      *
      * @return Slots array
      */
-    __host__ __device__ 
-    constexpr slot_type const* get_slots() const noexcept { return storage_.ptr; }
+    __host__ __device__ constexpr slot_type const* get_slots() const noexcept
+    {
+      return storage_.ptr;
+    }
 
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
      *
      * @return The maximum number of elements the hash map can hold
      */
-    __host__ __device__ 
-    constexpr std::size_t get_capacity() const noexcept { return storage_.size; }
+    __host__ __device__ constexpr std::size_t get_capacity() const noexcept
+    {
+      return storage_.size;
+    }
 
     /**
      * @brief Gets the sentinel value used to represent an empty key slot.
@@ -590,8 +589,7 @@ class static_reduction_map {
      *
      * @return Iterator to the first slot
      */
-    __host__ __device__ 
-    constexpr iterator begin_slot() noexcept { return get_slots(); }
+    __host__ __device__ constexpr iterator begin_slot() noexcept { return get_slots(); }
 
     /**
      * @brief Returns iterator to the first slot.
@@ -606,24 +604,27 @@ class static_reduction_map {
      *
      * @return Iterator to the first slot
      */
-    __host__ __device__ 
-    constexpr const_iterator begin_slot() const noexcept { return get_slots(); }
+    __host__ __device__ constexpr const_iterator begin_slot() const noexcept { return get_slots(); }
 
     /**
      * @brief Returns a const_iterator to one past the last slot.
      *
      * @return A const_iterator to one past the last slot
      */
-    __host__ __device__ 
-    constexpr const_iterator end_slot() const noexcept { return begin_slot() + get_capacity(); }
+    __host__ __device__ constexpr const_iterator end_slot() const noexcept
+    {
+      return begin_slot() + get_capacity();
+    }
 
     /**
      * @brief Returns an iterator to one past the last slot.
      *
      * @return An iterator to one past the last slot
      */
-    __host__ __device__ 
-    constexpr iterator end_slot() noexcept { return begin_slot() + get_capacity(); }
+    __host__ __device__ constexpr iterator end_slot() noexcept
+    {
+      return begin_slot() + get_capacity();
+    }
 
     /**
      * @brief Returns a const_iterator to one past the last slot.
@@ -633,8 +634,7 @@ class static_reduction_map {
      *
      * @return A const_iterator to one past the last slot
      */
-    __host__ __device__ 
-    constexpr const_iterator end() const noexcept { return end_slot(); }
+    __host__ __device__ constexpr const_iterator end() const noexcept { return end_slot(); }
 
     /**
      * @brief Returns an iterator to one past the last slot.
@@ -644,8 +644,7 @@ class static_reduction_map {
      *
      * @return An iterator to one past the last slot
      */
-    __host__ __device__ 
-    constexpr iterator end() noexcept { return end_slot(); }
+    __host__ __device__ constexpr iterator end() noexcept { return end_slot(); }
   };
 
  public:
@@ -711,7 +710,8 @@ class static_reduction_map {
       ReductionOp reduction_op = {}) noexcept
     {
       assert(extent == dynamic_extent or capacity == extent);
-      device_view_base<Extent>::initialize_slots(g, slots, capacity, empty_key_sentinel, ReductionOp::identity);
+      device_view_base<Extent>::initialize_slots(
+        g, slots, capacity, empty_key_sentinel, ReductionOp::identity);
       return device_mutable_view<Extent>{slots, capacity, empty_key_sentinel, reduction_op};
     }
 
@@ -723,7 +723,8 @@ class static_reduction_map {
       ReductionOp reduction_op = {}) noexcept
     {
       static_assert(extent == dynamic_extent or N == extent);
-      device_view_base<Extent>::initialize_slots(g, slots, N, empty_key_sentinel, ReductionOp::identity);
+      device_view_base<Extent>::initialize_slots(
+        g, slots, N, empty_key_sentinel, ReductionOp::identity);
       return device_mutable_view<Extent>{slots, empty_key_sentinel, reduction_op};
     }
 
@@ -820,9 +821,9 @@ class static_reduction_map {
      */
     __host__ __device__ explicit device_view(device_mutable_view<Extent> mutable_map)
       : device_view_base<Extent>{mutable_map.get_slots(),
-                         mutable_map.get_capacity(),
-                         mutable_map.get_empty_key_sentinel(),
-                         mutable_map.get_op()}
+                                 mutable_map.get_capacity(),
+                                 mutable_map.get_empty_key_sentinel(),
+                                 mutable_map.get_op()}
     {
     }
 

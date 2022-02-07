@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <iostream>
 #include <limits>
 #include <random>
 #include <string>
@@ -50,6 +49,19 @@ NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
   [](auto) { return std::string{}; })
 #endif
 
+/**
+ * @brief Generates a sequence of ``output_end-output_begin)` many keys under a given distribution.
+ *
+ * @tparam Key Type used for keys
+ * @tparam OutputIt Output iterator type
+ *
+ * @param dist The distribution to sample keys from
+ * @param output_begin Start of output sequence
+ * @param output_end End of output sequence
+ * @param multiplicity Average key multiplicity; applies only to `dist_type::UNIFORM`
+ *
+ * @returns True if key sequence generation was succesful; else false.
+ */
 template <typename Key, typename OutputIt>
 static bool generate_keys(dist_type dist,
                           OutputIt output_begin,
@@ -97,7 +109,7 @@ static bool generate_keys(dist_type dist,
       break;
     }
     case dist_type::UNIQUE: {
-      // 3 because some HT implementations use 0, 1 as sentinels
+      // 2 because some HT implementations use 0, 1 as sentinels
       for (auto i = 2; i < num_keys + 2; ++i) {
         output_begin[i] = i;
       }
@@ -116,6 +128,20 @@ static bool generate_keys(dist_type dist,
   return true;
 }
 
+/**
+ * @brief Variant of `generate_keys` which takes the distribution parameter as a string instead of
+ * an enum type.
+ *
+ * @tparam Key Type used for keys
+ * @tparam OutputIt Output iterator type
+ *
+ * @param dist The distribution to sample keys from
+ * @param output_begin Start of output sequence
+ * @param output_end End of output sequence
+ * @param multiplicity Average key multiplicity; applies only to `dist_type::UNIFORM`
+ *
+ * @returns True if key sequence generation was successful; else false.
+ */
 template <typename Key, typename OutputIt>
 static bool generate_keys(std::string const& dist,
                           OutputIt output_begin,
@@ -141,10 +167,22 @@ static bool generate_keys(std::string const& dist,
   return generate_keys<Key>(enum_value, output_begin, output_end, multiplicity);
 }
 
+/**
+ * @brief Generates a sequence of keys with a specific matching rate for hash table probing by
+ * in-place augmenting a given key sequence in `[output_begin, output_end)`.
+ *
+ * @tparam Key Type used for keys
+ * @tparam OutputIt Output iterator type
+ *
+ * @param matching_rate The matching rate to apply, i.e., fraction of keys that match already
+ * resident keys within the table
+ * @param output_begin Start of output sequence
+ * @param output_end End of output sequence
+ */
 template <typename Key, typename OutputIt>
-static void generate_prob_keys(double const matching_rate,
-                               OutputIt output_begin,
-                               OutputIt output_end)
+static void generate_probe_keys(double const matching_rate,
+                                OutputIt output_begin,
+                                OutputIt output_end)
 {
   auto const num_keys = std::distance(output_begin, output_end);
   auto const max      = std::numeric_limits<Key>::max() - 2;

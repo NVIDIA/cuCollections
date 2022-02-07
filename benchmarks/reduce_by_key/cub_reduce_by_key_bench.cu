@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include <thrust/device_vector.h>
 #include <cub/cub.cuh>
 #include <key_generator.hpp>
 #include <nvbench/nvbench.cuh>
+#include <thrust/device_vector.h>
 
 /**
- * @brief A benchmark evaluating reduce-by-key performance.
+ * @brief A benchmark evaluating CUB's reduce-by-key performance.
  */
 template <typename Key, typename Value>
 void nvbench_cub_reduce_by_key(nvbench::state& state, nvbench::type_list<Key, Value>)

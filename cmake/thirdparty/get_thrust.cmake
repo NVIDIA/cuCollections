@@ -26,4 +26,4 @@ function(find_and_configure_thrust VERSION)
     thrust_create_target(cuco::Thrust FROM_OPTIONS)
 endfunction()
 
-find_and_configure_thrust(1.12.0)
+find_and_configure_thrust(1.15.0)

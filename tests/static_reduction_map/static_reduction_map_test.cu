@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-#include <thrust/device_vector.h>
-#include <thrust/for_each.h>
-#include <thrust/functional.h>
 #include <algorithm>
 #include <catch2/catch.hpp>
-#include <cuco/static_reduction_map.cuh>
 #include <limits>
-#include <util.hpp>
+#include <thrust/device_vector.h>
+#include <thrust/for_each.h>
+
+#include <cuco/static_reduction_map.cuh>
+
+#include <utils.hpp>
 
 // cuco::custom op functor that should give the same result as cuco::reduce_add
 template <typename T>
@@ -51,7 +52,8 @@ TEMPLATE_TEST_CASE_SIG("Insert all identical keys",
   {
     thrust::device_vector<bool> contained(keys.size());
     map.contains(keys.begin(), keys.end(), contained.begin());
-    REQUIRE(all_of(contained.begin(), contained.end(), [] __device__(bool c) { return c; }));
+    REQUIRE(
+      cuco::test::all_of(contained.begin(), contained.end(), [] __device__(bool c) { return c; }));
   }
 
   SECTION("Found value should equal aggregate of inserted values")
@@ -61,9 +63,10 @@ TEMPLATE_TEST_CASE_SIG("Insert all identical keys",
     auto const expected_aggregate = keys.size();  // All keys inserted "1", so the
                                                   // sum aggregate should be
                                                   // equal to the number of keys inserted
-    REQUIRE(all_of(found.begin(), found.end(), [expected_aggregate] __device__(Value v) {
-      return v == expected_aggregate;
-    }));
+    REQUIRE(
+      cuco::test::all_of(found.begin(), found.end(), [expected_aggregate] __device__(Value v) {
+        return v == expected_aggregate;
+      }));
   }
 }
 
@@ -92,7 +95,8 @@ TEMPLATE_TEST_CASE_SIG("Insert all unique keys",
   {
     thrust::device_vector<bool> contained(num_keys);
     map.contains(keys_begin, keys_begin + num_keys, contained.begin());
-    REQUIRE(all_of(contained.begin(), contained.end(), [] __device__(bool c) { return c; }));
+    REQUIRE(
+      cuco::test::all_of(contained.begin(), contained.end(), [] __device__(bool c) { return c; }));
   }
 
   SECTION("Found value should equal inserted value")
@@ -112,7 +116,7 @@ __global__ void static_reduction_map_shared_memory_kernel(bool* key_found)
   namespace cg            = cooperative_groups;
   using mutable_view_type = typename MapType::device_mutable_view<N>;
   using view_type         = typename MapType::device_view<N>;
-  #pragma diag_suppress static_var_with_dynamic_init
+#pragma nv_diag_suppress static_var_with_dynamic_init
   __shared__ typename mutable_view_type::slot_type slots[N];
   auto map = mutable_view_type::make_from_uninitialized_slots(cg::this_thread_block(), slots, -1);
 
@@ -131,7 +135,7 @@ __global__ void static_reduction_map_shared_memory_kernel(bool* key_found)
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Shared memory hast table.",
+TEMPLATE_TEST_CASE_SIG("Reduction map in shared memory",
                        "",
                        ((typename Key, typename Value, typename Op), Key, Value, Op),
                        (int32_t, int32_t, cuco::reduce_add<int32_t>),
@@ -146,5 +150,5 @@ TEMPLATE_TEST_CASE_SIG("Shared memory hast table.",
     cuco::static_reduction_map<Op, Key, Value, cuda::thread_scope_block>,
     N><<<8, 32>>>(key_found.data().get());
 
-  REQUIRE(all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
+  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
 }

@@ -1,4 +1,19 @@
-﻿cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
+﻿#=============================================================================
+# Copyright (c) 2018-2022, NVIDIA CORPORATION.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#=============================================================================
+cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
 CPMAddPackage(
   NAME benchmark
@@ -12,11 +27,6 @@ CPMAddPackage(
     "RUN_HAVE_STD_REGEX 0" #
 )
 
-#if (benchmark_ADDED)
-#  # patch google benchmark target
-#  set_target_properties(benchmark PROPERTIES CXX_STANDARD 14)
-#endif()
-
 CPMAddPackage(
   NAME nvbench
   GITHUB_REPOSITORY NVIDIA/nvbench
@@ -24,21 +34,13 @@ CPMAddPackage(
   GIT_SHALLOW TRUE
 )
 
-# device-side benchmark tool
-CPMAddPackage(
-  NAME cuda_benchmark
-  GITHUB_REPOSITORY sleeepyjack/cuda_benchmark
-  GIT_TAG master
-  GIT_SHALLOW TRUE
-)
-
-set_target_properties(benchmark PROPERTIES CXX_STANDARD 17)
+###################################################################################################
+### compiler function #############################################################################
+###################################################################################################
 
 ###################################################################################################
-# - compiler function -----------------------------------------------------------------------------
-
-function(ConfigureBench BENCH_NAME BENCH_SRC)
-    add_executable(${BENCH_NAME} "${BENCH_SRC}")
+function(ConfigureBench BENCH_NAME)
+    add_executable(${BENCH_NAME} ${ARGN})
     set_target_properties(${BENCH_NAME} PROPERTIES
                                         POSITION_INDEPENDENT_CODE ON
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks")
@@ -53,15 +55,14 @@ function(ConfigureBench BENCH_NAME BENCH_SRC)
 endfunction(ConfigureBench)
 
 ###################################################################################################
-function(ConfigureNVBench BENCH_NAME BENCH_SRC)
-    add_executable(${BENCH_NAME} "${BENCH_SRC}")
+function(ConfigureNVBench BENCH_NAME)
+    add_executable(${BENCH_NAME} ${ARGN})
     set_target_properties(${BENCH_NAME} PROPERTIES
                                         POSITION_INDEPENDENT_CODE ON
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks"
                                         COMPILE_FLAGS -DNVBENCH_MODULE)
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
-                                             #"${NVBench_SOURCE_DIR}")
     target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         nvbench::main
@@ -70,54 +71,41 @@ function(ConfigureNVBench BENCH_NAME BENCH_SRC)
 endfunction(ConfigureNVBench)
 
 ###################################################################################################
-function(ConfigureCUDABench BENCH_NAME BENCH_SRC)
-    add_executable(${BENCH_NAME} "${BENCH_SRC}")
-    set_target_properties(${BENCH_NAME} PROPERTIES
-                                        POSITION_INDEPENDENT_CODE ON
-                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks")
-    target_include_directories(${BENCH_NAME} PRIVATE
-                                             "${CMAKE_CURRENT_SOURCE_DIR}")
-                                             #"${NVBench_SOURCE_DIR}")
-    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
-    target_link_libraries(${BENCH_NAME} PRIVATE
-                                        cuda_benchmark
-                                        fmt
-                                        pthread
-                                        cuco)
-endfunction(ConfigureCUDABench)
-
-###################################################################################################
 ### test sources ##################################################################################
 ###################################################################################################
 
 ###################################################################################################
-set(DYNAMIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/dynamic_map_bench.cu")
-ConfigureBench(DYNAMIC_MAP_BENCH "${DYNAMIC_MAP_BENCH_SRC}")
+# - dynamic_map benchmarks ------------------------------------------------------------------------
+ConfigureBench(DYNAMIC_MAP_BENCH
+  hash_table/dynamic_map_bench.cu)
 
 ###################################################################################################
-set(STATIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
-ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
+# - static_map benchmarks -------------------------------------------------------------------------
+ConfigureBench(STATIC_MAP_BENCH
+  hash_table/static_map_bench.cu)
 
 ###################################################################################################
-set(STATIC_REDUCTION_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_reduction_map_bench.cu")
-ConfigureNVBench(STATIC_REDUCTION_MAP_BENCH "${STATIC_REDUCTION_MAP_BENCH_SRC}")
+# - static_reduction_map benchmarks ---------------------------------------------------------------
+ConfigureNVBench(STATIC_REDUCTION_MAP_BENCH
+  hash_table/static_reduction_map/insert_bench.cu)
+ConfigureNVBench(STATIC_REDUCTION_MAP_PARAM_SWEEP
+  hash_table/static_reduction_map/param_sweep.cu)
 
 ###################################################################################################
-set(CUCO_RBK_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/reduce_by_key/cuco_reduce_by_key_bench.cu")
-ConfigureNVBench(CUCO_RBK_BENCH "${CUCO_RBK_BENCH_SRC}")
+# - reduce-by-key benchmarks ----------------------------------------------------------------------
+ConfigureNVBench(REDUCE_BY_KEY_BENCH
+  reduce_by_key/cuco_reduce_by_key_bench.cu
+  reduce_by_key/cub_reduce_by_key_bench.cu
+  reduce_by_key/thrust_reduce_by_key_bench.cu)
 
 ###################################################################################################
-set(THRUST_RBK_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/reduce_by_key/thrust_reduce_by_key_bench.cu")
-ConfigureNVBench(THRUST_RBK_BENCH "${THRUST_RBK_BENCH_SRC}")
+# - static_multimap benchmarks --------------------------------------------------------------------
+ConfigureNVBench(STATIC_MULTIMAP_BENCH
+  hash_table/static_multimap/count_bench.cu
+  hash_table/static_multimap/insert_bench.cu
+  hash_table/static_multimap/pair_retrieve_bench.cu
+  hash_table/static_multimap/query_bench.cu
+  hash_table/static_multimap/retrieve_bench.cu)
 
-###################################################################################################
-set(CUB_RBK_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/reduce_by_key/cub_reduce_by_key_bench.cu")
-ConfigureNVBench(CUB_RBK_BENCH "${CUB_RBK_BENCH_SRC}")
-
-###################################################################################################
-set(STATIC_REDUCTION_MAP_SMEM_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_reduction_map_smem_bench.cu")
-ConfigureCUDABench(STATIC_REDUCTION_MAP_SMEM_BENCH "${STATIC_REDUCTION_MAP_SMEM_BENCH_SRC}")
-
-###################################################################################################
-set(STATIC_REDUCTION_MAP_PARAM_GRID_SEARCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_reduction_map_param_grid_search.cu")
-ConfigureNVBench(STATIC_REDUCTION_MAP_PARAM_GRID_SEARCH "${STATIC_REDUCTION_MAP_PARAM_GRID_SEARCH_SRC}")
+ConfigureNVBench(RETRIEVE_BENCH
+  hash_table/static_multimap/optimal_retrieve_bench.cu)

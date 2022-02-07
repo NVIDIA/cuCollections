@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include <thrust/device_vector.h>
-#include <thrust/functional.h>
 #include <cuco/static_reduction_map.cuh>
 #include <key_generator.hpp>
 #include <nvbench/nvbench.cuh>
-#include <util.hpp>
+#include <thrust/device_vector.h>
+#include <thrust/functional.h>
+#include <utils.hpp>
 
 /**
  * @brief Enum representation for reduction operators
@@ -66,7 +66,7 @@ struct op_type_map<op_type::CUSTOM_OP> {
 };
 
 /**
- * @brief A benchmark evaluating reduce-by-key performance.
+ * @brief A benchmark evaluating CUCO's reduce-by-key performance.
  */
 template <typename Key, typename Value, op_type Op>
 void nvbench_cuco_static_reduction_map_reduce_by_key(
