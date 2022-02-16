@@ -532,5 +532,134 @@ __global__ void pair_retrieve(InputIt first,
   }
 }
 
+/**
+ * @brief Retrieves all pairs matching the input probe pair in the range `[first, first + n)`
+ * if `pred` of the corresponding stencil returns true.
+ *
+ * If `pair_equal(*(first + i), slot[j])` and `pred( *(stencil + i) )` return true, then
+ * `*(first+i)` is stored to unspecified locations in `probe_output_begin`, and slot[j] is stored to
+ * unspecified locations in `contained_output_begin`. If the given pair has no matches in the map,
+ * copies *(first + i) in `probe_output_begin` and a pair of `empty_key_sentinel` and
+ * `empty_value_sentinel` in `contained_output_begin` only when `is_outer` is `true`.
+ *
+ * Behavior is undefined if the total number of matching pairs exceeds `std::distance(output_begin,
+ * output_begin + *num_matches - 1)`.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam flushing_cg_size The size of the CG used to flush output buffers
+ * @tparam probing_cg_size The size of the CG for parallel retrievals
+ * @tparam buffer_size Size of the output buffer
+ * @tparam is_outer Boolean flag indicating whether non-matches are included in the output
+ * @tparam InputIt Device accessible random access input iterator where
+ * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
+ * static_multimap<K, V>::value_type>` is `true`
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+ * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+ * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+ * `InputIt`s `value_type`.
+ * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+ * the map's `value_type`.
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam PairEqual Binary callable type
+ * @param first Beginning of the sequence of key/value pairs
+ * @param n Number of probe pairs
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[s, s + n)`
+ * @param probe_output_begin Beginning of the sequence of the matched probe pairs
+ * @param contained_output_begin Beginning of the sequence of the matched contained pairs
+ * @param num_matches Size of the output sequence
+ * @param view Device view used to access the hash map's slot storage
+ * @param pair_equal The binary function to compare two pairs for equality
+ */
+template <uint32_t block_size,
+          uint32_t flushing_cg_size,
+          uint32_t probing_cg_size,
+          uint32_t buffer_size,
+          bool is_outer,
+          typename InputIt,
+          typename StencilIt,
+          typename Predicate,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename atomicT,
+          typename viewT,
+          typename PairEqual>
+__global__ void pair_retrieve_if_n(InputIt first,
+                                   std::size_t n,
+                                   StencilIt stencil,
+                                   Predicate pred,
+                                   OutputIt1 probe_output_begin,
+                                   OutputIt2 contained_output_begin,
+                                   atomicT* num_matches,
+                                   viewT view,
+                                   PairEqual pair_equal)
+{
+  using pair_type = typename viewT::value_type;
+
+  constexpr uint32_t num_flushing_cgs = block_size / flushing_cg_size;
+  const uint32_t flushing_cg_id       = threadIdx.x / flushing_cg_size;
+
+  auto flushing_cg = cg::tiled_partition<flushing_cg_size>(cg::this_thread_block());
+  auto probing_cg  = cg::tiled_partition<probing_cg_size>(cg::this_thread_block());
+  auto tid         = block_size * blockIdx.x + threadIdx.x;
+  auto pair_idx    = tid / probing_cg_size;
+
+  __shared__ pair_type probe_output_buffer[num_flushing_cgs][buffer_size];
+  __shared__ pair_type contained_output_buffer[num_flushing_cgs][buffer_size];
+  // TODO: replace this with shared memory cuda::atomic variables once the dynamiic initialization
+  // warning issue is solved __shared__ atomicT counter[num_flushing_cgs][buffer_size];
+  __shared__ uint32_t flushing_cg_counter[num_flushing_cgs];
+
+  if (flushing_cg.thread_rank() == 0) { flushing_cg_counter[flushing_cg_id] = 0; }
+
+  while (flushing_cg.any(pair_idx < n)) {
+    bool active_flag        = pair_idx < n;
+    auto active_flushing_cg = cg::binary_partition<flushing_cg_size>(flushing_cg, active_flag);
+
+    if (active_flag) {
+      if (pred(*(stencil + pair_idx))) {
+        pair_type pair = *(first + pair_idx);
+        if constexpr (is_outer) {
+          view.pair_retrieve_outer<buffer_size>(active_flushing_cg,
+                                                probing_cg,
+                                                pair,
+                                                &flushing_cg_counter[flushing_cg_id],
+                                                probe_output_buffer[flushing_cg_id],
+                                                contained_output_buffer[flushing_cg_id],
+                                                num_matches,
+                                                probe_output_begin,
+                                                contained_output_begin,
+                                                pair_equal);
+        } else {
+          view.pair_retrieve<buffer_size>(active_flushing_cg,
+                                          probing_cg,
+                                          pair,
+                                          &flushing_cg_counter[flushing_cg_id],
+                                          probe_output_buffer[flushing_cg_id],
+                                          contained_output_buffer[flushing_cg_id],
+                                          num_matches,
+                                          probe_output_begin,
+                                          contained_output_begin,
+                                          pair_equal);
+        }
+      }
+    }
+    pair_idx += (gridDim.x * block_size) / probing_cg_size;
+  }
+
+  // Final flush of output buffer
+  if (flushing_cg_counter[flushing_cg_id] > 0) {
+    view.flush_output_buffer(flushing_cg,
+                             flushing_cg_counter[flushing_cg_id],
+                             probe_output_buffer[flushing_cg_id],
+                             contained_output_buffer[flushing_cg_id],
+                             num_matches,
+                             probe_output_begin,
+                             contained_output_begin);
+  }
+}
 }  // namespace detail
 }  // namespace cuco

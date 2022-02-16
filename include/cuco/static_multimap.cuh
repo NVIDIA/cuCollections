@@ -40,8 +40,6 @@
 
 #include <cooperative_groups.h>
 
-#include <cub/cub.cuh>
-
 #include <thrust/distance.h>
 #include <thrust/functional.h>
 
@@ -484,38 +482,38 @@ class static_multimap {
    * @tparam InputIt Device accessible random access input iterator where
    * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
    * static_multimap<K, V>::value_type>` is `true`
-   * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
-   * `InputIt`s `value_type`.
-   * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
-   * the map's `value_type`.
    * @tparam StencilIt Device accessible random access iterator whose value_type is
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
    * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+   * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+   * `InputIt`s `value_type`.
+   * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `value_type`.
    * @tparam PairEqual Binary callable type
    * @param first Beginning of the sequence of pairs
    * @param last End of the sequence of pairs
-   * @param probe_output_begin Beginning of the sequence of the matched probe pairs
-   * @param contained_output_begin Beginning of the sequence of the matched contained pairs
    * @param stencil Beginning of the stencil sequence
    * @param pred Predicate to test on every element in the range `[stencil, stencil +
    * std::distance(first, last))`
+   * @param probe_output_begin Beginning of the sequence of the matched probe pairs
+   * @param contained_output_begin Beginning of the sequence of the matched contained pairs
    * @param pair_equal The binary function to compare two pairs for equality
    * @param stream CUDA stream used for pair_retrieve
    * @return Pair of iterators pointing to the last elements in the output
    */
   template <typename InputIt,
-            typename OutputIt1,
-            typename OutputIt2,
             typename StencilIt,
             typename Predicate,
+            typename OutputIt1,
+            typename OutputIt2,
             typename PairEqual>
   std::pair<OutputIt1, OutputIt2> pair_retrieve_if(InputIt first,
                                                    InputIt last,
-                                                   OutputIt1 probe_output_begin,
-                                                   OutputIt2 contained_output_begin,
                                                    StencilIt stencil,
                                                    Predicate pred,
+                                                   OutputIt1 probe_output_begin,
+                                                   OutputIt2 contained_output_begin,
                                                    PairEqual pair_equal,
                                                    cudaStream_t stream = 0) const;
 
@@ -573,38 +571,38 @@ class static_multimap {
    * @tparam InputIt Device accessible random access input iterator where
    * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
    * static_multimap<K, V>::value_type>` is `true`
-   * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
-   * `InputIt`s `value_type`.
-   * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
-   * the map's `value_type`.
    * @tparam StencilIt Device accessible random access iterator whose value_type is
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
    * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+   * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+   * `InputIt`s `value_type`.
+   * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `value_type`.
    * @tparam PairEqual Binary callable type
    * @param first Beginning of the sequence of pairs
    * @param last End of the sequence of pairs
-   * @param probe_output_begin Beginning of the sequence of the matched probe pairs
-   * @param contained_output_begin Beginning of the sequence of the matched contained pairs
    * @param stencil Beginning of the stencil sequence
    * @param pred Predicate to test on every element in the range `[stencil, stencil +
    * std::distance(first, last))`
+   * @param probe_output_begin Beginning of the sequence of the matched probe pairs
+   * @param contained_output_begin Beginning of the sequence of the matched contained pairs
    * @param pair_equal The binary function to compare two pairs for equality
    * @param stream CUDA stream used for pair_retrieve
    * @return Pair of iterators pointing to the last elements in the output
    */
   template <typename InputIt,
-            typename OutputIt1,
-            typename OutputIt2,
             typename StencilIt,
             typename Predicate,
+            typename OutputIt1,
+            typename OutputIt2,
             typename PairEqual>
   std::pair<OutputIt1, OutputIt2> pair_retrieve_outer_if(InputIt first,
                                                          InputIt last,
-                                                         OutputIt1 probe_output_begin,
-                                                         OutputIt2 contained_output_begin,
                                                          StencilIt stencil,
                                                          Predicate pred,
+                                                         OutputIt1 probe_output_begin,
+                                                         OutputIt2 contained_output_begin,
                                                          PairEqual pair_equal,
                                                          cudaStream_t stream = 0) const;
 
