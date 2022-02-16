@@ -468,6 +468,55 @@ class static_multimap {
                                                 cudaStream_t stream = 0) const;
 
   /**
+   * @brief Retrieves all pairs matching the input probe pair in the range `[first, last)` if
+   * `pred` of the corresponding stencil returns true.
+   *
+   * If pair_equal(*(first + i), slot[j]) and `pred( *(stencil + i) )`returns true, then *(first+i)
+   * is stored to `probe_output_begin`, and slot[j] is stored to `contained_output_begin`.
+   *
+   * Behavior is undefined if the size of the output range exceeds
+   * `std::distance(probe_output_begin, probe_output_end)` (or
+   * `std::distance(contained_output_begin, contained_output_end)`).
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K, V>::value_type>` is `true`
+   * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+   * `InputIt`s `value_type`.
+   * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `value_type`.
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+   * @tparam PairEqual Binary callable type
+   * @param first Beginning of the sequence of pairs
+   * @param last End of the sequence of pairs
+   * @param probe_output_begin Beginning of the sequence of the matched probe pairs
+   * @param contained_output_begin Beginning of the sequence of the matched contained pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param pair_equal The binary function to compare two pairs for equality
+   * @param stream CUDA stream used for pair_retrieve
+   * @return Pair of iterators pointing to the last elements in the output
+   */
+  template <typename InputIt,
+            typename OutputIt1,
+            typename OutputIt2,
+            typename StencilIt,
+            typename Predicate,
+            typename PairEqual>
+  std::pair<OutputIt1, OutputIt2> pair_retrieve_if(InputIt first,
+                                                   InputIt last,
+                                                   OutputIt1 probe_output_begin,
+                                                   OutputIt2 contained_output_begin,
+                                                   StencilIt stencil,
+                                                   Predicate pred,
+                                                   PairEqual pair_equal,
+                                                   cudaStream_t stream = 0) const;
+
+  /**
    * @brief Retrieves all pairs matching the input probe pair in the range `[first, last)`.
    *
    * The `pair_` prefix indicates that the input data type is convertible to the map's `value_type`.
@@ -504,6 +553,57 @@ class static_multimap {
                                                       OutputIt2 contained_output_begin,
                                                       PairEqual pair_equal,
                                                       cudaStream_t stream = 0) const;
+
+  /**
+   * @brief Retrieves all pairs matching the input probe pair in the range `[first, last)` if
+   * `pred` of the corresponding stencil returns true.
+   *
+   * If pair_equal(*(first + i), slot[j]) and `pred( *(stencil + i) )`returns true, then *(first+i)
+   * is stored to `probe_output_begin`, and slot[j] is stored to `contained_output_begin`. If
+   * *(first+i) doesn't have matches in the map, copies *(first + i) in `probe_output_begin` and a
+   * pair of `empty_key_sentinel` and `empty_value_sentinel` in `contained_output_begin`.
+   *
+   * Behavior is undefined if the size of the output range exceeds
+   * `std::distance(probe_output_begin, probe_output_end)` (or
+   * `std::distance(contained_output_begin, contained_output_end)`).
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K, V>::value_type>` is `true`
+   * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
+   * `InputIt`s `value_type`.
+   * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
+   * the map's `value_type`.
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+   * @tparam PairEqual Binary callable type
+   * @param first Beginning of the sequence of pairs
+   * @param last End of the sequence of pairs
+   * @param probe_output_begin Beginning of the sequence of the matched probe pairs
+   * @param contained_output_begin Beginning of the sequence of the matched contained pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param pair_equal The binary function to compare two pairs for equality
+   * @param stream CUDA stream used for pair_retrieve
+   * @return Pair of iterators pointing to the last elements in the output
+   */
+  template <typename InputIt,
+            typename OutputIt1,
+            typename OutputIt2,
+            typename StencilIt,
+            typename Predicate,
+            typename PairEqual>
+  std::pair<OutputIt1, OutputIt2> pair_retrieve_outer_if(InputIt first,
+                                                         InputIt last,
+                                                         OutputIt1 probe_output_begin,
+                                                         OutputIt2 contained_output_begin,
+                                                         StencilIt stencil,
+                                                         Predicate pred,
+                                                         PairEqual pair_equal,
+                                                         cudaStream_t stream = 0) const;
 
  private:
   /**
