@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,5 +27,14 @@ __device__ __forceinline__ int32_t count_least_significant_bits(uint32_t x, int3
   return __popc(x & (1 << n) - 1);
 }
 
+/**
+ * @brief Device functor used to determine if a slot is filled.
+ */
+template <typename Key>
+struct slot_is_filled {
+  slot_is_filled(Key s) : empty_key_sentinel{s} {}
+  __device__ __forceinline__ bool operator()(Key const& k) { return k != empty_key_sentinel; }
+  Key empty_key_sentinel;
+};
 }  // namespace detail
 }  // namespace cuco

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-#include <cooperative_groups/memcpy_async.h>
+#include <cuco/detail/pair.cuh>
+
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
-#include <cuco/detail/pair.cuh>
+#include <cub/cub.cuh>
+
+#include <cooperative_groups/memcpy_async.h>
 
 namespace cuco {
 namespace detail {
@@ -230,7 +233,7 @@ __global__ void count(
   auto tid     = block_size * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
 
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  using BlockReduce = typename cub::BlockReduce<std::size_t, block_size>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_matches = 0;
 
