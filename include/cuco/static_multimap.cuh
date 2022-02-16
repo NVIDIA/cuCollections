@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,6 @@
  */
 
 #pragma once
-
-#include <cooperative_groups.h>
-#include <cub/cub.cuh>
-#include <memory>
-#include <thrust/distance.h>
-#include <thrust/functional.h>
 
 #include <cuco/allocator.hpp>
 #include <cuco/probe_sequences.cuh>
@@ -43,6 +37,15 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/static_multimap/kernels.cuh>
+
+#include <cooperative_groups.h>
+
+#include <cub/cub.cuh>
+
+#include <thrust/distance.h>
+#include <thrust/functional.h>
+
+#include <memory>
 
 namespace cuco {
 

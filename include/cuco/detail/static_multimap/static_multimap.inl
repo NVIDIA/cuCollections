@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+#include <cuco/detail/utils.hpp>
+
 #include <thrust/count.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/tuple.h>
-
-#include <cuco/detail/utils.hpp>
 
 namespace {
 /**
