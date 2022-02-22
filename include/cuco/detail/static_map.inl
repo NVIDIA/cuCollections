@@ -23,10 +23,12 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
                                                      Key empty_key_sentinel,
                                                      Value empty_value_sentinel,
                                                      Allocator const& alloc,
-                                                     cudaStream_t stream)
+                                                     cudaStream_t stream,
+                                                     Key erased_key_sentinel)
   : capacity_{std::max(capacity, std::size_t{1})},  // to avoid dereferencing a nullptr (Issue #72)
     empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
+    erased_key_sentinel_{erased_key_sentinel},
     slot_allocator_{alloc},
     counter_allocator_{alloc}
 {
@@ -112,6 +114,35 @@ void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   size_ += h_num_successes;
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename InputIt, typename Hash, typename KeyEqual>
+void static_map<Key, Value, Scope, Allocator>::erase(
+  InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
+{
+  auto num_keys = std::distance(first, last);
+  if (num_keys == 0) { return; }
+
+  auto const block_size = 128;
+  auto const stride     = 1;
+  auto const tile_size  = 1;
+  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view             = get_device_mutable_view();
+
+  // TODO: memset an atomic variable is unsafe
+  static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
+  CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
+  std::size_t h_num_successes;
+
+  detail::erase<block_size><<<grid_size, block_size, 0, stream>>>(
+    first, first + num_keys, num_successes_, view, hash, key_equal);
+  CUCO_CUDA_TRY(cudaMemcpyAsync(
+    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
+
+  size_ -= h_num_successes;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -355,6 +386,47 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
     else {
       current_slot = next_slot(g, current_slot);
     }
+  }
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Hash, typename KeyEqual>
+__device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::erase(
+  key_type const& k, Hash hash, KeyEqual key_equal) noexcept
+{
+  auto current_slot{initial_slot(k, hash)};
+
+  value_type const insert_pair = make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
+
+  while (true) {
+    auto existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    auto existing_value = current_slot->second.load(cuda::std::memory_order_relaxed);
+    
+    // Key doesn't exist, return false
+    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
+      return false;
+    }
+
+    // Key exists, return true if successfully deleted
+    if (key_equal(existing_key, k)) {
+      if constexpr (cuco::detail::is_packable<value_type>()) {
+        auto slot =
+          reinterpret_cast<cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(
+            current_slot);
+        cuco::detail::pair_converter<value_type> expected_pair{
+          cuco::make_pair(existing_key, existing_value)};
+        cuco::detail::pair_converter<value_type> new_pair{insert_pair};
+
+        return slot->compare_exchange_strong(expected_pair.packed, new_pair.packed, cuda::std::memory_order_relaxed);
+      }
+      if constexpr (not cuco::detail::is_packable<value_type>()) {
+        current_slot->second.compare_exchange_strong(existing_value, insert_pair.second, cuda::std::memory_order_relaxed);
+        return current_slot->first.compare_exchange_strong(existing_key, insert_pair.first, cuda::std::memory_order_relaxed);
+      }
+      // simple CAS
+    }
+  
+    current_slot = next_slot(current_slot);
   }
 }
 

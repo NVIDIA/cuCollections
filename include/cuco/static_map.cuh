@@ -195,7 +195,8 @@ class static_map {
              Key empty_key_sentinel,
              Value empty_value_sentinel,
              Allocator const& alloc = Allocator{},
-             cudaStream_t stream    = 0);
+             cudaStream_t stream    = 0,
+             Key erased_key_sentinel = -2);
 
   /**
    * @brief Destroys the map and frees its contents.
@@ -265,6 +266,15 @@ class static_map {
                  Hash hash           = Hash{},
                  KeyEqual key_equal  = KeyEqual{},
                  cudaStream_t stream = 0);
+
+  template <typename InputIt,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+            typename KeyEqual = thrust::equal_to<key_type>>
+  void erase(InputIt first,
+             InputIt last,
+             Hash hash              = Hash{},
+             KeyEqual key_equal     = KeyEqual{},
+             cudaStream_t stream    = 0);
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -338,6 +348,7 @@ class static_map {
     using slot_type      = slot_type;
 
     Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
+    Key erased_key_sentinel_{};
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
     pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
     std::size_t capacity_{};        ///< Total number of slots
@@ -345,10 +356,12 @@ class static_map {
     __host__ __device__ device_view_base(pair_atomic_type* slots,
                                          std::size_t capacity,
                                          Key empty_key_sentinel,
-                                         Value empty_value_sentinel) noexcept
+                                         Value empty_value_sentinel,
+                                         Key erased_key_sentinel = -2) noexcept
       : slots_{slots},
         capacity_{capacity},
         empty_key_sentinel_{empty_key_sentinel},
+        erased_key_sentinel_{erased_key_sentinel},
         empty_value_sentinel_{empty_value_sentinel}
     {
     }
@@ -541,6 +554,8 @@ class static_map {
     {
       return empty_value_sentinel_;
     }
+  
+    __host__ __device__ Key get_erased_key_sentinel() const noexcept { return erased_key_sentinel_; }
 
     /**
      * @brief Returns iterator to the first slot.
@@ -773,6 +788,12 @@ class static_map {
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool insert(CG const& g,
                            value_type const& insert_pair,
+                           Hash hash          = Hash{},
+                           KeyEqual key_equal = KeyEqual{}) noexcept;
+    
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ bool erase(key_type const& k,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
   };  // class device mutable view
@@ -1068,6 +1089,8 @@ class static_map {
    */
   Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
+  Key get_erased_key_sentinel() const noexcept { return erased_key_sentinel_; }
+
   /**
    * @brief Gets the sentinel value used to represent an empty value slot.
    *
@@ -1100,6 +1123,7 @@ class static_map {
   std::size_t capacity_{};                      ///< Total number of slots
   std::size_t size_{};                          ///< Number of keys in map
   Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
+  Key erased_key_sentinel_{};
   Value empty_value_sentinel_{};                ///< Initial value of empty slot
   atomic_ctr_type* num_successes_{};            ///< Number of successfully inserted keys on insert
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
