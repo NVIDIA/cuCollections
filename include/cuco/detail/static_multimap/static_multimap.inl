@@ -513,7 +513,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve_oute
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
   constexpr auto block_size  = cuco::detail::DEFAULT_BLOCK_SIZE;
   constexpr auto stride      = cuco::detail::DEFAULT_STRIDE;
-  constexpr auto is_outer    = false;
+  constexpr auto is_outer    = true;
 
   auto const flushing_cg_size = [&]() {
     if constexpr (uses_vector_load()) { return warp_size(); }

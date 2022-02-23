@@ -472,8 +472,9 @@ class static_multimap {
    * @brief Retrieves all pairs matching the input probe pair in the range `[first, last)` if
    * `pred` of the corresponding stencil returns true.
    *
-   * If pair_equal(*(first + i), slot[j]) and `pred( *(stencil + i) )`returns true, then *(first+i)
-   * is stored to `probe_output_begin`, and slot[j] is stored to `contained_output_begin`.
+   * If both pair_equal(*(first + i), slot[j]) and `pred( *(stencil + i) )` return true, then
+   * *(first+i) is stored to `probe_output_begin`, and slot[j] is stored to
+   * `contained_output_begin`. If `pred(*(stencil + i))` is false, does nothing.
    *
    * Behavior is undefined if the size of the output range exceeds
    * `std::distance(probe_output_begin, probe_output_end)` (or
@@ -561,8 +562,10 @@ class static_multimap {
    *
    * If pair_equal(*(first + i), slot[j]) and `pred( *(stencil + i) )`returns true, then *(first+i)
    * is stored to `probe_output_begin`, and slot[j] is stored to `contained_output_begin`. If
-   * *(first+i) doesn't have matches in the map, copies *(first + i) in `probe_output_begin` and a
-   * pair of `empty_key_sentinel` and `empty_value_sentinel` in `contained_output_begin`.
+   * `pred(*(stencil + i))` returns true but *(first+i) doesn't have matches in the map, copies
+   * *(first + i) in `probe_output_begin` and a pair of `empty_key_sentinel` and
+   * `empty_value_sentinel` in `contained_output_begin`. If `pred(*(stencil + i))` is false, does
+   * nothing.
    *
    * Behavior is undefined if the size of the output range exceeds
    * `std::distance(probe_output_begin, probe_output_end)` (or

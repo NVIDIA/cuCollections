@@ -538,9 +538,10 @@ __global__ void pair_retrieve(InputIt first,
  *
  * If `pair_equal(*(first + i), slot[j])` and `pred( *(stencil + i) )` return true, then
  * `*(first+i)` is stored to unspecified locations in `probe_output_begin`, and slot[j] is stored to
- * unspecified locations in `contained_output_begin`. If the given pair has no matches in the map,
- * copies *(first + i) in `probe_output_begin` and a pair of `empty_key_sentinel` and
- * `empty_value_sentinel` in `contained_output_begin` only when `is_outer` is `true`.
+ * unspecified locations in `contained_output_begin`. If `pred( *(stencil + i) )` is true and
+ * *(first + i) has no matches in the map, copies *(first + i) in `probe_output_begin` and a pair of
+ * `empty_key_sentinel` and `empty_value_sentinel` in `contained_output_begin` only when `is_outer`
+ * is `true`. If `pred(*stencil + i) )` is false, does nothing.
  *
  * Behavior is undefined if the total number of matching pairs exceeds `std::distance(output_begin,
  * output_begin + *num_matches - 1)`.
