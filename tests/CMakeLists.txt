@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2021, NVIDIA CORPORATION.
+# Copyright (c) 2018-2022, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -80,4 +80,5 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/insert_if_test.cu
     static_multimap/multiplicity_test.cu
     static_multimap/non_match_test.cu
-    static_multimap/pair_function_test.cu)
+    static_multimap/pair_function_test.cu
+    static_multimap/pair_if_test.cu)
