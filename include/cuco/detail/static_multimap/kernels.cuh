@@ -616,35 +616,33 @@ __global__ void pair_retrieve_if_n(InputIt first,
   if (flushing_cg.thread_rank() == 0) { flushing_cg_counter[flushing_cg_id] = 0; }
 
   while (flushing_cg.any(pair_idx < n)) {
-    bool active_flag        = pair_idx < n;
+    bool active_flag        = pair_idx < n and pred(*(stencil + pair_idx));
     auto active_flushing_cg = cg::binary_partition<flushing_cg_size>(flushing_cg, active_flag);
 
     if (active_flag) {
-      if (pred(*(stencil + pair_idx))) {
-        pair_type pair = *(first + pair_idx);
-        if constexpr (is_outer) {
-          view.pair_retrieve_outer<buffer_size>(active_flushing_cg,
-                                                probing_cg,
-                                                pair,
-                                                &flushing_cg_counter[flushing_cg_id],
-                                                probe_output_buffer[flushing_cg_id],
-                                                contained_output_buffer[flushing_cg_id],
-                                                num_matches,
-                                                probe_output_begin,
-                                                contained_output_begin,
-                                                pair_equal);
-        } else {
-          view.pair_retrieve<buffer_size>(active_flushing_cg,
-                                          probing_cg,
-                                          pair,
-                                          &flushing_cg_counter[flushing_cg_id],
-                                          probe_output_buffer[flushing_cg_id],
-                                          contained_output_buffer[flushing_cg_id],
-                                          num_matches,
-                                          probe_output_begin,
-                                          contained_output_begin,
-                                          pair_equal);
-        }
+      pair_type pair = *(first + pair_idx);
+      if constexpr (is_outer) {
+        view.pair_retrieve_outer<buffer_size>(active_flushing_cg,
+                                              probing_cg,
+                                              pair,
+                                              &flushing_cg_counter[flushing_cg_id],
+                                              probe_output_buffer[flushing_cg_id],
+                                              contained_output_buffer[flushing_cg_id],
+                                              num_matches,
+                                              probe_output_begin,
+                                              contained_output_begin,
+                                              pair_equal);
+      } else {
+        view.pair_retrieve<buffer_size>(active_flushing_cg,
+                                        probing_cg,
+                                        pair,
+                                        &flushing_cg_counter[flushing_cg_id],
+                                        probe_output_buffer[flushing_cg_id],
+                                        contained_output_buffer[flushing_cg_id],
+                                        num_matches,
+                                        probe_output_begin,
+                                        contained_output_begin,
+                                        pair_equal);
       }
     }
     pair_idx += (gridDim.x * block_size) / probing_cg_size;
