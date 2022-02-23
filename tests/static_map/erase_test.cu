@@ -38,7 +38,7 @@ TEMPLATE_TEST_CASE_SIG(
   thrust::device_vector<Value> d_values(num_keys);
   thrust::device_vector<bool> d_keys_exist(num_keys);
 
-  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
+  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end(), 1);
   thrust::sequence(thrust::device, d_values.begin(), d_values.end(), 1);
     
   auto pairs_begin =

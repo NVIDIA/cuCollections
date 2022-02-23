@@ -537,7 +537,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     auto const slot_is_empty =
       detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
-    auto const exists = g.any(not slot_is_empty and key_equal(existing_key, k));
+    auto const exists = g.ballot(not slot_is_empty and key_equal(existing_key, k));
 
     // Key exists, return true if successfully deleted
     if (exists) {
@@ -566,7 +566,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     }
     
     // empty slot found, but key not found, must not be in the map
-    if (g.ballot(slot_is_empty)) { return false; }
+    if(g.ballot(slot_is_empty)) { return false; }
   
     current_slot = next_slot(g, current_slot);
   }
