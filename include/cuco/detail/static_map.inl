@@ -60,7 +60,7 @@ void static_map<Key, Value, Scope, Allocator>::insert(
 
   auto const block_size = 128;
   auto const stride     = 1;
-  auto const tile_size  = 4;
+  auto const tile_size  = 1;
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 
@@ -69,7 +69,7 @@ void static_map<Key, Value, Scope, Allocator>::insert(
   CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_num_successes;
 
-  detail::insert<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
+  detail::insert<block_size><<<grid_size, block_size, 0, stream>>>(
     first, first + num_keys, num_successes_, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
@@ -222,12 +222,78 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::packed_cas(
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename KeyEqual>
 __device__ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_result
+static_map<Key, Value, Scope, Allocator>::device_mutable_view::packed_cas(
+  iterator current_slot, value_type const& insert_pair, KeyEqual key_equal, Key expected_key) noexcept
+{
+  auto expected_value = this->get_empty_value_sentinel();
+
+  cuco::detail::pair_converter<value_type> expected_pair{
+    cuco::make_pair(expected_key, expected_value)};
+  cuco::detail::pair_converter<value_type> new_pair{insert_pair};
+
+  auto slot =
+    reinterpret_cast<cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(
+      current_slot);
+
+  bool success = slot->compare_exchange_strong(
+    expected_pair.packed, new_pair.packed, cuda::std::memory_order_relaxed);
+  if (success) {
+    return insert_result::SUCCESS;
+  }
+  // duplicate present during insert
+  else if (key_equal(insert_pair.first, expected_pair.pair.first)) {
+    return insert_result::DUPLICATE;
+  }
+
+  return insert_result::CONTINUE;
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename KeyEqual>
+__device__ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_result
 static_map<Key, Value, Scope, Allocator>::device_mutable_view::back_to_back_cas(
   iterator current_slot, value_type const& insert_pair, KeyEqual key_equal) noexcept
 {
   using cuda::std::memory_order_relaxed;
 
   auto expected_key   = this->get_empty_key_sentinel();
+  auto expected_value = this->get_empty_value_sentinel();
+
+  // Back-to-back CAS for 8B/8B key/value pairs
+  auto& slot_key   = current_slot->first;
+  auto& slot_value = current_slot->second;
+
+  bool key_success =
+    slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
+  bool value_success =
+    slot_value.compare_exchange_strong(expected_value, insert_pair.second, memory_order_relaxed);
+
+  if (key_success) {
+    while (not value_success) {
+      value_success =
+        slot_value.compare_exchange_strong(expected_value = this->get_empty_value_sentinel(),
+                                           insert_pair.second,
+                                           memory_order_relaxed);
+    }
+    return insert_result::SUCCESS;
+  } else if (value_success) {
+    slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
+  }
+
+  // our key was already present in the slot, so our key is a duplicate
+  if (key_equal(insert_pair.first, expected_key)) { return insert_result::DUPLICATE; }
+
+  return insert_result::CONTINUE;
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename KeyEqual>
+__device__ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_result
+static_map<Key, Value, Scope, Allocator>::device_mutable_view::back_to_back_cas(
+  iterator current_slot, value_type const& insert_pair, KeyEqual key_equal, Key expected_key) noexcept
+{
+  using cuda::std::memory_order_relaxed;
+
   auto expected_value = this->get_empty_value_sentinel();
 
   // Back-to-back CAS for 8B/8B key/value pairs
@@ -284,6 +350,31 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::cas_dependent_wri
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename KeyEqual>
+__device__ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_result
+static_map<Key, Value, Scope, Allocator>::device_mutable_view::cas_dependent_write(
+  iterator current_slot, value_type const& insert_pair, KeyEqual key_equal, Key expected_key) noexcept
+{
+  using cuda::std::memory_order_relaxed;
+
+  auto& slot_key = current_slot->first;
+
+  auto const key_success =
+    slot_key.compare_exchange_strong(expected_key, insert_pair.first, memory_order_relaxed);
+
+  if (key_success) {
+    auto& slot_value = current_slot->second;
+    slot_value.store(insert_pair.second, memory_order_relaxed);
+    return insert_result::SUCCESS;
+  }
+
+  // our key was already present in the slot, so our key is a duplicate
+  if (key_equal(insert_pair.first, expected_key)) { return insert_result::DUPLICATE; }
+
+  return insert_result::CONTINUE;
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(
   value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
@@ -294,24 +385,25 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
     key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+    auto const slot_is_available =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel()) or
+      detail::bitwise_compare(existing_key, this->get_erased_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
-    if (not slot_is_empty and key_equal(existing_key, insert_pair.first)) { return false; }
+    if (not slot_is_available and key_equal(existing_key, insert_pair.first)) { return false; }
 
-    if (slot_is_empty) {
+    if (slot_is_available) {
       auto const status = [&]() {
         // One single CAS operation if `value_type` is packable
         if constexpr (cuco::detail::is_packable<value_type>()) {
-          return packed_cas(current_slot, insert_pair, key_equal);
+          return packed_cas(current_slot, insert_pair, key_equal, existing_key);
         }
 
         if constexpr (not cuco::detail::is_packable<value_type>()) {
 #if __CUDA_ARCH__ < 700
-          return cas_dependent_write(current_slot, insert_pair, key_equal);
+          return cas_dependent_write(current_slot, insert_pair, key_equal, existing_key);
 #else
-          return back_to_back_cas(current_slot, insert_pair, key_equal);
+          return back_to_back_cas(current_slot, insert_pair, key_equal, existing_key);
 #endif
         }
       }();

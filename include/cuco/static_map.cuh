@@ -695,6 +695,13 @@ class static_map {
     __device__ insert_result packed_cas(iterator current_slot,
                                         value_type const& insert_pair,
                                         KeyEqual key_equal) noexcept;
+    
+    template <typename KeyEqual>
+    __device__ insert_result packed_cas(iterator current_slot,
+                                        value_type const& insert_pair,
+                                        KeyEqual key_equal,
+                                        Key expected_key) noexcept;
+
 
     /**
      * @brief Inserts the specified key/value pair with two back-to-back CAS operations.
@@ -710,6 +717,12 @@ class static_map {
     __device__ insert_result back_to_back_cas(iterator current_slot,
                                               value_type const& insert_pair,
                                               KeyEqual key_equal) noexcept;
+    
+    template <typename KeyEqual>
+    __device__ insert_result back_to_back_cas(iterator current_slot,
+                                              value_type const& insert_pair,
+                                              KeyEqual key_equal,
+                                              Key expected_key) noexcept;
 
     /**
      * @brief Inserts the specified key/value pair with a CAS of the key and a dependent write of
@@ -726,6 +739,12 @@ class static_map {
     __device__ insert_result cas_dependent_write(iterator current_slot,
                                                  value_type const& insert_pair,
                                                  KeyEqual key_equal) noexcept;
+    
+    template <typename KeyEqual>
+    __device__ insert_result cas_dependent_write(iterator current_slot,
+                                                 value_type const& insert_pair,
+                                                 KeyEqual key_equal,
+                                                 Key expected_key) noexcept;
 
    public:
     template <typename CG>

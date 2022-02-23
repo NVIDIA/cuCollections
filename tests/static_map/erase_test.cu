@@ -28,8 +28,8 @@ TEMPLATE_TEST_CASE_SIG(
   using Key   = T;
   using Value = T;
   
-  auto num_keys = 1E6;
-  cuco::static_map<Key, Value> map{num_keys * 2, -1, -1};
+  unsigned long num_keys = 1'000'000;
+  cuco::static_map<Key, Value> map{num_keys * 1.6, -1, -1};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();
@@ -61,20 +61,16 @@ TEMPLATE_TEST_CASE_SIG(
                                 d_keys_exist.end(),
                                 [] __device__(const bool key_found) { return key_found; }));
 
-      /*
-    REQUIRE(cuco::test::all_of(
-      pairs_begin,
-      pairs_begin + num_keys,
-      [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-        return m_view.insert(pair);
-      }));
+    
+    map.insert(pairs_begin, pairs_begin + num_keys);
 
-    REQUIRE(cuco::test::all_of(
-      d_keys.begin(),
-      d_keys_begin + num_keys,
-      [m_view] __device__(cuco::key_type<Key> const& key) mutable {
-        return m_view.erase(key);
-      }));
-      */
+    REQUIRE(map.get_size() == num_keys);
+
+    map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
+
+    REQUIRE(cuco::test::all_of(d_keys_exist.begin(),
+                                d_keys_exist.end(),
+                                [] __device__(const bool key_found) { return key_found; }));
+    
   }
 }
