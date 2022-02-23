@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#include <catch2/catch.hpp>
-#include <thrust/device_vector.h>
-#include <thrust/iterator/discard_iterator.h>
+#include <utils.hpp>
 
 #include <cuco/static_multimap.cuh>
 
-#include <utils.hpp>
+#include <catch2/catch.hpp>
+
+#include <thrust/device_vector.h>
+#include <thrust/iterator/discard_iterator.h>
 
 // Custom pair equal
 template <typename Key, typename Value>
