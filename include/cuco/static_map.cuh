@@ -815,6 +815,16 @@ class static_map {
     __device__ bool erase(key_type const& k,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    template <typename CG,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ bool erase(
+      CG const& g, 
+      key_type const& k, 
+      Hash hash = Hash{}, 
+      KeyEqual key_equal = KeyEqual{}) noexcept;
+
   };  // class device mutable view
 
   /**

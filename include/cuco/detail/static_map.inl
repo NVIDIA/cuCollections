@@ -126,7 +126,7 @@ void static_map<Key, Value, Scope, Allocator>::erase(
 
   auto const block_size = 128;
   auto const stride     = 1;
-  auto const tile_size  = 1;
+  auto const tile_size  = 4;
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 
@@ -135,7 +135,7 @@ void static_map<Key, Value, Scope, Allocator>::erase(
   CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_num_successes;
 
-  detail::erase<block_size><<<grid_size, block_size, 0, stream>>>(
+  detail::erase<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
     first, first + num_keys, num_successes_, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
@@ -159,11 +159,11 @@ void static_map<Key, Value, Scope, Allocator>::find(InputIt first,
 
   auto const block_size = 128;
   auto const stride     = 1;
-  auto const tile_size  = 4;
+  auto const tile_size  = 1;
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_view();
 
-  detail::find<block_size, tile_size, Value>
+  detail::find<block_size, Value>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
 }
 
@@ -519,6 +519,56 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     }
   
     current_slot = next_slot(current_slot);
+  }
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename CG, typename Hash, typename KeyEqual>
+__device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::erase(
+  CG const& g, key_type const& k, Hash hash, KeyEqual key_equal) noexcept
+{
+  auto current_slot = initial_slot(g, k, hash);
+  value_type const insert_pair = make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
+
+  while (true) {
+    auto existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    auto existing_value = current_slot->second.load(cuda::std::memory_order_relaxed);
+        
+    auto const slot_is_empty =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+
+    auto const exists = g.any(not slot_is_empty and key_equal(existing_key, k));
+
+    // Key exists, return true if successfully deleted
+    if (exists) {
+      uint32_t src_lane = __ffs(exists) - 1;
+      
+      bool status;
+      if (g.thread_rank() == src_lane) {
+        if constexpr (cuco::detail::is_packable<value_type>()) {
+          auto slot =
+            reinterpret_cast<cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(
+              current_slot);
+          cuco::detail::pair_converter<value_type> expected_pair{
+            cuco::make_pair(existing_key, existing_value)};
+          cuco::detail::pair_converter<value_type> new_pair{insert_pair};
+
+          status = slot->compare_exchange_strong(expected_pair.packed, new_pair.packed, cuda::std::memory_order_relaxed);
+        }
+        if constexpr (not cuco::detail::is_packable<value_type>()) {
+          current_slot->second.compare_exchange_strong(existing_value, insert_pair.second, cuda::std::memory_order_relaxed);
+          status = current_slot->first.compare_exchange_strong(existing_key, insert_pair.first, cuda::std::memory_order_relaxed);
+        }
+      }
+
+      uint32_t res_status = g.shfl(static_cast<uint32_t>(status), src_lane);
+      return static_cast<bool>(res_status);
+    }
+    
+    // empty slot found, but key not found, must not be in the map
+    if (g.ballot(slot_is_empty)) { return false; }
+  
+    current_slot = next_slot(g, current_slot);
   }
 }
 
