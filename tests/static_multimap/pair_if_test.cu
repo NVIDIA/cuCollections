@@ -51,8 +51,13 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
   auto pred    = [] __device__(int32_t k) { return k % 2 == 0; };
   auto stencil = thrust::make_counting_iterator<int32_t>(0);
 
-  SECTION("Test of pair_retrieve_if.")
+  SECTION("Output of pair_count_if and pair_retrieve_if should be coherent.")
   {
+    auto const count = map.pair_count_if(
+      pair_begin, pair_begin + num_pairs, stencil, pred, pair_equal<Key, Value>{});
+
+    REQUIRE(count * 2 == num_pairs);
+
     auto out1_begin = thrust::make_zip_iterator(
       thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
     auto out2_begin = thrust::make_zip_iterator(
@@ -69,8 +74,13 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
     REQUIRE((out1_end - out1_begin) * 2 == num_pairs);
   }
 
-  SECTION("Test of pair_retrieve_outer_if.")
+  SECTION("Output of pair_count_outer_if and pair_retrieve_outer_if should be coherent.")
   {
+    auto const count = map.pair_count_outer_if(
+      pair_begin, pair_begin + num_pairs, stencil, pred, pair_equal<Key, Value>{});
+
+    REQUIRE(count == (num_pairs - num_pairs / 4));
+
     auto out1_begin = thrust::make_zip_iterator(
       thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
     auto out2_begin = thrust::make_zip_iterator(

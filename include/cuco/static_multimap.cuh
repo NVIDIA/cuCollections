@@ -352,11 +352,44 @@ class static_multimap {
                          cudaStream_t stream = 0) const;
 
   /**
+   * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap
+   * if `pred` of the corresponding stencil is true.
+   *
+   * If `pred(*(stencil + i))` is true, for the key-value pair, `kv = *(first + i)`, counts all
+   * matching key-value pairs, `kv'`, as determined by `pair_equal(kv, kv')` and returns the sum of
+   * all matches for all key-value pairs. If `pred(*(stencil + i))` is false, does nothing.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K, V>::value_type>` is `true`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+   * @tparam PairEqual Binary callable
+   * @param first Beginning of the sequence of pairs to count
+   * @param last End of the sequence of pairs to count
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param pair_equal Binary function to compare two pairs for equality
+   * @param stream CUDA stream used for pair_count
+   * @return The sum of total occurrences of all pairs in `[first, last)`
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename PairEqual>
+  std::size_t pair_count_if(InputIt first,
+                            InputIt last,
+                            StencilIt stencil,
+                            Predicate pred,
+                            PairEqual pair_equal,
+                            cudaStream_t stream = 0) const;
+
+  /**
    * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap.
    *
    * For key-value pair, `kv = *(first + i)`, counts all matching key-value pairs, `kv'`, as
    * determined by `pair_equal(kv, kv')` and returns the sum of all matches for all key-value pairs.
-   * if `kv` does not have any matches, it contributes 1 to the final sum.
+   * If `kv` does not have any matches, it contributes 1 to the final sum.
    *
    * @tparam InputIt Device accessible random access input iterator where
    * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -374,6 +407,41 @@ class static_multimap {
                                InputIt last,
                                PairEqual pair_equal,
                                cudaStream_t stream = 0) const;
+
+  /**
+   * @brief Counts the occurrences of key/value pairs in `[first, last)` contained in the multimap
+   * if `pred` of the corresponding stencil is true.
+   *
+   * If `pred(*(stencil + i))` is true, for the key-value pair, `kv = *(first + i)`, counts all
+   * matching key-value pairs, `kv'`, as determined by `pair_equal(kv, kv')` and returns the sum of
+   * all matches for all key-value pairs. If `kv` does not have any matches and the corresponding
+   * `pred` is true, it contributes 1 to the final sum. If `pred(*(stencil + i))` is false, does
+   * nothing.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K, V>::value_type>` is `true`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+   * @tparam PairEqual Binary callable
+   * @param first Beginning of the sequence of pairs to count
+   * @param last End of the sequence of pairs to count
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param pair_equal Binary function to compare two pairs for equality
+   * @param stream CUDA stream used for pair_count
+   * @return The sum of total occurrences of all pairs in `[first, last)`
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename PairEqual>
+  std::size_t pair_count_outer_if(InputIt first,
+                                  InputIt last,
+                                  StencilIt stencil,
+                                  Predicate pred,
+                                  PairEqual pair_equal,
+                                  cudaStream_t stream = 0) const;
 
   /**
    * @brief Retrieves all the values corresponding to all keys in the range `[first, last)`.

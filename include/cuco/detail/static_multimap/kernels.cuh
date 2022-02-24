@@ -314,6 +314,82 @@ __global__ void pair_count(
 }
 
 /**
+ * @brief Counts the occurrences of key/value pairs in `[first, first + n)` contained in the
+ * multimap if `pred` of the corresponding stencil is true.
+ *
+ * When `pred(*(stencil + i))` is true, for pair, `p = *(first + i)`, counts all matching pairs,
+ * `p'`, as determined by `pair_equal(p, p')` and stores the sum of all matches for all pairs to
+ * `num_matches`. If `pred(*(stencil + i))` is true but `p` does not have any matches, it
+ * contributes 1 to the final sum only if `is_outer` is true. If `pred(*(stencil + i))` is false,
+ * does nothing.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
+ * @tparam is_outer Boolean flag indicating whether non-matches are counted
+ * @tparam InputIt Device accessible random access input iterator where
+ * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
+ * static_multimap<K, V>::value_type>` is `true`
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+ * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam PairEqual Binary callable
+ * @param first Beginning of the sequence of pairs to count
+ * @param n Number of probe pairs
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[s, s + n)`
+ * @param num_matches The number of all the matches for a sequence of pairs
+ * @param view Device view used to access the hash map's slot storage
+ * @param pair_equal Binary function to compare two pairs for equality
+ */
+template <uint32_t block_size,
+          uint32_t tile_size,
+          bool is_outer,
+          typename InputIt,
+          typename StencilIt,
+          typename Predicate,
+          typename atomicT,
+          typename viewT,
+          typename PairEqual>
+__global__ void pair_count_if_n(InputIt first,
+                                std::size_t n,
+                                StencilIt stencil,
+                                Predicate pred,
+                                atomicT* num_matches,
+                                viewT view,
+                                PairEqual pair_equal)
+{
+  auto tile     = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid      = block_size * blockIdx.x + threadIdx.x;
+  auto pair_idx = tid / tile_size;
+
+  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  std::size_t thread_num_matches = 0;
+
+  while (pair_idx < n) {
+    if (pred(*(stencil + pair_idx))) {
+      typename viewT::value_type const pair = *(first + pair_idx);
+      if constexpr (is_outer) {
+        thread_num_matches += view.pair_count_outer(tile, pair, pair_equal);
+      } else {
+        thread_num_matches += view.pair_count(tile, pair, pair_equal);
+      }
+    }
+    pair_idx += (gridDim.x * block_size) / tile_size;
+  }
+
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  std::size_t block_num_matches = BlockReduce(temp_storage).Sum(thread_num_matches);
+  if (threadIdx.x == 0) {
+    num_matches->fetch_add(block_num_matches, cuda::std::memory_order_relaxed);
+  }
+}
+
+/**
  * @brief Retrieves all the values corresponding to all keys in the range `[first, last)`.
  *
  * For key `k = *(first + i)` existing in the map, copies `k` and all associated values to

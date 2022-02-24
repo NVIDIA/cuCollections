@@ -212,6 +212,41 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
+template <typename InputIt, typename StencilIt, typename Predicate, typename PairEqual>
+std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_count_if(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  Predicate pred,
+  PairEqual pair_equal,
+  cudaStream_t stream) const
+{
+  auto num_keys = std::distance(first, last);
+  auto view     = get_device_view();
+
+  constexpr auto block_size = cuco::detail::DEFAULT_BLOCK_SIZE;
+  constexpr auto stride     = cuco::detail::DEFAULT_STRIDE;
+  constexpr auto is_outer   = false;
+
+  auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
+
+  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
+  std::size_t h_counter;
+
+  detail::pair_count_if_n<block_size, cg_size(), is_outer><<<grid_size, block_size, 0, stream>>>(
+    first, num_keys, stencil, pred, d_counter_.get(), view, pair_equal);
+  CUCO_CUDA_TRY(cudaMemcpyAsync(
+    &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+
+  return h_counter;
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
 template <typename InputIt, typename PairEqual>
 std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_count_outer(
   InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream) const
@@ -230,6 +265,41 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_c
 
   detail::pair_count<block_size, cg_size(), is_outer>
     <<<grid_size, block_size, 0, stream>>>(first, last, d_counter_.get(), view, pair_equal);
+  CUCO_CUDA_TRY(cudaMemcpyAsync(
+    &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+
+  return h_counter;
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
+template <typename InputIt, typename StencilIt, typename Predicate, typename PairEqual>
+std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_count_outer_if(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  Predicate pred,
+  PairEqual pair_equal,
+  cudaStream_t stream) const
+{
+  auto num_keys = std::distance(first, last);
+  auto view     = get_device_view();
+
+  constexpr auto block_size = cuco::detail::DEFAULT_BLOCK_SIZE;
+  constexpr auto stride     = cuco::detail::DEFAULT_STRIDE;
+  constexpr auto is_outer   = true;
+
+  auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
+
+  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
+  std::size_t h_counter;
+
+  detail::pair_count_if_n<block_size, cg_size(), is_outer><<<grid_size, block_size, 0, stream>>>(
+    first, num_keys, stencil, pred, d_counter_.get(), view, pair_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_counter, d_counter_.get(), sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
