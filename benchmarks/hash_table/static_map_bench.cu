@@ -91,16 +91,28 @@ static void BM_static_map_insert(::benchmark::State& state)
 
 
   for (auto _ : state) {
-    state.ResumeTiming();
-    state.PauseTiming();
+    //state.ResumeTiming();
+    //state.PauseTiming();
     map_type map{size, -1, -1};
-    map.insert(d_pairs.begin(), d_pairs.end());
-    map.erase(d_keys.begin(), d_keys.end());
-    state.ResumeTiming();
-    
-    map.insert(d_pairs.begin(), d_pairs.end());
+  //map.insert(d_pairs.begin(), d_pairs.end());
+    //map.erase(d_keys.begin(), d_keys.end());
+    //state.ResumeTiming();
 
-    state.PauseTiming();
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaEventRecord(start);
+    map.insert(d_pairs.begin(), d_pairs.end());
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+
+    float ms;
+    cudaEventElapsedTime(&ms, start, stop);
+
+    //state.PauseTiming();
+
+    state.SetIterationTime(ms / 1000);
   }
 
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
@@ -194,7 +206,8 @@ static void BM_static_map_erase_all(::benchmark::State& state)
 
 BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy);
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
 /*
 BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
@@ -205,7 +218,8 @@ BENCHMARK_TEMPLATE(BM_static_map_erase_all, int32_t, int32_t, dist_type::UNIQUE)
 */
 BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy);
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
 
 /*
 BENCHMARK_TEMPLATE(BM_static_map_search_all, int64_t, int64_t, dist_type::UNIQUE)
