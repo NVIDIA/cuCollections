@@ -60,7 +60,7 @@ void static_map<Key, Value, Scope, Allocator>::insert(
 
   auto const block_size = 128;
   auto const stride     = 1;
-  auto const tile_size  = 1;
+  auto const tile_size  = 4;
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 
@@ -69,7 +69,7 @@ void static_map<Key, Value, Scope, Allocator>::insert(
   CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_num_successes;
 
-  detail::insert<block_size><<<grid_size, block_size, 0, stream>>>(
+  detail::insert<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
     first, first + num_keys, num_successes_, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
@@ -159,11 +159,11 @@ void static_map<Key, Value, Scope, Allocator>::find(InputIt first,
 
   auto const block_size = 128;
   auto const stride     = 1;
-  auto const tile_size  = 1;
+  auto const tile_size  = 4;
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_view();
 
-  detail::find<block_size, Value>
+  detail::find<block_size, tile_size, Value>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
 }
 
@@ -432,32 +432,33 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
 
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
-    auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+    auto const slot_is_available =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel()) or
+      detail::bitwise_compare(existing_key, this->get_erased_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
-    if (g.any(not slot_is_empty and key_equal(existing_key, insert_pair.first))) { return false; }
+    if (g.any(not slot_is_available and key_equal(existing_key, insert_pair.first))) { return false; }
 
-    auto const window_contains_empty = g.ballot(slot_is_empty);
+    auto const window_contains_available = g.ballot(slot_is_available);
 
     // we found an empty slot, but not the key we are inserting, so this must
     // be an empty slot into which we can insert the key
-    if (window_contains_empty) {
+    if (window_contains_available) {
       // the first lane in the group with an empty slot will attempt the insert
       insert_result status{insert_result::CONTINUE};
-      uint32_t src_lane = __ffs(window_contains_empty) - 1;
+      uint32_t src_lane = __ffs(window_contains_available) - 1;
 
       if (g.thread_rank() == src_lane) {
         // One single CAS operation if `value_type` is packable
         if constexpr (cuco::detail::is_packable<value_type>()) {
-          status = packed_cas(current_slot, insert_pair, key_equal);
+          status = packed_cas(current_slot, insert_pair, key_equal, existing_key);
         }
         // Otherwise, two back-to-back CAS operations
         else {
 #if __CUDA_ARCH__ < 700
-          status = cas_dependent_write(current_slot, insert_pair, key_equal);
+          status = cas_dependent_write(current_slot, insert_pair, key_equal, existing_key);
 #else
-          status = back_to_back_cas(current_slot, insert_pair, key_equal);
+          status = back_to_back_cas(current_slot, insert_pair, key_equal, existing_key);
 #endif
         }
       }

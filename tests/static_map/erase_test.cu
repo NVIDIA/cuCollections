@@ -71,6 +71,19 @@ TEMPLATE_TEST_CASE_SIG(
     REQUIRE(cuco::test::all_of(d_keys_exist.begin(),
                                 d_keys_exist.end(),
                                 [] __device__(const bool key_found) { return key_found; }));
+
+    map.erase(d_keys.begin(), d_keys.begin() + num_keys/2);
+    map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
+    
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
+                                d_keys_exist.begin() + num_keys/2,
+                                [] __device__(const bool key_found) { return key_found; }));
+
+    REQUIRE(cuco::test::all_of(d_keys_exist.begin() + num_keys/2,
+                                d_keys_exist.end(),
+                                [] __device__(const bool key_found) { return key_found; }));
+                            
+    
     
   }
 }

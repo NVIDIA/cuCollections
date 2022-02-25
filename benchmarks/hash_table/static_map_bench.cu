@@ -87,14 +87,17 @@ static void BM_static_map_insert(::benchmark::State& state)
   }
 
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+  thrust::device_vector<Key> d_keys(h_keys);
 
 
   for (auto _ : state) {
     state.ResumeTiming();
     state.PauseTiming();
     map_type map{size, -1, -1};
+    map.insert(d_pairs.begin(), d_pairs.end());
+    map.erase(d_keys.begin(), d_keys.end());
     state.ResumeTiming();
-
+    
     map.insert(d_pairs.begin(), d_pairs.end());
 
     state.PauseTiming();
@@ -189,30 +192,28 @@ static void BM_static_map_erase_all(::benchmark::State& state)
                           int64_t(state.range(0)));
 }
 
-/*
 BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
-*/
 /*
 BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
-  //->Iterations(1000);
-*/
-
 BENCHMARK_TEMPLATE(BM_static_map_erase_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
-/*
+*/
 BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
 
+/*
 BENCHMARK_TEMPLATE(BM_static_map_search_all, int64_t, int64_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
 */
+/*
 BENCHMARK_TEMPLATE(BM_static_map_erase_all, int64_t, int64_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
+*/
