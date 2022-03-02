@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,16 @@
 
 #pragma once
 
-#include <cooperative_groups.h>
-#include <cub/cub.cuh>
-#include <cuda/std/atomic>
-#include <memory>
-#include <thrust/distance.h>
-#include <thrust/functional.h>
-
 #include <cuco/allocator.hpp>
+#include <cuco/detail/error.hpp>
+#include <cuco/detail/hash_functions.cuh>
+#include <cuco/detail/pair.cuh>
+#include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/traits.hpp>
 
+#include <thrust/functional.h>
+
+#include <cuda/std/atomic>
 #if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
   (__CUDA_ARCH__ >= 700)
 #define CUCO_HAS_CUDA_BARRIER
@@ -35,10 +35,7 @@
 #include <cuda/barrier>
 #endif
 
-#include <cuco/detail/error.hpp>
-#include <cuco/detail/hash_functions.cuh>
-#include <cuco/detail/pair.cuh>
-#include <cuco/detail/static_map_kernels.cuh>
+#include <memory>
 
 namespace cuco {
 

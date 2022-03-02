@@ -19,6 +19,7 @@
 #include <thrust/device_reference.h>
 #include <thrust/pair.h>
 #include <thrust/tuple.h>
+
 #include <tuple>
 #include <type_traits>
 

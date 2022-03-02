@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,16 @@
 
 #pragma once
 
-#include <cooperative_groups.h>
-#include <cub/cub.cuh>
 #include <cuco/detail/dynamic_map_kernels.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/static_map.cuh>
-#include <cuda/std/atomic>
+
 #include <thrust/device_vector.h>
+#include <thrust/functional.h>
+
+#include <cuda/std/atomic>
+
+#include <memory>
 
 namespace cuco {
 
