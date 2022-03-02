@@ -16,9 +16,11 @@
 
 #pragma once
 
+#include <utils.cuh>
+
 #include <thrust/functional.h>
 
-#include <utils.cuh>
+#include <cooperative_groups.h>
 
 namespace cuco {
 namespace test {

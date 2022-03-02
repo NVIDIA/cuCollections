@@ -20,6 +20,8 @@
 
 #include <cub/cub.cuh>
 
+#include <cuda/std/atomic>
+
 #include <cooperative_groups/memcpy_async.h>
 
 namespace cuco {

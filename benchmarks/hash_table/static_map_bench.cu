@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
-#include "cuco/static_map.cuh"
+#include <cuco/static_map.cuh>
+
+#include <thrust/device_vector.h>
+#include <thrust/for_each.h>
+
 #include <benchmark/benchmark.h>
+
 #include <fstream>
 #include <iostream>
 #include <random>
-#include <thrust/device_vector.h>
-#include <thrust/for_each.h>
 
 enum class dist_type { UNIQUE, UNIFORM, GAUSSIAN };
 
