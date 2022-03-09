@@ -293,7 +293,19 @@ static void BM_static_map_erase_none(::benchmark::State& state)
 }
 
 /*
-BENCHMARK_TEMPLATE(BM_static_map_search_none, int32_t, int32_t, dist_type::UNIQUE)
+BENCHMARK_TEMPLATE(BM_static_map_erase_none, int64_t, int64_t, dist_type::UNIFORM)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_static_map_erase_none, int32_t, int32_t, dist_type::UNIFORM)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_static_map_erase_all, int64_t, int64_t, dist_type::UNIFORM)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_static_map_erase_all, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
 
@@ -302,24 +314,7 @@ BENCHMARK_TEMPLATE(BM_static_map_search_none, int64_t, int64_t, dist_type::UNIQU
   ->Apply(generate_size_and_occupancy);
 */
 
-
-BENCHMARK_TEMPLATE(BM_static_map_erase_none, int64_t, int64_t, dist_type::UNIQUE)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy);
-
-BENCHMARK_TEMPLATE(BM_static_map_erase_none, int32_t, int32_t, dist_type::UNIQUE)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy);
-
-BENCHMARK_TEMPLATE(BM_static_map_erase_all, int64_t, int64_t, dist_type::UNIQUE)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy);
-
-BENCHMARK_TEMPLATE(BM_static_map_erase_all, int32_t, int32_t, dist_type::UNIQUE)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy);
-/*
-BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIQUE)
+BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::GAUSSIAN)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy)
   ->UseManualTime();
@@ -351,28 +346,3 @@ BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::UNIQUE)
   ->Apply(generate_size_and_occupancy)
   ->UseManualTime();
 
-BENCHMARK_TEMPLATE(BM_static_map_search_all, int64_t, int64_t, dist_type::UNIQUE)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy);
-
-BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::UNIFORM)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy)
-  ->UseManualTime();
-
-BENCHMARK_TEMPLATE(BM_static_map_search_all, int64_t, int64_t, dist_type::UNIFORM)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy);
-
-BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::GAUSSIAN)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy)
-  ->UseManualTime();
-
-BENCHMARK_TEMPLATE(BM_static_map_search_all, int64_t, int64_t, dist_type::GAUSSIAN)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy);
-
-BENCHMARK_TEMPLATE(BM_static_map_erase_all, int32_t, int32_t, dist_type::UNIQUE)
-  ->Unit(benchmark::kMillisecond)
-  ->Apply(generate_size_and_occupancy);
