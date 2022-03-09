@@ -38,6 +38,8 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
 
+  submap_num_successes_.push_back(submaps_[0]->get_num_successes());
+
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
 }  // namespace cuco
 
@@ -69,6 +71,8 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n)
         alloc_));
       submap_views_.push_back(submaps_[submap_idx]->get_device_view());
       submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
+      
+      submap_num_successes_.push_back(submaps_[submap_idx]->get_num_successes());
 
       capacity_ *= 2;
     }
@@ -126,6 +130,50 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(InputIt first,
     }
     submap_idx++;
   }
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename InputIt, typename Hash, typename KeyEqual>
+void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
+                                                       InputIt last,
+                                                       Hash hash,
+                                                       KeyEqual key_equal)
+{
+  std::size_t num_keys = std::distance(first, last);
+
+  auto const block_size = 128;
+  auto const stride     = 1;
+  auto const tile_size  = 4;
+  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+
+  *num_successes_ = 0;
+  int device_id;
+  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
+  
+  // TODO: hacky, improve this
+  thrust::device_vector<atomic_ctr_type*> d_submap_num_successes(submap_num_successes_);
+      
+  detail::erase<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
+    <<<grid_size, block_size>>>(first,
+                                first + num_keys,
+                                submap_views_.data().get(),
+                                submap_mutable_views_.data().get(),
+                                num_successes_,
+                                d_submap_num_successes.data().get(),
+                                submaps_.size(),
+                                hash,
+                                key_equal);
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+
+  std::size_t h_num_successes = num_successes_->load(cuda::std::memory_order_relaxed);
+  size_ -= h_num_successes;
+  
+  for(int i = 0; i < submaps_.size(); ++i) {
+    //std::size_t h_num_submap_successes = submap_num_successes_[i]->load(cuda::std::memory_order_relaxed);
+    //submaps_[i]->size_ -= h_num_submap_successes;
+  }
+  
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>

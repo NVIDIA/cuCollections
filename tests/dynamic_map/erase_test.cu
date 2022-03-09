@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,27 +16,20 @@
 
 #include <catch2/catch.hpp>
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
-#include <thrust/iterator/zip_iterator.h>
-#include <thrust/sequence.h>
-#include <thrust/tuple.h>
 
-#include <cuco/static_map.cuh>
+#include <cuco/dynamic_map.cuh>
 
 #include <utils.hpp>
 
-TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
+
+TEMPLATE_TEST_CASE_SIG(
+  "erase key", "", ((typename T), T), (int32_t))
 {
   using Key   = T;
   using Value = T;
-
-  constexpr std::size_t num_keys = 1'000'000;
-  constexpr std::size_t capacity = 1'100'000;
-
-  cuco::static_map<Key, Value> map{capacity,
-                                   cuco::sentinel::empty_key<Key>{-1},
-                                   cuco::sentinel::empty_value<Value>{-1},
-                                   cuco::sentinel::erased_key<Key>{-2}};
+  
+  unsigned long num_keys = 1'000'000;
+  cuco::dynamic_map<Key, Value> map{num_keys * 2, -1, -1};
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
@@ -44,11 +37,12 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end(), 1);
   thrust::sequence(thrust::device, d_values.begin(), d_values.end(), 1);
-
+    
   auto pairs_begin =
     thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
 
-  SECTION("Check basic insert/erase")
+  SECTION(
+    "Check basic insert/erase")
   {
     map.insert(pairs_begin, pairs_begin + num_keys);
 
@@ -66,28 +60,31 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
                                 d_keys_exist.end(),
                                 [] __device__(const bool key_found) { return key_found; }));
 
+    printf("cow\n");
+
+    // ensures that map is reusing deleted slots    
     map.insert(pairs_begin, pairs_begin + num_keys);
 
     REQUIRE(map.get_size() == num_keys);
 
+    printf("cow2\n");
+
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
     REQUIRE(cuco::test::all_of(d_keys_exist.begin(),
-                               d_keys_exist.end(),
-                               [] __device__(const bool key_found) { return key_found; }));
-
-    map.erase(d_keys.begin(), d_keys.begin() + num_keys / 2);
-    map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
-
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
-                                d_keys_exist.begin() + num_keys / 2,
+                                d_keys_exist.end(),
                                 [] __device__(const bool key_found) { return key_found; }));
 
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin() + num_keys / 2,
-                               d_keys_exist.end(),
-                               [] __device__(const bool key_found) { return key_found; }));
+    // erase can act selectively
+    map.erase(d_keys.begin(), d_keys.begin() + num_keys/2);
+    map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
+    
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
+                                d_keys_exist.begin() + num_keys/2,
+                                [] __device__(const bool key_found) { return key_found; }));
 
-    map.erase(d_keys.begin() + num_keys / 2, d_keys.end());
-    REQUIRE(map.get_size() == 0);
+    REQUIRE(cuco::test::all_of(d_keys_exist.begin() + num_keys/2,
+                                d_keys_exist.end(),
+                                [] __device__(const bool key_found) { return key_found; }));
   }
 }

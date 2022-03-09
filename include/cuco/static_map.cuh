@@ -1414,6 +1414,11 @@ class static_map {
                                sentinel::erased_key<Key>{erased_key_sentinel_});
   }
 
+  atomic_ctr_type* get_num_successes() const noexcept
+  {
+    return num_successes_;
+  }
+
  private:
   pair_atomic_type* slots_{nullptr};            ///< Pointer to flat slots storage
   std::size_t capacity_{};                      ///< Total number of slots

@@ -147,6 +147,7 @@ BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Apply(gen_final_size)
   ->UseManualTime();
 
+/*
 BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
@@ -196,3 +197,4 @@ BENCHMARK_TEMPLATE(BM_dynamic_search_all, int64_t, int64_t, dist_type::GAUSSIAN)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
+*/

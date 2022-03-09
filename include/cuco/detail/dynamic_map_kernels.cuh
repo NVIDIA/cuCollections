@@ -186,6 +186,67 @@ __global__ void insert(InputIt first,
   if (threadIdx.x == 0) { *num_successes += block_num_successes; }
 }
 
+template <uint32_t block_size,
+          uint32_t tile_size,
+          typename pair_type,
+          typename InputIt,
+          typename viewT,
+          typename mutableViewT,
+          typename atomicT,
+          typename Hash,
+          typename KeyEqual>
+__global__ void erase(InputIt first,
+                       InputIt last,
+                       viewT* submap_views,
+                       mutableViewT* submap_mutable_views,
+                       atomicT* num_successes,
+                       atomicT** submap_num_successes,
+                       uint32_t num_submaps,
+                       Hash hash,
+                       KeyEqual key_equal)
+{
+  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+
+  // TODO: hack for up to 4 submaps, make this better
+  __shared__ typename BlockReduce::TempStorage temp_submap_storage[4];
+
+  std::size_t thread_num_successes = 0;
+  std::size_t submap_thread_num_successes[4] = {0, 0, 0, 0};
+
+  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid  = blockDim.x * blockIdx.x + threadIdx.x;
+  auto key_idx              = tid / tile_size;
+  auto it   = first + tid / tile_size;
+
+  while (it < last) {
+    auto key         = *(first + key_idx);
+    auto erased           = false;
+
+    // manually check for duplicates in those submaps we are not inserting into
+    int i;
+    for (i = 0; i < num_submaps; ++i) {
+      erased = submap_mutable_views[i].erase(tile, key, hash, key_equal);
+      if (erased) { break; }
+    }
+    if (erased && tile.thread_rank() == 0) {
+      thread_num_successes++;
+      //submap_thread_num_successes[i]++;
+    }
+
+    it += (gridDim.x * blockDim.x) / tile_size;
+  }
+
+  std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
+  if (threadIdx.x == 0) { *num_successes += block_num_successes; }
+
+  // update submap thread counts
+  for(int i = 0; i < num_submaps; ++i) {
+    //std::size_t submap_block_num_successes = BlockReduce(temp_submap_storage[i]).Sum(submap_thread_num_successes[i]);
+    //if(threadIdx.x == 0) {*submap_num_successes[i] += submap_block_num_successes; }
+  }
+}
+
 /**
  * @brief Finds the values corresponding to all keys in the range `[first, last)`.
  *

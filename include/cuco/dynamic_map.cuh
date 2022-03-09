@@ -171,6 +171,11 @@ class dynamic_map {
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
+  
+  template <typename InputIt,
+            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+            typename KeyEqual = thrust::equal_to<key_type>>
+  void erase(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -251,6 +256,9 @@ class dynamic_map {
  private:
   key_type empty_key_sentinel_{};       ///< Key value that represents an empty slot
   mapped_type empty_value_sentinel_{};  ///< Initial value of empty slot
+
+  // TODO: initialize this
+  key_type erased_key_sentinel_{};
   std::size_t size_{};                  ///< Number of keys in the map
   std::size_t capacity_{};              ///< Maximum number of keys that can be inserted
   float max_load_factor_{};             ///< Max load factor before capacity growth
@@ -263,6 +271,8 @@ class dynamic_map {
   std::size_t min_insert_size_{};   ///< min remaining capacity of submap for insert
   atomic_ctr_type* num_successes_;  ///< number of successfully inserted keys on insert
   Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
+
+  std::vector<atomic_ctr_type*> submap_num_successes_;
 };
 }  // namespace cuco
 
