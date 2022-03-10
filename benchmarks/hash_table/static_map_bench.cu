@@ -89,7 +89,6 @@ static void BM_static_map_insert(::benchmark::State& state)
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
   thrust::device_vector<Key> d_keys(h_keys);
 
-
   for (auto _ : state) {
     map_type map{size, -1, -1};
 

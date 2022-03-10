@@ -199,8 +199,8 @@ __global__ void erase(
   std::size_t thread_num_successes = 0;
 
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid = block_size * blockIdx.x + threadIdx.x;
-  auto it  = first + tid / tile_size;
+  auto tid  = block_size * blockIdx.x + threadIdx.x;
+  auto it   = first + tid / tile_size;
 
   while (it < last) {
     auto k{*it};

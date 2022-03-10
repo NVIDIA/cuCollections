@@ -297,9 +297,9 @@ class static_map {
             typename KeyEqual = thrust::equal_to<key_type>>
   void erase(InputIt first,
              InputIt last,
-             Hash hash              = Hash{},
-             KeyEqual key_equal     = KeyEqual{},
-             cudaStream_t stream    = 0);
+             Hash hash           = Hash{},
+             KeyEqual key_equal  = KeyEqual{},
+             cudaStream_t stream = 0);
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -372,7 +372,7 @@ class static_map {
     using const_iterator = pair_atomic_type const*;
     using slot_type      = slot_type;
 
-    Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
+    Key empty_key_sentinel_{};  ///< Key value that represents an empty slot
     Key erased_key_sentinel_{};
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
     pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
@@ -579,8 +579,11 @@ class static_map {
     {
       return empty_value_sentinel_;
     }
-  
-    __host__ __device__ Key get_erased_key_sentinel() const noexcept { return erased_key_sentinel_; }
+
+    __host__ __device__ Key get_erased_key_sentinel() const noexcept
+    {
+      return erased_key_sentinel_;
+    }
 
     /**
      * @brief Returns iterator to the first slot.
@@ -693,7 +696,8 @@ class static_map {
                                             Key empty_key_sentinel,
                                             Value empty_value_sentinel,
                                             Key erased_key_sentinel) noexcept
-      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel}
+      : device_view_base{
+          slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel}
     {
     }
 
@@ -760,7 +764,6 @@ class static_map {
                                                  Key expected_key) noexcept;
 
    public:
-   
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
       CG g,
@@ -771,7 +774,8 @@ class static_map {
     {
       device_view_base::initialize_slots(
         g, slots, capacity, empty_key_sentinel, empty_value_sentinel);
-      return device_mutable_view{slots, capacity, empty_key_sentinel, empty_value_sentinel, empty_key_sentinel};
+      return device_mutable_view{
+        slots, capacity, empty_key_sentinel, empty_value_sentinel, empty_key_sentinel};
     }
 
     /* Features erase support */
@@ -786,7 +790,8 @@ class static_map {
     {
       device_view_base::initialize_slots(
         g, slots, capacity, empty_key_sentinel, empty_value_sentinel);
-      return device_mutable_view{slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel};
+      return device_mutable_view{
+        slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel};
     }
 
     /**
@@ -838,21 +843,20 @@ class static_map {
                            value_type const& insert_pair,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
-    
+
     template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool erase(key_type const& k,
-                           Hash hash          = Hash{},
-                           KeyEqual key_equal = KeyEqual{}) noexcept;
+                          Hash hash          = Hash{},
+                          KeyEqual key_equal = KeyEqual{}) noexcept;
 
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool erase(
-      CG const& g, 
-      key_type const& k, 
-      Hash hash = Hash{}, 
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+    __device__ bool erase(CG const& g,
+                          key_type const& k,
+                          Hash hash          = Hash{},
+                          KeyEqual key_equal = KeyEqual{}) noexcept;
 
   };  // class device mutable view
 
@@ -889,7 +893,8 @@ class static_map {
                                     Key empty_key_sentinel,
                                     Value empty_value_sentinel,
                                     Key erased_key_sentinel) noexcept
-      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel}
+      : device_view_base{
+          slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel}
     {
     }
 
@@ -1171,7 +1176,8 @@ class static_map {
    */
   device_view get_device_view() const noexcept
   {
-    return device_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_, erased_key_sentinel_);
+    return device_view(
+      slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_, erased_key_sentinel_);
   }
 
   /**
@@ -1181,7 +1187,8 @@ class static_map {
    */
   device_mutable_view get_device_mutable_view() const noexcept
   {
-    return device_mutable_view(slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_, erased_key_sentinel_);
+    return device_mutable_view(
+      slots_, capacity_, empty_key_sentinel_, empty_value_sentinel_, erased_key_sentinel_);
   }
 
  private:

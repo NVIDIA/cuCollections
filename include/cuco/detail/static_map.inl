@@ -17,7 +17,7 @@
 #include <cuco/detail/bitwise_compare.cuh>
 
 namespace cuco {
-  
+
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
                                                      Key empty_key_sentinel,
@@ -145,8 +145,9 @@ template <typename InputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::erase(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
-  if(get_empty_key_sentinel() == get_erased_key_sentinel())
-    throw std::runtime_error("Runtime error: You must provide a unique erased key sentinel value at map construction.\n");
+  if (get_empty_key_sentinel() == get_erased_key_sentinel())
+    throw std::runtime_error(
+      "Runtime error: You must provide a unique erased key sentinel value at map construction.\n");
 
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
@@ -220,7 +221,10 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 template <typename KeyEqual>
 __device__ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_result
 static_map<Key, Value, Scope, Allocator>::device_mutable_view::packed_cas(
-  iterator current_slot, value_type const& insert_pair, KeyEqual key_equal, Key expected_key) noexcept
+  iterator current_slot,
+  value_type const& insert_pair,
+  KeyEqual key_equal,
+  Key expected_key) noexcept
 {
   auto expected_value = this->get_empty_value_sentinel();
 
@@ -249,7 +253,10 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 template <typename KeyEqual>
 __device__ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_result
 static_map<Key, Value, Scope, Allocator>::device_mutable_view::back_to_back_cas(
-  iterator current_slot, value_type const& insert_pair, KeyEqual key_equal, Key expected_key) noexcept
+  iterator current_slot,
+  value_type const& insert_pair,
+  KeyEqual key_equal,
+  Key expected_key) noexcept
 {
   using cuda::std::memory_order_relaxed;
 
@@ -286,7 +293,10 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 template <typename KeyEqual>
 __device__ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_result
 static_map<Key, Value, Scope, Allocator>::device_mutable_view::cas_dependent_write(
-  iterator current_slot, value_type const& insert_pair, KeyEqual key_equal, Key expected_key) noexcept
+  iterator current_slot,
+  value_type const& insert_pair,
+  KeyEqual key_equal,
+  Key expected_key) noexcept
 {
   using cuda::std::memory_order_relaxed;
 
@@ -370,7 +380,9 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
       detail::bitwise_compare(existing_key, this->get_erased_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
-    if (g.any(not slot_is_available and key_equal(existing_key, insert_pair.first))) { return false; }
+    if (g.any(not slot_is_available and key_equal(existing_key, insert_pair.first))) {
+      return false;
+    }
 
     auto const window_contains_available = g.ballot(slot_is_available);
 
@@ -422,35 +434,37 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
 {
   auto current_slot{initial_slot(k, hash)};
 
-  value_type const insert_pair = make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
+  value_type const insert_pair =
+    make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
 
   while (true) {
-    auto existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    auto existing_key   = current_slot->first.load(cuda::std::memory_order_relaxed);
     auto existing_value = current_slot->second.load(cuda::std::memory_order_relaxed);
-    
+
     // Key doesn't exist, return false
-    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
-      return false;
-    }
+    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) { return false; }
 
     // Key exists, return true if successfully deleted
     if (key_equal(existing_key, k)) {
       if constexpr (cuco::detail::is_packable<value_type>()) {
-        auto slot =
-          reinterpret_cast<cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(
-            current_slot);
+        auto slot = reinterpret_cast<
+          cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(
+          current_slot);
         cuco::detail::pair_converter<value_type> expected_pair{
           cuco::make_pair(existing_key, existing_value)};
         cuco::detail::pair_converter<value_type> new_pair{insert_pair};
 
-        return slot->compare_exchange_strong(expected_pair.packed, new_pair.packed, cuda::std::memory_order_relaxed);
+        return slot->compare_exchange_strong(
+          expected_pair.packed, new_pair.packed, cuda::std::memory_order_relaxed);
       }
       if constexpr (not cuco::detail::is_packable<value_type>()) {
-        current_slot->second.compare_exchange_strong(existing_value, insert_pair.second, cuda::std::memory_order_relaxed);
-        return current_slot->first.compare_exchange_strong(existing_key, insert_pair.first, cuda::std::memory_order_relaxed);
+        current_slot->second.compare_exchange_strong(
+          existing_value, insert_pair.second, cuda::std::memory_order_relaxed);
+        return current_slot->first.compare_exchange_strong(
+          existing_key, insert_pair.first, cuda::std::memory_order_relaxed);
       }
     }
-  
+
     current_slot = next_slot(current_slot);
   }
 }
@@ -461,12 +475,13 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
   CG const& g, key_type const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
-  value_type const insert_pair = make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
+  value_type const insert_pair =
+    make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
 
   while (true) {
-    auto existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    auto existing_key   = current_slot->first.load(cuda::std::memory_order_relaxed);
     auto existing_value = current_slot->second.load(cuda::std::memory_order_relaxed);
-        
+
     auto const slot_is_empty =
       detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
@@ -475,32 +490,35 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     // Key exists, return true if successfully deleted
     if (exists) {
       uint32_t src_lane = __ffs(exists) - 1;
-      
+
       bool status;
       if (g.thread_rank() == src_lane) {
         if constexpr (cuco::detail::is_packable<value_type>()) {
-          auto slot =
-            reinterpret_cast<cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(
-              current_slot);
+          auto slot = reinterpret_cast<
+            cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(
+            current_slot);
           cuco::detail::pair_converter<value_type> expected_pair{
             cuco::make_pair(existing_key, existing_value)};
           cuco::detail::pair_converter<value_type> new_pair{insert_pair};
 
-          status = slot->compare_exchange_strong(expected_pair.packed, new_pair.packed, cuda::std::memory_order_relaxed);
+          status = slot->compare_exchange_strong(
+            expected_pair.packed, new_pair.packed, cuda::std::memory_order_relaxed);
         }
         if constexpr (not cuco::detail::is_packable<value_type>()) {
-          current_slot->second.compare_exchange_strong(existing_value, insert_pair.second, cuda::std::memory_order_relaxed);
-          status = current_slot->first.compare_exchange_strong(existing_key, insert_pair.first, cuda::std::memory_order_relaxed);
+          current_slot->second.compare_exchange_strong(
+            existing_value, insert_pair.second, cuda::std::memory_order_relaxed);
+          status = current_slot->first.compare_exchange_strong(
+            existing_key, insert_pair.first, cuda::std::memory_order_relaxed);
         }
       }
 
       uint32_t res_status = g.shfl(static_cast<uint32_t>(status), src_lane);
       return static_cast<bool>(res_status);
     }
-    
+
     // empty slot found, but key not found, must not be in the map
-    if(g.ballot(slot_is_empty)) { return false; }
-  
+    if (g.ballot(slot_is_empty)) { return false; }
+
     current_slot = next_slot(g, current_slot);
   }
 }
