@@ -657,7 +657,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    if (detail::bitwise_compare(existing_key, this->erased_key_sentinel_)) { return false; }
+    if (detail::bitwise_compare(existing_key, this->empty_key_sentinel_)) { return false; }
 
     if (key_equal(existing_key, k)) { return true; }
 
