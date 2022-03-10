@@ -29,7 +29,7 @@ TEMPLATE_TEST_CASE_SIG(
   using Value = T;
   
   unsigned long num_keys = 1'000'000;
-  cuco::static_map<Key, Value> map{num_keys * 1.6, -1, -1};
+  cuco::static_map<Key, Value> map{num_keys * 1.1, -1, -1, -2};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();
@@ -79,11 +79,23 @@ TEMPLATE_TEST_CASE_SIG(
                                 d_keys_exist.begin() + num_keys/2,
                                 [] __device__(const bool key_found) { return key_found; }));
 
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin() + num_keys/2,
+    REQUIRE(cuco::test::all_of(d_keys_exist.begin() + num_keys/2, 
                                 d_keys_exist.end(),
                                 [] __device__(const bool key_found) { return key_found; }));
-                            
+
+
+    map.erase(d_keys.begin()+num_keys/2, d_keys.end());
+    REQUIRE(map.get_size() == 0);
+
+    map.insert(pairs_begin, pairs_begin + num_keys/2);
+    map.insert(pairs_begin + num_keys/2, pairs_begin + num_keys);
+
+    map.erase(d_keys.begin(), d_keys.begin() + num_keys/2);
+
+    map.contains(d_keys.begin() + num_keys/2, d_keys.end(), d_keys_exist.begin());
     
-    
+    REQUIRE(cuco::test::all_of(d_keys_exist.begin(), 
+                               d_keys_exist.begin()+num_keys/2,
+                               [] __device__(const bool key_found) { return key_found; }));
   }
 }
