@@ -73,29 +73,6 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
 
     REQUIRE((out1_end - out1_begin) * 2 == num_pairs);
   }
-
-  SECTION("Output of pair_count_outer_if and pair_retrieve_outer_if should be coherent.")
-  {
-    auto const count = map.pair_count_outer_if(
-      pair_begin, pair_begin + num_pairs, stencil, pred, pair_equal<Key, Value>{});
-
-    REQUIRE(count == (num_pairs - num_pairs / 4));
-
-    auto out1_begin = thrust::make_zip_iterator(
-      thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
-    auto out2_begin = thrust::make_zip_iterator(
-      thrust::make_tuple(thrust::make_discard_iterator(), thrust::make_discard_iterator()));
-
-    auto [out1_end, out2_end] = map.pair_retrieve_outer_if(pair_begin,
-                                                           pair_begin + num_pairs,
-                                                           stencil,
-                                                           pred,
-                                                           out1_begin,
-                                                           out2_begin,
-                                                           pair_equal<Key, Value>{});
-
-    REQUIRE((out1_end - out1_begin) == (num_pairs - num_pairs / 4));
-  }
 }
 
 TEMPLATE_TEST_CASE_SIG(

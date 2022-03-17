@@ -319,13 +319,10 @@ __global__ void pair_count(
  *
  * When `pred(*(stencil + i))` is true, for pair, `p = *(first + i)`, counts all matching pairs,
  * `p'`, as determined by `pair_equal(p, p')` and stores the sum of all matches for all pairs to
- * `num_matches`. If `pred(*(stencil + i))` is true but `p` does not have any matches, it
- * contributes 1 to the final sum only if `is_outer` is true. If `pred(*(stencil + i))` is false,
- * does nothing.
+ * `num_matches`.
  *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform counts
- * @tparam is_outer Boolean flag indicating whether non-matches are counted
  * @tparam InputIt Device accessible random access input iterator where
  * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
  * static_multimap<K, V>::value_type>` is `true`
@@ -346,7 +343,6 @@ __global__ void pair_count(
  */
 template <uint32_t block_size,
           uint32_t tile_size,
-          bool is_outer,
           typename InputIt,
           typename StencilIt,
           typename Predicate,
@@ -372,11 +368,7 @@ __global__ void pair_count_if_n(InputIt first,
   while (pair_idx < n) {
     if (pred(*(stencil + pair_idx))) {
       typename viewT::value_type const pair = *(first + pair_idx);
-      if constexpr (is_outer) {
-        thread_num_matches += view.pair_count_outer(tile, pair, pair_equal);
-      } else {
-        thread_num_matches += view.pair_count(tile, pair, pair_equal);
-      }
+      thread_num_matches += view.pair_count(tile, pair, pair_equal);
     }
     pair_idx += (gridDim.x * block_size) / tile_size;
   }
@@ -614,10 +606,7 @@ __global__ void pair_retrieve(InputIt first,
  *
  * If `pair_equal(*(first + i), slot[j])` and `pred( *(stencil + i) )` return true, then
  * `*(first+i)` is stored to unspecified locations in `probe_output_begin`, and slot[j] is stored to
- * unspecified locations in `contained_output_begin`. If `pred( *(stencil + i) )` is true and
- * *(first + i) has no matches in the map, copies *(first + i) in `probe_output_begin` and a pair of
- * `empty_key_sentinel` and `empty_value_sentinel` in `contained_output_begin` only when `is_outer`
- * is `true`. If `pred(*stencil + i) )` is false, does nothing.
+ * unspecified locations in `contained_output_begin`.
  *
  * Behavior is undefined if the total number of matching pairs exceeds `std::distance(output_begin,
  * output_begin + *num_matches - 1)`.
@@ -626,7 +615,6 @@ __global__ void pair_retrieve(InputIt first,
  * @tparam flushing_cg_size The size of the CG used to flush output buffers
  * @tparam probing_cg_size The size of the CG for parallel retrievals
  * @tparam buffer_size Size of the output buffer
- * @tparam is_outer Boolean flag indicating whether non-matches are included in the output
  * @tparam InputIt Device accessible random access input iterator where
  * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
  * static_multimap<K, V>::value_type>` is `true`
@@ -655,7 +643,6 @@ template <uint32_t block_size,
           uint32_t flushing_cg_size,
           uint32_t probing_cg_size,
           uint32_t buffer_size,
-          bool is_outer,
           typename InputIt,
           typename StencilIt,
           typename Predicate,
@@ -698,29 +685,16 @@ __global__ void pair_retrieve_if_n(InputIt first,
 
     if (active_flag) {
       pair_type pair = *(first + pair_idx);
-      if constexpr (is_outer) {
-        view.pair_retrieve_outer<buffer_size>(active_flushing_cg,
-                                              probing_cg,
-                                              pair,
-                                              &flushing_cg_counter[flushing_cg_id],
-                                              probe_output_buffer[flushing_cg_id],
-                                              contained_output_buffer[flushing_cg_id],
-                                              num_matches,
-                                              probe_output_begin,
-                                              contained_output_begin,
-                                              pair_equal);
-      } else {
-        view.pair_retrieve<buffer_size>(active_flushing_cg,
-                                        probing_cg,
-                                        pair,
-                                        &flushing_cg_counter[flushing_cg_id],
-                                        probe_output_buffer[flushing_cg_id],
-                                        contained_output_buffer[flushing_cg_id],
-                                        num_matches,
-                                        probe_output_begin,
-                                        contained_output_begin,
-                                        pair_equal);
-      }
+      view.pair_retrieve<buffer_size>(active_flushing_cg,
+                                      probing_cg,
+                                      pair,
+                                      &flushing_cg_counter[flushing_cg_id],
+                                      probe_output_buffer[flushing_cg_id],
+                                      contained_output_buffer[flushing_cg_id],
+                                      num_matches,
+                                      probe_output_begin,
+                                      contained_output_begin,
+                                      pair_equal);
     }
     pair_idx += (gridDim.x * block_size) / probing_cg_size;
   }
