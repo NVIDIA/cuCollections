@@ -291,7 +291,7 @@ __global__ void pair_count(
   auto tid      = block_size * blockIdx.x + threadIdx.x;
   auto pair_idx = tid / tile_size;
 
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_matches = 0;
 
@@ -361,7 +361,7 @@ __global__ void pair_count_if_n(InputIt first,
   auto tid      = block_size * blockIdx.x + threadIdx.x;
   auto pair_idx = tid / tile_size;
 
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_matches = 0;
 
