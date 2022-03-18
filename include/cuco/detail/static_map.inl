@@ -21,14 +21,14 @@ namespace cuco {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
-                                                     Key empty_key_sentinel,
-                                                     Value empty_value_sentinel,
+                                                     sentinel::empty_key<Key> empty_key_sentinel,
+                                                     sentinel::empty_value<Value> empty_value_sentinel,
                                                      Allocator const& alloc,
                                                      cudaStream_t stream)
   : capacity_{std::max(capacity, std::size_t{1})},  // to avoid dereferencing a nullptr (Issue #72)
-    empty_key_sentinel_{empty_key_sentinel},
-    empty_value_sentinel_{empty_value_sentinel},
-    erased_key_sentinel_{empty_key_sentinel},
+    empty_key_sentinel_{empty_key_sentinel.value},
+    empty_value_sentinel_{empty_value_sentinel.value},
+    erased_key_sentinel_{empty_key_sentinel.value},
     slot_allocator_{alloc},
     counter_allocator_{alloc}
 {
@@ -40,20 +40,20 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
   auto const grid_size      = (capacity_ + stride * block_size - 1) / (stride * block_size);
   detail::initialize<block_size, atomic_key_type, atomic_mapped_type>
     <<<grid_size, block_size, 0, stream>>>(
-      slots_, empty_key_sentinel, empty_value_sentinel, capacity_);
+      slots_, empty_key_sentinel_, empty_value_sentinel_, capacity_);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
-                                                     Key empty_key_sentinel,
-                                                     Value empty_value_sentinel,
-                                                     Key erased_key_sentinel,
+                                                     sentinel::empty_key<Key> empty_key_sentinel,
+                                                     sentinel::empty_value<Value> empty_value_sentinel,
+                                                     sentinel::erased_key<Key> erased_key_sentinel,
                                                      Allocator const& alloc,
                                                      cudaStream_t stream)
   : capacity_{std::max(capacity, std::size_t{1})},  // to avoid dereferencing a nullptr (Issue #72)
-    empty_key_sentinel_{empty_key_sentinel},
-    empty_value_sentinel_{empty_value_sentinel},
-    erased_key_sentinel_{erased_key_sentinel},
+    empty_key_sentinel_{empty_key_sentinel.value},
+    empty_value_sentinel_{empty_value_sentinel.value},
+    erased_key_sentinel_{erased_key_sentinel.value},
     slot_allocator_{alloc},
     counter_allocator_{alloc}
 {
@@ -65,7 +65,7 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
   auto const grid_size      = (capacity_ + stride * block_size - 1) / (stride * block_size);
   detail::initialize<block_size, atomic_key_type, atomic_mapped_type>
     <<<grid_size, block_size, 0, stream>>>(
-      slots_, empty_key_sentinel, empty_value_sentinel, capacity_);
+      slots_, empty_key_sentinel_, empty_value_sentinel_, capacity_);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -440,9 +440,6 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
 
   while (true) {
-    // auto existing_key   = current_slot->first.load(cuda::std::memory_order_relaxed);
-    // auto existing_value = current_slot->second.load(cuda::std::memory_order_relaxed);
-
     static_assert(sizeof(Key) == sizeof(atomic_key_type));
     static_assert(sizeof(Value) == sizeof(atomic_mapped_type));
     // TODO: Replace reinterpret_cast with atomic ref when available.

@@ -28,7 +28,11 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
 
   constexpr std::size_t num_keys = 1'000'000;
   constexpr std::size_t capacity = 1'100'000;
-  cuco::static_map<Key, Value> map{capacity, -1, -1, -2};
+
+  cuco::static_map<Key, Value> map{capacity, 
+                                   cuco::sentinel::empty_key<Key>{-1}, 
+                                   cuco::sentinel::empty_value<Value>{-1},
+                                   cuco::sentinel::erased_key<Key>{-2}};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();

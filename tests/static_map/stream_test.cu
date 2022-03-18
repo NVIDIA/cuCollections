@@ -33,7 +33,10 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
   cudaStreamCreate(&stream);
 
   constexpr std::size_t num_keys{500'000};
-  cuco::static_map<Key, Value> map{1'000'000, -1, -1, cuco::cuda_allocator<char>{}, stream};
+  cuco::static_map<Key, Value> map{1'000'000, 
+                                   cuco::sentinel::empty_key<Key>{-1}, 
+                                   cuco::sentinel::empty_value<Value>{-1}, 
+                                   cuco::cuda_allocator<char>{}, stream};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();
