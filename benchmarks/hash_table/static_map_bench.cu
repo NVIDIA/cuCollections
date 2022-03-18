@@ -90,8 +90,7 @@ static void BM_static_map_insert(::benchmark::State& state)
   thrust::device_vector<Key> d_keys(h_keys);
 
   for (auto _ : state) {
-    map_type map{size, cuco::sentinel::empty_key<Key>{-1}, 
-                       cuco::sentinel::empty_value<Value>{-1}};
+    map_type map{size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -121,8 +120,7 @@ static void BM_static_map_search_all(::benchmark::State& state)
   float occupancy      = state.range(1) / float{100};
   std::size_t size     = num_keys / occupancy;
 
-  map_type map{size, cuco::sentinel::empty_key<Key>{-1}, 
-                     cuco::sentinel::empty_value<Value>{-1}};
+  map_type map{size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
   auto view = map.get_device_mutable_view();
 
   std::vector<Key> h_keys(num_keys);
@@ -163,9 +161,10 @@ static void BM_static_map_erase_all(::benchmark::State& state)
   std::size_t size     = num_keys / occupancy;
 
   // static map with erase support
-  map_type map{size, cuco::sentinel::empty_key<Key>{-1}, 
-                     cuco::sentinel::empty_value<Value>{-1},
-                     cuco::sentinel::erased_key<Key>{-2}};
+  map_type map{size,
+               cuco::sentinel::empty_key<Key>{-1},
+               cuco::sentinel::empty_value<Value>{-1},
+               cuco::sentinel::erased_key<Key>{-2}};
   auto view = map.get_device_mutable_view();
 
   std::vector<Key> h_keys(num_keys);

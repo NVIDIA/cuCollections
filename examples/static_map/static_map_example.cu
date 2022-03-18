@@ -32,9 +32,11 @@ int main(void)
   // for an load factor of 50%.
   cudaStream_t str;
   cudaStreamCreate(&str);
-  cuco::static_map<int, int> map{
-    100'000, cuco::sentinel::empty_key<int>{empty_key_sentinel}, 
-             cuco::sentinel::empty_value<int>{empty_value_sentinel}, cuco::cuda_allocator<char>{}, str};
+  cuco::static_map<int, int> map{100'000,
+                                 cuco::sentinel::empty_key<int>{empty_key_sentinel},
+                                 cuco::sentinel::empty_value<int>{empty_value_sentinel},
+                                 cuco::cuda_allocator<char>{},
+                                 str};
 
   thrust::device_vector<thrust::pair<int, int>> pairs(50'000);
 

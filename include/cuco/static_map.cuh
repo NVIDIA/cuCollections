@@ -41,17 +41,23 @@
 #include <cuco/detail/static_map_kernels.cuh>
 
 namespace cuco {
-  
-namespace sentinel {
-  template <typename T>
-  struct empty_key{T value; };
 
-  template <typename T>
-  struct empty_value{T value; };
-    
-  template <typename T>
-  struct erased_key{T value; };
-} // namespace sentinel
+namespace sentinel {
+template <typename T>
+struct empty_key {
+  T value;
+};
+
+template <typename T>
+struct empty_value {
+  T value;
+};
+
+template <typename T>
+struct erased_key {
+  T value;
+};
+}  // namespace sentinel
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;
@@ -82,7 +88,7 @@ class dynamic_map;
  * in the map. For example, given a range of keys specified by device-accessible
  * iterators, the bulk `insert` function will insert all keys into the map. Note that in order
  * for a `static_map` instance to support `erase`, the user must provide an `erased_key_sentinel`
- * which is distinct from the `empty_key_sentinel` at construction. If `erase` is called on a 
+ * which is distinct from the `empty_key_sentinel` at construction. If `erase` is called on a
  * `static_map` which was not constructed in this way, a runtime error will be generated.
  *
  * The singular device-side operations allow individual threads to perform
@@ -92,7 +98,7 @@ class dynamic_map;
  * immutable view that allows only non-modifying operations such as `find` or
  * `contains`. The `mutable_device_view` class only allows `insert` and `erase` operations.
  * The two types are separate to prevent erroneous concurrent insert/erase/find
- * operations. Note that the device-side `erase` may only be called if the corresponding 
+ * operations. Note that the device-side `erase` may only be called if the corresponding
  * `mutable_device_view` was constructed with a user-provided `erased_key_sentinel`. It is
  * up to the user to ensure this condition is met.
  *
@@ -105,7 +111,8 @@ class dynamic_map;
  * // Constructs a map with 100,000 slots using -1 and -1 as the empty key/value
  * // sentinels. The supplied erased key sentinel of -2 must be a different value from the empty
  * // key sentinel. If erase functionality is not needed, you may elect to not supply an erased
- * // key sentinel to the constructor. Note the capacity is chosen knowing we will insert 50,000 keys,
+ * // key sentinel to the constructor. Note the capacity is chosen knowing we will insert 50,000
+ * keys,
  * // for an load factor of 50%.
  * static_map<int, int> m{100'000, empty_key_sentinel, empty_value_sentinel, erased_value_sentinel};
  *
@@ -185,8 +192,6 @@ class static_map {
   {
     return cuco::detail::is_packable<value_type>();
   }
-
-  
 
   /**
    * @brief Construct a fixed-size map with the specified capacity and sentinel values.
@@ -717,9 +722,11 @@ class static_map {
                                             sentinel::empty_key<Key> empty_key_sentinel,
                                             sentinel::empty_value<Value> empty_value_sentinel,
                                             sentinel::erased_key<Key> erased_key_sentinel) noexcept
-      : device_view_base{
-          slots, capacity, 
-          empty_key_sentinel.value, empty_value_sentinel.value, erased_key_sentinel.value}
+      : device_view_base{slots,
+                         capacity,
+                         empty_key_sentinel.value,
+                         empty_value_sentinel.value,
+                         erased_key_sentinel.value}
     {
     }
 
@@ -796,11 +803,11 @@ class static_map {
     {
       device_view_base::initialize_slots(
         g, slots, capacity, empty_key_sentinel.value, empty_value_sentinel.value);
-      return device_mutable_view{
-        slots, capacity, 
-        empty_key_sentinel, 
-        empty_value_sentinel, 
-        sentinel::erased_key<Key>{empty_key_sentinel.value}};
+      return device_mutable_view{slots,
+                                 capacity,
+                                 empty_key_sentinel,
+                                 empty_value_sentinel,
+                                 sentinel::erased_key<Key>{empty_key_sentinel.value}};
     }
 
     /* Features erase support */
@@ -918,8 +925,11 @@ class static_map {
                                     sentinel::empty_key<Key> empty_key_sentinel,
                                     sentinel::empty_value<Value> empty_value_sentinel,
                                     sentinel::erased_key<Key> erased_key_sentinel) noexcept
-      : device_view_base{
-          slots, capacity, empty_key_sentinel.value, empty_value_sentinel.value, erased_key_sentinel.value}
+      : device_view_base{slots,
+                         capacity,
+                         empty_key_sentinel.value,
+                         empty_value_sentinel.value,
+                         erased_key_sentinel.value}
     {
     }
 
@@ -1002,11 +1012,12 @@ class static_map {
       g.sync();
 #endif
 
-      return device_view(memory_to_use,
-                         source_device_view.get_capacity(),
-                         sentinel::empty_key<Key>{source_device_view.get_empty_key_sentinel()},
-                         sentinel::empty_value<Value>{source_device_view.get_empty_value_sentinel()},
-                         sentinel::erased_key<Key>{source_device_view.get_erased_key_sentinel()});
+      return device_view(
+        memory_to_use,
+        source_device_view.get_capacity(),
+        sentinel::empty_key<Key>{source_device_view.get_empty_key_sentinel()},
+        sentinel::empty_value<Value>{source_device_view.get_empty_value_sentinel()},
+        sentinel::erased_key<Key>{source_device_view.get_erased_key_sentinel()});
     }
 
     /**
@@ -1201,11 +1212,11 @@ class static_map {
    */
   device_view get_device_view() const noexcept
   {
-    return device_view(
-      slots_, capacity_, 
-      sentinel::empty_key<Key>{empty_key_sentinel_}, 
-      sentinel::empty_value<Value>{empty_value_sentinel_}, 
-      sentinel::erased_key<Key>{erased_key_sentinel_});
+    return device_view(slots_,
+                       capacity_,
+                       sentinel::empty_key<Key>{empty_key_sentinel_},
+                       sentinel::empty_value<Value>{empty_value_sentinel_},
+                       sentinel::erased_key<Key>{erased_key_sentinel_});
   }
 
   /**
@@ -1215,11 +1226,11 @@ class static_map {
    */
   device_mutable_view get_device_mutable_view() const noexcept
   {
-    return device_mutable_view(
-      slots_, capacity_, 
-      sentinel::empty_key<Key>{empty_key_sentinel_}, 
-      sentinel::empty_value<Value>{empty_value_sentinel_}, 
-      sentinel::erased_key<Key>{erased_key_sentinel_});
+    return device_mutable_view(slots_,
+                               capacity_,
+                               sentinel::empty_key<Key>{empty_key_sentinel_},
+                               sentinel::empty_value<Value>{empty_value_sentinel_},
+                               sentinel::erased_key<Key>{erased_key_sentinel_});
   }
 
  private:
