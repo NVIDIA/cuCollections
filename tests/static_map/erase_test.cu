@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,8 +26,9 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
   using Key   = T;
   using Value = T;
 
-  unsigned long num_keys = 1'000'000;
-  cuco::static_map<Key, Value> map{num_keys * 1.1, -1, -1, -2};
+  constexpr std::size_t num_keys = 1'000'000;
+  constexpr std::size_t capacity = 1'100'000;
+  cuco::static_map<Key, Value> map{capacity, -1, -1, -2};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();
@@ -81,16 +82,5 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
 
     map.erase(d_keys.begin() + num_keys / 2, d_keys.end());
     REQUIRE(map.get_size() == 0);
-
-    map.insert(pairs_begin, pairs_begin + num_keys / 2);
-    map.insert(pairs_begin + num_keys / 2, pairs_begin + num_keys);
-
-    map.erase(d_keys.begin(), d_keys.begin() + num_keys / 2);
-
-    map.contains(d_keys.begin() + num_keys / 2, d_keys.end(), d_keys_exist.begin());
-
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin(),
-                               d_keys_exist.begin() + num_keys / 2,
-                               [] __device__(const bool key_found) { return key_found; }));
   }
 }

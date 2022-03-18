@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
+#include <cuco/detail/error.hpp>
 
 namespace cuco {
 
@@ -146,15 +147,15 @@ void static_map<Key, Value, Scope, Allocator>::erase(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
   if (get_empty_key_sentinel() == get_erased_key_sentinel())
-    throw std::runtime_error(
-      "Runtime error: You must provide a unique erased key sentinel value at map construction.\n");
+    CUCO_RUNTIME_EXPECTS(get_empty_key_sentinel() != get_erased_key_sentinel(),
+      "You must provide a unique erased key sentinel value at map construction.");
 
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const tile_size  = 4;
+  auto constexpr block_size = 128;
+  auto constexpr stride     = 1;
+  auto constexpr tile_size  = 4;
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 
@@ -438,8 +439,16 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
 
   while (true) {
-    auto existing_key   = current_slot->first.load(cuda::std::memory_order_relaxed);
-    auto existing_value = current_slot->second.load(cuda::std::memory_order_relaxed);
+    //auto existing_key   = current_slot->first.load(cuda::std::memory_order_relaxed);
+    //auto existing_value = current_slot->second.load(cuda::std::memory_order_relaxed);
+    
+    static_assert(sizeof(Key) == sizeof(atomic_key_type));
+    static_assert(sizeof(Value) == sizeof(atomic_mapped_type));
+    // TODO: Replace reinterpret_cast with atomic ref when available.
+    value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
+    auto existing_key = slot_contents.first;
+    auto existing_value = slot_contents.second;
+
 
     // Key doesn't exist, return false
     if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) { return false; }
@@ -479,8 +488,12 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
 
   while (true) {
-    auto existing_key   = current_slot->first.load(cuda::std::memory_order_relaxed);
-    auto existing_value = current_slot->second.load(cuda::std::memory_order_relaxed);
+    static_assert(sizeof(Key) == sizeof(atomic_key_type));
+    static_assert(sizeof(Value) == sizeof(atomic_mapped_type));
+    // TODO: Replace reinterpret_cast with atomic ref when available.
+    value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
+    auto existing_key = slot_contents.first;
+    auto existing_value = slot_contents.second;
 
     auto const slot_is_empty =
       detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());

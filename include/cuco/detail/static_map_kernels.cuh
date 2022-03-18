@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -165,7 +165,7 @@ template <std::size_t block_size,
 __global__ void erase(
   InputIt first, InputIt last, atomicT* num_successes, viewT view, Hash hash, KeyEqual key_equal)
 {
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
@@ -173,8 +173,7 @@ __global__ void erase(
   auto it  = first + tid;
 
   while (it < last) {
-    auto k{*it};
-    if (view.erase(k, hash, key_equal)) { thread_num_successes++; }
+    if (view.erase(*it, hash, key_equal)) { thread_num_successes++; }
     it += gridDim.x * block_size;
   }
 
@@ -203,8 +202,7 @@ __global__ void erase(
   auto it   = first + tid / tile_size;
 
   while (it < last) {
-    auto k{*it};
-    if (view.erase(tile, k, hash, key_equal) && tile.thread_rank() == 0) { thread_num_successes++; }
+    if (view.erase(tile, *it, hash, key_equal) and tile.thread_rank() == 0) { thread_num_successes++; }
     it += (gridDim.x * block_size) / tile_size;
   }
 
