@@ -147,7 +147,8 @@ void static_map<Key, Value, Scope, Allocator>::erase(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
   if (get_empty_key_sentinel() == get_erased_key_sentinel())
-    CUCO_RUNTIME_EXPECTS(get_empty_key_sentinel() != get_erased_key_sentinel(),
+    CUCO_RUNTIME_EXPECTS(
+      get_empty_key_sentinel() != get_erased_key_sentinel(),
       "You must provide a unique erased key sentinel value at map construction.");
 
   auto num_keys = std::distance(first, last);
@@ -156,8 +157,8 @@ void static_map<Key, Value, Scope, Allocator>::erase(
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
   auto constexpr tile_size  = 4;
-  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_mutable_view();
+  auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_mutable_view();
 
   // TODO: memset an atomic variable is unsafe
   static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
@@ -439,16 +440,15 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
 
   while (true) {
-    //auto existing_key   = current_slot->first.load(cuda::std::memory_order_relaxed);
-    //auto existing_value = current_slot->second.load(cuda::std::memory_order_relaxed);
-    
+    // auto existing_key   = current_slot->first.load(cuda::std::memory_order_relaxed);
+    // auto existing_value = current_slot->second.load(cuda::std::memory_order_relaxed);
+
     static_assert(sizeof(Key) == sizeof(atomic_key_type));
     static_assert(sizeof(Value) == sizeof(atomic_mapped_type));
     // TODO: Replace reinterpret_cast with atomic ref when available.
     value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
-    auto existing_key = slot_contents.first;
-    auto existing_value = slot_contents.second;
-
+    auto existing_key        = slot_contents.first;
+    auto existing_value      = slot_contents.second;
 
     // Key doesn't exist, return false
     if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) { return false; }
@@ -492,8 +492,8 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     static_assert(sizeof(Value) == sizeof(atomic_mapped_type));
     // TODO: Replace reinterpret_cast with atomic ref when available.
     value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
-    auto existing_key = slot_contents.first;
-    auto existing_value = slot_contents.second;
+    auto existing_key        = slot_contents.first;
+    auto existing_value      = slot_contents.second;
 
     auto const slot_is_empty =
       detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());

@@ -99,4 +99,4 @@ struct cuda_error : public std::runtime_error {
 #define CUCO_RUNTIME_EXPECTS(cond, reason)                           \
   (!!(cond)) ? static_cast<void>(0)                                  \
              : throw std::runtime_error("cuco failure at: " __FILE__ \
-                                       ":" CUCO_STRINGIFY(__LINE__) ": " reason)
+                                        ":" CUCO_STRINGIFY(__LINE__) ": " reason)

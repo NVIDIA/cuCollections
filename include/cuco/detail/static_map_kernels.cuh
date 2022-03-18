@@ -202,7 +202,9 @@ __global__ void erase(
   auto it   = first + tid / tile_size;
 
   while (it < last) {
-    if (view.erase(tile, *it, hash, key_equal) and tile.thread_rank() == 0) { thread_num_successes++; }
+    if (view.erase(tile, *it, hash, key_equal) and tile.thread_rank() == 0) {
+      thread_num_successes++;
+    }
     it += (gridDim.x * block_size) / tile_size;
   }
 

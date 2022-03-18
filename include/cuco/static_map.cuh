@@ -372,8 +372,8 @@ class static_map {
     using const_iterator = pair_atomic_type const*;
     using slot_type      = slot_type;
 
-    Key empty_key_sentinel_{};  ///< Key value that represents an empty slot
-    Key erased_key_sentinel_{}; ///< Key value that represents an erased slot
+    Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
+    Key erased_key_sentinel_{};     ///< Key value that represents an erased slot
     Value empty_value_sentinel_{};  ///< Initial Value of empty slot
     pair_atomic_type* slots_{};     ///< Pointer to flat slots storage
     std::size_t capacity_{};        ///< Total number of slots
