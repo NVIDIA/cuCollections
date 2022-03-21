@@ -35,29 +35,13 @@
 #include <cuda/barrier>
 #endif
 
+#include <cuco/sentinel.hpp>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
 
 namespace cuco {
-
-namespace sentinel {
-template <typename T>
-struct empty_key {
-  T value;
-};
-
-template <typename T>
-struct empty_value {
-  T value;
-};
-
-template <typename T>
-struct erased_key {
-  T value;
-};
-}  // namespace sentinel
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;
