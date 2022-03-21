@@ -35,11 +35,11 @@
 #include <cuda/barrier>
 #endif
 
-#include <cuco/sentinel.hpp>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
+#include <cuco/sentinel.hpp>
 
 namespace cuco {
 

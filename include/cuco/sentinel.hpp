@@ -32,5 +32,5 @@ struct erased_key {
   T value;
 };
 
-} // namespace sentinel
-} // namespace cuco
+}  // namespace sentinel
+}  // namespace cuco
