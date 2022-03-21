@@ -69,14 +69,14 @@ template <typename InputIt, typename Hash, typename KeyEqual>
 void static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::insert(
   InputIt first, InputIt last, cudaStream_t stream, Hash hash, KeyEqual key_equal)
 {
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const tile_size  = 4;
-  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_mutable_view();
+  auto constexpr block_size = 128;
+  auto constexpr stride     = 1;
+  auto constexpr tile_size  = 4;
+  auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_mutable_view();
 
   detail::insert<block_size, tile_size>
     <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view, hash, key_equal);
@@ -98,13 +98,13 @@ void static_reduction_map<ReductionOp, Key, Value, Scope, Allocator>::find(Input
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const tile_size  = 4;
-  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_view();
+  auto constexpr block_size = 128;
+  auto constexpr stride     = 1;
+  auto constexpr tile_size  = 4;
+  auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto const view      = get_device_view();
 
-  detail::find<block_size, tile_size, Value>
+  detail::find<block_size, tile_size>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
 }
 

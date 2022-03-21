@@ -15,6 +15,7 @@
  */
 
 #include <cooperative_groups.h>
+#include <cuco/detail/utils.hpp>
 #include <cuco/static_reduction_map.cuh>
 #include <key_generator.hpp>
 #include <nvbench/nvbench.cuh>

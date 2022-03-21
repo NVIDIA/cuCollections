@@ -42,7 +42,7 @@
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/reduction_ops.cuh>
 #include <cuco/detail/static_reduction_map_kernels.cuh>
-#include <cuco/detail/traits.hpp>
+#include <cuco/traits.hpp>
 #include <cuda.h>
 
 namespace cuco {

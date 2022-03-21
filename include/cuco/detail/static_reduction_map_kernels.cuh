@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#include <cooperative_groups.h>
+#include <cstdint>
+#include <cuda/atomic>
 
 namespace cuco {
 namespace detail {
@@ -65,7 +69,6 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
- * @param num_successes The number of successfully inserted key/value pairs
  * @param view Mutable device view used to access the hash map's slot storage
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function used to compare two keys for equality
@@ -77,8 +80,8 @@ template <std::size_t block_size,
           typename KeyEqual>
 __global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tid = block_size * blockIdx.x + threadIdx.x;
-  auto it  = first + tid;
+  auto const tid = block_size * blockIdx.x + threadIdx.x;
+  auto it        = first + tid;
 
   while (it < last) {
     typename viewT::value_type const insert_pair{*it};
@@ -101,36 +104,29 @@ __global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEq
  * inserts
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `value_type`
- * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
- * @param num_successes The number of successfully inserted key/value pairs
  * @param view Mutable device view used to access the hash map's slot storage
  * @param hash The unary function to apply to hash each key
  * @param key_equal The binary function used to compare two keys for equality
  */
 template <std::size_t block_size,
-          uint32_t tile_size,
+          std::uint32_t tile_size,
           typename InputIt,
           typename viewT,
           typename Hash,
           typename KeyEqual>
 __global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid  = block_size * blockIdx.x + threadIdx.x;
-  auto it   = first + tid / tile_size;
+  auto const tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto const tid  = block_size * blockIdx.x + threadIdx.x;
+  auto it         = first + tid / tile_size;
 
   while (it < last) {
-    // force conversion to value_type
-    typename viewT::value_type const insert_pair{
-      static_cast<typename viewT::key_type>(thrust::get<0>(*it)),
-      static_cast<typename viewT::mapped_type>(thrust::get<1>(*it))};
-
-    view.insert(tile, insert_pair, hash, key_equal);
+    view.insert(tile, *it, hash, key_equal);
     it += (gridDim.x * block_size) / tile_size;
   }
 }
@@ -141,7 +137,6 @@ __global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEq
  * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`.
  * Else, copies the empty value sentinel.
  * @tparam block_size The size of the thread block
- * @tparam Value The type of the mapped value for the map
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
@@ -157,7 +152,6 @@ __global__ void insert(InputIt first, InputIt last, viewT view, Hash hash, KeyEq
  * @param key_equal The binary function to compare two keys for equality
  */
 template <std::size_t block_size,
-          typename Value,
           typename InputIt,
           typename OutputIt,
           typename viewT,
@@ -166,9 +160,9 @@ template <std::size_t block_size,
 __global__ void find(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid;
-  __shared__ Value writeBuffer[block_size];
+  auto const tid = block_size * blockIdx.x + threadIdx.x;
+  auto key_idx   = tid;
+  __shared__ typename viewT::mapped_type writeBuffer[block_size];
 
   while (first + key_idx < last) {
     auto key   = *(first + key_idx);
@@ -199,7 +193,6 @@ __global__ void find(
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform
  * inserts
- * @tparam Value The type of the mapped value for the map
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
@@ -215,8 +208,7 @@ __global__ void find(
  * @param key_equal The binary function to compare two keys for equality
  */
 template <std::size_t block_size,
-          uint32_t tile_size,
-          typename Value,
+          std::uint32_t tile_size,
           typename InputIt,
           typename OutputIt,
           typename viewT,
@@ -225,10 +217,10 @@ template <std::size_t block_size,
 __global__ void find(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid / tile_size;
-  __shared__ Value writeBuffer[block_size];
+  auto const tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto const tid  = block_size * blockIdx.x + threadIdx.x;
+  auto key_idx    = tid / tile_size;
+  __shared__ typename viewT::mapped_type writeBuffer[block_size];
 
   while (first + key_idx < last) {
     auto key   = *(first + key_idx);
@@ -261,7 +253,7 @@ __global__ void find(
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
- * convertible to the map's `mapped_type`
+ * convertible to `bool`
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
@@ -281,8 +273,8 @@ template <std::size_t block_size,
 __global__ void contains(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid;
+  auto const tid = block_size * blockIdx.x + threadIdx.x;
+  auto key_idx   = tid;
   __shared__ bool writeBuffer[block_size];
 
   while (first + key_idx < last) {
@@ -316,7 +308,7 @@ __global__ void contains(
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam OutputIt Device accessible output iterator whose `value_type` is
- * convertible to the map's `mapped_type`
+ * convertible to `bool`
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
@@ -337,9 +329,9 @@ template <std::size_t block_size,
 __global__ void contains(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid / tile_size;
+  auto const tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto const tid  = block_size * blockIdx.x + threadIdx.x;
+  auto key_idx    = tid / tile_size;
   __shared__ bool writeBuffer[block_size];
 
   while (first + key_idx < last) {

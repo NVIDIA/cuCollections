@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,8 +34,3 @@ std::size_t count_unique(Iter begin, Iter end)
 
   return std::distance(v.begin(), std::unique(v.begin(), v.end()));
 }
-
-// safe division
-#ifndef SDIV
-#define SDIV(x, y) (((x) + (y)-1) / (y))
-#endif
