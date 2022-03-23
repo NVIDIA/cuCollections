@@ -40,8 +40,8 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
-#include <cuco/detail/reduction_ops.cuh>
 #include <cuco/detail/static_reduction_map_kernels.cuh>
+#include <cuco/reduction_ops.cuh>
 #include <cuco/traits.hpp>
 #include <cuda.h>
 
