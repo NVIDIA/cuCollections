@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cuco/detail/tags.hpp>
 #include <cuda/atomic>
 #include <limits>
 
@@ -30,7 +31,9 @@ namespace cuco {
  */
 template <typename T>
 struct reduce_add {
-  using value_type            = T;
+  using value_type = T;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr T identity = 0;
 
   template <cuda::thread_scope Scope, typename T2>
@@ -44,7 +47,9 @@ struct reduce_add {
 // https://github.com/NVIDIA/libcudacxx/issues/104
 template <>
 struct reduce_add<float> {
-  using value_type                = float;
+  using value_type = float;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr float identity = 0;
 
   template <cuda::thread_scope Scope, typename T2>
@@ -56,7 +61,9 @@ struct reduce_add<float> {
 
 template <>
 struct reduce_add<double> {
-  using value_type                 = double;
+  using value_type = double;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr double identity = 0;
 
   template <cuda::thread_scope Scope, typename T2>
@@ -74,7 +81,9 @@ struct reduce_add<double> {
  */
 template <typename T>
 struct reduce_sub {
-  using value_type            = T;
+  using value_type = T;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr T identity = 0;
 
   template <cuda::thread_scope Scope, typename T2>
@@ -86,7 +95,9 @@ struct reduce_sub {
 
 template <>
 struct reduce_sub<float> {
-  using value_type                = float;
+  using value_type = float;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr float identity = 0;
 
   template <cuda::thread_scope Scope, typename T2>
@@ -98,7 +109,9 @@ struct reduce_sub<float> {
 
 template <>
 struct reduce_sub<double> {
-  using value_type                 = double;
+  using value_type = double;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr double identity = 0;
 
   template <cuda::thread_scope Scope, typename T2>
@@ -116,7 +129,9 @@ struct reduce_sub<double> {
  */
 template <typename T>
 struct reduce_min {
-  using value_type            = T;
+  using value_type = T;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr T identity = std::numeric_limits<T>::max();
 
   template <cuda::thread_scope Scope, typename T2>
@@ -128,7 +143,9 @@ struct reduce_min {
 
 template <>
 struct reduce_min<float> {
-  using value_type                = float;
+  using value_type = float;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr float identity = std::numeric_limits<float>::max();
 
   template <cuda::thread_scope Scope, typename T2>
@@ -140,7 +157,9 @@ struct reduce_min<float> {
 
 template <>
 struct reduce_min<double> {
-  using value_type                 = double;
+  using value_type = double;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr double identity = std::numeric_limits<double>::max();
 
   template <cuda::thread_scope Scope, typename T2>
@@ -158,7 +177,9 @@ struct reduce_min<double> {
  */
 template <typename T>
 struct reduce_max {
-  using value_type            = T;
+  using value_type = T;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr T identity = std::numeric_limits<T>::lowest();
 
   template <cuda::thread_scope Scope, typename T2>
@@ -170,7 +191,9 @@ struct reduce_max {
 
 template <>
 struct reduce_max<float> {
-  using value_type                = float;
+  using value_type = float;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr float identity = std::numeric_limits<float>::lowest();
 
   template <cuda::thread_scope Scope, typename T2>
@@ -182,7 +205,9 @@ struct reduce_max<float> {
 
 template <>
 struct reduce_max<double> {
-  using value_type                 = double;
+  using value_type = double;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr double identity = std::numeric_limits<double>::lowest();
 
   template <cuda::thread_scope Scope, typename T2>
@@ -206,7 +231,9 @@ template <typename T,
           std::uint32_t BackoffBaseDelay = 8,
           std::uint32_t BackoffMaxDelay  = 256>
 struct custom_op {
-  using value_type            = T;
+  using value_type = T;
+  using tag        = detail::tags::reduction_op;
+
   static constexpr T identity = Identity;
 
   Op op;

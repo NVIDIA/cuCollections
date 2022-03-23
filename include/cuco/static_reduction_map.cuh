@@ -41,6 +41,7 @@
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_reduction_map_kernels.cuh>
+#include <cuco/detail/tags.hpp>
 #include <cuco/reduction_ops.cuh>
 #include <cuco/traits.hpp>
 #include <cuda.h>
@@ -151,7 +152,8 @@ class static_reduction_map {
     is_bitwise_comparable<Key>::value,
     "Key type must have unique object representations or have been explicitly declared as safe for "
     "bitwise comparison via specialization of cuco::is_bitwise_comparable<Key>.");
-
+  static_assert(std::is_same<typename ReductionOp::tag, detail::tags::reduction_op>::value,
+                "Invalid reduction functor");
   static_assert(std::is_same<typename ReductionOp::value_type, Value>::value,
                 "Type mismatch between ReductionOp::value_type and Value");
 
