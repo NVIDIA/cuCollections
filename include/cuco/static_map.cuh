@@ -211,7 +211,7 @@ class static_map {
    * @brief Constructs a fixed-size map with erase capability.
    * empty_key_sentinel and erased_key_sentinel must be different values.
    *
-   * @throw std::runtime error if the empty key sentinel and erased key sentinel 
+   * @throw std::runtime error if the empty key sentinel and erased key sentinel
    * are the same value
    */
   static_map(std::size_t capacity,
@@ -305,7 +305,7 @@ class static_map {
    * @param key_equal The binary function to compare two keys for equality
    * @param stream Stream used for executing the kernels
    *
-   * @throw std::runtime_error if a unique erased key sentinel value was not 
+   * @throw std::runtime_error if a unique erased key sentinel value was not
    * provided at construction
    */
   template <typename InputIt,

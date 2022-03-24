@@ -180,7 +180,7 @@ __global__ void erase(
   // compute number of successfully inserted elements for each block
   // and atomically add to the grand total
   std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
-  if (threadIdx.x == 0) { 
+  if (threadIdx.x == 0) {
     num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
 }
@@ -213,7 +213,7 @@ __global__ void erase(
   // compute number of successfully inserted elements for each block
   // and atomically add to the grand total
   std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
-  if (threadIdx.x == 0) { 
+  if (threadIdx.x == 0) {
     num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
 }
