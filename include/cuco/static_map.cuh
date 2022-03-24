@@ -208,8 +208,11 @@ class static_map {
              cudaStream_t stream    = 0);
 
   /**
-   * @brief Construct a fixed-size map with erase capability
+   * @brief Constructs a fixed-size map with erase capability.
    * empty_key_sentinel and erased_key_sentinel must be different values.
+   *
+   * @throw std::runtime error if the empty key sentinel and erased key sentinel 
+   * are the same value
    */
   static_map(std::size_t capacity,
              sentinel::empty_key<Key> empty_key_sentinel,
@@ -301,6 +304,9 @@ class static_map {
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    * @param stream Stream used for executing the kernels
+   *
+   * @throw std::runtime_error if a unique erased key sentinel value was not 
+   * provided at construction
    */
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
