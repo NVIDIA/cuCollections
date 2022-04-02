@@ -293,6 +293,15 @@ class static_map {
   /**
    * @brief Erases keys in the range `[first, last)`.
    *
+   * For each key `k` in `[first, last)`, if `contains(k) == true), removes `k` and it's 
+   * associated value from the map. Else, no effect. 
+   *
+   *  Side-effects:
+   *  - `contains(k) == false`
+   *  - `find(k) == end()`
+   *  - `insert({k,v}) == true`
+   *  - `get_size()` is reduced by the total number of erased keys
+   *
    * This function synchronizes `stream`.
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
