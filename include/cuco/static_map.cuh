@@ -293,8 +293,8 @@ class static_map {
   /**
    * @brief Erases keys in the range `[first, last)`.
    *
-   * For each key `k` in `[first, last)`, if `contains(k) == true), removes `k` and it's 
-   * associated value from the map. Else, no effect. 
+   * For each key `k` in `[first, last)`, if `contains(k) == true), removes `k` and it's
+   * associated value from the map. Else, no effect.
    *
    *  Side-effects:
    *  - `contains(k) == false`
