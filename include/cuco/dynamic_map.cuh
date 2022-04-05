@@ -138,9 +138,9 @@ class dynamic_map {
               Allocator const& alloc = Allocator{});
   
   dynamic_map(std::size_t initial_capacity,
-              Key empty_key_sentinel,
-              Value empty_value_sentinel,
-              Key erased_key_sentinel,
+              sentinel::empty_key<Key> empty_key_sentinel,
+              sentinel::empty_value<Value> empty_value_sentinel,
+              sentinel::erased_key<Key> erased_key_sentinel,
               Allocator const& alloc = Allocator{});
 
   /**

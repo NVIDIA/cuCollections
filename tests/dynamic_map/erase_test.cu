@@ -29,7 +29,10 @@ TEMPLATE_TEST_CASE_SIG(
   using Value = T;
   
   unsigned long num_keys = 1'000'000;
-  cuco::dynamic_map<Key, Value> map{num_keys * 2, -1, -1, -2};
+  cuco::dynamic_map<Key, Value> map{num_keys * 2, 
+    cuco::sentinel::empty_key<Key>{-1}, 
+    cuco::sentinel::empty_value<Value>{-1}, 
+    cuco::sentinel::erased_key<Key>{-2}};
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);

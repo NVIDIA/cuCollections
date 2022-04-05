@@ -18,12 +18,12 @@ namespace cuco {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capacity,
-                                                       Key empty_key_sentinel,
-                                                       Value empty_value_sentinel,
+                                                       sentinel::empty_key<Key> empty_key_sentinel,
+                                                       sentinel::empty_value<Value> empty_value_sentinel,
                                                        Allocator const& alloc)
-  : empty_key_sentinel_(empty_key_sentinel),
-    empty_value_sentinel_(empty_value_sentinel),
-    erased_key_sentinel_(empty_key_sentinel),
+  : empty_key_sentinel_(empty_key_sentinel.value),
+    empty_value_sentinel_(empty_value_sentinel.value),
+    erased_key_sentinel_(empty_key_sentinel.value),
     size_(0),
     capacity_(initial_capacity),
     min_insert_size_(1E4),
@@ -45,13 +45,13 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capacity,
-                                                       Key empty_key_sentinel,
-                                                       Value empty_value_sentinel,
-                                                       Key erased_key_sentinel,
+                                                       sentinel::empty_key<Key> empty_key_sentinel,
+                                                       sentinel::empty_value<Value> empty_value_sentinel,
+                                                       sentinel::erased_key<Key> erased_key_sentinel,
                                                        Allocator const& alloc)
-  : empty_key_sentinel_(empty_key_sentinel),
-    empty_value_sentinel_(empty_value_sentinel),
-    erased_key_sentinel_(erased_key_sentinel),
+  : empty_key_sentinel_(empty_key_sentinel.value),
+    empty_value_sentinel_(empty_value_sentinel.value),
+    erased_key_sentinel_(erased_key_sentinel.value),
     size_(0),
     capacity_(initial_capacity),
     min_insert_size_(1E4),
@@ -66,7 +66,6 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
     alloc));
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
-
   submap_num_successes_.push_back(submaps_[0]->get_num_successes());
 
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
@@ -94,15 +93,22 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n)
     // if the submap does not exist yet, create it
     else {
       submap_capacity = capacity_;
-      submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
-        submap_capacity,
-        sentinel::empty_key<Key>{empty_key_sentinel_},
-        sentinel::empty_value<Value>{empty_value_sentinel_},
-        sentinel::erased_key<Key>{erased_key_sentinel_},
-        alloc_));
+      if(erased_key_sentinel_ != empty_key_sentinel_) {
+        submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
+          submap_capacity,
+          sentinel::empty_key<Key>{empty_key_sentinel_},
+          sentinel::empty_value<Value>{empty_value_sentinel_},
+          sentinel::erased_key<Key>{erased_key_sentinel_},
+          alloc_));
+      } else {
+        submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
+          submap_capacity,
+          sentinel::empty_key<Key>{empty_key_sentinel_},
+          sentinel::empty_value<Value>{empty_value_sentinel_},
+          alloc_));
+      }
       submap_views_.push_back(submaps_[submap_idx]->get_device_view());
       submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
-      
       submap_num_successes_.push_back(submaps_[submap_idx]->get_num_successes());
 
       capacity_ *= 2;
