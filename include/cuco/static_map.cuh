@@ -164,6 +164,17 @@ class static_map {
 
   static_map(static_map const&) = delete;
   static_map(static_map&&)      = delete;
+  
+  template<typename T1, typename T2>
+  static_map(std::size_t, T1 , T2,
+             Allocator const& = Allocator{},
+             cudaStream_t     = 0) = delete;
+             
+  template<typename T1, typename T2, typename T3>
+  static_map(std::size_t, T1, T2, T3,
+             Allocator const&  = Allocator{},
+             cudaStream_t      = 0) = delete;
+  
   static_map& operator=(static_map const&) = delete;
   static_map& operator=(static_map&&) = delete;
 
