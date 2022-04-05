@@ -197,17 +197,22 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
   
   // TODO: hacky, improve this
   thrust::device_vector<atomic_ctr_type*> d_submap_num_successes(submap_num_successes_);
+
+  // TODO: hack (how to get size on host?)
+  constexpr size_t temp_storage_size_one_block = 48;
+  auto const temp_storage_size = submaps_.size() * temp_storage_size_one_block;
       
   detail::erase<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
-    <<<grid_size, block_size>>>(first,
-                                first + num_keys,
-                                submap_views_.data().get(),
-                                submap_mutable_views_.data().get(),
-                                num_successes_,
-                                d_submap_num_successes.data().get(),
-                                submaps_.size(),
-                                hash,
-                                key_equal);
+    <<<grid_size, block_size, temp_storage_size>>>(
+      first,
+      first + num_keys,
+      submap_views_.data().get(),
+      submap_mutable_views_.data().get(),
+      num_successes_,
+      d_submap_num_successes.data().get(),
+      submaps_.size(),
+      hash,
+      key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   std::size_t h_num_successes = num_successes_->load(cuda::std::memory_order_relaxed);

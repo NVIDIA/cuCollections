@@ -206,10 +206,8 @@ __global__ void erase(InputIt first,
                        KeyEqual key_equal)
 {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  extern __shared__ typename BlockReduce::TempStorage temp_submap_storage[];
   __shared__ typename BlockReduce::TempStorage temp_storage;
-
-  // TODO: hack for up to 4 submaps, make this better
-  __shared__ typename BlockReduce::TempStorage temp_submap_storage[4];
 
   std::size_t thread_num_successes = 0;
   std::size_t submap_thread_num_successes[4] = {0, 0, 0, 0};
