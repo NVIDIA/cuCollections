@@ -650,9 +650,6 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
 
       bool status;
       if (g.thread_rank() == src_lane) {
-        // only fetch value once necessary
-        auto existing_value = current_slot->second.load(cuda::std::memory_order_relaxed);
-        
         if constexpr (cuco::detail::is_packable<value_type>()) {
           auto slot = reinterpret_cast<
             cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(

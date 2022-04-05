@@ -56,12 +56,10 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
 
     map.erase(d_keys.begin(), d_keys.end());
 
-    // delete decreases count correctly
     REQUIRE(map.get_size() == 0);
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    // keys were actaully deleted
     REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
                                 d_keys_exist.end(),
                                 [] __device__(const bool key_found) { return key_found; }));

@@ -136,6 +136,12 @@ class dynamic_map {
               sentinel::empty_key<Key> empty_key_sentinel,
               sentinel::empty_value<Value> empty_value_sentinel,
               Allocator const& alloc = Allocator{});
+  
+  dynamic_map(std::size_t initial_capacity,
+              Key empty_key_sentinel,
+              Value empty_value_sentinel,
+              Key erased_key_sentinel,
+              Allocator const& alloc = Allocator{});
 
   /**
    * @brief Destroy the map and frees its contents
@@ -256,9 +262,9 @@ class dynamic_map {
  private:
   key_type empty_key_sentinel_{};       ///< Key value that represents an empty slot
   mapped_type empty_value_sentinel_{};  ///< Initial value of empty slot
+  key_type erased_key_sentinel_{};
 
   // TODO: initialize this
-  key_type erased_key_sentinel_{};
   std::size_t size_{};                  ///< Number of keys in the map
   std::size_t capacity_{};              ///< Maximum number of keys that can be inserted
   float max_load_factor_{};             ///< Max load factor before capacity growth

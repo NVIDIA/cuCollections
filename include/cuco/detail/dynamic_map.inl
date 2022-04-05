@@ -17,13 +17,13 @@
 namespace cuco {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(
-  std::size_t initial_capacity,
-  sentinel::empty_key<Key> empty_key_sentinel,
-  sentinel::empty_value<Value> empty_value_sentinel,
-  Allocator const& alloc)
-  : empty_key_sentinel_(empty_key_sentinel.value),
-    empty_value_sentinel_(empty_value_sentinel.value),
+dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capacity,
+                                                       Key empty_key_sentinel,
+                                                       Value empty_value_sentinel,
+                                                       Allocator const& alloc)
+  : empty_key_sentinel_(empty_key_sentinel),
+    empty_value_sentinel_(empty_value_sentinel),
+    erased_key_sentinel_(empty_value_sentinel),
     size_(0),
     capacity_(initial_capacity),
     min_insert_size_(1E4),
@@ -41,7 +41,37 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(
   submap_num_successes_.push_back(submaps_[0]->get_num_successes());
 
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
-}  // namespace cuco
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capacity,
+                                                       Key empty_key_sentinel,
+                                                       Value empty_value_sentinel,
+                                                       Key erased_key_sentinel,
+                                                       Allocator const& alloc)
+  : empty_key_sentinel_(empty_key_sentinel),
+    empty_value_sentinel_(empty_value_sentinel),
+    erased_key_sentinel_(erased_key_sentinel),
+    size_(0),
+    capacity_(initial_capacity),
+    min_insert_size_(1E4),
+    max_load_factor_(0.60),
+    alloc_{alloc}
+{
+  submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
+    initial_capacity,
+    sentinel::empty_key<Key>{empty_key_sentinel},
+    sentinel::empty_value<Value>{empty_value_sentinel},
+    sentinel::erased_key<Key>{erased_key_sentinel},
+    alloc));
+  submap_views_.push_back(submaps_[0]->get_device_view());
+  submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
+
+  submap_num_successes_.push_back(submaps_[0]->get_num_successes());
+
+  CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
+}
+
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 dynamic_map<Key, Value, Scope, Allocator>::~dynamic_map()
@@ -123,6 +153,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(InputIt first,
       CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
       std::size_t h_num_successes = num_successes_->load(cuda::std::memory_order_relaxed);
+
       submaps_[submap_idx]->size_ += h_num_successes;
       size_ += h_num_successes;
       first += n;

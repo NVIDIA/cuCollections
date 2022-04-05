@@ -209,24 +209,22 @@ __global__ void erase(InputIt first,
   __shared__ typename BlockReduce::TempStorage temp_storage;
 
   // TODO: hack for up to 4 submaps, make this better
-  __shared__ typename BlockReduce::TempStorage temp_submap_storage[4];
+  //__shared__ typename BlockReduce::TempStorage temp_submap_storage[4];
 
   std::size_t thread_num_successes = 0;
   std::size_t submap_thread_num_successes[4] = {0, 0, 0, 0};
 
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid  = blockDim.x * blockIdx.x + threadIdx.x;
-  auto key_idx              = tid / tile_size;
+  auto tid  = block_size * blockIdx.x + threadIdx.x;
   auto it   = first + tid / tile_size;
 
   while (it < last) {
-    auto key         = *(first + key_idx);
-    auto erased           = false;
+    auto erased     = false;
 
     // manually check for duplicates in those submaps we are not inserting into
     int i;
     for (i = 0; i < num_submaps; ++i) {
-      erased = submap_mutable_views[i].erase(tile, key, hash, key_equal);
+      erased = submap_mutable_views[i].erase(tile, *it, hash, key_equal);
       if (erased) { break; }
     }
     if (erased && tile.thread_rank() == 0) {
