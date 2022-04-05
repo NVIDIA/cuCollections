@@ -109,6 +109,15 @@ class dynamic_map {
 
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
+
+  template<typename T1, typename T2>
+  dynamic_map(std::size_t, T1, T2,
+              Allocator const& = Allocator{}) = delete;
+  
+  template<typename T1, typename T2, typename T3>
+  dynamic_map(std::size_t, T1, T2, T3,
+              Allocator const& = Allocator{}) = delete;
+  
   dynamic_map& operator=(dynamic_map const&) = delete;
   dynamic_map& operator=(dynamic_map&&) = delete;
 
