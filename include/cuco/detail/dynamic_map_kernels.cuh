@@ -209,7 +209,7 @@ __global__ void erase(InputIt first,
   __shared__ typename BlockReduce::TempStorage temp_storage;
 
   // TODO: hack for up to 4 submaps, make this better
-  //__shared__ typename BlockReduce::TempStorage temp_submap_storage[4];
+  __shared__ typename BlockReduce::TempStorage temp_submap_storage[4];
 
   std::size_t thread_num_successes = 0;
   std::size_t submap_thread_num_successes[4] = {0, 0, 0, 0};
@@ -229,7 +229,7 @@ __global__ void erase(InputIt first,
     }
     if (erased && tile.thread_rank() == 0) {
       thread_num_successes++;
-      //submap_thread_num_successes[i]++;
+      submap_thread_num_successes[i]++;
     }
 
     it += (gridDim.x * blockDim.x) / tile_size;
@@ -240,8 +240,8 @@ __global__ void erase(InputIt first,
 
   // update submap thread counts
   for(int i = 0; i < num_submaps; ++i) {
-    //std::size_t submap_block_num_successes = BlockReduce(temp_submap_storage[i]).Sum(submap_thread_num_successes[i]);
-    //if(threadIdx.x == 0) {*submap_num_successes[i] += submap_block_num_successes; }
+    std::size_t submap_block_num_successes = BlockReduce(temp_submap_storage[i]).Sum(submap_thread_num_successes[i]);
+    if(threadIdx.x == 0) {*submap_num_successes[i] += submap_block_num_successes; }
   }
 }
 

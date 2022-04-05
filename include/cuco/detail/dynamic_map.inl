@@ -23,7 +23,7 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
                                                        Allocator const& alloc)
   : empty_key_sentinel_(empty_key_sentinel),
     empty_value_sentinel_(empty_value_sentinel),
-    erased_key_sentinel_(empty_value_sentinel),
+    erased_key_sentinel_(empty_key_sentinel),
     size_(0),
     capacity_(initial_capacity),
     min_insert_size_(1E4),
@@ -60,9 +60,9 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
 {
   submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
     initial_capacity,
-    sentinel::empty_key<Key>{empty_key_sentinel},
-    sentinel::empty_value<Value>{empty_value_sentinel},
-    sentinel::erased_key<Key>{erased_key_sentinel},
+    sentinel::empty_key<Key>{empty_key_sentinel_},
+    sentinel::empty_value<Value>{empty_value_sentinel_},
+    sentinel::erased_key<Key>{erased_key_sentinel_},
     alloc));
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
@@ -98,6 +98,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n)
         submap_capacity,
         sentinel::empty_key<Key>{empty_key_sentinel_},
         sentinel::empty_value<Value>{empty_value_sentinel_},
+        sentinel::erased_key<Key>{erased_key_sentinel_},
         alloc_));
       submap_views_.push_back(submaps_[submap_idx]->get_device_view());
       submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
@@ -128,6 +129,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(InputIt first,
       max_load_factor_ * submaps_[submap_idx]->get_capacity() - submaps_[submap_idx]->get_size();
     // If we are tying to insert some of the remaining keys into this submap, we can insert
     // only if we meet the minimum insert size.
+
     if (capacity_remaining >= min_insert_size_) {
       *num_successes_ = 0;
       int device_id;
@@ -182,6 +184,11 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
   CUCO_CUDA_TRY(cudaGetDevice(&device_id));
   CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
   
+  static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
+  for(int i = 0; i < submaps_.size(); ++i) {
+    CUCO_CUDA_TRY(cudaMemset(submap_num_successes_[i], 0, sizeof(atomic_ctr_type)));
+  }
+  
   // TODO: hacky, improve this
   thrust::device_vector<atomic_ctr_type*> d_submap_num_successes(submap_num_successes_);
       
@@ -201,10 +208,13 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
   size_ -= h_num_successes;
   
   for(int i = 0; i < submaps_.size(); ++i) {
-    //std::size_t h_num_submap_successes = submap_num_successes_[i]->load(cuda::std::memory_order_relaxed);
-    //submaps_[i]->size_ -= h_num_submap_successes;
+    std::size_t h_submap_num_successes;
+    CUCO_CUDA_TRY(cudaMemcpy(
+      &h_submap_num_successes, submap_num_successes_[i], sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost));
+
+    CUCO_CUDA_TRY(cudaDeviceSynchronize());  // stream sync to ensure h_num_successes is updated
+    submaps_[i]->size_ -= h_submap_num_successes;
   }
-  
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
