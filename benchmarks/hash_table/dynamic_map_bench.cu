@@ -57,7 +57,7 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
 
 static void gen_final_size(benchmark::internal::Benchmark* b)
 {
-  for (auto size = 10'000'000; size <= 10'000'000; size += 20'000'000) {
+  for (auto size = 10'000'000; size <= 310'000'000; size += 20'000'000) {
     b->Args({size});
   }
 }
@@ -143,6 +143,43 @@ static void BM_dynamic_search_all(::benchmark::State& state)
 }
 
 template <typename Key, typename Value, dist_type Dist>
+static void BM_dynamic_search_none(::benchmark::State& state)
+{
+  using map_type = cuco::dynamic_map<Key, Value>;
+
+  std::size_t num_keys     = state.range(0);
+  std::size_t initial_size = 1 << 27;
+
+  std::vector<Key> h_keys(num_keys);
+  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
+
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+
+  for (auto i = 0; i < num_keys; ++i) {
+    Key key           = h_keys[i] + num_keys;
+    Value val         = h_keys[i] + num_keys;
+    h_pairs[i].first  = key;
+    h_pairs[i].second = val;
+  }
+
+  thrust::device_vector<Key> d_keys(h_keys);
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+  thrust::device_vector<Value> d_results(num_keys);
+
+  map_type map{initial_size, 
+    cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
+  map.insert(d_pairs.begin(), d_pairs.end());
+
+  for (auto _ : state) {
+    cuda_event_timer raii{state};
+    map.find(d_keys.begin(), d_keys.end(), d_results.begin());
+  }
+
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
+                          int64_t(state.range(0)));
+}
+
+template <typename Key, typename Value, dist_type Dist>
 static void BM_dynamic_erase_all(::benchmark::State& state)
 {
   using map_type = cuco::dynamic_map<Key, Value>;
@@ -186,21 +223,66 @@ static void BM_dynamic_erase_all(::benchmark::State& state)
                           int64_t(state.range(0)));
 }
 
+template <typename Key, typename Value, dist_type Dist>
+static void BM_dynamic_erase_none(::benchmark::State& state)
+{
+  using map_type = cuco::dynamic_map<Key, Value>;
+
+  std::size_t num_keys     = state.range(0);
+  std::size_t initial_size = 1 << 27;
+
+  std::vector<Key> h_keys(num_keys);
+  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
+
+  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+
+  for (auto i = 0; i < num_keys; ++i) {
+    Key key           = h_keys[i] + num_keys;
+    Value val         = h_keys[i] + num_keys;
+    h_pairs[i].first  = key;
+    h_pairs[i].second = val;
+  }
+
+  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+  thrust::device_vector<Key> d_keys(h_keys);
+
+  std::size_t batch_size = 1E6;
+  for (auto _ : state) {
+    map_type map{initial_size, 
+      cuco::sentinel::empty_key<Key>{-1}, 
+      cuco::sentinel::empty_value<Value>{-1},
+      cuco::sentinel::erased_key<Key>{-2}};
+    for (auto i = 0; i < num_keys; i += batch_size) {
+      map.insert(d_pairs.begin() + i, d_pairs.begin() + i + batch_size);
+    }
+    {
+      cuda_event_timer raii{state};
+      map.erase(d_keys.begin(), d_keys.end());
+      //for (auto i = 0; i < num_keys; i += batch_size) {
+      //  map.erase(d_keys.begin() + i, d_keys.begin() + i + batch_size);
+      //}
+    }
+  }
+
+  state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
+                          int64_t(state.range(0)));
+}
+/*
 BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
-/*
+
 BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
 */
+
 BENCHMARK_TEMPLATE(BM_dynamic_erase_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
-
 /*
 BENCHMARK_TEMPLATE(BM_dynamic_insert, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
@@ -221,13 +303,34 @@ BENCHMARK_TEMPLATE(BM_dynamic_search_all, int32_t, int32_t, dist_type::GAUSSIAN)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
-
+*/
+BENCHMARK_TEMPLATE(BM_dynamic_erase_all, int32_t, int32_t, dist_type::GAUSSIAN)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(gen_final_size)
+  ->UseManualTime();
+/*
 BENCHMARK_TEMPLATE(BM_dynamic_insert, int64_t, int64_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();
 
 BENCHMARK_TEMPLATE(BM_dynamic_search_all, int64_t, int64_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(gen_final_size)
+  ->UseManualTime();
+*/
+
+BENCHMARK_TEMPLATE(BM_dynamic_erase_none, int32_t, int32_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(gen_final_size)
+  ->UseManualTime();
+/*
+BENCHMARK_TEMPLATE(BM_dynamic_search_none, int32_t, int32_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(gen_final_size)
+  ->UseManualTime();
+/*
+BENCHMARK_TEMPLATE(BM_dynamic_erase_all, int64_t, int64_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(gen_final_size)
   ->UseManualTime();

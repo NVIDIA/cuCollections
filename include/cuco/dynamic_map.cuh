@@ -16,11 +16,12 @@
 
 #pragma once
 
-#include <cuco/detail/dynamic_map_kernels.cuh>
+
 #include <cuco/detail/error.hpp>
 #include <cuco/sentinel.cuh>
 #include <cuco/static_map.cuh>
-
+#include <cuda/std/atomic>
+#include <cuco/detail/dynamic_map_kernels.cuh>
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
 

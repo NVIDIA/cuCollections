@@ -220,7 +220,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
       submaps_.size(),
       hash,
       key_equal);
-      
+
   std::size_t h_num_successes;
   CUCO_CUDA_TRY(cudaMemcpy(
     &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost));
