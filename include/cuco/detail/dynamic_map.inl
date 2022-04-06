@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#include "nvtx3.hpp"
-
 namespace cuco {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -40,7 +38,6 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
     alloc));
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
-
   submap_num_successes_.push_back(submaps_[0]->get_num_successes());
   
   num_successes_ = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
@@ -130,8 +127,6 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(InputIt first,
                                                        Hash hash,
                                                        KeyEqual key_equal)
 {
-  //nvtx3::thread_range r{"insert"};
-
   std::size_t num_to_insert = std::distance(first, last);
 
   reserve(size_ + num_to_insert);
@@ -185,7 +180,6 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
                                                        Hash hash,
                                                        KeyEqual key_equal)
 {
-  //nvtx3::thread_range r{"erase"};
   std::size_t num_keys = std::distance(first, last);
 
   auto const block_size = 128;
@@ -197,15 +191,18 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
   static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
   CUCO_CUDA_TRY(cudaMemset(num_successes_, 0, sizeof(atomic_ctr_type)));
   
+  // zero out submap success counters
   static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
   for(int i = 0; i < submaps_.size(); ++i) {
     CUCO_CUDA_TRY(cudaMemset(submap_num_successes_[i], 0, sizeof(atomic_ctr_type)));
   }
   
   // TODO: hacky, improve this
+  // provide device-accessible vector for each submap num_successes variable
   thrust::device_vector<atomic_ctr_type*> d_submap_num_successes(submap_num_successes_);
 
   // TODO: hack (how to get size on host?)
+  // use dynamic shared memory to hold block reduce space for each submap's erases
   constexpr size_t temp_storage_size_one_block = 48;
   auto const temp_storage_size = submaps_.size() * temp_storage_size_one_block;
       
@@ -221,11 +218,14 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
       hash,
       key_equal);
 
+  // update total dynamic map size
   std::size_t h_num_successes;
   CUCO_CUDA_TRY(cudaMemcpy(
     &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost));
   size_ -= h_num_successes;
   
+  // TODO: if only one submap, skip this step
+  // update each submap's size
   for(int i = 0; i < submaps_.size(); ++i) {
     std::size_t h_submap_num_successes;
     CUCO_CUDA_TRY(cudaMemcpy(

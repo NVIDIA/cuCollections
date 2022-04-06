@@ -287,10 +287,9 @@ class dynamic_map {
     submap_mutable_views_;          ///< vector of mutable device views for each submap
   std::size_t min_insert_size_{};   ///< min remaining capacity of submap for insert
   atomic_ctr_type* num_successes_;  ///< number of successfully inserted keys on insert
+  std::vector<atomic_ctr_type*> submap_num_successes_; ///< number of succesfully erased keys for each submap
   Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
-
-  std::vector<atomic_ctr_type*> submap_num_successes_;
 };
 }  // namespace cuco
 

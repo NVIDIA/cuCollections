@@ -210,6 +210,8 @@ __global__ void erase(InputIt first,
   __shared__ typename BlockReduce::TempStorage temp_storage;
 
   std::size_t thread_num_successes = 0;
+
+  // TODO: find permanent solution (only works for four submaps)
   std::size_t submap_thread_num_successes[4] = {0, 0, 0, 0};
 
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
@@ -238,6 +240,7 @@ __global__ void erase(InputIt first,
     num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
 
+  // TODO: if there's only one submap, skip this step
   // update submap thread counts
   for(int i = 0; i < num_submaps; ++i) {
     std::size_t submap_block_num_successes = BlockReduce(temp_submap_storage[i]).Sum(submap_thread_num_successes[i]);
