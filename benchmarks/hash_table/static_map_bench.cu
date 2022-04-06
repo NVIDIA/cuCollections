@@ -180,9 +180,10 @@ static void BM_static_map_search_none(::benchmark::State& state)
     h_pairs[i].first  = key;
     h_pairs[i].second = val;
   }
-  
+
   // diff keys
-  for(int i = 0; i < num_keys; ++i) h_keys[i] += num_keys;
+  for (int i = 0; i < num_keys; ++i)
+    h_keys[i] += num_keys;
 
   thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<Value> d_results(num_keys);
@@ -269,23 +270,23 @@ static void BM_static_map_erase_none(::benchmark::State& state)
     h_pairs[i].second = val;
   }
 
-
   // diff keys
-  for(int i = 0; i < num_keys; ++i) h_keys[i] += num_keys;
+  for (int i = 0; i < num_keys; ++i)
+    h_keys[i] += num_keys;
 
   thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<bool> d_results(num_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
 
   for (auto _ : state) {
-    //state.ResumeTiming();
+    // state.ResumeTiming();
     state.PauseTiming();
     map.insert(d_pairs.begin(), d_pairs.end());
     state.ResumeTiming();
 
     map.erase(d_keys.begin(), d_keys.end());
-    
-    //state.PauseTiming();
+
+    // state.PauseTiming();
   }
 
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *

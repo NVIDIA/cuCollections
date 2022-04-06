@@ -21,18 +21,16 @@
 
 #include <utils.hpp>
 
-
-TEMPLATE_TEST_CASE_SIG(
-  "erase key", "", ((typename T), T), (int32_t))
+TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t))
 {
   using Key   = T;
   using Value = T;
-  
+
   unsigned long num_keys = 1'000'000;
-  cuco::dynamic_map<Key, Value> map{num_keys * 2, 
-    cuco::sentinel::empty_key<Key>{-1}, 
-    cuco::sentinel::empty_value<Value>{-1}, 
-    cuco::sentinel::erased_key<Key>{-2}};
+  cuco::dynamic_map<Key, Value> map{num_keys * 2,
+                                    cuco::sentinel::empty_key<Key>{-1},
+                                    cuco::sentinel::empty_value<Value>{-1},
+                                    cuco::sentinel::erased_key<Key>{-2}};
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
@@ -40,12 +38,11 @@ TEMPLATE_TEST_CASE_SIG(
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end(), 1);
   thrust::sequence(thrust::device, d_values.begin(), d_values.end(), 1);
-    
+
   auto pairs_begin =
     thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
 
-  SECTION(
-    "Check basic insert/erase")
+  SECTION("Check basic insert/erase")
   {
     // *****************************************
     // first, check single submap works properly
@@ -55,7 +52,6 @@ TEMPLATE_TEST_CASE_SIG(
 
     REQUIRE(map.get_size() == num_keys);
 
-    
     map.erase(d_keys.begin(), d_keys.end());
 
     // delete decreases count correctly
@@ -68,7 +64,7 @@ TEMPLATE_TEST_CASE_SIG(
                                 d_keys_exist.end(),
                                 [] __device__(const bool key_found) { return key_found; }));
 
-    // ensures that map is reusing deleted slots    
+    // ensures that map is reusing deleted slots
     map.insert(pairs_begin, pairs_begin + num_keys);
 
     REQUIRE(map.get_size() == num_keys);
@@ -76,63 +72,64 @@ TEMPLATE_TEST_CASE_SIG(
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
     REQUIRE(cuco::test::all_of(d_keys_exist.begin(),
-                                d_keys_exist.end(),
-                                [] __device__(const bool key_found) { return key_found; }));
+                               d_keys_exist.end(),
+                               [] __device__(const bool key_found) { return key_found; }));
 
     // erase can act selectively
-    map.erase(d_keys.begin(), d_keys.begin() + num_keys/2);
+    map.erase(d_keys.begin(), d_keys.begin() + num_keys / 2);
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
-    
+
     REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
-                                d_keys_exist.begin() + num_keys/2,
+                                d_keys_exist.begin() + num_keys / 2,
                                 [] __device__(const bool key_found) { return key_found; }));
 
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin() + num_keys/2,
-                                d_keys_exist.end(),
-                                [] __device__(const bool key_found) { return key_found; }));
-    
+    REQUIRE(cuco::test::all_of(d_keys_exist.begin() + num_keys / 2,
+                               d_keys_exist.end(),
+                               [] __device__(const bool key_found) { return key_found; }));
+
     // clear map
-    map.erase(d_keys.begin()+num_keys/2, d_keys.end());
-    
+    map.erase(d_keys.begin() + num_keys / 2, d_keys.end());
+
     // *************************************************
     // second, check multiple submaps case works properly
     // *************************************************
-    
+
     thrust::device_vector<Key> d_keys2(4 * num_keys);
     thrust::device_vector<Value> d_values2(4 * num_keys);
     thrust::device_vector<bool> d_keys_exist2(4 * num_keys);
-  
+
     thrust::sequence(thrust::device, d_keys2.begin(), d_keys2.end(), 1);
     thrust::sequence(thrust::device, d_values2.begin(), d_values2.end(), 1);
-      
+
     auto pairs_begin2 =
       thrust::make_zip_iterator(thrust::make_tuple(d_keys2.begin(), d_values2.begin()));
 
-    map.insert(pairs_begin2, pairs_begin2 + 4*num_keys);
-    
+    map.insert(pairs_begin2, pairs_begin2 + 4 * num_keys);
+
     // map should resize twice if the erased slots are successfully reused
-    REQUIRE(map.get_capacity() == 8*num_keys);
+    REQUIRE(map.get_capacity() == 8 * num_keys);
 
     // check that keys can be successfully deleted from only the first and second submaps
-    map.erase(d_keys2.begin(), d_keys2.begin() + 2*num_keys);
+    map.erase(d_keys2.begin(), d_keys2.begin() + 2 * num_keys);
 
     map.contains(d_keys2.begin(), d_keys2.end(), d_keys_exist2.begin());
-    
+
     REQUIRE(cuco::test::none_of(d_keys_exist2.begin(),
-                                d_keys_exist2.begin() + 2*num_keys,
+                                d_keys_exist2.begin() + 2 * num_keys,
                                 [] __device__(const bool key_found) { return key_found; }));
 
-    REQUIRE(cuco::test::all_of(d_keys_exist2.begin() + 2*num_keys,
-                                d_keys_exist2.end(),
-                                [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::all_of(d_keys_exist2.begin() + 2 * num_keys,
+                               d_keys_exist2.end(),
+                               [] __device__(const bool key_found) { return key_found; }));
 
-    REQUIRE(map.get_size() == 2*num_keys);
+    REQUIRE(map.get_size() == 2 * num_keys);
 
-    // check that keys can be successfully deleted from all submaps (some will be unsuccessful erases)
+    // check that keys can be successfully deleted from all submaps (some will be unsuccessful
+    // erases)
     map.erase(d_keys2.begin(), d_keys2.end());
-    
+
     map.contains(d_keys2.begin(), d_keys2.end(), d_keys_exist2.begin());
-    
+
     REQUIRE(cuco::test::none_of(d_keys_exist2.begin(),
                                 d_keys_exist2.end(),
                                 [] __device__(const bool key_found) { return key_found; }));

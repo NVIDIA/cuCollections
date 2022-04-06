@@ -86,13 +86,8 @@ static void BM_dynamic_insert(::benchmark::State& state)
 
   std::size_t batch_size = 1E6;
   for (auto _ : state) {
-<<<<<<< HEAD
     map_type map{
       initial_size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
-=======
-    map_type map{initial_size, 
-      cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
->>>>>>> prevent implicit type conversion of sentinels during construction
     {
       cuda_event_timer raii{state};
       for (std::size_t i = 0; i < num_keys; i += batch_size) {
@@ -129,8 +124,8 @@ static void BM_dynamic_search_all(::benchmark::State& state)
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
   thrust::device_vector<Value> d_results(num_keys);
 
-  map_type map{initial_size, 
-    cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
+  map_type map{
+    initial_size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
   map.insert(d_pairs.begin(), d_pairs.end());
 
   for (auto _ : state) {
@@ -166,8 +161,8 @@ static void BM_dynamic_search_none(::benchmark::State& state)
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
   thrust::device_vector<Value> d_results(num_keys);
 
-  map_type map{initial_size, 
-    cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
+  map_type map{
+    initial_size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
   map.insert(d_pairs.begin(), d_pairs.end());
 
   for (auto _ : state) {
@@ -204,10 +199,10 @@ static void BM_dynamic_erase_all(::benchmark::State& state)
 
   std::size_t batch_size = 1E6;
   for (auto _ : state) {
-    map_type map{initial_size, 
-      cuco::sentinel::empty_key<Key>{-1}, 
-      cuco::sentinel::empty_value<Value>{-1},
-      cuco::sentinel::erased_key<Key>{-2}};
+    map_type map{initial_size,
+                 cuco::sentinel::empty_key<Key>{-1},
+                 cuco::sentinel::empty_value<Value>{-1},
+                 cuco::sentinel::erased_key<Key>{-2}};
     for (auto i = 0; i < num_keys; i += batch_size) {
       map.insert(d_pairs.begin() + i, d_pairs.begin() + i + batch_size);
     }
@@ -248,10 +243,10 @@ static void BM_dynamic_erase_none(::benchmark::State& state)
 
   std::size_t batch_size = 1E6;
   for (auto _ : state) {
-    map_type map{initial_size, 
-      cuco::sentinel::empty_key<Key>{-1}, 
-      cuco::sentinel::empty_value<Value>{-1},
-      cuco::sentinel::erased_key<Key>{-2}};
+    map_type map{initial_size,
+                 cuco::sentinel::empty_key<Key>{-1},
+                 cuco::sentinel::empty_value<Value>{-1},
+                 cuco::sentinel::erased_key<Key>{-2}};
     for (auto i = 0; i < num_keys; i += batch_size) {
       map.insert(d_pairs.begin() + i, d_pairs.begin() + i + batch_size);
     }

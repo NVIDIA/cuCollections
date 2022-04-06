@@ -17,11 +17,13 @@
 #pragma once
 
 
+#include <cooperative_groups.h>
+#include <cub/cub.cuh>
+#include <cuco/detail/dynamic_map_kernels.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/sentinel.cuh>
 #include <cuco/static_map.cuh>
 #include <cuda/std/atomic>
-#include <cuco/detail/dynamic_map_kernels.cuh>
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
 
@@ -100,26 +102,24 @@ class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
  public:
-  using value_type                = cuco::pair_type<Key, Value>;
-  using key_type                  = Key;
-  using mapped_type               = Value;
-  using atomic_ctr_type           = cuda::atomic<std::size_t, Scope>;
-  using view_type                 = typename static_map<Key, Value, Scope>::device_view;
-  using mutable_view_type         = typename static_map<Key, Value, Scope>::device_mutable_view;
+  using value_type        = cuco::pair_type<Key, Value>;
+  using key_type          = Key;
+  using mapped_type       = Value;
+  using atomic_ctr_type   = cuda::atomic<std::size_t, Scope>;
+  using view_type         = typename static_map<Key, Value, Scope>::device_view;
+  using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view;
   using counter_allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
   
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
 
-  template<typename T1, typename T2>
-  dynamic_map(std::size_t, T1, T2,
-              Allocator const& = Allocator{}) = delete;
-  
-  template<typename T1, typename T2, typename T3>
-  dynamic_map(std::size_t, T1, T2, T3,
-              Allocator const& = Allocator{}) = delete;
-  
+  template <typename T1, typename T2>
+  dynamic_map(std::size_t, T1, T2, Allocator const& = Allocator{}) = delete;
+
+  template <typename T1, typename T2, typename T3>
+  dynamic_map(std::size_t, T1, T2, T3, Allocator const& = Allocator{}) = delete;
+
   dynamic_map& operator=(dynamic_map const&) = delete;
   dynamic_map& operator=(dynamic_map&&) = delete;
 
@@ -147,7 +147,7 @@ class dynamic_map {
               sentinel::empty_key<Key> empty_key_sentinel,
               sentinel::empty_value<Value> empty_value_sentinel,
               Allocator const& alloc = Allocator{});
-  
+
   dynamic_map(std::size_t initial_capacity,
               sentinel::empty_key<Key> empty_key_sentinel,
               sentinel::empty_value<Value> empty_value_sentinel,
@@ -188,7 +188,7 @@ class dynamic_map {
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
-  
+
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
@@ -276,9 +276,9 @@ class dynamic_map {
   key_type erased_key_sentinel_{};
 
   // TODO: initialize this
-  std::size_t size_{};                  ///< Number of keys in the map
-  std::size_t capacity_{};              ///< Maximum number of keys that can be inserted
-  float max_load_factor_{};             ///< Max load factor before capacity growth
+  std::size_t size_{};       ///< Number of keys in the map
+  std::size_t capacity_{};   ///< Maximum number of keys that can be inserted
+  float max_load_factor_{};  ///< Max load factor before capacity growth
 
   std::vector<std::unique_ptr<static_map<key_type, mapped_type, Scope>>>
     submaps_;                                      ///< vector of pointers to each submap
@@ -287,8 +287,9 @@ class dynamic_map {
     submap_mutable_views_;          ///< vector of mutable device views for each submap
   std::size_t min_insert_size_{};   ///< min remaining capacity of submap for insert
   atomic_ctr_type* num_successes_;  ///< number of successfully inserted keys on insert
-  std::vector<atomic_ctr_type*> submap_num_successes_; ///< number of succesfully erased keys for each submap
-  Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
+  std::vector<atomic_ctr_type*>
+    submap_num_successes_;  ///< number of succesfully erased keys for each submap
+  Allocator alloc_{};       ///< Allocator passed to submaps to allocate their device storage
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
 };
 }  // namespace cuco

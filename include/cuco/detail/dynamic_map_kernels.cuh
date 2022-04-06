@@ -196,14 +196,14 @@ template <uint32_t block_size,
           typename Hash,
           typename KeyEqual>
 __global__ void erase(InputIt first,
-                       InputIt last,
-                       viewT* submap_views,
-                       mutableViewT* submap_mutable_views,
-                       atomicT* num_successes,
-                       atomicT** submap_num_successes,
-                       const uint32_t num_submaps,
-                       Hash hash,
-                       KeyEqual key_equal)
+                      InputIt last,
+                      viewT* submap_views,
+                      mutableViewT* submap_mutable_views,
+                      atomicT* num_successes,
+                      atomicT** submap_num_successes,
+                      const uint32_t num_submaps,
+                      Hash hash,
+                      KeyEqual key_equal)
 {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   extern __shared__ typename BlockReduce::TempStorage temp_submap_storage[];
@@ -219,7 +219,7 @@ __global__ void erase(InputIt first,
   auto it   = first + tid / tile_size;
 
   while (it < last) {
-    auto erased     = false;
+    auto erased = false;
 
     // manually check for duplicates in those submaps we are not inserting into
     int i;
@@ -242,10 +242,12 @@ __global__ void erase(InputIt first,
 
   // TODO: if there's only one submap, skip this step
   // update submap thread counts
-  for(int i = 0; i < num_submaps; ++i) {
-    std::size_t submap_block_num_successes = BlockReduce(temp_submap_storage[i]).Sum(submap_thread_num_successes[i]);
-    if(threadIdx.x == 0) {
-      submap_num_successes[i]->fetch_add(submap_block_num_successes, cuda::std::memory_order_relaxed);
+  for (int i = 0; i < num_submaps; ++i) {
+    std::size_t submap_block_num_successes =
+      BlockReduce(temp_submap_storage[i]).Sum(submap_thread_num_successes[i]);
+    if (threadIdx.x == 0) {
+      submap_num_successes[i]->fetch_add(submap_block_num_successes,
+                                         cuda::std::memory_order_relaxed);
     }
   }
 }
