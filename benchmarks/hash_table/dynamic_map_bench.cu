@@ -57,7 +57,7 @@ static void generate_keys(OutputIt output_begin, OutputIt output_end)
 
 static void gen_final_size(benchmark::internal::Benchmark* b)
 {
-  for (auto size = 10'000'000; size <= 310'000'000; size += 20'000'000) {
+  for (auto size = 10'000'000; size <= 10'000'000; size += 20'000'000) {
     b->Args({size});
   }
 }

@@ -201,7 +201,7 @@ __global__ void erase(InputIt first,
                        mutableViewT* submap_mutable_views,
                        atomicT* num_successes,
                        atomicT** submap_num_successes,
-                       uint32_t num_submaps,
+                       const uint32_t num_submaps,
                        Hash hash,
                        KeyEqual key_equal)
 {

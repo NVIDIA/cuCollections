@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+//#include "nvtx3.hpp"
+
 namespace cuco {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -28,7 +30,8 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
     capacity_(initial_capacity),
     min_insert_size_(1E4),
     max_load_factor_(0.60),
-    alloc_{alloc}
+    alloc_{alloc},
+    counter_allocator_{alloc}
 {
   submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
     initial_capacity,
@@ -39,8 +42,8 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
 
   submap_num_successes_.push_back(submaps_[0]->get_num_successes());
-
-  CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
+  
+  num_successes_ = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -56,7 +59,8 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
     capacity_(initial_capacity),
     min_insert_size_(1E4),
     max_load_factor_(0.60),
-    alloc_{alloc}
+    alloc_{alloc},
+    counter_allocator_{alloc}
 {
   submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
     initial_capacity,
@@ -68,14 +72,14 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
   submap_num_successes_.push_back(submaps_[0]->get_num_successes());
 
-  CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
+  num_successes_ = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
 }
 
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 dynamic_map<Key, Value, Scope, Allocator>::~dynamic_map()
 {
-  CUCO_ASSERT_CUDA_SUCCESS(cudaFree(num_successes_));
+  std::allocator_traits<counter_allocator_type>::deallocate(counter_allocator_, num_successes_, 1);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -126,7 +130,10 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(InputIt first,
                                                        Hash hash,
                                                        KeyEqual key_equal)
 {
+  //nvtx3::thread_range r{"insert"};
+
   std::size_t num_to_insert = std::distance(first, last);
+
   reserve(size_ + num_to_insert);
 
   uint32_t submap_idx = 0;
@@ -137,11 +144,10 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(InputIt first,
     // only if we meet the minimum insert size.
 
     if (capacity_remaining >= min_insert_size_) {
-      *num_successes_ = 0;
-      int device_id;
-      CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-      CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
-
+      // TODO: memset an atomic variable is unsafe
+      static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
+      CUCO_CUDA_TRY(cudaMemset(num_successes_, 0, sizeof(atomic_ctr_type)));
+      
       auto n                = std::min(capacity_remaining, num_to_insert);
       auto const block_size = 128;
       auto const stride     = 1;
@@ -158,9 +164,10 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(InputIt first,
                                     submaps_.size(),
                                     hash,
                                     key_equal);
-      CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-      std::size_t h_num_successes = num_successes_->load(cuda::std::memory_order_relaxed);
+      std::size_t h_num_successes;
+      CUCO_CUDA_TRY(cudaMemcpy(
+        &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost));
 
       submaps_[submap_idx]->size_ += h_num_successes;
       size_ += h_num_successes;
@@ -178,6 +185,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
                                                        Hash hash,
                                                        KeyEqual key_equal)
 {
+  //nvtx3::thread_range r{"erase"};
   std::size_t num_keys = std::distance(first, last);
 
   auto const block_size = 128;
@@ -185,10 +193,9 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
   auto const tile_size  = 4;
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
-  *num_successes_ = 0;
-  int device_id;
-  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
+  // TODO: memset an atomic variable is unsafe
+  static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
+  CUCO_CUDA_TRY(cudaMemset(num_successes_, 0, sizeof(atomic_ctr_type)));
   
   static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
   for(int i = 0; i < submaps_.size(); ++i) {
@@ -213,17 +220,16 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
       submaps_.size(),
       hash,
       key_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
-
-  std::size_t h_num_successes = num_successes_->load(cuda::std::memory_order_relaxed);
+      
+  std::size_t h_num_successes;
+  CUCO_CUDA_TRY(cudaMemcpy(
+    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost));
   size_ -= h_num_successes;
   
   for(int i = 0; i < submaps_.size(); ++i) {
     std::size_t h_submap_num_successes;
     CUCO_CUDA_TRY(cudaMemcpy(
       &h_submap_num_successes, submap_num_successes_[i], sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost));
-
-    CUCO_CUDA_TRY(cudaDeviceSynchronize());  // stream sync to ensure h_num_successes is updated
     submaps_[i]->size_ -= h_submap_num_successes;
   }
 }

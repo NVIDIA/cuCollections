@@ -99,14 +99,15 @@ class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
  public:
-  using value_type      = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
-  using key_type        = Key;                               ///< Key type
-  using mapped_type     = Value;                             ///< Type of mapped values
-  using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;  ///< Type of atomic counters
-  using view_type = typename static_map<Key, Value, Scope>::device_view;  ///< Device view type
-  using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view;
-  ///< Device mutable view type
-
+  using value_type                = cuco::pair_type<Key, Value>;
+  using key_type                  = Key;
+  using mapped_type               = Value;
+  using atomic_ctr_type           = cuda::atomic<std::size_t, Scope>;
+  using view_type                 = typename static_map<Key, Value, Scope>::device_view;
+  using mutable_view_type         = typename static_map<Key, Value, Scope>::device_mutable_view;
+  using counter_allocator_type =
+    typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
+  
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
 
@@ -286,6 +287,7 @@ class dynamic_map {
   std::size_t min_insert_size_{};   ///< min remaining capacity of submap for insert
   atomic_ctr_type* num_successes_;  ///< number of successfully inserted keys on insert
   Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
+  counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
 
   std::vector<atomic_ctr_type*> submap_num_successes_;
 };
