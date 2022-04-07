@@ -19,11 +19,11 @@
 
 #include <cooperative_groups.h>
 #include <cub/cub.cuh>
-#include <cuco/detail/dynamic_map_kernels.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/sentinel.cuh>
 #include <cuco/static_map.cuh>
 #include <cuda/std/atomic>
+#include <cuco/detail/dynamic_map_kernels.cuh>
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
 
@@ -287,9 +287,9 @@ class dynamic_map {
     submap_mutable_views_;          ///< vector of mutable device views for each submap
   std::size_t min_insert_size_{};   ///< min remaining capacity of submap for insert
   atomic_ctr_type* num_successes_;  ///< number of successfully inserted keys on insert
-  std::vector<atomic_ctr_type*>
-    submap_num_successes_;  ///< number of succesfully erased keys for each submap
-  Allocator alloc_{};       ///< Allocator passed to submaps to allocate their device storage
+  std::vector<atomic_ctr_type*> submap_num_successes_; ///< number of succesfully erased keys for each submap
+  thrust::device_vector<atomic_ctr_type*> d_submap_num_successes_; 
+  Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
 };
 }  // namespace cuco

@@ -107,11 +107,9 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t))
     map.insert(pairs_begin2, pairs_begin2 + 4 * num_keys);
 
     // map should resize twice if the erased slots are successfully reused
-    REQUIRE(map.get_capacity() == 8 * num_keys);
-
+    REQUIRE(map.get_capacity() == 8*num_keys);
     // check that keys can be successfully deleted from only the first and second submaps
-    map.erase(d_keys2.begin(), d_keys2.begin() + 2 * num_keys);
-
+    map.erase(d_keys2.begin(), d_keys2.begin() + 2*num_keys);
     map.contains(d_keys2.begin(), d_keys2.end(), d_keys_exist2.begin());
 
     REQUIRE(cuco::test::none_of(d_keys_exist2.begin(),
@@ -122,10 +120,8 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t))
                                d_keys_exist2.end(),
                                [] __device__(const bool key_found) { return key_found; }));
 
-    REQUIRE(map.get_size() == 2 * num_keys);
-
-    // check that keys can be successfully deleted from all submaps (some will be unsuccessful
-    // erases)
+    REQUIRE(map.get_size() == 2*num_keys);
+    // check that keys can be successfully deleted from all submaps (some will be unsuccessful erases)
     map.erase(d_keys2.begin(), d_keys2.end());
 
     map.contains(d_keys2.begin(), d_keys2.end(), d_keys_exist2.begin());
