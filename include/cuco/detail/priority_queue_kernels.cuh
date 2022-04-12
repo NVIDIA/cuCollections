@@ -536,6 +536,8 @@ __device__ void Swim(CG const& g,
     CopyPairs(g, &heap[parent * node_size], shmem.A, node_size);
     CopyPairs(g, &heap[cur_node * node_size], shmem.B, node_size);
 
+    g.sync();
+
     ReleaseLock(g, &(locks[cur_node]));
     cur_node = parent;
     parent = Parent(cur_node, lowest_level_start);
@@ -1103,6 +1105,8 @@ __device__ void PushPartialNode(CG const& g,
       CopyPairs(g, heap, shmem.B, *p_buffer_size);
 
       CopyPairs(g, &heap[node_size], shmem.A, node_size);
+
+      g.sync();
     }
     ReleaseLock(g, &locks[kRootIdx]);
   }
