@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#pragma once
 
 #include <thrust/device_reference.h>
 #include <thrust/pair.h>
@@ -130,7 +132,10 @@ union pair_converter {
   packed_type packed;
   pair_type pair;
 
-  __device__ pair_converter(pair_type _pair) : pair{_pair} {}
+  template <typename T>
+  __device__ pair_converter(T&& _pair) : pair{_pair}
+  {
+  }
 
   __device__ pair_converter(packed_type _packed) : packed{_packed} {}
 };
@@ -149,8 +154,7 @@ template <typename First, typename Second>
 struct alignas(detail::pair_alignment<First, Second>()) pair {
   using first_type  = First;
   using second_type = Second;
-  First first;
-  Second second;
+
   pair()            = default;
   ~pair()           = default;
   pair(pair const&) = default;
@@ -159,6 +163,11 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
   pair& operator=(pair&&) = default;
 
   __host__ __device__ constexpr pair(First const& f, Second const& s) : first{f}, second{s} {}
+
+  template <typename F, typename S>
+  __host__ __device__ constexpr pair(pair<F, S> const& p) : first{p.first}, second{p.second}
+  {
+  }
 
   template <typename T, std::enable_if_t<detail::is_std_pair_like<T>::value>* = nullptr>
   __host__ __device__ constexpr pair(T const& t)
@@ -172,6 +181,9 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
            thrust::get<1>(thrust::raw_reference_cast(t))}
   {
   }
+
+  First first;
+  Second second;
 };
 
 template <typename K, typename V>

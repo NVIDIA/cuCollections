@@ -18,3 +18,12 @@ endfunction(ConfigureExample)
 ###################################################################################################
 
 ConfigureExample(STATIC_MAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_example.cu")
+ConfigureExample(CUSTOM_TYPE_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/custom_type_example.cu")
+ConfigureExample(STATIC_MULTIMAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_multimap/static_multimap_example.cu")
+
+foreach(arch IN LISTS CMAKE_CUDA_ARCHITECTURES)
+    if("${arch}" MATCHES "^6")
+      target_compile_definitions(CUSTOM_TYPE_EXAMPLE PRIVATE CUCO_NO_INDEPENDENT_THREADS)
+      break()
+    endif()
+endforeach()

@@ -135,7 +135,12 @@ static std::vector<T> pop_from_queue(priority_queue<T, Compare> &pq, size_t n) {
 
   thrust::host_vector<T> h_popped(d_popped);
 
-  return std::vector(h_popped.begin(), h_popped.end());
+  std::vector<T> result(h_popped.size());
+
+  thrust::copy(thrust::host, h_popped.begin(), h_popped.end(),
+               result.begin());
+
+  return result;
 
 }
 

@@ -1,0 +1,21 @@
+ci:
+    autofix_commit_msg: |
+      [pre-commit.ci] auto code formatting
+    autofix_prs: true
+    autoupdate_branch: ''
+    autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+    autoupdate_schedule: quarterly
+    skip: []
+    submodules: false
+
+repos:
+      - repo: https://github.com/pre-commit/mirrors-clang-format
+        rev: v13.0.0
+        hooks:
+              - id: clang-format
+                files: \.(cu|cuh|h|hpp|cpp|inl)$
+                'types_or': [file]
+                args: ['-fallback-style=none', '-style=file', '-i']
+
+default_language_version:
+      python: python3

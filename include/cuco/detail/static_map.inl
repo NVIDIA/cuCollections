@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,36 +22,36 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
                                                      Key empty_key_sentinel,
                                                      Value empty_value_sentinel,
-                                                     Allocator const& alloc)
+                                                     Allocator const& alloc,
+                                                     cudaStream_t stream)
   : capacity_{std::max(capacity, std::size_t{1})},  // to avoid dereferencing a nullptr (Issue #72)
     empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
-    slot_allocator_{alloc}
+    slot_allocator_{alloc},
+    counter_allocator_{alloc}
 {
-  slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
+  slots_         = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
+  num_successes_ = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
 
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
   auto const grid_size      = (capacity_ + stride * block_size - 1) / (stride * block_size);
   detail::initialize<block_size, atomic_key_type, atomic_mapped_type>
-    <<<grid_size, block_size>>>(slots_, empty_key_sentinel, empty_value_sentinel, capacity_);
-
-  CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
+    <<<grid_size, block_size, 0, stream>>>(
+      slots_, empty_key_sentinel, empty_value_sentinel, capacity_);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_map<Key, Value, Scope, Allocator>::~static_map()
 {
   std::allocator_traits<slot_allocator_type>::deallocate(slot_allocator_, slots_, capacity_);
-  CUCO_ASSERT_CUDA_SUCCESS(cudaFree(num_successes_));
+  std::allocator_traits<counter_allocator_type>::deallocate(counter_allocator_, num_successes_, 1);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
-void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
-                                                      InputIt last,
-                                                      Hash hash,
-                                                      KeyEqual key_equal)
+void static_map<Key, Value, Scope, Allocator>::insert(
+  InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
@@ -62,22 +62,66 @@ void static_map<Key, Value, Scope, Allocator>::insert(InputIt first,
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view             = get_device_mutable_view();
 
-  *num_successes_ = 0;
-  int device_id;
-  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(num_successes_, sizeof(atomic_ctr_type), device_id));
+  // TODO: memset an atomic variable is unsafe
+  static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
+  CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
+  std::size_t h_num_successes;
 
-  detail::insert<block_size, tile_size>
-    <<<grid_size, block_size>>>(first, first + num_keys, num_successes_, view, hash, key_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  detail::insert<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
+    first, first + num_keys, num_successes_, view, hash, key_equal);
+  CUCO_CUDA_TRY(cudaMemcpyAsync(
+    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
 
-  size_ += num_successes_->load(cuda::std::memory_order_relaxed);
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
+
+  size_ += h_num_successes;
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename InputIt,
+          typename StencilIt,
+          typename Predicate,
+          typename Hash,
+          typename KeyEqual>
+void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
+                                                         InputIt last,
+                                                         StencilIt stencil,
+                                                         Predicate pred,
+                                                         Hash hash,
+                                                         KeyEqual key_equal,
+                                                         cudaStream_t stream)
+{
+  auto num_keys = std::distance(first, last);
+  if (num_keys == 0) { return; }
+
+  auto constexpr block_size = 128;
+  auto constexpr stride     = 1;
+  auto constexpr tile_size  = 4;
+  auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_mutable_view();
+
+  // TODO: memset an atomic variable is unsafe
+  static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
+  CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
+  std::size_t h_num_successes;
+
+  detail::insert_if_n<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
+    first, num_keys, num_successes_, view, stencil, pred, hash, key_equal);
+  CUCO_CUDA_TRY(cudaMemcpyAsync(
+    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+
+  size_ += h_num_successes;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void static_map<Key, Value, Scope, Allocator>::find(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
+void static_map<Key, Value, Scope, Allocator>::find(InputIt first,
+                                                    InputIt last,
+                                                    OutputIt output_begin,
+                                                    Hash hash,
+                                                    KeyEqual key_equal,
+                                                    cudaStream_t stream)
 {
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
@@ -89,14 +133,17 @@ void static_map<Key, Value, Scope, Allocator>::find(
   auto view             = get_device_view();
 
   detail::find<block_size, tile_size, Value>
-    <<<grid_size, block_size>>>(first, last, output_begin, view, hash, key_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void static_map<Key, Value, Scope, Allocator>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal)
+void static_map<Key, Value, Scope, Allocator>::contains(InputIt first,
+                                                        InputIt last,
+                                                        OutputIt output_begin,
+                                                        Hash hash,
+                                                        KeyEqual key_equal,
+                                                        cudaStream_t stream)
 {
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
@@ -108,8 +155,7 @@ void static_map<Key, Value, Scope, Allocator>::contains(
   auto view             = get_device_view();
 
   detail::contains<block_size, tile_size>
-    <<<grid_size, block_size>>>(first, last, output_begin, view, hash, key_equal);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -122,7 +168,7 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::packed_cas(
   auto expected_value = this->get_empty_value_sentinel();
 
   cuco::detail::pair_converter<value_type> expected_pair{
-    cuco::make_pair<Key, Value>(std::move(expected_key), std::move(expected_value))};
+    cuco::make_pair(expected_key, expected_value)};
   cuco::detail::pair_converter<value_type> new_pair{insert_pair};
 
   auto slot =
@@ -439,14 +485,14 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
-  Key const& k, Hash hash, KeyEqual key_equal) noexcept
+  Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    if (detail::bitwise_compare(existing_key, empty_key_sentinel_)) { return false; }
+    if (detail::bitwise_compare(existing_key, this->empty_key_sentinel_)) { return false; }
 
     if (key_equal(existing_key, k)) { return true; }
 
@@ -457,7 +503,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
-  CG g, Key const& k, Hash hash, KeyEqual key_equal) noexcept
+  CG g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
