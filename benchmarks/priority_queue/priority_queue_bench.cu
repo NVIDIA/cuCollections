@@ -1,11 +1,11 @@
-#include <vector>
 #include <cstdint>
 #include <random>
+#include <vector>
 
 #include <benchmark/benchmark.h>
 
-#include <cuco/priority_queue.cuh>
 #include <cuco/detail/pair.cuh>
+#include <cuco/priority_queue.cuh>
 
 #include <thrust/device_vector.h>
 
@@ -13,13 +13,12 @@ using namespace cuco;
 
 template <typename T>
 struct pair_less {
-  __host__ __device__ bool operator()(const T& a, const T& b) const {
-    return a.first < b.first;
-  }
+  __host__ __device__ bool operator()(const T& a, const T& b) const { return a.first < b.first; }
 };
 
-template<typename Key, typename Value, typename OutputIt>
-static void generate_keys_uniform(OutputIt output_begin, OutputIt output_end) {
+template <typename Key, typename Value, typename OutputIt>
+static void generate_keys_uniform(OutputIt output_begin, OutputIt output_end)
+{
   std::random_device rd;
   std::mt19937 gen{rd()};
 
@@ -30,15 +29,14 @@ static void generate_keys_uniform(OutputIt output_begin, OutputIt output_end) {
   }
 }
 
-template <typename Key, typename Value, int NumKeys,
-	  bool FavorInsertionPerformance>
+template <typename Key, typename Value, int NumKeys, bool FavorInsertionPerformance>
 static void BM_insert(::benchmark::State& state)
 {
   for (auto _ : state) {
     state.PauseTiming();
 
-    priority_queue<pair<Key, Value>, pair_less<pair<Key, Value>>,
-	           FavorInsertionPerformance> pq(NumKeys);
+    priority_queue<pair<Key, Value>, pair_less<pair<Key, Value>>, FavorInsertionPerformance> pq(
+      NumKeys);
 
     std::vector<pair<Key, Value>> h_pairs(NumKeys);
     generate_keys_uniform<Key, Value>(h_pairs.begin(), h_pairs.end());
@@ -48,18 +46,16 @@ static void BM_insert(::benchmark::State& state)
     pq.push(d_pairs.begin(), d_pairs.end());
     cudaDeviceSynchronize();
   }
-  
 }
 
-template <typename Key, typename Value, int NumKeys,
-	  bool FavorInsertionPerformance>
+template <typename Key, typename Value, int NumKeys, bool FavorInsertionPerformance>
 static void BM_delete(::benchmark::State& state)
 {
   for (auto _ : state) {
     state.PauseTiming();
 
-    priority_queue<pair<Key, Value>, pair_less<pair<Key, Value>>,
-	           FavorInsertionPerformance> pq(NumKeys);
+    priority_queue<pair<Key, Value>, pair_less<pair<Key, Value>>, FavorInsertionPerformance> pq(
+      NumKeys);
 
     std::vector<pair<Key, Value>> h_pairs(NumKeys);
     generate_keys_uniform<Key, Value>(h_pairs.begin(), h_pairs.end());
@@ -72,29 +68,20 @@ static void BM_delete(::benchmark::State& state)
     pq.pop(d_pairs.begin(), d_pairs.end());
     cudaDeviceSynchronize();
   }
-  
 }
 
-BENCHMARK_TEMPLATE(BM_insert, int, int, 128'000'000, false)
-  ->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_insert, int, int, 128'000'000, false)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_TEMPLATE(BM_delete, int, int, 128'000'000, false)
-  ->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_delete, int, int, 128'000'000, false)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_TEMPLATE(BM_insert, int, int, 256'000'000, false)
-  ->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_insert, int, int, 256'000'000, false)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_TEMPLATE(BM_delete, int, int, 256'000'000, false)
-  ->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_delete, int, int, 256'000'000, false)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_TEMPLATE(BM_insert, int, int, 128'000'000, true)
-  ->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_insert, int, int, 128'000'000, true)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_TEMPLATE(BM_delete, int, int, 128'000'000, true)
-  ->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_delete, int, int, 128'000'000, true)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_TEMPLATE(BM_insert, int, int, 256'000'000, true)
-  ->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_insert, int, int, 256'000'000, true)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_TEMPLATE(BM_delete, int, int, 256'000'000, true)
-  ->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_delete, int, int, 256'000'000, true)->Unit(benchmark::kMillisecond);
