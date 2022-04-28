@@ -39,6 +39,9 @@ struct slot_to_tuple {
   }
 };
 
+/**
+ * @brief Device functor returning whether the input slot `s` is filled.
+ */
 template <typename Key>
 struct slot_is_filled {
   Key empty_key_sentinel;
