@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2021, NVIDIA CORPORATION.
+# Copyright (c) 2018-2022, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,6 +55,7 @@ endfunction(ConfigureTest)
 # - static_map tests ------------------------------------------------------------------------------
 ConfigureTest(STATIC_MAP_TEST
     static_map/custom_type_test.cu
+    static_map/duplicate_keys_test.cu
     static_map/key_sentinel_test.cu
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
