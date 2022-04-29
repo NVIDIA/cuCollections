@@ -19,6 +19,7 @@
 #include <cuco/static_map.cuh>
 
 #include <thrust/device_vector.h>
+#include <thrust/functional.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/sort.h>
 
@@ -68,7 +69,7 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
     REQUIRE(cuco::test::equal(unique_keys.begin(),
                               unique_keys.end(),
                               thrust::make_counting_iterator<Key>(0),
-                              [] __device__(Key const lhs, Key const rhs) { return lhs == rhs; }));
+                              thrust::equal_to<Key>{}));
   }
 
   SECTION("Tests of contains")
