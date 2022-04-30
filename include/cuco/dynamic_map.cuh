@@ -147,7 +147,31 @@ class dynamic_map {
               sentinel::empty_key<Key> empty_key_sentinel,
               sentinel::empty_value<Value> empty_value_sentinel,
               Allocator const& alloc = Allocator{});
-
+  
+  /**
+   * @brief Construct a dynamically-sized map with erase capability.
+   *
+   * The capacity of the map will automatically increase as the user adds key/value pairs using
+   * `insert`.
+   *
+   * Capacity increases by a factor of growth_factor each time the size of the map exceeds a
+   * threshold occupancy. The performance of `find` and `contains` decreases somewhat each time the
+   * map's capacity grows.
+   *
+   * The `empty_key_sentinel` and `empty_value_sentinel` values are reserved and
+   * undefined behavior results from attempting to insert any key/value pair
+   * that contains either.
+   *
+   * @param initial_capacity The initial number of slots in the map
+   * @param growth_factor The factor by which the capacity increases when resizing
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param erased_key_sentinel The reserved key value for erased slots
+   * @param alloc Allocator used to allocate submap device storage
+   *
+   * @throw std::runtime error if the empty key sentinel and erased key sentinel
+   * are the same value
+   */
   dynamic_map(std::size_t initial_capacity,
               sentinel::empty_key<Key> empty_key_sentinel,
               sentinel::empty_value<Value> empty_value_sentinel,
@@ -188,7 +212,36 @@ class dynamic_map {
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
-
+  
+  /**
+   * @brief Erases keys in the range `[first, last)`.
+   *
+   * For each key `k` in `[first, last)`, if `contains(k) == true), removes `k` and it's
+   * associated value from the map. Else, no effect.
+   *
+   *  Side-effects:
+   *  - `contains(k) == false`
+   *  - `find(k) == end()`
+   *  - `insert({k,v}) == true`
+   *  - `get_size()` is reduced by the total number of erased keys
+   *
+   * This function synchronizes `stream`.
+   *
+   * Keep in mind that `erase` does not cause the map to shrink its memory allocation.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the map's `value_type`
+   * @tparam Hash Unary callable type
+   * @tparam KeyEqual Binary callable type
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param hash The unary function to apply to hash each key
+   * @param key_equal The binary function to compare two keys for equality
+   * @param stream Stream used for executing the kernels
+   *
+   * @throw std::runtime_error if a unique erased key sentinel value was not
+   * provided at construction
+   */
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
@@ -273,7 +326,7 @@ class dynamic_map {
  private:
   key_type empty_key_sentinel_{};       ///< Key value that represents an empty slot
   mapped_type empty_value_sentinel_{};  ///< Initial value of empty slot
-  key_type erased_key_sentinel_{};
+  key_type erased_key_sentinel_{};      ///< Key value that represents an erased slot
 
   // TODO: initialize this
   std::size_t size_{};       ///< Number of keys in the map
@@ -288,7 +341,7 @@ class dynamic_map {
   std::size_t min_insert_size_{};   ///< min remaining capacity of submap for insert
   atomic_ctr_type* num_successes_;  ///< number of successfully inserted keys on insert
   std::vector<atomic_ctr_type*> submap_num_successes_; ///< number of succesfully erased keys for each submap
-  thrust::device_vector<atomic_ctr_type*> d_submap_num_successes_; 
+  thrust::device_vector<atomic_ctr_type*> d_submap_num_successes_; ///< device-side number of successfully erased keys for each submap
   Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
 };

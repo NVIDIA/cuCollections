@@ -186,17 +186,40 @@ __global__ void insert(InputIt first,
   if (threadIdx.x == 0) { *num_successes += block_num_successes; }
 }
 
+/**
+ * @brief Erases the key/value pairs corresponding to all keys in the range `[first, last)`.
+ *
+ * If the key `*(first + i)` exists in the map, its slot is erased and made available for future
+   insertions.
+ * Else, no effect.
+ * @tparam block_size The size of the thread block
+ * @tparam pair_type Type of the pairs contained in the map
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam mutableViewT Type of device view allowing modification of hash map storage
+ * @tparam atomicT Type of atomic storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param submap_mutable_views Array of `static_map::mutable_device_view` objects used to
+ * perform `erase` operations on each underlying `static_map`
+ * @param num_successes The number of successfully erased key/value pairs
+ * @param submap_num_successes The number of successfully erased key/value pairs
+ * in each submap
+ * @param num_submaps The number of submaps in the map
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
 template <uint32_t block_size,
           typename pair_type,
           typename InputIt,
-          typename viewT,
           typename mutableViewT,
           typename atomicT,
           typename Hash,
           typename KeyEqual>
 __global__ void erase(InputIt first,
                       InputIt last,
-                      viewT* submap_views,
                       mutableViewT* submap_mutable_views,
                       atomicT* num_successes,
                       atomicT** submap_num_successes,
@@ -252,18 +275,42 @@ __global__ void erase(InputIt first,
   }
 }
 
+/**
+ * @brief Erases the key/value pairs corresponding to all keys in the range `[first, last)`.
+ *
+ * If the key `*(first + i)` exists in the map, its slot is erased and made available for future
+   insertions.
+ * Else, no effect.
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform erase
+ * @tparam pair_type Type of the pairs contained in the map
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam mutableViewT Type of device view allowing modification of hash map storage
+ * @tparam atomicT Type of atomic storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param submap_mutable_views Array of `static_map::mutable_device_view` objects used to
+ * perform `erase` operations on each underlying `static_map`
+ * @param num_successes The number of successfully erased key/value pairs
+ * @param submap_num_successes The number of successfully erased key/value pairs
+ * in each submap
+ * @param num_submaps The number of submaps in the map
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
 template <uint32_t block_size,
           uint32_t tile_size,
           typename pair_type,
           typename InputIt,
-          typename viewT,
           typename mutableViewT,
           typename atomicT,
           typename Hash,
           typename KeyEqual>
 __global__ void erase(InputIt first,
                        InputIt last,
-                       viewT* submap_views,
                        mutableViewT* submap_mutable_views,
                        atomicT* num_successes,
                        atomicT** submap_num_successes,

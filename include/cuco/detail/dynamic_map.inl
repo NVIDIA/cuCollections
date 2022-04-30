@@ -203,7 +203,6 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
     <<<grid_size, block_size, temp_storage_size>>>(
       first,
       first + num_keys,
-      submap_views_.data().get(),
       submap_mutable_views_.data().get(),
       num_successes_,
       d_submap_num_successes_.data().get(),

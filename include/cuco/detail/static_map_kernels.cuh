@@ -163,6 +163,26 @@ __global__ void insert(
   if (threadIdx.x == 0) { *num_successes += block_num_successes; }
 }
 
+/**
+ * @brief Erases the key/value pairs corresponding to all keys in the range `[first, last)`.
+ *
+ * If the key `*(first + i)` exists in the map, its slot is erased and made available for future
+   insertions.
+ * Else, no effect.
+ * @tparam block_size The size of the thread block
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param num_successes The number of successfully erased key/value pairs
+ * @param view Device view used to access the hash map's slot storage
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
 template <std::size_t block_size,
           typename InputIt,
           typename atomicT,
@@ -192,6 +212,27 @@ __global__ void erase(
   }
 }
 
+/**
+ * @brief Erases the key/value pairs corresponding to all keys in the range `[first, last)`.
+ *
+ * If the key `*(first + i)` exists in the map, its slot is erased and made available for future
+   insertions.
+ * Else, no effect.
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform erase
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam atomicT Type of atomic storage
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param num_successes The number of successfully erased key/value pairs
+ * @param view Device view used to access the hash map's slot storage
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
 template <std::size_t block_size,
           uint32_t tile_size,
           typename InputIt,
