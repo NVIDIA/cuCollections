@@ -20,6 +20,7 @@
 #include <thrust/copy.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/tuple.h>
 
 namespace cuco {
 
@@ -143,9 +144,8 @@ void static_map<Key, Value, Scope, Allocator>::find(InputIt first,
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename KeyOut, typename ValueOut>
-void static_map<Key, Value, Scope, Allocator>::retrieve_all(KeyOut keys_out,
-                                                            ValueOut values_out,
-                                                            cudaStream_t stream)
+std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_all(
+  KeyOut keys_out, ValueOut values_out, cudaStream_t stream)
 {
   static_assert(sizeof(pair_atomic_type) == sizeof(value_type));
   auto slots_begin = reinterpret_cast<value_type*>(slots_);
@@ -153,9 +153,12 @@ void static_map<Key, Value, Scope, Allocator>::retrieve_all(KeyOut keys_out,
   auto begin  = thrust::make_transform_iterator(slots_begin, detail::slot_to_tuple<Key, Value>{});
   auto end    = begin + get_capacity();
   auto filled = detail::slot_is_filled<Key>{get_empty_key_sentinel()};
-  auto zipped_out = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
+  auto zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
 
-  thrust::copy_if(thrust::cuda::par.on(stream), begin, end, zipped_out, filled);
+  auto const zipped_out_end =
+    thrust::copy_if(thrust::cuda::par.on(stream), begin, end, zipped_out_begin, filled);
+  auto const num = std::distance(zipped_out_begin, zipped_out_end);
+  return std::pair(keys_out + num, values_out + num);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>

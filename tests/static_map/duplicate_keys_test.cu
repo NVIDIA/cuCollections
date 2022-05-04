@@ -63,9 +63,10 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
     thrust::device_vector<Key> unique_keys(num_entries);
     auto values_begin = thrust::make_discard_iterator();
 
-    map.retrieve_all(unique_keys.begin(), values_begin);
-    thrust::sort(thrust::device, unique_keys.begin(), unique_keys.end());
+    auto [key_out_end, value_out_end] = map.retrieve_all(unique_keys.begin(), values_begin);
+    REQUIRE(std::distance(unique_keys.begin(), key_out_end) == map.get_size());
 
+    thrust::sort(thrust::device, unique_keys.begin(), unique_keys.end());
     REQUIRE(cuco::test::equal(unique_keys.begin(),
                               unique_keys.end(),
                               thrust::make_counting_iterator<Key>(0),

@@ -303,7 +303,7 @@ class static_map {
    * consistent between subsequent calls to `retrieve_all`.
    *
    * Behavior is undefined if the range beginning at `keys_out` or `values_out` is less than
-   * `size()`
+   * `get_size()`
    *
    * @tparam KeyOut Device accessible random access output iterator whose `value_type` is
    * convertible from `key_type`.
@@ -312,9 +312,12 @@ class static_map {
    * @param keys_out Beginning output iterator for keys
    * @param values_out Beginning output iterator for values
    * @param stream CUDA stream used for this operation
+   * @return Pair of iterators indicating the last elements in the output
    */
   template <typename KeyOut, typename ValueOut>
-  void retrieve_all(KeyOut keys_out, ValueOut values_out, cudaStream_t stream = 0);
+  std::pair<KeyOut, ValueOut> retrieve_all(KeyOut keys_out,
+                                           ValueOut values_out,
+                                           cudaStream_t stream = 0);
 
   /**
    * @brief Indicates whether the keys in the range
