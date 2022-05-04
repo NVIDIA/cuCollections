@@ -302,8 +302,7 @@ class static_map {
    * The order in which keys are returned is implementation defined and not guaranteed to be
    * consistent between subsequent calls to `retrieve_all`.
    *
-   * Behavior is undefined if the range beginning at `keys_out` or `values_out` is not large enough
-   * to contain the number of keys in the map.
+   * Behavior is undefined if the range beginning at `keys_out` or `values_out` is less than `size()`
    *
    * @tparam KeyOut Device accessible random access output iterator whose `value_type` is
    * convertible from `key_type`.
