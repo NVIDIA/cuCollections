@@ -157,7 +157,7 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
   auto const zipped_out_end =
     thrust::copy_if(thrust::cuda::par.on(stream), begin, end, zipped_out_begin, filled);
   auto const num = std::distance(zipped_out_begin, zipped_out_end);
-  return std::pair(keys_out + num, values_out + num);
+  return std::make_pair(keys_out + num, values_out + num);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>

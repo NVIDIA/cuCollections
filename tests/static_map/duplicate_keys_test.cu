@@ -59,7 +59,7 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
     auto values_begin = thrust::make_discard_iterator();
 
     // Retrieve all from an empty map
-    auto [empty_key_end, _] = map.retrieve_all(unique_keys.begin(), values_begin);
+    auto empty_key_end = map.retrieve_all(unique_keys.begin(), values_begin).first;
     REQUIRE(std::distance(unique_keys.begin(), empty_key_end) == 0);
 
     map.insert(pairs_begin, pairs_begin + num_keys);
@@ -67,7 +67,7 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
     auto const num_entries = map.get_size();
     REQUIRE(num_entries == gold);
 
-    auto [key_out_end, value_out_end] = map.retrieve_all(unique_keys.begin(), values_begin);
+    auto key_out_end = map.retrieve_all(unique_keys.begin(), values_begin).first;
     REQUIRE(std::distance(unique_keys.begin(), key_out_end) == gold);
 
     thrust::sort(thrust::device, unique_keys.begin(), unique_keys.end());
