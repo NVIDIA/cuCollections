@@ -47,7 +47,7 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
 
   auto pairs_begin = thrust::make_transform_iterator(
     thrust::make_counting_iterator<int>(0),
-    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i / 2, i); });
+    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i / 2, i / 2); });
 
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);
@@ -56,19 +56,23 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
   {
     auto constexpr gold = num_keys / 2;
     thrust::device_vector<Key> unique_keys(gold);
-    auto values_begin = thrust::make_discard_iterator();
+    thrust::device_vector<Key> unique_values(gold);
 
     // Retrieve all from an empty map
-    auto empty_key_end = map.retrieve_all(unique_keys.begin(), values_begin).first;
+    auto [empty_key_end, empty_value_end] =
+      map.retrieve_all(unique_keys.begin(), unique_values.begin());
     REQUIRE(std::distance(unique_keys.begin(), empty_key_end) == 0);
+    REQUIRE(std::distance(unique_values.begin(), empty_value_end) == 0);
 
     map.insert(pairs_begin, pairs_begin + num_keys);
 
     auto const num_entries = map.get_size();
     REQUIRE(num_entries == gold);
 
-    auto key_out_end = map.retrieve_all(unique_keys.begin(), values_begin).first;
+    auto [key_out_end, value_out_end] =
+      map.retrieve_all(unique_keys.begin(), unique_values.begin());
     REQUIRE(std::distance(unique_keys.begin(), key_out_end) == gold);
+    REQUIRE(std::distance(unique_values.begin(), value_out_end) == gold);
 
     thrust::sort(thrust::device, unique_keys.begin(), unique_keys.end());
     REQUIRE(cuco::test::equal(unique_keys.begin(),
