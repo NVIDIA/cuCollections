@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,31 @@ __device__ __forceinline__ int32_t count_least_significant_bits(uint32_t x, int3
 {
   return __popc(x & (1 << n) - 1);
 }
+
+/**
+ * @brief Converts `cuco::pair` to `thrust::tuple` to allow assigning to a zip iterator.
+ */
+template <typename Key, typename Value>
+struct slot_to_tuple {
+  template <typename S>
+  __device__ thrust::tuple<Key, Value> operator()(S const& s)
+  {
+    return thrust::tuple<Key, Value>(s.first, s.second);
+  }
+};
+
+/**
+ * @brief Device functor returning whether the input slot `s` is filled.
+ */
+template <typename Key>
+struct slot_is_filled {
+  Key empty_key_sentinel;
+  template <typename S>
+  __device__ bool operator()(S const& s)
+  {
+    return thrust::get<0>(s) != empty_key_sentinel;
+  }
+};
 
 }  // namespace detail
 }  // namespace cuco
