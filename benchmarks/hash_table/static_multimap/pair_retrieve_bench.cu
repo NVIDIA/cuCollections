@@ -39,22 +39,22 @@ struct pair_equal {
  * @brief A benchmark evaluating `pair_retrieve` performance:
  * - CG size: 8
  */
-template <typename Key, typename Value, nvbench::int32_t Multiplicity>
+template <typename Key, typename Value>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_pair_retrieve(
-  nvbench::state& state, nvbench::type_list<Key, Value, nvbench::enum_type<Multiplicity>>)
+  nvbench::state& state, nvbench::type_list<Key, Value>)
 {
-  auto constexpr matching_rate = 0.5;
-  auto constexpr occupancy     = 0.5;
-  auto constexpr dist          = dist_type::UNIFORM;
-
-  auto const num_input = state.get_int64("NumInputs");
+  auto const num_input     = state.get_int64("NumInputs");
+  auto const occupancy     = state.get_float64("Occupancy");
+  auto const dist          = state.get_string("Distribution");
+  auto const multiplicity  = state.get_int64_or_default("Multiplicity", 8);
+  auto const matching_rate = state.get_float64("MatchingRate");
 
   std::size_t const size = num_input / occupancy;
 
   std::vector<Key> h_keys(num_input);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_input);
 
-  generate_keys<dist, Multiplicity, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Key>(dist, h_keys.begin(), h_keys.end(), multiplicity);
 
   for (auto i = 0; i < num_input; ++i) {
     Key key           = h_keys[i];
@@ -94,24 +94,19 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_p
   });
 }
 
-template <typename Key, typename Value, nvbench::int32_t Multiplicity>
+template <typename Key, typename Value>
 std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_pair_retrieve(
-  nvbench::state& state, nvbench::type_list<Key, Value, nvbench::enum_type<Multiplicity>>)
+  nvbench::state& state, nvbench::type_list<Key, Value>)
 {
   state.skip("Key should be the same type as Value.");
 }
 
 using key_type   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using value_type = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
-using d_type =
-  nvbench::enum_type_list<dist_type::GAUSSIAN, dist_type::GEOMETRIC, dist_type::UNIFORM>;
 
-using multiplicity = nvbench::enum_type_list<1, 2, 4, 8, 16, 32, 64, 128, 256>;
-
-NVBENCH_BENCH_TYPES(nvbench_static_multimap_pair_retrieve,
-                    NVBENCH_TYPE_AXES(key_type, value_type, multiplicity))
-  .set_name("staic_multimap_pair_retrieve_uniform_multiplicity")
-  .set_type_axes_names({"Key", "Value", "Multiplicity"})
+NVBENCH_BENCH_TYPES(nvbench_static_multimap_pair_retrieve, NVBENCH_TYPE_AXES(key_type, value_type))
+  .set_name("static_multimap_pair_retrieve_uniform_multiplicity")
+  .set_type_axes_names({"Key", "Value"})
   .set_timeout(100)  // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)  // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs",
@@ -119,4 +114,9 @@ NVBENCH_BENCH_TYPES(nvbench_static_multimap_pair_retrieve,
                    100'000,
                    1'000'000,
                    10'000'000,
-                   100'000'000});  // Total number of key/value pairs: 100'000'000
+                   100'000'000})  // Total number of key/value pairs: 100'000'000
+  .add_float64_axis("Occupancy", {0.5})
+  .add_int64_axis("Multiplicity",
+                  {1, 2, 4, 8, 16, 32, 64, 128, 256})  // only applies to uniform distribution
+  .add_string_axis("Distribution", {"UNIFORM"})
+  .add_float64_axis("MatchingRate", {0.5});

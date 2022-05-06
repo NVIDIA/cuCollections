@@ -20,6 +20,8 @@ endfunction(ConfigureExample)
 ConfigureExample(STATIC_MAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/static_map_example.cu")
 ConfigureExample(CUSTOM_TYPE_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/custom_type_example.cu")
 ConfigureExample(STATIC_MULTIMAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_multimap/static_multimap_example.cu")
+ConfigureExample(STATIC_REDUCTION_MAP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_reduction_map/static_reduction_map_example.cu")
+ConfigureExample(STATIC_REDUCTION_MAP_SMEM_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_reduction_map/static_reduction_map_smem_example.cu")
 
 foreach(arch IN LISTS CMAKE_CUDA_ARCHITECTURES)
     if("${arch}" MATCHES "^6")

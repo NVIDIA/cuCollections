@@ -18,39 +18,9 @@
 #include <benchmark/benchmark.h>
 #include <fstream>
 #include <iostream>
-#include <random>
+#include <key_generator.hpp>
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
-
-enum class dist_type { UNIQUE, UNIFORM, GAUSSIAN };
-
-template <dist_type Dist, typename Key, typename OutputIt>
-static void generate_keys(OutputIt output_begin, OutputIt output_end)
-{
-  auto num_keys = std::distance(output_begin, output_end);
-
-  std::random_device rd;
-  std::mt19937 gen{rd()};
-
-  switch (Dist) {
-    case dist_type::UNIQUE:
-      for (auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = i;
-      }
-      break;
-    case dist_type::UNIFORM:
-      for (auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = std::abs(static_cast<Key>(gen()));
-      }
-      break;
-    case dist_type::GAUSSIAN:
-      std::normal_distribution<> dg{1e9, 1e7};
-      for (auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = std::abs(static_cast<Key>(dg(gen)));
-      }
-      break;
-  }
-}
 
 /**
  * @brief Generates input sizes and hash table occupancies
@@ -70,14 +40,15 @@ static void BM_static_map_insert(::benchmark::State& state)
 {
   using map_type = cuco::static_map<Key, Value>;
 
-  std::size_t num_keys = state.range(0);
-  float occupancy      = state.range(1) / float{100};
-  std::size_t size     = num_keys / occupancy;
+  std::size_t num_keys     = state.range(0);
+  float occupancy          = state.range(1) / float{100};
+  std::size_t size         = num_keys / occupancy;
+  std::size_t multiplicity = 1;
 
   std::vector<Key> h_keys(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
 
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Key>(Dist, h_keys.begin(), h_keys.end(), multiplicity);
 
   for (auto i = 0; i < num_keys; ++i) {
     Key key           = h_keys[i];
@@ -116,9 +87,10 @@ static void BM_static_map_search_all(::benchmark::State& state)
 {
   using map_type = cuco::static_map<Key, Value>;
 
-  std::size_t num_keys = state.range(0);
-  float occupancy      = state.range(1) / float{100};
-  std::size_t size     = num_keys / occupancy;
+  std::size_t num_keys     = state.range(0);
+  float occupancy          = state.range(1) / float{100};
+  std::size_t size         = num_keys / occupancy;
+  std::size_t multiplicity = 1;
 
   map_type map{size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
   auto view = map.get_device_mutable_view();
@@ -128,7 +100,7 @@ static void BM_static_map_search_all(::benchmark::State& state)
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
   std::vector<Value> h_results(num_keys);
 
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Key>(Dist, h_keys.begin(), h_keys.end(), multiplicity);
 
   for (auto i = 0; i < num_keys; ++i) {
     Key key           = h_keys[i];

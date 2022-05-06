@@ -17,38 +17,8 @@
 #include <benchmark/benchmark.h>
 #include <cuco/dynamic_map.cuh>
 #include <iostream>
-#include <random>
+#include <key_generator.hpp>
 #include <synchronization.hpp>
-
-enum class dist_type { UNIQUE, UNIFORM, GAUSSIAN };
-
-template <dist_type Dist, typename Key, typename OutputIt>
-static void generate_keys(OutputIt output_begin, OutputIt output_end)
-{
-  auto num_keys = std::distance(output_begin, output_end);
-
-  std::random_device rd;
-  std::mt19937 gen{rd()};
-
-  switch (Dist) {
-    case dist_type::UNIQUE:
-      for (auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = i;
-      }
-      break;
-    case dist_type::UNIFORM:
-      for (auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = std::abs(static_cast<Key>(gen()));
-      }
-      break;
-    case dist_type::GAUSSIAN:
-      std::normal_distribution<> dg{1e9, 1e7};
-      for (auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = std::abs(static_cast<Key>(dg(gen)));
-      }
-      break;
-  }
-}
 
 static void gen_final_size(benchmark::internal::Benchmark* b)
 {
@@ -64,11 +34,12 @@ static void BM_dynamic_insert(::benchmark::State& state)
 
   std::size_t num_keys     = state.range(0);
   std::size_t initial_size = 1 << 27;
+  std::size_t multiplicity = 1;
 
   std::vector<Key> h_keys(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
 
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Key>(Dist, h_keys.begin(), h_keys.end(), multiplicity);
 
   for (auto i = 0; i < num_keys; ++i) {
     Key key           = h_keys[i];
@@ -101,11 +72,12 @@ static void BM_dynamic_search_all(::benchmark::State& state)
 
   std::size_t num_keys     = state.range(0);
   std::size_t initial_size = 1 << 27;
+  std::size_t multiplicity = 1;
 
   std::vector<Key> h_keys(num_keys);
   std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
 
-  generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
+  generate_keys<Key>(Dist, h_keys.begin(), h_keys.end(), multiplicity);
 
   for (auto i = 0; i < num_keys; ++i) {
     Key key           = h_keys[i];
