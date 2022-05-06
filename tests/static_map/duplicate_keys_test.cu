@@ -34,7 +34,8 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
                        (int64_t, int64_t))
 {
   constexpr std::size_t num_keys{500'000};
-  cuco::static_map<Key, Value> map{num_keys * 2, -1, -1};
+  cuco::static_map<Key, Value> map{
+    num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();
