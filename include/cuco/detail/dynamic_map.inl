@@ -30,7 +30,10 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
     alloc_{alloc}
 {
   submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
-    initial_capacity, empty_key_sentinel, empty_value_sentinel, alloc));
+    initial_capacity,
+    sentinel::empty_key<Key>{empty_key_sentinel},
+    sentinel::empty_value<Value>{empty_value_sentinel},
+    alloc));
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
 
@@ -59,7 +62,10 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n)
     else {
       submap_capacity = capacity_;
       submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
-        submap_capacity, empty_key_sentinel_, empty_value_sentinel_, alloc_));
+        submap_capacity,
+        sentinel::empty_key<Key>{empty_key_sentinel_},
+        sentinel::empty_value<Value>{empty_value_sentinel_},
+        alloc_));
       submap_views_.push_back(submaps_[submap_idx]->get_device_view());
       submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
 

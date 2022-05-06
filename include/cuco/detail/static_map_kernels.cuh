@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -154,6 +154,68 @@ __global__ void insert(
   // and atomically add to the grand total
   std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
   if (threadIdx.x == 0) { *num_successes += block_num_successes; }
+}
+
+template <std::size_t block_size,
+          typename InputIt,
+          typename atomicT,
+          typename viewT,
+          typename Hash,
+          typename KeyEqual>
+__global__ void erase(
+  InputIt first, InputIt last, atomicT* num_successes, viewT view, Hash hash, KeyEqual key_equal)
+{
+  using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  std::size_t thread_num_successes = 0;
+
+  auto tid = block_size * blockIdx.x + threadIdx.x;
+  auto it  = first + tid;
+
+  while (it < last) {
+    if (view.erase(*it, hash, key_equal)) { thread_num_successes++; }
+    it += gridDim.x * block_size;
+  }
+
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
+  if (threadIdx.x == 0) {
+    num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
+  }
+}
+
+template <std::size_t block_size,
+          uint32_t tile_size,
+          typename InputIt,
+          typename atomicT,
+          typename viewT,
+          typename Hash,
+          typename KeyEqual>
+__global__ void erase(
+  InputIt first, InputIt last, atomicT* num_successes, viewT view, Hash hash, KeyEqual key_equal)
+{
+  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  std::size_t thread_num_successes = 0;
+
+  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid  = block_size * blockIdx.x + threadIdx.x;
+  auto it   = first + tid / tile_size;
+
+  while (it < last) {
+    if (view.erase(tile, *it, hash, key_equal) and tile.thread_rank() == 0) {
+      thread_num_successes++;
+    }
+    it += (gridDim.x * block_size) / tile_size;
+  }
+
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
+  if (threadIdx.x == 0) {
+    num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
+  }
 }
 
 /**

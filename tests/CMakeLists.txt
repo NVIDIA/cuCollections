@@ -54,6 +54,7 @@ endfunction(ConfigureTest)
 ###################################################################################################
 # - static_map tests ------------------------------------------------------------------------------
 ConfigureTest(STATIC_MAP_TEST
+    static_map/erase_test.cu
     static_map/custom_type_test.cu
     static_map/duplicate_keys_test.cu
     static_map/key_sentinel_test.cu

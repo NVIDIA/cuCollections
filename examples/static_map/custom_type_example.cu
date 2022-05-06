@@ -91,7 +91,9 @@ int main(void)
   // Construct a map with 100,000 slots using the given empty key/value sentinels. Note the
   // capacity is chosen knowing we will insert 80,000 keys, for an load factor of 80%.
   cuco::static_map<custom_key_type, custom_value_type> map{
-    100'000, empty_key_sentinel, empty_value_sentinel};
+    100'000,
+    cuco::sentinel::empty_key{empty_key_sentinel},
+    cuco::sentinel::empty_value{empty_value_sentinel}};
 
   // Inserts 80,000 pairs into the map by using the custom hasher and custom equality callable
   map.insert(pairs_begin, pairs_begin + num_pairs, custom_hash{}, custom_key_equals{});
