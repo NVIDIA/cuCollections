@@ -202,63 +202,61 @@ static void BM_static_map_erase_all(::benchmark::State& state)
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
                           int64_t(state.range(0)));
 }
-/*
+
 BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy)
   ->UseManualTime();
-  */
 
 BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
-/*
 
 BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIFORM)
-->Unit(benchmark::kMillisecond)
-->Apply(generate_size_and_occupancy)
-->UseManualTime();
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
 
 BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::UNIFORM)
-->Unit(benchmark::kMillisecond)
-->Apply(generate_size_and_occupancy);
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
 
 BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::GAUSSIAN)
-->Unit(benchmark::kMillisecond)
-->Apply(generate_size_and_occupancy)
-->UseManualTime();
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
 
 BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::GAUSSIAN)
-->Unit(benchmark::kMillisecond)
-->Apply(generate_size_and_occupancy);
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
 
 BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::UNIQUE)
-->Unit(benchmark::kMillisecond)
-->Apply(generate_size_and_occupancy)
-->UseManualTime();
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
 
 BENCHMARK_TEMPLATE(BM_static_map_search_all, int64_t, int64_t, dist_type::UNIQUE)
-->Unit(benchmark::kMillisecond)
-->Apply(generate_size_and_occupancy);
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
 
 BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::UNIFORM)
-->Unit(benchmark::kMillisecond)
-->Apply(generate_size_and_occupancy)
-->UseManualTime();
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
 
 BENCHMARK_TEMPLATE(BM_static_map_search_all, int64_t, int64_t, dist_type::UNIFORM)
-->Unit(benchmark::kMillisecond)
-->Apply(generate_size_and_occupancy);
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
 
 BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::GAUSSIAN)
-->Unit(benchmark::kMillisecond)
-->Apply(generate_size_and_occupancy)
-->UseManualTime();
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
 
 BENCHMARK_TEMPLATE(BM_static_map_search_all, int64_t, int64_t, dist_type::GAUSSIAN)
-->Unit(benchmark::kMillisecond)
-->Apply(generate_size_and_occupancy);
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
 
 BENCHMARK_TEMPLATE(BM_static_map_erase_all, int32_t, int32_t, dist_type::UNIQUE)
-->Unit(benchmark::kMillisecond)
-->Apply(generate_size_and_occupancy);*/
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
