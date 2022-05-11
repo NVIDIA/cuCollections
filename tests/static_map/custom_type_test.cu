@@ -107,7 +107,9 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
   constexpr std::size_t num      = 100;
   constexpr std::size_t capacity = num * 2;
-  cuco::static_map<Key, Value> map{capacity, sentinel_key, sentinel_value};
+  cuco::static_map<Key, Value> map{capacity,
+                                   cuco::sentinel::empty_key<Key>{sentinel_key},
+                                   cuco::sentinel::empty_value<Value>{sentinel_value}};
 
   thrust::device_vector<Key> insert_keys(num);
   thrust::device_vector<Value> insert_values(num);
