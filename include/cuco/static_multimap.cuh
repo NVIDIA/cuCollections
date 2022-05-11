@@ -42,7 +42,10 @@
 
 #include <cooperative_groups.h>
 
+#include <cstddef>
 #include <memory>
+#include <type_traits>
+#include <utility>
 
 namespace cuco {
 
