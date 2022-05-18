@@ -113,7 +113,7 @@ class dynamic_map;
  *
  * // Get a `device_view` and passes it to a kernel where threads may perform
  * // `find/contains` lookups
- * kernel<<<...>>>(m.get_device_view());
+ * kernel<<<...>>>(m.device_view());
  * \endcode
  *
  *
@@ -307,7 +307,7 @@ class static_map {
    *  - `contains(k) == false`
    *  - `find(k) == end()`
    *  - `insert({k,v}) == true`
-   *  - `get_size()` is reduced by the total number of erased keys
+   *  - `size()` is reduced by the total number of erased keys
    *
    * This function synchronizes `stream`.
    *
@@ -370,7 +370,7 @@ class static_map {
    * consistent between subsequent calls to `retrieve_all`.
    *
    * Behavior is undefined if the range beginning at `keys_out` or `values_out` is less than
-   * `get_size()`
+   * `size()`
    *
    * @tparam KeyOut Device accessible random access output iterator whose `value_type` is
    * convertible from `key_type`.
@@ -602,40 +602,40 @@ class static_map {
      *
      * @return Slots array
      */
-    __host__ __device__ pair_atomic_type* get_slots() noexcept { return slots_; }
+    __host__ __device__ pair_atomic_type* slots() noexcept { return slots_; }
 
     /**
      * @brief Gets slots array.
      *
      * @return Slots array
      */
-    __host__ __device__ pair_atomic_type const* get_slots() const noexcept { return slots_; }
+    __host__ __device__ pair_atomic_type const* slots() const noexcept { return slots_; }
 
     /**
      * @brief Gets the maximum number of elements the hash map can hold.
      *
      * @return The maximum number of elements the hash map can hold
      */
-    __host__ __device__ std::size_t get_capacity() const noexcept { return capacity_; }
+    __host__ __device__ std::size_t capacity() const noexcept { return capacity_; }
 
     /**
      * @brief Gets the sentinel value used to represent an empty key slot.
      *
      * @return The sentinel value used to represent an empty key slot
      */
-    __host__ __device__ Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+    __host__ __device__ Key empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
     /**
      * @brief Gets the sentinel value used to represent an empty value slot.
      *
      * @return The sentinel value used to represent an empty value slot
      */
-    __host__ __device__ Value get_empty_value_sentinel() const noexcept
+    __host__ __device__ Value empty_value_sentinel() const noexcept
     {
       return empty_value_sentinel_;
     }
 
-    __host__ __device__ Key get_erased_key_sentinel() const noexcept
+    __host__ __device__ Key erased_key_sentinel() const noexcept
     {
       return erased_key_sentinel_;
     }
@@ -720,7 +720,7 @@ class static_map {
    * // Inserts a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
    * thrust::for_each(thrust::make_counting_iterator(0),
    *                  thrust::make_counting_iterator(50'000),
-   *                  [map = m.get_mutable_device_view()]
+   *                  [map = m.mutable_device_view()]
    *                  __device__ (auto i) mutable {
    *                     map.insert(thrust::make_pair(i,i));
    *                  });
@@ -968,11 +968,11 @@ class static_map {
      * @param mutable_map object of type `device_mutable_view`
      */
     __host__ __device__ explicit device_view(device_mutable_view mutable_map)
-      : device_view_base{mutable_map.get_slots(),
-                         mutable_map.get_capacity(),
-                         mutable_map.get_empty_key_sentinel(),
-                         mutable_map.get_empty_value_sentinel(),
-                         mutable_map.get_erased_key_sentinel()}
+      : device_view_base{mutable_map.slots(),
+                         mutable_map.capacity(),
+                         mutable_map.empty_key_sentinel(),
+                         mutable_map.empty_value_sentinel(),
+                         mutable_map.erased_key_sentinel()}
     {
     }
 
@@ -1025,14 +1025,14 @@ class static_map {
 
       cuda::memcpy_async(g,
                          memory_to_use,
-                         source_device_view.get_slots(),
-                         sizeof(pair_atomic_type) * source_device_view.get_capacity(),
+                         source_device_view.slots(),
+                         sizeof(pair_atomic_type) * source_device_view.capacity(),
                          barrier);
 
       barrier.arrive_and_wait();
 #else
-      pair_atomic_type const* const slots_ptr = source_device_view.get_slots();
-      for (std::size_t i = g.thread_rank(); i < source_device_view.get_capacity(); i += g.size()) {
+      pair_atomic_type const* const slots_ptr = source_device_view.slots();
+      for (std::size_t i = g.thread_rank(); i < source_device_view.capacity(); i += g.size()) {
         new (&memory_to_use[i].first)
           atomic_key_type{slots_ptr[i].first.load(cuda::memory_order_relaxed)};
         new (&memory_to_use[i].second)
@@ -1043,10 +1043,10 @@ class static_map {
 
       return device_view(
         memory_to_use,
-        source_device_view.get_capacity(),
-        sentinel::empty_key<Key>{source_device_view.get_empty_key_sentinel()},
-        sentinel::empty_value<Value>{source_device_view.get_empty_value_sentinel()},
-        sentinel::erased_key<Key>{source_device_view.get_erased_key_sentinel()});
+        source_device_view.capacity(),
+        sentinel::empty_key<Key>{source_device_view.empty_key_sentinel()},
+        sentinel::empty_value<Value>{source_device_view.empty_value_sentinel()},
+        sentinel::erased_key<Key>{source_device_view.erased_key_sentinel()});
     }
 
     /**
@@ -1197,49 +1197,49 @@ class static_map {
    *
    * @return The maximum number of elements the hash map can hold
    */
-  std::size_t get_capacity() const noexcept { return capacity_; }
+  std::size_t capacity() const noexcept { return capacity_; }
 
   /**
    * @brief Gets the number of elements in the hash map.
    *
    * @return The number of elements in the map
    */
-  std::size_t get_size() const noexcept { return size_; }
+  std::size_t size() const noexcept { return size_; }
 
   /**
    * @brief Gets the load factor of the hash map.
    *
    * @return The load factor of the hash map
    */
-  float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; }
+  float load_factor() const noexcept { return static_cast<float>(size_) / capacity_; }
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+  Key empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
   /**
    * @brief Gets the sentinel value used to represent an empty value slot.
    *
    * @return The sentinel value used to represent an empty value slot
    */
-  Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
+  Value empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
 
   /**
    * @brief Gets the sentinel value used to represent an erased value slot.
    *
    * @return The sentinel value used to represent an erased value slot
    */
-  Key get_erased_key_sentinel() const noexcept { return erased_key_sentinel_; }
+  Key erased_key_sentinel() const noexcept { return erased_key_sentinel_; }
 
   /**
    * @brief Constructs a device_view object based on the members of the `static_map` object.
    *
    * @return A device_view object based on the members of the `static_map` object
    */
-  device_view get_device_view() const noexcept
+  device_view device_view() const noexcept
   {
     return device_view(slots_,
                        capacity_,
@@ -1253,7 +1253,7 @@ class static_map {
    *
    * @return A device_mutable_view object based on the members of the `static_map` object
    */
-  device_mutable_view get_device_mutable_view() const noexcept
+  device_mutable_view device_mutable_view() const noexcept
   {
     return device_mutable_view(slots_,
                                capacity_,

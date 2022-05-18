@@ -20178,7 +20178,7 @@ constexpr std::size_t compute_prime(std::size_t num) noexcept
  * @return A valid capacity no smaller than the requested `capacity`
  */
 template <uint32_t cg_size, uint32_t vector_width, bool uses_vector_load>
-constexpr std::size_t get_valid_capacity(std::size_t capacity) noexcept
+constexpr std::size_t valid_capacity(std::size_t capacity) noexcept
 {
   auto const stride = [&]() {
     if constexpr (uses_vector_load) { return cg_size * vector_width; }

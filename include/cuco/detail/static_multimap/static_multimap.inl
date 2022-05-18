@@ -45,7 +45,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
   Value empty_value_sentinel,
   cudaStream_t stream,
   Allocator const& alloc)
-  : capacity_{cuco::detail::get_valid_capacity<cg_size(), vector_width(), uses_vector_load()>(
+  : capacity_{cuco::detail::valid_capacity<cg_size(), vector_width(), uses_vector_load()>(
       capacity)},
     empty_key_sentinel_{empty_key_sentinel},
     empty_value_sentinel_{empty_value_sentinel},
@@ -58,10 +58,10 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
 {
   auto constexpr block_size = 128;
   auto constexpr stride     = 4;
-  auto const grid_size      = (get_capacity() + stride * block_size - 1) / (stride * block_size);
+  auto const grid_size      = (capacity() + stride * block_size - 1) / (stride * block_size);
 
   detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream>>>(
-    slots_.get(), empty_key_sentinel, empty_value_sentinel, get_capacity());
+    slots_.get(), empty_key_sentinel, empty_value_sentinel, capacity());
 }
 
 template <typename Key,
@@ -80,7 +80,7 @@ void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::insert(InputI
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view            = get_device_mutable_view();
+  auto view            = device_mutable_view();
 
   detail::insert<block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view);
@@ -102,7 +102,7 @@ void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::insert_if(
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view            = get_device_mutable_view();
+  auto view            = device_mutable_view();
 
   detail::insert_if_n<block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, stencil, num_keys, view, pred);
@@ -124,7 +124,7 @@ void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::contains(
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view            = get_device_view();
+  auto view            = device_view();
 
   detail::contains<block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, key_equal);
@@ -147,7 +147,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::count(
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
 
-  auto view            = get_device_view();
+  auto view            = device_view();
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
@@ -178,7 +178,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::count_
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
 
-  auto view            = get_device_view();
+  auto view            = device_view();
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
@@ -209,7 +209,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_c
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
 
-  auto view            = get_device_view();
+  auto view            = device_view();
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
@@ -240,7 +240,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_c
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
 
-  auto view            = get_device_view();
+  auto view            = device_view();
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
@@ -272,13 +272,13 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve(
   constexpr auto block_size  = 128;
   constexpr auto is_outer    = false;
 
-  auto view                   = get_device_view();
+  auto view                   = device_view();
   auto const flushing_cg_size = [&]() {
     if constexpr (uses_vector_load()) { return warp_size(); }
     return cg_size();
   }();
 
-  auto const grid_size = detail::get_grid_size(detail::retrieve<block_size,
+  auto const grid_size = detail::grid_size(detail::retrieve<block_size,
                                                                 flushing_cg_size,
                                                                 cg_size(),
                                                                 buffer_size,
@@ -322,13 +322,13 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve_
   constexpr auto block_size  = 128;
   constexpr auto is_outer    = true;
 
-  auto view                   = get_device_view();
+  auto view                   = device_view();
   auto const flushing_cg_size = [&]() {
     if constexpr (uses_vector_load()) { return warp_size(); }
     return cg_size();
   }();
 
-  auto const grid_size = detail::get_grid_size(detail::retrieve<block_size,
+  auto const grid_size = detail::grid_size(detail::retrieve<block_size,
                                                                 flushing_cg_size,
                                                                 cg_size(),
                                                                 buffer_size,
@@ -379,7 +379,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve(
   constexpr auto is_outer    = false;
   constexpr auto stride      = 1;
 
-  auto view                   = get_device_view();
+  auto view                   = device_view();
   auto const flushing_cg_size = [&]() {
     if constexpr (uses_vector_load()) { return warp_size(); }
     return cg_size();
@@ -424,7 +424,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve_oute
   constexpr auto is_outer    = true;
   constexpr auto stride      = 1;
 
-  auto view                   = get_device_view();
+  auto view                   = device_view();
   auto const flushing_cg_size = [&]() {
     if constexpr (uses_vector_load()) { return warp_size(); }
     return cg_size();
@@ -475,14 +475,14 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::make_
 
   cuda::memcpy_async(g,
                      memory_to_use,
-                     source_device_view.get_slots(),
-                     sizeof(pair_atomic_type) * source_device_view.get_capacity(),
+                     source_device_view.slots(),
+                     sizeof(pair_atomic_type) * source_device_view.capacity(),
                      barrier);
 
   barrier.arrive_and_wait();
 #else
-  pair_atomic_type const* const slots_ptr = source_device_view.get_slots();
-  for (std::size_t i = g.thread_rank(); i < source_device_view.get_capacity(); i += g.size()) {
+  pair_atomic_type const* const slots_ptr = source_device_view.slots();
+  for (std::size_t i = g.thread_rank(); i < source_device_view.capacity(); i += g.size()) {
     new (&memory_to_use[i].first)
       atomic_key_type{slots_ptr[i].first.load(cuda::memory_order_relaxed)};
     new (&memory_to_use[i].second)
@@ -492,9 +492,9 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::make_
 #endif
 
   return device_view(memory_to_use,
-                     source_device_view.get_capacity(),
-                     source_device_view.get_empty_key_sentinel(),
-                     source_device_view.get_empty_value_sentinel());
+                     source_device_view.capacity(),
+                     source_device_view.empty_key_sentinel(),
+                     source_device_view.empty_value_sentinel());
 }
 
 template <typename Key,
@@ -859,7 +859,7 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::get_size(
+std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::size(
   cudaStream_t stream) const noexcept
 {
   auto begin = thrust::make_transform_iterator(
@@ -874,10 +874,10 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-float static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::get_load_factor(
+float static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::load_factor(
   cudaStream_t stream) const noexcept
 {
-  auto size = get_size(stream);
+  auto size = size(stream);
   return static_cast<float>(size) / static_cast<float>(capacity_);
 }
 

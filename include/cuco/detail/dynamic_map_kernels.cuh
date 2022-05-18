@@ -218,7 +218,7 @@ __global__ void find(InputIt first,
                      KeyEqual key_equal)
 {
   auto tid                  = blockDim.x * blockIdx.x + threadIdx.x;
-  auto empty_value_sentinel = submap_views[0].get_empty_value_sentinel();
+  auto empty_value_sentinel = submap_views[0].empty_value_sentinel();
   __shared__ Value writeBuffer[block_size];
 
   while (first + tid < last) {
@@ -294,7 +294,7 @@ __global__ void find(InputIt first,
   auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid                  = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx              = tid / tile_size;
-  auto empty_value_sentinel = submap_views[0].get_empty_value_sentinel();
+  auto empty_value_sentinel = submap_views[0].empty_value_sentinel();
   __shared__ Value writeBuffer[block_size];
 
   while (first + key_idx < last) {

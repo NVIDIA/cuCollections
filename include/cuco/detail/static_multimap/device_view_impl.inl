@@ -145,7 +145,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  __host__ __device__ __forceinline__ Key get_empty_key_sentinel() const noexcept
+  __host__ __device__ __forceinline__ Key  empty_key_sentinel() const noexcept
   {
     return empty_key_sentinel_;
   }
@@ -155,7 +155,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @return The sentinel value used to represent an empty value slot
    */
-  __host__ __device__ __forceinline__ Value get_empty_value_sentinel() const noexcept
+  __host__ __device__ __forceinline__ Value  empty_value_sentinel() const noexcept
   {
     return empty_value_sentinel_;
   }
@@ -165,9 +165,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @return Slots array
    */
-  __device__ __forceinline__ pair_atomic_type* get_slots() noexcept
+  __device__ __forceinline__ pair_atomic_type*  slots() noexcept
   {
-    return probe_sequence_.get_slots();
+    return probe_sequence_.slots();
   }
 
   /**
@@ -175,9 +175,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @return Slots array
    */
-  __device__ __forceinline__ pair_atomic_type const* get_slots() const noexcept
+  __device__ __forceinline__ pair_atomic_type const*  slots() const noexcept
   {
-    return probe_sequence_.get_slots();
+    return probe_sequence_.slots();
   }
 
   /**
@@ -185,9 +185,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @return The maximum number of elements the hash map can hold
    */
-  __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
+  __host__ __device__ __forceinline__ std::size_t  capacity() const noexcept
   {
-    return probe_sequence_.get_capacity();
+    return probe_sequence_.capacity();
   }
 
  private:
@@ -232,8 +232,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
   __device__ __forceinline__ insert_result packed_cas(iterator current_slot,
                                                       value_type const& insert_pair) noexcept
   {
-    auto expected_key   = this->get_empty_key_sentinel();
-    auto expected_value = this->get_empty_value_sentinel();
+    auto expected_key   = this->empty_key_sentinel();
+    auto expected_value = this->empty_value_sentinel();
 
     cuco::detail::pair_converter<value_type> expected_pair{
       cuco::make_pair(expected_key, expected_value)};
@@ -262,8 +262,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
   {
     using cuda::std::memory_order_relaxed;
 
-    auto expected_key   = this->get_empty_key_sentinel();
-    auto expected_value = this->get_empty_value_sentinel();
+    auto expected_key   = this->empty_key_sentinel();
+    auto expected_value = this->empty_value_sentinel();
 
     // Back-to-back CAS for 8B/8B key/value pairs
     auto& slot_key   = current_slot->first;
@@ -277,13 +277,13 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
     if (key_success) {
       while (not value_success) {
         value_success =
-          slot_value.compare_exchange_strong(expected_value = this->get_empty_value_sentinel(),
+          slot_value.compare_exchange_strong(expected_value = this->empty_value_sentinel(),
                                              insert_pair.second,
                                              memory_order_relaxed);
       }
       return insert_result::SUCCESS;
     } else if (value_success) {
-      slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
+      slot_value.store(this->empty_value_sentinel(), memory_order_relaxed);
     }
 
     return insert_result::CONTINUE;
@@ -301,7 +301,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
   cas_dependent_write(iterator current_slot, value_type const& insert_pair) noexcept
   {
     using cuda::std::memory_order_relaxed;
-    auto expected_key = this->get_empty_key_sentinel();
+    auto expected_key = this->empty_key_sentinel();
 
     auto& slot_key = current_slot->first;
 
@@ -348,9 +348,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
       // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
       // the sentinel is not a valid key value. Therefore, first check for the sentinel
       auto const first_slot_is_empty =
-        (detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel()));
+        (detail::bitwise_compare(arr[0].first, this->empty_key_sentinel()));
       auto const second_slot_is_empty =
-        (detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel()));
+        (detail::bitwise_compare(arr[1].first, this->empty_key_sentinel()));
       auto const window_contains_empty = g.ballot(first_slot_is_empty or second_slot_is_empty);
 
       if (window_contains_empty) {
@@ -400,7 +400,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
       // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
       // the sentinel is not a valid key value. Therefore, first check for the sentinel
       auto const slot_is_empty =
-        detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+        detail::bitwise_compare(existing_key, this->empty_key_sentinel());
       auto const window_contains_empty = g.ballot(slot_is_empty);
 
       if (window_contains_empty) {
@@ -585,9 +585,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       load_pair_array(&arr[0], current_slot);
 
       auto const first_slot_is_empty =
-        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+        detail::bitwise_compare(arr[0].first, this->empty_key_sentinel());
       auto const second_slot_is_empty =
-        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+        detail::bitwise_compare(arr[1].first, this->empty_key_sentinel());
       auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
       auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
 
@@ -635,7 +635,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
       // the sentinel is not a valid key value. Therefore, first check for the sentinel
       auto const slot_is_empty =
-        detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+        detail::bitwise_compare(existing_key, this->empty_key_sentinel());
 
       auto const equals = (not slot_is_empty and key_equal(existing_key, k));
 
@@ -678,9 +678,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       load_pair_array(&arr[0], current_slot);
 
       auto const first_slot_is_empty =
-        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+        detail::bitwise_compare(arr[0].first, this->empty_key_sentinel());
       auto const second_slot_is_empty =
-        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+        detail::bitwise_compare(arr[1].first, this->empty_key_sentinel());
       auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
       auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
 
@@ -728,7 +728,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       auto const& current_key  = slot_contents.first;
 
       auto const slot_is_empty =
-        detail::bitwise_compare(current_key, this->get_empty_key_sentinel());
+        detail::bitwise_compare(current_key, this->empty_key_sentinel());
       auto const equals = not slot_is_empty and key_equal(current_key, k);
 
       if constexpr (is_outer) {
@@ -777,9 +777,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       load_pair_array(&arr[0], current_slot);
 
       auto const first_slot_is_empty =
-        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+        detail::bitwise_compare(arr[0].first, this->empty_key_sentinel());
       auto const second_slot_is_empty =
-        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+        detail::bitwise_compare(arr[1].first, this->empty_key_sentinel());
 
       auto const first_slot_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
       auto const second_slot_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
@@ -829,7 +829,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       auto slot_contents = *reinterpret_cast<value_type const*>(current_slot);
 
       auto const slot_is_empty =
-        detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
+        detail::bitwise_compare(slot_contents.first, this->empty_key_sentinel());
 
       auto const equals = not slot_is_empty and pair_equal(slot_contents, pair);
 
@@ -905,9 +905,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         load_pair_array(&arr[0], current_slot);
 
         auto const first_slot_is_empty =
-          detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+          detail::bitwise_compare(arr[0].first, this->empty_key_sentinel());
         auto const second_slot_is_empty =
-          detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+          detail::bitwise_compare(arr[1].first, this->empty_key_sentinel());
         auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
         auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
         auto const first_exists  = probing_cg.ballot(first_equals);
@@ -941,7 +941,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
           if constexpr (is_outer) {
             if ((not found_match) && (cg_lane_id == 0)) {
               auto const output_idx     = atomicAdd(flushing_cg_counter, 1);
-              output_buffer[output_idx] = cuco::make_pair(k, this->get_empty_value_sentinel());
+              output_buffer[output_idx] = cuco::make_pair(k, this->empty_value_sentinel());
             }
           }
         }
@@ -1012,7 +1012,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
 
       auto const slot_is_empty =
-        detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
+        detail::bitwise_compare(slot_contents.first, this->empty_key_sentinel());
       auto const equals = (not slot_is_empty and key_equal(slot_contents.first, k));
       auto const exists = g.ballot(equals);
 
@@ -1033,7 +1033,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         if constexpr (is_outer) {
           if ((not found_match) && (lane_id == 0)) {
             output_idx                = (*cg_counter)++;
-            output_buffer[output_idx] = cuco::make_pair(k, this->get_empty_value_sentinel());
+            output_buffer[output_idx] = cuco::make_pair(k, this->empty_value_sentinel());
           }
         }
       }
@@ -1112,9 +1112,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       load_pair_array(&arr[0], current_slot);
 
       auto const first_slot_is_empty =
-        detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+        detail::bitwise_compare(arr[0].first, this->empty_key_sentinel());
       auto const second_slot_is_empty =
-        detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+        detail::bitwise_compare(arr[1].first, this->empty_key_sentinel());
       auto const first_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
       auto const second_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
       auto const first_exists  = probing_cg.ballot(first_equals);
@@ -1150,8 +1150,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
           if ((not found_match) and lane_id == 0) {
             *(probe_key_begin)     = pair.first;
             *(probe_val_begin)     = pair.second;
-            *(contained_key_begin) = this->get_empty_key_sentinel();
-            *(contained_val_begin) = this->get_empty_value_sentinel();
+            *(contained_key_begin) = this->empty_key_sentinel();
+            *(contained_val_begin) = this->empty_value_sentinel();
           }
         }
         return;  // exit if any slot in the current window is empty
@@ -1226,7 +1226,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
 
       auto const slot_is_empty =
-        detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
+        detail::bitwise_compare(slot_contents.first, this->empty_key_sentinel());
       auto const equals = (not slot_is_empty and pair_equal(slot_contents, pair));
       auto const exists = probing_cg.ballot(equals);
 
@@ -1249,8 +1249,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
           if ((not found_match) and lane_id == 0) {
             *(probe_key_begin)     = pair.first;
             *(probe_val_begin)     = pair.second;
-            *(contained_key_begin) = this->get_empty_key_sentinel();
-            *(contained_val_begin) = this->get_empty_value_sentinel();
+            *(contained_key_begin) = this->empty_key_sentinel();
+            *(contained_val_begin) = this->empty_value_sentinel();
           }
         }
         return;  // exit if any slot in the current window is empty
@@ -1325,9 +1325,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         load_pair_array(&arr[0], current_slot);
 
         auto const first_slot_is_empty =
-          detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
+          detail::bitwise_compare(arr[0].first, this->empty_key_sentinel());
         auto const second_slot_is_empty =
-          detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
+          detail::bitwise_compare(arr[1].first, this->empty_key_sentinel());
         auto const first_equals  = (not first_slot_is_empty and pair_equal(arr[0], pair));
         auto const second_equals = (not second_slot_is_empty and pair_equal(arr[1], pair));
         auto const first_exists  = probing_cg.ballot(first_equals);
@@ -1364,7 +1364,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
               auto const output_idx           = atomicAdd(flushing_cg_counter, 1);
               probe_output_buffer[output_idx] = pair;
               contained_output_buffer[output_idx] =
-                cuco::make_pair(this->get_empty_key_sentinel(), this->get_empty_value_sentinel());
+                cuco::make_pair(this->empty_key_sentinel(), this->empty_value_sentinel());
             }
           }
         }
@@ -1450,7 +1450,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
 
       auto const slot_is_empty =
-        detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
+        detail::bitwise_compare(slot_contents.first, this->empty_key_sentinel());
       auto const equals = (not slot_is_empty and pair_equal(slot_contents, pair));
       auto const exists = g.ballot(equals);
 
@@ -1474,7 +1474,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             output_idx                      = (*cg_counter)++;
             probe_output_buffer[output_idx] = pair;
             contained_output_buffer[output_idx] =
-              cuco::make_pair(this->get_empty_key_sentinel(), this->get_empty_value_sentinel());
+              cuco::make_pair(this->empty_key_sentinel(), this->empty_value_sentinel());
           }
         }
       }

@@ -337,7 +337,7 @@ __global__ void find(
      * L2 to global and improving performance.
      */
     writeBuffer[threadIdx.x] = found == view.end()
-                                 ? view.get_empty_value_sentinel()
+                                 ? view.empty_value_sentinel()
                                  : found->second.load(cuda::std::memory_order_relaxed);
     __syncthreads();
     *(output_begin + key_idx) = writeBuffer[threadIdx.x];
@@ -400,7 +400,7 @@ __global__ void find(
      */
     if (tile.thread_rank() == 0) {
       writeBuffer[threadIdx.x / tile_size] =
-        found == view.end() ? view.get_empty_value_sentinel()
+        found == view.end() ? view.empty_value_sentinel()
                             : found->second.load(cuda::std::memory_order_relaxed);
     }
     __syncthreads();

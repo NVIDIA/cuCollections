@@ -34,8 +34,8 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
     sentinel::empty_key<Key>{empty_key_sentinel},
     sentinel::empty_value<Value>{empty_value_sentinel},
     alloc));
-  submap_views_.push_back(submaps_[0]->get_device_view());
-  submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
+  submap_views_.push_back(submaps_[0]->device_view());
+  submap_mutable_views_.push_back(submaps_[0]->device_mutable_view());
 
   CUCO_CUDA_TRY(cudaMallocManaged(&num_successes_, sizeof(atomic_ctr_type)));
 }  // namespace cuco
@@ -56,7 +56,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n)
 
     // if the submap already exists
     if (submap_idx < submaps_.size()) {
-      submap_capacity = submaps_[submap_idx]->get_capacity();
+      submap_capacity = submaps_[submap_idx]->capacity();
     }
     // if the submap does not exist yet, create it
     else {
@@ -66,8 +66,8 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n)
         sentinel::empty_key<Key>{empty_key_sentinel_},
         sentinel::empty_value<Value>{empty_value_sentinel_},
         alloc_));
-      submap_views_.push_back(submaps_[submap_idx]->get_device_view());
-      submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
+      submap_views_.push_back(submaps_[submap_idx]->device_view());
+      submap_mutable_views_.push_back(submaps_[submap_idx]->device_mutable_view());
 
       capacity_ *= 2;
     }
@@ -90,7 +90,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(InputIt first,
   uint32_t submap_idx = 0;
   while (num_to_insert > 0) {
     std::size_t capacity_remaining =
-      max_load_factor_ * submaps_[submap_idx]->get_capacity() - submaps_[submap_idx]->get_size();
+      max_load_factor_ * submaps_[submap_idx]->capacity() - submaps_[submap_idx]->size();
     // If we are tying to insert some of the remaining keys into this submap, we can insert
     // only if we meet the minimum insert size.
     if (capacity_remaining >= min_insert_size_) {

@@ -119,7 +119,7 @@ namespace cuco {
  *
  * // Get a `device_view` and passes it to a kernel where threads may perform
  * // `contains/count/retrieve` lookups
- * kernel<<<...>>>(m.get_device_view());
+ * kernel<<<...>>>(m.device_view());
  * \endcode
  *
  *
@@ -585,16 +585,16 @@ class static_multimap {
      *
      * @return Slots array
      */
-    __device__ __forceinline__ pair_atomic_type* get_slots() noexcept { return impl_.get_slots(); }
+    __device__ __forceinline__ pair_atomic_type* slots() noexcept { return impl_.slots(); }
 
     /**
      * @brief Gets slots array.
      *
      * @return Slots array
      */
-    __device__ __forceinline__ pair_atomic_type const* get_slots() const noexcept
+    __device__ __forceinline__ pair_atomic_type const* slots() const noexcept
     {
-      return impl_.get_slots();
+      return impl_.slots();
     }
 
     /**
@@ -602,9 +602,9 @@ class static_multimap {
      *
      * @return The maximum number of elements the hash map can hold
      */
-    __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
+    __host__ __device__ __forceinline__ std::size_t capacity() const noexcept
     {
-      return impl_.get_capacity();
+      return impl_.capacity();
     }
 
     /**
@@ -612,9 +612,9 @@ class static_multimap {
      *
      * @return The sentinel value used to represent an empty key slot
      */
-    __host__ __device__ __forceinline__ Key get_empty_key_sentinel() const noexcept
+    __host__ __device__ __forceinline__ Key empty_key_sentinel() const noexcept
     {
-      return impl_.get_empty_key_sentinel();
+      return impl_.empty_key_sentinel();
     }
 
     /**
@@ -622,9 +622,9 @@ class static_multimap {
      *
      * @return The sentinel value used to represent an empty value slot
      */
-    __host__ __device__ __forceinline__ Value get_empty_value_sentinel() const noexcept
+    __host__ __device__ __forceinline__ Value empty_value_sentinel() const noexcept
     {
-      return impl_.get_empty_value_sentinel();
+      return impl_.empty_value_sentinel();
     }
 
    protected:
@@ -646,7 +646,7 @@ class static_multimap {
    * // Inserts a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
    * thrust::for_each(thrust::make_counting_iterator(0),
    *                  thrust::make_counting_iterator(50'000),
-   *                  [map = m.get_device_mutable_view()]
+   *                  [map = m.device_mutable_view()]
    *                  __device__ (auto i) mutable {
    *                     map.insert(thrust::make_pair(i,i));
    *                  });
@@ -1194,7 +1194,7 @@ class static_multimap {
    *
    * @return The maximum number of elements the hash map can hold
    */
-  std::size_t get_capacity() const noexcept { return capacity_; }
+  std::size_t capacity() const noexcept { return capacity_; }
 
   /**
    * @brief Gets the number of elements in the hash map.
@@ -1202,7 +1202,7 @@ class static_multimap {
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the map
    */
-  std::size_t get_size(cudaStream_t stream = 0) const noexcept;
+  std::size_t size(cudaStream_t stream = 0) const noexcept;
 
   /**
    * @brief Gets the load factor of the hash map.
@@ -1210,21 +1210,21 @@ class static_multimap {
    * @param stream CUDA stream used to get the load factor
    * @return The load factor of the hash map
    */
-  float get_load_factor(cudaStream_t stream = 0) const noexcept;
+  float load_factor(cudaStream_t stream = 0) const noexcept;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  Key get_empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+  Key empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
   /**
    * @brief Gets the sentinel value used to represent an empty value slot.
    *
    * @return The sentinel value used to represent an empty value slot
    */
-  Value get_empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
+  Value empty_value_sentinel() const noexcept { return empty_value_sentinel_; }
 
   /**
    * @brief Constructs a device_view object based on the members of the `static_multimap`
@@ -1232,7 +1232,7 @@ class static_multimap {
    *
    * @return A device_view object based on the members of the `static_multimap` object
    */
-  device_view get_device_view() const noexcept
+  device_view device_view() const noexcept
   {
     return device_view(slots_.get(), capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }
@@ -1243,7 +1243,7 @@ class static_multimap {
    *
    * @return A device_mutable_view object based on the members of the `static_multimap` object
    */
-  device_mutable_view get_device_mutable_view() const noexcept
+  device_mutable_view device_mutable_view() const noexcept
   {
     return device_mutable_view(slots_.get(), capacity_, empty_key_sentinel_, empty_value_sentinel_);
   }

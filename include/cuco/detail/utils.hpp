@@ -37,7 +37,7 @@ static constexpr std::size_t type_bits() noexcept
 #endif
 
 template <typename Kernel>
-auto get_grid_size(Kernel kernel, std::size_t block_size, std::size_t dynamic_smem_bytes = 0)
+auto grid_size(Kernel kernel, std::size_t block_size, std::size_t dynamic_smem_bytes = 0)
 {
   int grid_size{-1};
   cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size, kernel, block_size, dynamic_smem_bytes);

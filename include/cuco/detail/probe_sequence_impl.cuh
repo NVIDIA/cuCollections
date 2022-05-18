@@ -112,7 +112,7 @@ class probe_sequence_impl_base {
   /**
    * @brief Returns the capacity of the hash map.
    */
-  __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
+  __host__ __device__ __forceinline__ std::size_t capacity() const noexcept
   {
     return capacity_;
   }
@@ -120,12 +120,12 @@ class probe_sequence_impl_base {
   /**
    * @brief Returns slots array.
    */
-  __device__ __forceinline__ iterator get_slots() noexcept { return slots_; }
+  __device__ __forceinline__ iterator slots() noexcept { return slots_; }
 
   /**
    * @brief Returns slots array.
    */
-  __device__ __forceinline__ const_iterator get_slots() const noexcept { return slots_; }
+  __device__ __forceinline__ const_iterator slots() const noexcept { return slots_; }
 
  protected:
   iterator slots_;              ///< Pointer to beginning of the hash map slots

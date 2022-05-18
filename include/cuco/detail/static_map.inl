@@ -97,7 +97,7 @@ void static_map<Key, Value, Scope, Allocator>::insert(
   auto const stride     = 1;
   auto const tile_size  = 4;
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_mutable_view();
+  auto view             = device_mutable_view();
 
   // TODO: memset an atomic variable is unsafe
   static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
@@ -135,7 +135,7 @@ void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
   auto constexpr stride     = 1;
   auto constexpr tile_size  = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view            = get_device_mutable_view();
+  auto view            = device_mutable_view();
 
   // TODO: memset an atomic variable is unsafe
   static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
@@ -156,7 +156,7 @@ template <typename InputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::erase(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
-  CUCO_RUNTIME_EXPECTS(get_empty_key_sentinel() != get_erased_key_sentinel(),
+  CUCO_RUNTIME_EXPECTS(empty_key_sentinel() != erased_key_sentinel(),
                        "You must provide a unique erased key sentinel value at map construction.");
 
   auto num_keys = std::distance(first, last);
@@ -166,7 +166,7 @@ void static_map<Key, Value, Scope, Allocator>::erase(
   auto constexpr stride     = 1;
   auto constexpr tile_size  = 4;
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view            = get_device_mutable_view();
+  auto view            = device_mutable_view();
 
   // TODO: memset an atomic variable is unsafe
   static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
@@ -199,7 +199,7 @@ void static_map<Key, Value, Scope, Allocator>::find(InputIt first,
   auto const stride     = 1;
   auto const tile_size  = 4;
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_view();
+  auto view             = device_view();
 
   detail::find<block_size, tile_size, Value>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
@@ -214,8 +214,8 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
   auto slots_begin = reinterpret_cast<value_type*>(slots_);
 
   auto begin  = thrust::make_transform_iterator(slots_begin, detail::slot_to_tuple<Key, Value>{});
-  auto end    = begin + get_capacity();
-  auto filled = detail::slot_is_filled<Key>{get_empty_key_sentinel()};
+  auto end    = begin + capacity();
+  auto filled = detail::slot_is_filled<Key>{empty_key_sentinel()};
   auto zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
 
   auto const zipped_out_end =
@@ -240,7 +240,7 @@ void static_map<Key, Value, Scope, Allocator>::contains(InputIt first,
   auto const stride     = 1;
   auto const tile_size  = 4;
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_view();
+  auto view             = device_view();
 
   detail::contains<block_size, tile_size>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
@@ -255,7 +255,7 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::packed_cas(
   KeyEqual key_equal,
   Key expected_key) noexcept
 {
-  auto expected_value = this->get_empty_value_sentinel();
+  auto expected_value = this->empty_value_sentinel();
 
   cuco::detail::pair_converter<value_type> expected_pair{
     cuco::make_pair(expected_key, expected_value)};
@@ -289,7 +289,7 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::back_to_back_cas(
 {
   using cuda::std::memory_order_relaxed;
 
-  auto expected_value = this->get_empty_value_sentinel();
+  auto expected_value = this->empty_value_sentinel();
 
   // Back-to-back CAS for 8B/8B key/value pairs
   auto& slot_key   = current_slot->first;
@@ -303,13 +303,13 @@ static_map<Key, Value, Scope, Allocator>::device_mutable_view::back_to_back_cas(
   if (key_success) {
     while (not value_success) {
       value_success =
-        slot_value.compare_exchange_strong(expected_value = this->get_empty_value_sentinel(),
+        slot_value.compare_exchange_strong(expected_value = this->empty_value_sentinel(),
                                            insert_pair.second,
                                            memory_order_relaxed);
     }
     return insert_result::SUCCESS;
   } else if (value_success) {
-    slot_value.store(this->get_empty_value_sentinel(), memory_order_relaxed);
+    slot_value.store(this->empty_value_sentinel(), memory_order_relaxed);
   }
 
   // our key was already present in the slot, so our key is a duplicate
@@ -358,8 +358,8 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_available =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel()) or
-      detail::bitwise_compare(existing_key, this->get_erased_key_sentinel());
+      detail::bitwise_compare(existing_key, this->empty_key_sentinel()) or
+      detail::bitwise_compare(existing_key, this->erased_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
     if (not slot_is_available and key_equal(existing_key, insert_pair.first)) { return false; }
@@ -405,8 +405,8 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_available =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel()) or
-      detail::bitwise_compare(existing_key, this->get_erased_key_sentinel());
+      detail::bitwise_compare(existing_key, this->empty_key_sentinel()) or
+      detail::bitwise_compare(existing_key, this->erased_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
     if (g.any(not slot_is_available and key_equal(existing_key, insert_pair.first))) {
@@ -464,7 +464,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
   auto current_slot{initial_slot(k, hash)};
 
   value_type const insert_pair =
-    make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
+    make_pair<Key, Value>(this->erased_key_sentinel(), this->empty_value_sentinel());
 
   while (true) {
     static_assert(sizeof(Key) == sizeof(atomic_key_type));
@@ -475,7 +475,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     auto existing_value      = slot_contents.second;
 
     // Key doesn't exist, return false
-    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) { return false; }
+    if (detail::bitwise_compare(existing_key, this->empty_key_sentinel())) { return false; }
 
     // Key exists, return true if successfully deleted
     if (key_equal(existing_key, k)) {
@@ -509,7 +509,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
 {
   auto current_slot = initial_slot(g, k, hash);
   value_type const insert_pair =
-    make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
+    make_pair<Key, Value>(this->erased_key_sentinel(), this->empty_value_sentinel());
 
   while (true) {
     static_assert(sizeof(Key) == sizeof(atomic_key_type));
@@ -520,7 +520,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     auto existing_value      = slot_contents.second;
 
     auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+      detail::bitwise_compare(existing_key, this->empty_key_sentinel());
 
     auto const exists = g.ballot(not slot_is_empty and key_equal(existing_key, k));
 
@@ -572,7 +572,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     // Key doesn't exist, return end()
-    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
+    if (detail::bitwise_compare(existing_key, this->empty_key_sentinel())) {
       return this->end();
     }
 
@@ -595,7 +595,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     // Key doesn't exist, return end()
-    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
+    if (detail::bitwise_compare(existing_key, this->empty_key_sentinel())) {
       return this->end();
     }
 
@@ -622,7 +622,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
     // the sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+      detail::bitwise_compare(existing_key, this->empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads,
     // so we return an iterator to the entry
@@ -660,7 +660,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
     // the sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+      detail::bitwise_compare(existing_key, this->empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
     // the entry
@@ -715,7 +715,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
     // the sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+      detail::bitwise_compare(existing_key, this->empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
     // the entry
