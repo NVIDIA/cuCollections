@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
-#include "cuco/static_map.cuh"
+#include <cuco/static_map.cuh>
+
+#include <thrust/device_vector.h>
+#include <thrust/for_each.h>
+
 #include <benchmark/benchmark.h>
+
 #include <fstream>
 #include <iostream>
 #include <random>
-#include <thrust/device_vector.h>
-#include <thrust/for_each.h>
 
 enum class dist_type { UNIQUE, UNIFORM, GAUSSIAN };
 
@@ -145,6 +148,9 @@ static void BM_static_map_search_all(::benchmark::State& state)
 
   for (auto _ : state) {
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
+    // TODO: get rid of sync and rewrite the benchmark with `nvbench`
+    // once https://github.com/NVIDIA/nvbench/pull/80 is merged
+    cudaDeviceSynchronize();
   }
 
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
@@ -202,11 +208,55 @@ BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIQUE)
   ->Apply(generate_size_and_occupancy)
   ->UseManualTime();
 
-BENCHMARK_TEMPLATE(BM_static_map_erase_all, int32_t, int32_t, dist_type::UNIQUE)
+BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy);
 
-BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIQUE)
+BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::UNIFORM)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy)
   ->UseManualTime();
+
+BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::UNIFORM)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_static_map_insert, int32_t, int32_t, dist_type::GAUSSIAN)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
+
+BENCHMARK_TEMPLATE(BM_static_map_search_all, int32_t, int32_t, dist_type::GAUSSIAN)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
+
+BENCHMARK_TEMPLATE(BM_static_map_search_all, int64_t, int64_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::UNIFORM)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
+
+BENCHMARK_TEMPLATE(BM_static_map_search_all, int64_t, int64_t, dist_type::UNIFORM)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::GAUSSIAN)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy)
+  ->UseManualTime();
+
+BENCHMARK_TEMPLATE(BM_static_map_search_all, int64_t, int64_t, dist_type::GAUSSIAN)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
+
+BENCHMARK_TEMPLATE(BM_static_map_erase_all, int32_t, int32_t, dist_type::UNIQUE)
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_occupancy);
