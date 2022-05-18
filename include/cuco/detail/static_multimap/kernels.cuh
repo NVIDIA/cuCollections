@@ -18,7 +18,7 @@
 
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
-#include <cub/cub.cuh>
+#include <cub/block/block_reduce.cuh>
 
 #include <cuda/std/atomic>
 

@@ -20,6 +20,7 @@
 #include <thrust/pair.h>
 #include <thrust/tuple.h>
 
+#include <algorithm>
 #include <tuple>
 #include <type_traits>
 

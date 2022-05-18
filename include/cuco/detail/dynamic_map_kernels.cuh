@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <cub/cub.cuh>
+#include <cub/block/block_reduce.cuh>
 
 #include <cuda/std/atomic>
 

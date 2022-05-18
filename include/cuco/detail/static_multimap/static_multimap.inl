@@ -20,6 +20,8 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/tuple.h>
 
+#include <iterator>
+
 namespace {
 /**
  * @brief Device functor used to determine if a slot is filled.
