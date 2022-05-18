@@ -112,10 +112,7 @@ class probe_sequence_impl_base {
   /**
    * @brief Returns the capacity of the hash map.
    */
-  __host__ __device__ __forceinline__ std::size_t capacity() const noexcept
-  {
-    return capacity_;
-  }
+  __host__ __device__ __forceinline__ std::size_t capacity() const noexcept { return capacity_; }
 
   /**
    * @brief Returns slots array.

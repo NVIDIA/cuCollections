@@ -145,7 +145,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  __host__ __device__ __forceinline__ Key  empty_key_sentinel() const noexcept
+  __host__ __device__ __forceinline__ Key empty_key_sentinel() const noexcept
   {
     return empty_key_sentinel_;
   }
@@ -155,7 +155,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @return The sentinel value used to represent an empty value slot
    */
-  __host__ __device__ __forceinline__ Value  empty_value_sentinel() const noexcept
+  __host__ __device__ __forceinline__ Value empty_value_sentinel() const noexcept
   {
     return empty_value_sentinel_;
   }
@@ -165,17 +165,14 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @return Slots array
    */
-  __device__ __forceinline__ pair_atomic_type*  slots() noexcept
-  {
-    return probe_sequence_.slots();
-  }
+  __device__ __forceinline__ pair_atomic_type* slots() noexcept { return probe_sequence_.slots(); }
 
   /**
    * @brief Gets slots array.
    *
    * @return Slots array
    */
-  __device__ __forceinline__ pair_atomic_type const*  slots() const noexcept
+  __device__ __forceinline__ pair_atomic_type const* slots() const noexcept
   {
     return probe_sequence_.slots();
   }
@@ -185,7 +182,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @return The maximum number of elements the hash map can hold
    */
-  __host__ __device__ __forceinline__ std::size_t  capacity() const noexcept
+  __host__ __device__ __forceinline__ std::size_t capacity() const noexcept
   {
     return probe_sequence_.capacity();
   }
@@ -276,10 +273,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
 
     if (key_success) {
       while (not value_success) {
-        value_success =
-          slot_value.compare_exchange_strong(expected_value = this->empty_value_sentinel(),
-                                             insert_pair.second,
-                                             memory_order_relaxed);
+        value_success = slot_value.compare_exchange_strong(
+          expected_value = this->empty_value_sentinel(), insert_pair.second, memory_order_relaxed);
       }
       return insert_result::SUCCESS;
     } else if (value_success) {
@@ -399,8 +394,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
 
       // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
       // the sentinel is not a valid key value. Therefore, first check for the sentinel
-      auto const slot_is_empty =
-        detail::bitwise_compare(existing_key, this->empty_key_sentinel());
+      auto const slot_is_empty = detail::bitwise_compare(existing_key, this->empty_key_sentinel());
       auto const window_contains_empty = g.ballot(slot_is_empty);
 
       if (window_contains_empty) {
@@ -634,8 +628,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
 
       // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
       // the sentinel is not a valid key value. Therefore, first check for the sentinel
-      auto const slot_is_empty =
-        detail::bitwise_compare(existing_key, this->empty_key_sentinel());
+      auto const slot_is_empty = detail::bitwise_compare(existing_key, this->empty_key_sentinel());
 
       auto const equals = (not slot_is_empty and key_equal(existing_key, k));
 
@@ -727,9 +720,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
       auto const& current_key  = slot_contents.first;
 
-      auto const slot_is_empty =
-        detail::bitwise_compare(current_key, this->empty_key_sentinel());
-      auto const equals = not slot_is_empty and key_equal(current_key, k);
+      auto const slot_is_empty = detail::bitwise_compare(current_key, this->empty_key_sentinel());
+      auto const equals        = not slot_is_empty and key_equal(current_key, k);
 
       if constexpr (is_outer) {
         if (g.any(equals)) { found_match = true; }

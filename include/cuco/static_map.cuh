@@ -635,10 +635,7 @@ class static_map {
       return empty_value_sentinel_;
     }
 
-    __host__ __device__ Key erased_key_sentinel() const noexcept
-    {
-      return erased_key_sentinel_;
-    }
+    __host__ __device__ Key erased_key_sentinel() const noexcept { return erased_key_sentinel_; }
 
     /**
      * @brief Returns iterator to the first slot.
@@ -1041,12 +1038,11 @@ class static_map {
       g.sync();
 #endif
 
-      return device_view(
-        memory_to_use,
-        source_device_view.capacity(),
-        sentinel::empty_key<Key>{source_device_view.empty_key_sentinel()},
-        sentinel::empty_value<Value>{source_device_view.empty_value_sentinel()},
-        sentinel::erased_key<Key>{source_device_view.erased_key_sentinel()});
+      return device_view(memory_to_use,
+                         source_device_view.capacity(),
+                         sentinel::empty_key<Key>{source_device_view.empty_key_sentinel()},
+                         sentinel::empty_value<Value>{source_device_view.empty_value_sentinel()},
+                         sentinel::erased_key<Key>{source_device_view.erased_key_sentinel()});
     }
 
     /**
