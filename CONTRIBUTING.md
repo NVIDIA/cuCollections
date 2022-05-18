@@ -1,6 +1,6 @@
-# Contributing to ___PROJECT___
+# Contributing to _cuCollections_
 
-If you are interested in contributing to ___PROJECT___, your contributions will fall
+If you are interested in contributing to ___cuCollections___, your contributions will fall
 into three categories:
 1. You want to report a bug, feature request, or documentation issue
     - File an [issue](https://github.com/NVIDIA/cuCollections/issues/new/choose)
