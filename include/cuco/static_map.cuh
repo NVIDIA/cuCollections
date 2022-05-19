@@ -39,7 +39,7 @@
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
-#include <cuco/sentinel.hpp>
+#include <cuco/sentinel.cuh>
 
 namespace cuco {
 

@@ -21,19 +21,19 @@ namespace sentinel {
 
 template <typename T>
 struct empty_key {
-  constexpr empty_key(T v) : value{v} {}
+  __host__ __device__ constexpr empty_key(T v) : value{v} {}
   T value;
 };
 
 template <typename T>
 struct empty_value {
-  constexpr empty_value(T v) : value{v} {}
+  __host__ __device__ constexpr empty_value(T v) : value{v} {}
   T value;
 };
 
 template <typename T>
 struct erased_key {
-  constexpr erased_key(T v) : value{v} {}
+  __host__ __device__ constexpr erased_key(T v) : value{v} {}
   T value;
 };
 
