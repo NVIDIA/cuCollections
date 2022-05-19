@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-#include <limits>
-
-#include <catch2/catch.hpp>
-#include <thrust/device_vector.h>
+#include <utils.hpp>
 
 #include <cuco/static_map.cuh>
 
-#include <utils.hpp>
+#include <thrust/device_vector.h>
+
+#include <catch2/catch.hpp>
+
+#include <limits>
 
 template <typename MapType, int CAPACITY>
 __global__ void shared_memory_test_kernel(
