@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-#include <limits>
+#include <cuco/static_map.cuh>
 
 #include <thrust/device_vector.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 
-#include <cuco/static_map.cuh>
+#include <limits>
 
 int main(void)
 {

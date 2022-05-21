@@ -14,6 +14,12 @@
  * limitations under the License.
  */
 
+#include <cub/block/block_reduce.cuh>
+
+#include <cuda/std/atomic>
+
+#include <cooperative_groups.h>
+
 namespace cuco {
 namespace detail {
 namespace cg = cooperative_groups;
