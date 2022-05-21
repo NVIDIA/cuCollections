@@ -49,10 +49,10 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_retrieve(
   nvbench::state& state,
   nvbench::type_list<Key, Value, nvbench::enum_type<CGSize>, nvbench::enum_type<BufferSize>>)
 {
-  std::size_t const num_keys     = state.get_int64("NumInputs");
-  auto const occupancy           = state.get_float64("Occupancy");
+  std::size_t const num_keys     = state.int64("NumInputs");
+  auto const occupancy           = state.float64("Occupancy");
   std::size_t const size         = num_keys / occupancy;
-  std::size_t const multiplicity = state.get_int64("Multiplicity");
+  std::size_t const multiplicity = state.int64("Multiplicity");
 
   state.add_element_count(num_keys, "NumKeys");
   state.add_global_memory_writes<Key>(num_keys * 2);
@@ -85,7 +85,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_retrieve(
   thrust::device_vector<cuco::pair_type<Key, Value>> d_results(output_size);
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    map.retrieve_outer(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.get_stream());
+    map.retrieve_outer(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.stream());
   });
 }
 

@@ -30,7 +30,7 @@ __inline__ void test_insert_if(Map& map, PairIt pair_begin, KeyIt key_begin, std
 
   map.insert_if(pair_begin, pair_begin + size, key_begin, pred_lambda);
 
-  auto res = map.get_size();
+  auto res = map.size();
   REQUIRE(res * 2 == size);
 
   auto num = map.count(key_begin, key_begin + size);

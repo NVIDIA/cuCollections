@@ -51,7 +51,7 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
 
   SECTION("Non-inserted key/value pairs should not be contained.")
   {
-    auto size = map.get_size();
+    auto size = map.size();
     REQUIRE(size == 0);
 
     map.contains(key_begin, key_begin + num_keys, d_contained.begin());
@@ -63,7 +63,7 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
 
   SECTION("All inserted key/value pairs should be contained.")
   {
-    auto size = map.get_size();
+    auto size = map.size();
     REQUIRE(size == num_items);
 
     map.contains(key_begin, key_begin + num_keys, d_contained.begin());

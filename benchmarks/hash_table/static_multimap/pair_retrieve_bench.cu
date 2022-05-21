@@ -47,7 +47,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_p
   auto constexpr occupancy     = 0.5;
   auto constexpr dist          = dist_type::UNIFORM;
 
-  auto const num_input = state.get_int64("NumInputs");
+  auto const num_input = state.int64("NumInputs");
 
   std::size_t const size = num_input / occupancy;
 

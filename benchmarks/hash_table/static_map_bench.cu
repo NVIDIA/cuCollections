@@ -124,7 +124,7 @@ static void BM_static_map_search_all(::benchmark::State& state)
   std::size_t size     = num_keys / occupancy;
 
   map_type map{size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
-  auto view = map.get_device_mutable_view();
+  auto view = map.device_mutable_view();
 
   std::vector<Key> h_keys(num_keys);
   std::vector<Value> h_values(num_keys);
@@ -171,7 +171,7 @@ static void BM_static_map_erase_all(::benchmark::State& state)
                cuco::sentinel::empty_key<Key>{-1},
                cuco::sentinel::empty_value<Value>{-1},
                cuco::sentinel::erased_key<Key>{-2}};
-  auto view = map.get_device_mutable_view();
+  auto view = map.device_mutable_view();
 
   std::vector<Key> h_keys(num_keys);
   std::vector<Value> h_values(num_keys);

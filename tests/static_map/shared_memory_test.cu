@@ -106,7 +106,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
 
       MapType* map = maps[map_id].get();
       map->insert(pairs_begin + offset, pairs_begin + offset + elements_in_map);
-      h_device_views.push_back(map->get_device_view());
+      h_device_views.push_back(map->device_view());
     }
     thrust::device_vector<DeviceViewType> d_device_views(h_device_views);
 
@@ -131,7 +131,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
   {
     std::vector<DeviceViewType> h_device_views;
     for (std::size_t map_id = 0; map_id < number_of_maps; ++map_id) {
-      h_device_views.push_back(maps[map_id].get()->get_device_view());
+      h_device_views.push_back(maps[map_id].get()->device_view());
     }
     thrust::device_vector<DeviceViewType> d_device_views(h_device_views);
 

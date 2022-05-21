@@ -32,8 +32,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_i
   nvbench::state& state,
   nvbench::type_list<Key, Value, nvbench::enum_type<Dist>, nvbench::enum_type<Multiplicity>>)
 {
-  auto const num_keys  = state.get_int64("NumInputs");
-  auto const occupancy = state.get_float64("Occupancy");
+  auto const num_keys  = state.int64("NumInputs");
+  auto const occupancy = state.float64("Occupancy");
 
   std::size_t const size = num_keys / occupancy;
 
@@ -59,7 +59,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_i
 
                // Use timers to explicitly mark the target region
                timer.start();
-               map.insert(d_pairs.begin(), d_pairs.end(), launch.get_stream());
+               map.insert(d_pairs.begin(), d_pairs.end(), launch.stream());
                timer.stop();
              });
 }

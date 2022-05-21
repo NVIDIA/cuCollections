@@ -135,7 +135,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     thrust::device_vector<Value> found_values(num);
     map.insert(insert_pairs, insert_pairs + num, hash_custom_key{}, custom_key_equals{});
 
-    REQUIRE(num == map.get_size());
+    REQUIRE(num == map.size());
 
     map.find(insert_keys.begin(),
              insert_keys.end(),
@@ -175,7 +175,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
       hash_custom_key{},
       custom_key_equals{});
 
-    REQUIRE(num / 2 == map.get_size());
+    REQUIRE(num / 2 == map.size());
 
     map.contains(insert_keys.begin(),
                  insert_keys.end(),
@@ -207,7 +207,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   {
     thrust::device_vector<bool> contained(num);
     map.insert(insert_pairs, insert_pairs + num, hash_custom_key{}, custom_key_equals{});
-    auto view = map.get_device_view();
+    auto view = map.device_view();
     REQUIRE(cuco::test::all_of(
       insert_pairs, insert_pairs + num, [view] __device__(cuco::pair_type<Key, Value> const& pair) {
         return view.contains(pair.first, hash_custom_key{}, custom_key_equals{});
@@ -216,7 +216,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
   SECTION("Inserting unique keys should return insert success.")
   {
-    auto m_view = map.get_device_mutable_view();
+    auto m_view = map.device_mutable_view();
     REQUIRE(
       cuco::test::all_of(insert_pairs,
                          insert_pairs + num,
@@ -229,7 +229,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   {
     SECTION("non-const view")
     {
-      auto view = map.get_device_view();
+      auto view = map.device_view();
       REQUIRE(cuco::test::all_of(
         insert_pairs,
         insert_pairs + num,
@@ -240,7 +240,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
     SECTION("const view")
     {
-      auto const view = map.get_device_view();
+      auto const view = map.device_view();
       REQUIRE(cuco::test::all_of(
         insert_pairs,
         insert_pairs + num,

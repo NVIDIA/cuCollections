@@ -39,7 +39,7 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
   map.insert(pair_begin, pair_begin + num_pairs);
   cudaStreamSynchronize(0);
 
-  auto res = map.get_size();
+  auto res = map.size();
   REQUIRE(res == num_pairs);
 
   // query pair matching rate = 50%

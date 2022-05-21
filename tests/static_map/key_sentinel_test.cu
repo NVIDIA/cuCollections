@@ -40,8 +40,8 @@ TEMPLATE_TEST_CASE_SIG(
   cuco::static_map<Key, Value> map{
     SIZE * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
 
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
+  auto m_view = map.device_mutable_view();
+  auto view   = map.device_view();
 
   int h_A[SIZE];
   for (int i = 0; i < SIZE; i++) {

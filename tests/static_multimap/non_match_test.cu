@@ -27,7 +27,7 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
 {
   map.insert(pair_begin, pair_begin + num_keys);
 
-  auto res = map.get_size();
+  auto res = map.size();
   REQUIRE(res == num_keys);
 
   SECTION("Output of count and retrieve should be coherent.")

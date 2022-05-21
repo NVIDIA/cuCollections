@@ -17,7 +17,7 @@ def plot_single_perf(bm, df, xaxis, unique_labels):
     
     ax.set_xscale('log')
     ax.set_xticks(list(df[xaxis]))
-    ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    ax.xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
     
     marker_handles = []
         

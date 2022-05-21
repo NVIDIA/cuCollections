@@ -37,8 +37,8 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
   cuco::static_map<Key, Value> map{
     num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
 
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
+  auto m_view = map.device_mutable_view();
+  auto view   = map.device_view();
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
@@ -67,7 +67,7 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
 
     map.insert(pairs_begin, pairs_begin + num_keys);
 
-    auto const num_entries = map.get_size();
+    auto const num_entries = map.size();
     REQUIRE(num_entries == gold);
 
     auto [key_out_end, value_out_end] =

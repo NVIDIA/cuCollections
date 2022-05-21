@@ -34,8 +34,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   cuco::static_map<Key, Value> map{
     1'000'000, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
 
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
+  auto m_view = map.device_mutable_view();
+  auto view   = map.device_view();
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);

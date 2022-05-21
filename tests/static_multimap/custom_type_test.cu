@@ -83,7 +83,7 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
   {
     map.insert(pair_begin, pair_begin + num_pairs);
 
-    auto res = map.get_size();
+    auto res = map.size();
     REQUIRE(res == num_pairs);
 
     auto count = map.count(key_begin, key_begin + num_pairs, stream, key_pair_equals{});
@@ -186,7 +186,7 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
   {
     map.insert(pair_begin, pair_begin + num_pairs);
 
-    auto size = map.get_size();
+    auto size = map.size();
     REQUIRE(size == num_pairs);
 
     thrust::device_vector<bool> contained(num_pairs);
@@ -197,7 +197,7 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
 
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
-    auto size = map.get_size();
+    auto size = map.size();
     REQUIRE(size == 0);
 
     thrust::device_vector<bool> contained(num_pairs);

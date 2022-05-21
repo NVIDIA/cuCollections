@@ -117,7 +117,7 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
 
   auto const grid_size = (cg_size * num_pairs + block_size - 1) / block_size;
 
-  auto view = map.get_device_view();
+  auto view = map.device_view();
 
   auto num = map.pair_count_outer(pair_begin, pair_begin + num_pairs, pair_equal<Key, Value>{});
   REQUIRE(num == gold_size);
