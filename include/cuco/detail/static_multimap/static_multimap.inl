@@ -854,9 +854,9 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::get_si
   cudaStream_t stream) const noexcept
 {
   auto begin  = thrust::make_transform_iterator(raw_slots(), detail::slot_to_tuple<Key, Value>{});
-  auto filled = cuco::detail::slot_is_filled<Key>{empty_key_sentinel_};
+  auto filled = cuco::detail::slot_is_filled<Key>{get_empty_key_sentinel()};
 
-  return thrust::count_if(thrust::cuda::par.on(stream), begin, begin + capacity_, filled);
+  return thrust::count_if(thrust::cuda::par.on(stream), begin, begin + get_capacity(), filled);
 }
 
 template <typename Key,
