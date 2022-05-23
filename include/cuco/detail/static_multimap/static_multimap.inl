@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cuco/detail/utils.cuh>
 #include <cuco/detail/utils.hpp>
 
 #include <thrust/count.h>
@@ -21,18 +22,6 @@
 #include <thrust/tuple.h>
 
 #include <iterator>
-
-namespace {
-/**
- * @brief Device functor used to determine if a slot is filled.
- */
-template <typename Key>
-struct slot_is_filled {
-  slot_is_filled(Key s) : empty_key_sentinel{s} {}
-  __device__ __forceinline__ bool operator()(Key const& k) { return k != empty_key_sentinel; }
-  Key empty_key_sentinel;
-};
-}  // anonymous namespace
 
 namespace cuco {
 
@@ -864,11 +853,10 @@ template <typename Key,
 std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::get_size(
   cudaStream_t stream) const noexcept
 {
-  auto begin = thrust::make_transform_iterator(
-    raw_slots(), [] __device__(cuco::pair_type<Key, Value> const& pair) { return pair.first; });
-  slot_is_filled<Key> filled(empty_key_sentinel_);
+  auto begin  = thrust::make_transform_iterator(raw_slots(), detail::slot_to_tuple<Key, Value>{});
+  auto filled = cuco::detail::slot_is_filled<Key>{get_empty_key_sentinel()};
 
-  return thrust::count_if(thrust::cuda::par.on(stream), begin, begin + capacity_, filled);
+  return thrust::count_if(thrust::cuda::par.on(stream), begin, begin + get_capacity(), filled);
 }
 
 template <typename Key,
