@@ -19,6 +19,10 @@
 #include <cuco/static_multimap.cuh>
 
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/sequence.h>
+#include <thrust/transform.h>
 
 #include <catch2/catch.hpp>
 

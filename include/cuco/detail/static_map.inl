@@ -19,8 +19,10 @@
 #include <cuco/detail/utils.cuh>
 
 #include <thrust/copy.h>
+#include <thrust/execution_policy.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/tuple.h>
 
 namespace cuco {
 

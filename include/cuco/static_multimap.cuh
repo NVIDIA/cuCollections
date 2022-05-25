@@ -23,6 +23,7 @@
 #include <cuco/probe_sequences.cuh>
 #include <cuco/traits.hpp>
 
+#include <thrust/for_each.h>
 #include <thrust/functional.h>
 
 #include <cuda/std/atomic>

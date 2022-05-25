@@ -18,6 +18,8 @@
 
 #include <cuco/dynamic_map.cuh>
 
+#include <thrust/device_vector.h>
+
 #include <benchmark/benchmark.h>
 
 #include <iostream>
