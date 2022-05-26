@@ -676,10 +676,11 @@ class static_multimap {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-    __host__ __device__ device_mutable_view(pair_atomic_type* slots,
-                                            std::size_t capacity,
-                                            sentinel::empty_key<Key> empty_key_sentinel,
-                                            sentinel::empty_value<Value> empty_value_sentinel) noexcept
+    __host__ __device__
+    device_mutable_view(pair_atomic_type* slots,
+                        std::size_t capacity,
+                        sentinel::empty_key<Key> empty_key_sentinel,
+                        sentinel::empty_value<Value> empty_value_sentinel) noexcept
       : view_base_type{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
     }
