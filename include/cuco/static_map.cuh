@@ -972,7 +972,6 @@ class static_map {
      * @param capacity The number of slots viewed by this object
      * @param empty_key_sentinel The reserved value for keys to represent empty slots
      * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
-     * @param erased_key_sentinel The reserved value for keys to represent erased slots
      */
     __host__ __device__ device_view(pair_atomic_type* slots,
                                     std::size_t capacity,
