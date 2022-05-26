@@ -31,9 +31,6 @@ rapids_cuda_init_architectures(CUCO)
 
 project(CUCO VERSION 0.0.1 LANGUAGES CXX CUDA)
 
-include(${rapids-cmake-dir}/cpm/package_override.cmake)
-rapids_cpm_package_override(${CMAKE_CURRENT_SOURCE_DIR}/versions.json)
-
 # Write the version header
 rapids_cmake_write_version_file(include/cuco/version_config.hpp)
 
