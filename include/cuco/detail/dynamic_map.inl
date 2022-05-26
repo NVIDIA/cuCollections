@@ -18,11 +18,11 @@ namespace cuco {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capacity,
-                                                       Key empty_key_sentinel,
-                                                       Value empty_value_sentinel,
+                                                       sentinel::empty_key<Key> empty_key_sentinel,
+                                                       sentinel::empty_value<Value> empty_value_sentinel,
                                                        Allocator const& alloc)
-  : empty_key_sentinel_(empty_key_sentinel),
-    empty_value_sentinel_(empty_value_sentinel),
+  : empty_key_sentinel_(empty_key_sentinel.value),
+    empty_value_sentinel_(empty_value_sentinel.value),
     size_(0),
     capacity_(initial_capacity),
     min_insert_size_(1E4),
