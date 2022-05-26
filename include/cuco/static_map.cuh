@@ -434,14 +434,26 @@ class static_map {
 
     __host__ __device__ device_view_base(pair_atomic_type* slots,
                                          std::size_t capacity,
-                                         Key empty_key_sentinel,
-                                         Value empty_value_sentinel,
-                                         Key erased_key_sentinel) noexcept
+                                         sentinel::empty_key<Key> empty_key_sentinel,
+                                         sentinel::empty_value<Value> empty_value_sentinel) noexcept
       : slots_{slots},
         capacity_{capacity},
-        empty_key_sentinel_{empty_key_sentinel},
-        erased_key_sentinel_{erased_key_sentinel},
-        empty_value_sentinel_{empty_value_sentinel}
+        empty_key_sentinel_{empty_key_sentinel.value},
+        erased_key_sentinel_{empty_key_sentinel.value},
+        empty_value_sentinel_{empty_value_sentinel.value}
+    {
+    }
+
+    __host__ __device__ device_view_base(pair_atomic_type* slots,
+                                         std::size_t capacity,
+                                         sentinel::empty_key<Key> empty_key_sentinel,
+                                         sentinel::empty_value<Value> empty_value_sentinel,
+                                         sentinel::erased_key<Key> erased_key_sentinel) noexcept
+      : slots_{slots},
+        capacity_{capacity},
+        empty_key_sentinel_{empty_key_sentinel.value},
+        erased_key_sentinel_{erased_key_sentinel.value},
+        empty_value_sentinel_{empty_value_sentinel.value}
     {
     }
 
@@ -740,21 +752,36 @@ class static_map {
      *
      * @param slots Pointer to beginning of initialized slots array
      * @param capacity The number of slots viewed by this object
-     * @param empty_key_sentinel The reserved value for keys to represent empty
-     * slots
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
+     */
+    __host__ __device__
+    device_mutable_view(pair_atomic_type* slots,
+                        std::size_t capacity,
+                        sentinel::empty_key<Key> empty_key_sentinel,
+                        sentinel::empty_value<Value> empty_value_sentinel) noexcept
+      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+    {
+    }
+
+    /**
+     * @brief Construct a mutable view of the first `capacity` slots of the
+     * slots array pointed to by `slots`.
+     *
+     * @param slots Pointer to beginning of initialized slots array
+     * @param capacity The number of slots viewed by this object
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     * @param erased_key_sentinel The reserved value for keys to represent erased slots
      */
     __host__ __device__ device_mutable_view(pair_atomic_type* slots,
                                             std::size_t capacity,
                                             sentinel::empty_key<Key> empty_key_sentinel,
                                             sentinel::empty_value<Value> empty_value_sentinel,
                                             sentinel::erased_key<Key> erased_key_sentinel) noexcept
-      : device_view_base{slots,
-                         capacity,
-                         empty_key_sentinel.value,
-                         empty_value_sentinel.value,
-                         erased_key_sentinel.value}
+      : device_view_base{
+          slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel}
     {
     }
 
@@ -943,21 +970,35 @@ class static_map {
      *
      * @param slots Pointer to beginning of initialized slots array
      * @param capacity The number of slots viewed by this object
-     * @param empty_key_sentinel The reserved value for keys to represent empty
-     * slots
-     * @param empty_value_sentinel The reserved value for mapped values to
-     * represent empty slots
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     * @param erased_key_sentinel The reserved value for keys to represent erased slots
+     */
+    __host__ __device__ device_view(pair_atomic_type* slots,
+                                    std::size_t capacity,
+                                    sentinel::empty_key<Key> empty_key_sentinel,
+                                    sentinel::empty_value<Value> empty_value_sentinel) noexcept
+      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+    {
+    }
+
+    /**
+     * @brief Construct a view of the first `capacity` slots of the
+     * slots array pointed to by `slots`.
+     *
+     * @param slots Pointer to beginning of initialized slots array
+     * @param capacity The number of slots viewed by this object
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     * @param erased_key_sentinel The reserved value for keys to represent erased slots
      */
     __host__ __device__ device_view(pair_atomic_type* slots,
                                     std::size_t capacity,
                                     sentinel::empty_key<Key> empty_key_sentinel,
                                     sentinel::empty_value<Value> empty_value_sentinel,
                                     sentinel::erased_key<Key> erased_key_sentinel) noexcept
-      : device_view_base{slots,
-                         capacity,
-                         empty_key_sentinel.value,
-                         empty_value_sentinel.value,
-                         erased_key_sentinel.value}
+      : device_view_base{
+          slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel}
     {
     }
 
