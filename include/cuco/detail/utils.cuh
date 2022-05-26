@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <thrust/tuple.h>
+
 namespace cuco {
 namespace detail {
 

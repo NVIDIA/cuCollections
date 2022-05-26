@@ -17,6 +17,8 @@
 #include <cuco/static_multimap.cuh>
 
 #include <thrust/device_vector.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/pair.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 

@@ -18,6 +18,7 @@
 #include <cuco/detail/utils.hpp>
 
 #include <thrust/count.h>
+#include <thrust/execution_policy.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/tuple.h>
 
