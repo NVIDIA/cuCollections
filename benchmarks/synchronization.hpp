@@ -21,6 +21,8 @@
 
 #include <cuda_runtime_api.h>
 
+#include <stdexcept>
+
 #define BENCH_CUDA_TRY(call)                                                         \
   do {                                                                               \
     auto const status = (call);                                                      \
