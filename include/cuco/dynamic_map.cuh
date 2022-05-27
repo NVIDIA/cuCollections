@@ -18,6 +18,7 @@
 
 #include <cuco/detail/dynamic_map_kernels.cuh>
 #include <cuco/detail/error.hpp>
+#include <cuco/sentinel.cuh>
 #include <cuco/static_map.cuh>
 
 #include <thrust/device_vector.h>
@@ -131,8 +132,8 @@ class dynamic_map {
    * @param alloc Allocator used to allocate submap device storage
    */
   dynamic_map(std::size_t initial_capacity,
-              Key empty_key_sentinel,
-              Value empty_value_sentinel,
+              sentinel::empty_key<Key> empty_key_sentinel,
+              sentinel::empty_value<Value> empty_value_sentinel,
               Allocator const& alloc = Allocator{});
 
   /**
