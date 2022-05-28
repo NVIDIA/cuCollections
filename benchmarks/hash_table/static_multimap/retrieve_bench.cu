@@ -57,7 +57,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_r
 
   state.add_element_count(num_keys, "NumKeys");
 
-  cuco::static_multimap<Key, Value> map{size, -1, -1};
+  cuco::static_multimap<Key, Value> map{
+    size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
   map.insert(d_pairs.begin(), d_pairs.end());
 
   auto const output_size = map.count_outer(d_keys.begin(), d_keys.end());

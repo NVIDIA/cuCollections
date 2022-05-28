@@ -1239,7 +1239,10 @@ class static_multimap {
    */
   device_view get_device_view() const noexcept
   {
-    return device_view(slots_.get(), capacity_, empty_key_sentinel_, empty_value_sentinel_);
+    return device_view(slots_.get(),
+                       capacity_,
+                       sentinel::empty_key<Key>{empty_key_sentinel_},
+                       sentinel::empty_value<Value>{empty_value_sentinel_});
   }
 
   /**
@@ -1250,7 +1253,10 @@ class static_multimap {
    */
   device_mutable_view get_device_mutable_view() const noexcept
   {
-    return device_mutable_view(slots_.get(), capacity_, empty_key_sentinel_, empty_value_sentinel_);
+    return device_mutable_view(slots_.get(),
+                               capacity_,
+                               sentinel::empty_key<Key>{empty_key_sentinel_},
+                               sentinel::empty_value<Value>{empty_value_sentinel_});
   }
 
  private:
