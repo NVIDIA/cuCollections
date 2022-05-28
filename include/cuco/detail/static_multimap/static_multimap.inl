@@ -55,7 +55,6 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
   detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream>>>(
 
     slots_.get(), empty_key_sentinel, empty_value_sentinel, capacity());
-
 }
 
 template <typename Key,
