@@ -67,10 +67,12 @@ struct bitwise_compare_impl<8> {
  * @return If the bits in the object representations of lhs and rhs are identical.
  */
 template <typename T>
-__host__ __device__ bool bitwise_compare(T const& lhs, T const& rhs)
+__host__ __device__ constexpr bool bitwise_compare(T const& lhs, T const& rhs)
 {
-  static_assert(std::has_unique_object_representations_v<T>,
-                "Bitwise compared objects must have unique object representation.");
+  static_assert(
+    cuco::is_bitwise_comparable_v<T>,
+    "Bitwise compared objects must have unique object representations or be explicitly declared as "
+    "safe for bitwise comparison via specialization of cuco::is_bitwise_comparable_v.");
   return detail::bitwise_compare_impl<sizeof(T)>::compare(reinterpret_cast<char const*>(&lhs),
                                                           reinterpret_cast<char const*>(&rhs));
 }

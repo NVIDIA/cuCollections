@@ -21,7 +21,11 @@
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
 #include <thrust/iterator/discard_iterator.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/transform.h>
+#include <thrust/tuple.h>
 
 namespace {
 // Custom pair equal

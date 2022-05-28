@@ -17,6 +17,7 @@
 #pragma once
 
 #include <thrust/device_reference.h>
+#include <thrust/memory.h>
 #include <thrust/pair.h>
 #include <thrust/tuple.h>
 

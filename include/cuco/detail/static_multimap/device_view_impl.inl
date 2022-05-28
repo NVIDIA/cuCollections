@@ -17,6 +17,9 @@
 #include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/utils.cuh>
 
+#include <thrust/tuple.h>
+#include <thrust/type_traits/is_contiguous_iterator.h>
+
 namespace cuco {
 
 template <typename Key,

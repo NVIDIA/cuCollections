@@ -14,25 +14,15 @@
  * limitations under the License.
  */
 
+#include <cuco/detail/utils.cuh>
 #include <cuco/detail/utils.hpp>
 
 #include <thrust/count.h>
+#include <thrust/execution_policy.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/tuple.h>
 
 #include <iterator>
-
-namespace {
-/**
- * @brief Device functor used to determine if a slot is filled.
- */
-template <typename Key>
-struct slot_is_filled {
-  slot_is_filled(Key s) : empty_key_sentinel{s} {}
-  __device__ __forceinline__ bool operator()(Key const& k) { return k != empty_key_sentinel; }
-  Key empty_key_sentinel;
-};
-}  // anonymous namespace
 
 namespace cuco {
 
@@ -43,14 +33,14 @@ template <typename Key,
           class ProbeSequence>
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
   std::size_t capacity,
-  Key empty_key_sentinel,
-  Value empty_value_sentinel,
+  sentinel::empty_key<Key> empty_key_sentinel,
+  sentinel::empty_value<Value> empty_value_sentinel,
   cudaStream_t stream,
   Allocator const& alloc)
   : capacity_{cuco::detail::valid_capacity<cg_size(), vector_width(), uses_vector_load()>(
       capacity)},
-    empty_key_sentinel_{empty_key_sentinel},
-    empty_value_sentinel_{empty_value_sentinel},
+    empty_key_sentinel_{empty_key_sentinel.value},
+    empty_value_sentinel_{empty_value_sentinel.value},
     counter_allocator_{alloc},
     slot_allocator_{alloc},
     delete_counter_{counter_allocator_},
@@ -63,7 +53,9 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
   auto const grid_size      = (capacity() + stride * block_size - 1) / (stride * block_size);
 
   detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream>>>(
+
     slots_.get(), empty_key_sentinel, empty_value_sentinel, capacity());
+
 }
 
 template <typename Key,
@@ -864,11 +856,10 @@ template <typename Key,
 std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::size(
   cudaStream_t stream) const noexcept
 {
-  auto begin = thrust::make_transform_iterator(
-    raw_slots(), [] __device__(cuco::pair_type<Key, Value> const& pair) { return pair.first; });
-  slot_is_filled<Key> filled(empty_key_sentinel_);
+  auto begin  = thrust::make_transform_iterator(raw_slots(), detail::slot_to_tuple<Key, Value>{});
+  auto filled = cuco::detail::slot_is_filled<Key>{get_empty_key_sentinel()};
 
-  return thrust::count_if(thrust::cuda::par.on(stream), begin, begin + capacity_, filled);
+  return thrust::count_if(thrust::cuda::par.on(stream), begin, begin + get_capacity(), filled);
 }
 
 template <typename Key,
