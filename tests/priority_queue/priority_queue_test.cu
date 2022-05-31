@@ -95,7 +95,7 @@ bool is_valid_top_n(std::vector<T>& top_n, std::vector<T>& elements)
 
   for (int i = 0; i < top_n.size(); i++) {
     T max = elements[i];
-    T e = top_n[i];
+    T e   = top_n[i];
     if (Compare{}(max, e)) { return false; }
   }
 
