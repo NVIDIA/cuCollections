@@ -88,12 +88,14 @@ bool is_valid_top_n(std::vector<T>& top_n, std::vector<T>& elements)
   }
 
   // 2. Check that each element in the top N is not ordered
-  // after the (n - 1)th element of the sorted list of elements
+  // after the ith element of the sorted list of elements
   std::sort(elements.begin(), elements.end(), Compare{});
 
-  T max = elements[n - 1];
+  std::sort(top_n.begin(), top_n.end(), Compare{});
 
-  for (T& e : top_n) {
+  for (int i = 0; i < top_n.size(); i++) {
+    T max = elements[i];
+    T e = top_n[i];
     if (Compare{}(max, e)) { return false; }
   }
 
