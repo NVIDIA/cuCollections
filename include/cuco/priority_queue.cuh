@@ -243,7 +243,6 @@ class priority_queue {
                              ///  lock for the node starting at
                              ///  1d_heap_[node_size * i]`
 
-  Allocator allocator_;
   int_allocator_type int_allocator_;
   t_allocator_type t_allocator_;
   size_t_allocator_type size_t_allocator_;
