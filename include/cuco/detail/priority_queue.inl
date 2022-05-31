@@ -26,9 +26,7 @@ namespace cuco {
 template <typename T, typename Compare, bool FavorInsertionPerformance, typename Allocator>
 priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::priority_queue(
   size_t initial_capacity, Allocator const& allocator)
-  : int_allocator_{allocator},
-    t_allocator_{allocator},
-    size_t_allocator_{allocator}
+  : int_allocator_{allocator}, t_allocator_{allocator}, size_t_allocator_{allocator}
 {
   node_size_ = NodeSize;
 
