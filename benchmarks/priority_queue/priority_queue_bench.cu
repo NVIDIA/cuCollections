@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-#include <cstdint>
-#include <random>
-#include <vector>
-
-#include <benchmark/benchmark.h>
-
 #include <cuco/detail/pair.cuh>
 #include <cuco/priority_queue.cuh>
 
 #include <thrust/device_vector.h>
+
+#include <benchmark/benchmark.h>
+
+#include <cstdint>
+#include <random>
+#include <vector>
 
 using namespace cuco;
 

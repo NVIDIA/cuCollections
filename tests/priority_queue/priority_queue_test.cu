@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-#include <map>
-#include <vector>
-
-#include <cooperative_groups.h>
-#include <cuda_runtime.h>
+#include <cuco/priority_queue.cuh>
 
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 
 #include <catch2/catch.hpp>
 
-#include <cuco/priority_queue.cuh>
+#include <cooperative_groups.h>
+#include <cuda_runtime.h>
+
+#include <map>
+#include <vector>
 
 using namespace cuco;
 

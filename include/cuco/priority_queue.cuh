@@ -17,10 +17,11 @@
 #pragma once
 
 #include <cuco/allocator.hpp>
-#include <utility>
-#include <vector>
 
 #include <thrust/functional.h>
+
+#include <utility>
+#include <vector>
 
 namespace cuco {
 

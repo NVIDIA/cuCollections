@@ -16,8 +16,9 @@
 
 #pragma once
 
-#include <assert.h>
 #include <cooperative_groups.h>
+
+#include <assert.h>
 
 using namespace cooperative_groups;
 
