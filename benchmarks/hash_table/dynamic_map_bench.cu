@@ -75,7 +75,7 @@ static void BM_dynamic_insert(::benchmark::State& state)
 
   generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
 
-  for (auto i = 0; i < num_keys; ++i) {
+  for (std::size_t i = 0; i < num_keys; ++i) {
     Key key           = h_keys[i];
     Value val         = h_keys[i];
     h_pairs[i].first  = key;
@@ -90,7 +90,7 @@ static void BM_dynamic_insert(::benchmark::State& state)
       initial_size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     {
       cuda_event_timer raii{state};
-      for (auto i = 0; i < num_keys; i += batch_size) {
+      for (std::size_t i = 0; i < num_keys; i += batch_size) {
         map.insert(d_pairs.begin() + i, d_pairs.begin() + i + batch_size);
       }
     }
@@ -113,7 +113,7 @@ static void BM_dynamic_search_all(::benchmark::State& state)
 
   generate_keys<Dist, Key>(h_keys.begin(), h_keys.end());
 
-  for (auto i = 0; i < num_keys; ++i) {
+  for (std::size_t i = 0; i < num_keys; ++i) {
     Key key           = h_keys[i];
     Value val         = h_keys[i];
     h_pairs[i].first  = key;
