@@ -1033,9 +1033,9 @@ class static_map {
     __host__ __device__ explicit device_view(device_mutable_view mutable_map)
       : device_view_base{mutable_map.get_slots(),
                          mutable_map.get_capacity(),
-                         mutable_map.get_empty_key_sentinel(),
-                         mutable_map.get_empty_value_sentinel(),
-                         mutable_map.get_erased_key_sentinel()}
+                         sentinel::empty_key<Key>{mutable_map.get_empty_key_sentinel()},
+                         sentinel::empty_value<Value>{mutable_map.get_empty_value_sentinel()},
+                         sentinel::erased_key<Key>{mutable_map.get_erased_key_sentinel()}}
     {
     }
 
