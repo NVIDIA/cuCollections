@@ -931,12 +931,42 @@ class static_map {
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
 
+    /**
+     * @brief Erases the specified key across the map.
+     *
+     * Behavior is undefined if `empty_key_sentinel_` equals to `erased_key_sentinel_`.
+     *
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     *
+     * @param k The key to be erased
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return `true` if the erasure was successful, `false` otherwise.
+     */
     template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool erase(key_type const& k,
                           Hash hash          = Hash{},
                           KeyEqual key_equal = KeyEqual{}) noexcept;
 
+    /**
+     * @brief Erases the specified key across the map.
+     *
+     * Behavior is undefined if `empty_key_sentinel_` equals to `erased_key_sentinel_`.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     *
+     * @param g The Cooperative Group that performs the erasure
+     * @param k The key to be erased
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return `true` if the erasure was successful, `false` otherwise.
+     */
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
