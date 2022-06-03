@@ -428,14 +428,26 @@ class static_map {
 
     __host__ __device__ device_view_base(pair_atomic_type* slots,
                                          std::size_t capacity,
-                                         Key empty_key_sentinel,
-                                         Value empty_value_sentinel,
-                                         Key erased_key_sentinel) noexcept
+                                         sentinel::empty_key<Key> empty_key_sentinel,
+                                         sentinel::empty_value<Value> empty_value_sentinel) noexcept
       : slots_{slots},
         capacity_{capacity},
-        empty_key_sentinel_{empty_key_sentinel},
-        erased_key_sentinel_{erased_key_sentinel},
-        empty_value_sentinel_{empty_value_sentinel}
+        empty_key_sentinel_{empty_key_sentinel.value},
+        erased_key_sentinel_{empty_key_sentinel.value},
+        empty_value_sentinel_{empty_value_sentinel.value}
+    {
+    }
+
+    __host__ __device__ device_view_base(pair_atomic_type* slots,
+                                         std::size_t capacity,
+                                         sentinel::empty_key<Key> empty_key_sentinel,
+                                         sentinel::empty_value<Value> empty_value_sentinel,
+                                         sentinel::erased_key<Key> erased_key_sentinel) noexcept
+      : slots_{slots},
+        capacity_{capacity},
+        empty_key_sentinel_{empty_key_sentinel.value},
+        erased_key_sentinel_{erased_key_sentinel.value},
+        empty_value_sentinel_{empty_value_sentinel.value}
     {
     }
 
@@ -734,21 +746,36 @@ class static_map {
      *
      * @param slots Pointer to beginning of initialized slots array
      * @param capacity The number of slots viewed by this object
-     * @param empty_key_sentinel The reserved value for keys to represent empty
-     * slots
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
+     */
+    __host__ __device__
+    device_mutable_view(pair_atomic_type* slots,
+                        std::size_t capacity,
+                        sentinel::empty_key<Key> empty_key_sentinel,
+                        sentinel::empty_value<Value> empty_value_sentinel) noexcept
+      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+    {
+    }
+
+    /**
+     * @brief Construct a mutable view of the first `capacity` slots of the
+     * slots array pointed to by `slots`.
+     *
+     * @param slots Pointer to beginning of initialized slots array
+     * @param capacity The number of slots viewed by this object
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     * @param erased_key_sentinel The reserved value for keys to represent erased slots
      */
     __host__ __device__ device_mutable_view(pair_atomic_type* slots,
                                             std::size_t capacity,
                                             sentinel::empty_key<Key> empty_key_sentinel,
                                             sentinel::empty_value<Value> empty_value_sentinel,
                                             sentinel::erased_key<Key> erased_key_sentinel) noexcept
-      : device_view_base{slots,
-                         capacity,
-                         empty_key_sentinel.value,
-                         empty_value_sentinel.value,
-                         erased_key_sentinel.value}
+      : device_view_base{
+          slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel}
     {
     }
 
@@ -898,12 +925,42 @@ class static_map {
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
 
+    /**
+     * @brief Erases the specified key across the map.
+     *
+     * Behavior is undefined if `empty_key_sentinel_` equals to `erased_key_sentinel_`.
+     *
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     *
+     * @param k The key to be erased
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return `true` if the erasure was successful, `false` otherwise.
+     */
     template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool erase(key_type const& k,
                           Hash hash          = Hash{},
                           KeyEqual key_equal = KeyEqual{}) noexcept;
 
+    /**
+     * @brief Erases the specified key across the map.
+     *
+     * Behavior is undefined if `empty_key_sentinel_` equals to `erased_key_sentinel_`.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     *
+     * @param g The Cooperative Group that performs the erasure
+     * @param k The key to be erased
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return `true` if the erasure was successful, `false` otherwise.
+     */
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
@@ -937,21 +994,34 @@ class static_map {
      *
      * @param slots Pointer to beginning of initialized slots array
      * @param capacity The number of slots viewed by this object
-     * @param empty_key_sentinel The reserved value for keys to represent empty
-     * slots
-     * @param empty_value_sentinel The reserved value for mapped values to
-     * represent empty slots
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     */
+    __host__ __device__ device_view(pair_atomic_type* slots,
+                                    std::size_t capacity,
+                                    sentinel::empty_key<Key> empty_key_sentinel,
+                                    sentinel::empty_value<Value> empty_value_sentinel) noexcept
+      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+    {
+    }
+
+    /**
+     * @brief Construct a view of the first `capacity` slots of the
+     * slots array pointed to by `slots`.
+     *
+     * @param slots Pointer to beginning of initialized slots array
+     * @param capacity The number of slots viewed by this object
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     * @param erased_key_sentinel The reserved value for keys to represent erased slots
      */
     __host__ __device__ device_view(pair_atomic_type* slots,
                                     std::size_t capacity,
                                     sentinel::empty_key<Key> empty_key_sentinel,
                                     sentinel::empty_value<Value> empty_value_sentinel,
                                     sentinel::erased_key<Key> erased_key_sentinel) noexcept
-      : device_view_base{slots,
-                         capacity,
-                         empty_key_sentinel.value,
-                         empty_value_sentinel.value,
-                         erased_key_sentinel.value}
+      : device_view_base{
+          slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel}
     {
     }
 
@@ -963,9 +1033,9 @@ class static_map {
     __host__ __device__ explicit device_view(device_mutable_view mutable_map)
       : device_view_base{mutable_map.get_slots(),
                          mutable_map.get_capacity(),
-                         mutable_map.get_empty_key_sentinel(),
-                         mutable_map.get_empty_value_sentinel(),
-                         mutable_map.get_erased_key_sentinel()}
+                         sentinel::empty_key<Key>{mutable_map.get_empty_key_sentinel()},
+                         sentinel::empty_value<Value>{mutable_map.get_empty_value_sentinel()},
+                         sentinel::erased_key<Key>{mutable_map.get_erased_key_sentinel()}}
     {
     }
 
