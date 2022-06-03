@@ -33,14 +33,14 @@ template <typename Key,
           class ProbeSequence>
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
   std::size_t capacity,
-  Key empty_key_sentinel,
-  Value empty_value_sentinel,
+  sentinel::empty_key<Key> empty_key_sentinel,
+  sentinel::empty_value<Value> empty_value_sentinel,
   cudaStream_t stream,
   Allocator const& alloc)
   : capacity_{cuco::detail::get_valid_capacity<cg_size(), vector_width(), uses_vector_load()>(
       capacity)},
-    empty_key_sentinel_{empty_key_sentinel},
-    empty_value_sentinel_{empty_value_sentinel},
+    empty_key_sentinel_{empty_key_sentinel.value},
+    empty_value_sentinel_{empty_value_sentinel.value},
     counter_allocator_{alloc},
     slot_allocator_{alloc},
     delete_counter_{counter_allocator_},
@@ -53,7 +53,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
   auto const grid_size      = (get_capacity() + stride * block_size - 1) / (stride * block_size);
 
   detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream>>>(
-    slots_.get(), empty_key_sentinel, empty_value_sentinel, get_capacity());
+    slots_.get(), empty_key_sentinel_, empty_value_sentinel_, get_capacity());
 }
 
 template <typename Key,

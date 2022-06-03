@@ -73,11 +73,12 @@ TEMPLATE_TEST_CASE_SIG(
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
                           cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
-      map{num_keys * 2, -1, -1};
+      map{num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     test_insert_if<Key>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }
   if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{num_keys * 2, -1, -1};
+    cuco::static_multimap<Key, Value> map{
+      num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     test_insert_if<Key>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }
 }
