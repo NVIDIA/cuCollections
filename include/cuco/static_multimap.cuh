@@ -820,7 +820,9 @@ class static_multimap {
      * significant boost in throughput compared to the non Cooperative Group
      * `contains` at moderate to high load factors.
      *
+     * @tparam ProbeKey Probe key type that is convertible to the map's `key_type`
      * @tparam KeyEqual Binary callable type
+     *
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The key to search for
      * @param key_equal The binary callable used to compare two keys
@@ -828,10 +830,10 @@ class static_multimap {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <typename KeyEqual = thrust::equal_to<key_type>>
+    template <typename ProbeKey, typename KeyEqual = thrust::equal_to<key_type>>
     __device__ __forceinline__ bool contains(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
-      Key const& k,
+      ProbeKey const& k,
       KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**

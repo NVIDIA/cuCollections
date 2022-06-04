@@ -569,7 +569,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
    * @tparam CG Cooperative Group type
+   * @tparam ProbeKey Probe key type that is convertible to the map's `key_type`
    * @tparam KeyEqual Binary callable type
+   *
    * @param g The Cooperative Group used to perform the contains operation
    * @param k The key to search for
    * @param key_equal The binary callable used to compare two keys
@@ -577,9 +579,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @return A boolean indicating whether the key/value pair
    * containing `k` was inserted
    */
-  template <bool uses_vector_load, typename CG, typename KeyEqual>
+  template <bool uses_vector_load, typename CG, typename ProbeKey, typename KeyEqual>
   __device__ __forceinline__ std::enable_if_t<uses_vector_load, bool> contains(
-    CG g, Key const& k, KeyEqual key_equal) noexcept
+    CG const& g, ProbeKey const& k, KeyEqual key_equal) noexcept
   {
     auto current_slot = initial_slot(g, k);
 
@@ -617,7 +619,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
    * @tparam CG Cooperative Group type
+   * @tparam ProbeKey Probe key type that is convertible to the map's `key_type`
    * @tparam KeyEqual Binary callable type
+   *
    * @param g The Cooperative Group used to perform the contains operation
    * @param k The key to search for
    * @param key_equal The binary callable used to compare two keys
@@ -625,9 +629,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @return A boolean indicating whether the key/value pair
    * containing `k` was inserted
    */
-  template <bool uses_vector_load, typename CG, typename KeyEqual>
+  template <bool uses_vector_load, typename CG, typename ProbeKey, typename KeyEqual>
   __device__ __forceinline__ std::enable_if_t<not uses_vector_load, bool> contains(
-    CG g, Key const& k, KeyEqual key_equal) noexcept
+    CG const& g, ProbeKey const& k, KeyEqual key_equal) noexcept
   {
     auto current_slot = initial_slot(g, k);
 

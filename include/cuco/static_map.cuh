@@ -1211,9 +1211,10 @@ class static_map {
      * If the key `k` was inserted into the map, find returns
      * true. Otherwise, it returns false.
      *
-     * @tparam ProbeKey Probe key type that can be convertible to map's `key_type`
+     * @tparam ProbeKey Probe key type that is convertible to the map's `key_type`
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
+     *
      * @param k The key to search for
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys
@@ -1236,9 +1237,10 @@ class static_map {
      * Cooperative Group `contains` at moderate to high load factors.
      *
      * @tparam CG Cooperative Group type
-     * @tparam ProbeKey Probe key type that can be convertible to map's `key_type`
+     * @tparam ProbeKey Probe key type that is convertible to the map's `key_type`
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
+     *
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The key to search for
      * @param hash The unary callable used to hash the key
