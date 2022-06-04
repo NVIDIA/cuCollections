@@ -89,10 +89,10 @@ struct hash_custom_key {
 
 // User-defined device key equality
 struct custom_key_equals {
-  template <typename custom_type>
-  __device__ bool operator()(custom_type lhs, custom_type rhs)
+  template <typename lhs_type, typename rhs_type>
+  __device__ bool operator()(lhs_type lhs, rhs_type rhs)
   {
-    return std::tie(lhs.a, lhs.b) == std::tie(rhs.a, rhs.b);
+    return lhs == static_cast<lhs_type>(rhs);
   }
 };
 

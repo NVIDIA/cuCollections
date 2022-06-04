@@ -716,9 +716,11 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
-  Key const& k, Hash hash, KeyEqual key_equal) const noexcept
+template <typename ProbeKey, typename Hash, typename KeyEqual>
+__device__ std::enable_if_t<std::is_convertible_v<ProbeKey, Key>, bool>
+static_map<Key, Value, Scope, Allocator>::device_view::contains(ProbeKey const& k,
+                                                                Hash hash,
+                                                                KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
@@ -734,9 +736,12 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <typename CG, typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
-  CG g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
+template <typename CG, typename ProbeKey, typename Hash, typename KeyEqual>
+__device__ std::enable_if_t<std::is_convertible_v<ProbeKey, Key>, bool>
+static_map<Key, Value, Scope, Allocator>::device_view::contains(CG const& g,
+                                                                ProbeKey const& k,
+                                                                Hash hash,
+                                                                KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 

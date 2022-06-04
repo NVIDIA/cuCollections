@@ -1211,6 +1211,7 @@ class static_map {
      * If the key `k` was inserted into the map, find returns
      * true. Otherwise, it returns false.
      *
+     * @tparam ProbeKey Probe key type that can be convertible to map's `key_type`
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param k The key to search for
@@ -1220,22 +1221,22 @@ class static_map {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+    template <typename ProbeKey,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(Key const& k,
-                             Hash hash          = Hash{},
-                             KeyEqual key_equal = KeyEqual{}) const noexcept;
+    __device__ std::enable_if_t<std::is_convertible_v<ProbeKey, Key>, bool> contains(
+      ProbeKey const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
      *
-     * If the key `k` was inserted into the map, find returns
-     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single contains operation. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `contains` at moderate to high load factors.
+     * If the key `k` was inserted into the map, find returns true. Otherwise, it returns false.
+     * Uses the CUDA Cooperative Groups API to to leverage multiple threads to perform a single
+     * contains operation. This provides a significant boost in throughput compared to the non
+     * Cooperative Group `contains` at moderate to high load factors.
      *
      * @tparam CG Cooperative Group type
+     * @tparam ProbeKey Probe key type that can be convertible to map's `key_type`
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param g The Cooperative Group used to perform the contains operation
@@ -1247,12 +1248,14 @@ class static_map {
      * containing `k` was inserted
      */
     template <typename CG,
+              typename ProbeKey,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(CG g,
-                             Key const& k,
-                             Hash hash          = Hash{},
-                             KeyEqual key_equal = KeyEqual{}) const noexcept;
+    __device__ std::enable_if_t<std::is_convertible_v<ProbeKey, Key>, bool> contains(
+      CG const& g,
+      ProbeKey const& k,
+      Hash hash          = Hash{},
+      KeyEqual key_equal = KeyEqual{}) const noexcept;
   };  // class device_view
 
   /**
