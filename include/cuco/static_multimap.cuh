@@ -280,15 +280,15 @@ class static_multimap {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the output sequence indicating whether each key is present
-   * @param stream CUDA stream used for contains
    * @param key_equal The binary function to compare two keys for equality
+   * @param stream CUDA stream used for contains
    */
   template <typename InputIt, typename OutputIt, typename KeyEqual = thrust::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                cudaStream_t stream = 0,
-                KeyEqual key_equal  = KeyEqual{}) const;
+                KeyEqual key_equal  = KeyEqual{},
+                cudaStream_t stream = 0) const;
 
   /**
    * @brief Indicates whether the pairs in the range `[first, last)` are contained in the map.
