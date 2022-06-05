@@ -291,6 +291,32 @@ class static_multimap {
                 KeyEqual key_equal  = KeyEqual{}) const;
 
   /**
+   * @brief Indicates whether the pairs in the range `[first, last)` are contained in the map.
+   *
+   * Stores `true` or `false` to `(output + i)` indicating if the pair `*(first + i)` exists in
+   * the map.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K, V>::value_type>` is `true`
+   * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from
+   * `bool`
+   * @tparam PairEqual Binary callable type used to compare input pair and slot content for equality
+   *
+   * @param first Beginning of the sequence of pairs
+   * @param last End of the sequence of pairs
+   * @param output_begin Beginning of the output sequence indicating whether each pair is present
+   * @param pair_equal The binary function to compare input pair and slot content for equality
+   * @param stream CUDA stream used for contains
+   */
+  template <typename InputIt, typename OutputIt, typename PairEqual = thrust::equal_to<value_type>>
+  void pair_contains(InputIt first,
+                     InputIt last,
+                     OutputIt output_begin,
+                     PairEqual pair_equal = PairEqual{},
+                     cudaStream_t stream  = 0) const;
+
+  /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
    *
    * For each key, `k = *(first + i)`, counts all matching keys, `k'`, as determined by
@@ -833,6 +859,28 @@ class static_multimap {
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       Key const& k,
       KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Indicates whether the pair `p` exists in the map.
+     *
+     * If the pair `p` was inserted into the map, `contains` returns
+     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single `contains` operation. This provides a
+     * significant boost in throughput compared to the non Cooperative Group
+     * `contains` at moderate to high load factors.
+     *
+     * @tparam PairEqual Binary callable type
+     * @param g The Cooperative Group used to perform the contains operation
+     * @param k The pair to search for
+     * @param pair_equal The binary callable used to compare input pair and slot content
+     * for equality
+     * @return A boolean indicating whether the input pair was inserted in the map
+     */
+    template <typename PairEqual = thrust::equal_to<value_type>>
+    __device__ __forceinline__ bool pair_contains(
+      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+      value_type const& p,
+      PairEqual pair_equal = PairEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap.
