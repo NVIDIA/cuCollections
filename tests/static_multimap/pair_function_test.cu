@@ -20,6 +20,7 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
@@ -55,6 +56,21 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
                     [] __device__(auto i) {
                       return cuco::pair_type<Key, Value>{i, i};
                     });
+
+  SECTION("Tests of pair_contains.")
+  {
+    thrust::device_vector<bool> result(num_pairs);
+    auto res_begin = result.begin();
+    map.pair_contains(pair_begin, pair_begin + num_pairs, res_begin, pair_equal<Key, Value>{});
+
+    auto true_iter  = thrust::make_constant_iterator(true);
+    auto false_iter = thrust::make_constant_iterator(false);
+
+    REQUIRE(
+      cuco::test::equal(res_begin, res_begin + num_pairs / 2, true_iter, thrust::equal_to<bool>{}));
+    REQUIRE(cuco::test::equal(
+      res_begin + num_pairs / 2, res_begin + num_pairs, false_iter, thrust::equal_to<bool>{}));
+  }
 
   SECTION("Output of pair_count and pair_retrieve should be coherent.")
   {
