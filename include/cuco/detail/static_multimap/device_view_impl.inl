@@ -582,7 +582,10 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     Element const& element,
     Equal equal) noexcept
   {
-    auto current_slot = initial_slot(g, element);
+    auto current_slot = [&]() {
+      if constexpr (is_pair_contains) { return initial_slot(g, element.first); }
+      if constexpr (not is_pair_contains) { return initial_slot(g, element); }
+    }();
 
     while (true) {
       value_type arr[2];
@@ -596,13 +599,17 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         if constexpr (is_pair_contains) {
           return not first_slot_is_empty and equal(arr[0], element);
         }
-        return not first_slot_is_empty and equal(arr[0].first, element);
+        if constexpr (not is_pair_contains) {
+          return not first_slot_is_empty and equal(arr[0].first, element);
+        }
       }();
       auto const second_equals = [&]() {
         if constexpr (is_pair_contains) {
           return not second_slot_is_empty and equal(arr[1], element);
         }
-        return not second_slot_is_empty and equal(arr[1].first, element);
+        if constexpr (not is_pair_contains) {
+          return not second_slot_is_empty and equal(arr[1].first, element);
+        }
       }();
 
       // the key we were searching for was found by one of the threads, so we return true
@@ -641,7 +648,10 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     Element const& element,
     Equal equal) noexcept
   {
-    auto current_slot = initial_slot(g, element);
+    auto current_slot = [&]() {
+      if constexpr (is_pair_contains) { return initial_slot(g, element.first); }
+      if constexpr (not is_pair_contains) { return initial_slot(g, element); }
+    }();
 
     while (true) {
       value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
@@ -656,7 +666,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         if constexpr (is_pair_contains) {
           return not slot_is_empty and equal(slot_contents, element);
         }
-        return not slot_is_empty and equal(existing_key, element);
+        if constexpr (not is_pair_contains) {
+          return not slot_is_empty and equal(existing_key, element);
+        }
       }();
 
       // the key we were searching for was found by one of the threads, so we return true
