@@ -85,9 +85,9 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
 
     REQUIRE(num == num_items);
 
-    auto output_begin = result_begin;
-    auto output_end   = map.retrieve(key_begin, key_begin + num_keys, output_begin);
-    auto size         = thrust::distance(output_begin, output_end);
+    auto output_begin      = result_begin;
+    auto output_end        = map.retrieve(key_begin, key_begin + num_keys, output_begin);
+    std::size_t const size = thrust::distance(output_begin, output_end);
 
     REQUIRE(size == num_items);
 

@@ -38,9 +38,6 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
                                    cuco::sentinel::empty_value<Value>{-1},
                                    cuco::sentinel::erased_key<Key>{-2}};
 
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
-
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
   thrust::device_vector<bool> d_keys_exist(num_keys);
