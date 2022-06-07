@@ -277,18 +277,19 @@ class static_multimap {
    * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from
    * `bool`
    * @tparam KeyEqual Binary callable type used to compare two keys for equality
+   *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the output sequence indicating whether each key is present
-   * @param stream CUDA stream used for contains
    * @param key_equal The binary function to compare two keys for equality
+   * @param stream CUDA stream used for contains
    */
   template <typename InputIt, typename OutputIt, typename KeyEqual = thrust::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                cudaStream_t stream = 0,
-                KeyEqual key_equal  = KeyEqual{}) const;
+                KeyEqual key_equal  = KeyEqual{},
+                cudaStream_t stream = 0) const;
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.

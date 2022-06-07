@@ -195,7 +195,7 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
     REQUIRE(size == num_pairs);
 
     thrust::device_vector<bool> contained(num_pairs);
-    map.contains(key_begin, key_begin + num_pairs, contained.begin(), stream, key_pair_equals{});
+    map.contains(key_begin, key_begin + num_pairs, contained.begin(), key_pair_equals{}, stream);
     REQUIRE(cuco::test::all_of(
       contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
@@ -206,7 +206,7 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
     REQUIRE(size == 0);
 
     thrust::device_vector<bool> contained(num_pairs);
-    map.contains(key_begin, key_begin + num_pairs, contained.begin(), stream, key_pair_equals{});
+    map.contains(key_begin, key_begin + num_pairs, contained.begin(), key_pair_equals{}, stream);
 
     REQUIRE(cuco::test::none_of(
       contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
