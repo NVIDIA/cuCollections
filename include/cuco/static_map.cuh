@@ -1219,7 +1219,10 @@ class static_map {
      * If the key `k` was inserted into the map, find returns
      * true. Otherwise, it returns false.
      *
-     * @tparam ProbeKey Probe key type that is convertible to the map's `key_type`
+     * If `key_equal(probe_key, slot_key)` returns true, `hash(probe_key) == hash(slot_key)` must
+     * also be true.
+     *
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      *
@@ -1233,8 +1236,9 @@ class static_map {
     template <typename ProbeKey,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<std::is_convertible_v<ProbeKey, Key>, bool> contains(
-      ProbeKey const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
+    __device__ bool contains(ProbeKey const& k,
+                             Hash hash          = Hash{},
+                             KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
@@ -1244,8 +1248,11 @@ class static_map {
      * contains operation. This provides a significant boost in throughput compared to the non
      * Cooperative Group `contains` at moderate to high load factors.
      *
+     * If `key_equal(probe_key, slot_key)` returns true, `hash(probe_key) == hash(slot_key)` must
+     * also be true.
+     *
      * @tparam CG Cooperative Group type
-     * @tparam ProbeKey Probe key type that is convertible to the map's `key_type`
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      *
@@ -1261,7 +1268,7 @@ class static_map {
               typename ProbeKey,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<std::is_convertible_v<ProbeKey, Key>, bool> contains(
+    __device__ std::enable_if_t<std::is_invocable_v<KeyEqual, ProbeKey, Key>, bool> contains(
       CG const& g,
       ProbeKey const& k,
       Hash hash          = Hash{},

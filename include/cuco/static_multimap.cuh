@@ -155,7 +155,7 @@ class static_multimap {
   static_assert(
     std::is_base_of_v<cuco::detail::probe_sequence_base<ProbeSequence::cg_size>, ProbeSequence>,
     "ProbeSequence must be a specialization of either cuco::double_hashing or "
-    "cuco::linear_probing");
+    "cuco::linear_probing.");
 
  public:
   using value_type         = cuco::pair_type<Key, Value>;
@@ -820,7 +820,10 @@ class static_multimap {
      * significant boost in throughput compared to the non Cooperative Group
      * `contains` at moderate to high load factors.
      *
-     * @tparam ProbeKey Probe key type that is convertible to the map's `key_type`
+     * If `key_equal(probe_key, slot_key)` returns true, `hash(probe_key) == hash(slot_key)` must
+     * also be true.
+     *
+     * @tparam ProbeKey Probe key type
      * @tparam KeyEqual Binary callable type
      *
      * @param g The Cooperative Group used to perform the contains operation

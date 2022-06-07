@@ -35,9 +35,12 @@ namespace cuco {
 template <uint32_t CGSize, typename Hash>
 class linear_probing : public detail::probe_sequence_base<CGSize> {
  public:
+  static constexpr bool is_linear_probing = true;
+
   using probe_sequence_base_type = detail::probe_sequence_base<CGSize>;
   using probe_sequence_base_type::cg_size;
   using probe_sequence_base_type::vector_width;
+  using hasher = Hash;
 
   template <typename Key, typename Value, cuda::thread_scope Scope>
   using impl = detail::linear_probing_impl<Key, Value, Scope, vector_width(), CGSize, Hash>;
@@ -61,9 +64,13 @@ class linear_probing : public detail::probe_sequence_base<CGSize> {
 template <uint32_t CGSize, typename Hash1, typename Hash2>
 class double_hashing : public detail::probe_sequence_base<CGSize> {
  public:
+  static constexpr bool is_linear_probing = false;
+
   using probe_sequence_base_type = detail::probe_sequence_base<CGSize>;
   using probe_sequence_base_type::cg_size;
   using probe_sequence_base_type::vector_width;
+  using hasher1 = Hash1;
+  using hasher2 = Hash2;
 
   template <typename Key, typename Value, cuda::thread_scope Scope>
   using impl = detail::double_hashing_impl<Key, Value, Scope, vector_width(), CGSize, Hash1, Hash2>;
