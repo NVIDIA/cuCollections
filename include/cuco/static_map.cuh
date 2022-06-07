@@ -454,13 +454,15 @@ class static_map {
     /**
      * @brief Returns the initial slot for a given key `k`
      *
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
+     *
      * @param k The key to get the slot for
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename Hash>
-    __device__ iterator initial_slot(Key const& k, Hash hash) noexcept
+    template <typename ProbeKey, typename Hash>
+    __device__ iterator initial_slot(ProbeKey const& k, Hash hash) noexcept
     {
       return &slots_[hash(k) % capacity_];
     }
@@ -468,13 +470,15 @@ class static_map {
     /**
      * @brief Returns the initial slot for a given key `k`
      *
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
+     *
      * @param k The key to get the slot for
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename Hash>
-    __device__ const_iterator initial_slot(Key const& k, Hash hash) const noexcept
+    template <typename ProbeKey, typename Hash>
+    __device__ const_iterator initial_slot(ProbeKey const& k, Hash hash) const noexcept
     {
       return &slots_[hash(k) % capacity_];
     }
@@ -485,14 +489,16 @@ class static_map {
      * To be used for Cooperative Group based probing.
      *
      * @tparam CG Cooperative Group type
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
+     *
      * @param g the Cooperative Group for which the initial slot is needed
      * @param k The key to get the slot for
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename CG, typename Hash>
-    __device__ iterator initial_slot(CG g, Key const& k, Hash hash) noexcept
+    template <typename CG, typename ProbeKey, typename Hash>
+    __device__ iterator initial_slot(CG const& g, ProbeKey const& k, Hash hash) noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -503,14 +509,16 @@ class static_map {
      * To be used for Cooperative Group based probing.
      *
      * @tparam CG Cooperative Group type
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
+     *
      * @param g the Cooperative Group for which the initial slot is needed
      * @param k The key to get the slot for
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename CG, typename Hash>
-    __device__ const_iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
+    template <typename CG, typename ProbeKey, typename Hash>
+    __device__ const_iterator initial_slot(CG const& g, ProbeKey const& k, Hash hash) const noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -550,7 +558,7 @@ class static_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ iterator next_slot(CG g, iterator s) noexcept
+    __device__ iterator next_slot(CG const& g, iterator s) noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];
@@ -568,7 +576,7 @@ class static_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ const_iterator next_slot(CG g, const_iterator s) const noexcept
+    __device__ const_iterator next_slot(CG const& g, const_iterator s) const noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];

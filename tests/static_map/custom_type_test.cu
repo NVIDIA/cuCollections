@@ -83,7 +83,7 @@ struct hash_custom_key {
   template <typename custom_type>
   __device__ uint32_t operator()(custom_type k)
   {
-    return k.a;
+    return thrust::raw_reference_cast(k).a;
   };
 };
 

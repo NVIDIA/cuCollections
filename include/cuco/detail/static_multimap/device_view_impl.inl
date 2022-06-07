@@ -20,6 +20,8 @@
 #include <thrust/tuple.h>
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
+#include <cooperative_groups.h>
+
 namespace cuco {
 
 template <typename Key,
@@ -69,13 +71,16 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * To be used for Cooperative Group based probing.
    *
-   * @tparam CG Cooperative Group type
+   * @tparam ProbeKey Probe key type
+   *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename CG>
-  __device__ __forceinline__ iterator initial_slot(CG const& g, Key const& k) noexcept
+  template <typename ProbeKey>
+  __device__ __forceinline__ iterator
+  initial_slot(cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+               ProbeKey const& k) noexcept
   {
     return probe_sequence_.initial_slot(g, k);
   }
@@ -85,13 +90,16 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * To be used for Cooperative Group based probing.
    *
-   * @tparam CG Cooperative Group type
+   * @tparam ProbeKey Probe key type
+   *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename CG>
-  __device__ __forceinline__ const_iterator initial_slot(CG g, Key const& k) const noexcept
+  template <typename ProbeKey>
+  __device__ __forceinline__ const_iterator
+  initial_slot(cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+               ProbeKey const& k) const noexcept
   {
     return probe_sequence_.initial_slot(g, k);
   }
