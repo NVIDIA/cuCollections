@@ -100,23 +100,17 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
         cuco::sentinel::empty_key<Key>{sentinel_key},
         cuco::sentinel::empty_value<Value>{sentinel_value}};
 
-  thrust::device_vector<key_triplet<Value>> probe_keys(num);
-
-  thrust::transform(thrust::device,
-                    thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num),
-                    probe_keys.begin(),
-                    [] __device__(int i) { return key_triplet<Value>{i}; });
-
   auto insert_keys = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<int>(0),
+    thrust::counting_iterator<int>(0),
     [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
+  auto probe_keys = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0), [] __device__(auto i) { return key_triplet<Value>(i); });
 
   SECTION("All inserted keys-value pairs should be contained")
   {
     thrust::device_vector<bool> contained(num);
     map.insert(insert_keys, insert_keys + num);
-    map.contains(probe_keys.begin(), probe_keys.end(), contained.begin(), custom_key_equal{});
+    map.contains(probe_keys, probe_keys + num, contained.begin(), custom_key_equal{});
     REQUIRE(cuco::test::all_of(
       contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
@@ -124,7 +118,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
     thrust::device_vector<bool> contained(num);
-    map.contains(probe_keys.begin(), probe_keys.end(), contained.begin(), custom_key_equal{});
+    map.contains(probe_keys, probe_keys + num, contained.begin(), custom_key_equal{});
     REQUIRE(cuco::test::none_of(
       contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
