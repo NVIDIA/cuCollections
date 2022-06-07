@@ -196,7 +196,7 @@ class linear_probing_impl
    */
   template <typename ProbeKey>
   __device__ __forceinline__ iterator
-  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const k) noexcept
+  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
   {
     auto const hash_value = [&]() {
       auto const tmp = hash_(k);
@@ -319,7 +319,7 @@ class double_hashing_impl
    */
   template <typename ProbeKey>
   __device__ __forceinline__ iterator
-  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const k) noexcept
+  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
   {
     std::size_t index;
     auto const hash_value = hash1_(k);
