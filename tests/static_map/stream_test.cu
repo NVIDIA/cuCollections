@@ -47,9 +47,6 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
                                    cuco::cuda_allocator<char>{},
                                    stream};
 
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
-
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
 

@@ -54,7 +54,7 @@ struct value_pair {
 };
 
 template <typename Map>
-__inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
+__inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
 {
   using Key   = key_pair;
   using Value = value_pair;
@@ -97,7 +97,7 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
     thrust::device_vector<cuco::pair_type<Key, Value>> found_pairs(num_pairs);
     auto output_end = map.retrieve(
       key_begin, key_begin + num_pairs, found_pairs.begin(), stream, key_pair_equals{});
-    auto size = output_end - found_pairs.begin();
+    std::size_t const size = std::distance(found_pairs.begin(), output_end);
 
     REQUIRE(size == num_pairs);
 
@@ -140,7 +140,7 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
     thrust::device_vector<cuco::pair_type<Key, Value>> found_pairs(num_pairs);
     auto output_end = map.retrieve(
       query_key_begin, query_key_begin + num, found_pairs.begin(), stream, key_pair_equals{});
-    auto size = output_end - found_pairs.begin();
+    std::size_t const size = std::distance(found_pairs.begin(), output_end);
 
     REQUIRE(size == num_pairs);
 
@@ -182,7 +182,7 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
     thrust::device_vector<cuco::pair_type<Key, Value>> found_pairs(num);
     auto output_end = map.retrieve_outer(
       query_key_begin, query_key_begin + num, found_pairs.begin(), stream, key_pair_equals{});
-    auto size_outer = output_end - found_pairs.begin();
+    std::size_t const size_outer = std::distance(found_pairs.begin(), output_end);
 
     REQUIRE(size_outer == num);
   }

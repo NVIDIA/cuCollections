@@ -51,7 +51,7 @@ template <typename Key, typename Value, cuda::thread_scope Scope, typename Alloc
 void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n)
 {
   int64_t num_elements_remaining = n;
-  auto submap_idx                = 0;
+  uint32_t submap_idx            = 0;
   while (num_elements_remaining > 0) {
     std::size_t submap_capacity;
 
