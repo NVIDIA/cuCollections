@@ -100,7 +100,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
         cuco::sentinel::empty_key<Key>{sentinel_key},
         cuco::sentinel::empty_value<Value>{sentinel_value}};
 
-  auto insert_keys = thrust::make_transform_iterator(
+  auto insert_pairs = thrust::make_transform_iterator(
     thrust::counting_iterator<int>(0),
     [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
   auto probe_keys = thrust::make_transform_iterator(
@@ -109,7 +109,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   SECTION("All inserted keys-value pairs should be contained")
   {
     thrust::device_vector<bool> contained(num);
-    map.insert(insert_keys, insert_keys + num);
+    map.insert(insert_pairs, insert_pairs + num);
     map.contains(probe_keys, probe_keys + num, contained.begin(), custom_key_equal{});
     REQUIRE(cuco::test::all_of(
       contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));

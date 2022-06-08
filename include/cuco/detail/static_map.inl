@@ -721,6 +721,8 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
 {
   static_assert(std::is_invocable_r_v<bool, KeyEqual, ProbeKey, Key>,
                 "KeyEqual(ProbeKey{}, Key{}) must be a valid callable.");
+  static_assert(std::is_invocable_r_v<bool, KeyEqual, Key, ProbeKey>,
+                "KeyEqual(Key{}, ProbeKey{}) must be a valid callable.");
   static_assert(std::is_invocable_r_v<cuco::hash_value_type, Hash, Key>,
                 "Hash(Key{}) must be a valid callable.");
   static_assert(std::is_invocable_r_v<cuco::hash_value_type, Hash, ProbeKey>,
@@ -749,6 +751,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::contains(CG const& g,
 {
   static_assert(std::is_invocable_r_v<bool, KeyEqual, ProbeKey, Key>,
                 "KeyEqual(ProbeKey{}, Key{}) must be a valid callable.");
+  static_assert(std::is_invocable_r_v<bool, KeyEqual, Key, ProbeKey>,
+                "KeyEqual(Key{}, ProbeKey{}) must be a valid callable.");
   static_assert(std::is_invocable_r_v<cuco::hash_value_type, Hash, Key>,
                 "Hash(Key{}) must be a valid callable.");
   static_assert(std::is_invocable_r_v<cuco::hash_value_type, Hash, ProbeKey>,

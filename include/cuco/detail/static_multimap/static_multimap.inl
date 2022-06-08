@@ -545,6 +545,8 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::conta
 {
   static_assert(std::is_invocable_r_v<bool, KeyEqual, ProbeKey, Key>,
                 "KeyEqual(ProbeKey{}, Key{}) must be a valid callable.");
+  static_assert(std::is_invocable_r_v<bool, KeyEqual, Key, ProbeKey>,
+                "KeyEqual(Key{}, ProbeKey{}) must be a valid callable.");
 
   if constexpr (ProbeSequence::is_linear_probing) {
     static_assert(std::is_invocable_r_v<cuco::hash_value_type, typename ProbeSequence::hasher, Key>,
