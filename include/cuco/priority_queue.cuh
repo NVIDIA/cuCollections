@@ -196,15 +196,23 @@ class priority_queue {
     }
 
    private:
-    size_t node_size_;
-    int lowest_level_start_;
-    int node_capacity_;
+    size_t node_size_;        ///< Size of the heap's nodes (i.e. number of T's
+                              ///  in each node)
+    int lowest_level_start_;  ///< Index in `d_heap_` of the first node in the
+                              ///  heap's lowest level
+    int node_capacity_;       ///< Capacity of the heap in nodes
 
-    T* d_heap_;
-    int* d_size_;
-    size_t* d_p_buffer_size_;
-    int* d_locks_;
-    Compare compare_;
+    T* d_heap_;               ///< Pointer to an array of nodes, the 0th node
+                              ///  being the heap's partial buffer, and nodes
+                              ///  1..(node_capacity_) being the heap, where
+                              ///  the 1st node is the root
+    int* d_size_;             ///< Number of nodes currently in the heap
+    size_t* d_p_buffer_size_; ///< Number of elements currently in the partial
+                              ///  buffer
+    int* d_locks_;            ///< Array of locks where `d_locks_[i]` is the
+                              ///  lock for the node starting at
+                              ///  d_heap_[node_size * i]`
+    Compare compare_{}; ///< Comparator used to order the elements in the queue
   };
 
   /*
@@ -227,27 +235,31 @@ class priority_queue {
   }
 
  private:
-  size_t node_size_;        ///< Size of the heap's nodes
+  size_t node_size_;        ///< Size of the heap's nodes (i.e. number of T's
+                            ///  in each node)
   int lowest_level_start_;  ///< Index in `d_heap_` of the first node in the
                             ///  heap's lowest level
   int node_capacity_;       ///< Capacity of the heap in nodes
 
-  T* d_heap_;                ///< Pointer to an array of nodes, the 0th node
-                             ///  being the heap's partial buffer, and nodes
-                             ///  1..(node_capacity_) being the heap, where the
-                             ///  1st node is the root
-  int* d_size_;              ///< Number of nodes currently in the heap
-  size_t* d_p_buffer_size_;  ///< Number of elements currently in the partial
-                             ///  buffer
-  int* d_locks_;             ///< Array of locks where `d_locks_[i]` is the
-                             ///  lock for the node starting at
-                             ///  1d_heap_[node_size * i]`
+  T* d_heap_;               ///< Pointer to an array of nodes, the 0th node
+                            ///  being the heap's partial buffer, and nodes
+                            ///  1..(node_capacity_) being the heap, where the
+                            ///  1st node is the root
+  int* d_size_;             ///< Number of nodes currently in the heap
+  size_t* d_p_buffer_size_; ///< Number of elements currently in the partial
+                            ///  buffer
+  int* d_locks_;            ///< Array of locks where `d_locks_[i]` is the
+                            ///  lock for the node starting at
+                            ///  d_heap_[node_size * i]`
 
-  int_allocator_type int_allocator_;
-  t_allocator_type t_allocator_;
-  size_t_allocator_type size_t_allocator_;
+  int_allocator_type int_allocator_;       ///< Allocator used to allocated ints
+                                           ///  for example, the lock array
+  t_allocator_type t_allocator_;           ///< Allocator used to allocate T's
+                                           ///  and therefore nodes
+  size_t_allocator_type size_t_allocator_; ///< Allocator used to allocate
+                                           ///  size_t's, e.g. d_p_buffer_size_
 
-  Compare compare_{};
+  Compare compare_{}; ///< Comparator used to order the elements in the queue
 };
 
 }  // namespace cuco
