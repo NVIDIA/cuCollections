@@ -25,7 +25,7 @@ namespace cuco {
 
 template <typename T, typename Compare, bool FavorInsertionPerformance, typename Allocator>
 priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::priority_queue(
-  size_t initial_capacity, Allocator const& allocator)
+  size_t initial_capacity, Allocator const& allocator, cudaStream_t stream)
   : int_allocator_{allocator}, t_allocator_{allocator}, size_t_allocator_{allocator}
 {
   node_size_ = NodeSize;
@@ -40,11 +40,11 @@ priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::priority_queue
 
   d_size_ = std::allocator_traits<int_allocator_type>::allocate(int_allocator_, 1);
 
-  CUCO_CUDA_TRY(cudaMemset(d_size_, 0, sizeof(int)));
+  CUCO_CUDA_TRY(cudaMemsetAsync(d_size_, 0, sizeof(int), stream));
 
   d_p_buffer_size_ = std::allocator_traits<size_t_allocator_type>::allocate(size_t_allocator_, 1);
 
-  CUCO_CUDA_TRY(cudaMemset(d_p_buffer_size_, 0, sizeof(size_t)));
+  CUCO_CUDA_TRY(cudaMemsetAsync(d_p_buffer_size_, 0, sizeof(size_t), stream));
 
   d_heap_ = std::allocator_traits<t_allocator_type>::allocate(
     t_allocator_, node_capacity_ * node_size_ + node_size_);
@@ -52,7 +52,8 @@ priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::priority_queue
   d_locks_ =
     std::allocator_traits<int_allocator_type>::allocate(int_allocator_, node_capacity_ + 1);
 
-  CUCO_CUDA_TRY(cudaMemset(d_locks_, 0, sizeof(int) * (node_capacity_ + 1)));
+  CUCO_CUDA_TRY(cudaMemsetAsync(d_locks_, 0, sizeof(int) * (node_capacity_ + 1),
+                           stream));
 }
 
 template <typename T, typename Compare, bool FavorInsertionPerformance, typename Allocator>
