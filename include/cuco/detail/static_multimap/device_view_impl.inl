@@ -627,7 +627,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
    * @tparam CG Cooperative Group type
-   * @tparam ProbeKey Probe key type that is convertible to the map's `key_type`
+   * @tparam ProbeKey Probe key type
    * @tparam KeyEqual Binary callable type
    *
    * @param g The Cooperative Group used to perform the contains operation

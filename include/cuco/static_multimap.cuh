@@ -272,8 +272,7 @@ class static_multimap {
    * Stores `true` or `false` to `(output + i)` indicating if the key `*(first + i)` exists in the
    * map.
    *
-   * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the map's `key_type`
+   * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from
    * `bool`
    * @tparam KeyEqual Binary callable type used to compare two keys for equality

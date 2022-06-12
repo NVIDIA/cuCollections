@@ -380,17 +380,16 @@ class static_map {
                                            cudaStream_t stream = 0);
 
   /**
-   * @brief Indicates whether the keys in the range
-   * `[first, last)` are contained in the map.
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
    *
    * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
    *
-   * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the map's `key_type`
-   * @tparam OutputIt Device accessible output iterator whose `value_type` is
-   * convertible to the map's `mapped_type`
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from
+   * `bool`
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
+   *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
