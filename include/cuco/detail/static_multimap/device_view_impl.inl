@@ -583,8 +583,11 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     Equal equal) noexcept
   {
     auto current_slot = [&]() {
-      if constexpr (is_pair_contains) { return initial_slot(g, element.first); }
-      if constexpr (not is_pair_contains) { return initial_slot(g, element); }
+      if constexpr (is_pair_contains) {
+        return initial_slot(g, element.first);
+      } else {
+        return initial_slot(g, element);
+      }
     }();
 
     while (true) {
@@ -598,16 +601,14 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       auto const first_equals = [&]() {
         if constexpr (is_pair_contains) {
           return not first_slot_is_empty and equal(arr[0], element);
-        }
-        if constexpr (not is_pair_contains) {
+        } else {
           return not first_slot_is_empty and equal(arr[0].first, element);
         }
       }();
       auto const second_equals = [&]() {
         if constexpr (is_pair_contains) {
           return not second_slot_is_empty and equal(arr[1], element);
-        }
-        if constexpr (not is_pair_contains) {
+        } else {
           return not second_slot_is_empty and equal(arr[1].first, element);
         }
       }();
@@ -649,8 +650,11 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     Equal equal) noexcept
   {
     auto current_slot = [&]() {
-      if constexpr (is_pair_contains) { return initial_slot(g, element.first); }
-      if constexpr (not is_pair_contains) { return initial_slot(g, element); }
+      if constexpr (is_pair_contains) {
+        return initial_slot(g, element.first);
+      } else {
+        return initial_slot(g, element);
+      }
     }();
 
     while (true) {
@@ -665,8 +669,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       auto const equals = [&]() {
         if constexpr (is_pair_contains) {
           return not slot_is_empty and equal(slot_contents, element);
-        }
-        if constexpr (not is_pair_contains) {
+        } else {
           return not slot_is_empty and equal(existing_key, element);
         }
       }();
