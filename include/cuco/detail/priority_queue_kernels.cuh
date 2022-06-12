@@ -33,10 +33,10 @@ constexpr int kRootIdx    = 1;
  * Ideally, this temp storage is in shared memory
  */
 template <typename T>
-struct SharedMemoryLayout {
+struct shared_memory_layout {
   int* intersections;
-  T* A;
-  T* B;
+  T* a;
+  T* b;
 };
 
 /*
@@ -50,12 +50,13 @@ struct SharedMemoryLayout {
  * @returns The memory layout for the given group dimension and node size
  */
 template <typename T>
-__device__ SharedMemoryLayout<T> GetSharedMemoryLayout(int* s, int dim, size_t node_size)
+__device__ shared_memory_layout<T> get_shared_memory_layout(int* s, int dim,
+                                                            size_t node_size)
 {
-  SharedMemoryLayout<T> result;
+  shared_memory_layout<T> result;
   result.intersections = s;
-  result.A             = (T*)(s + 2 * (dim + 1));
-  result.B             = result.A + node_size;
+  result.a             = (T*)(s + 2 * (dim + 1));
+  result.b             = result.a + node_size;
   return result;
 }
 
@@ -67,7 +68,7 @@ __device__ SharedMemoryLayout<T> GetSharedMemoryLayout(int* s, int dim, size_t n
  *  @param l Pointer to the lock to be acquired
  */
 template <typename CG>
-__device__ void AcquireLock(CG const& g, int* l)
+__device__ void acquire_lock(CG const& g, int* l)
 {
   if (g.thread_rank() == 0) {
     while (atomicCAS(l, 0, 1) != 0)
@@ -84,7 +85,7 @@ __device__ void AcquireLock(CG const& g, int* l)
  * @param l Pointer to the lock to be released
  */
 template <typename CG>
-__device__ void ReleaseLock(CG const& g, int* l)
+__device__ void release_lock(CG const& g, int* l)
 {
   if (g.thread_rank() == 0) { atomicExch(l, 0); }
 }
@@ -98,10 +99,12 @@ __device__ void ReleaseLock(CG const& g, int* l)
  * @param src_end Iterator to the end of the source array
  */
 template <typename InputIt1, typename InputIt2, typename CG>
-__device__ void CopyPairs(CG const& g, InputIt1 dst_start, InputIt2 src_start, InputIt2 src_end)
+__device__ void copy_pairs(CG const& g, InputIt1 dst_start, InputIt2 src_start,
+                           InputIt2 src_end)
 {
   auto dst = dst_start + g.thread_rank();
-  for (auto src = src_start + g.thread_rank(); src < src_end; dst += g.size(), src += g.size()) {
+  for (auto src = src_start + g.thread_rank(); src < src_end;
+       dst += g.size(), src += g.size()) {
     *dst = *src;
   }
 }
@@ -115,9 +118,10 @@ __device__ void CopyPairs(CG const& g, InputIt1 dst_start, InputIt2 src_start, I
  * @param num_pairs Number of pairs to copy
  */
 template <typename InputIt1, typename InputIt2, typename CG>
-__device__ void CopyPairs(CG const& g, InputIt1 dst_start, InputIt2 src_start, size_t num_pairs)
+__device__ void copy_pairs(CG const& g, InputIt1 dst_start, InputIt2 src_start,
+                           size_t num_pairs)
 {
-  CopyPairs(g, dst_start, src_start, src_start + num_pairs);
+  copy_pairs(g, dst_start, src_start, src_start + num_pairs);
 }
 
 /**
@@ -137,16 +141,16 @@ __device__ void CopyPairs(CG const& g, InputIt1 dst_start, InputIt2 src_start, s
  * @param compare Comparison operator ordering the elements to be merged
  */
 template <typename T, typename CG, typename Compare>
-__device__ void MergeAndSort(CG const& g,
-                             T* a,
-                             T* b,
-                             T* lo,
-                             T* hi,
-                             size_t node_size,
-                             SharedMemoryLayout<T> shmem,
-                             Compare const& compare)
+__device__ void merge_and_sort(CG const& g,
+                              T* a,
+                              T* b,
+                              T* lo,
+                              T* hi,
+                              size_t node_size,
+                              shared_memory_layout<T> shmem,
+                              Compare const& compare)
 {
-  MergeAndSort(g, a, b, lo, hi, node_size, node_size, node_size, shmem, compare);
+  merge_and_sort(g, a, b, lo, hi, node_size, node_size, node_size, shmem, compare);
 }
 
 /**
@@ -173,31 +177,31 @@ __device__ void MergeAndSort(CG const& g,
  * @param compare Comparison operator ordering the elements to be merged
  */
 template <typename T, typename CG, typename Compare>
-__device__ void MergeAndSort(CG const& g,
-                             T* a,
-                             T* b,
-                             T* lo,
-                             T* hi,
-                             size_t num_elements_a,
-                             size_t num_elements_b,
-                             size_t node_size,
-                             SharedMemoryLayout<T> shmem,
-                             Compare const& compare)
+__device__ void merge_and_sort(CG const& g,
+                               T* a,
+                               T* b,
+                               T* lo,
+                               T* hi,
+                               size_t num_elements_a,
+                               size_t num_elements_b,
+                               size_t node_size,
+                               shared_memory_layout<T> shmem,
+                               Compare const& compare)
 {
   int lane = g.thread_rank();
   int dim  = g.size();
 
   if (num_elements_a == node_size && compare(a[node_size - 1], b[0])) {
-    CopyPairs(g, lo, a, num_elements_a);
+    copy_pairs(g, lo, a, num_elements_a);
 
-    CopyPairs(g, hi, b, num_elements_b);
+    copy_pairs(g, hi, b, num_elements_b);
     return;
   }
 
   if (num_elements_b == node_size && compare(b[node_size - 1], a[0])) {
-    CopyPairs(g, hi, a, num_elements_a);
+    copy_pairs(g, hi, a, num_elements_a);
 
-    CopyPairs(g, lo, b, num_elements_b);
+    copy_pairs(g, lo, b, num_elements_b);
     return;
   }
 
@@ -317,7 +321,7 @@ __device__ void MergeAndSort(CG const& g,
  * @param compare Comparison operator ordering the elements to be sorted
  */
 template <typename T, typename CG, typename Compare>
-__device__ void PBSort(
+__device__ void pb_sort(
   CG const& g, T* start, size_t len, size_t node_size, T* temp, Compare const& compare)
 {
   int lane = g.thread_rank();
@@ -338,7 +342,8 @@ __device__ void PBSort(
         int left       = (i / jump) * jump * 2 + i % jump;
         int right      = left + jump;
         if ((i / start_jump) % 2 == 0) {
-          if (!mask[left] || (mask[right] && !compare(start[left], start[right]))) {
+          if (!mask[left] || 
+              (mask[right] && !compare(start[left], start[right]))) {
             auto temp    = start[left];
             start[left]  = start[right];
             start[right] = temp;
@@ -348,7 +353,8 @@ __device__ void PBSort(
             mask[right]    = temp_mask;
           }
         } else {
-          if (!mask[right] || (mask[left] && compare(start[left], start[right]))) {
+          if (!mask[right] ||
+              (mask[left] && compare(start[left], start[right]))) {
             auto temp    = start[left];
             start[left]  = start[right];
             start[right] = temp;
@@ -390,7 +396,7 @@ __device__ void PBSort(
  * @return The number with all bits after the most significant
  *         set bit reversed
  */
-__device__ int BitReversePerm(int x)
+__device__ int bit_reverse_perm(int x)
 {
   int clz = __clz(x);
 
@@ -414,13 +420,13 @@ __device__ int BitReversePerm(int x)
  * @param lowest_level_start Index of the first node in the last level of the
  *                           heap
  */
-__device__ int InsertionOrderIndex(int x, int lowest_level_start)
+__device__ int insertion_order_index(int x, int lowest_level_start)
 {
   assert(x > 0);
 
   if (x >= lowest_level_start) { return x; }
 
-  return BitReversePerm(x);
+  return bit_reverse_perm(x);
 }
 
 /**
@@ -431,10 +437,10 @@ __device__ int InsertionOrderIndex(int x, int lowest_level_start)
  *                           heap
  * @return The index of the parent of x
  */
-__device__ int Parent(int x, int lowest_level_start)
+__device__ int parent(int x, int lowest_level_start)
 {
   assert(x > 0);
-  if (x >= lowest_level_start) { return BitReversePerm(x) / 2; }
+  if (x >= lowest_level_start) { return bit_reverse_perm(x) / 2; }
 
   return x / 2;
 }
@@ -447,12 +453,12 @@ __device__ int Parent(int x, int lowest_level_start)
  *                           heap
  * @return The index of the left child of x
  */
-__device__ int LeftChild(int x, int lowest_level_start)
+__device__ int left_child(int x, int lowest_level_start)
 {
   assert(x > 0);
   int result = x * 2;
 
-  if (result >= lowest_level_start) { result = BitReversePerm(result); }
+  if (result >= lowest_level_start) { result = bit_reverse_perm(result); }
 
   return result;
 }
@@ -465,18 +471,18 @@ __device__ int LeftChild(int x, int lowest_level_start)
  *                           heap
  * @return The index of the right child of x
  */
-__device__ int RightChild(int x, int lowest_level_start)
+__device__ int right_child(int x, int lowest_level_start)
 {
   assert(x > 0);
   int result = x * 2 + 1;
 
-  if (result >= lowest_level_start) { result = BitReversePerm(result); }
+  if (result >= lowest_level_start) { result = bit_reverse_perm(result); }
 
   return result;
 }
 
 /**
- * Swim node cur_node up the heap
+ * swim node cur_node up the heap
  * Pre: g must hold the lock corresponding to cur_node
  *
  * @param g The cooperative group that will perform the operation
@@ -491,58 +497,59 @@ __device__ int RightChild(int x, int lowest_level_start)
  * @param compare Comparison operator ordering the elements in the heap
  */
 template <typename T, typename CG, typename Compare>
-__device__ void Swim(CG const& g,
+__device__ void swim(CG const& g,
                      int cur_node,
                      T* heap,
                      int* size,
                      size_t node_size,
                      int* locks,
                      int lowest_level_start,
-                     SharedMemoryLayout<T> shmem,
+                     shared_memory_layout<T> shmem,
                      Compare const& compare)
 {
   int lane = g.thread_rank();
   int dim  = g.size();
 
-  int parent = Parent(cur_node, lowest_level_start);
+  int cur_parent = parent(cur_node, lowest_level_start);
 
-  // Swim the new node up the tree
+  // swim the new node up the tree
   while (cur_node != 1) {
-    AcquireLock(g, &(locks[parent]));
+    acquire_lock(g, &(locks[cur_parent]));
 
     // If the heap property is already satisfied for this node and its
     // parent we are done
-    if (!compare(heap[cur_node * node_size], heap[parent * node_size + node_size - 1])) {
-      ReleaseLock(g, &(locks[parent]));
+    if (!compare(heap[cur_node * node_size],
+                 heap[cur_parent * node_size + node_size - 1])) {
+      release_lock(g, &(locks[cur_parent]));
       break;
     }
 
-    MergeAndSort(g,
-                 &heap[parent * node_size],
-                 &heap[cur_node * node_size],
-                 shmem.A,
-                 shmem.B,
-                 node_size,
-                 shmem,
-                 compare);
+    merge_and_sort(g,
+                   &heap[cur_parent * node_size],
+                   &heap[cur_node * node_size],
+                   shmem.a,
+                   shmem.b,
+                   node_size,
+                   shmem,
+                   compare);
 
     g.sync();
 
-    CopyPairs(g, &heap[parent * node_size], shmem.A, node_size);
-    CopyPairs(g, &heap[cur_node * node_size], shmem.B, node_size);
+    copy_pairs(g, &heap[cur_parent * node_size], shmem.a, node_size);
+    copy_pairs(g, &heap[cur_node * node_size], shmem.b, node_size);
 
     g.sync();
 
-    ReleaseLock(g, &(locks[cur_node]));
-    cur_node = parent;
-    parent   = Parent(cur_node, lowest_level_start);
+    release_lock(g, &(locks[cur_node]));
+    cur_node = cur_parent;
+    cur_parent   = parent(cur_node, lowest_level_start);
   }
 
-  ReleaseLock(g, &(locks[cur_node]));
+  release_lock(g, &(locks[cur_node]));
 }
 
 /**
- * Sink the root down the heap
+ * sink the root down the heap
  * Pre: g must hold the root's lock
  *
  * @param g The cooperative group that will perform the operation
@@ -557,7 +564,7 @@ __device__ void Swim(CG const& g,
  * @param compare Comparison operator ordering the elements in the heap
  */
 template <typename T, typename CG, typename Compare>
-__device__ void Sink(CG const& g,
+__device__ void sink(CG const& g,
                      T* heap,
                      int* size,
                      size_t node_size,
@@ -565,45 +572,46 @@ __device__ void Sink(CG const& g,
                      size_t* p_buffer_size,
                      int lowest_level_start,
                      int node_capacity,
-                     SharedMemoryLayout<T> shmem,
+                     shared_memory_layout<T> shmem,
                      Compare const& compare)
 {
   size_t cur = kRootIdx;
 
   int dim = g.size();
 
-  // Sink the node
-  while (InsertionOrderIndex(LeftChild(cur, lowest_level_start), lowest_level_start) <=
-         node_capacity) {
-    size_t left  = LeftChild(cur, lowest_level_start);
-    size_t right = RightChild(cur, lowest_level_start);
+  // sink the node
+  while (insertion_order_index(left_child(cur, lowest_level_start),
+                               lowest_level_start) <= node_capacity) {
+    size_t left  = left_child(cur, lowest_level_start);
+    size_t right = right_child(cur, lowest_level_start);
 
-    AcquireLock(g, &locks[left]);
+    acquire_lock(g, &locks[left]);
 
     // The left node might have been removed
     // since the while loop condition, in which
     // case we are already at the bottom of the heap
-    if (InsertionOrderIndex(left, lowest_level_start) > *size) {
-      ReleaseLock(g, &locks[left]);
+    if (insertion_order_index(left, lowest_level_start) > *size) {
+      release_lock(g, &locks[left]);
       break;
     }
 
     size_t lo;
 
-    if (InsertionOrderIndex(right, lowest_level_start) <= node_capacity) {
-      AcquireLock(g, &locks[right]);
+    if (insertion_order_index(right, lowest_level_start) <= node_capacity) {
+      acquire_lock(g, &locks[right]);
 
       // Note that even with the bit reversal permutation,
       // we can never have a right child without a left child
       //
       // If we have both children, merge and sort them
-      if (InsertionOrderIndex(right, lowest_level_start) <= *size) {
+      if (insertion_order_index(right, lowest_level_start) <= *size) {
         size_t hi;
 
         // In order to ensure we preserve the heap property,
         // we put the largest node_size elements in the child
         // that previously contained the largest element
-        if (!compare(heap[(left + 1) * node_size - 1], heap[(right + 1) * node_size - 1])) {
+        if (!compare(heap[(left + 1) * node_size - 1],
+                    heap[(right + 1) * node_size - 1])) {
           hi = left;
           lo = right;
         } else {
@@ -614,52 +622,52 @@ __device__ void Sink(CG const& g,
         // Skip the merge and sort if the nodes are already correctly
         // sorted
         if (!compare(heap[(lo + 1) * node_size - 1], heap[hi * node_size])) {
-          MergeAndSort(g,
-                       &heap[left * node_size],
-                       &heap[right * node_size],
-                       shmem.A,
-                       shmem.B,
-                       node_size,
-                       shmem,
-                       compare);
+          merge_and_sort(g,
+                         &heap[left * node_size],
+                         &heap[right * node_size],
+                         shmem.a,
+                         shmem.b,
+                         node_size,
+                         shmem,
+                         compare);
 
           g.sync();
 
-          CopyPairs(g, &heap[hi * node_size], shmem.B, node_size);
-          CopyPairs(g, &heap[lo * node_size], shmem.A, node_size);
+          copy_pairs(g, &heap[hi * node_size], shmem.b, node_size);
+          copy_pairs(g, &heap[lo * node_size], shmem.a, node_size);
 
           g.sync();
         }
-        ReleaseLock(g, &locks[hi]);
+        release_lock(g, &locks[hi]);
       } else {
         lo = left;
-        ReleaseLock(g, &locks[right]);
+        release_lock(g, &locks[right]);
       }
     } else {
       lo = left;
     }
 
-    MergeAndSort(g,
-                 &heap[lo * node_size],
-                 &heap[cur * node_size],
-                 shmem.A,
-                 shmem.B,
-                 node_size,
-                 shmem,
-                 compare);
+    merge_and_sort(g,
+                   &heap[lo * node_size],
+                   &heap[cur * node_size],
+                   shmem.a,
+                   shmem.b,
+                   node_size,
+                   shmem,
+                   compare);
 
     g.sync();
 
-    CopyPairs(g, &heap[lo * node_size], shmem.B, node_size);
-    CopyPairs(g, &heap[cur * node_size], shmem.A, node_size);
+    copy_pairs(g, &heap[lo * node_size], shmem.b, node_size);
+    copy_pairs(g, &heap[cur * node_size], shmem.a, node_size);
 
     g.sync();
 
-    ReleaseLock(g, &locks[cur]);
+    release_lock(g, &locks[cur]);
 
     cur = lo;
   }
-  ReleaseLock(g, &locks[cur]);
+  release_lock(g, &locks[cur]);
 }
 
 /**
@@ -678,38 +686,39 @@ __device__ void Sink(CG const& g,
  * @param compare Comparison operator ordering the elements in the heap
  */
 template <typename InputIt, typename T, typename Compare, typename CG>
-__device__ void PushSingleNode(CG const& g,
-                               InputIt elements,
-                               T* heap,
-                               int* size,
-                               size_t node_size,
-                               int* locks,
-                               int lowest_level_start,
-                               SharedMemoryLayout<T> shmem,
-                               Compare const& compare)
+__device__ void push_single_node(CG const& g,
+                                 InputIt elements,
+                                 T* heap,
+                                 int* size,
+                                 size_t node_size,
+                                 int* locks,
+                                 int lowest_level_start,
+                                 shared_memory_layout<T> shmem,
+                                 Compare const& compare)
 {
   int lane = g.thread_rank();
   int dim  = g.size();
 
-  CopyPairs(g, shmem.A, elements, elements + node_size);
+  copy_pairs(g, shmem.a, elements, elements + node_size);
 
   g.sync();
 
-  PBSort(g, shmem.A, node_size, node_size, shmem.B, compare);
+  pb_sort(g, shmem.a, node_size, node_size, shmem.b, compare);
 
   int* cur_node_temp = (int*)shmem.intersections;
   if (lane == 0) { *cur_node_temp = atomicAdd(size, 1) + 1; }
   g.sync();
 
-  int cur_node = InsertionOrderIndex(*cur_node_temp, lowest_level_start);
+  int cur_node = insertion_order_index(*cur_node_temp, lowest_level_start);
 
-  AcquireLock(g, &(locks[cur_node]));
+  acquire_lock(g, &(locks[cur_node]));
 
-  CopyPairs(g, &heap[cur_node * node_size], shmem.A, node_size);
+  copy_pairs(g, &heap[cur_node * node_size], shmem.a, node_size);
 
   g.sync();
 
-  Swim(g, cur_node, heap, size, node_size, locks, lowest_level_start, shmem, compare);
+  swim(g, cur_node, heap, size, node_size, locks, lowest_level_start,
+       shmem, compare);
 }
 
 /**
@@ -730,24 +739,24 @@ __device__ void PushSingleNode(CG const& g,
  * @param compare Comparison operator ordering the elements in the heap
  */
 template <typename OutputIt, typename T, typename Compare, typename CG>
-__device__ void PopSingleNode(CG const& g,
-                              OutputIt elements,
-                              T* heap,
-                              int* size,
-                              size_t node_size,
-                              int* locks,
-                              size_t* p_buffer_size,
-                              int lowest_level_start,
-                              int node_capacity,
-                              SharedMemoryLayout<T> shmem,
-                              Compare const& compare)
+__device__ void pop_single_node(CG const& g,
+                                OutputIt elements,
+                                T* heap,
+                                int* size,
+                                size_t node_size,
+                                int* locks,
+                                size_t* p_buffer_size,
+                                int lowest_level_start,
+                                int node_capacity,
+                                shared_memory_layout<T> shmem,
+                                Compare const& compare)
 {
   int lane = g.thread_rank();
   int dim  = g.size();
 
-  AcquireLock(g, &locks[kRootIdx]);
+  acquire_lock(g, &locks[kRootIdx]);
   if (*size == 0) {
-    CopyPairs(g, elements, heap, node_size);
+    copy_pairs(g, elements, heap, node_size);
 
     if (lane == 0) { *p_buffer_size = 0; }
     g.sync();
@@ -757,9 +766,9 @@ __device__ void PopSingleNode(CG const& g,
   // Find the target node (the last one inserted) and
   // decrement the size
 
-  size_t tar = InsertionOrderIndex(*size, lowest_level_start);
+  size_t tar = insertion_order_index(*size, lowest_level_start);
 
-  if (tar != 1) { AcquireLock(g, &locks[tar]); }
+  if (tar != 1) { acquire_lock(g, &locks[tar]); }
 
   g.sync();
 
@@ -768,42 +777,42 @@ __device__ void PopSingleNode(CG const& g,
 
   // Copy the root to the output array
 
-  CopyPairs(g, elements, &heap[node_size], &heap[node_size] + node_size);
+  copy_pairs(g, elements, &heap[node_size], &heap[node_size] + node_size);
 
   g.sync();
 
   // Copy the target node to the root
 
   if (tar != kRootIdx) {
-    CopyPairs(g, &heap[node_size], &heap[tar * node_size], node_size);
+    copy_pairs(g, &heap[node_size], &heap[tar * node_size], node_size);
 
-    ReleaseLock(g, &locks[tar]);
+    release_lock(g, &locks[tar]);
 
     g.sync();
   }
 
   // Merge and sort the root and the partial buffer
 
-  MergeAndSort(g,
-               &heap[node_size],
-               &heap[kPBufferIdx],
-               shmem.A,
-               shmem.B,
-               node_size,
-               *p_buffer_size,
-               node_size,
-               shmem,
-               compare);
+  merge_and_sort(g,
+                 &heap[node_size],
+                 &heap[kPBufferIdx],
+                 shmem.a,
+                 shmem.b,
+                 node_size,
+                 *p_buffer_size,
+                 node_size,
+                 shmem,
+                 compare);
 
   g.sync();
 
-  CopyPairs(g, &heap[node_size], shmem.A, node_size);
+  copy_pairs(g, &heap[node_size], shmem.a, node_size);
 
-  CopyPairs(g, heap, shmem.B, *p_buffer_size);
+  copy_pairs(g, heap, shmem.b, *p_buffer_size);
 
   g.sync();
 
-  Sink(g,
+  sink(g,
        heap,
        size,
        node_size,
@@ -833,49 +842,49 @@ __device__ void PopSingleNode(CG const& g,
  * @param compare Comparison operator ordering the elements in the heap
  */
 template <typename InputIt, typename T, typename Compare, typename CG>
-__device__ void PopPartialNode(CG const& g,
-                               InputIt elements,
-                               size_t num_elements,
-                               T* heap,
-                               int* size,
-                               size_t node_size,
-                               int* locks,
-                               size_t* p_buffer_size,
-                               int lowest_level_start,
-                               int node_capacity,
-                               SharedMemoryLayout<T> shmem,
-                               Compare const& compare)
+__device__ void pop_partial_node(CG const& g,
+                                 InputIt elements,
+                                 size_t num_elements,
+                                 T* heap,
+                                 int* size,
+                                 size_t node_size,
+                                 int* locks,
+                                 size_t* p_buffer_size,
+                                 int lowest_level_start,
+                                 int node_capacity,
+                                 shared_memory_layout<T> shmem,
+                                 Compare const& compare)
 {
   int lane = g.thread_rank();
   int dim  = g.size();
 
-  AcquireLock(g, &locks[kRootIdx]);
+  acquire_lock(g, &locks[kRootIdx]);
 
   if (*size == 0) {
-    CopyPairs(g, elements, heap, num_elements);
+    copy_pairs(g, elements, heap, num_elements);
     g.sync();
 
     size_t n_p_buffer_size = *p_buffer_size - num_elements;
 
-    CopyPairs(g, shmem.A, heap + num_elements, n_p_buffer_size);
+    copy_pairs(g, shmem.a, heap + num_elements, n_p_buffer_size);
 
     g.sync();
 
-    CopyPairs(g, heap, shmem.A, n_p_buffer_size);
+    copy_pairs(g, heap, shmem.a, n_p_buffer_size);
 
     if (lane == 0) { *p_buffer_size = n_p_buffer_size; }
 
-    ReleaseLock(g, &locks[kRootIdx]);
+    release_lock(g, &locks[kRootIdx]);
   } else {
-    CopyPairs(g, elements, &heap[kRootIdx * node_size], num_elements);
+    copy_pairs(g, elements, &heap[kRootIdx * node_size], num_elements);
     g.sync();
 
     if (*p_buffer_size >= num_elements) {
-      MergeAndSort(g,
+      merge_and_sort(g,
                    &heap[kPBufferIdx],
                    &heap[kRootIdx * node_size] + num_elements,
-                   shmem.A,
-                   shmem.B,
+                   shmem.a,
+                   shmem.b,
                    *p_buffer_size,
                    node_size - num_elements,
                    node_size,
@@ -888,12 +897,12 @@ __device__ void PopPartialNode(CG const& g,
 
       g.sync();
 
-      CopyPairs(g, &heap[kRootIdx * node_size], shmem.A, node_size);
-      CopyPairs(g, &heap[kPBufferIdx], shmem.B, *p_buffer_size);
+      copy_pairs(g, &heap[kRootIdx * node_size], shmem.a, node_size);
+      copy_pairs(g, &heap[kPBufferIdx], shmem.b, *p_buffer_size);
 
       g.sync();
 
-      Sink(g,
+      sink(g,
            heap,
            size,
            node_size,
@@ -904,10 +913,10 @@ __device__ void PopPartialNode(CG const& g,
            shmem,
            compare);
     } else {
-      MergeAndSort(g,
+      merge_and_sort(g,
                    &heap[kPBufferIdx],
                    &heap[kRootIdx * node_size] + num_elements,
-                   shmem.A,
+                   shmem.a,
                    (T*)nullptr,
                    *p_buffer_size,
                    node_size - num_elements,
@@ -917,9 +926,9 @@ __device__ void PopPartialNode(CG const& g,
 
       g.sync();
 
-      CopyPairs(g, &heap[kPBufferIdx], shmem.A, *p_buffer_size + node_size - num_elements);
+      copy_pairs(g, &heap[kPBufferIdx], shmem.a, *p_buffer_size + node_size - num_elements);
 
-      int tar = InsertionOrderIndex(*size, lowest_level_start);
+      int tar = insertion_order_index(*size, lowest_level_start);
       g.sync();
 
       *p_buffer_size += node_size;
@@ -930,33 +939,33 @@ __device__ void PopPartialNode(CG const& g,
       if (lane == 0) { *size -= 1; }
 
       if (tar != kRootIdx) {
-        AcquireLock(g, &locks[tar]);
+        acquire_lock(g, &locks[tar]);
 
-        CopyPairs(g, &heap[kRootIdx * node_size], &heap[tar * node_size], node_size);
-
-        g.sync();
-
-        ReleaseLock(g, &locks[tar]);
-
-        MergeAndSort(g,
-                     &heap[node_size],
-                     &heap[kPBufferIdx],
-                     shmem.A,
-                     shmem.B,
-                     node_size,
-                     *p_buffer_size,
-                     node_size,
-                     shmem,
-                     compare);
-        g.sync();
-
-        CopyPairs(g, &heap[node_size], shmem.A, node_size);
-
-        CopyPairs(g, heap, shmem.B, *p_buffer_size);
+        copy_pairs(g, &heap[kRootIdx * node_size], &heap[tar * node_size], node_size);
 
         g.sync();
 
-        Sink(g,
+        release_lock(g, &locks[tar]);
+
+        merge_and_sort(g,
+                       &heap[node_size],
+                       &heap[kPBufferIdx],
+                       shmem.a,
+                       shmem.b,
+                       node_size,
+                       *p_buffer_size,
+                       node_size,
+                       shmem,
+                       compare);
+        g.sync();
+
+        copy_pairs(g, &heap[node_size], shmem.a, node_size);
+
+        copy_pairs(g, heap, shmem.b, *p_buffer_size);
+
+        g.sync();
+
+        sink(g,
              heap,
              size,
              node_size,
@@ -967,7 +976,7 @@ __device__ void PopPartialNode(CG const& g,
              shmem,
              compare);
       } else {
-        ReleaseLock(g, &locks[kRootIdx]);
+        release_lock(g, &locks[kRootIdx]);
       }
     }
   }
@@ -991,26 +1000,26 @@ __device__ void PopPartialNode(CG const& g,
  * @param compare Comparison operator ordering the elements in the heap
  */
 template <typename InputIt, typename T, typename Compare, typename CG>
-__device__ void PushPartialNode(CG const& g,
-                                InputIt elements,
-                                size_t p_ins_size,
-                                T* heap,
-                                int* size,
-                                size_t node_size,
-                                int* locks,
-                                size_t* p_buffer_size,
-                                int lowest_level_start,
-                                SharedMemoryLayout<T> shmem,
-                                Compare const& compare)
+__device__ void push_partial_node(CG const& g,
+                                  InputIt elements,
+                                  size_t p_ins_size,
+                                  T* heap,
+                                  int* size,
+                                  size_t node_size,
+                                  int* locks,
+                                  size_t* p_buffer_size,
+                                  int lowest_level_start,
+                                  shared_memory_layout<T> shmem,
+                                  Compare const& compare)
 {
   int lane = g.thread_rank();
   int dim  = g.size();
 
-  AcquireLock(g, &locks[kRootIdx]);
+  acquire_lock(g, &locks[kRootIdx]);
 
-  CopyPairs(g, shmem.B, elements, p_ins_size);
+  copy_pairs(g, shmem.b, elements, p_ins_size);
 
-  PBSort(g, shmem.B, p_ins_size, node_size, shmem.A, compare);
+  pb_sort(g, shmem.b, p_ins_size, node_size, shmem.a, compare);
 
   // There is enough data for a new node, in which case we
   // construct a new node and insert it
@@ -1019,32 +1028,32 @@ __device__ void PushPartialNode(CG const& g,
     if (lane == 0) { *cur_node_temp = atomicAdd(size, 1) + 1; }
     g.sync();
 
-    int cur_node = InsertionOrderIndex(*cur_node_temp, lowest_level_start);
+    int cur_node = insertion_order_index(*cur_node_temp, lowest_level_start);
 
-    if (cur_node != kRootIdx) { AcquireLock(g, &(locks[cur_node])); }
+    if (cur_node != kRootIdx) { acquire_lock(g, &(locks[cur_node])); }
 
     g.sync();
 
-    MergeAndSort(g,
-                 shmem.B,
-                 &heap[kPBufferIdx],
-                 &heap[cur_node * node_size],
-                 shmem.A,
-                 p_ins_size,
-                 *p_buffer_size,
-                 node_size,
-                 shmem,
-                 compare);
+    merge_and_sort(g,
+                   shmem.b,
+                   &heap[kPBufferIdx],
+                   &heap[cur_node * node_size],
+                   shmem.a,
+                   p_ins_size,
+                   *p_buffer_size,
+                   node_size,
+                   shmem,
+                   compare);
 
     if (lane == 0) { *p_buffer_size = (*p_buffer_size + p_ins_size) - node_size; }
 
     g.sync();
 
-    CopyPairs(g, heap, shmem.A, *p_buffer_size);
+    copy_pairs(g, heap, shmem.a, *p_buffer_size);
 
-    if (cur_node != kRootIdx) { ReleaseLock(g, &locks[kRootIdx]); }
+    if (cur_node != kRootIdx) { release_lock(g, &locks[kRootIdx]); }
 
-    Swim(g, cur_node, heap, size, node_size, locks, lowest_level_start, shmem, compare);
+    swim(g, cur_node, heap, size, node_size, locks, lowest_level_start, shmem, compare);
 
   } else {
     // There are not enough elements for a new node,
@@ -1052,16 +1061,16 @@ __device__ void PushPartialNode(CG const& g,
     // the elements to be inserted and then the root
     // and the partial buffer
 
-    MergeAndSort(g,
-                 shmem.B,
-                 &heap[kPBufferIdx],
-                 shmem.A,
-                 (T*)nullptr,
-                 p_ins_size,
-                 *p_buffer_size,
-                 node_size,
-                 shmem,
-                 compare);
+    merge_and_sort(g,
+                   shmem.b,
+                   &heap[kPBufferIdx],
+                   shmem.a,
+                   (T*)nullptr,
+                   p_ins_size,
+                   *p_buffer_size,
+                   node_size,
+                   shmem,
+                   compare);
 
     g.sync();
 
@@ -1069,30 +1078,30 @@ __device__ void PushPartialNode(CG const& g,
 
     g.sync();
 
-    CopyPairs(g, heap, shmem.A, *p_buffer_size);
+    copy_pairs(g, heap, shmem.a, *p_buffer_size);
 
     g.sync();
 
     if (*size > 0) {
-      MergeAndSort(g,
-                   &heap[node_size],
-                   &heap[kPBufferIdx],
-                   shmem.A,
-                   shmem.B,
-                   node_size,
-                   *p_buffer_size,
-                   node_size,
-                   shmem,
-                   compare);
+      merge_and_sort(g,
+                     &heap[node_size],
+                     &heap[kPBufferIdx],
+                     shmem.a,
+                     shmem.b,
+                     node_size,
+                     *p_buffer_size,
+                     node_size,
+                     shmem,
+                     compare);
       g.sync();
 
-      CopyPairs(g, heap, shmem.B, *p_buffer_size);
+      copy_pairs(g, heap, shmem.b, *p_buffer_size);
 
-      CopyPairs(g, &heap[node_size], shmem.A, node_size);
+      copy_pairs(g, &heap[node_size], shmem.a, node_size);
 
       g.sync();
     }
-    ReleaseLock(g, &locks[kRootIdx]);
+    release_lock(g, &locks[kRootIdx]);
   }
 }
 
@@ -1112,19 +1121,19 @@ __device__ void PushPartialNode(CG const& g,
 * @param compare Comparison operator ordering the elements in the heap
 */
 template <typename OutputIt, typename T, typename Compare>
-__global__ void PushKernel(OutputIt elements,
-                           size_t num_elements,
-                           T* heap,
-                           int* size,
-                           size_t node_size,
-                           int* locks,
-                           size_t* p_buffer_size,
-                           int lowest_level_start,
-                           Compare compare)
+__global__ void push_kernel(OutputIt elements,
+                            size_t num_elements,
+                            T* heap,
+                            int* size,
+                            size_t node_size,
+                            int* locks,
+                            size_t* p_buffer_size,
+                            int lowest_level_start,
+                            Compare compare)
 {
   extern __shared__ int s[];
 
-  SharedMemoryLayout<T> shmem = GetSharedMemoryLayout<T>(s, blockDim.x, node_size);
+  shared_memory_layout<T> shmem = get_shared_memory_layout<T>(s, blockDim.x, node_size);
 
   // We push as many elements as possible as full nodes,
   // then deal with the remaining elements as a partial insertion
@@ -1132,7 +1141,7 @@ __global__ void PushKernel(OutputIt elements,
   thread_block g = this_thread_block();
   for (size_t i = blockIdx.x * node_size; i + node_size <= num_elements;
        i += gridDim.x * node_size) {
-    PushSingleNode(
+    push_single_node(
       g, elements + i, heap, size, node_size, locks, lowest_level_start, shmem, compare);
   }
 
@@ -1145,7 +1154,7 @@ __global__ void PushKernel(OutputIt elements,
 
   if (first_not_inserted < num_elements) {
     size_t p_ins_size = num_elements - first_not_inserted;
-    PushPartialNode(g,
+    push_partial_node(g,
                     elements + first_not_inserted,
                     p_ins_size,
                     heap,
@@ -1174,34 +1183,35 @@ __global__ void PushKernel(OutputIt elements,
  * @param compare Comparison operator ordering the elements in the heap
  */
 template <typename OutputIt, typename T, typename Compare>
-__global__ void PopKernel(OutputIt elements,
-                          size_t num_elements,
-                          T* heap,
-                          int* size,
-                          size_t node_size,
-                          int* locks,
-                          size_t* p_buffer_size,
-                          int lowest_level_start,
-                          int node_capacity,
-                          Compare compare)
+__global__ void pop_kernel(OutputIt elements,
+                           size_t num_elements,
+                           T* heap,
+                           int* size,
+                           size_t node_size,
+                           int* locks,
+                           size_t* p_buffer_size,
+                           int lowest_level_start,
+                           int node_capacity,
+                           Compare compare)
 {
   extern __shared__ int s[];
 
-  SharedMemoryLayout<T> shmem = GetSharedMemoryLayout<T>(s, blockDim.x, node_size);
+  shared_memory_layout<T> shmem = get_shared_memory_layout<T>(s, blockDim.x,
+                                                              node_size);
 
   thread_block g = this_thread_block();
   for (size_t i = blockIdx.x; i < num_elements / node_size; i += gridDim.x) {
-    PopSingleNode(g,
-                  elements + i * node_size,
-                  heap,
-                  size,
-                  node_size,
-                  locks,
-                  p_buffer_size,
-                  lowest_level_start,
-                  node_capacity,
-                  shmem,
-                  compare);
+    pop_single_node(g,
+                    elements + i * node_size,
+                    heap,
+                    size,
+                    node_size,
+                    locks,
+                    p_buffer_size,
+                    lowest_level_start,
+                    node_capacity,
+                    shmem,
+                    compare);
   }
 
   // We only need one block for partial deletion
@@ -1213,18 +1223,18 @@ __global__ void PopKernel(OutputIt elements,
 
   if (first_not_inserted < num_elements) {
     size_t p_del_size = num_elements - first_not_inserted;
-    PopPartialNode(g,
-                   elements + first_not_inserted,
-                   p_del_size,
-                   heap,
-                   size,
-                   node_size,
-                   locks,
-                   p_buffer_size,
-                   lowest_level_start,
-                   node_capacity,
-                   shmem,
-                   compare);
+    pop_partial_node(g,
+                     elements + first_not_inserted,
+                     p_del_size,
+                     heap,
+                     size,
+                     node_size,
+                     locks,
+                     p_buffer_size,
+                     lowest_level_start,
+                     node_capacity,
+                     shmem,
+                     compare);
   }
 }
 
