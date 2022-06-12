@@ -28,6 +28,7 @@
 #include <vector>
 
 using namespace cuco;
+namespace cg = cooperative_groups;
 
 template <typename K, typename V>
 struct KVPair {
@@ -289,7 +290,7 @@ template <typename View, typename InputIt>
 __global__ void DeviceAPIInsert(View view, InputIt begin, InputIt end)
 {
   extern __shared__ int shmem[];
-  thread_block g = this_thread_block();
+  cg::thread_block g = cg::this_thread_block();
   view.push(g, begin, end, shmem);
 }
 
@@ -297,7 +298,7 @@ template <typename View, typename OutputIt>
 __global__ void DeviceAPIDelete(View view, OutputIt begin, OutputIt end)
 {
   extern __shared__ int shmem[];
-  thread_block g = this_thread_block();
+  cg::thread_block g = cg::this_thread_block();
   view.pop(g, begin, end, shmem);
 }
 

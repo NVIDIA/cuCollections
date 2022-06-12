@@ -76,7 +76,7 @@ void priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::push(Inpu
   const int kBlockSize = min(256, (int)node_size_);
   const int kNumBlocks = min(64000, max(1, (int)((last - first) / node_size_)));
 
-  push_kernel<<<kNumBlocks, kBlockSize, get_shmem_size(kBlockSize), stream>>>(first,
+  detail::push_kernel<<<kNumBlocks, kBlockSize, get_shmem_size(kBlockSize), stream>>>(first,
                                                                               last - first,
                                                                               d_heap_,
                                                                               d_size_,
@@ -101,7 +101,7 @@ void priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::pop(Outpu
   const int kBlockSize = min(256, (int)node_size_);
   const int kNumBlocks = min(64000, max(1, (int)((pop_size - partial) / node_size_)));
 
-  pop_kernel<<<kNumBlocks, kBlockSize, get_shmem_size(kBlockSize), stream>>>(first,
+  detail::pop_kernel<<<kNumBlocks, kBlockSize, get_shmem_size(kBlockSize), stream>>>(first,
                                                                              pop_size,
                                                                              d_heap_,
                                                                              d_size_,
@@ -121,12 +121,12 @@ __device__ void
 priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::device_mutable_view::push(
   CG const& g, InputIt first, InputIt last, void* temp_storage)
 {
-  shared_memory_layout<T> shmem =
-          get_shared_memory_layout<T>((int*)temp_storage, g.size(), node_size_);
+  detail::shared_memory_layout<T> shmem =
+  detail::get_shared_memory_layout<T>((int*)temp_storage, g.size(), node_size_);
 
   auto push_size = last - first;
   for (size_t i = 0; i < push_size / node_size_; i++) {
-    push_single_node(g,
+    detail::push_single_node(g,
                      first + i * node_size_,
                      d_heap_,
                      d_size_,
@@ -138,7 +138,7 @@ priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::device_mutable
   }
 
   if (push_size % node_size_ != 0) {
-    push_partial_node(g,
+    detail::push_partial_node(g,
                       first + (push_size / node_size_) * node_size_,
                       push_size % node_size_,
                       d_heap_,
@@ -158,12 +158,12 @@ __device__ void
 priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::device_mutable_view::pop(
   CG const& g, OutputIt first, OutputIt last, void* temp_storage)
 {
-  shared_memory_layout<T> shmem =
-          get_shared_memory_layout<T>((int*)temp_storage, g.size(), node_size_);
+  detail::shared_memory_layout<T> shmem =
+  detail::get_shared_memory_layout<T>((int*)temp_storage, g.size(), node_size_);
 
   auto pop_size = last - first;
   for (size_t i = 0; i < pop_size / node_size_; i++) {
-    pop_single_node(g,
+    detail::pop_single_node(g,
                     first + i * node_size_,
                     d_heap_,
                     d_size_,
@@ -177,7 +177,7 @@ priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::device_mutable
   }
 
   if (pop_size % node_size_ != 0) {
-    pop_partial_node(g,
+    detail::pop_partial_node(g,
                      first + (pop_size / node_size_) * node_size_,
                      last - first,
                      d_heap_,

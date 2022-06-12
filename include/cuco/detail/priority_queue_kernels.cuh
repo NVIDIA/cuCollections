@@ -20,9 +20,9 @@
 
 #include <assert.h>
 
-using namespace cooperative_groups;
-
 namespace cuco {
+namespace detail {
+namespace cg = cooperative_groups;
 
 constexpr int kPBufferIdx = 0;
 constexpr int kRootIdx    = 1;
@@ -1138,7 +1138,7 @@ __global__ void push_kernel(OutputIt elements,
   // We push as many elements as possible as full nodes,
   // then deal with the remaining elements as a partial insertion
   // below
-  thread_block g = this_thread_block();
+  cg::thread_block g = cg::this_thread_block();
   for (size_t i = blockIdx.x * node_size; i + node_size <= num_elements;
        i += gridDim.x * node_size) {
     push_single_node(
@@ -1199,7 +1199,7 @@ __global__ void pop_kernel(OutputIt elements,
   shared_memory_layout<T> shmem = get_shared_memory_layout<T>(s, blockDim.x,
                                                               node_size);
 
-  thread_block g = this_thread_block();
+  cg::thread_block g = cg::this_thread_block();
   for (size_t i = blockIdx.x; i < num_elements / node_size; i += gridDim.x) {
     pop_single_node(g,
                     elements + i * node_size,
@@ -1237,5 +1237,7 @@ __global__ void pop_kernel(OutputIt elements,
                      compare);
   }
 }
+
+}  // namespace detail
 
 }  // namespace cuco
