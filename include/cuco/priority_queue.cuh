@@ -59,13 +59,10 @@ namespace cuco {
  *
  * @tparam T Type of the elements stored in the queue
  * @tparam Compare Comparison operator used to order the elements in the queue
- * @tparam FavorInsertionPerformance When true, insertion performance is
- *         increased at the expense of deletion performance.
  * @tparam Allocator Allocator defining how memory is allocated internally
  */
 template <typename T,
           typename Compare               = thrust::less<T>,
-          bool FavorInsertionPerformance = false,
           typename Allocator             = cuco::cuda_allocator<char>>
 class priority_queue {
   using int_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<int>;
@@ -73,8 +70,6 @@ class priority_queue {
   using t_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<T>;
 
   using size_t_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<size_t>;
-
-  const int NodeSize = FavorInsertionPerformance ? 64 : 1024;
 
  public:
   /**

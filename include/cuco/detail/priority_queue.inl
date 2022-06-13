@@ -23,12 +23,12 @@
 
 namespace cuco {
 
-template <typename T, typename Compare, bool FavorInsertionPerformance, typename Allocator>
-priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::priority_queue(
+template <typename T, typename Compare, typename Allocator>
+priority_queue<T, Compare, Allocator>::priority_queue(
   size_t initial_capacity, Allocator const& allocator, cudaStream_t stream)
   : int_allocator_{allocator}, t_allocator_{allocator}, size_t_allocator_{allocator}
 {
-  node_size_ = NodeSize;
+  node_size_ = 64;
 
   // Round up to the nearest multiple of node size
   int nodes = ((initial_capacity + node_size_ - 1) / node_size_);
@@ -56,8 +56,8 @@ priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::priority_queue
                            stream));
 }
 
-template <typename T, typename Compare, bool FavorInsertionPerformance, typename Allocator>
-priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::~priority_queue()
+template <typename T, typename Compare, typename Allocator>
+priority_queue<T, Compare, Allocator>::~priority_queue()
 {
   std::allocator_traits<int_allocator_type>::deallocate(int_allocator_, d_size_, 1);
   std::allocator_traits<size_t_allocator_type>::deallocate(size_t_allocator_, d_p_buffer_size_, 1);
@@ -67,11 +67,11 @@ priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::~priority_queu
     int_allocator_, d_locks_, node_capacity_ + 1);
 }
 
-template <typename T, typename Compare, bool FavorInsertionPerformance, typename Allocator>
+template <typename T, typename Compare, typename Allocator>
 template <typename InputIt>
-void priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::push(InputIt first,
-                                                                            InputIt last,
-                                                                            cudaStream_t stream)
+void priority_queue<T, Compare, Allocator>::push(InputIt first,
+                                                 InputIt last,
+                                                 cudaStream_t stream)
 {
   const int kBlockSize = min(256, (int)node_size_);
   const int kNumBlocks = min(64000, max(1, (int)((last - first) / node_size_)));
@@ -89,11 +89,11 @@ void priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::push(Inpu
   CUCO_CUDA_TRY(cudaGetLastError());
 }
 
-template <typename T, typename Compare, bool FavorInsertionPerformance, typename Allocator>
+template <typename T, typename Compare, typename Allocator>
 template <typename OutputIt>
-void priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::pop(OutputIt first,
-                                                                           OutputIt last,
-                                                                           cudaStream_t stream)
+void priority_queue<T, Compare, Allocator>::pop(OutputIt first,
+                                                OutputIt last,
+                                                cudaStream_t stream)
 {
   int pop_size      = last - first;
   const int partial = pop_size % node_size_;
@@ -115,10 +115,10 @@ void priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::pop(Outpu
   CUCO_CUDA_TRY(cudaGetLastError());
 }
 
-template <typename T, typename Compare, bool FavorInsertionPerformance, typename Allocator>
+template <typename T, typename Compare, typename Allocator>
 template <typename CG, typename InputIt>
 __device__ void
-priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::device_mutable_view::push(
+priority_queue<T, Compare, Allocator>::device_mutable_view::push(
   CG const& g, InputIt first, InputIt last, void* temp_storage)
 {
   detail::shared_memory_layout<T> shmem =
@@ -152,10 +152,10 @@ priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::device_mutable
   }
 }
 
-template <typename T, typename Compare, bool FavorInsertionPerformance, typename Allocator>
+template <typename T, typename Compare, typename Allocator>
 template <typename CG, typename OutputIt>
 __device__ void
-priority_queue<T, Compare, FavorInsertionPerformance, Allocator>::device_mutable_view::pop(
+priority_queue<T, Compare, Allocator>::device_mutable_view::pop(
   CG const& g, OutputIt first, OutputIt last, void* temp_storage)
 {
   detail::shared_memory_layout<T> shmem =
