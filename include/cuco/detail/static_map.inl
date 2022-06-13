@@ -719,15 +719,6 @@ template <typename ProbeKey, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
   ProbeKey const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
-  static_assert(std::is_invocable_r_v<bool, KeyEqual, ProbeKey, Key>,
-                "KeyEqual(ProbeKey{}, Key{}) must be a valid callable.");
-  static_assert(std::is_invocable_r_v<bool, KeyEqual, Key, ProbeKey>,
-                "KeyEqual(Key{}, ProbeKey{}) must be a valid callable.");
-  static_assert(std::is_invocable_r_v<cuco::hash_value_type, Hash, Key>,
-                "Hash(Key{}) must be a valid callable.");
-  static_assert(std::is_invocable_r_v<cuco::hash_value_type, Hash, ProbeKey>,
-                "Hash(ProbeKey{}) must be a valid callable.");
-
   auto current_slot = initial_slot(k, hash);
 
   while (true) {
@@ -749,15 +740,6 @@ static_map<Key, Value, Scope, Allocator>::device_view::contains(CG const& g,
                                                                 Hash hash,
                                                                 KeyEqual key_equal) const noexcept
 {
-  static_assert(std::is_invocable_r_v<bool, KeyEqual, ProbeKey, Key>,
-                "KeyEqual(ProbeKey{}, Key{}) must be a valid callable.");
-  static_assert(std::is_invocable_r_v<bool, KeyEqual, Key, ProbeKey>,
-                "KeyEqual(Key{}, ProbeKey{}) must be a valid callable.");
-  static_assert(std::is_invocable_r_v<cuco::hash_value_type, Hash, Key>,
-                "Hash(Key{}) must be a valid callable.");
-  static_assert(std::is_invocable_r_v<cuco::hash_value_type, Hash, ProbeKey>,
-                "Hash(ProbeKey{}) must be a valid callable.");
-
   auto current_slot = initial_slot(g, k, hash);
 
   while (true) {

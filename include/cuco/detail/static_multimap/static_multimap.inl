@@ -543,32 +543,6 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::conta
   ProbeKey const& k,
   KeyEqual key_equal) noexcept
 {
-  static_assert(std::is_invocable_r_v<bool, KeyEqual, ProbeKey, Key>,
-                "KeyEqual(ProbeKey{}, Key{}) must be a valid callable.");
-  static_assert(std::is_invocable_r_v<bool, KeyEqual, Key, ProbeKey>,
-                "KeyEqual(Key{}, ProbeKey{}) must be a valid callable.");
-
-  if constexpr (ProbeSequence::is_linear_probing) {
-    static_assert(std::is_invocable_r_v<cuco::hash_value_type, typename ProbeSequence::hasher, Key>,
-                  "ProbeSequence::hasher(Key{}) must be a valid callable.");
-    static_assert(
-      std::is_invocable_r_v<cuco::hash_value_type, typename ProbeSequence::hasher, ProbeKey>,
-      "ProbeSequence::hasher(ProbeKey{}) must be a valid callable.");
-  } else {
-    static_assert(
-      std::is_invocable_r_v<cuco::hash_value_type, typename ProbeSequence::hasher1, Key>,
-      "ProbeSequence::hasher1(Key{}) must be a valid callable.");
-    static_assert(
-      std::is_invocable_r_v<cuco::hash_value_type, typename ProbeSequence::hasher2, Key>,
-      "ProbeSequence::hasher2(Key{}) must be a valid callable.");
-    static_assert(
-      std::is_invocable_r_v<cuco::hash_value_type, typename ProbeSequence::hasher1, ProbeKey>,
-      "ProbeSequence::hasher1(ProbeKey{}) must be a valid callable.");
-    static_assert(
-      std::is_invocable_r_v<cuco::hash_value_type, typename ProbeSequence::hasher2, ProbeKey>,
-      "ProbeSequence::hasher2(ProbeKey{}) must be a valid callable.");
-  }
-
   return impl_.contains<uses_vector_load()>(g, k, key_equal);
 }
 

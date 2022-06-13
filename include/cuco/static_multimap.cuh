@@ -271,6 +271,10 @@ class static_multimap {
    * Stores `true` or `false` to `(output + i)` indicating if the key `*(first + i)` exists in the
    * map.
    *
+   * ProbeSequence hashers should be callable with both `std::iterator_traits<InputIt>::value_type`
+   * and Key type. `std::invoke_result<KeyEqual, std::iterator_traits<InputIt>::value_type, Key>`
+   * must be well-formed.
+   *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from
    * `bool`
@@ -818,6 +822,9 @@ class static_multimap {
      * to leverage multiple threads to perform a single `contains` operation. This provides a
      * significant boost in throughput compared to the non Cooperative Group
      * `contains` at moderate to high load factors.
+     *
+     * ProbeSequence hashers should be callable with both ProbeKey and Key type.
+     * `std::invoke_result<KeyEqual, ProbeKey, Key>` must be well-formed.
      *
      * If `key_equal(probe_key, slot_key)` returns true, `hash(probe_key) == hash(slot_key)` must
      * also be true.
