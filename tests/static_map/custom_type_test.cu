@@ -20,6 +20,7 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/transform.h>
@@ -164,8 +165,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                  contained.begin(),
                  hash_custom_key{},
                  custom_key_equals{});
-    REQUIRE(cuco::test::all_of(
-      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("All conditionally inserted keys-value pairs should be contained")
@@ -203,8 +203,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                  contained.begin(),
                  hash_custom_key{},
                  custom_key_equals{});
-    REQUIRE(cuco::test::none_of(
-      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("All inserted keys-value pairs should be contained")

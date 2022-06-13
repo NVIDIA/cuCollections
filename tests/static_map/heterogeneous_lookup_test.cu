@@ -20,6 +20,7 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/transform.h>
@@ -78,14 +79,17 @@ struct custom_key_equal {
   }
 };
 
-TEMPLATE_TEST_CASE_SIG("User defined key and value type",
-                       "",
-                       ((typename Key, typename Value), Key, Value),
+TEMPLATE_TEST_CASE("Heterogeneous lookup",
+                   "",
 #ifndef CUCO_NO_INDEPENDENT_THREADS  // Key type larger than 8B only supported for sm_70 and up
-                       (key_pair<int64_t>, int64_t),
+                   int64_t,
 #endif
-                       (key_pair<int32_t>, int32_t))
+                   int32_t)
 {
+  using Key      = key_pair<TestType>;
+  using Value    = TestType;
+  using ProbeKey = key_triplet<TestType>;
+
   auto const sentinel_key   = Key{-1};
   auto const sentinel_value = Value{-1};
 
@@ -98,8 +102,8 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   auto insert_pairs = thrust::make_transform_iterator(
     thrust::counting_iterator<int>(0),
     [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
-  auto probe_keys = thrust::make_transform_iterator(
-    thrust::counting_iterator<int>(0), [] __device__(auto i) { return key_triplet<Value>(i); });
+  auto probe_keys = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
+                                                    [] __device__(auto i) { return ProbeKey(i); });
 
   SECTION("All inserted keys-value pairs should be contained")
   {
@@ -107,8 +111,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     map.insert(insert_pairs, insert_pairs + num, custom_hasher{}, custom_key_equal{});
     map.contains(
       probe_keys, probe_keys + num, contained.begin(), custom_hasher{}, custom_key_equal{});
-    REQUIRE(cuco::test::all_of(
-      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
@@ -116,7 +119,6 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     thrust::device_vector<bool> contained(num);
     map.contains(
       probe_keys, probe_keys + num, contained.begin(), custom_hasher{}, custom_key_equal{});
-    REQUIRE(cuco::test::none_of(
-      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 }
