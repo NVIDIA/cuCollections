@@ -21,6 +21,8 @@
 #include <thrust/tuple.h>
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
+#include <cooperative_groups.h>
+
 namespace cuco {
 template <typename Key,
           typename Value,
@@ -76,8 +78,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @return Pointer to the initial slot for `k`
    */
   template <typename ProbeKey>
-  __device__ __forceinline__ iterator initial_slot(
-    detail::cg::thread_block_tile<ProbeSequence::cg_size> const& g, ProbeKey const& k) noexcept
+  __device__ __forceinline__ iterator
+  initial_slot(cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+               ProbeKey const& k) noexcept
   {
     return probe_sequence_.initial_slot(g, k);
   }
@@ -95,7 +98,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    */
   template <typename ProbeKey>
   __device__ __forceinline__ const_iterator
-  initial_slot(detail::cg::thread_block_tile<ProbeSequence::cg_size> const& g,
+  initial_slot(cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
                ProbeKey const& k) const noexcept
   {
     return probe_sequence_.initial_slot(g, k);
@@ -497,13 +500,13 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     if constexpr (thrust::is_contiguous_iterator_v<OutputIt>) {
 #if defined(CUCO_HAS_CG_MEMCPY_ASYNC)
 #if defined(CUCO_HAS_CUDA_BARRIER)
-      detail::cg::memcpy_async(
+      cooperative_groups::memcpy_async(
         g,
         output_begin + offset,
         output_buffer,
         cuda::aligned_size_t<alignof(value_type)>(sizeof(value_type) * num_outputs));
 #else
-      detail::cg::memcpy_async(
+      cooperative_groups::memcpy_async(
         g, output_begin + offset, output_buffer, sizeof(value_type) * num_outputs);
 #endif  // end CUCO_HAS_CUDA_BARRIER
       return;
@@ -585,7 +588,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    */
   template <bool uses_vector_load, typename ProbeKey, typename KeyEqual>
   __device__ __forceinline__ std::enable_if_t<uses_vector_load, bool> contains(
-    detail::cg::thread_block_tile<ProbeSequence::cg_size> const& g,
+    cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
     ProbeKey const& k,
     KeyEqual key_equal) noexcept
   {
@@ -636,7 +639,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    */
   template <bool uses_vector_load, typename ProbeKey, typename KeyEqual>
   __device__ __forceinline__ std::enable_if_t<not uses_vector_load, bool> contains(
-    detail::cg::thread_block_tile<ProbeSequence::cg_size> const& g,
+    cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
     ProbeKey const& k,
     KeyEqual key_equal) noexcept
   {
