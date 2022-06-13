@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,15 +15,13 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
+#include <cuco/detail/static_multimap/kernels.cuh>
 #include <cuco/detail/utils.cuh>
 
 #include <thrust/tuple.h>
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
-#include <cooperative_groups.h>
-
 namespace cuco {
-
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
@@ -78,9 +76,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @return Pointer to the initial slot for `k`
    */
   template <typename ProbeKey>
-  __device__ __forceinline__ iterator
-  initial_slot(cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
-               ProbeKey const& k) noexcept
+  __device__ __forceinline__ iterator initial_slot(
+    detail::cg::thread_block_tile<ProbeSequence::cg_size> const& g, ProbeKey const& k) noexcept
   {
     return probe_sequence_.initial_slot(g, k);
   }
@@ -98,7 +95,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    */
   template <typename ProbeKey>
   __device__ __forceinline__ const_iterator
-  initial_slot(cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+  initial_slot(detail::cg::thread_block_tile<ProbeSequence::cg_size> const& g,
                ProbeKey const& k) const noexcept
   {
     return probe_sequence_.initial_slot(g, k);
@@ -500,13 +497,13 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     if constexpr (thrust::is_contiguous_iterator_v<OutputIt>) {
 #if defined(CUCO_HAS_CG_MEMCPY_ASYNC)
 #if defined(CUCO_HAS_CUDA_BARRIER)
-      cooperative_groups::memcpy_async(
+      detail::cg::memcpy_async(
         g,
         output_begin + offset,
         output_buffer,
         cuda::aligned_size_t<alignof(value_type)>(sizeof(value_type) * num_outputs));
 #else
-      cooperative_groups::memcpy_async(
+      detail::cg::memcpy_async(
         g, output_begin + offset, output_buffer, sizeof(value_type) * num_outputs);
 #endif  // end CUCO_HAS_CUDA_BARRIER
       return;
@@ -576,7 +573,6 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * `contains` at moderate to high load factors.
    *
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
-   * @tparam CG Cooperative Group type
    * @tparam ProbeKey Probe key type
    * @tparam KeyEqual Binary callable type
    *
@@ -587,9 +583,11 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @return A boolean indicating whether the key/value pair
    * containing `k` was inserted
    */
-  template <bool uses_vector_load, typename CG, typename ProbeKey, typename KeyEqual>
+  template <bool uses_vector_load, typename ProbeKey, typename KeyEqual>
   __device__ __forceinline__ std::enable_if_t<uses_vector_load, bool> contains(
-    CG const& g, ProbeKey const& k, KeyEqual key_equal) noexcept
+    detail::cg::thread_block_tile<ProbeSequence::cg_size> const& g,
+    ProbeKey const& k,
+    KeyEqual key_equal) noexcept
   {
     auto current_slot = initial_slot(g, k);
 
@@ -626,7 +624,6 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * `contains` at moderate to high load factors.
    *
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
-   * @tparam CG Cooperative Group type
    * @tparam ProbeKey Probe key type
    * @tparam KeyEqual Binary callable type
    *
@@ -637,9 +634,11 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @return A boolean indicating whether the key/value pair
    * containing `k` was inserted
    */
-  template <bool uses_vector_load, typename CG, typename ProbeKey, typename KeyEqual>
+  template <bool uses_vector_load, typename ProbeKey, typename KeyEqual>
   __device__ __forceinline__ std::enable_if_t<not uses_vector_load, bool> contains(
-    CG const& g, ProbeKey const& k, KeyEqual key_equal) noexcept
+    detail::cg::thread_block_tile<ProbeSequence::cg_size> const& g,
+    ProbeKey const& k,
+    KeyEqual key_equal) noexcept
   {
     auto current_slot = initial_slot(g, k);
 

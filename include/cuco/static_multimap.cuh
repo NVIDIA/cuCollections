@@ -19,7 +19,6 @@
 #include <cuco/allocator.hpp>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
-#include <cuco/detail/static_multimap/kernels.cuh>
 #include <cuco/probe_sequences.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/traits.hpp>
