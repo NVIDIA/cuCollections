@@ -20,6 +20,7 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sort.h>
@@ -195,9 +196,8 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
     REQUIRE(size == num_pairs);
 
     thrust::device_vector<bool> contained(num_pairs);
-    map.contains(key_begin, key_begin + num_pairs, contained.begin(), stream, key_pair_equals{});
-    REQUIRE(cuco::test::all_of(
-      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    map.contains(key_begin, key_begin + num_pairs, contained.begin(), key_pair_equals{}, stream);
+    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
@@ -206,10 +206,9 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
     REQUIRE(size == 0);
 
     thrust::device_vector<bool> contained(num_pairs);
-    map.contains(key_begin, key_begin + num_pairs, contained.begin(), stream, key_pair_equals{});
+    map.contains(key_begin, key_begin + num_pairs, contained.begin(), key_pair_equals{}, stream);
 
-    REQUIRE(cuco::test::none_of(
-      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 }
 

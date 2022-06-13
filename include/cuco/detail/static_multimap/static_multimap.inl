@@ -108,7 +108,7 @@ template <typename Key,
           class ProbeSequence>
 template <typename InputIt, typename OutputIt, typename KeyEqual>
 void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
+  InputIt first, InputIt last, OutputIt output_begin, KeyEqual key_equal, cudaStream_t stream) const
 {
   auto const num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
@@ -536,11 +536,11 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-template <typename KeyEqual>
+template <typename ProbeKey, typename KeyEqual>
 __device__ __forceinline__ bool
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::contains(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
-  Key const& k,
+  ProbeKey const& k,
   KeyEqual key_equal) noexcept
 {
   return impl_.contains<uses_vector_load()>(g, k, key_equal);
