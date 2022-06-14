@@ -23,6 +23,8 @@
 
 #include <cooperative_groups.h>
 
+#include <utility>
+
 namespace cuco {
 namespace detail {
 
@@ -195,8 +197,8 @@ class linear_probing_impl
    * @return Pointer to the initial slot for `k`
    */
   template <typename ProbeKey>
-  __device__ __forceinline__ iterator
-  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
+  __device__ __forceinline__ iterator initial_slot(
+    cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) const noexcept
   {
     auto const hash_value = [&]() {
       auto const tmp = hash_(k);
@@ -226,6 +228,19 @@ class linear_probing_impl
    * @return The next slot after `s`
    */
   __device__ __forceinline__ iterator next_slot(iterator s) noexcept
+  {
+    return const_cast<iterator>(std::as_const(*this).next_slot(s));
+  }
+
+  /**
+   * @brief Given a slot `s`, returns the next slot.
+   *
+   * If `s` is the last slot, wraps back around to the first slot.
+   *
+   * @param s The slot to advance
+   * @return The next slot after `s`
+   */
+  __device__ __forceinline__ const_iterator next_slot(const_iterator s) const noexcept
   {
     std::size_t index = s - slots_;
     std::size_t offset;
@@ -318,8 +333,8 @@ class double_hashing_impl
    * @return Pointer to the initial slot for `k`
    */
   template <typename ProbeKey>
-  __device__ __forceinline__ iterator
-  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
+  __device__ __forceinline__ iterator initial_slot(
+    cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) const noexcept
   {
     std::size_t index;
     auto const hash_value = hash1_(k);
@@ -347,15 +362,28 @@ class double_hashing_impl
    */
   __device__ __forceinline__ iterator next_slot(iterator s) noexcept
   {
+    return const_cast<iterator>(std::as_const(*this).next_slot(s));
+  }
+
+  /**
+   * @brief Given a slot `s`, returns the next slot.
+   *
+   * If `s` is the last slot, wraps back around to the first slot.
+   *
+   * @param s The slot to advance
+   * @return The next slot after `s`
+   */
+  __device__ __forceinline__ const_iterator next_slot(const_iterator s) const noexcept
+  {
     std::size_t index = s - slots_;
     return &slots_[(index + step_size_) % capacity_];
   }
 
  private:
-  Hash1 hash1_;            ///< The first unary callable used to hash the key
-  Hash2 hash2_;            ///< The second unary callable used to determine step size
-  std::size_t step_size_;  ///< The step stride when searching for the next slot
-};                         // class double_hashing
+  Hash1 hash1_;                    ///< The first unary callable used to hash the key
+  Hash2 hash2_;                    ///< The second unary callable used to determine step size
+  mutable std::size_t step_size_;  ///< The step stride when searching for the next slot
+};                                 // class double_hashing
 
 /**
  * @brief Probe sequence used internally by hash map.

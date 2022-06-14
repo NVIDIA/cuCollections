@@ -139,7 +139,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @param current_slot The given slot to load from
    */
   __device__ __forceinline__ void load_pair_array(value_type* arr,
-                                                  const_iterator current_slot) noexcept
+                                                  const_iterator current_slot) const noexcept
   {
     if constexpr (sizeof(value_type) == 4) {
       auto const tmp = *reinterpret_cast<ushort4 const*>(current_slot);
@@ -588,7 +588,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   __device__ __forceinline__ std::enable_if_t<uses_vector_load, bool> contains(
     cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
     ProbeT const& element,
-    Equal equal) noexcept
+    Equal equal) const noexcept
   {
     auto current_slot = [&]() {
       if constexpr (is_pair_contains) {
@@ -655,7 +655,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   __device__ __forceinline__ std::enable_if_t<not uses_vector_load, bool> contains(
     cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
     ProbeT const& element,
-    Equal equal) noexcept
+    Equal equal) const noexcept
   {
     auto current_slot = [&]() {
       if constexpr (is_pair_contains) {

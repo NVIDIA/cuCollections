@@ -39,7 +39,7 @@ struct key_pair {
 };
 
 struct hash_key_pair {
-  __device__ uint32_t operator()(key_pair k) { return k.a; };
+  __device__ uint32_t operator()(key_pair k) const { return k.a; };
 };
 
 struct key_pair_equals {

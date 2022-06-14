@@ -261,7 +261,7 @@ void static_map<Key, Value, Scope, Allocator>::contains(InputIt first,
                                                         OutputIt output_begin,
                                                         Hash hash,
                                                         KeyEqual key_equal,
-                                                        cudaStream_t stream)
+                                                        cudaStream_t stream) const
 {
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }

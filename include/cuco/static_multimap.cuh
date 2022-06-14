@@ -276,8 +276,7 @@ class static_multimap {
    * must be well-formed.
    *
    * @tparam InputIt Device accessible input iterator
-   * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from
-   * `bool`
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
    * @tparam KeyEqual Binary callable type used to compare two keys for equality
    *
    * @param first Beginning of the sequence of keys
@@ -299,11 +298,14 @@ class static_multimap {
    * Stores `true` or `false` to `(output + i)` indicating if the pair `*(first + i)` exists in
    * the map.
    *
-   * @tparam InputIt Device accessible random access input iterator where
-   * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
-   * static_multimap<K, V>::value_type>` is `true`
-   * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from
-   * `bool`
+   * ProbeSequence hashers should be callable with both
+   * `std::iterator_traits<InputIt>::value_type::first_type`
+   * and Key type. `std::invoke_result<KeyEqual,
+   * std::iterator_traits<InputIt>::value_type::first_type, Key>`
+   * must be well-formed.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
    * @tparam PairEqual Binary callable type used to compare input pair and slot content for equality
    *
    * @param first Beginning of the sequence of pairs
@@ -869,7 +871,7 @@ class static_multimap {
     __device__ __forceinline__ bool contains(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       ProbeKey const& k,
-      KeyEqual key_equal = KeyEqual{}) noexcept;
+      KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Indicates whether the pair `p` exists in the map.
@@ -880,18 +882,26 @@ class static_multimap {
      * significant boost in throughput compared to the non Cooperative Group
      * `contains` at moderate to high load factors.
      *
+     * ProbeSequence hashers should be callable with both ProbePair::first_type and Key type.
+     * `std::invoke_result<KeyEqual, ProbePair::first_type, Key>` must be well-formed.
+     *
+     * If `pair_equal(p, slot_content)` returns true, `hash(p.first) == hash(slot_key)` must
+     * also be true.
+     *
+     * @tparam ProbePair Probe pair type
      * @tparam PairEqual Binary callable type
+     *
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The pair to search for
      * @param pair_equal The binary callable used to compare input pair and slot content
      * for equality
      * @return A boolean indicating whether the input pair was inserted in the map
      */
-    template <typename PairEqual = thrust::equal_to<value_type>>
+    template <typename ProbePair, typename PairEqual = thrust::equal_to<value_type>>
     __device__ __forceinline__ bool pair_contains(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
-      value_type const& p,
-      PairEqual pair_equal = PairEqual{}) noexcept;
+      ProbePair const& p,
+      PairEqual pair_equal = PairEqual{}) const noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap.
