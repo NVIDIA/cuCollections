@@ -47,9 +47,6 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
                                    cuco::cuda_allocator<char>{},
                                    stream};
 
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
-
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
 
@@ -87,8 +84,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
     map.insert(pairs_begin, pairs_begin + num_keys, hash_fn, equal_fn, stream);
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), hash_fn, equal_fn, stream);
 
-    REQUIRE(cuco::test::all_of(
-      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }, stream));
+    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}, stream));
   }
 
   cudaStreamDestroy(stream);

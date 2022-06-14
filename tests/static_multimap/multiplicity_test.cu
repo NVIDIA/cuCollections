@@ -21,6 +21,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/distance.h>
 #include <thrust/execution_policy.h>
+#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
@@ -61,8 +62,7 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
     REQUIRE(size == 0);
 
     map.contains(key_begin, key_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::none_of(
-      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
 
   map.insert(pair_begin, pair_begin + num_items);
@@ -74,8 +74,7 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
 
     map.contains(key_begin, key_begin + num_keys, d_contained.begin());
 
-    REQUIRE(cuco::test::all_of(
-      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
 
   SECTION("Total count should be equal to the number of inserted pairs.")
@@ -85,9 +84,9 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
 
     REQUIRE(num == num_items);
 
-    auto output_begin = result_begin;
-    auto output_end   = map.retrieve(key_begin, key_begin + num_keys, output_begin);
-    auto size         = thrust::distance(output_begin, output_end);
+    auto output_begin      = result_begin;
+    auto output_end        = map.retrieve(key_begin, key_begin + num_keys, output_begin);
+    std::size_t const size = thrust::distance(output_begin, output_end);
 
     REQUIRE(size == num_items);
 

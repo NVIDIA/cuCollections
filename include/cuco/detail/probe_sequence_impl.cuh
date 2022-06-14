@@ -21,6 +21,8 @@
 
 #include <cuda/std/atomic>
 
+#include <cooperative_groups.h>
+
 namespace cuco {
 namespace detail {
 
@@ -186,13 +188,15 @@ class linear_probing_impl
    *
    * If vector-load is enabled, the return slot is always even to avoid illegal memory access.
    *
-   * @tparam CG CUDA Cooperative Groups type
+   * @tparam ProbeKey Probe key type
+   *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename CG>
-  __device__ __forceinline__ iterator initial_slot(CG const& g, Key const k) noexcept
+  template <typename ProbeKey>
+  __device__ __forceinline__ iterator
+  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
   {
     auto const hash_value = [&]() {
       auto const tmp = hash_(k);
@@ -307,13 +311,15 @@ class double_hashing_impl
    * If vector-load is enabled, the return slot is always a multiple of (`cg_size` * `vector_width`)
    * to avoid illegal memory access.
    *
-   * @tparam CG CUDA Cooperative Groups type
+   * @tparam ProbeKey Probe key type
+   *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename CG>
-  __device__ __forceinline__ iterator initial_slot(CG const& g, Key const k) noexcept
+  template <typename ProbeKey>
+  __device__ __forceinline__ iterator
+  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
   {
     std::size_t index;
     auto const hash_value = hash1_(k);

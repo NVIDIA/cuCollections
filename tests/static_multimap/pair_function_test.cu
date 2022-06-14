@@ -85,8 +85,9 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
 
     auto [out1_end, out2_end] = map.pair_retrieve(
       pair_begin, pair_begin + num_pairs, out1_begin, out2_begin, pair_equal<Key, Value>{});
+    std::size_t const size = std::distance(out2_begin, out1_end);
 
-    REQUIRE((out1_end - out1_begin) == num_pairs);
+    REQUIRE(size == num_pairs);
   }
 
   SECTION("Output of pair_count_outer and pair_retrieve_outer should be coherent.")
@@ -102,8 +103,9 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
 
     auto [out1_end, out2_end] = map.pair_retrieve_outer(
       pair_begin, pair_begin + num_pairs, out1_begin, out2_begin, pair_equal<Key, Value>{});
+    std::size_t const size = std::distance(out1_begin, out1_end);
 
-    REQUIRE((out1_end - out1_begin) == (num_pairs + num_pairs / 2));
+    REQUIRE(size == (num_pairs + num_pairs / 2));
   }
 }
 

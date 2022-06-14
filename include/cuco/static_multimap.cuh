@@ -19,7 +19,6 @@
 #include <cuco/allocator.hpp>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
-#include <cuco/detail/static_multimap/kernels.cuh>
 #include <cuco/probe_sequences.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/traits.hpp>
@@ -155,7 +154,7 @@ class static_multimap {
   static_assert(
     std::is_base_of_v<cuco::detail::probe_sequence_base<ProbeSequence::cg_size>, ProbeSequence>,
     "ProbeSequence must be a specialization of either cuco::double_hashing or "
-    "cuco::linear_probing");
+    "cuco::linear_probing.");
 
  public:
   using value_type         = cuco::pair_type<Key, Value>;
@@ -272,11 +271,15 @@ class static_multimap {
    * Stores `true` or `false` to `(output + i)` indicating if the key `*(first + i)` exists in the
    * map.
    *
-   * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the map's `key_type`
+   * ProbeSequence hashers should be callable with both `std::iterator_traits<InputIt>::value_type`
+   * and Key type. `std::invoke_result<KeyEqual, std::iterator_traits<InputIt>::value_type, Key>`
+   * must be well-formed.
+   *
+   * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from
    * `bool`
    * @tparam KeyEqual Binary callable type used to compare two keys for equality
+   *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the output sequence indicating whether each key is present
@@ -846,7 +849,15 @@ class static_multimap {
      * significant boost in throughput compared to the non Cooperative Group
      * `contains` at moderate to high load factors.
      *
+     * ProbeSequence hashers should be callable with both ProbeKey and Key type.
+     * `std::invoke_result<KeyEqual, ProbeKey, Key>` must be well-formed.
+     *
+     * If `key_equal(probe_key, slot_key)` returns true, `hash(probe_key) == hash(slot_key)` must
+     * also be true.
+     *
+     * @tparam ProbeKey Probe key type
      * @tparam KeyEqual Binary callable type
+     *
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The key to search for
      * @param key_equal The binary callable used to compare two keys
@@ -854,10 +865,10 @@ class static_multimap {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <typename KeyEqual = thrust::equal_to<key_type>>
+    template <typename ProbeKey, typename KeyEqual = thrust::equal_to<key_type>>
     __device__ __forceinline__ bool contains(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
-      Key const& k,
+      ProbeKey const& k,
       KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**

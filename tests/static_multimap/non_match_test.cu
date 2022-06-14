@@ -43,9 +43,9 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
 
     REQUIRE(num == num_keys);
 
-    auto output_begin = d_results.data().get();
-    auto output_end   = map.retrieve(key_begin, key_begin + num_keys, output_begin);
-    auto size         = thrust::distance(output_begin, output_end);
+    auto output_begin      = d_results.data().get();
+    auto output_end        = map.retrieve(key_begin, key_begin + num_keys, output_begin);
+    std::size_t const size = thrust::distance(output_begin, output_end);
 
     REQUIRE(size == num_keys);
 
@@ -75,9 +75,9 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
 
     REQUIRE(num == (num_keys + num_keys / 2));
 
-    auto output_begin = d_results.data().get();
-    auto output_end   = map.retrieve_outer(key_begin, key_begin + num_keys, output_begin);
-    auto size         = thrust::distance(output_begin, output_end);
+    auto output_begin      = d_results.data().get();
+    auto output_end        = map.retrieve_outer(key_begin, key_begin + num_keys, output_begin);
+    std::size_t const size = thrust::distance(output_begin, output_end);
 
     REQUIRE(size == (num_keys + num_keys / 2));
 

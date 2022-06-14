@@ -216,7 +216,6 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
   auto slots_begin = reinterpret_cast<value_type*>(slots_);
 
   auto begin  = thrust::make_transform_iterator(slots_begin, detail::slot_to_tuple<Key, Value>{});
-  auto end    = begin + get_capacity();
   auto filled = detail::slot_is_filled<Key>{get_empty_key_sentinel()};
   auto zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
 
@@ -716,9 +715,9 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <typename Hash, typename KeyEqual>
+template <typename ProbeKey, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
-  Key const& k, Hash hash, KeyEqual key_equal) const noexcept
+  ProbeKey const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
@@ -734,9 +733,12 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <typename CG, typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
-  CG g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
+template <typename CG, typename ProbeKey, typename Hash, typename KeyEqual>
+__device__ std::enable_if_t<std::is_invocable_v<KeyEqual, ProbeKey, Key>, bool>
+static_map<Key, Value, Scope, Allocator>::device_view::contains(CG const& g,
+                                                                ProbeKey const& k,
+                                                                Hash hash,
+                                                                KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 

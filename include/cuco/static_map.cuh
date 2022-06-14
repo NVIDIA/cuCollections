@@ -380,17 +380,20 @@ class static_map {
                                            cudaStream_t stream = 0);
 
   /**
-   * @brief Indicates whether the keys in the range
-   * `[first, last)` are contained in the map.
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
    *
    * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
    *
-   * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the map's `key_type`
-   * @tparam OutputIt Device accessible output iterator whose `value_type` is
-   * convertible to the map's `mapped_type`
+   * Hash should be callable with both `std::iterator_traits<InputIt>::value_type` and Key type.
+   * `std::invoke_result<KeyEqual, std::iterator_traits<InputIt>::value_type, Key>` must be
+   * well-formed.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from
+   * `bool`
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
+   *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
@@ -454,13 +457,15 @@ class static_map {
     /**
      * @brief Returns the initial slot for a given key `k`
      *
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
+     *
      * @param k The key to get the slot for
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename Hash>
-    __device__ iterator initial_slot(Key const& k, Hash hash) noexcept
+    template <typename ProbeKey, typename Hash>
+    __device__ iterator initial_slot(ProbeKey const& k, Hash hash) noexcept
     {
       return &slots_[hash(k) % capacity_];
     }
@@ -468,13 +473,15 @@ class static_map {
     /**
      * @brief Returns the initial slot for a given key `k`
      *
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
+     *
      * @param k The key to get the slot for
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename Hash>
-    __device__ const_iterator initial_slot(Key const& k, Hash hash) const noexcept
+    template <typename ProbeKey, typename Hash>
+    __device__ const_iterator initial_slot(ProbeKey const& k, Hash hash) const noexcept
     {
       return &slots_[hash(k) % capacity_];
     }
@@ -485,14 +492,16 @@ class static_map {
      * To be used for Cooperative Group based probing.
      *
      * @tparam CG Cooperative Group type
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
+     *
      * @param g the Cooperative Group for which the initial slot is needed
      * @param k The key to get the slot for
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename CG, typename Hash>
-    __device__ iterator initial_slot(CG g, Key const& k, Hash hash) noexcept
+    template <typename CG, typename ProbeKey, typename Hash>
+    __device__ iterator initial_slot(CG const& g, ProbeKey const& k, Hash hash) noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -503,14 +512,16 @@ class static_map {
      * To be used for Cooperative Group based probing.
      *
      * @tparam CG Cooperative Group type
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
+     *
      * @param g the Cooperative Group for which the initial slot is needed
      * @param k The key to get the slot for
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename CG, typename Hash>
-    __device__ const_iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
+    template <typename CG, typename ProbeKey, typename Hash>
+    __device__ const_iterator initial_slot(CG const& g, ProbeKey const& k, Hash hash) const noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -550,7 +561,7 @@ class static_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ iterator next_slot(CG g, iterator s) noexcept
+    __device__ iterator next_slot(CG const& g, iterator s) noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];
@@ -568,7 +579,7 @@ class static_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ const_iterator next_slot(CG g, const_iterator s) const noexcept
+    __device__ const_iterator next_slot(CG const& g, const_iterator s) const noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];
@@ -1211,8 +1222,16 @@ class static_map {
      * If the key `k` was inserted into the map, find returns
      * true. Otherwise, it returns false.
      *
+     * Hash should be callable with both ProbeKey and Key type. `std::invoke_result<KeyEqual,
+     * ProbeKey, Key>` must be well-formed.
+     *
+     * If `key_equal(probe_key, slot_key)` returns true, `hash(probe_key) == hash(slot_key)` must
+     * also be true.
+     *
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
+     *
      * @param k The key to search for
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys
@@ -1220,24 +1239,32 @@ class static_map {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+    template <typename ProbeKey,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(Key const& k,
+    __device__ bool contains(ProbeKey const& k,
                              Hash hash          = Hash{},
                              KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
      *
-     * If the key `k` was inserted into the map, find returns
-     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single contains operation. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `contains` at moderate to high load factors.
+     * If the key `k` was inserted into the map, find returns true. Otherwise, it returns false.
+     * Uses the CUDA Cooperative Groups API to to leverage multiple threads to perform a single
+     * contains operation. This provides a significant boost in throughput compared to the non
+     * Cooperative Group `contains` at moderate to high load factors.
+     *
+     * Hash should be callable with both ProbeKey and Key type. `std::invoke_result<KeyEqual,
+     * ProbeKey, Key>` must be well-formed.
+     *
+     * If `key_equal(probe_key, slot_key)` returns true, `hash(probe_key) == hash(slot_key)` must
+     * also be true.
      *
      * @tparam CG Cooperative Group type
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
+     *
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The key to search for
      * @param hash The unary callable used to hash the key
@@ -1247,12 +1274,14 @@ class static_map {
      * containing `k` was inserted
      */
     template <typename CG,
+              typename ProbeKey,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(CG g,
-                             Key const& k,
-                             Hash hash          = Hash{},
-                             KeyEqual key_equal = KeyEqual{}) const noexcept;
+    __device__ std::enable_if_t<std::is_invocable_v<KeyEqual, ProbeKey, Key>, bool> contains(
+      CG const& g,
+      ProbeKey const& k,
+      Hash hash          = Hash{},
+      KeyEqual key_equal = KeyEqual{}) const noexcept;
   };  // class device_view
 
   /**
