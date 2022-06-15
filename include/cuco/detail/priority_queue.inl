@@ -28,7 +28,7 @@ priority_queue<T, Compare, Allocator>::priority_queue(
   size_t initial_capacity, Allocator const& allocator, cudaStream_t stream)
   : int_allocator_{allocator}, t_allocator_{allocator}, size_t_allocator_{allocator}
 {
-  node_size_ = 64;
+  node_size_ = 1024;
 
   // Round up to the nearest multiple of node size
   int nodes = ((initial_capacity + node_size_ - 1) / node_size_);
