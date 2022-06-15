@@ -187,11 +187,8 @@ __global__ void contains(
   while (first + idx < last) {
     auto element = *(first + idx);
     auto found   = [&]() {
-      if constexpr (is_pair_contains) {
-        return view.pair_contains(tile, element, equal);
-      } else {
-        return view.contains(tile, element, equal);
-      }
+      if constexpr (is_pair_contains) { return view.pair_contains(tile, element, equal); }
+      if constexpr (not is_pair_contains) { return view.contains(tile, element, equal); }
     }();
 
     /*
