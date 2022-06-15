@@ -46,14 +46,13 @@ static void generate_kv_pairs_uniform(OutputIt output_begin,
   }
 }
 
-template <typename Key, typename Value, int NumKeys, bool FavorInsertionPerformance>
+template <typename Key, typename Value, int NumKeys>
 static void BM_insert(::benchmark::State& state)
 {
   for (auto _ : state) {
     state.PauseTiming();
 
-    priority_queue<pair<Key, Value>, pair_less<pair<Key, Value>>, FavorInsertionPerformance> pq(
-      NumKeys);
+    priority_queue<pair<Key, Value>, pair_less<pair<Key, Value>>> pq(NumKeys);
 
     std::vector<pair<Key, Value>> h_pairs(NumKeys);
     generate_kv_pairs_uniform<Key, Value>(h_pairs.begin(), h_pairs.end());
@@ -65,14 +64,13 @@ static void BM_insert(::benchmark::State& state)
   }
 }
 
-template <typename Key, typename Value, int NumKeys, bool FavorInsertionPerformance>
+template <typename Key, typename Value, int NumKeys>
 static void BM_delete(::benchmark::State& state)
 {
   for (auto _ : state) {
     state.PauseTiming();
 
-    priority_queue<pair<Key, Value>, pair_less<pair<Key, Value>>, FavorInsertionPerformance> pq(
-      NumKeys);
+    priority_queue<pair<Key, Value>, pair_less<pair<Key, Value>>> pq(NumKeys);
 
     std::vector<pair<Key, Value>> h_pairs(NumKeys);
     generate_kv_pairs_uniform<Key, Value>(h_pairs.begin(), h_pairs.end());
@@ -87,18 +85,10 @@ static void BM_delete(::benchmark::State& state)
   }
 }
 
-BENCHMARK_TEMPLATE(BM_insert, int, int, 128'000'000, false)->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_insert, int, int, 128'000'000)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_TEMPLATE(BM_delete, int, int, 128'000'000, false)->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_delete, int, int, 128'000'000)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_TEMPLATE(BM_insert, int, int, 256'000'000, false)->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_insert, int, int, 256'000'000)->Unit(benchmark::kMillisecond);
 
-BENCHMARK_TEMPLATE(BM_delete, int, int, 256'000'000, false)->Unit(benchmark::kMillisecond);
-
-BENCHMARK_TEMPLATE(BM_insert, int, int, 128'000'000, true)->Unit(benchmark::kMillisecond);
-
-BENCHMARK_TEMPLATE(BM_delete, int, int, 128'000'000, true)->Unit(benchmark::kMillisecond);
-
-BENCHMARK_TEMPLATE(BM_insert, int, int, 256'000'000, true)->Unit(benchmark::kMillisecond);
-
-BENCHMARK_TEMPLATE(BM_delete, int, int, 256'000'000, true)->Unit(benchmark::kMillisecond);
+BENCHMARK_TEMPLATE(BM_delete, int, int, 256'000'000)->Unit(benchmark::kMillisecond);
