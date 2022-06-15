@@ -51,7 +51,7 @@ struct shared_memory_layout {
  */
 template <typename T>
 __device__ shared_memory_layout<T> get_shared_memory_layout(int* s, int dim,
-                                                            size_t node_size)
+                                                            std::size_t node_size)
 {
   shared_memory_layout<T> result;
   result.intersections = s;
@@ -119,7 +119,7 @@ __device__ void copy_pairs(CG const& g, InputIt1 dst_start, InputIt2 src_start,
  */
 template <typename InputIt1, typename InputIt2, typename CG>
 __device__ void copy_pairs(CG const& g, InputIt1 dst_start, InputIt2 src_start,
-                           size_t num_pairs)
+                           std::size_t num_pairs)
 {
   copy_pairs(g, dst_start, src_start, src_start + num_pairs);
 }
@@ -146,7 +146,7 @@ __device__ void merge_and_sort(CG const& g,
                               T* b,
                               T* lo,
                               T* hi,
-                              size_t node_size,
+                              std::size_t node_size,
                               shared_memory_layout<T> shmem,
                               Compare const& compare)
 {
@@ -182,9 +182,9 @@ __device__ void merge_and_sort(CG const& g,
                                T* b,
                                T* lo,
                                T* hi,
-                               size_t num_elements_a,
-                               size_t num_elements_b,
-                               size_t node_size,
+                               std::size_t num_elements_a,
+                               std::size_t num_elements_b,
+                               std::size_t node_size,
                                shared_memory_layout<T> shmem,
                                Compare const& compare)
 {
@@ -322,7 +322,8 @@ __device__ void merge_and_sort(CG const& g,
  */
 template <typename T, typename CG, typename Compare>
 __device__ void pb_sort(
-  CG const& g, T* start, size_t len, size_t node_size, T* temp, Compare const& compare)
+  CG const& g, T* start, std::size_t len, std::size_t node_size, T* temp,
+  Compare const& compare)
 {
   int lane = g.thread_rank();
   int dim  = g.size();
@@ -501,7 +502,7 @@ __device__ void swim(CG const& g,
                      int cur_node,
                      T* heap,
                      int* size,
-                     size_t node_size,
+                     std::size_t node_size,
                      int* locks,
                      int lowest_level_start,
                      shared_memory_layout<T> shmem,
@@ -567,23 +568,23 @@ template <typename T, typename CG, typename Compare>
 __device__ void sink(CG const& g,
                      T* heap,
                      int* size,
-                     size_t node_size,
+                     std::size_t node_size,
                      int* locks,
-                     size_t* p_buffer_size,
+                     std::size_t* p_buffer_size,
                      int lowest_level_start,
                      int node_capacity,
                      shared_memory_layout<T> shmem,
                      Compare const& compare)
 {
-  size_t cur = kRootIdx;
+  std::size_t cur = kRootIdx;
 
   int dim = g.size();
 
   // sink the node
   while (insertion_order_index(left_child(cur, lowest_level_start),
                                lowest_level_start) <= node_capacity) {
-    size_t left  = left_child(cur, lowest_level_start);
-    size_t right = right_child(cur, lowest_level_start);
+    std::size_t left  = left_child(cur, lowest_level_start);
+    std::size_t right = right_child(cur, lowest_level_start);
 
     acquire_lock(g, &locks[left]);
 
@@ -595,7 +596,7 @@ __device__ void sink(CG const& g,
       break;
     }
 
-    size_t lo;
+    std::size_t lo;
 
     if (insertion_order_index(right, lowest_level_start) <= node_capacity) {
       acquire_lock(g, &locks[right]);
@@ -605,7 +606,7 @@ __device__ void sink(CG const& g,
       //
       // If we have both children, merge and sort them
       if (insertion_order_index(right, lowest_level_start) <= *size) {
-        size_t hi;
+        std::size_t hi;
 
         // In order to ensure we preserve the heap property,
         // we put the largest node_size elements in the child
@@ -690,7 +691,7 @@ __device__ void push_single_node(CG const& g,
                                  InputIt elements,
                                  T* heap,
                                  int* size,
-                                 size_t node_size,
+                                 std::size_t node_size,
                                  int* locks,
                                  int lowest_level_start,
                                  shared_memory_layout<T> shmem,
@@ -743,9 +744,9 @@ __device__ void pop_single_node(CG const& g,
                                 OutputIt elements,
                                 T* heap,
                                 int* size,
-                                size_t node_size,
+                                std::size_t node_size,
                                 int* locks,
-                                size_t* p_buffer_size,
+                                std::size_t* p_buffer_size,
                                 int lowest_level_start,
                                 int node_capacity,
                                 shared_memory_layout<T> shmem,
@@ -766,7 +767,7 @@ __device__ void pop_single_node(CG const& g,
   // Find the target node (the last one inserted) and
   // decrement the size
 
-  size_t tar = insertion_order_index(*size, lowest_level_start);
+  std::size_t tar = insertion_order_index(*size, lowest_level_start);
 
   if (tar != 1) { acquire_lock(g, &locks[tar]); }
 
@@ -844,12 +845,12 @@ __device__ void pop_single_node(CG const& g,
 template <typename InputIt, typename T, typename Compare, typename CG>
 __device__ void pop_partial_node(CG const& g,
                                  InputIt elements,
-                                 size_t num_elements,
+                                 std::size_t num_elements,
                                  T* heap,
                                  int* size,
-                                 size_t node_size,
+                                 std::size_t node_size,
                                  int* locks,
-                                 size_t* p_buffer_size,
+                                 std::size_t* p_buffer_size,
                                  int lowest_level_start,
                                  int node_capacity,
                                  shared_memory_layout<T> shmem,
@@ -864,7 +865,7 @@ __device__ void pop_partial_node(CG const& g,
     copy_pairs(g, elements, heap, num_elements);
     g.sync();
 
-    size_t n_p_buffer_size = *p_buffer_size - num_elements;
+    std::size_t n_p_buffer_size = *p_buffer_size - num_elements;
 
     copy_pairs(g, shmem.a, heap + num_elements, n_p_buffer_size);
 
@@ -1002,12 +1003,12 @@ __device__ void pop_partial_node(CG const& g,
 template <typename InputIt, typename T, typename Compare, typename CG>
 __device__ void push_partial_node(CG const& g,
                                   InputIt elements,
-                                  size_t p_ins_size,
+                                  std::size_t p_ins_size,
                                   T* heap,
                                   int* size,
-                                  size_t node_size,
+                                  std::size_t node_size,
                                   int* locks,
-                                  size_t* p_buffer_size,
+                                  std::size_t* p_buffer_size,
                                   int lowest_level_start,
                                   shared_memory_layout<T> shmem,
                                   Compare const& compare)
@@ -1122,12 +1123,12 @@ __device__ void push_partial_node(CG const& g,
 */
 template <typename OutputIt, typename T, typename Compare>
 __global__ void push_kernel(OutputIt elements,
-                            size_t num_elements,
+                            std::size_t num_elements,
                             T* heap,
                             int* size,
-                            size_t node_size,
+                            std::size_t node_size,
                             int* locks,
-                            size_t* p_buffer_size,
+                            std::size_t* p_buffer_size,
                             int lowest_level_start,
                             Compare compare)
 {
@@ -1139,7 +1140,7 @@ __global__ void push_kernel(OutputIt elements,
   // then deal with the remaining elements as a partial insertion
   // below
   cg::thread_block g = cg::this_thread_block();
-  for (size_t i = blockIdx.x * node_size; i + node_size <= num_elements;
+  for (std::size_t i = blockIdx.x * node_size; i + node_size <= num_elements;
        i += gridDim.x * node_size) {
     push_single_node(
       g, elements + i, heap, size, node_size, locks, lowest_level_start, shmem, compare);
@@ -1150,10 +1151,10 @@ __global__ void push_kernel(OutputIt elements,
 
   // If node_size does not divide num_elements, there are some leftover
   // elements for which we must perform a partial insertion
-  size_t first_not_inserted = (num_elements / node_size) * node_size;
+  std::size_t first_not_inserted = (num_elements / node_size) * node_size;
 
   if (first_not_inserted < num_elements) {
-    size_t p_ins_size = num_elements - first_not_inserted;
+    std::size_t p_ins_size = num_elements - first_not_inserted;
     push_partial_node(g,
                     elements + first_not_inserted,
                     p_ins_size,
@@ -1184,12 +1185,12 @@ __global__ void push_kernel(OutputIt elements,
  */
 template <typename OutputIt, typename T, typename Compare>
 __global__ void pop_kernel(OutputIt elements,
-                           size_t num_elements,
+                           std::size_t num_elements,
                            T* heap,
                            int* size,
-                           size_t node_size,
+                           std::size_t node_size,
                            int* locks,
-                           size_t* p_buffer_size,
+                           std::size_t* p_buffer_size,
                            int lowest_level_start,
                            int node_capacity,
                            Compare compare)
@@ -1200,7 +1201,8 @@ __global__ void pop_kernel(OutputIt elements,
                                                               node_size);
 
   cg::thread_block g = cg::this_thread_block();
-  for (size_t i = blockIdx.x; i < num_elements / node_size; i += gridDim.x) {
+  for (std::size_t i = blockIdx.x; i < num_elements / node_size;
+       i += gridDim.x) {
     pop_single_node(g,
                     elements + i * node_size,
                     heap,
@@ -1219,10 +1221,10 @@ __global__ void pop_kernel(OutputIt elements,
 
   // If node_size does not divide num_elements, there are some leftover
   // elements for which we must perform a partial deletion
-  size_t first_not_inserted = (num_elements / node_size) * node_size;
+  std::size_t first_not_inserted = (num_elements / node_size) * node_size;
 
   if (first_not_inserted < num_elements) {
-    size_t p_del_size = num_elements - first_not_inserted;
+    std::size_t p_del_size = num_elements - first_not_inserted;
     pop_partial_node(g,
                      elements + first_not_inserted,
                      p_del_size,

@@ -78,7 +78,7 @@ class priority_queue {
    * @param initial_capacity The number of elements the priority queue can hold
    * @param alloc Allocator used for allocating device storage
    */
-  priority_queue(size_t initial_capacity, Allocator const& alloc = Allocator{},
+  priority_queue(std::size_t initial_capacity, Allocator const& alloc = Allocator{},
                  cudaStream_t stream = 0);
 
   /**
@@ -172,10 +172,10 @@ class priority_queue {
       return intersection_bytes + 2 * node_bytes;
     }
 
-    __host__ __device__ device_mutable_view(size_t node_size,
+    __host__ __device__ device_mutable_view(std::size_t node_size,
                                             T* d_heap,
                                             int* d_size,
-                                            size_t* d_p_buffer_size,
+                                            std::size_t* d_p_buffer_size,
                                             int* d_locks,
                                             int lowest_level_start,
                                             int node_capacity,
@@ -192,7 +192,7 @@ class priority_queue {
     }
 
    private:
-    size_t node_size_;        ///< Size of the heap's nodes (i.e. number of T's
+    std::size_t node_size_;   ///< Size of the heap's nodes (i.e. number of T's
                               ///  in each node)
     int lowest_level_start_;  ///< Index in `d_heap_` of the first node in the
                               ///  heap's lowest level
@@ -203,8 +203,8 @@ class priority_queue {
                               ///  1..(node_capacity_) being the heap, where
                               ///  the 1st node is the root
     int* d_size_;             ///< Number of nodes currently in the heap
-    size_t* d_p_buffer_size_; ///< Number of elements currently in the partial
-                              ///  buffer
+    std::size_t* d_p_buffer_size_; ///< Number of elements currently in the
+                                   ///  partial buffer
     int* d_locks_;            ///< Array of locks where `d_locks_[i]` is the
                               ///  lock for the node starting at
                               ///  d_heap_[node_size * i]`
@@ -231,7 +231,7 @@ class priority_queue {
   }
 
  private:
-  size_t node_size_;        ///< Size of the heap's nodes (i.e. number of T's
+  std::size_t node_size_;   ///< Size of the heap's nodes (i.e. number of T's
                             ///  in each node)
   int lowest_level_start_;  ///< Index in `d_heap_` of the first node in the
                             ///  heap's lowest level
@@ -242,8 +242,8 @@ class priority_queue {
                             ///  1..(node_capacity_) being the heap, where the
                             ///  1st node is the root
   int* d_size_;             ///< Number of nodes currently in the heap
-  size_t* d_p_buffer_size_; ///< Number of elements currently in the partial
-                            ///  buffer
+  std::size_t* d_p_buffer_size_; ///< Number of elements currently in the
+                                 ///  partial buffer
   int* d_locks_;            ///< Array of locks where `d_locks_[i]` is the
                             ///  lock for the node starting at
                             ///  d_heap_[node_size * i]`
