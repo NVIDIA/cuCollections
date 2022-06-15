@@ -62,8 +62,8 @@ namespace cuco {
  * @tparam Allocator Allocator defining how memory is allocated internally
  */
 template <typename T,
-          typename Compare               = thrust::less<T>,
-          typename Allocator             = cuco::cuda_allocator<char>>
+          typename Compare   = thrust::less<T>,
+          typename Allocator = cuco::cuda_allocator<char>>
 class priority_queue {
   using int_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<int>;
 
@@ -78,8 +78,9 @@ class priority_queue {
    * @param initial_capacity The number of elements the priority queue can hold
    * @param alloc Allocator used for allocating device storage
    */
-  priority_queue(std::size_t initial_capacity, Allocator const& alloc = Allocator{},
-                 cudaStream_t stream = 0);
+  priority_queue(std::size_t initial_capacity,
+                 Allocator const& alloc = Allocator{},
+                 cudaStream_t stream    = 0);
 
   /**
    * @brief Push elements into the priority queue
@@ -198,17 +199,17 @@ class priority_queue {
                               ///  heap's lowest level
     int node_capacity_;       ///< Capacity of the heap in nodes
 
-    T* d_heap_;               ///< Pointer to an array of nodes, the 0th node
-                              ///  being the heap's partial buffer, and nodes
-                              ///  1..(node_capacity_) being the heap, where
-                              ///  the 1st node is the root
-    int* d_size_;             ///< Number of nodes currently in the heap
-    std::size_t* d_p_buffer_size_; ///< Number of elements currently in the
-                                   ///  partial buffer
-    int* d_locks_;            ///< Array of locks where `d_locks_[i]` is the
-                              ///  lock for the node starting at
-                              ///  d_heap_[node_size * i]`
-    Compare compare_{}; ///< Comparator used to order the elements in the queue
+    T* d_heap_;                     ///< Pointer to an array of nodes, the 0th node
+                                    ///  being the heap's partial buffer, and nodes
+                                    ///  1..(node_capacity_) being the heap, where
+                                    ///  the 1st node is the root
+    int* d_size_;                   ///< Number of nodes currently in the heap
+    std::size_t* d_p_buffer_size_;  ///< Number of elements currently in the
+                                    ///  partial buffer
+    int* d_locks_;                  ///< Array of locks where `d_locks_[i]` is the
+                                    ///  lock for the node starting at
+                                    ///  d_heap_[node_size * i]`
+    Compare compare_{};             ///< Comparator used to order the elements in the queue
   };
 
   /*
@@ -237,25 +238,25 @@ class priority_queue {
                             ///  heap's lowest level
   int node_capacity_;       ///< Capacity of the heap in nodes
 
-  T* d_heap_;               ///< Pointer to an array of nodes, the 0th node
-                            ///  being the heap's partial buffer, and nodes
-                            ///  1..(node_capacity_) being the heap, where the
-                            ///  1st node is the root
-  int* d_size_;             ///< Number of nodes currently in the heap
-  std::size_t* d_p_buffer_size_; ///< Number of elements currently in the
-                                 ///  partial buffer
-  int* d_locks_;            ///< Array of locks where `d_locks_[i]` is the
-                            ///  lock for the node starting at
-                            ///  d_heap_[node_size * i]`
+  T* d_heap_;                     ///< Pointer to an array of nodes, the 0th node
+                                  ///  being the heap's partial buffer, and nodes
+                                  ///  1..(node_capacity_) being the heap, where the
+                                  ///  1st node is the root
+  int* d_size_;                   ///< Number of nodes currently in the heap
+  std::size_t* d_p_buffer_size_;  ///< Number of elements currently in the
+                                  ///  partial buffer
+  int* d_locks_;                  ///< Array of locks where `d_locks_[i]` is the
+                                  ///  lock for the node starting at
+                                  ///  d_heap_[node_size * i]`
 
-  int_allocator_type int_allocator_;       ///< Allocator used to allocated ints
-                                           ///  for example, the lock array
-  t_allocator_type t_allocator_;           ///< Allocator used to allocate T's
-                                           ///  and therefore nodes
-  size_t_allocator_type size_t_allocator_; ///< Allocator used to allocate
-                                           ///  size_t's, e.g. d_p_buffer_size_
+  int_allocator_type int_allocator_;        ///< Allocator used to allocated ints
+                                            ///  for example, the lock array
+  t_allocator_type t_allocator_;            ///< Allocator used to allocate T's
+                                            ///  and therefore nodes
+  size_t_allocator_type size_t_allocator_;  ///< Allocator used to allocate
+                                            ///  size_t's, e.g. d_p_buffer_size_
 
-  Compare compare_{}; ///< Comparator used to order the elements in the queue
+  Compare compare_{};  ///< Comparator used to order the elements in the queue
 };
 
 }  // namespace cuco

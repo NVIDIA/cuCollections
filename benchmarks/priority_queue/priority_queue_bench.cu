@@ -33,8 +33,7 @@ struct pair_less {
 };
 
 template <typename Key, typename Value, typename OutputIt>
-static void generate_kv_pairs_uniform(OutputIt output_begin,
-                                      OutputIt output_end)
+static void generate_kv_pairs_uniform(OutputIt output_begin, OutputIt output_end)
 {
   std::random_device rd;
   std::mt19937 gen{rd()};
