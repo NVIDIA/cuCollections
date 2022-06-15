@@ -57,7 +57,7 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
                       return cuco::pair_type<Key, Value>{i, i};
                     });
 
-  SECTION("Tests of pair_contains.")
+  SECTION("pair_contains returns true for all inserted pairs and false for non-inserted ones.")
   {
     thrust::device_vector<bool> result(num_pairs);
     auto res_begin = result.begin();

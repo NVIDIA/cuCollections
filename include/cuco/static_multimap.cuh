@@ -314,12 +314,12 @@ class static_multimap {
    * @param pair_equal The binary function to compare input pair and slot content for equality
    * @param stream CUDA stream used for contains
    */
-  template <typename InputIt, typename OutputIt, typename PairEqual = thrust::equal_to<value_type>>
+  template <typename InputIt, typename OutputIt, typename PairEqual>
   void pair_contains(InputIt first,
                      InputIt last,
                      OutputIt output_begin,
-                     PairEqual pair_equal = PairEqual{},
-                     cudaStream_t stream  = 0) const;
+                     PairEqual pair_equal,
+                     cudaStream_t stream = 0) const;
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
@@ -897,11 +897,11 @@ class static_multimap {
      * for equality
      * @return A boolean indicating whether the input pair was inserted in the map
      */
-    template <typename ProbePair, typename PairEqual = thrust::equal_to<value_type>>
+    template <typename ProbePair, typename PairEqual>
     __device__ __forceinline__ bool pair_contains(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       ProbePair const& p,
-      PairEqual pair_equal = PairEqual{}) const noexcept;
+      PairEqual pair_equal) const noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap.

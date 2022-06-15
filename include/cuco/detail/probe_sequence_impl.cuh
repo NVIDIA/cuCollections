@@ -197,7 +197,25 @@ class linear_probing_impl
    * @return Pointer to the initial slot for `k`
    */
   template <typename ProbeKey>
-  __device__ __forceinline__ iterator initial_slot(
+  __device__ __forceinline__ iterator
+  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
+  {
+    return const_cast<iterator>(std::as_const(*this).initial_slot(g, k));
+  }
+
+  /**
+   * @brief Returns the initial slot for a given key `k`.
+   *
+   * If vector-load is enabled, the return slot is always even to avoid illegal memory access.
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param g the Cooperative Group for which the initial slot is needed
+   * @param k The key to get the slot for
+   * @return Pointer to the initial slot for `k`
+   */
+  template <typename ProbeKey>
+  __device__ __forceinline__ const_iterator initial_slot(
     cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) const noexcept
   {
     auto const hash_value = [&]() {
@@ -333,7 +351,26 @@ class double_hashing_impl
    * @return Pointer to the initial slot for `k`
    */
   template <typename ProbeKey>
-  __device__ __forceinline__ iterator initial_slot(
+  __device__ __forceinline__ iterator
+  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
+  {
+    return const_cast<iterator>(std::as_const(*this).initial_slot(g, k));
+  }
+
+  /**
+   * @brief Returns the initial slot for a given key `k`.
+   *
+   * If vector-load is enabled, the return slot is always a multiple of (`cg_size` * `vector_width`)
+   * to avoid illegal memory access.
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param g the Cooperative Group for which the initial slot is needed
+   * @param k The key to get the slot for
+   * @return Pointer to the initial slot for `k`
+   */
+  template <typename ProbeKey>
+  __device__ __forceinline__ const_iterator initial_slot(
     cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) const noexcept
   {
     std::size_t index;
