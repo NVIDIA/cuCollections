@@ -24,8 +24,8 @@ namespace cuco {
 namespace detail {
 namespace cg = cooperative_groups;
 
-constexpr int kPBufferIdx = 0;
-constexpr int kRootIdx    = 1;
+constexpr int p_buffer_idx = 0;
+constexpr int root_idx    = 1;
 
 /*
  * Struct to hold pointers to the temp storage used by the priority
@@ -571,7 +571,7 @@ __device__ void sink(CG const& g,
                      shared_memory_layout<T> shmem,
                      Compare const& compare)
 {
-  std::size_t cur = kRootIdx;
+  std::size_t cur = root_idx;
 
   int dim = g.size();
 
@@ -748,7 +748,7 @@ __device__ void pop_single_node(CG const& g,
   int lane = g.thread_rank();
   int dim  = g.size();
 
-  acquire_lock(g, &locks[kRootIdx]);
+  acquire_lock(g, &locks[root_idx]);
   if (*size == 0) {
     copy_pairs(g, elements, heap, node_size);
 
@@ -777,7 +777,7 @@ __device__ void pop_single_node(CG const& g,
 
   // Copy the target node to the root
 
-  if (tar != kRootIdx) {
+  if (tar != root_idx) {
     copy_pairs(g, &heap[node_size], &heap[tar * node_size], node_size);
 
     release_lock(g, &locks[tar]);
@@ -789,7 +789,7 @@ __device__ void pop_single_node(CG const& g,
 
   merge_and_sort(g,
                  &heap[node_size],
-                 &heap[kPBufferIdx],
+                 &heap[p_buffer_idx],
                  shmem.a,
                  shmem.b,
                  node_size,
@@ -852,7 +852,7 @@ __device__ void pop_partial_node(CG const& g,
   int lane = g.thread_rank();
   int dim  = g.size();
 
-  acquire_lock(g, &locks[kRootIdx]);
+  acquire_lock(g, &locks[root_idx]);
 
   if (*size == 0) {
     copy_pairs(g, elements, heap, num_elements);
@@ -868,15 +868,15 @@ __device__ void pop_partial_node(CG const& g,
 
     if (lane == 0) { *p_buffer_size = n_p_buffer_size; }
 
-    release_lock(g, &locks[kRootIdx]);
+    release_lock(g, &locks[root_idx]);
   } else {
-    copy_pairs(g, elements, &heap[kRootIdx * node_size], num_elements);
+    copy_pairs(g, elements, &heap[root_idx * node_size], num_elements);
     g.sync();
 
     if (*p_buffer_size >= num_elements) {
       merge_and_sort(g,
-                     &heap[kPBufferIdx],
-                     &heap[kRootIdx * node_size] + num_elements,
+                     &heap[p_buffer_idx],
+                     &heap[root_idx * node_size] + num_elements,
                      shmem.a,
                      shmem.b,
                      *p_buffer_size,
@@ -891,8 +891,8 @@ __device__ void pop_partial_node(CG const& g,
 
       g.sync();
 
-      copy_pairs(g, &heap[kRootIdx * node_size], shmem.a, node_size);
-      copy_pairs(g, &heap[kPBufferIdx], shmem.b, *p_buffer_size);
+      copy_pairs(g, &heap[root_idx * node_size], shmem.a, node_size);
+      copy_pairs(g, &heap[p_buffer_idx], shmem.b, *p_buffer_size);
 
       g.sync();
 
@@ -908,8 +908,8 @@ __device__ void pop_partial_node(CG const& g,
            compare);
     } else {
       merge_and_sort(g,
-                     &heap[kPBufferIdx],
-                     &heap[kRootIdx * node_size] + num_elements,
+                     &heap[p_buffer_idx],
+                     &heap[root_idx * node_size] + num_elements,
                      shmem.a,
                      (T*)nullptr,
                      *p_buffer_size,
@@ -920,7 +920,7 @@ __device__ void pop_partial_node(CG const& g,
 
       g.sync();
 
-      copy_pairs(g, &heap[kPBufferIdx], shmem.a, *p_buffer_size + node_size - num_elements);
+      copy_pairs(g, &heap[p_buffer_idx], shmem.a, *p_buffer_size + node_size - num_elements);
 
       int tar = insertion_order_index(*size, lowest_level_start);
       g.sync();
@@ -932,10 +932,10 @@ __device__ void pop_partial_node(CG const& g,
 
       if (lane == 0) { *size -= 1; }
 
-      if (tar != kRootIdx) {
+      if (tar != root_idx) {
         acquire_lock(g, &locks[tar]);
 
-        copy_pairs(g, &heap[kRootIdx * node_size], &heap[tar * node_size], node_size);
+        copy_pairs(g, &heap[root_idx * node_size], &heap[tar * node_size], node_size);
 
         g.sync();
 
@@ -943,7 +943,7 @@ __device__ void pop_partial_node(CG const& g,
 
         merge_and_sort(g,
                        &heap[node_size],
-                       &heap[kPBufferIdx],
+                       &heap[p_buffer_idx],
                        shmem.a,
                        shmem.b,
                        node_size,
@@ -970,7 +970,7 @@ __device__ void pop_partial_node(CG const& g,
              shmem,
              compare);
       } else {
-        release_lock(g, &locks[kRootIdx]);
+        release_lock(g, &locks[root_idx]);
       }
     }
   }
@@ -1009,7 +1009,7 @@ __device__ void push_partial_node(CG const& g,
   int lane = g.thread_rank();
   int dim  = g.size();
 
-  acquire_lock(g, &locks[kRootIdx]);
+  acquire_lock(g, &locks[root_idx]);
 
   copy_pairs(g, shmem.b, elements, p_ins_size);
 
@@ -1024,13 +1024,13 @@ __device__ void push_partial_node(CG const& g,
 
     int cur_node = insertion_order_index(*cur_node_temp, lowest_level_start);
 
-    if (cur_node != kRootIdx) { acquire_lock(g, &(locks[cur_node])); }
+    if (cur_node != root_idx) { acquire_lock(g, &(locks[cur_node])); }
 
     g.sync();
 
     merge_and_sort(g,
                    shmem.b,
-                   &heap[kPBufferIdx],
+                   &heap[p_buffer_idx],
                    &heap[cur_node * node_size],
                    shmem.a,
                    p_ins_size,
@@ -1045,7 +1045,7 @@ __device__ void push_partial_node(CG const& g,
 
     copy_pairs(g, heap, shmem.a, *p_buffer_size);
 
-    if (cur_node != kRootIdx) { release_lock(g, &locks[kRootIdx]); }
+    if (cur_node != root_idx) { release_lock(g, &locks[root_idx]); }
 
     swim(g, cur_node, heap, size, node_size, locks, lowest_level_start, shmem, compare);
 
@@ -1057,7 +1057,7 @@ __device__ void push_partial_node(CG const& g,
 
     merge_and_sort(g,
                    shmem.b,
-                   &heap[kPBufferIdx],
+                   &heap[p_buffer_idx],
                    shmem.a,
                    (T*)nullptr,
                    p_ins_size,
@@ -1079,7 +1079,7 @@ __device__ void push_partial_node(CG const& g,
     if (*size > 0) {
       merge_and_sort(g,
                      &heap[node_size],
-                     &heap[kPBufferIdx],
+                     &heap[p_buffer_idx],
                      shmem.a,
                      shmem.b,
                      node_size,
@@ -1095,7 +1095,7 @@ __device__ void push_partial_node(CG const& g,
 
       g.sync();
     }
-    release_lock(g, &locks[kRootIdx]);
+    release_lock(g, &locks[root_idx]);
   }
 }
 
