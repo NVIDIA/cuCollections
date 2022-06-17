@@ -31,19 +31,19 @@ using namespace cuco;
 namespace cg = cooperative_groups;
 
 template <typename K, typename V>
-struct KVPair {
+struct kv_pair {
   K first;
   V second;
 };
 
 template <typename K, typename V>
-bool __host__ __device__ operator==(const KVPair<K, V>& a, const KVPair<K, V>& b)
+bool __host__ __device__ operator==(const kv_pair<K, V>& a, const kv_pair<K, V>& b)
 {
   return a.first == b.first && a.second == b.second;
 }
 
 template <typename K, typename V>
-bool __host__ __device__ operator<(const KVPair<K, V>& a, const KVPair<K, V>& b)
+bool __host__ __device__ operator<(const kv_pair<K, V>& a, const kv_pair<K, V>& b)
 {
   if (a.first == b.first) {
     return a.second < b.second;
@@ -53,7 +53,7 @@ bool __host__ __device__ operator<(const KVPair<K, V>& a, const KVPair<K, V>& b)
 }
 
 template <typename T>
-struct KVLess {
+struct kv_less {
   __host__ __device__ bool operator()(const T& a, const T& b) const { return a.first < b.first; }
 };
 
@@ -110,7 +110,7 @@ static void generate_element(T& e, std::mt19937& gen)
 }
 
 template <typename K, typename V>
-void generate_element(KVPair<K, V>& e, std::mt19937& gen)
+void generate_element(kv_pair<K, V>& e, std::mt19937& gen)
 {
   generate_element(e.first, gen);
   generate_element(e.second, gen);
@@ -182,55 +182,55 @@ TEST_CASE("Single uint32_t element", "")
 
 TEST_CASE("New node created on partial insertion")
 {
-  const size_t kInsertionSize = 600;
-  const size_t kNumElements   = kInsertionSize * 2;
+  const size_t insertion_size = 600;
+  const size_t num_elements   = insertion_size * 2;
 
-  priority_queue<uint32_t> pq(kNumElements);
+  priority_queue<uint32_t> pq(num_elements);
 
-  std::vector<uint32_t> els = generate_elements<uint32_t>(kNumElements);
+  std::vector<uint32_t> els = generate_elements<uint32_t>(num_elements);
 
-  std::vector<uint32_t> first_insertion(els.begin(), els.begin() + kInsertionSize);
+  std::vector<uint32_t> first_insertion(els.begin(), els.begin() + insertion_size);
 
-  std::vector<uint32_t> second_insertion(els.begin() + kInsertionSize, els.end());
+  std::vector<uint32_t> second_insertion(els.begin() + insertion_size, els.end());
 
   insert_to_queue(pq, first_insertion);
 
   insert_to_queue(pq, second_insertion);
 
-  auto popped_elements = pop_from_queue(pq, kInsertionSize);
+  auto popped_elements = pop_from_queue(pq, insertion_size);
 
   REQUIRE(is_valid_top_n<uint32_t, thrust::less<uint32_t>>(popped_elements, els));
 }
 
 TEST_CASE("Insert, delete, insert, delete", "")
 {
-  const size_t kFirstInsertionSize  = 100'000;
-  const size_t kFirstDeletionSize   = 10'000;
-  const size_t kSecondInsertionSize = 20'000;
-  const size_t kSecondDeletionSize  = 50'000;
+  const size_t first_insertion_size  = 100'000;
+  const size_t first_deletion_size   = 10'000;
+  const size_t second_insertion_size = 20'000;
+  const size_t second_deletion_size  = 50'000;
   using T                           = uint32_t;
   using Compare                     = thrust::less<T>;
 
-  priority_queue<T, Compare> pq(kFirstInsertionSize + kSecondInsertionSize);
+  priority_queue<T, Compare> pq(first_insertion_size + second_insertion_size);
 
-  auto first_insertion_els = generate_elements<T>(kFirstInsertionSize);
+  auto first_insertion_els = generate_elements<T>(first_insertion_size);
 
-  auto second_insertion_els = generate_elements<T>(kSecondInsertionSize);
+  auto second_insertion_els = generate_elements<T>(second_insertion_size);
 
   insert_to_queue(pq, first_insertion_els);
 
-  auto first_popped_elements = pop_from_queue(pq, kFirstDeletionSize);
+  auto first_popped_elements = pop_from_queue(pq, first_deletion_size);
 
   insert_to_queue(pq, second_insertion_els);
 
-  auto second_popped_elements = pop_from_queue(pq, kSecondDeletionSize);
+  auto second_popped_elements = pop_from_queue(pq, second_deletion_size);
 
   std::vector<T> remaining_elements;
 
   std::sort(first_insertion_els.begin(), first_insertion_els.end(), Compare{});
 
   remaining_elements.insert(remaining_elements.end(),
-                            first_insertion_els.begin() + kFirstDeletionSize,
+                            first_insertion_els.begin() + first_deletion_size,
                             first_insertion_els.end());
 
   remaining_elements.insert(
@@ -242,16 +242,16 @@ TEST_CASE("Insert, delete, insert, delete", "")
 
 TEST_CASE("Insertion and deletion on different streams", "")
 {
-  const size_t kInsertionSize = 100'000;
-  const size_t kDeletionSize  = 10'000;
+  const size_t insertion_size = 100'000;
+  const size_t deletion_size  = 10'000;
   using T                     = uint32_t;
   using Compare               = thrust::less<uint32_t>;
 
-  auto elements = generate_elements<T>(kInsertionSize * 2);
-  thrust::device_vector<T> insertion1(elements.begin(), elements.begin() + kInsertionSize);
-  thrust::device_vector<T> insertion2(elements.begin() + kInsertionSize, elements.end());
+  auto elements = generate_elements<T>(insertion_size * 2);
+  thrust::device_vector<T> insertion1(elements.begin(), elements.begin() + insertion_size);
+  thrust::device_vector<T> insertion2(elements.begin() + insertion_size, elements.end());
 
-  priority_queue<T, Compare> pq(kInsertionSize * 2);
+  priority_queue<T, Compare> pq(insertion_size * 2);
 
   cudaStream_t stream1, stream2;
 
@@ -264,8 +264,8 @@ TEST_CASE("Insertion and deletion on different streams", "")
   cudaStreamSynchronize(stream1);
   cudaStreamSynchronize(stream2);
 
-  thrust::device_vector<T> deletion1(kDeletionSize);
-  thrust::device_vector<T> deletion2(kDeletionSize);
+  thrust::device_vector<T> deletion1(deletion_size);
+  thrust::device_vector<T> deletion2(deletion_size);
 
   pq.pop(deletion1.begin(), deletion1.end(), stream1);
   pq.pop(deletion2.begin(), deletion2.end(), stream2);
@@ -287,7 +287,7 @@ TEST_CASE("Insertion and deletion on different streams", "")
 }
 
 template <typename View, typename InputIt>
-__global__ void DeviceAPIInsert(View view, InputIt begin, InputIt end)
+__global__ void device_api_insert(View view, InputIt begin, InputIt end)
 {
   extern __shared__ int shmem[];
   cg::thread_block g = cg::this_thread_block();
@@ -295,7 +295,7 @@ __global__ void DeviceAPIInsert(View view, InputIt begin, InputIt end)
 }
 
 template <typename View, typename OutputIt>
-__global__ void DeviceAPIDelete(View view, OutputIt begin, OutputIt end)
+__global__ void device_api_delete(View view, OutputIt begin, OutputIt end)
 {
   extern __shared__ int shmem[];
   cg::thread_block g = cg::this_thread_block();
@@ -304,26 +304,26 @@ __global__ void DeviceAPIDelete(View view, OutputIt begin, OutputIt end)
 
 TEST_CASE("Insertion and deletion with Device API", "")
 {
-  const size_t kInsertionSize = 2000;
-  const size_t kDeletionSize  = 1000;
+  const size_t insertion_size = 2000;
+  const size_t deletion_size  = 1000;
   using T                     = uint32_t;
   using Compare               = thrust::less<uint32_t>;
 
-  auto els = generate_elements<T>(kInsertionSize);
+  auto els = generate_elements<T>(insertion_size);
 
   thrust::device_vector<T> d_els(els);
 
-  priority_queue<T, Compare> pq(kInsertionSize);
+  priority_queue<T, Compare> pq(insertion_size);
 
-  const int kBlockSize = 32;
-  DeviceAPIInsert<<<1, kBlockSize, pq.get_shmem_size(kBlockSize)>>>(
+  const int block_size = 32;
+  device_api_insert<<<1, block_size, pq.get_shmem_size(block_size)>>>(
     pq.get_mutable_device_view(), d_els.begin(), d_els.end());
 
   cudaDeviceSynchronize();
 
-  thrust::device_vector<T> d_pop_result(kDeletionSize);
+  thrust::device_vector<T> d_pop_result(deletion_size);
 
-  DeviceAPIDelete<<<1, kBlockSize, pq.get_shmem_size(kBlockSize)>>>(
+  device_api_delete<<<1, block_size, pq.get_shmem_size(block_size)>>>(
     pq.get_mutable_device_view(), d_pop_result.begin(), d_pop_result.end());
 
   cudaDeviceSynchronize();
@@ -336,40 +336,40 @@ TEST_CASE("Insertion and deletion with Device API", "")
 
 TEST_CASE("Concurrent insertion and deletion with Device API", "")
 {
-  const size_t kInsertionSize = 1000;
-  const size_t kDeletionSize  = 500;
-  const int kBlockSize        = 32;
+  const size_t insertion_size = 1000;
+  const size_t deletion_size  = 500;
+  const int block_size        = 32;
   using T                     = uint32_t;
   using Compare               = thrust::less<uint32_t>;
 
-  auto els = generate_elements<T>(kInsertionSize * 2);
+  auto els = generate_elements<T>(insertion_size * 2);
 
-  thrust::device_vector<T> insertion1(els.begin(), els.begin() + kInsertionSize);
-  thrust::device_vector<T> insertion2(els.begin() + kInsertionSize, els.end());
+  thrust::device_vector<T> insertion1(els.begin(), els.begin() + insertion_size);
+  thrust::device_vector<T> insertion2(els.begin() + insertion_size, els.end());
 
-  priority_queue<T, Compare> pq(kInsertionSize * 2);
+  priority_queue<T, Compare> pq(insertion_size * 2);
 
   cudaStream_t stream1, stream2;
 
   cudaStreamCreate(&stream1);
   cudaStreamCreate(&stream2);
 
-  DeviceAPIInsert<<<1, kBlockSize, pq.get_shmem_size(kBlockSize), stream1>>>(
+  device_api_insert<<<1, block_size, pq.get_shmem_size(block_size), stream1>>>(
     pq.get_mutable_device_view(), insertion1.begin(), insertion1.end());
 
-  DeviceAPIInsert<<<1, kBlockSize, pq.get_shmem_size(kBlockSize), stream2>>>(
+  device_api_insert<<<1, block_size, pq.get_shmem_size(block_size), stream2>>>(
     pq.get_mutable_device_view(), insertion2.begin(), insertion2.end());
 
   cudaStreamSynchronize(stream1);
   cudaStreamSynchronize(stream2);
 
-  thrust::device_vector<T> d_deletion1(kDeletionSize);
-  thrust::device_vector<T> d_deletion2(kDeletionSize);
+  thrust::device_vector<T> d_deletion1(deletion_size);
+  thrust::device_vector<T> d_deletion2(deletion_size);
 
-  DeviceAPIDelete<<<1, kBlockSize, pq.get_shmem_size(kBlockSize), stream1>>>(
+  device_api_delete<<<1, block_size, pq.get_shmem_size(block_size), stream1>>>(
     pq.get_mutable_device_view(), d_deletion1.begin(), d_deletion1.end());
 
-  DeviceAPIDelete<<<1, kBlockSize, pq.get_shmem_size(kBlockSize), stream2>>>(
+  device_api_delete<<<1, block_size, pq.get_shmem_size(block_size), stream2>>>(
     pq.get_mutable_device_view(), d_deletion2.begin(), d_deletion2.end());
 
   cudaStreamSynchronize(stream1);
@@ -393,15 +393,15 @@ TEMPLATE_TEST_CASE_SIG(
   ((typename T, typename Compare, size_t N, size_t NumKeys), T, Compare, N, NumKeys),
   (uint32_t, thrust::less<uint32_t>, 100, 10'000'000),
   (uint64_t, thrust::less<uint64_t>, 100, 10'000'000),
-  (KVPair<uint32_t, uint32_t>, KVLess<KVPair<uint32_t, uint32_t>>, 100, 10'000'000),
+  (kv_pair<uint32_t, uint32_t>, kv_less<kv_pair<uint32_t, uint32_t>>, 100, 10'000'000),
   (uint32_t, thrust::less<uint32_t>, 10'000, 10'000'000),
   (uint64_t, thrust::less<uint64_t>, 10'000, 10'000'000),
   (uint64_t, thrust::greater<uint64_t>, 10'000, 10'000'000),
-  (KVPair<uint32_t, uint32_t>, KVLess<KVPair<uint32_t, uint32_t>>, 10'000, 10'000'000),
-  (KVPair<float, uint32_t>, KVLess<KVPair<float, uint32_t>>, 10'000, 10'000'000),
+  (kv_pair<uint32_t, uint32_t>, kv_less<kv_pair<uint32_t, uint32_t>>, 10'000, 10'000'000),
+  (kv_pair<float, uint32_t>, kv_less<kv_pair<float, uint32_t>>, 10'000, 10'000'000),
   (uint32_t, thrust::less<uint32_t>, 10'000'000, 10'000'000),
   (uint64_t, thrust::less<uint64_t>, 10'000'000, 10'000'000),
-  (KVPair<uint32_t, uint32_t>, KVLess<KVPair<uint32_t, uint32_t>>, 10'000'000, 10'000'000))
+  (kv_pair<uint32_t, uint32_t>, kv_less<kv_pair<uint32_t, uint32_t>>, 10'000'000, 10'000'000))
 {
   priority_queue<T, Compare> pq(NumKeys);
 
