@@ -208,8 +208,8 @@ TEST_CASE("Insert, delete, insert, delete", "")
   const size_t first_deletion_size   = 10'000;
   const size_t second_insertion_size = 20'000;
   const size_t second_deletion_size  = 50'000;
-  using T                           = uint32_t;
-  using Compare                     = thrust::less<T>;
+  using T                            = uint32_t;
+  using Compare                      = thrust::less<T>;
 
   priority_queue<T, Compare> pq(first_insertion_size + second_insertion_size);
 
