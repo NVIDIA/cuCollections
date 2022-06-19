@@ -130,6 +130,7 @@ class priority_queue {
 
   class device_mutable_view {
    public:
+     using value_type = T;
     /**
      * @brief Push elements into the priority queue
      *
