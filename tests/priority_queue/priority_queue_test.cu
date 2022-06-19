@@ -72,18 +72,18 @@ std::map<T, size_t> construct_count_map(std::vector<T>& a)
 }
 
 template <typename T, typename Compare>
-bool is_valid_top_n(std::vector<T>& top_n, std::vector<T>& elements)
+bool is_valid_top_n(std::vector<T> top_n, std::vector<T> elements)
 {
-  auto top_n_map    = construct_count_map(top_n);
-  auto elements_map = construct_count_map(elements);
+  const auto top_n_map    = construct_count_map(top_n);
+  const auto elements_map = construct_count_map(elements);
 
-  size_t n = top_n.size();
+  const size_t n = top_n.size();
 
   // 1. Check that the count of each element in the top n is less than or
   // equal to the count of that element overall in the queue
   for (auto& pair : top_n_map) {
     if (elements_map.find(pair.first) == elements_map.end() ||
-        elements_map[pair.first] < pair.second) {
+        elements_map.at(pair.first) < pair.second) {
       return false;
     }
   }
@@ -95,8 +95,8 @@ bool is_valid_top_n(std::vector<T>& top_n, std::vector<T>& elements)
   std::sort(top_n.begin(), top_n.end(), Compare{});
 
   for (int i = 0; i < top_n.size(); i++) {
-    T max = elements[i];
-    T e   = top_n[i];
+    const T max = elements[i];
+    const T e   = top_n[i];
     if (Compare{}(max, e)) { return false; }
   }
 
@@ -132,9 +132,10 @@ static std::vector<T> generate_elements(size_t num_keys)
 }
 
 template <typename T, typename Compare>
-static void insert_to_queue(priority_queue<T, Compare>& pq, std::vector<T>& v)
+static void insert_to_queue(priority_queue<T, Compare>& pq,
+                            const std::vector<T>& v)
 {
-  thrust::device_vector<T> d_v(v);
+  const thrust::device_vector<T> d_v(v);
 
   pq.push(d_v.begin(), d_v.end());
 
@@ -150,7 +151,7 @@ static std::vector<T> pop_from_queue(priority_queue<T, Compare>& pq, size_t n)
 
   cudaDeviceSynchronize();
 
-  thrust::host_vector<T> h_popped(d_popped);
+  const thrust::host_vector<T> h_popped(d_popped);
 
   std::vector<T> result(h_popped.size());
 
@@ -162,11 +163,12 @@ static std::vector<T> pop_from_queue(priority_queue<T, Compare>& pq, size_t n)
 // Insert elements into the queue and check that they are
 // all returned when removed from the queue
 template <typename T, typename Compare>
-bool test_insertion_and_deletion(priority_queue<T, Compare>& pq, std::vector<T>& elements, size_t n)
+bool test_insertion_and_deletion(priority_queue<T, Compare>& pq,
+                                 const std::vector<T>& elements, size_t n)
 {
   insert_to_queue(pq, elements);
 
-  auto popped_elements = pop_from_queue(pq, n);
+  const auto popped_elements = pop_from_queue(pq, n);
 
   return is_valid_top_n<T, Compare>(popped_elements, elements);
 }
@@ -175,7 +177,7 @@ TEST_CASE("Single uint32_t element", "")
 {
   priority_queue<uint32_t> pq(1);
 
-  std::vector<uint32_t> els = {1};
+  const std::vector<uint32_t> els = {1};
 
   REQUIRE(test_insertion_and_deletion(pq, els, 1));
 }
@@ -197,7 +199,7 @@ TEST_CASE("New node created on partial insertion")
 
   insert_to_queue(pq, second_insertion);
 
-  auto popped_elements = pop_from_queue(pq, insertion_size);
+  const auto popped_elements = pop_from_queue(pq, insertion_size);
 
   REQUIRE(is_valid_top_n<uint32_t, thrust::less<uint32_t>>(popped_elements, els));
 }
@@ -208,22 +210,22 @@ TEST_CASE("Insert, delete, insert, delete", "")
   const size_t first_deletion_size   = 10'000;
   const size_t second_insertion_size = 20'000;
   const size_t second_deletion_size  = 50'000;
-  using T                            = uint32_t;
-  using Compare                      = thrust::less<T>;
+  using T                           = uint32_t;
+  using Compare                     = thrust::less<T>;
 
   priority_queue<T, Compare> pq(first_insertion_size + second_insertion_size);
 
   auto first_insertion_els = generate_elements<T>(first_insertion_size);
 
-  auto second_insertion_els = generate_elements<T>(second_insertion_size);
+  const auto second_insertion_els = generate_elements<T>(second_insertion_size);
 
   insert_to_queue(pq, first_insertion_els);
 
-  auto first_popped_elements = pop_from_queue(pq, first_deletion_size);
+  const auto first_popped_elements = pop_from_queue(pq, first_deletion_size);
 
   insert_to_queue(pq, second_insertion_els);
 
-  auto second_popped_elements = pop_from_queue(pq, second_deletion_size);
+  const auto second_popped_elements = pop_from_queue(pq, second_deletion_size);
 
   std::vector<T> remaining_elements;
 
@@ -247,9 +249,9 @@ TEST_CASE("Insertion and deletion on different streams", "")
   using T                     = uint32_t;
   using Compare               = thrust::less<uint32_t>;
 
-  auto elements = generate_elements<T>(insertion_size * 2);
-  thrust::device_vector<T> insertion1(elements.begin(), elements.begin() + insertion_size);
-  thrust::device_vector<T> insertion2(elements.begin() + insertion_size, elements.end());
+  const auto elements = generate_elements<T>(insertion_size * 2);
+  const thrust::device_vector<T> insertion1(elements.begin(), elements.begin() + insertion_size);
+  const thrust::device_vector<T> insertion2(elements.begin() + insertion_size, elements.end());
 
   priority_queue<T, Compare> pq(insertion_size * 2);
 
@@ -273,8 +275,8 @@ TEST_CASE("Insertion and deletion on different streams", "")
   cudaStreamSynchronize(stream1);
   cudaStreamSynchronize(stream2);
 
-  thrust::host_vector<T> h_deletion1(deletion1);
-  thrust::host_vector<T> h_deletion2(deletion2);
+  const thrust::host_vector<T> h_deletion1(deletion1);
+  const thrust::host_vector<T> h_deletion2(deletion2);
 
   std::vector<T> popped_elements(h_deletion1.begin(), h_deletion1.end());
 
@@ -309,9 +311,9 @@ TEST_CASE("Insertion and deletion with Device API", "")
   using T                     = uint32_t;
   using Compare               = thrust::less<uint32_t>;
 
-  auto els = generate_elements<T>(insertion_size);
+  const auto els = generate_elements<T>(insertion_size);
 
-  thrust::device_vector<T> d_els(els);
+  const thrust::device_vector<T> d_els(els);
 
   priority_queue<T, Compare> pq(insertion_size);
 
@@ -328,8 +330,8 @@ TEST_CASE("Insertion and deletion with Device API", "")
 
   cudaDeviceSynchronize();
 
-  thrust::host_vector<T> h_pop_result(d_pop_result);
-  std::vector<T> pop_result(h_pop_result.begin(), h_pop_result.end());
+  const thrust::host_vector<T> h_pop_result(d_pop_result);
+  const std::vector<T> pop_result(h_pop_result.begin(), h_pop_result.end());
 
   REQUIRE(is_valid_top_n<T, Compare>(pop_result, els));
 }
@@ -342,10 +344,10 @@ TEST_CASE("Concurrent insertion and deletion with Device API", "")
   using T                     = uint32_t;
   using Compare               = thrust::less<uint32_t>;
 
-  auto els = generate_elements<T>(insertion_size * 2);
+  const auto els = generate_elements<T>(insertion_size * 2);
 
-  thrust::device_vector<T> insertion1(els.begin(), els.begin() + insertion_size);
-  thrust::device_vector<T> insertion2(els.begin() + insertion_size, els.end());
+  const thrust::device_vector<T> insertion1(els.begin(), els.begin() + insertion_size);
+  const thrust::device_vector<T> insertion2(els.begin() + insertion_size, els.end());
 
   priority_queue<T, Compare> pq(insertion_size * 2);
 
@@ -375,8 +377,8 @@ TEST_CASE("Concurrent insertion and deletion with Device API", "")
   cudaStreamSynchronize(stream1);
   cudaStreamSynchronize(stream2);
 
-  thrust::host_vector<T> h_deletion1(d_deletion1);
-  thrust::host_vector<T> h_deletion2(d_deletion2);
+  const thrust::host_vector<T> h_deletion1(d_deletion1);
+  const thrust::host_vector<T> h_deletion2(d_deletion2);
 
   std::vector<T> result(h_deletion1.begin(), h_deletion1.end());
   result.insert(result.end(), h_deletion2.begin(), h_deletion2.end());
@@ -405,7 +407,7 @@ TEMPLATE_TEST_CASE_SIG(
 {
   priority_queue<T, Compare> pq(NumKeys);
 
-  auto els = generate_elements<T>(NumKeys);
+  const auto els = generate_elements<T>(NumKeys);
 
   REQUIRE(test_insertion_and_deletion(pq, els, N));
 }

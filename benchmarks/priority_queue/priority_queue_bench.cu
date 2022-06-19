@@ -38,7 +38,7 @@ static void generate_kv_pairs_uniform(OutputIt output_begin, OutputIt output_end
   std::random_device rd;
   std::mt19937 gen{rd()};
 
-  auto num_keys = std::distance(output_begin, output_end);
+  const auto num_keys = std::distance(output_begin, output_end);
 
   for (auto i = 0; i < num_keys; ++i) {
     output_begin[i] = {static_cast<Key>(gen()), static_cast<Value>(gen())};
@@ -55,7 +55,7 @@ static void BM_insert(::benchmark::State& state)
 
     std::vector<pair<Key, Value>> h_pairs(NumKeys);
     generate_kv_pairs_uniform<Key, Value>(h_pairs.begin(), h_pairs.end());
-    thrust::device_vector<pair<Key, Value>> d_pairs(h_pairs);
+    const thrust::device_vector<pair<Key, Value>> d_pairs(h_pairs);
 
     state.ResumeTiming();
     pq.push(d_pairs.begin(), d_pairs.end());

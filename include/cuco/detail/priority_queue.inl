@@ -32,7 +32,7 @@ priority_queue<T, Compare, Allocator>::priority_queue(std::size_t initial_capaci
   node_size_ = 1024;
 
   // Round up to the nearest multiple of node size
-  int nodes = ((initial_capacity + node_size_ - 1) / node_size_);
+  const int nodes = ((initial_capacity + node_size_ - 1) / node_size_);
 
   node_capacity_      = nodes;
   lowest_level_start_ = 1 << static_cast<int>(std::log2(nodes));
@@ -71,7 +71,7 @@ template <typename T, typename Compare, typename Allocator>
 template <typename InputIt>
 void priority_queue<T, Compare, Allocator>::push(InputIt first, InputIt last, cudaStream_t stream)
 {
-  const int block_size = 256;
+  constexpr int block_size = 256;
 
   const int num_nodes  = static_cast<int>((last - first) / node_size_) + 1;
   const int num_blocks = std::min(64000, num_nodes);
@@ -94,7 +94,7 @@ template <typename T, typename Compare, typename Allocator>
 template <typename OutputIt>
 void priority_queue<T, Compare, Allocator>::pop(OutputIt first, OutputIt last, cudaStream_t stream)
 {
-  const int block_size = 256;
+  constexpr int block_size = 256;
   const int pop_size   = last - first;
 
   const int num_nodes  = static_cast<int>(pop_size / node_size_) + 1;
@@ -122,10 +122,10 @@ __device__ void priority_queue<T, Compare, Allocator>::device_mutable_view::push
                                                                                  InputIt last,
                                                                                  void* temp_storage)
 {
-  detail::shared_memory_layout<T> shmem =
+  const detail::shared_memory_layout<T> shmem =
     detail::get_shared_memory_layout<T>((int*)temp_storage, g.size(), node_size_);
 
-  auto push_size = last - first;
+  const auto push_size = last - first;
   for (std::size_t i = 0; i < push_size / node_size_; i++) {
     detail::push_single_node(g,
                              first + i * node_size_,
@@ -160,10 +160,10 @@ __device__ void priority_queue<T, Compare, Allocator>::device_mutable_view::pop(
                                                                                 OutputIt last,
                                                                                 void* temp_storage)
 {
-  detail::shared_memory_layout<T> shmem =
+  const detail::shared_memory_layout<T> shmem =
     detail::get_shared_memory_layout<T>((int*)temp_storage, g.size(), node_size_);
 
-  auto pop_size = last - first;
+  const auto pop_size = last - first;
   for (std::size_t i = 0; i < pop_size / node_size_; i++) {
     detail::pop_single_node(g,
                             first + i * node_size_,

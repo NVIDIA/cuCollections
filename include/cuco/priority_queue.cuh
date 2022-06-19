@@ -115,7 +115,7 @@ class priority_queue {
    * @param block_size Size of the blocks to calculate storage for
    * @return The amount of temporary storage required in bytes
    */
-  int get_shmem_size(int block_size)
+  int get_shmem_size(int block_size) const
   {
     int intersection_bytes = 2 * (block_size + 1) * sizeof(int);
     int node_bytes         = node_size_ * sizeof(T);
@@ -166,7 +166,7 @@ class priority_queue {
      * @param block_size Size of the cooperative groups to calculate storage for
      * @return The amount of temporary storage required in bytes
      */
-    __device__ int get_shmem_size(int block_size)
+    __device__ int get_shmem_size(int block_size) const
     {
       int intersection_bytes = 2 * (block_size + 1) * sizeof(int);
       int node_bytes         = node_size_ * sizeof(T);
