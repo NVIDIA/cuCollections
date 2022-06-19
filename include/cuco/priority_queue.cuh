@@ -77,6 +77,7 @@ class priority_queue {
    *
    * @param initial_capacity The number of elements the priority queue can hold
    * @param alloc Allocator used for allocating device storage
+   * @param stream Stream used for constructing the priority queue
    */
   priority_queue(std::size_t initial_capacity,
                  Allocator const& alloc = Allocator{},
