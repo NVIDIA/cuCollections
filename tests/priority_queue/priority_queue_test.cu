@@ -132,8 +132,7 @@ static std::vector<T> generate_elements(size_t num_keys)
 }
 
 template <typename T, typename Compare>
-static void insert_to_queue(priority_queue<T, Compare>& pq,
-                            const std::vector<T>& v)
+static void insert_to_queue(priority_queue<T, Compare>& pq, const std::vector<T>& v)
 {
   const thrust::device_vector<T> d_v(v);
 
@@ -164,7 +163,8 @@ static std::vector<T> pop_from_queue(priority_queue<T, Compare>& pq, size_t n)
 // all returned when removed from the queue
 template <typename T, typename Compare>
 bool test_insertion_and_deletion(priority_queue<T, Compare>& pq,
-                                 const std::vector<T>& elements, size_t n)
+                                 const std::vector<T>& elements,
+                                 size_t n)
 {
   insert_to_queue(pq, elements);
 
@@ -210,8 +210,8 @@ TEST_CASE("Insert, delete, insert, delete", "")
   const size_t first_deletion_size   = 10'000;
   const size_t second_insertion_size = 20'000;
   const size_t second_deletion_size  = 50'000;
-  using T                           = uint32_t;
-  using Compare                     = thrust::less<T>;
+  using T                            = uint32_t;
+  using Compare                      = thrust::less<T>;
 
   priority_queue<T, Compare> pq(first_insertion_size + second_insertion_size);
 

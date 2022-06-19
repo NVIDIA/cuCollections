@@ -95,7 +95,7 @@ template <typename OutputIt>
 void priority_queue<T, Compare, Allocator>::pop(OutputIt first, OutputIt last, cudaStream_t stream)
 {
   constexpr int block_size = 256;
-  const int pop_size   = last - first;
+  const int pop_size       = last - first;
 
   const int num_nodes  = static_cast<int>(pop_size / node_size_) + 1;
   const int num_blocks = std::min(64000, num_nodes);
