@@ -115,7 +115,7 @@ class priority_queue {
    * @param block_size Size of the blocks to calculate storage for
    * @return The amount of temporary storage required in bytes
    */
-  int get_shmem_size(int block_size) const
+  int get_shmem_size(int const block_size) const
   {
     int intersection_bytes = 2 * (block_size + 1) * sizeof(int);
     int node_bytes         = node_size_ * sizeof(T);
@@ -219,7 +219,7 @@ class priority_queue {
    *
    * @return A device view
    */
-  device_mutable_view get_mutable_device_view()
+  device_mutable_view get_mutable_device_view() const noexcept
   {
     return device_mutable_view(node_size_,
                                d_heap_,
