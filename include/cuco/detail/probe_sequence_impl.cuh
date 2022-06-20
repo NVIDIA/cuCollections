@@ -41,6 +41,8 @@ class probe_sequence_base {
 
   /**
    * @brief Returns the number of elements loaded with each vector load.
+   *
+   * @return The number of elements loaded with each vector load
    */
   static constexpr uint32_t vector_width() noexcept { return 2u; }
 };
@@ -369,7 +371,8 @@ class double_hashing_impl
 template <typename ProbeImpl, typename Key, typename Value, cuda::thread_scope Scope>
 class probe_sequence : public ProbeImpl::template impl<Key, Value, Scope> {
  public:
-  using impl_type = typename ProbeImpl::template impl<Key, Value, Scope>;
+  using impl_type =
+    typename ProbeImpl::template impl<Key, Value, Scope>;  ///< Type of implementation details
 
   /**
    * @brief Constructs a probe sequence based on the given hash map features.

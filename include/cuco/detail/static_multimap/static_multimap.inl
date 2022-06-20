@@ -442,7 +442,7 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-__device__ __forceinline__ void
+__device__ inline void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutable_view::insert(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
   value_type const& insert_pair) noexcept
@@ -456,7 +456,7 @@ template <typename Key,
           typename Allocator,
           class ProbeSequence>
 template <typename CG>
-__device__ __forceinline__ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view
+__device__ inline static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::make_copy(
   CG g, pair_atomic_type* const memory_to_use, device_view source_device_view) noexcept
 {
@@ -495,7 +495,7 @@ template <typename Key,
           typename Allocator,
           class ProbeSequence>
 template <typename CG, typename atomicT, typename OutputIt>
-__device__ __forceinline__ void
+__device__ inline void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::flush_output_buffer(
   CG const& g,
   uint32_t const num_outputs,
@@ -512,7 +512,7 @@ template <typename Key,
           typename Allocator,
           class ProbeSequence>
 template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
-__device__ __forceinline__ void
+__device__ inline void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::flush_output_buffer(
   CG const& g,
   uint32_t const num_outputs,
@@ -537,7 +537,7 @@ template <typename Key,
           typename Allocator,
           class ProbeSequence>
 template <typename ProbeKey, typename KeyEqual>
-__device__ __forceinline__ bool
+__device__ inline bool
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::contains(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
   ProbeKey const& k,
@@ -552,7 +552,7 @@ template <typename Key,
           typename Allocator,
           class ProbeSequence>
 template <typename KeyEqual>
-__device__ __forceinline__ std::size_t
+__device__ inline std::size_t
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::count(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
   Key const& k,
@@ -568,7 +568,7 @@ template <typename Key,
           typename Allocator,
           class ProbeSequence>
 template <typename KeyEqual>
-__device__ __forceinline__ std::size_t
+__device__ inline std::size_t
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::count_outer(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
   Key const& k,
@@ -584,7 +584,7 @@ template <typename Key,
           typename Allocator,
           class ProbeSequence>
 template <typename PairEqual>
-__device__ __forceinline__ std::size_t
+__device__ inline std::size_t
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_count(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
   value_type const& pair,
@@ -600,7 +600,7 @@ template <typename Key,
           typename Allocator,
           class ProbeSequence>
 template <typename PairEqual>
-__device__ __forceinline__ std::size_t
+__device__ inline std::size_t
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_count_outer(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
   value_type const& pair,
@@ -620,7 +620,7 @@ template <uint32_t buffer_size,
           typename atomicT,
           typename OutputIt,
           typename KeyEqual>
-__device__ __forceinline__ void
+__device__ inline void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::retrieve(
   FlushingCG const& flushing_cg,
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
@@ -658,7 +658,7 @@ template <uint32_t buffer_size,
           typename atomicT,
           typename OutputIt,
           typename KeyEqual>
-__device__ __forceinline__ void
+__device__ inline void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::retrieve_outer(
   FlushingCG const& flushing_cg,
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
@@ -696,7 +696,7 @@ template <typename OutputIt1,
           typename OutputIt3,
           typename OutputIt4,
           typename PairEqual>
-__device__ __forceinline__ void
+__device__ inline void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
   value_type const& pair,
@@ -727,7 +727,7 @@ template <uint32_t buffer_size,
           typename OutputIt1,
           typename OutputIt2,
           typename PairEqual>
-__device__ __forceinline__ void
+__device__ inline void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve(
   FlushingCG const& flushing_cg,
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
@@ -776,7 +776,7 @@ template <typename OutputIt1,
           typename OutputIt3,
           typename OutputIt4,
           typename PairEqual>
-__device__ __forceinline__ void
+__device__ inline void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve_outer(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
   value_type const& pair,
@@ -807,7 +807,7 @@ template <uint32_t buffer_size,
           typename OutputIt1,
           typename OutputIt2,
           typename PairEqual>
-__device__ __forceinline__ void
+__device__ inline void
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_retrieve_outer(
   FlushingCG const& flushing_cg,
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,

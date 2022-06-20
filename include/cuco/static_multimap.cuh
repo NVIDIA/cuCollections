@@ -50,12 +50,12 @@
 namespace cuco {
 
 /**
- * @brief A GPU-accelerated, unordered, associative container of key-value
- * pairs that supports equivalent keys.
+ * @brief A GPU-accelerated, unordered, associative container of key-value pairs that supports
+ * equivalent keys.
  *
  * Allows constant time concurrent inserts or concurrent find operations from threads in device
  * code. Concurrent insert/find is allowed only when
- * `static_multimap<Key, Value>::supports_concurrent_insert_find()` is true.
+ * <tt>static_multimap<Key, Value>::supports_concurrent_insert_find()</tt> is true.
  *
  * Current limitations:
  * - Requires keys and values where `cuco::is_bitwise_comparable_v<T>` is true
@@ -65,8 +65,8 @@ namespace cuco {
  * - Capacity is fixed and will not grow automatically
  * - Requires the user to specify sentinel values for both key and mapped value
  * to indicate empty slots
- * - Concurrent insert/find is only supported when `static_multimap<Key,
- * Value>::supports_concurrent_insert_find()` is true`
+ * - Concurrent insert/find is only supported when
+ * <tt>static_multimap<Key, Value>::supports_concurrent_insert_find()</tt> is true`
  *
  * The `static_multimap` supports two types of operations:
  * - Host-side "bulk" operations
@@ -157,24 +157,33 @@ class static_multimap {
     "cuco::linear_probing.");
 
  public:
-  using value_type         = cuco::pair_type<Key, Value>;
-  using key_type           = Key;
-  using mapped_type        = Value;
-  using atomic_key_type    = cuda::atomic<key_type, Scope>;
-  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
-  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
-  using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
-  using allocator_type     = Allocator;
-  using slot_allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
-  using counter_allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
-  using probe_sequence_type = detail::probe_sequence<ProbeSequence, Key, Value, Scope>;
+  using value_type         = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
+  using key_type           = Key;                               ///< Key type
+  using mapped_type        = Value;                             ///< Type of mapped values
+  using atomic_key_type    = cuda::atomic<key_type, Scope>;     ///< Type of atomic keys
+  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;  ///< Type of atomic mapped values
+  using pair_atomic_type =
+    cuco::pair_type<atomic_key_type,
+                    atomic_mapped_type>;  ///< Pair type of atomic key and atomic mapped value
+  using atomic_ctr_type     = cuda::atomic<std::size_t, Scope>;  ///< Atomic counter type
+  using allocator_type      = Allocator;                         ///< Allocator type
+  using slot_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+    pair_atomic_type>;  ///< Type of the allocator to (de)allocate slots
+  using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+    atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
+  using probe_sequence_type =
+    detail::probe_sequence<ProbeSequence, Key, Value, Scope>;  ///< Probe scheme type
 
   static_multimap(static_multimap const&) = delete;
   static_multimap& operator=(static_multimap const&) = delete;
 
-  static_multimap(static_multimap&&) = default;
+  static_multimap(static_multimap&&) = default;  ///< Move constructor
+
+  /**
+   * @brief Replaces the contents of the map with another map.
+   *
+   * @return Reference of the current map object
+   */
   static_multimap& operator=(static_multimap&&) = default;
   ~static_multimap()                            = default;
 
@@ -183,8 +192,7 @@ class static_multimap {
    *
    * @return Boolean indicating if concurrent insert/find is supported.
    */
-  __host__ __device__ __forceinline__ static constexpr bool
-  supports_concurrent_insert_find() noexcept
+  __host__ __device__ inline static constexpr bool supports_concurrent_insert_find() noexcept
   {
     return cuco::detail::is_packable<value_type>();
   }
@@ -194,7 +202,7 @@ class static_multimap {
    *
    * @return The CG size.
    */
-  __host__ __device__ __forceinline__ static constexpr uint32_t cg_size() noexcept
+  __host__ __device__ inline static constexpr uint32_t cg_size() noexcept
   {
     return ProbeSequence::cg_size;
   }
@@ -232,8 +240,8 @@ class static_multimap {
    * @brief Inserts all key/value pairs in the range `[first, last)`.
    *
    * @tparam InputIt Device accessible random access input iterator where
-   * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
-   * static_multimap<K, V>::value_type>` is `true`
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K, V>::value_type></tt> is `true`
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
    * @param stream CUDA stream used for insert
@@ -248,12 +256,12 @@ class static_multimap {
    * The key/value pair `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
    *
    * @tparam InputIt Device accessible random access input iterator where
-   * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
-   * static_multimap<K, V>::value_type>` is `true`
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K, V>::value_type></tt> is `true`
    * @tparam StencilIt Device accessible random access iterator whose value_type is
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
-   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>.
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
    * @param stencil Beginning of the stencil sequence
@@ -271,9 +279,10 @@ class static_multimap {
    * Stores `true` or `false` to `(output + i)` indicating if the key `*(first + i)` exists in the
    * map.
    *
-   * ProbeSequence hashers should be callable with both `std::iterator_traits<InputIt>::value_type`
-   * and Key type. `std::invoke_result<KeyEqual, std::iterator_traits<InputIt>::value_type, Key>`
-   * must be well-formed.
+   * ProbeSequence hashers should be callable with both
+   * <tt>std::iterator_traits<InputIt>::value_type</tt> and Key type.
+   * <tt>std::invoke_result<KeyEqual, std::iterator_traits<InputIt>::value_type, Key></tt> must be
+   * well-formed.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from
@@ -342,8 +351,8 @@ class static_multimap {
    * determined by `pair_equal(kv, kv')` and returns the sum of all matches for all key-value pairs.
    *
    * @tparam InputIt Device accessible random access input iterator where
-   * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
-   * static_multimap<K, V>::value_type>` is `true`
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K, V>::value_type></tt> is `true`
    * @tparam PairEqual Binary callable
    * @param first Beginning of the sequence of pairs to count
    * @param last End of the sequence of pairs to count
@@ -365,8 +374,8 @@ class static_multimap {
    * if `kv` does not have any matches, it contributes 1 to the final sum.
    *
    * @tparam InputIt Device accessible random access input iterator where
-   * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
-   * static_multimap<K, V>::value_type>` is `true`
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K, V>::value_type></tt> is `true`
    * @tparam PairEqual Binary callable
    * @param first Beginning of the sequence of pairs to count
    * @param last End of the sequence of pairs to count
@@ -451,8 +460,8 @@ class static_multimap {
    * `pair_count()` to determine the size of the output range.
    *
    * @tparam InputIt Device accessible random access input iterator where
-   * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
-   * static_multimap<K, V>::value_type>` is `true`
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K, V>::value_type></tt> is `true`
    * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
    * `InputIt`s `value_type`.
    * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
@@ -489,8 +498,8 @@ class static_multimap {
    * `pair_count()` to determine the size of the output range.
    *
    * @tparam InputIt Device accessible random access input iterator where
-   * `std::is_convertible<std::iterator_traits<InputIt>::value_type,
-   * static_multimap<K, V>::value_type>` is `true`
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_multimap<K, V>::value_type></tt> is `true`
    * @tparam OutputIt1 Device accessible output iterator whose `value_type` is constructible from
    * `InputIt`s `value_type`.
    * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
@@ -592,14 +601,14 @@ class static_multimap {
      *
      * @return Slots array
      */
-    __device__ __forceinline__ pair_atomic_type* get_slots() noexcept { return impl_.get_slots(); }
+    __device__ inline pair_atomic_type* get_slots() noexcept { return impl_.get_slots(); }
 
     /**
      * @brief Gets slots array.
      *
      * @return Slots array
      */
-    __device__ __forceinline__ pair_atomic_type const* get_slots() const noexcept
+    __device__ inline pair_atomic_type const* get_slots() const noexcept
     {
       return impl_.get_slots();
     }
@@ -609,7 +618,7 @@ class static_multimap {
      *
      * @return The maximum number of elements the hash map can hold
      */
-    __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
+    __host__ __device__ inline std::size_t get_capacity() const noexcept
     {
       return impl_.get_capacity();
     }
@@ -619,7 +628,7 @@ class static_multimap {
      *
      * @return The sentinel value used to represent an empty key slot
      */
-    __host__ __device__ __forceinline__ Key get_empty_key_sentinel() const noexcept
+    __host__ __device__ inline Key get_empty_key_sentinel() const noexcept
     {
       return impl_.get_empty_key_sentinel();
     }
@@ -629,7 +638,7 @@ class static_multimap {
      *
      * @return The sentinel value used to represent an empty value slot
      */
-    __host__ __device__ __forceinline__ Value get_empty_value_sentinel() const noexcept
+    __host__ __device__ inline Value get_empty_value_sentinel() const noexcept
     {
       return impl_.get_empty_value_sentinel();
     }
@@ -661,12 +670,16 @@ class static_multimap {
    */
   class device_mutable_view : public device_view_base<device_mutable_view_impl> {
    public:
-    using view_base_type = device_view_base<device_mutable_view_impl>;
-    using value_type     = typename view_base_type::value_type;
-    using key_type       = typename view_base_type::key_type;
-    using mapped_type    = typename view_base_type::mapped_type;
-    using iterator       = typename view_base_type::iterator;
-    using const_iterator = typename view_base_type::const_iterator;
+    using view_base_type =
+      device_view_base<device_mutable_view_impl>;              ///< Base view implementation type
+    using value_type  = typename view_base_type::value_type;   ///< Type of key/value pairs
+    using key_type    = typename view_base_type::key_type;     ///< Key type
+    using mapped_type = typename view_base_type::mapped_type;  ///< Type of the mapped values
+    using iterator =
+      typename view_base_type::iterator;  ///< Type of the forward iterator to `value_type`
+    using const_iterator =
+      typename view_base_type::const_iterator;  ///< Type of the forward iterator to `const
+                                                ///< value_type`
 
     /**
      * @brief Construct a mutable view of the first `capacity` slots of the
@@ -693,9 +706,8 @@ class static_multimap {
      *
      * @param g The Cooperative Group that performs the insert
      * @param insert_pair The pair to insert
-     * @return void.
      */
-    __device__ __forceinline__ void insert(
+    __device__ inline void insert(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       value_type const& insert_pair) noexcept;
 
@@ -713,12 +725,15 @@ class static_multimap {
    */
   class device_view : public device_view_base<device_view_impl> {
    public:
-    using view_base_type = device_view_base<device_view_impl>;
-    using value_type     = typename view_base_type::value_type;
-    using key_type       = typename view_base_type::key_type;
-    using mapped_type    = typename view_base_type::mapped_type;
-    using iterator       = typename view_base_type::iterator;
-    using const_iterator = typename view_base_type::const_iterator;
+    using view_base_type = device_view_base<device_view_impl>;    ///< Base view implementation type
+    using value_type     = typename view_base_type::value_type;   ///< Type of key/value pairs
+    using key_type       = typename view_base_type::key_type;     ///< Key type
+    using mapped_type    = typename view_base_type::mapped_type;  ///< Type of the mapped values
+    using iterator =
+      typename view_base_type::iterator;  ///< Type of the forward iterator to `value_type`
+    using const_iterator =
+      typename view_base_type::const_iterator;  ///< Type of the forward iterator to `const
+                                                ///< value_type`
 
     /**
      * @brief Construct a view of the first `capacity` slots of the
@@ -753,8 +768,9 @@ class static_multimap {
      * @return Copy of passed `device_view`
      */
     template <typename CG>
-    __device__ __forceinline__ static device_view make_copy(
-      CG g, pair_atomic_type* const memory_to_use, device_view source_device_view) noexcept;
+    __device__ inline static device_view make_copy(CG g,
+                                                   pair_atomic_type* const memory_to_use,
+                                                   device_view source_device_view) noexcept;
 
     /**
      * @brief Flushes per-CG buffer into the output sequence.
@@ -776,11 +792,11 @@ class static_multimap {
      * @param output_begin Beginning of the output sequence of key/value pairs
      */
     template <typename CG, typename atomicT, typename OutputIt>
-    __device__ __forceinline__ void flush_output_buffer(CG const& g,
-                                                        uint32_t const num_outputs,
-                                                        value_type* output_buffer,
-                                                        atomicT* num_matches,
-                                                        OutputIt output_begin) noexcept;
+    __device__ inline void flush_output_buffer(CG const& g,
+                                               uint32_t const num_outputs,
+                                               value_type* output_buffer,
+                                               atomicT* num_matches,
+                                               OutputIt output_begin) noexcept;
 
     /**
      * @brief Flushes per-CG buffer into the output sequences.
@@ -806,13 +822,13 @@ class static_multimap {
      * pairs
      */
     template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
-    __device__ __forceinline__ void flush_output_buffer(CG const& g,
-                                                        uint32_t const num_outputs,
-                                                        value_type* probe_output_buffer,
-                                                        value_type* contained_output_buffer,
-                                                        atomicT* num_matches,
-                                                        OutputIt1 probe_output_begin,
-                                                        OutputIt2 contained_output_begin) noexcept;
+    __device__ inline void flush_output_buffer(CG const& g,
+                                               uint32_t const num_outputs,
+                                               value_type* probe_output_buffer,
+                                               value_type* contained_output_buffer,
+                                               atomicT* num_matches,
+                                               OutputIt1 probe_output_begin,
+                                               OutputIt2 contained_output_begin) noexcept;
 
     /**
      * @brief Indicates whether the key `k` exists in the map.
@@ -840,7 +856,7 @@ class static_multimap {
      * containing `k` was inserted
      */
     template <typename ProbeKey, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ __forceinline__ bool contains(
+    __device__ inline bool contains(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       ProbeKey const& k,
       KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -859,7 +875,7 @@ class static_multimap {
      * @return Number of matches found by the current thread
      */
     template <typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ __forceinline__ std::size_t count(
+    __device__ inline std::size_t count(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       Key const& k,
       KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -879,7 +895,7 @@ class static_multimap {
      * @return Number of matches found by the current thread
      */
     template <typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ __forceinline__ std::size_t count_outer(
+    __device__ inline std::size_t count_outer(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       Key const& k,
       KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -898,7 +914,7 @@ class static_multimap {
      * @return Number of matches found by the current thread
      */
     template <typename PairEqual>
-    __device__ __forceinline__ std::size_t pair_count(
+    __device__ inline std::size_t pair_count(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       value_type const& pair,
       PairEqual pair_equal) noexcept;
@@ -918,7 +934,7 @@ class static_multimap {
      * @return Number of matches found by the current thread
      */
     template <typename PairEqual>
-    __device__ __forceinline__ std::size_t pair_count_outer(
+    __device__ inline std::size_t pair_count_outer(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       value_type const& pair,
       PairEqual pair_equal) noexcept;
@@ -951,7 +967,7 @@ class static_multimap {
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ __forceinline__ void retrieve(
+    __device__ inline void retrieve(
       FlushingCG const& flushing_cg,
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
       Key const& k,
@@ -975,6 +991,7 @@ class static_multimap {
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
      * constructible from the map's `value_type`
      * @tparam KeyEqual Binary callable type
+     *
      * @param flushing_cg The Cooperative Group used to flush output buffer
      * @param probing_cg The Cooperative Group used to retrieve
      * @param k The key to search for
@@ -990,7 +1007,7 @@ class static_multimap {
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ __forceinline__ void retrieve_outer(
+    __device__ inline void retrieve_outer(
       FlushingCG const& flushing_cg,
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
       Key const& k,
@@ -1034,7 +1051,7 @@ class static_multimap {
               typename OutputIt3,
               typename OutputIt4,
               typename PairEqual>
-    __device__ __forceinline__ void pair_retrieve(
+    __device__ inline void pair_retrieve(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
       value_type const& pair,
       OutputIt1 probe_key_begin,
@@ -1059,10 +1076,11 @@ class static_multimap {
      * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
      * the map's `value_type`.
      * @tparam PairEqual Binary callable type
+     *
      * @param flushing_cg The Cooperative Group used to flush output buffer
      * @param probing_cg The Cooperative Group used to retrieve
      * @param pair The pair to search for
-     * @param flushing_cg_counter Pointer to the flushing CG counter
+     * @param warp_counter Pointer to the warp counter
      * @param probe_output_buffer Buffer of the matched probe pair sequence
      * @param contained_output_buffer Buffer of the matched contained pair sequence
      * @param num_matches Size of the output sequence
@@ -1077,7 +1095,7 @@ class static_multimap {
               typename OutputIt1,
               typename OutputIt2,
               typename PairEqual>
-    __device__ __forceinline__ void pair_retrieve(
+    __device__ inline void pair_retrieve(
       FlushingCG const& flushing_cg,
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
       value_type const& pair,
@@ -1125,7 +1143,7 @@ class static_multimap {
               typename OutputIt3,
               typename OutputIt4,
               typename PairEqual>
-    __device__ __forceinline__ void pair_retrieve_outer(
+    __device__ inline void pair_retrieve_outer(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
       value_type const& pair,
       OutputIt1 probe_key_begin,
@@ -1169,7 +1187,7 @@ class static_multimap {
               typename OutputIt1,
               typename OutputIt2,
               typename PairEqual>
-    __device__ __forceinline__ void pair_retrieve_outer(
+    __device__ inline void pair_retrieve_outer(
       FlushingCG const& flushing_cg,
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
       value_type const& pair,
@@ -1182,11 +1200,13 @@ class static_multimap {
       PairEqual pair_equal) noexcept;
 
    private:
-    using device_view_base<device_view_impl>::impl_;
-  };  // class device_view
+    using device_view_base<device_view_impl>::impl_;  ///< Implementation detail of `device_view`
+  };                                                  // class device_view
 
   /**
    * @brief Return the raw pointer of the hash map slots.
+   *
+   * @return Raw pointer of the hash map slots
    */
   value_type* raw_slots() noexcept
   {
@@ -1197,6 +1217,8 @@ class static_multimap {
 
   /**
    * @brief Return the raw pointer of the hash map slots.
+   *
+   * @return Raw pointer of the hash map slots
    */
   value_type const* raw_slots() const noexcept
   {
