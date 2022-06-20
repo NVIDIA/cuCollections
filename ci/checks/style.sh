@@ -1,5 +1,8 @@
 #!/bin/bash
-# Copyright (c) 2018-2021, NVIDIA CORPORATION.
+# Copyright (c) 2018-2022, NVIDIA CORPORATION.
+##############################
+# cuCollections Style Tester #
+##############################
 
 # Ignore errors and set path
 set +e
@@ -15,4 +18,15 @@ conda activate rapids
 CLANG_FORMAT=`pre-commit run clang-format --all-files 2>&1`
 CLANG_FORMAT_RETVAL=$?
 
-exit ${CLANG_FORMAT_RETVAL}
+# Run doxygen check
+DOXYGEN_CHECK=`ci/checks/doxygen.sh`
+DOXYGEN_CHECK_RETVAL=$?
+echo -e "$DOXYGEN_CHECK_RETVAL"
+
+RETVALS=(
+  $CLANG_FORMAT_RETVAL $DOXYGEN_CHECK_RETVAL
+)
+IFS=$'\n'
+RETVAL=`echo "${RETVALS[*]}" | sort -nr | head -n1`
+
+exit $RETVAL
