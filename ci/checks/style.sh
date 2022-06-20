@@ -11,8 +11,8 @@ PATH=/conda/bin:$PATH
 # LANG=C.UTF-8
 
 # Activate common conda env
-. /opt/conda/etc/profile.d/conda.sh
-conda activate rapids
+#. /opt/conda/etc/profile.d/conda.sh
+#conda activate rapids
 
 # Run clang-format and check for a consistent code format
 CLANG_FORMAT=`pre-commit run clang-format --all-files 2>&1`
