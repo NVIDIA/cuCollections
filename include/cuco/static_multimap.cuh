@@ -322,6 +322,50 @@ class static_multimap {
                      cudaStream_t stream = 0) const;
 
   /**
+   * @brief Indicates whether the pairs in the range `[first, last)` are contained in the map if
+   * `pred` of the corresponding stencil returns true.
+   *
+   * If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output + i)` indicating if
+   * the pair `*(first + i)` exists in the map. If `pred( *(stencil + i) )` is false, stores false
+   * to `(output + i)`.
+   *
+   * ProbeSequence hashers should be callable with both
+   * `std::iterator_traits<InputIt>::value_type::first_type`
+   * and Key type. `std::invoke_result<KeyEqual,
+   * std::iterator_traits<InputIt>::value_type::first_type, Key>`
+   * must be well-formed.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   * @tparam PairEqual Binary callable type used to compare input pair and slot content for equality
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>.
+   *
+   * @param first Beginning of the sequence of pairs
+   * @param last End of the sequence of pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param output_begin Beginning of the output sequence indicating whether each pair is present
+   * @param pair_equal The binary function to compare input pair and slot content for equality
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for contains
+   */
+  template <typename InputIt,
+            typename StencilIt,
+            typename OutputIt,
+            typename PairEqual,
+            typename Predicate>
+  void pair_contains_if(InputIt first,
+                        InputIt last,
+                        StencilIt stencil,
+                        OutputIt output_begin,
+                        PairEqual pair_equal,
+                        Predicate pred,
+                        cudaStream_t stream = 0) const;
+
+  /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap.
    *
    * For each key, `k = *(first + i)`, counts all matching keys, `k'`, as determined by

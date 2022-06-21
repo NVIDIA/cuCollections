@@ -121,7 +121,6 @@ void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::contains(
 
   detail::contains<is_pair_contains, block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, key_equal);
-  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 
 template <typename Key,
@@ -145,7 +144,37 @@ void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_contains
 
   detail::contains<is_pair_contains, block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, pair_equal);
-  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
+template <typename InputIt,
+          typename StencilIt,
+          typename OutputIt,
+          typename PairEqual,
+          typename Predicate>
+void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_contains_if(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  OutputIt output_begin,
+  PairEqual pair_equal,
+  Predicate pred,
+  cudaStream_t stream) const
+{
+  auto const num_pairs = std::distance(first, last);
+  if (num_pairs == 0) { return; }
+
+  auto constexpr block_size = 128;
+  auto constexpr stride     = 1;
+  auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_view();
+
+  detail::pair_contains_if_n<block_size, cg_size()><<<grid_size, block_size, 0, stream>>>(
+    first, stencil, output_begin, num_pairs, view, pair_equal, pred);
 }
 
 template <typename Key,

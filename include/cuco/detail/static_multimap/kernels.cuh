@@ -156,10 +156,8 @@ __global__ void insert_if_n(InputIt first, StencilIt s, std::size_t n, viewT vie
  * @tparam is_pair_contains `true` if it's a `pair_contains` implementation
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups
- * @tparam InputIt Device accessible input iterator whose `value_type` is convertible to:
- *         - the map's `key_type` if `is_pair_contains` is `false`
- *         - the map's `value_type` if `is_pair_contains` is `true`
- * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from `bool`
+ * @tparam InputIt Device accessible input iterator
+ * @tparam OutputIt Device accessible output iterator assignable from `bool`
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Equal Binary callable type
  *
@@ -190,6 +188,75 @@ __global__ void contains(
       if constexpr (is_pair_contains) { return view.pair_contains(tile, element, equal); }
       if constexpr (not is_pair_contains) { return view.contains(tile, element, equal); }
     }();
+
+    /*
+     * The ld.relaxed.gpu instruction used in view.find causes L1 to
+     * flush more frequently, causing increased sector stores from L2 to global memory.
+     * By writing results to shared memory and then synchronizing before writing back
+     * to global, we no longer rely on L1, preventing the increase in sector stores from
+     * L2 to global and improving performance.
+     */
+    if (tile.thread_rank() == 0) { writeBuffer[threadIdx.x / tile_size] = found; }
+    __syncthreads();
+    if (tile.thread_rank() == 0) { *(output_begin + idx) = writeBuffer[threadIdx.x / tile_size]; }
+    idx += (gridDim.x * block_size) / tile_size;
+  }
+}
+
+/**
+ * @brief Indicates whether the pairs in the range `[first, first + n)` are contained in the map if
+ * `pred` of the corresponding stencil returns true.
+ *
+ * If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)` indicating
+ * if the pair `*(first + i)` exists in the map. If `pred( *(stencil + i) )` is false, stores false
+ * to `(output_begin + i)`.
+ *
+ * Uses the CUDA Cooperative Groups API to leverage groups of multiple threads to perform the
+ * contains operation for each element. This provides a significant boost in throughput compared
+ * to the non Cooperative Group `contains` at moderate to high load factors.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups
+ * @tparam InputIt Device accessible input iterator
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam OutputIt Device accessible output iterator assignable from `bool`
+ * @tparam viewT Type of device view allowing access of hash map storage
+ * @tparam PairEqual Binary callable type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+ * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>.
+ *
+ * @param first Beginning of the sequence of elements
+ * @param last End of the sequence of elements
+ * @param output_begin Beginning of the sequence of booleans for the presence of each element
+ * @param view Device view used to access the hash map's slot storage
+ * @param equal The binary function to compare input element and slot content for equality
+ * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+ */
+template <uint32_t block_size,
+          uint32_t tile_size,
+          typename InputIt,
+          typename StencilIt,
+          typename OutputIt,
+          typename viewT,
+          typename PairEqual,
+          typename Predicate>
+__global__ void pair_contains_if_n(InputIt first,
+                                   StencilIt stencil,
+                                   OutputIt output_begin,
+                                   std::size_t n,
+                                   viewT view,
+                                   PairEqual pair_equal,
+                                   Predicate pred)
+{
+  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid  = block_size * blockIdx.x + threadIdx.x;
+  auto idx  = tid / tile_size;
+  __shared__ bool writeBuffer[block_size];
+
+  while (idx < n) {
+    auto found =
+      pred(*(stencil + idx)) ? view.pair_contains(tile, *(first + idx), pair_equal) : false;
 
     /*
      * The ld.relaxed.gpu instruction used in view.find causes L1 to
