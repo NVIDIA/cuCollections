@@ -42,6 +42,7 @@ struct MurmurHash3_32 {
   using argument_type = Key;       ///< The type of the values taken as argument
   using result_type   = uint32_t;  ///< The type of the hash values produced
 
+  /// Default constructor
   __host__ __device__ constexpr MurmurHash3_32() : MurmurHash3_32{0} {}
 
   /**
