@@ -156,10 +156,8 @@ __global__ void insert_if_n(InputIt first, StencilIt s, std::size_t n, viewT vie
  * @tparam is_pair_contains `true` if it's a `pair_contains` implementation
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups
- * @tparam InputIt Device accessible input iterator whose `value_type` is convertible to:
- *         - the map's `key_type` if `is_pair_contains` is `false`
- *         - the map's `value_type` if `is_pair_contains` is `true`
- * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from `bool`
+ * @tparam InputIt Device accessible input iterator
+ * @tparam OutputIt Device accessible output iterator assignable from `bool`
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Equal Binary callable type
  *
