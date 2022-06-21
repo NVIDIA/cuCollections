@@ -40,11 +40,9 @@ class linear_probing : public detail::probe_sequence_base<CGSize> {
   using probe_sequence_base_type::cg_size;
   using probe_sequence_base_type::vector_width;
 
+  /// Type of implementation details
   template <typename Key, typename Value, cuda::thread_scope Scope>
-  using impl = detail::
-    linear_probing_impl<Key, Value, Scope, vector_width(), CGSize, Hash>;  ///< Type of
-                                                                           ///< implementations
-                                                                           ///< details
+  using impl = detail::linear_probing_impl<Key, Value, Scope, vector_width(), CGSize, Hash>;
 };
 
 /**
@@ -70,16 +68,9 @@ class double_hashing : public detail::probe_sequence_base<CGSize> {
   using probe_sequence_base_type::cg_size;
   using probe_sequence_base_type::vector_width;
 
+  /// Type of implementation details
   template <typename Key, typename Value, cuda::thread_scope Scope>
-  using impl = detail::double_hashing_impl<Key,
-                                           Value,
-                                           Scope,
-                                           vector_width(),
-                                           CGSize,
-                                           Hash1,
-                                           Hash2>;  ///< Type of
-                                                    ///< implementations
-                                                    ///< details
+  using impl = detail::double_hashing_impl<Key, Value, Scope, vector_width(), CGSize, Hash1, Hash2>;
 };
 
 }  // namespace cuco

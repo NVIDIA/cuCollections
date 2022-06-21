@@ -763,7 +763,7 @@ class static_map {
     using slot_type = typename device_view_base::slot_type;  ///< Type of hash map slots
 
     /**
-     * @brief Construct a mutable view of the first `capacity` slots of the
+     * @brief Constructs a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
      *
      * @param slots Pointer to beginning of initialized slots array
@@ -782,7 +782,7 @@ class static_map {
     }
 
     /**
-     * @brief Construct a mutable view of the first `capacity` slots of the
+     * @brief Constructs a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
      *
      * @param slots Pointer to beginning of initialized slots array
@@ -865,17 +865,17 @@ class static_map {
 
    public:
     /**
-     * @brief Inserts the specified key/value pair with a CAS of the key and a dependent write of
-     * the value.
+     * @brief Given a slot pointer `slots`, initializes the first `capacity` slots with the given
+     * sentinel values and returns a `device_mutable_view` object of those slots.
      *
      * @tparam CG The type of the cooperative thread group
-
+     *
      * @param g The cooperative thread group used to copy the slots
      * @param slots Pointer to the hash map slots
-   * @param capacity The total number of slots in the map
+     * @param capacity The total number of slots in the map
      * @param empty_key_sentinel The reserved value for keys to represent empty slots
      * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
-   * @return A device_mutable_view object based on the current `static_map` object
+     * @return A device_mutable_view object based on the given parameters
      */
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
@@ -895,18 +895,18 @@ class static_map {
     }
 
     /**
-     * @brief Inserts the specified key/value pair with a CAS of the key and a dependent write of
-     * the value.
+     * @brief Given a slot pointer `slots`, initializes the first `capacity` slots with the given
+     * sentinel values and returns a `device_mutable_view` object of those slots.
      *
      * @tparam CG The type of the cooperative thread group
-
+     *
      * @param g The cooperative thread group used to copy the slots
      * @param slots Pointer to the hash map slots
-   * @param capacity The total number of slots in the map
+     * @param capacity The total number of slots in the map
      * @param empty_key_sentinel The reserved value for keys to represent empty slots
      * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
      * @param erased_key_sentinel The reserved value for keys to represent erased slots
-   * @return A device_mutable_view object based on the current `static_map` object
+     * @return A device_mutable_view object based on the given parameters
      */
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(

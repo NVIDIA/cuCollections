@@ -35,7 +35,7 @@ namespace detail {
  * optimized for their respective platforms. You can still compile and run any of them on any
  * platform, but your performance with the non-native version will be less than optimal.
  *
- * @tparam Key The type of the values to be hashed
+ * @tparam Key The type of the values to hash
  */
 template <typename Key>
 struct MurmurHash3_32 {
@@ -55,7 +55,7 @@ struct MurmurHash3_32 {
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
    *
-   * @param key The input argument to be hashed
+   * @param key The input argument to hash
    * @return A resulting hash value for `key`
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept

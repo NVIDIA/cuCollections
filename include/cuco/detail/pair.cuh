@@ -85,7 +85,7 @@ struct is_thrust_pair_like
 };
 
 /**
- * @brief Denotes the corresponding packed type based on the size of the object.
+ * @brief Denotes the equivalent packed type based on the size of the object.
  *
  * @tparam N The size of the object
  */
@@ -145,7 +145,7 @@ template <typename pair_type>
 union pair_converter {
   using packed_type = packed_t<pair_type>;  ///< The packed pair type
   packed_type packed;                       ///< The pair in the packed representation
-  pair_type pair;                           ///< The pair in the original pair representation
+  pair_type pair;                           ///< The pair in the pair representation
 
   /**
    * @brief Constructs a pair converter by copying from `p`
@@ -223,7 +223,7 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
   }
 
   /**
-   * @brief Constructs a pair from the given std-like pair `p`.
+   * @brief Constructs a pair from the given std::pair-like `p`.
    *
    * @tparam T Type of the pair to copy from
    *
@@ -236,7 +236,7 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
   }
 
   /**
-   * @brief Constructs a pair from the given thrust-like pair `p`.
+   * @brief Constructs a pair from the given thrust::pair-like `p`.
    *
    * @tparam T Type of the pair to copy from
    *

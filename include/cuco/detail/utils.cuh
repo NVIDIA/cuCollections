@@ -60,14 +60,15 @@ struct slot_to_tuple {
 template <typename Key>
 struct slot_is_filled {
   Key empty_key_sentinel;  ///< The value of the empty key sentinel
-                           /**
-                            * @brief Indicates if the target slot `s` is filled.
-                            *
-                            * @tparam S The slot type
-                            *
-                            * @param s The slot to query
-                            * @return `true` if slot `s` is filled
-                            */
+
+  /**
+   * @brief Indicates if the target slot `s` is filled.
+   *
+   * @tparam S The slot type
+   *
+   * @param s The slot to query
+   * @return `true` if slot `s` is filled
+   */
   template <typename S>
   __device__ bool operator()(S const& s)
   {

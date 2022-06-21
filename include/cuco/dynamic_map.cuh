@@ -99,10 +99,10 @@ class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
  public:
-  using value_type      = cuco::pair_type<Key, Value>;    ///< Type of key/value pairs
-  using key_type        = Key;                            ///< Key type
-  using mapped_type     = Value;                          ///< Type of mapped values
-  using atomic_key_type = cuda::atomic<key_type, Scope>;  ///< Type of atomic keys
+  using value_type      = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
+  using key_type        = Key;                               ///< Key type
+  using mapped_type     = Value;                             ///< Type of mapped values
+  using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;  ///< Type of atomic counters
   using view_type = typename static_map<Key, Value, Scope>::device_view;  ///< Device view type
   using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view;
   ///< Device mutable view type
