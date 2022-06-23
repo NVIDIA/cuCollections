@@ -72,6 +72,25 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
       res_begin + num_pairs / 2, res_begin + num_pairs, false_iter, thrust::equal_to<bool>{}));
   }
 
+  SECTION("pair_contains_if checks the input pair only if the corresponding stencil returns true.")
+  {
+    thrust::device_vector<bool> result(num_pairs);
+    auto res_begin = result.begin();
+    auto pred      = [num_pairs] __device__(int32_t s) {
+      if (s < num_pairs / 2) { return false; }
+      return true;
+    };
+    auto count_iter = thrust::make_counting_iterator<int32_t>(0);
+    map.pair_contains_if(
+      pair_begin, pair_begin + num_pairs, count_iter, res_begin, pair_equal<Key, Value>{}, pred);
+
+    auto false_iter = thrust::make_constant_iterator(false);
+
+    // All false since the stencil of the first half is false and the second half is not inserted
+    REQUIRE(
+      cuco::test::equal(res_begin, res_begin + num_pairs, false_iter, thrust::equal_to<bool>{}));
+  }
+
   SECTION("Output of pair_count and pair_retrieve should be coherent.")
   {
     auto num = map.pair_count(pair_begin, pair_begin + num_pairs, pair_equal<Key, Value>{});
