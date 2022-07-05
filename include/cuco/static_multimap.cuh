@@ -192,7 +192,8 @@ class static_multimap {
    *
    * @return Boolean indicating if concurrent insert/find is supported.
    */
-  __host__ __device__ inline static constexpr bool supports_concurrent_insert_find() noexcept
+  __host__ __device__ __forceinline__ static constexpr bool
+  supports_concurrent_insert_find() noexcept
   {
     return cuco::detail::is_packable<value_type>();
   }
@@ -202,7 +203,7 @@ class static_multimap {
    *
    * @return The CG size.
    */
-  __host__ __device__ inline static constexpr uint32_t cg_size() noexcept
+  __host__ __device__ __forceinline__ static constexpr uint32_t cg_size() noexcept
   {
     return ProbeSequence::cg_size;
   }
@@ -601,14 +602,14 @@ class static_multimap {
      *
      * @return Slots array
      */
-    __device__ inline pair_atomic_type* get_slots() noexcept { return impl_.get_slots(); }
+    __device__ __forceinline__ pair_atomic_type* get_slots() noexcept { return impl_.get_slots(); }
 
     /**
      * @brief Gets slots array.
      *
      * @return Slots array
      */
-    __device__ inline pair_atomic_type const* get_slots() const noexcept
+    __device__ __forceinline__ pair_atomic_type const* get_slots() const noexcept
     {
       return impl_.get_slots();
     }
@@ -618,7 +619,7 @@ class static_multimap {
      *
      * @return The maximum number of elements the hash map can hold
      */
-    __host__ __device__ inline std::size_t get_capacity() const noexcept
+    __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
     {
       return impl_.get_capacity();
     }
@@ -628,7 +629,7 @@ class static_multimap {
      *
      * @return The sentinel value used to represent an empty key slot
      */
-    __host__ __device__ inline Key get_empty_key_sentinel() const noexcept
+    __host__ __device__ __forceinline__ Key get_empty_key_sentinel() const noexcept
     {
       return impl_.get_empty_key_sentinel();
     }
@@ -638,7 +639,7 @@ class static_multimap {
      *
      * @return The sentinel value used to represent an empty value slot
      */
-    __host__ __device__ inline Value get_empty_value_sentinel() const noexcept
+    __host__ __device__ __forceinline__ Value get_empty_value_sentinel() const noexcept
     {
       return impl_.get_empty_value_sentinel();
     }
@@ -707,7 +708,7 @@ class static_multimap {
      * @param g The Cooperative Group that performs the insert
      * @param insert_pair The pair to insert
      */
-    __device__ inline void insert(
+    __device__ __forceinline__ void insert(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       value_type const& insert_pair) noexcept;
 
@@ -768,9 +769,8 @@ class static_multimap {
      * @return Copy of passed `device_view`
      */
     template <typename CG>
-    __device__ inline static device_view make_copy(CG g,
-                                                   pair_atomic_type* const memory_to_use,
-                                                   device_view source_device_view) noexcept;
+    __device__ __forceinline__ static device_view make_copy(
+      CG g, pair_atomic_type* const memory_to_use, device_view source_device_view) noexcept;
 
     /**
      * @brief Flushes per-CG buffer into the output sequence.
@@ -792,11 +792,11 @@ class static_multimap {
      * @param output_begin Beginning of the output sequence of key/value pairs
      */
     template <typename CG, typename atomicT, typename OutputIt>
-    __device__ inline void flush_output_buffer(CG const& g,
-                                               uint32_t const num_outputs,
-                                               value_type* output_buffer,
-                                               atomicT* num_matches,
-                                               OutputIt output_begin) noexcept;
+    __device__ __forceinline__ void flush_output_buffer(CG const& g,
+                                                        uint32_t const num_outputs,
+                                                        value_type* output_buffer,
+                                                        atomicT* num_matches,
+                                                        OutputIt output_begin) noexcept;
 
     /**
      * @brief Flushes per-CG buffer into the output sequences.
@@ -822,13 +822,13 @@ class static_multimap {
      * pairs
      */
     template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
-    __device__ inline void flush_output_buffer(CG const& g,
-                                               uint32_t const num_outputs,
-                                               value_type* probe_output_buffer,
-                                               value_type* contained_output_buffer,
-                                               atomicT* num_matches,
-                                               OutputIt1 probe_output_begin,
-                                               OutputIt2 contained_output_begin) noexcept;
+    __device__ __forceinline__ void flush_output_buffer(CG const& g,
+                                                        uint32_t const num_outputs,
+                                                        value_type* probe_output_buffer,
+                                                        value_type* contained_output_buffer,
+                                                        atomicT* num_matches,
+                                                        OutputIt1 probe_output_begin,
+                                                        OutputIt2 contained_output_begin) noexcept;
 
     /**
      * @brief Indicates whether the key `k` exists in the map.
@@ -856,7 +856,7 @@ class static_multimap {
      * containing `k` was inserted
      */
     template <typename ProbeKey, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ inline bool contains(
+    __device__ __forceinline__ bool contains(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       ProbeKey const& k,
       KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -875,7 +875,7 @@ class static_multimap {
      * @return Number of matches found by the current thread
      */
     template <typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ inline std::size_t count(
+    __device__ __forceinline__ std::size_t count(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       Key const& k,
       KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -895,7 +895,7 @@ class static_multimap {
      * @return Number of matches found by the current thread
      */
     template <typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ inline std::size_t count_outer(
+    __device__ __forceinline__ std::size_t count_outer(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       Key const& k,
       KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -914,7 +914,7 @@ class static_multimap {
      * @return Number of matches found by the current thread
      */
     template <typename PairEqual>
-    __device__ inline std::size_t pair_count(
+    __device__ __forceinline__ std::size_t pair_count(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       value_type const& pair,
       PairEqual pair_equal) noexcept;
@@ -934,7 +934,7 @@ class static_multimap {
      * @return Number of matches found by the current thread
      */
     template <typename PairEqual>
-    __device__ inline std::size_t pair_count_outer(
+    __device__ __forceinline__ std::size_t pair_count_outer(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       value_type const& pair,
       PairEqual pair_equal) noexcept;
@@ -967,7 +967,7 @@ class static_multimap {
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ inline void retrieve(
+    __device__ __forceinline__ void retrieve(
       FlushingCG const& flushing_cg,
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
       Key const& k,
@@ -1007,7 +1007,7 @@ class static_multimap {
               typename atomicT,
               typename OutputIt,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ inline void retrieve_outer(
+    __device__ __forceinline__ void retrieve_outer(
       FlushingCG const& flushing_cg,
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
       Key const& k,
@@ -1051,7 +1051,7 @@ class static_multimap {
               typename OutputIt3,
               typename OutputIt4,
               typename PairEqual>
-    __device__ inline void pair_retrieve(
+    __device__ __forceinline__ void pair_retrieve(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
       value_type const& pair,
       OutputIt1 probe_key_begin,
@@ -1095,7 +1095,7 @@ class static_multimap {
               typename OutputIt1,
               typename OutputIt2,
               typename PairEqual>
-    __device__ inline void pair_retrieve(
+    __device__ __forceinline__ void pair_retrieve(
       FlushingCG const& flushing_cg,
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
       value_type const& pair,
@@ -1143,7 +1143,7 @@ class static_multimap {
               typename OutputIt3,
               typename OutputIt4,
               typename PairEqual>
-    __device__ inline void pair_retrieve_outer(
+    __device__ __forceinline__ void pair_retrieve_outer(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
       value_type const& pair,
       OutputIt1 probe_key_begin,
@@ -1187,7 +1187,7 @@ class static_multimap {
               typename OutputIt1,
               typename OutputIt2,
               typename PairEqual>
-    __device__ inline void pair_retrieve_outer(
+    __device__ __forceinline__ void pair_retrieve_outer(
       FlushingCG const& flushing_cg,
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
       value_type const& pair,
