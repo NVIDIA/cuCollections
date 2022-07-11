@@ -137,9 +137,10 @@ class reduction_functor : detail::reduction_functor_base {
                         value_type>::value;
 
   static_assert(atomic_invocable_ || naive_invocable_,
-               "Invalid operator signature. Valid signatures are "
-               "(T const&, T const&)->T and (cuda::atomic<T, Scope>&, T const&)->T.");
-  static_assert(!(__nv_is_extended_device_lambda_closure_type(Func) || __nv_is_extended_host_device_lambda_closure_type(Func)),
+                "Invalid operator signature. Valid signatures are "
+                "(T const&, T const&)->T and (cuda::atomic<T, Scope>&, T const&)->T.");
+  static_assert(!(__nv_is_extended_device_lambda_closure_type(Func) ||
+                  __nv_is_extended_host_device_lambda_closure_type(Func)),
                 "Extended __device__/__host__ __device__ lambdas are not supported."
                 " Use a named function object instead.");
 };

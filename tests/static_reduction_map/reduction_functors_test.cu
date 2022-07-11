@@ -180,8 +180,7 @@ TEMPLATE_TEST_CASE_SIG(
   (uint32_t, cuco::detail::reduce_count_impl<uint32_t>, false),
   (uint64_t, cuco::detail::reduce_count_impl<uint64_t>, false))
 {
-  test_case_impl(
-    cuco::reduction_functor<Func, Value>(cuco::identity_value<Value>(0)),
-    equiv_count<Value>(),
-    UsesExternalSync);
+  test_case_impl(cuco::reduction_functor<Func, Value>(cuco::identity_value<Value>(0)),
+                 equiv_count<Value>(),
+                 UsesExternalSync);
 }
