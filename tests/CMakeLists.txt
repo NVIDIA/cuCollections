@@ -23,7 +23,7 @@ include(CTest)
 CPMAddPackage(
   NAME Catch2
   GITHUB_REPOSITORY catchorg/Catch2
-  VERSION 2.11.1
+  VERSION 2.13.9
 )
 
 if(Catch2_ADDED)
