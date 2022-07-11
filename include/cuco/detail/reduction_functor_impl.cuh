@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <atomic>
 #include <cuda/atomic>
 #include <type_traits>
 
