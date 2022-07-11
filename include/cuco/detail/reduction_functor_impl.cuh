@@ -29,12 +29,14 @@ namespace detail {
  * @warning This class should not be used directly.
  *
  */
-class reduction_functor_base {};
+class reduction_functor_base {
+};
 
 template <typename T, typename Enable = void>
 struct reduce_add_impl {
   template <cuda::thread_scope Scope>
-  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept {
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept
+  {
     return lhs.fetch_add(rhs) + rhs;
   }
 };
@@ -42,7 +44,8 @@ struct reduce_add_impl {
 template <typename T, typename Enable = void>
 struct reduce_min_impl {
   template <cuda::thread_scope Scope>
-  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept {
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept
+  {
     return min(lhs.fetch_min(rhs), rhs);
   }
 };
@@ -50,7 +53,8 @@ struct reduce_min_impl {
 template <typename T, typename Enable = void>
 struct reduce_max_impl {
   template <cuda::thread_scope Scope>
-  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept {
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept
+  {
     return max(lhs.fetch_max(rhs), rhs);
   }
 };
@@ -58,7 +62,8 @@ struct reduce_max_impl {
 template <typename T, typename Enable = void>
 struct reduce_count_impl {
   template <cuda::thread_scope Scope>
-  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& /* rhs */) const noexcept {
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& /* rhs */) const noexcept
+  {
     return ++lhs;
   }
 };
@@ -66,9 +71,12 @@ struct reduce_count_impl {
 // remove the following WAR once libcu++ extends FP atomics support and fixes signed integer atomics
 // https://github.com/NVIDIA/libcudacxx/pull/286
 template <typename T>
-struct reduce_add_impl<T, typename cuda::std::enable_if<cuda::std::is_floating_point<T>::value>::type> {
+struct reduce_add_impl<
+  T,
+  typename cuda::std::enable_if<cuda::std::is_floating_point<T>::value>::type> {
   template <cuda::thread_scope Scope>
-  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T rhs) const noexcept {
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T rhs) const noexcept
+  {
     if constexpr (Scope == cuda::thread_scope_system)
       return atomicAdd_system(reinterpret_cast<T*>(&lhs), rhs) + rhs;
     else if constexpr (Scope == cuda::thread_scope_device)
@@ -79,11 +87,14 @@ struct reduce_add_impl<T, typename cuda::std::enable_if<cuda::std::is_floating_p
 };
 
 template <typename T>
-struct reduce_min_impl<T, typename cuda::std::enable_if<cuda::std::is_integral<T>::value && cuda::std::is_signed<T>::value>::type> {
+struct reduce_min_impl<T,
+                       typename cuda::std::enable_if<cuda::std::is_integral<T>::value &&
+                                                     cuda::std::is_signed<T>::value>::type> {
   template <cuda::thread_scope Scope>
-  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept {
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept
+  {
     using InternalT = typename cuda::std::conditional<sizeof(T) == 8, long long int, int>::type;
-    InternalT * ptr = reinterpret_cast<InternalT*>(&lhs);
+    InternalT* ptr  = reinterpret_cast<InternalT*>(&lhs);
     InternalT value = rhs;
     if constexpr (Scope == cuda::thread_scope_system)
       return min(atomicMin_system(ptr, value), value);
@@ -95,11 +106,14 @@ struct reduce_min_impl<T, typename cuda::std::enable_if<cuda::std::is_integral<T
 };
 
 template <typename T>
-struct reduce_max_impl<T, typename cuda::std::enable_if<cuda::std::is_integral<T>::value && cuda::std::is_signed<T>::value>::type> {
+struct reduce_max_impl<T,
+                       typename cuda::std::enable_if<cuda::std::is_integral<T>::value &&
+                                                     cuda::std::is_signed<T>::value>::type> {
   template <cuda::thread_scope Scope>
-  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept {
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept
+  {
     using InternalT = typename cuda::std::conditional<sizeof(T) == 8, long long int, int>::type;
-    InternalT * ptr = reinterpret_cast<InternalT*>(&lhs);
+    InternalT* ptr  = reinterpret_cast<InternalT*>(&lhs);
     InternalT value = rhs;
     if constexpr (Scope == cuda::thread_scope_system)
       return max(atomicMax_system(ptr, value), value);
@@ -111,18 +125,18 @@ struct reduce_max_impl<T, typename cuda::std::enable_if<cuda::std::is_integral<T
 };
 
 template <typename T>
-struct reduce_min_impl<T, typename cuda::std::enable_if<cuda::std::is_floating_point<T>::value>::type> {
-  __device__ T operator()(T lhs, T rhs) const noexcept {
-    return min(lhs, rhs);
-  }
+struct reduce_min_impl<
+  T,
+  typename cuda::std::enable_if<cuda::std::is_floating_point<T>::value>::type> {
+  __device__ T operator()(T lhs, T rhs) const noexcept { return min(lhs, rhs); }
 };
 
 template <typename T>
-struct reduce_max_impl<T, typename cuda::std::enable_if<cuda::std::is_floating_point<T>::value>::type> {
-  __device__ T operator()(T lhs, T rhs) const noexcept {
-    return max(lhs, rhs);
-  }
+struct reduce_max_impl<
+  T,
+  typename cuda::std::enable_if<cuda::std::is_floating_point<T>::value>::type> {
+  __device__ T operator()(T lhs, T rhs) const noexcept { return max(lhs, rhs); }
 };
 
-} // namespace detail
-} // namespace cuco
+}  // namespace detail
+}  // namespace cuco

@@ -21,20 +21,23 @@
 #include <cuco/reduction_functors.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
 #include <thrust/functional.h>
+#include <thrust/host_vector.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch.hpp>
 
-template<typename InputIt, typename OutputIt, typename Func>
-__global__ void reduce_kernel(InputIt first, InputIt last, OutputIt out, Func func) {
+template <typename InputIt, typename OutputIt, typename Func>
+__global__ void reduce_kernel(InputIt first, InputIt last, OutputIt out, Func func)
+{
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
-  auto it = first + tid;
+  auto it  = first + tid;
 
   if constexpr (cuda::std::is_base_of_v<cuco::detail::reduction_functor_base, Func>) {
     while (it < last) {
-      func(*reinterpret_cast<cuda::atomic<typename Func::value_type, cuda::thread_scope_device>*>(thrust::raw_pointer_cast(out)), *it);
+      func(*reinterpret_cast<cuda::atomic<typename Func::value_type, cuda::thread_scope_device>*>(
+             thrust::raw_pointer_cast(out)),
+           *it);
       it += gridDim.x * blockDim.x;
     }
   } else {
@@ -45,20 +48,23 @@ __global__ void reduce_kernel(InputIt first, InputIt last, OutputIt out, Func fu
   }
 }
 
-template<typename InputIt, typename OutputIt, typename Func>
-void reduce_seq(InputIt first, InputIt last, OutputIt out, Func func) {
+template <typename InputIt, typename OutputIt, typename Func>
+void reduce_seq(InputIt first, InputIt last, OutputIt out, Func func)
+{
   reduce_kernel<<<1, 1>>>(first, last, out, func);
   cudaDeviceSynchronize();
 }
 
-template<typename InputIt, typename OutputIt, typename Func>
-void reduce_par(InputIt first, InputIt last, OutputIt out, Func func) {
+template <typename InputIt, typename OutputIt, typename Func>
+void reduce_par(InputIt first, InputIt last, OutputIt out, Func func)
+{
   reduce_kernel<<<1, 1024>>>(first, last, out, func);
   cudaDeviceSynchronize();
 }
 
 template <typename Func, typename EquivFunc>
-void test_case_impl(Func func, EquivFunc equiv, bool uses_external_sync) {
+void test_case_impl(Func func, EquivFunc equiv, bool uses_external_sync)
+{
   using Value = typename Func::value_type;
   CHECK(cuda::std::is_base_of_v<cuco::detail::reduction_functor_base, decltype(func)>);
   CHECK(cuda::std::is_same_v<typename decltype(func)::value_type, Value>);
@@ -76,9 +82,9 @@ void test_case_impl(Func func, EquivFunc equiv, bool uses_external_sync) {
   reduce_seq(values.begin(), values.end(), results_d.data() + 2, equiv);
 
   thrust::host_vector<Value> results_h = results_d;
-  auto sequential_result = results_h[0];
-  auto parallel_result = results_h[1];
-  auto correct_result = results_h[2];
+  auto sequential_result               = results_h[0];
+  auto parallel_result                 = results_h[1];
+  auto correct_result                  = results_h[2];
 
   CHECK(sequential_result == correct_result);
   CHECK(parallel_result == correct_result);
@@ -87,31 +93,26 @@ void test_case_impl(Func func, EquivFunc equiv, bool uses_external_sync) {
 
 template <typename T>
 struct custom_plus {
-  __device__ T operator()(T lhs, T rhs) const noexcept {
-    return lhs + rhs;
-  }
+  __device__ T operator()(T lhs, T rhs) const noexcept { return lhs + rhs; }
 };
 
 template <typename T>
 struct custom_plus_constref {
-  __device__ T operator()(T const& lhs, T const& rhs) const noexcept {
-    return lhs + rhs;
-  }
+  __device__ T operator()(T const& lhs, T const& rhs) const noexcept { return lhs + rhs; }
 };
 
 template <typename T>
 struct custom_plus_sync {
   template <cuda::thread_scope Scope>
-  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept {
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept
+  {
     return lhs.fetch_add(rhs) + rhs;
   }
 };
 
 template <typename T>
 struct equiv_count {
-  __device__ T operator()(T const& lhs, T const& /* rhs */) const noexcept {
-    return lhs + 1;
-  }
+  __device__ T operator()(T const& lhs, T const& /* rhs */) const noexcept { return lhs + 1; }
 };
 
 TEMPLATE_TEST_CASE_SIG(
@@ -129,10 +130,9 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, custom_plus<int32_t>, true),
   (int32_t, custom_plus_constref<int32_t>, true))
 {
-  test_case_impl(
-    cuco::reduction_functor<Func, Value>(cuco::identity_value<Value>(0)),
-    thrust::plus<Value>(),
-    UsesExternalSync);
+  test_case_impl(cuco::reduction_functor<Func, Value>(cuco::identity_value<Value>(0)),
+                 thrust::plus<Value>(),
+                 UsesExternalSync);
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -147,10 +147,10 @@ TEMPLATE_TEST_CASE_SIG(
   (double, cuco::detail::reduce_min_impl<double>, true),
   (int32_t, thrust::minimum<int32_t>, true))
 {
-  test_case_impl(
-    cuco::reduction_functor<Func, Value>(cuco::identity_value<Value>(std::numeric_limits<Value>::max())),
-    thrust::minimum<Value>(),
-    UsesExternalSync);
+  test_case_impl(cuco::reduction_functor<Func, Value>(
+                   cuco::identity_value<Value>(std::numeric_limits<Value>::max())),
+                 thrust::minimum<Value>(),
+                 UsesExternalSync);
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -165,10 +165,10 @@ TEMPLATE_TEST_CASE_SIG(
   (double, cuco::detail::reduce_max_impl<double>, true),
   (int32_t, thrust::maximum<int32_t>, true))
 {
-  test_case_impl(
-    cuco::reduction_functor<Func, Value>(cuco::identity_value<Value>(std::numeric_limits<Value>::min())),
-    thrust::maximum<Value>(),
-    UsesExternalSync);
+  test_case_impl(cuco::reduction_functor<Func, Value>(
+                   cuco::identity_value<Value>(std::numeric_limits<Value>::min())),
+                 thrust::maximum<Value>(),
+                 UsesExternalSync);
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -180,29 +180,25 @@ TEMPLATE_TEST_CASE_SIG(
   (uint32_t, cuco::detail::reduce_count_impl<uint32_t>, false),
   (uint64_t, cuco::detail::reduce_count_impl<uint64_t>, false))
 {
-  test_case_impl(
-    cuco::reduction_functor<Func, Value>(cuco::identity_value<Value>(0)),
-    equiv_count<Value>(),
-    UsesExternalSync);
+  test_case_impl(cuco::reduction_functor<Func, Value>(cuco::identity_value<Value>(0)),
+                 equiv_count<Value>(),
+                 UsesExternalSync);
 }
 
-TEST_CASE(
-  "Test device lambda reduction functor",
-  "")
+TEST_CASE("Test device lambda reduction functor", "")
 {
-  using Value = int;
+  using Value   = int;
   auto identity = cuco::identity_value<Value>(0);
 
-  auto lambda_add = [] __device__ (Value const& lhs, Value const& rhs) noexcept {
+  auto lambda_add = [] __device__(Value const& lhs, Value const& rhs) noexcept {
     return lhs + rhs;
   };
-  test_case_impl(
-    cuco::reduction_functor<decltype(lambda_add), Value>(identity, lambda_add),
-    thrust::plus<Value>(),
-    true);
+  test_case_impl(cuco::reduction_functor<decltype(lambda_add), Value>(identity, lambda_add),
+                 thrust::plus<Value>(),
+                 true);
 
-  using AtomicValue = cuda::atomic<int, cuda::thread_scope_device>;
-  auto lambda_add_sync = [] __device__ (AtomicValue& lhs, Value const& rhs) noexcept {
+  using AtomicValue    = cuda::atomic<int, cuda::thread_scope_device>;
+  auto lambda_add_sync = [] __device__(AtomicValue & lhs, Value const& rhs) noexcept {
     return lhs.fetch_add(rhs) + rhs;
   };
   test_case_impl(
