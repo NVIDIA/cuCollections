@@ -86,3 +86,8 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/multiplicity_test.cu
     static_multimap/non_match_test.cu
     static_multimap/pair_function_test.cu)
+
+###################################################################################################
+# - static_reduction_map tests --------------------------------------------------------------------
+ConfigureTest(STATIC_REDUCTION_MAP_TEST
+    static_reduction_map/reduction_functors_test.cu)
