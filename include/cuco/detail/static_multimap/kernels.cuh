@@ -25,6 +25,8 @@
 
 #include <cooperative_groups/memcpy_async.h>
 
+#include <iterator>
+
 namespace cuco {
 namespace detail {
 namespace cg = cooperative_groups;
@@ -183,8 +185,8 @@ __global__ void contains(
   __shared__ bool writeBuffer[block_size];
 
   while (first + idx < last) {
-    auto element = *(first + idx);
-    auto found   = [&]() {
+    typename std::iterator_traits<InputIt>::value_type element = *(first + idx);
+    auto found                                                 = [&]() {
       if constexpr (is_pair_contains) { return view.pair_contains(tile, element, equal); }
       if constexpr (not is_pair_contains) { return view.contains(tile, element, equal); }
     }();
