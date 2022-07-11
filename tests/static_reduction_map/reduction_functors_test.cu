@@ -180,29 +180,8 @@ TEMPLATE_TEST_CASE_SIG(
   (uint32_t, cuco::detail::reduce_count_impl<uint32_t>, false),
   (uint64_t, cuco::detail::reduce_count_impl<uint64_t>, false))
 {
-  test_case_impl(cuco::reduction_functor<Func, Value>(cuco::identity_value<Value>(0)),
-                 equiv_count<Value>(),
-                 UsesExternalSync);
-}
-
-TEST_CASE("Test device lambda reduction functor", "")
-{
-  using Value   = int;
-  auto identity = cuco::identity_value<Value>(0);
-
-  auto lambda_add = [] __device__(Value const& lhs, Value const& rhs) noexcept {
-    return lhs + rhs;
-  };
-  test_case_impl(cuco::reduction_functor<decltype(lambda_add), Value>(identity, lambda_add),
-                 thrust::plus<Value>(),
-                 true);
-
-  using AtomicValue    = cuda::atomic<int, cuda::thread_scope_device>;
-  auto lambda_add_sync = [] __device__(AtomicValue & lhs, Value const& rhs) noexcept {
-    return lhs.fetch_add(rhs) + rhs;
-  };
   test_case_impl(
-    cuco::reduction_functor<decltype(lambda_add_sync), Value>(identity, lambda_add_sync),
-    thrust::plus<Value>(),
-    false);
+    cuco::reduction_functor<Func, Value>(cuco::identity_value<Value>(0)),
+    equiv_count<Value>(),
+    UsesExternalSync);
 }

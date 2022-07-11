@@ -71,10 +71,6 @@ class identity_value {
  *   auto f1 = cuco::reduction_functor<custom_plus<int>, int>(identity); // synchronized via
  * CAS-loop auto f2 = cuco::reduction_functor<custom_plus_sync<int>, int>(identity); // implicitly
  * synchronized
- *
- *   auto custom_plus_lambda = [] __device__ (int lhs, int rhs) noexcept { return lhs + rhs; };
- *   auto f3 = cuco::reduction_functor<decltype(custom_plus_lambda), int>(identity,
- * custom_plus_lambda);
  * }
  * \endcode
  *
@@ -140,7 +136,12 @@ class reduction_functor : detail::reduction_functor_base {
                         cuda::atomic<value_type, cuda::thread_scope_thread>&,
                         value_type>::value;
 
-  static_assert(atomic_invocable_ || naive_invocable_, "Invalid operator signature.");
+  static_assert(atomic_invocable_ || naive_invocable_,
+               "Invalid operator signature. Valid signatures are "
+               "(T const&, T const&)->T and (cuda::atomic<T, Scope>&, T const&)->T.");
+  static_assert(!(__nv_is_extended_device_lambda_closure_type(Func) || __nv_is_extended_host_device_lambda_closure_type(Func)),
+                "Extended __device__/__host__ __device__ lambdas are not supported."
+                " Use a named function object instead.");
 };
 
 /**
