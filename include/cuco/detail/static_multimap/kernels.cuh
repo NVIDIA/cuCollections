@@ -25,6 +25,8 @@
 
 #include <cooperative_groups/memcpy_async.h>
 
+#include <iterator>
+
 namespace cuco {
 namespace detail {
 namespace cg = cooperative_groups;
@@ -183,8 +185,8 @@ __global__ void contains(
   __shared__ bool writeBuffer[block_size];
 
   while (first + idx < last) {
-    auto element = *(first + idx);
-    auto found   = [&]() {
+    typename std::iterator_traits<InputIt>::value_type element = *(first + idx);
+    auto found                                                 = [&]() {
       if constexpr (is_pair_contains) { return view.pair_contains(tile, element, equal); }
       if constexpr (not is_pair_contains) { return view.contains(tile, element, equal); }
     }();
@@ -255,8 +257,8 @@ __global__ void pair_contains_if_n(InputIt first,
   __shared__ bool writeBuffer[block_size];
 
   while (idx < n) {
-    auto found =
-      pred(*(stencil + idx)) ? view.pair_contains(tile, *(first + idx), pair_equal) : false;
+    typename std::iterator_traits<InputIt>::value_type pair = *(first + idx);
+    auto found = pred(*(stencil + idx)) ? view.pair_contains(tile, pair, pair_equal) : false;
 
     /*
      * The ld.relaxed.gpu instruction used in view.find causes L1 to
