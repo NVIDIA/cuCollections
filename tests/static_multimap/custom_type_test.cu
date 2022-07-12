@@ -39,7 +39,7 @@ struct key_pair {
 };
 
 struct hash_key_pair {
-  __device__ uint32_t operator()(key_pair k) { return k.a; };
+  __device__ uint32_t operator()(key_pair k) const { return k.a; };
 };
 
 struct key_pair_equals {
@@ -197,6 +197,7 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
 
     thrust::device_vector<bool> contained(num_pairs);
     map.contains(key_begin, key_begin + num_pairs, contained.begin(), key_pair_equals{}, stream);
+
     REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 

@@ -397,8 +397,7 @@ class static_map {
    * must be well-formed.
    *
    * @tparam InputIt Device accessible input iterator
-   * @tparam OutputIt Device accessible output iterator whose `value_type` is convertible from
-   * `bool`
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
    *
@@ -418,7 +417,7 @@ class static_map {
                 OutputIt output_begin,
                 Hash hash           = Hash{},
                 KeyEqual key_equal  = KeyEqual{},
-                cudaStream_t stream = 0);
+                cudaStream_t stream = 0) const;
 
  private:
   class device_view_base {

@@ -64,7 +64,7 @@ struct key_triplet {
 // User-defined device hasher
 struct custom_hasher {
   template <typename CustomKey>
-  __device__ uint32_t operator()(CustomKey const& k)
+  __device__ uint32_t operator()(CustomKey const& k) const
   {
     return thrust::raw_reference_cast(k).a;
   };
