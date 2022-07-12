@@ -14,12 +14,18 @@ PATH=/conda/bin:$PATH
 . /opt/conda/etc/profile.d/conda.sh
 conda activate rapids
 
-# Run all pre-commit hooks
-pre-commit run --hook-stage manual --all-files
-PRE_COMMIT_RETVAL=$?
+# Run clang-format and check for a consistent code format
+CLANG_FORMAT=`pre-commit run clang-format --all-files 2>&1`
+CLANG_FORMAT_RETVAL=$?
+
+# Run doxygen check
+DOXYGEN_CHECK=`ci/checks/doxygen.sh`
+DOXYGEN_CHECK_RETVAL=$?
+
+echo -e "$DOXYGEN_CHECK"
 
 RETVALS=(
-  $PRE_COMMIT_RETVAL
+  $CLANG_FORMAT_RETVAL
 )
 IFS=$'\n'
 RETVAL=`echo "${RETVALS[*]}" | sort -nr | head -n1`
