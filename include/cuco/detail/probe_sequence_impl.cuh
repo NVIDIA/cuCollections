@@ -41,11 +41,13 @@ class probe_sequence_base {
 
   /**
    * @brief Returns the number of elements loaded with each vector load.
+   *
+   * @return The number of elements loaded with each vector load
    */
   static constexpr uint32_t vector_width() noexcept { return 2u; }
 };
 
-/*
+/**
  * @brief Base class of probe sequence implementation.
  *
  * Hash map operations are generally memory-bandwidth bound. A vector-load loads two consecutive
@@ -68,14 +70,17 @@ template <typename Key,
           uint32_t CGSize>
 class probe_sequence_impl_base {
  protected:
-  using value_type         = cuco::pair_type<Key, Value>;
-  using key_type           = Key;
-  using mapped_type        = Value;
-  using atomic_key_type    = cuda::atomic<key_type, Scope>;
-  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
-  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
-  using iterator           = pair_atomic_type*;
-  using const_iterator     = pair_atomic_type const*;
+  using value_type         = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
+  using key_type           = Key;                               ///< Key type
+  using mapped_type        = Value;                             ///< Type of mapped values
+  using atomic_key_type    = cuda::atomic<key_type, Scope>;     ///< Type of atomic keys
+  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;  ///< Type of atomic mapped values
+  /// Pair type of atomic key and atomic mapped value
+  using pair_atomic_type = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  /// Type of the forward iterator to `pair_atomic_type`
+  using iterator = pair_atomic_type*;
+  /// Type of the forward iterator to `const pair_atomic_type`
+  using const_iterator = pair_atomic_type const*;
 
   /**
    * @brief Returns the number of elements loaded with each vector-load.
@@ -113,6 +118,8 @@ class probe_sequence_impl_base {
  public:
   /**
    * @brief Returns the capacity of the hash map.
+   *
+   * @return The capacity of the hash map
    */
   __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
   {
@@ -121,11 +128,15 @@ class probe_sequence_impl_base {
 
   /**
    * @brief Returns slots array.
+   *
+   * @return Slots array
    */
   __device__ __forceinline__ iterator get_slots() noexcept { return slots_; }
 
   /**
    * @brief Returns slots array.
+   *
+   * @return Slots array
    */
   __device__ __forceinline__ const_iterator get_slots() const noexcept { return slots_; }
 
@@ -369,7 +380,8 @@ class double_hashing_impl
 template <typename ProbeImpl, typename Key, typename Value, cuda::thread_scope Scope>
 class probe_sequence : public ProbeImpl::template impl<Key, Value, Scope> {
  public:
-  using impl_type = typename ProbeImpl::template impl<Key, Value, Scope>;
+  using impl_type =
+    typename ProbeImpl::template impl<Key, Value, Scope>;  ///< Type of implementation details
 
   /**
    * @brief Constructs a probe sequence based on the given hash map features.
