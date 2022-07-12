@@ -309,9 +309,9 @@ class static_multimap {
    * the map.
    *
    * ProbeSequence hashers should be callable with both
-   * `std::iterator_traits<InputIt>::value_type::first_type`
-   * and Key type. `std::invoke_result<KeyEqual,
-   * std::iterator_traits<InputIt>::value_type::first_type, Key>`
+   * <tt>std::iterator_traits<InputIt>::value_type::first_type</tt>
+   * and Key type. <tt>std::invoke_result<KeyEqual,
+   * std::iterator_traits<InputIt>::value_type::first_type, Key></tt>
    * must be well-formed.
    *
    * @tparam InputIt Device accessible random access input iterator
@@ -908,7 +908,7 @@ class static_multimap {
      * @tparam PairEqual Binary callable type
      *
      * @param g The Cooperative Group used to perform the contains operation
-     * @param k The pair to search for
+     * @param p The pair to search for
      * @param pair_equal The binary callable used to compare input pair and slot content
      * for equality
      * @return A boolean indicating whether the input pair was inserted in the map
