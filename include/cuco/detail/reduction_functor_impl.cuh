@@ -36,7 +36,7 @@ struct reduce_add_impl {
   template <cuda::thread_scope Scope>
   __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept
   {
-    return lhs.fetch_add(rhs) + rhs;
+    return lhs.fetch_add(rhs, cuda::memory_order_relaxed) + rhs;
   }
 };
 
@@ -45,7 +45,7 @@ struct reduce_min_impl {
   template <cuda::thread_scope Scope>
   __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept
   {
-    return min(lhs.fetch_min(rhs), rhs);
+    return min(lhs.fetch_min(rhs, cuda::memory_order_relaxed), rhs);
   }
 };
 
@@ -54,7 +54,7 @@ struct reduce_max_impl {
   template <cuda::thread_scope Scope>
   __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept
   {
-    return max(lhs.fetch_max(rhs), rhs);
+    return max(lhs.fetch_max(rhs, cuda::memory_order_relaxed), rhs);
   }
 };
 
@@ -63,7 +63,7 @@ struct reduce_count_impl {
   template <cuda::thread_scope Scope>
   __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& /* rhs */) const noexcept
   {
-    return ++lhs;
+    return lhs.fetch_add(1, cuda::memory_order_relaxed) + 1;
   }
 };
 
