@@ -33,7 +33,7 @@ template <typename T>
 class identity_value {
  public:
   using type = T;
-  constexpr identity_value(T const& identity) noexcept : identity_(identity) {}
+  explicit constexpr identity_value(T const& identity) noexcept : identity_(identity) {}
   constexpr T value() const noexcept { return identity_; }
 
  private:
