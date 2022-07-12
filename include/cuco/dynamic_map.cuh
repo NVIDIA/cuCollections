@@ -99,12 +99,14 @@ class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
  public:
-  using value_type                = cuco::pair_type<Key, Value>;
-  using key_type                  = Key;
-  using mapped_type               = Value;
-  using atomic_ctr_type           = cuda::atomic<std::size_t, Scope>;
-  using view_type                 = typename static_map<Key, Value, Scope>::device_view;
-  using mutable_view_type         = typename static_map<Key, Value, Scope>::device_mutable_view;
+  using value_type      = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
+  using key_type        = Key;                               ///< Key type
+  using mapped_type     = Value;                             ///< Type of mapped values
+  using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;  ///< Type of atomic counters
+  using view_type = typename static_map<Key, Value, Scope>::device_view;  ///< Device view type
+  using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view;
+  ///< Device mutable view type
+
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
   dynamic_map& operator=(dynamic_map const&) = delete;
@@ -126,7 +128,6 @@ class dynamic_map {
    * that contains either.
    *
    * @param initial_capacity The initial number of slots in the map
-   * @param growth_factor The factor by which the capacity increases when resizing
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param alloc Allocator used to allocate submap device storage

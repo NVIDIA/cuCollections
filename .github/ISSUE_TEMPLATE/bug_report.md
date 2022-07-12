@@ -2,7 +2,7 @@
 name: Bug report
 about: Create a bug report to help us improve cuCollections
 title: "[BUG]"
-labels: "? - Needs Triage, bug"
+labels: "type: bug"
 assignees: ''
 
 ---
