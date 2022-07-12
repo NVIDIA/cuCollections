@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include <limits>
-#include <type_traits>
 #include <utils.hpp>
 
 #include <cuco/reduction_functors.cuh>
@@ -26,6 +24,9 @@
 #include <thrust/sequence.h>
 
 #include <catch2/catch.hpp>
+
+#include <cuda/std/limits>
+#include <cuda/std/type_traits>
 
 template <typename InputIt, typename OutputIt, typename Func>
 __global__ void reduce_kernel(InputIt first, InputIt last, OutputIt out, Func func)
@@ -148,7 +149,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, thrust::minimum<int32_t>, true))
 {
   test_case_impl(cuco::reduction_functor<Func, Value>(
-                   cuco::identity_value<Value>(std::numeric_limits<Value>::max())),
+                   cuco::identity_value<Value>(cuda::std::numeric_limits<Value>::max())),
                  thrust::minimum<Value>(),
                  UsesExternalSync);
 }
@@ -166,7 +167,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, thrust::maximum<int32_t>, true))
 {
   test_case_impl(cuco::reduction_functor<Func, Value>(
-                   cuco::identity_value<Value>(std::numeric_limits<Value>::min())),
+                   cuco::identity_value<Value>(cuda::std::numeric_limits<Value>::min())),
                  thrust::maximum<Value>(),
                  UsesExternalSync);
 }

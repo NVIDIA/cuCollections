@@ -17,7 +17,7 @@
 #pragma once
 
 #include <cuda/atomic>
-#include <type_traits>
+#include <cuda/std/type_traits>
 
 namespace cuco {
 namespace detail {
@@ -70,9 +70,7 @@ struct reduce_count_impl {
 // remove the following WAR once libcu++ extends FP atomics support and fixes signed integer atomics
 // https://github.com/NVIDIA/libcudacxx/pull/286
 template <typename T>
-struct reduce_add_impl<
-  T,
-  typename cuda::std::enable_if<cuda::std::is_floating_point<T>::value>::type> {
+struct reduce_add_impl<T, typename cuda::std::enable_if_t<cuda::std::is_floating_point_v<T>>> {
   template <cuda::thread_scope Scope,
             cuda::std::enable_if_t<Scope == cuda::thread_scope_system, bool> = true>
   __device__ T operator()(cuda::atomic<T, Scope>& lhs, T rhs) const noexcept
@@ -98,11 +96,11 @@ struct reduce_add_impl<
 };
 
 template <typename T>
-struct reduce_min_impl<T,
-                       typename cuda::std::enable_if<cuda::std::is_integral<T>::value &&
-                                                     cuda::std::is_signed<T>::value>::type> {
+struct reduce_min_impl<
+  T,
+  typename cuda::std::enable_if_t<cuda::std::is_integral_v<T> && cuda::std::is_signed_v<T>>> {
  private:
-  using internal_type = typename cuda::std::conditional<sizeof(T) == 8, long long int, int>::type;
+  using internal_type = typename cuda::std::conditional_t<sizeof(T) == 8, long long int, int>;
 
  public:
   template <cuda::thread_scope Scope,
@@ -133,11 +131,11 @@ struct reduce_min_impl<T,
 };
 
 template <typename T>
-struct reduce_max_impl<T,
-                       typename cuda::std::enable_if<cuda::std::is_integral<T>::value &&
-                                                     cuda::std::is_signed<T>::value>::type> {
+struct reduce_max_impl<
+  T,
+  typename cuda::std::enable_if_t<cuda::std::is_integral_v<T> && cuda::std::is_signed_v<T>>> {
  private:
-  using internal_type = typename cuda::std::conditional<sizeof(T) == 8, long long int, int>::type;
+  using internal_type = typename cuda::std::conditional_t<sizeof(T) == 8, long long int, int>;
 
  public:
   template <cuda::thread_scope Scope,
@@ -168,16 +166,12 @@ struct reduce_max_impl<T,
 };
 
 template <typename T>
-struct reduce_min_impl<
-  T,
-  typename cuda::std::enable_if<cuda::std::is_floating_point<T>::value>::type> {
+struct reduce_min_impl<T, typename cuda::std::enable_if_t<cuda::std::is_floating_point_v<T>>> {
   __device__ T operator()(T lhs, T rhs) const noexcept { return min(lhs, rhs); }
 };
 
 template <typename T>
-struct reduce_max_impl<
-  T,
-  typename cuda::std::enable_if<cuda::std::is_floating_point<T>::value>::type> {
+struct reduce_max_impl<T, typename cuda::std::enable_if_t<cuda::std::is_floating_point_v<T>>> {
   __device__ T operator()(T lhs, T rhs) const noexcept { return max(lhs, rhs); }
 };
 

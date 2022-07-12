@@ -16,12 +16,11 @@
 
 #pragma once
 
-#include <atomic>
 #include <cuco/detail/reduction_functor_impl.cuh>
 
 #include <cuda/atomic>
-#include <limits>
-#include <type_traits>
+#include <cuda/std/limits>
+#include <cuda/std/type_traits>
 
 namespace cuco {
 
@@ -118,24 +117,24 @@ class reduction_functor : detail::reduction_functor_base {
   cuco::identity_value<value_type> identity_;
   Func functor_;
   static constexpr bool naive_invocable_ =
-    std::is_invocable_r<value_type, Func, value_type, value_type>::value;
+    cuda::std::is_invocable_r_v<value_type, Func, value_type, value_type>;
   static constexpr bool atomic_invocable_ =
-    std::is_invocable_r<value_type,
-                        Func,
-                        cuda::atomic<value_type, cuda::thread_scope_system>&,
-                        value_type>::value ||
-    std::is_invocable_r<value_type,
-                        Func,
-                        cuda::atomic<value_type, cuda::thread_scope_device>&,
-                        value_type>::value ||
-    std::is_invocable_r<value_type,
-                        Func,
-                        cuda::atomic<value_type, cuda::thread_scope_block>&,
-                        value_type>::value ||
-    std::is_invocable_r<value_type,
-                        Func,
-                        cuda::atomic<value_type, cuda::thread_scope_thread>&,
-                        value_type>::value;
+    cuda::std::is_invocable_r_v<value_type,
+                                Func,
+                                cuda::atomic<value_type, cuda::thread_scope_system>&,
+                                value_type> ||
+    cuda::std::is_invocable_r_v<value_type,
+                                Func,
+                                cuda::atomic<value_type, cuda::thread_scope_device>&,
+                                value_type> ||
+    cuda::std::is_invocable_r_v<value_type,
+                                Func,
+                                cuda::atomic<value_type, cuda::thread_scope_block>&,
+                                value_type> ||
+    cuda::std::is_invocable_r_v<value_type,
+                                Func,
+                                cuda::atomic<value_type, cuda::thread_scope_thread>&,
+                                value_type>;
 
   static_assert(atomic_invocable_ || naive_invocable_,
                 "Invalid operator signature. Valid signatures are "
