@@ -65,12 +65,14 @@ class identity_value {
  * };
  *
  * int main() {
- *   cuco::identity_value<int> identity{0}; // define the identity value for the given reduction
- * operation, i.e., op(identity, x) == x
+ *   // define the identity value for the given reduction operation,
+     // i.e., op(identity, x) == x
+ *   cuco::identity_value<int> identity{0};
  *
- *   auto f1 = cuco::reduction_functor<custom_plus<int>, int>(identity); // synchronized via
- * CAS-loop auto f2 = cuco::reduction_functor<custom_plus_sync<int>, int>(identity); // implicitly
- * synchronized
+ *   // synchronized via CAS loop
+ *   auto f1 = cuco::reduction_functor<custom_plus<int>, int>(identity);
+ *   // implicitly synchronized
+ *   auto f2 = cuco::reduction_functor<custom_plus_sync<int>, int>(identity);
  * }
  * \endcode
  *
@@ -101,9 +103,8 @@ class reduction_functor : detail::reduction_functor_base {
         old, desired, cuda::memory_order_release, cuda::memory_order_relaxed));
 
       return desired;
-    } else {
-      return functor_(lhs, rhs);
     }
+    if constexpr (!uses_external_sync()) { return functor_(lhs, rhs); }
   }
 
   __host__ __device__ value_type identity() const noexcept { return identity_.value(); }

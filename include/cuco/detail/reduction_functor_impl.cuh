@@ -73,15 +73,27 @@ template <typename T>
 struct reduce_add_impl<
   T,
   typename cuda::std::enable_if<cuda::std::is_floating_point<T>::value>::type> {
-  template <cuda::thread_scope Scope>
+  template <cuda::thread_scope Scope,
+            cuda::std::enable_if_t<Scope == cuda::thread_scope_system, bool> = true>
   __device__ T operator()(cuda::atomic<T, Scope>& lhs, T rhs) const noexcept
   {
-    if constexpr (Scope == cuda::thread_scope_system)
-      return atomicAdd_system(reinterpret_cast<T*>(&lhs), rhs) + rhs;
-    else if constexpr (Scope == cuda::thread_scope_device)
-      return atomicAdd(reinterpret_cast<T*>(&lhs), rhs) + rhs;
-    else
-      return atomicAdd_block(reinterpret_cast<T*>(&lhs), rhs) + rhs;
+    return atomicAdd_system(reinterpret_cast<T*>(&lhs), rhs) + rhs;
+  }
+
+  template <cuda::thread_scope Scope,
+            cuda::std::enable_if_t<Scope == cuda::thread_scope_device, bool> = true>
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T rhs) const noexcept
+  {
+    return atomicAdd(reinterpret_cast<T*>(&lhs), rhs) + rhs;
+  }
+
+  template <
+    cuda::thread_scope Scope,
+    cuda::std::enable_if_t<Scope != cuda::thread_scope_system && Scope != cuda::thread_scope_device,
+                           bool> = true>
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T rhs) const noexcept
+  {
+    return atomicAdd_block(reinterpret_cast<T*>(&lhs), rhs) + rhs;
   }
 };
 
@@ -89,18 +101,34 @@ template <typename T>
 struct reduce_min_impl<T,
                        typename cuda::std::enable_if<cuda::std::is_integral<T>::value &&
                                                      cuda::std::is_signed<T>::value>::type> {
-  template <cuda::thread_scope Scope>
-  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept
+ private:
+  using internal_type = typename cuda::std::conditional<sizeof(T) == 8, long long int, int>::type;
+
+ public:
+  template <cuda::thread_scope Scope,
+            cuda::std::enable_if_t<Scope == cuda::thread_scope_system, bool> = true>
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T rhs) const noexcept
   {
-    using InternalT = typename cuda::std::conditional<sizeof(T) == 8, long long int, int>::type;
-    InternalT* ptr  = reinterpret_cast<InternalT*>(&lhs);
-    InternalT value = rhs;
-    if constexpr (Scope == cuda::thread_scope_system)
-      return min(atomicMin_system(ptr, value), value);
-    else if constexpr (Scope == cuda::thread_scope_device)
-      return min(atomicMin(ptr, value), value);
-    else
-      return min(atomicMin_block(ptr, value), value);
+    return min(atomicMin_system(reinterpret_cast<internal_type*>(&lhs), rhs),
+               static_cast<internal_type>(rhs));
+  }
+
+  template <cuda::thread_scope Scope,
+            cuda::std::enable_if_t<Scope == cuda::thread_scope_device, bool> = true>
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T rhs) const noexcept
+  {
+    return min(atomicMin(reinterpret_cast<internal_type*>(&lhs), rhs),
+               static_cast<internal_type>(rhs));
+  }
+
+  template <
+    cuda::thread_scope Scope,
+    cuda::std::enable_if_t<Scope != cuda::thread_scope_system && Scope != cuda::thread_scope_device,
+                           bool> = true>
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T rhs) const noexcept
+  {
+    return min(atomicMin_block(reinterpret_cast<internal_type*>(&lhs), rhs),
+               static_cast<internal_type>(rhs));
   }
 };
 
@@ -108,18 +136,34 @@ template <typename T>
 struct reduce_max_impl<T,
                        typename cuda::std::enable_if<cuda::std::is_integral<T>::value &&
                                                      cuda::std::is_signed<T>::value>::type> {
-  template <cuda::thread_scope Scope>
-  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T const& rhs) const noexcept
+ private:
+  using internal_type = typename cuda::std::conditional<sizeof(T) == 8, long long int, int>::type;
+
+ public:
+  template <cuda::thread_scope Scope,
+            cuda::std::enable_if_t<Scope == cuda::thread_scope_system, bool> = true>
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T rhs) const noexcept
   {
-    using InternalT = typename cuda::std::conditional<sizeof(T) == 8, long long int, int>::type;
-    InternalT* ptr  = reinterpret_cast<InternalT*>(&lhs);
-    InternalT value = rhs;
-    if constexpr (Scope == cuda::thread_scope_system)
-      return max(atomicMax_system(ptr, value), value);
-    else if constexpr (Scope == cuda::thread_scope_device)
-      return max(atomicMax(ptr, value), value);
-    else
-      return max(atomicMax_block(ptr, value), value);
+    return max(atomicMax_system(reinterpret_cast<internal_type*>(&lhs), rhs),
+               static_cast<internal_type>(rhs));
+  }
+
+  template <cuda::thread_scope Scope,
+            cuda::std::enable_if_t<Scope == cuda::thread_scope_device, bool> = true>
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T rhs) const noexcept
+  {
+    return max(atomicMax(reinterpret_cast<internal_type*>(&lhs), rhs),
+               static_cast<internal_type>(rhs));
+  }
+
+  template <
+    cuda::thread_scope Scope,
+    cuda::std::enable_if_t<Scope != cuda::thread_scope_system && Scope != cuda::thread_scope_device,
+                           bool> = true>
+  __device__ T operator()(cuda::atomic<T, Scope>& lhs, T rhs) const noexcept
+  {
+    return max(atomicMax_block(reinterpret_cast<internal_type*>(&lhs), rhs),
+               static_cast<internal_type>(rhs));
   }
 };
 
