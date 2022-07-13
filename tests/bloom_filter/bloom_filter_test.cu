@@ -18,7 +18,7 @@
 #include <cuco/bloom_filter.cuh>
 #include <thrust/device_vector.h>
 #include <thrust/sequence.h>
-#include <util.hpp>
+#include <utils.hpp>
 
 template <typename Key, typename Slot, std::size_t NumSlots>
 __global__ void shared_memory_filter_kernel(bool* key_found)
@@ -98,8 +98,8 @@ TEMPLATE_TEST_CASE_SIG("Unit tests for cuco::bloom_filter.",
     {
       filter.contains(tp_begin, tp_end, contained.begin());
 
-      REQUIRE(
-        none_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+      REQUIRE(cuco::test::none_of(
+        contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
     }
 
     SECTION("Host-side bulk API.")
@@ -110,8 +110,8 @@ TEMPLATE_TEST_CASE_SIG("Unit tests for cuco::bloom_filter.",
       {
         filter.contains(tp_begin, tp_end, contained.begin());
 
-        REQUIRE(
-          all_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+        REQUIRE(cuco::test::all_of(
+          contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
       }
 
       SECTION(
@@ -134,8 +134,8 @@ TEMPLATE_TEST_CASE_SIG("Unit tests for cuco::bloom_filter.",
 
         filter.contains(tp_begin, tp_end, contained.begin());
 
-        REQUIRE(
-          none_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+        REQUIRE(cuco::test::none_of(
+          contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
       }
     }
 
@@ -152,8 +152,8 @@ TEMPLATE_TEST_CASE_SIG("Unit tests for cuco::bloom_filter.",
 
         filter.contains(tp_begin, tp_end, contained.begin());
 
-        REQUIRE(
-          all_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+        REQUIRE(cuco::test::all_of(
+          contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
       }
 
       SECTION("Check if all inserted keys can be found using the filter's device view.")
@@ -162,7 +162,7 @@ TEMPLATE_TEST_CASE_SIG("Unit tests for cuco::bloom_filter.",
 
         auto view = filter.get_device_view();
 
-        REQUIRE(all_of(
+        REQUIRE(cuco::test::all_of(
           tp_begin, tp_end, [view] __device__(Key const& key) { return view.contains(key); }));
       }
     }
@@ -174,6 +174,7 @@ TEMPLATE_TEST_CASE_SIG("Unit tests for cuco::bloom_filter.",
 
     shared_memory_filter_kernel<Key, Slot, 2048><<<1, 1024>>>(contained.data().get());
 
-    REQUIRE(all_of(contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::all_of(
+      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
   }
 }
