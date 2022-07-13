@@ -340,9 +340,9 @@ class static_multimap {
    * to `(output + i)`.
    *
    * ProbeSequence hashers should be callable with both
-   * `std::iterator_traits<InputIt>::value_type::first_type`
-   * and Key type. `std::invoke_result<KeyEqual,
-   * std::iterator_traits<InputIt>::value_type::first_type, Key>`
+   * <tt>std::iterator_traits<InputIt>::value_type::first_type</tt>
+   * and Key type. <tt>std::invoke_result<KeyEqual,
+   * std::iterator_traits<InputIt>::value_type::first_type, Key></tt>
    * must be well-formed.
    *
    * @tparam InputIt Device accessible random access input iterator
