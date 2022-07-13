@@ -55,7 +55,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_i
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               cuco::static_multimap<Key, Value> map{size, -1, -1};
+               cuco::static_multimap<Key, Value> map{
+                 size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
 
                // Use timers to explicitly mark the target region
                timer.start();

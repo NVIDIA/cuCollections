@@ -137,22 +137,24 @@ class static_map {
                 "declared as safe for bitwise comparison via specialization of "
                 "cuco::is_bitwise_comparable_v<Value>.");
 
-  friend class dynamic_map<Key, Value, Scope, Allocator>;
+  friend class dynamic_map<Key, Value, Scope, Allocator>;  ///< Dynamic map as friend class
 
  public:
-  using value_type         = cuco::pair_type<Key, Value>;
-  using key_type           = Key;
-  using mapped_type        = Value;
-  using atomic_key_type    = cuda::atomic<key_type, Scope>;
-  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
-  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
-  using slot_type          = pair_atomic_type;
-  using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
-  using allocator_type     = Allocator;
-  using slot_allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
-  using counter_allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
+  using value_type         = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
+  using key_type           = Key;                               ///< Key type
+  using mapped_type        = Value;                             ///< Type of mapped values
+  using atomic_key_type    = cuda::atomic<key_type, Scope>;     ///< Type of atomic keys
+  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;  ///< Type of atomic mapped values
+  using pair_atomic_type =
+    cuco::pair_type<atomic_key_type,
+                    atomic_mapped_type>;  ///< Pair type of atomic key and atomic mapped value
+  using slot_type           = pair_atomic_type;                  ///< Type of hash map slots
+  using atomic_ctr_type     = cuda::atomic<std::size_t, Scope>;  ///< Atomic counter type
+  using allocator_type      = Allocator;                         ///< Allocator type
+  using slot_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+    pair_atomic_type>;  ///< Type of the allocator to (de)allocate slots
+  using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+    atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
 
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
   static_assert(atomic_key_type::is_always_lock_free,
@@ -164,17 +166,11 @@ class static_map {
   static_map(static_map const&) = delete;
   static_map(static_map&&)      = delete;
 
-  template <typename T1, typename T2>
-  static_map(std::size_t, T1, T2, Allocator const& = Allocator{}, cudaStream_t = 0) = delete;
-
-  template <typename T1, typename T2, typename T3>
-  static_map(std::size_t, T1, T2, T3, Allocator const& = Allocator{}, cudaStream_t = 0) = delete;
-
   static_map& operator=(static_map const&) = delete;
   static_map& operator=(static_map&&) = delete;
 
   /**
-   * @brief Indicate if concurrent insert/find is supported for the key/value types.
+   * @brief Indicates if concurrent insert/find is supported for the key/value types.
    *
    * @return Boolean indicating if concurrent insert/find is supported.
    */
@@ -184,8 +180,7 @@ class static_map {
   }
 
   /**
-   * @brief Construct a fixed-size map with the specified capacity and sentinel values.
-   * @brief Construct a statically sized map with the specified number of slots
+   * @brief Constructs a statically sized map with the specified number of slots
    * and sentinel values.
    *
    * The capacity of the map is fixed. Insert operations will not automatically
@@ -219,6 +214,13 @@ class static_map {
    *
    * @throw std::runtime error if the empty key sentinel and erased key sentinel
    * are the same value
+   *
+   * @param capacity The total number of slots in the map
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param erased_key_sentinel The reserved value to denote erased slots
+   * @param alloc Allocator used for allocating device storage
+   * @param stream Stream used for executing the kernels
    */
   static_map(std::size_t capacity,
              sentinel::empty_key<Key> empty_key_sentinel,
@@ -271,7 +273,7 @@ class static_map {
    * @tparam StencilIt Device accessible random access iterator whose value_type is
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
-   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of key/value pairs
@@ -386,17 +388,19 @@ class static_map {
                                            cudaStream_t stream = 0);
 
   /**
-   * @brief Indicates whether the keys in the range
-   * `[first, last)` are contained in the map.
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
    *
    * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
    *
-   * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the map's `key_type`
-   * @tparam OutputIt Device accessible output iterator whose `value_type` is
-   * convertible to the map's `mapped_type`
+   * Hash should be callable with both <tt>std::iterator_traits<InputIt>::value_type</tt> and Key
+   * type. <tt>std::invoke_result<KeyEqual, std::iterator_traits<InputIt>::value_type, Key></tt>
+   * must be well-formed.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
+   *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
@@ -413,7 +417,7 @@ class static_map {
                 OutputIt output_begin,
                 Hash hash           = Hash{},
                 KeyEqual key_equal  = KeyEqual{},
-                cudaStream_t stream = 0);
+                cudaStream_t stream = 0) const;
 
  private:
   class device_view_base {
@@ -434,27 +438,41 @@ class static_map {
 
     __host__ __device__ device_view_base(pair_atomic_type* slots,
                                          std::size_t capacity,
-                                         Key empty_key_sentinel,
-                                         Value empty_value_sentinel,
-                                         Key erased_key_sentinel) noexcept
+                                         sentinel::empty_key<Key> empty_key_sentinel,
+                                         sentinel::empty_value<Value> empty_value_sentinel) noexcept
       : slots_{slots},
         capacity_{capacity},
-        empty_key_sentinel_{empty_key_sentinel},
-        erased_key_sentinel_{erased_key_sentinel},
-        empty_value_sentinel_{empty_value_sentinel}
+        empty_key_sentinel_{empty_key_sentinel.value},
+        erased_key_sentinel_{empty_key_sentinel.value},
+        empty_value_sentinel_{empty_value_sentinel.value}
+    {
+    }
+
+    __host__ __device__ device_view_base(pair_atomic_type* slots,
+                                         std::size_t capacity,
+                                         sentinel::empty_key<Key> empty_key_sentinel,
+                                         sentinel::empty_value<Value> empty_value_sentinel,
+                                         sentinel::erased_key<Key> erased_key_sentinel) noexcept
+      : slots_{slots},
+        capacity_{capacity},
+        empty_key_sentinel_{empty_key_sentinel.value},
+        erased_key_sentinel_{erased_key_sentinel.value},
+        empty_value_sentinel_{empty_value_sentinel.value}
     {
     }
 
     /**
      * @brief Returns the initial slot for a given key `k`
      *
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
+     *
      * @param k The key to get the slot for
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename Hash>
-    __device__ iterator initial_slot(Key const& k, Hash hash) noexcept
+    template <typename ProbeKey, typename Hash>
+    __device__ iterator initial_slot(ProbeKey const& k, Hash hash) noexcept
     {
       return &slots_[hash(k) % capacity_];
     }
@@ -462,13 +480,15 @@ class static_map {
     /**
      * @brief Returns the initial slot for a given key `k`
      *
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
+     *
      * @param k The key to get the slot for
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename Hash>
-    __device__ const_iterator initial_slot(Key const& k, Hash hash) const noexcept
+    template <typename ProbeKey, typename Hash>
+    __device__ const_iterator initial_slot(ProbeKey const& k, Hash hash) const noexcept
     {
       return &slots_[hash(k) % capacity_];
     }
@@ -479,14 +499,16 @@ class static_map {
      * To be used for Cooperative Group based probing.
      *
      * @tparam CG Cooperative Group type
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
+     *
      * @param g the Cooperative Group for which the initial slot is needed
      * @param k The key to get the slot for
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename CG, typename Hash>
-    __device__ iterator initial_slot(CG g, Key const& k, Hash hash) noexcept
+    template <typename CG, typename ProbeKey, typename Hash>
+    __device__ iterator initial_slot(CG const& g, ProbeKey const& k, Hash hash) noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -497,14 +519,16 @@ class static_map {
      * To be used for Cooperative Group based probing.
      *
      * @tparam CG Cooperative Group type
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
+     *
      * @param g the Cooperative Group for which the initial slot is needed
      * @param k The key to get the slot for
      * @param hash The unary callable used to hash the key
      * @return Pointer to the initial slot for `k`
      */
-    template <typename CG, typename Hash>
-    __device__ const_iterator initial_slot(CG g, Key const& k, Hash hash) const noexcept
+    template <typename CG, typename ProbeKey, typename Hash>
+    __device__ const_iterator initial_slot(CG const& g, ProbeKey const& k, Hash hash) const noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -544,7 +568,7 @@ class static_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ iterator next_slot(CG g, iterator s) noexcept
+    __device__ iterator next_slot(CG const& g, iterator s) noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];
@@ -562,7 +586,7 @@ class static_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ const_iterator next_slot(CG g, const_iterator s) const noexcept
+    __device__ const_iterator next_slot(CG const& g, const_iterator s) const noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];
@@ -724,34 +748,52 @@ class static_map {
    */
   class device_mutable_view : public device_view_base {
    public:
-    using value_type     = typename device_view_base::value_type;
-    using key_type       = typename device_view_base::key_type;
-    using mapped_type    = typename device_view_base::mapped_type;
-    using iterator       = typename device_view_base::iterator;
-    using const_iterator = typename device_view_base::const_iterator;
-    using slot_type      = typename device_view_base::slot_type;
+    using value_type  = typename device_view_base::value_type;   ///< Type of key/value pairs
+    using key_type    = typename device_view_base::key_type;     ///< Key type
+    using mapped_type = typename device_view_base::mapped_type;  ///< Type of the mapped values
+    using iterator =
+      typename device_view_base::iterator;  ///< Type of the forward iterator to `value_type`
+    using const_iterator =
+      typename device_view_base::const_iterator;  ///< Type of the forward iterator to `const
+                                                  ///< value_type`
+    using slot_type = typename device_view_base::slot_type;  ///< Type of hash map slots
 
     /**
-     * @brief Construct a mutable view of the first `capacity` slots of the
+     * @brief Constructs a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
      *
      * @param slots Pointer to beginning of initialized slots array
      * @param capacity The number of slots viewed by this object
-     * @param empty_key_sentinel The reserved value for keys to represent empty
-     * slots
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
+     */
+    __host__ __device__
+    device_mutable_view(pair_atomic_type* slots,
+                        std::size_t capacity,
+                        sentinel::empty_key<Key> empty_key_sentinel,
+                        sentinel::empty_value<Value> empty_value_sentinel) noexcept
+      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+    {
+    }
+
+    /**
+     * @brief Constructs a mutable view of the first `capacity` slots of the
+     * slots array pointed to by `slots`.
+     *
+     * @param slots Pointer to beginning of initialized slots array
+     * @param capacity The number of slots viewed by this object
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     * @param erased_key_sentinel The reserved value for keys to represent erased slots
      */
     __host__ __device__ device_mutable_view(pair_atomic_type* slots,
                                             std::size_t capacity,
                                             sentinel::empty_key<Key> empty_key_sentinel,
                                             sentinel::empty_value<Value> empty_value_sentinel,
                                             sentinel::erased_key<Key> erased_key_sentinel) noexcept
-      : device_view_base{slots,
-                         capacity,
-                         empty_key_sentinel.value,
-                         empty_value_sentinel.value,
-                         erased_key_sentinel.value}
+      : device_view_base{
+          slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel}
     {
     }
 
@@ -818,9 +860,22 @@ class static_map {
                                                  Key expected_key) noexcept;
 
    public:
+    /**
+     * @brief Given a slot pointer `slots`, initializes the first `capacity` slots with the given
+     * sentinel values and returns a `device_mutable_view` object of those slots.
+     *
+     * @tparam CG The type of the cooperative thread group
+     *
+     * @param g The cooperative thread group used to copy the slots
+     * @param slots Pointer to the hash map slots
+     * @param capacity The total number of slots in the map
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     * @return A device_mutable_view object based on the given parameters
+     */
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
-      CG g,
+      CG const& g,
       pair_atomic_type* slots,
       std::size_t capacity,
       sentinel::empty_key<Key> empty_key_sentinel,
@@ -835,10 +890,23 @@ class static_map {
                                  sentinel::erased_key<Key>{empty_key_sentinel.value}};
     }
 
-    /* Features erase support */
+    /**
+     * @brief Given a slot pointer `slots`, initializes the first `capacity` slots with the given
+     * sentinel values and returns a `device_mutable_view` object of those slots.
+     *
+     * @tparam CG The type of the cooperative thread group
+     *
+     * @param g The cooperative thread group used to copy the slots
+     * @param slots Pointer to the hash map slots
+     * @param capacity The total number of slots in the map
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     * @param erased_key_sentinel The reserved value for keys to represent erased slots
+     * @return A device_mutable_view object based on the given parameters
+     */
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
-      CG g,
+      CG const& g,
       pair_atomic_type* slots,
       std::size_t capacity,
       sentinel::empty_key<Key> empty_key_sentinel,
@@ -901,12 +969,42 @@ class static_map {
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
 
+    /**
+     * @brief Erases the specified key across the map.
+     *
+     * Behavior is undefined if `empty_key_sentinel_` equals to `erased_key_sentinel_`.
+     *
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     *
+     * @param k The key to be erased
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return `true` if the erasure was successful, `false` otherwise.
+     */
     template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
     __device__ bool erase(key_type const& k,
                           Hash hash          = Hash{},
                           KeyEqual key_equal = KeyEqual{}) noexcept;
 
+    /**
+     * @brief Erases the specified key across the map.
+     *
+     * Behavior is undefined if `empty_key_sentinel_` equals to `erased_key_sentinel_`.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     *
+     * @param g The Cooperative Group that performs the erasure
+     * @param k The key to be erased
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return `true` if the erasure was successful, `false` otherwise.
+     */
     template <typename CG,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
@@ -927,12 +1025,15 @@ class static_map {
    */
   class device_view : public device_view_base {
    public:
-    using value_type     = typename device_view_base::value_type;
-    using key_type       = typename device_view_base::key_type;
-    using mapped_type    = typename device_view_base::mapped_type;
-    using iterator       = typename device_view_base::iterator;
-    using const_iterator = typename device_view_base::const_iterator;
-    using slot_type      = typename device_view_base::slot_type;
+    using value_type  = typename device_view_base::value_type;   ///< Type of key/value pairs
+    using key_type    = typename device_view_base::key_type;     ///< Key type
+    using mapped_type = typename device_view_base::mapped_type;  ///< Type of the mapped values
+    using iterator =
+      typename device_view_base::iterator;  ///< Type of the forward iterator to `value_type`
+    using const_iterator =
+      typename device_view_base::const_iterator;  ///< Type of the forward iterator to `const
+                                                  ///< value_type`
+    using slot_type = typename device_view_base::slot_type;  ///< Type of hash map slots
 
     /**
      * @brief Construct a view of the first `capacity` slots of the
@@ -940,21 +1041,34 @@ class static_map {
      *
      * @param slots Pointer to beginning of initialized slots array
      * @param capacity The number of slots viewed by this object
-     * @param empty_key_sentinel The reserved value for keys to represent empty
-     * slots
-     * @param empty_value_sentinel The reserved value for mapped values to
-     * represent empty slots
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     */
+    __host__ __device__ device_view(pair_atomic_type* slots,
+                                    std::size_t capacity,
+                                    sentinel::empty_key<Key> empty_key_sentinel,
+                                    sentinel::empty_value<Value> empty_value_sentinel) noexcept
+      : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
+    {
+    }
+
+    /**
+     * @brief Construct a view of the first `capacity` slots of the
+     * slots array pointed to by `slots`.
+     *
+     * @param slots Pointer to beginning of initialized slots array
+     * @param capacity The number of slots viewed by this object
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     * @param erased_key_sentinel The reserved value for keys to represent erased slots
      */
     __host__ __device__ device_view(pair_atomic_type* slots,
                                     std::size_t capacity,
                                     sentinel::empty_key<Key> empty_key_sentinel,
                                     sentinel::empty_value<Value> empty_value_sentinel,
                                     sentinel::erased_key<Key> erased_key_sentinel) noexcept
-      : device_view_base{slots,
-                         capacity,
-                         empty_key_sentinel.value,
-                         empty_value_sentinel.value,
-                         erased_key_sentinel.value}
+      : device_view_base{
+          slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel}
     {
     }
 
@@ -966,9 +1080,9 @@ class static_map {
     __host__ __device__ explicit device_view(device_mutable_view mutable_map)
       : device_view_base{mutable_map.slots(),
                          mutable_map.capacity(),
-                         mutable_map.empty_key_sentinel(),
-                         mutable_map.empty_value_sentinel(),
-                         mutable_map.erased_key_sentinel()}
+                         sentinel::empty_key<Key>{mutable_map.empty_key_sentinel()},
+                         sentinel::empty_value<Value>{mutable_map.empty_value_sentinel()},
+                         sentinel::erased_key<Key>{mutable_map.erased_key_sentinel()}}
     {
     }
 
@@ -1143,8 +1257,16 @@ class static_map {
      * If the key `k` was inserted into the map, find returns
      * true. Otherwise, it returns false.
      *
+     * Hash should be callable with both ProbeKey and Key type. `std::invoke_result<KeyEqual,
+     * ProbeKey, Key>` must be well-formed.
+     *
+     * If `key_equal(probe_key, slot_key)` returns true, `hash(probe_key) == hash(slot_key)` must
+     * also be true.
+     *
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
+     *
      * @param k The key to search for
      * @param hash The unary callable used to hash the key
      * @param key_equal The binary callable used to compare two keys
@@ -1152,24 +1274,32 @@ class static_map {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+    template <typename ProbeKey,
+              typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(Key const& k,
+    __device__ bool contains(ProbeKey const& k,
                              Hash hash          = Hash{},
                              KeyEqual key_equal = KeyEqual{}) const noexcept;
 
     /**
      * @brief Indicates whether the key `k` was inserted into the map.
      *
-     * If the key `k` was inserted into the map, find returns
-     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single contains operation. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `contains` at moderate to high load factors.
+     * If the key `k` was inserted into the map, find returns true. Otherwise, it returns false.
+     * Uses the CUDA Cooperative Groups API to to leverage multiple threads to perform a single
+     * contains operation. This provides a significant boost in throughput compared to the non
+     * Cooperative Group `contains` at moderate to high load factors.
+     *
+     * Hash should be callable with both ProbeKey and Key type. `std::invoke_result<KeyEqual,
+     * ProbeKey, Key>` must be well-formed.
+     *
+     * If `key_equal(probe_key, slot_key)` returns true, `hash(probe_key) == hash(slot_key)` must
+     * also be true.
      *
      * @tparam CG Cooperative Group type
+     * @tparam ProbeKey Probe key type
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
+     *
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The key to search for
      * @param hash The unary callable used to hash the key
@@ -1179,12 +1309,14 @@ class static_map {
      * containing `k` was inserted
      */
     template <typename CG,
+              typename ProbeKey,
               typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
               typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool contains(CG g,
-                             Key const& k,
-                             Hash hash          = Hash{},
-                             KeyEqual key_equal = KeyEqual{}) const noexcept;
+    __device__ std::enable_if_t<std::is_invocable_v<KeyEqual, ProbeKey, Key>, bool> contains(
+      CG const& g,
+      ProbeKey const& k,
+      Hash hash          = Hash{},
+      KeyEqual key_equal = KeyEqual{}) const noexcept;
   };  // class device_view
 
   /**

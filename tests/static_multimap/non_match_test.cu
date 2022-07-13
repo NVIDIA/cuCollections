@@ -43,9 +43,9 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
 
     REQUIRE(num == num_keys);
 
-    auto output_begin = d_results.data().get();
-    auto output_end   = map.retrieve(key_begin, key_begin + num_keys, output_begin);
-    auto size         = thrust::distance(output_begin, output_end);
+    auto output_begin      = d_results.data().get();
+    auto output_end        = map.retrieve(key_begin, key_begin + num_keys, output_begin);
+    std::size_t const size = thrust::distance(output_begin, output_end);
 
     REQUIRE(size == num_keys);
 
@@ -75,9 +75,9 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
 
     REQUIRE(num == (num_keys + num_keys / 2));
 
-    auto output_begin = d_results.data().get();
-    auto output_end   = map.retrieve_outer(key_begin, key_begin + num_keys, output_begin);
-    auto size         = thrust::distance(output_begin, output_end);
+    auto output_begin      = d_results.data().get();
+    auto output_end        = map.retrieve_outer(key_begin, key_begin + num_keys, output_begin);
+    std::size_t const size = thrust::distance(output_begin, output_end);
 
     REQUIRE(size == (num_keys + num_keys / 2));
 
@@ -145,11 +145,12 @@ TEMPLATE_TEST_CASE_SIG(
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
                           cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
-      map{num_keys * 2, -1, -1};
+      map{num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     test_non_matches<Key, Value>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }
   if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{num_keys * 2, -1, -1};
+    cuco::static_multimap<Key, Value> map{
+      num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     test_non_matches<Key, Value>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }
 }

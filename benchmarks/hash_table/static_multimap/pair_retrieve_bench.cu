@@ -70,7 +70,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_p
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
   auto const pair_begin = d_pairs.begin();
 
-  cuco::static_multimap<Key, Value> map{size, -1, -1};
+  cuco::static_multimap<Key, Value> map{
+    size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
   map.insert(pair_begin, pair_begin + num_input);
 
   generate_probe_keys<Key>(matching_rate, h_keys.begin(), h_keys.end());

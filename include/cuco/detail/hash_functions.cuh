@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2021, NVIDIA CORPORATION.
+ * Copyright (c) 2017-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,26 +18,46 @@
 
 namespace cuco {
 
+using hash_value_type = uint32_t;
+
 namespace detail {
 
-// MurmurHash3_32 implementation from
-// https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp
-//-----------------------------------------------------------------------------
-// MurmurHash3 was written by Austin Appleby, and is placed in the public
-// domain. The author hereby disclaims copyright to this source code.
-// Note - The x86 and x64 versions do _not_ produce the same results, as the
-// algorithms are optimized for their respective platforms. You can still
-// compile and run any of them on any platform, but your performance with the
-// non-native version will be less than optimal.
+/**
+ * @brief A `MurmurHash3_32` hash function to hash the given argument on host and device.
+ *
+ * MurmurHash3_32 implementation from
+ * https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp
+ * -----------------------------------------------------------------------------
+ * MurmurHash3 was written by Austin Appleby, and is placed in the public domain. The author
+ * hereby disclaims copyright to this source code.
+ *
+ * Note - The x86 and x64 versions do _not_ produce the same results, as the algorithms are
+ * optimized for their respective platforms. You can still compile and run any of them on any
+ * platform, but your performance with the non-native version will be less than optimal.
+ *
+ * @tparam Key The type of the values to hash
+ */
 template <typename Key>
 struct MurmurHash3_32 {
-  using argument_type = Key;
-  using result_type   = uint32_t;
+  using argument_type = Key;       ///< The type of the values taken as argument
+  using result_type   = uint32_t;  ///< The type of the hash values produced
 
-  __host__ __device__ constexpr MurmurHash3_32() : m_seed(0) {}
+  /// Default constructor
+  __host__ __device__ constexpr MurmurHash3_32() : MurmurHash3_32{0} {}
 
+  /**
+   * @brief Constructs a MurmurHash3_32 hash function with the given `seed`.
+   *
+   * @param seed A custom number to randomize the resulting hash value
+   */
   __host__ __device__ constexpr MurmurHash3_32(uint32_t seed) : m_seed(seed) {}
 
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @param key The input argument to hash
+   * @return A resulting hash value for `key`
+   */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
     constexpr int len         = sizeof(argument_type);

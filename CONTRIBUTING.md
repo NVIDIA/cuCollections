@@ -12,9 +12,9 @@ into three categories:
     - Post about your intended feature, and we shall discuss the design and
     implementation.
     - Once we agree that the plan looks good, go ahead and implement it, using
-    the [code contributions](#code-contributions) guide below.
+    the [code contributions](https://github.com/NVIDIA/cuCollections/blob/master/CONTRIBUTING.md#code-contributions) guide below.
 3. You want to implement a feature or bug-fix for an outstanding issue
-    - Follow the [code contributions](#code-contributions) guide below.
+    - Follow the [code contributions](https://github.com/NVIDIA/cuCollections/blob/master/CONTRIBUTING.md#code-contributions) guide below.
     - If you need more context on a particular issue, please ask and we shall
     provide.
 

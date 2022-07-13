@@ -2,7 +2,7 @@
 name: Feature request
 about: Suggest an idea for cuCollections
 title: "[FEA]"
-labels: "? - Needs Triage, feature request"
+labels: "type: enhancement"
 assignees: ''
 
 ---

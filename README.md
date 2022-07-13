@@ -85,7 +85,6 @@ Binaries will be built into:
 
 
 ## Code Formatting
-
 By default, `cuCollections` uses [`pre-commit.ci`](https://pre-commit.ci/) along with [`mirrors-clang-format`](https://github.com/pre-commit/mirrors-clang-format) to automatically format the C++/CUDA files in a pull request.
 Users should enable the `Allow edits by maintainers` option to get auto-formatting to work.
 
@@ -117,6 +116,67 @@ pre-commit run clang-format --all-files
 Users should **_NOT_** use `clang-format` directly on the command line to format the code.
 
 
+## Documentation
+[`Doxygen`](https://doxygen.nl/) is used to generate HTML pages from the C++/CUDA comments in the source code.
+
+### The example
+The following example covers most of the Doxygen block comment and tag styles
+for documenting C++/CUDA code in `cuCollections`.
+
+```c++
+/**
+ * @file source_file.cpp
+ * @brief Description of source file contents
+ *
+ * Longer description of the source file contents.
+ */
+
+/**
+ * @brief Short, one sentence description of the class.
+ *
+ * Longer, more detailed description of the class.
+ *
+ * A detailed description must start after a blank line.
+ *
+ * @tparam T Short description of each template parameter
+ * @tparam U Short description of each template parameter
+ */
+template <typename T, typename U>
+class example_class {
+
+  void get_my_int();            ///< Simple members can be documented like this
+  void set_my_int( int value ); ///< Try to use descriptive member names
+
+  /**
+   * @brief Short, one sentence description of the member function.
+   *
+   * A more detailed description of what this function does and what
+   * its logic does.
+   *
+   * @param[in]     first  This parameter is an input parameter to the function
+   * @param[in,out] second This parameter is used both as an input and output
+   * @param[out]    third  This parameter is an output of the function
+   *
+   * @return The result of the complex function
+   */
+  T complicated_function(int first, double* second, float* third)
+  {
+      // Do not use doxygen-style block comments
+      // for code logic documentation.
+  }
+
+ private:
+  int my_int;                ///< An example private member variable
+};
+```
+
+### Doxygen style check
+`cuCollections` also uses Doxygen as a documentation linter. To check the Doxygen style locally, run
+```bash
+./ci/checks/doxygen.sh
+```
+
+
 ## Data Structures
 
 We plan to add many GPU-accelerated, concurrent data structures to `cuCollections`. As of now, the two flagships are variants of hash tables. 
@@ -136,4 +196,3 @@ See the Doxygen documentation in `static_map.cuh` for more detailed information.
 It currently only provides host, bulk APIs ([example (TODO)]()).
 
 See the Doxygen documentation in `dynamic_map.cuh` for more detailed information.
-

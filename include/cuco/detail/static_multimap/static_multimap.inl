@@ -109,18 +109,43 @@ template <typename Key,
           class ProbeSequence>
 template <typename InputIt, typename OutputIt, typename KeyEqual>
 void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
+  InputIt first, InputIt last, OutputIt output_begin, KeyEqual key_equal, cudaStream_t stream) const
 {
   auto const num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
-  auto constexpr block_size = 128;
-  auto constexpr stride     = 1;
+  auto constexpr is_pair_contains = false;
+  auto constexpr block_size       = 128;
+  auto constexpr stride           = 1;
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
   auto view            = device_view();
 
-  detail::contains<block_size, cg_size()>
+  detail::contains<is_pair_contains, block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, key_equal);
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
+template <typename InputIt, typename OutputIt, typename PairEqual>
+void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_contains(
+  InputIt first, InputIt last, OutputIt output_begin, PairEqual pair_equal, cudaStream_t stream)
+  const
+{
+  auto const num_pairs = std::distance(first, last);
+  if (num_pairs == 0) { return; }
+
+  auto constexpr is_pair_contains = true;
+  auto constexpr block_size       = 128;
+  auto constexpr stride           = 1;
+  auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_view();
+
+  detail::contains<is_pair_contains, block_size, cg_size()>
+    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, pair_equal);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 
@@ -537,14 +562,31 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-template <typename KeyEqual>
+template <typename ProbeKey, typename KeyEqual>
 __device__ __forceinline__ bool
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::contains(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
-  Key const& k,
-  KeyEqual key_equal) noexcept
+  ProbeKey const& k,
+  KeyEqual key_equal) const noexcept
 {
-  return impl_.contains<uses_vector_load()>(g, k, key_equal);
+  constexpr bool is_pair_contains = false;
+  return impl_.contains<is_pair_contains, uses_vector_load()>(g, k, key_equal);
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
+template <typename ProbePair, typename PairEqual>
+__device__ __forceinline__ bool
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_contains(
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+  ProbePair const& p,
+  PairEqual pair_equal) const noexcept
+{
+  constexpr bool is_pair_contains = true;
+  return impl_.contains<is_pair_contains, uses_vector_load()>(g, p, pair_equal);
 }
 
 template <typename Key,

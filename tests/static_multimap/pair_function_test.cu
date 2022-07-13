@@ -20,6 +20,7 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
@@ -56,6 +57,21 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
                       return cuco::pair_type<Key, Value>{i, i};
                     });
 
+  SECTION("pair_contains returns true for all inserted pairs and false for non-inserted ones.")
+  {
+    thrust::device_vector<bool> result(num_pairs);
+    auto res_begin = result.begin();
+    map.pair_contains(pair_begin, pair_begin + num_pairs, res_begin, pair_equal<Key, Value>{});
+
+    auto true_iter  = thrust::make_constant_iterator(true);
+    auto false_iter = thrust::make_constant_iterator(false);
+
+    REQUIRE(
+      cuco::test::equal(res_begin, res_begin + num_pairs / 2, true_iter, thrust::equal_to<bool>{}));
+    REQUIRE(cuco::test::equal(
+      res_begin + num_pairs / 2, res_begin + num_pairs, false_iter, thrust::equal_to<bool>{}));
+  }
+
   SECTION("Output of pair_count and pair_retrieve should be coherent.")
   {
     auto num = map.pair_count(pair_begin, pair_begin + num_pairs, pair_equal<Key, Value>{});
@@ -69,8 +85,9 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
 
     auto [out1_end, out2_end] = map.pair_retrieve(
       pair_begin, pair_begin + num_pairs, out1_begin, out2_begin, pair_equal<Key, Value>{});
+    std::size_t const size = std::distance(out2_begin, out1_end);
 
-    REQUIRE((out1_end - out1_begin) == num_pairs);
+    REQUIRE(size == num_pairs);
   }
 
   SECTION("Output of pair_count_outer and pair_retrieve_outer should be coherent.")
@@ -86,8 +103,9 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
 
     auto [out1_end, out2_end] = map.pair_retrieve_outer(
       pair_begin, pair_begin + num_pairs, out1_begin, out2_begin, pair_equal<Key, Value>{});
+    std::size_t const size = std::distance(out1_begin, out1_end);
 
-    REQUIRE((out1_end - out1_begin) == (num_pairs + num_pairs / 2));
+    REQUIRE(size == (num_pairs + num_pairs / 2));
   }
 }
 
@@ -120,11 +138,13 @@ TEMPLATE_TEST_CASE_SIG(
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
                           cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
-      map{num_pairs * 2, -1, -1};
+      map{
+        num_pairs * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
   }
   if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{num_pairs * 2, -1, -1};
+    cuco::static_multimap<Key, Value> map{
+      num_pairs * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
   }
 }

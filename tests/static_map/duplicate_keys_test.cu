@@ -41,9 +41,6 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
   cuco::static_map<Key, Value> map{
     num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
 
-  auto m_view = map.device_mutable_view();
-  auto view   = map.device_view();
-
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
 
@@ -91,12 +88,10 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
     map.insert(pairs_begin, pairs_begin + num_keys);
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
-    REQUIRE(cuco::test::all_of(d_contained.begin(),
-                               d_contained.begin() + num_keys / 2,
-                               [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::all_of(
+      d_contained.begin(), d_contained.begin() + num_keys / 2, thrust::identity{}));
 
-    REQUIRE(cuco::test::none_of(d_contained.begin() + num_keys / 2,
-                                d_contained.end(),
-                                [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::none_of(
+      d_contained.begin() + num_keys / 2, d_contained.end(), thrust::identity{}));
   }
 }

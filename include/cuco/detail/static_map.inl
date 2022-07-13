@@ -18,11 +18,11 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/utils.cuh>
 
-#include <thrust/copy.h>
-#include <thrust/execution_policy.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/tuple.h>
+
+#include <cub/device/device_select.cuh>
 
 namespace cuco {
 
@@ -216,14 +216,42 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
   auto slots_begin = reinterpret_cast<value_type*>(slots_);
 
   auto begin  = thrust::make_transform_iterator(slots_begin, detail::slot_to_tuple<Key, Value>{});
-  auto end    = begin + capacity();
   auto filled = detail::slot_is_filled<Key>{empty_key_sentinel()};
   auto zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
 
-  auto const zipped_out_end =
-    thrust::copy_if(thrust::cuda::par.on(stream), begin, end, zipped_out_begin, filled);
-  auto const num = std::distance(zipped_out_begin, zipped_out_end);
-  return std::make_pair(keys_out + num, values_out + num);
+  std::size_t temp_storage_bytes = 0;
+  using temp_allocator_type      = typename std::allocator_traits<Allocator>::rebind_alloc<char>;
+  auto temp_allocator            = temp_allocator_type{slot_allocator_};
+  auto d_num_out                 = reinterpret_cast<std::size_t*>(
+    std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(std::size_t)));
+  cub::DeviceSelect::If(nullptr,
+                        temp_storage_bytes,
+                        begin,
+                        zipped_out_begin,
+                        d_num_out,
+                        get_capacity(),
+                        filled,
+                        stream);
+
+  // Allocate temporary storage
+  auto d_temp_storage =
+    std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, temp_storage_bytes);
+
+  cub::DeviceSelect::If(d_temp_storage,
+                        temp_storage_bytes,
+                        begin,
+                        zipped_out_begin,
+                        d_num_out,
+                        get_capacity(),
+                        filled,
+                        stream);
+
+  std::size_t h_num_out;
+  CUCO_CUDA_TRY(
+    cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(std::size_t), cudaMemcpyDeviceToHost, stream));
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+
+  return std::make_pair(keys_out + h_num_out, values_out + h_num_out);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -233,7 +261,7 @@ void static_map<Key, Value, Scope, Allocator>::contains(InputIt first,
                                                         OutputIt output_begin,
                                                         Hash hash,
                                                         KeyEqual key_equal,
-                                                        cudaStream_t stream)
+                                                        cudaStream_t stream) const
 {
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
@@ -678,9 +706,9 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <typename Hash, typename KeyEqual>
+template <typename ProbeKey, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
-  Key const& k, Hash hash, KeyEqual key_equal) const noexcept
+  ProbeKey const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(k, hash);
 
@@ -696,9 +724,12 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-template <typename CG, typename Hash, typename KeyEqual>
-__device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
-  CG g, Key const& k, Hash hash, KeyEqual key_equal) const noexcept
+template <typename CG, typename ProbeKey, typename Hash, typename KeyEqual>
+__device__ std::enable_if_t<std::is_invocable_v<KeyEqual, ProbeKey, Key>, bool>
+static_map<Key, Value, Scope, Allocator>::device_view::contains(CG const& g,
+                                                                ProbeKey const& k,
+                                                                Hash hash,
+                                                                KeyEqual key_equal) const noexcept
 {
   auto current_slot = initial_slot(g, k, hash);
 
