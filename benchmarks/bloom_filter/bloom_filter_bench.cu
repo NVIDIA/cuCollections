@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
+#include <cuco/bloom_filter.cuh>
 #include <cuda_runtime_api.h>
+#include <nvbench/nvbench.cuh>
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/fill.h>
 #include <thrust/sequence.h>
-#include <cuco/bloom_filter.cuh>
-#include <nvbench/nvbench.cuh>
 
 enum class filter_op { INSERT, CONTAINS };
 NVBENCH_DECLARE_ENUM_TYPE_STRINGS(

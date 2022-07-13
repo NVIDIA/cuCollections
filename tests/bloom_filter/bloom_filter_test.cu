@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include <thrust/device_vector.h>
-#include <thrust/sequence.h>
 #include <catch2/catch.hpp>
 #include <cuco/bloom_filter.cuh>
+#include <thrust/device_vector.h>
+#include <thrust/sequence.h>
 #include <util.hpp>
 
 template <typename Key, typename Slot, std::size_t NumSlots>
