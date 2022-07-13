@@ -62,7 +62,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_c
   map.insert(d_pairs.begin(), d_pairs.end());
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    auto count = map.count(d_keys.begin(), d_keys.end(), launch.stream());
+    auto count = map.count(d_keys.begin(), d_keys.end(), launch.get_stream());
   });
 }
 
