@@ -86,20 +86,10 @@ __global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Vie
 {
   std::size_t tid = block_size * blockIdx.x + threadIdx.x;
   auto it         = first + tid;
-  __shared__ bool write_buffer[block_size];
 
   while ((first + tid) < last) {
-    /*
-     * The ld.relaxed.gpu instruction used in view.contains causes L1 to
-     * flush more frequently, causing increased sector stores from L2 to global memory.
-     * By writing results to shared memory and then synchronizing before writing back
-     * to global, we no longer rely on L1, preventing the increase in sector stores from
-     * L2 to global and improving performance.
-     */
     typename View::key_type const key{*(first + tid)};
-    write_buffer[threadIdx.x] = view.contains(key, hash);
-    __syncthreads();
-    *(output_begin + tid) = write_buffer[threadIdx.x];
+    *(output_begin + tid) = view.contains(key, hash);
     tid += gridDim.x * block_size;
   }
 }
