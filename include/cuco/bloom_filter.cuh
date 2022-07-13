@@ -87,15 +87,14 @@ template <typename Key,
           typename Slot            = std::uint64_t>
 class bloom_filter {
  public:
-  using key_type         = Key;
-  using slot_type        = Slot;
-  using atomic_slot_type = cuda::atomic<slot_type, Scope>;
-  using iterator         = atomic_slot_type*;
-  using const_iterator   = atomic_slot_type const*;
-  using atomic_ctr_type  = cuda::atomic<std::size_t, Scope>;
-  using allocator_type   = Allocator;
-  using slot_allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<atomic_slot_type>;
+  using key_type            = Key;                             ///< Key type
+  using slot_type           = Slot;                            ///< Filter slot type
+  using atomic_slot_type    = cuda::atomic<slot_type, Scope>;  ///< Filter slot type
+  using iterator            = atomic_slot_type*;               ///< Filter slot iterator type
+  using const_iterator      = atomic_slot_type const*;         ///< Filter slot const iterator type
+  using allocator_type      = Allocator;                       ///< Allocator type
+  using slot_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+    atomic_slot_type>;  ///< Type of the allocator to (de)allocate slots
 
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
   static_assert(atomic_slot_type::is_always_lock_free,
@@ -125,6 +124,7 @@ class bloom_filter {
   /**
    * @brief (Re-) initializes the filter, i.e., set all bits to 0.
    *
+   * @param stream The CUDA stream this operation is executed in
    */
   void initialize(cudaStream_t stream = 0);
 
@@ -210,11 +210,11 @@ class bloom_filter {
   class device_view_base {
    protected:
     // Import member type definitions from `bloom_filter`
-    using key_type         = Key;
-    using slot_type        = slot_type;
-    using atomic_slot_type = atomic_slot_type;
-    using iterator         = atomic_slot_type*;
-    using const_iterator   = atomic_slot_type const*;
+    using key_type         = Key;                      ///< Key type
+    using slot_type        = slot_type;                ///< Filter slot type
+    using atomic_slot_type = atomic_slot_type;         ///< Filter slot type
+    using iterator         = atomic_slot_type*;        ///< Filter slot iterator type
+    using const_iterator   = atomic_slot_type const*;  ///< Filter slot const iterator type
 
    private:
     atomic_slot_type* slots_{};  ///< Pointer to flat slots storage
@@ -396,11 +396,11 @@ class bloom_filter {
   class device_mutable_view : public device_view_base {
    public:
     // Import member type definitions from `bloom_filter`
-    using key_type         = Key;
-    using slot_type        = slot_type;
-    using atomic_slot_type = atomic_slot_type;
-    using iterator         = atomic_slot_type*;
-    using const_iterator   = atomic_slot_type const*;
+    using key_type         = Key;                      ///< Key type
+    using slot_type        = slot_type;                ///< Filter slot type
+    using atomic_slot_type = atomic_slot_type;         ///< Filter slot type
+    using iterator         = atomic_slot_type*;        ///< Filter slot iterator type
+    using const_iterator   = atomic_slot_type const*;  ///< Filter slot const iterator type
 
     /**
      * @brief Construct a mutable view of the array pointed to by `slots`.
@@ -426,6 +426,7 @@ class bloom_filter {
      * @param slots Pointer to beginning of the array used for slot storage
      * @param num_bits The total number of bits in the filter
      * @param num_hashes The number of hashes to be applied to a key
+     * @return A device_mutable_view object based on the given parameters
      */
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
@@ -462,11 +463,11 @@ class bloom_filter {
   class device_view : public device_view_base {
    public:
     // Import member type definitions from `bloom_filter`
-    using key_type         = Key;
-    using slot_type        = slot_type;
-    using atomic_slot_type = atomic_slot_type;
-    using iterator         = atomic_slot_type*;
-    using const_iterator   = atomic_slot_type const*;
+    using key_type         = Key;                      ///< Key type
+    using slot_type        = slot_type;                ///< Filter slot type
+    using atomic_slot_type = atomic_slot_type;         ///< Filter slot type
+    using iterator         = atomic_slot_type*;        ///< Filter slot iterator type
+    using const_iterator   = atomic_slot_type const*;  ///< Filter slot const iterator type
 
     /**
      * @brief Construct a mutable view of the array pointed to by `slots`.
