@@ -84,17 +84,28 @@ struct is_thrust_pair_like
       std::remove_reference_t<decltype(thrust::raw_reference_cast(std::declval<T>()))>> {
 };
 
+/**
+ * @brief Denotes the equivalent packed type based on the size of the object.
+ *
+ * @tparam N The size of the object
+ */
 template <std::size_t N>
 struct packed {
-  using type = void;
+  using type = void;  ///< `void` type by default
 };
+/**
+ * @brief Denotes the packed type when the size of the object is 8.
+ */
 template <>
 struct packed<sizeof(uint64_t)> {
-  using type = uint64_t;
+  using type = uint64_t;  ///< Packed type as `uint64_t` if the size of the object is 8
 };
+/**
+ * @brief Denotes the packed type when the size of the object is 4.
+ */
 template <>
 struct packed<sizeof(uint32_t)> {
-  using type = uint32_t;
+  using type = uint32_t;  ///< Packed type as `uint32_t` if the size of the object is 4
 };
 template <typename pair_type>
 using packed_t = typename packed<sizeof(pair_type)>::type;
@@ -111,6 +122,7 @@ using packed_t = typename packed<sizeof(pair_type)>::type;
  * accessing the packed value would be undefined.
  *
  * @tparam pair_type The pair type that will be packed
+ *
  * @return true If the pair type can be packed
  * @return false  If the pair type cannot be packed
  */
@@ -124,23 +136,35 @@ constexpr bool is_packable()
 }
 
 /**
- * @brief Allows viewing a pair in a packed representation
+ * @brief Allows viewing a pair in a packed representation.
  *
  * Used as an optimization for inserting when a pair can be inserted with a
  * single atomicCAS
  */
 template <typename pair_type>
 union pair_converter {
-  using packed_type = packed_t<pair_type>;
-  packed_type packed;
-  pair_type pair;
+  using packed_type = packed_t<pair_type>;  ///< The packed pair type
+  packed_type packed;                       ///< The pair in the packed representation
+  pair_type pair;                           ///< The pair in the pair representation
 
+  /**
+   * @brief Constructs a pair converter by copying from `p`
+   *
+   * @tparam T Type that is convertible to `pair_type`
+   *
+   * @param p The pair to copy from
+   */
   template <typename T>
-  __device__ pair_converter(T&& _pair) : pair{_pair}
+  __device__ pair_converter(T&& p) : pair{p}
   {
   }
 
-  __device__ pair_converter(packed_type _packed) : packed{_packed} {}
+  /**
+   * @brief Constructs a pair converter by copying from `p`
+   *
+   * @param p The packed data to copy from
+   */
+  __device__ pair_converter(packed_type p) : packed{p} {}
 };
 
 }  // namespace detail
@@ -150,43 +174,83 @@ union pair_converter {
  *
  * This is necessary because `thrust::pair` is under aligned.
  *
- * @tparam First
- * @tparam Second
+ * @tparam First Type of the first value in the pair
+ * @tparam Second Type of the second value in the pair
  */
 template <typename First, typename Second>
 struct alignas(detail::pair_alignment<First, Second>()) pair {
-  using first_type  = First;
-  using second_type = Second;
+  using first_type  = First;   ///< Type of the first value in the pair
+  using second_type = Second;  ///< Type of the second value in the pair
 
   pair()            = default;
   ~pair()           = default;
-  pair(pair const&) = default;
-  pair(pair&&)      = default;
+  pair(pair const&) = default;  ///< Copy constructor
+  pair(pair&&)      = default;  ///< Move constructor
+
+  /**
+   * @brief Replaces the contents of the pair with another pair.
+   *
+   * @return Reference of the current pair object
+   */
   pair& operator=(pair const&) = default;
+
+  /**
+   * @brief Replaces the contents of the pair with another pair.
+   *
+   * @return Reference of the current pair object
+   */
   pair& operator=(pair&&) = default;
 
+  /**
+   * @brief Constructs a pair from objects `f` and `s`.
+   *
+   * @param f The object to copy into `first`
+   * @param s The object to copy into `second`
+   */
   __host__ __device__ constexpr pair(First const& f, Second const& s) : first{f}, second{s} {}
 
+  /**
+   * @brief Constructs a pair by copying from the given pair `p`.
+   *
+   * @tparam F Type of the first value of `p`
+   * @tparam S Type of the second value of `p`
+   *
+   * @param p The pair to copy from
+   */
   template <typename F, typename S>
   __host__ __device__ constexpr pair(pair<F, S> const& p) : first{p.first}, second{p.second}
   {
   }
 
+  /**
+   * @brief Constructs a pair from the given std::pair-like `p`.
+   *
+   * @tparam T Type of the pair to copy from
+   *
+   * @param p The input pair to copy from
+   */
   template <typename T, std::enable_if_t<detail::is_std_pair_like<T>::value>* = nullptr>
-  __host__ __device__ constexpr pair(T const& t)
-    : pair{std::get<0>(thrust::raw_reference_cast(t)), std::get<1>(thrust::raw_reference_cast(t))}
+  __host__ __device__ constexpr pair(T const& p)
+    : pair{std::get<0>(thrust::raw_reference_cast(p)), std::get<1>(thrust::raw_reference_cast(p))}
   {
   }
 
+  /**
+   * @brief Constructs a pair from the given thrust::pair-like `p`.
+   *
+   * @tparam T Type of the pair to copy from
+   *
+   * @param p The input pair to copy from
+   */
   template <typename T, std::enable_if_t<detail::is_thrust_pair_like<T>::value>* = nullptr>
-  __host__ __device__ constexpr pair(T const& t)
-    : pair{thrust::get<0>(thrust::raw_reference_cast(t)),
-           thrust::get<1>(thrust::raw_reference_cast(t))}
+  __host__ __device__ constexpr pair(T const& p)
+    : pair{thrust::get<0>(thrust::raw_reference_cast(p)),
+           thrust::get<1>(thrust::raw_reference_cast(p))}
   {
   }
 
-  First first;
-  Second second;
+  First first;    ///< The first value in the pair
+  Second second;  ///< The second value in the pair
 };
 
 template <typename K, typename V>
@@ -197,6 +261,7 @@ using pair_type = cuco::pair<K, V>;
  *
  * @tparam F
  * @tparam S
+ *
  * @param f
  * @param s
  * @return pair_type with first element `f` and second element `s`.

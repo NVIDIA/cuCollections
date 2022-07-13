@@ -30,10 +30,21 @@ __device__ __forceinline__ int32_t count_least_significant_bits(uint32_t x, int3
 }
 
 /**
- * @brief Converts `cuco::pair` to `thrust::tuple` to allow assigning to a zip iterator.
+ * @brief Converts pair to `thrust::tuple` to allow assigning to a zip iterator.
+ *
+ * @tparam Key The slot key type
+ * @tparam Value The slot value type
  */
 template <typename Key, typename Value>
 struct slot_to_tuple {
+  /**
+   * @brief Converts a pair to a `thrust::tuple`.
+   *
+   * @tparam S The slot type
+   *
+   * @param s The slot to convert
+   * @return A thrust::tuple containing `s.first` and `s.second`
+   */
   template <typename S>
   __device__ thrust::tuple<Key, Value> operator()(S const& s)
   {
@@ -43,10 +54,21 @@ struct slot_to_tuple {
 
 /**
  * @brief Device functor returning whether the input slot `s` is filled.
+ *
+ * @tparam Key The slot key type
  */
 template <typename Key>
 struct slot_is_filled {
-  Key empty_key_sentinel;
+  Key empty_key_sentinel;  ///< The value of the empty key sentinel
+
+  /**
+   * @brief Indicates if the target slot `s` is filled.
+   *
+   * @tparam S The slot type
+   *
+   * @param s The slot to query
+   * @return `true` if slot `s` is filled
+   */
   template <typename S>
   __device__ bool operator()(S const& s)
   {

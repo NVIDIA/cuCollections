@@ -137,22 +137,24 @@ class static_map {
                 "declared as safe for bitwise comparison via specialization of "
                 "cuco::is_bitwise_comparable_v<Value>.");
 
-  friend class dynamic_map<Key, Value, Scope, Allocator>;
+  friend class dynamic_map<Key, Value, Scope, Allocator>;  ///< Dynamic map as friend class
 
  public:
-  using value_type         = cuco::pair_type<Key, Value>;
-  using key_type           = Key;
-  using mapped_type        = Value;
-  using atomic_key_type    = cuda::atomic<key_type, Scope>;
-  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
-  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
-  using slot_type          = pair_atomic_type;
-  using atomic_ctr_type    = cuda::atomic<std::size_t, Scope>;
-  using allocator_type     = Allocator;
-  using slot_allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<pair_atomic_type>;
-  using counter_allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
+  using value_type         = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
+  using key_type           = Key;                               ///< Key type
+  using mapped_type        = Value;                             ///< Type of mapped values
+  using atomic_key_type    = cuda::atomic<key_type, Scope>;     ///< Type of atomic keys
+  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;  ///< Type of atomic mapped values
+  using pair_atomic_type =
+    cuco::pair_type<atomic_key_type,
+                    atomic_mapped_type>;  ///< Pair type of atomic key and atomic mapped value
+  using slot_type           = pair_atomic_type;                  ///< Type of hash map slots
+  using atomic_ctr_type     = cuda::atomic<std::size_t, Scope>;  ///< Atomic counter type
+  using allocator_type      = Allocator;                         ///< Allocator type
+  using slot_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+    pair_atomic_type>;  ///< Type of the allocator to (de)allocate slots
+  using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+    atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
 
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
   static_assert(atomic_key_type::is_always_lock_free,
@@ -168,7 +170,7 @@ class static_map {
   static_map& operator=(static_map&&) = delete;
 
   /**
-   * @brief Indicate if concurrent insert/find is supported for the key/value types.
+   * @brief Indicates if concurrent insert/find is supported for the key/value types.
    *
    * @return Boolean indicating if concurrent insert/find is supported.
    */
@@ -178,8 +180,7 @@ class static_map {
   }
 
   /**
-   * @brief Construct a fixed-size map with the specified capacity and sentinel values.
-   * @brief Construct a statically sized map with the specified number of slots
+   * @brief Constructs a statically sized map with the specified number of slots
    * and sentinel values.
    *
    * The capacity of the map is fixed. Insert operations will not automatically
@@ -213,6 +214,13 @@ class static_map {
    *
    * @throw std::runtime error if the empty key sentinel and erased key sentinel
    * are the same value
+   *
+   * @param capacity The total number of slots in the map
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param erased_key_sentinel The reserved value to denote erased slots
+   * @param alloc Allocator used for allocating device storage
+   * @param stream Stream used for executing the kernels
    */
   static_map(std::size_t capacity,
              sentinel::empty_key<Key> empty_key_sentinel,
@@ -265,7 +273,7 @@ class static_map {
    * @tparam StencilIt Device accessible random access iterator whose value_type is
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
-   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of key/value pairs
@@ -384,9 +392,9 @@ class static_map {
    *
    * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
    *
-   * Hash should be callable with both `std::iterator_traits<InputIt>::value_type` and Key type.
-   * `std::invoke_result<KeyEqual, std::iterator_traits<InputIt>::value_type, Key>` must be
-   * well-formed.
+   * Hash should be callable with both <tt>std::iterator_traits<InputIt>::value_type</tt> and Key
+   * type. <tt>std::invoke_result<KeyEqual, std::iterator_traits<InputIt>::value_type, Key></tt>
+   * must be well-formed.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator assignable from `bool`
@@ -743,15 +751,18 @@ class static_map {
    */
   class device_mutable_view : public device_view_base {
    public:
-    using value_type     = typename device_view_base::value_type;
-    using key_type       = typename device_view_base::key_type;
-    using mapped_type    = typename device_view_base::mapped_type;
-    using iterator       = typename device_view_base::iterator;
-    using const_iterator = typename device_view_base::const_iterator;
-    using slot_type      = typename device_view_base::slot_type;
+    using value_type  = typename device_view_base::value_type;   ///< Type of key/value pairs
+    using key_type    = typename device_view_base::key_type;     ///< Key type
+    using mapped_type = typename device_view_base::mapped_type;  ///< Type of the mapped values
+    using iterator =
+      typename device_view_base::iterator;  ///< Type of the forward iterator to `value_type`
+    using const_iterator =
+      typename device_view_base::const_iterator;  ///< Type of the forward iterator to `const
+                                                  ///< value_type`
+    using slot_type = typename device_view_base::slot_type;  ///< Type of hash map slots
 
     /**
-     * @brief Construct a mutable view of the first `capacity` slots of the
+     * @brief Constructs a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
      *
      * @param slots Pointer to beginning of initialized slots array
@@ -770,7 +781,7 @@ class static_map {
     }
 
     /**
-     * @brief Construct a mutable view of the first `capacity` slots of the
+     * @brief Constructs a mutable view of the first `capacity` slots of the
      * slots array pointed to by `slots`.
      *
      * @param slots Pointer to beginning of initialized slots array
@@ -852,9 +863,22 @@ class static_map {
                                                  Key expected_key) noexcept;
 
    public:
+    /**
+     * @brief Given a slot pointer `slots`, initializes the first `capacity` slots with the given
+     * sentinel values and returns a `device_mutable_view` object of those slots.
+     *
+     * @tparam CG The type of the cooperative thread group
+     *
+     * @param g The cooperative thread group used to copy the slots
+     * @param slots Pointer to the hash map slots
+     * @param capacity The total number of slots in the map
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     * @return A device_mutable_view object based on the given parameters
+     */
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
-      CG g,
+      CG const& g,
       pair_atomic_type* slots,
       std::size_t capacity,
       sentinel::empty_key<Key> empty_key_sentinel,
@@ -869,10 +893,23 @@ class static_map {
                                  sentinel::erased_key<Key>{empty_key_sentinel.value}};
     }
 
-    /* Features erase support */
+    /**
+     * @brief Given a slot pointer `slots`, initializes the first `capacity` slots with the given
+     * sentinel values and returns a `device_mutable_view` object of those slots.
+     *
+     * @tparam CG The type of the cooperative thread group
+     *
+     * @param g The cooperative thread group used to copy the slots
+     * @param slots Pointer to the hash map slots
+     * @param capacity The total number of slots in the map
+     * @param empty_key_sentinel The reserved value for keys to represent empty slots
+     * @param empty_value_sentinel The reserved value for mapped values to represent empty slots
+     * @param erased_key_sentinel The reserved value for keys to represent erased slots
+     * @return A device_mutable_view object based on the given parameters
+     */
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
-      CG g,
+      CG const& g,
       pair_atomic_type* slots,
       std::size_t capacity,
       sentinel::empty_key<Key> empty_key_sentinel,
@@ -991,12 +1028,15 @@ class static_map {
    */
   class device_view : public device_view_base {
    public:
-    using value_type     = typename device_view_base::value_type;
-    using key_type       = typename device_view_base::key_type;
-    using mapped_type    = typename device_view_base::mapped_type;
-    using iterator       = typename device_view_base::iterator;
-    using const_iterator = typename device_view_base::const_iterator;
-    using slot_type      = typename device_view_base::slot_type;
+    using value_type  = typename device_view_base::value_type;   ///< Type of key/value pairs
+    using key_type    = typename device_view_base::key_type;     ///< Key type
+    using mapped_type = typename device_view_base::mapped_type;  ///< Type of the mapped values
+    using iterator =
+      typename device_view_base::iterator;  ///< Type of the forward iterator to `value_type`
+    using const_iterator =
+      typename device_view_base::const_iterator;  ///< Type of the forward iterator to `const
+                                                  ///< value_type`
+    using slot_type = typename device_view_base::slot_type;  ///< Type of hash map slots
 
     /**
      * @brief Construct a view of the first `capacity` slots of the
