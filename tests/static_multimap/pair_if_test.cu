@@ -18,10 +18,15 @@
 
 #include <cuco/static_multimap.cuh>
 
-#include <catch2/catch.hpp>
-
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/transform.h>
+#include <thrust/tuple.h>
+
+#include <catch2/catch.hpp>
 
 // Custom pair equal
 template <typename Key, typename Value>
