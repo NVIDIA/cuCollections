@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,28 +14,33 @@
  * limitations under the License.
  */
 
-#include <limits>
+#include <cuco/static_multimap.cuh>
 
 #include <thrust/device_vector.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/pair.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 
-#include <cuco/static_multimap.cuh>
+#include <limits>
 
 int main(void)
 {
   using key_type   = int;
   using value_type = int;
 
-  int empty_key_sentinel   = -1;
-  int empty_value_sentinel = -1;
+  key_type empty_key_sentinel     = -1;
+  value_type empty_value_sentinel = -1;
 
   constexpr std::size_t N = 50'000;
 
   // Constructs a multimap with 100,000 slots using -1 and -1 as the empty key/value
   // sentinels. Note the capacity is chosen knowing we will insert 50,000 keys,
   // for an load factor of 50%.
-  cuco::static_multimap<key_type, value_type> map{N * 2, empty_key_sentinel, empty_value_sentinel};
+  cuco::static_multimap<key_type, value_type> map{
+    N * 2,
+    cuco::sentinel::empty_key{empty_key_sentinel},
+    cuco::sentinel::empty_value{empty_value_sentinel}};
 
   thrust::device_vector<thrust::pair<key_type, value_type>> pairs(N);
 

@@ -1,5 +1,5 @@
 ﻿#=============================================================================
-# Copyright (c) 2018-2021, NVIDIA CORPORATION.
+# Copyright (c) 2018-2022, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -46,7 +46,8 @@ function(ConfigureBench BENCH_NAME BENCH_SRC)
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/gbenchmarks")
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
-    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)
+    target_compile_options(${BENCH_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
+      --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         benchmark benchmark_main
                                         pthread

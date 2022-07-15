@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,15 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
+#include <cuco/detail/static_multimap/kernels.cuh>
 #include <cuco/detail/utils.cuh>
 
-namespace cuco {
+#include <thrust/tuple.h>
+#include <thrust/type_traits/is_contiguous_iterator.h>
 
+#include <cooperative_groups.h>
+
+namespace cuco {
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope,
@@ -66,13 +71,16 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * To be used for Cooperative Group based probing.
    *
-   * @tparam CG Cooperative Group type
+   * @tparam ProbeKey Probe key type
+   *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename CG>
-  __device__ __forceinline__ iterator initial_slot(CG const& g, Key const& k) noexcept
+  template <typename ProbeKey>
+  __device__ __forceinline__ iterator
+  initial_slot(cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+               ProbeKey const& k) noexcept
   {
     return probe_sequence_.initial_slot(g, k);
   }
@@ -82,13 +90,16 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * To be used for Cooperative Group based probing.
    *
-   * @tparam CG Cooperative Group type
+   * @tparam ProbeKey Probe key type
+   *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename CG>
-  __device__ __forceinline__ const_iterator initial_slot(CG g, Key const& k) const noexcept
+  template <typename ProbeKey>
+  __device__ __forceinline__ const_iterator
+  initial_slot(cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+               ProbeKey const& k) const noexcept
   {
     return probe_sequence_.initial_slot(g, k);
   }
@@ -128,7 +139,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @param current_slot The given slot to load from
    */
   __device__ __forceinline__ void load_pair_array(value_type* arr,
-                                                  const_iterator current_slot) noexcept
+                                                  const_iterator current_slot) const noexcept
   {
     if constexpr (sizeof(value_type) == 4) {
       auto const tmp = *reinterpret_cast<ushort4 const*>(current_slot);
@@ -556,29 +567,33 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   }
 
   /**
-   * @brief Indicates whether the key `k` exists in the map using vector loads.
+   * @brief Indicates whether the probe `element` exists in the map using vector loads.
    *
-   * If the key `k` was inserted into the map, `contains` returns
-   * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
-   * to leverage multiple threads to perform a single `contains` operation. This provides a
-   * significant boost in throughput compared to the non Cooperative Group based
-   * `contains` at moderate to high load factors.
+   * If `element` was inserted into the map, `contains` returns true. Otherwise, it returns false.
+   * Uses the CUDA Cooperative Groups API to leverage multiple threads to perform a single
+   * `contains` operation. This provides a significant boost in throughput compared to the non
+   * Cooperative Group based `contains` at moderate to high load factors.
    *
+   * @tparam is_pair_contains `true` if it's a `pair_contains` implementation
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
-   * @tparam CG Cooperative Group type
-   * @tparam KeyEqual Binary callable type
+   * @tparam ProbeT Probe data type
+   * @tparam Equal Binary callable type
+   *
    * @param g The Cooperative Group used to perform the contains operation
-   * @param k The key to search for
-   * @param key_equal The binary callable used to compare two keys
-   * for equality
-   * @return A boolean indicating whether the key/value pair
-   * containing `k` was inserted
+   * @param element The probe element to search for
+   * @param equal The binary function to compare input element and slot content for equality
+   * @return A boolean indicating whether the key/value pair represented by `element` was inserted
    */
-  template <bool uses_vector_load, typename CG, typename KeyEqual>
+  template <bool is_pair_contains, bool uses_vector_load, typename ProbeT, typename Equal>
   __device__ __forceinline__ std::enable_if_t<uses_vector_load, bool> contains(
-    CG g, Key const& k, KeyEqual key_equal) noexcept
+    cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+    ProbeT const& element,
+    Equal equal) const noexcept
   {
-    auto current_slot = initial_slot(g, k);
+    auto current_slot = [&]() {
+      if constexpr (is_pair_contains) { return initial_slot(g, element.first); }
+      if constexpr (not is_pair_contains) { return initial_slot(g, element); }
+    }();
 
     while (true) {
       value_type arr[2];
@@ -588,8 +603,22 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
         detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel());
       auto const second_slot_is_empty =
         detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel());
-      auto const first_equals  = (not first_slot_is_empty and key_equal(arr[0].first, k));
-      auto const second_equals = (not second_slot_is_empty and key_equal(arr[1].first, k));
+      auto const first_equals = [&]() {
+        if constexpr (is_pair_contains) {
+          return not first_slot_is_empty and equal(arr[0], element);
+        }
+        if constexpr (not is_pair_contains) {
+          return not first_slot_is_empty and equal(arr[0].first, element);
+        }
+      }();
+      auto const second_equals = [&]() {
+        if constexpr (is_pair_contains) {
+          return not second_slot_is_empty and equal(arr[1], element);
+        }
+        if constexpr (not is_pair_contains) {
+          return not second_slot_is_empty and equal(arr[1].first, element);
+        }
+      }();
 
       // the key we were searching for was found by one of the threads, so we return true
       if (g.any(first_equals or second_equals)) { return true; }
@@ -604,29 +633,33 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   }
 
   /**
-   * @brief Indicates whether the key `k` exists in the map using scalar loads.
+   * @brief Indicates whether `element` exists in the map using scalar loads.
    *
-   * If the key `k` was inserted into the map, `contains` returns
-   * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
-   * to leverage multiple threads to perform a single `contains` operation. This provides a
-   * significant boost in throughput compared to the non Cooperative Group
-   * `contains` at moderate to high load factors.
+   * If `element` was inserted into the map, `contains` returns true. Otherwise, it returns false.
+   * Uses the CUDA Cooperative Groups API to leverage multiple threads to perform a single
+   * `contains` operation. This provides a significant boost in throughput compared to the non
+   * Cooperative Group `contains` at moderate to high load factors.
    *
+   * @tparam is_pair_contains `true` if it's a `pair_contains` implementation
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
-   * @tparam CG Cooperative Group type
-   * @tparam KeyEqual Binary callable type
+   * @tparam ProbeT Probe data type
+   * @tparam Equal Binary callable type
+   *
    * @param g The Cooperative Group used to perform the contains operation
-   * @param k The key to search for
-   * @param key_equal The binary callable used to compare two keys
-   * for equality
-   * @return A boolean indicating whether the key/value pair
-   * containing `k` was inserted
+   * @param element The probe element to search for
+   * @param equal The binary function to compare input element and slot content for equality
+   * @return A boolean indicating whether the key/value pair represented by `element` was inserted
    */
-  template <bool uses_vector_load, typename CG, typename KeyEqual>
+  template <bool is_pair_contains, bool uses_vector_load, typename ProbeT, typename Equal>
   __device__ __forceinline__ std::enable_if_t<not uses_vector_load, bool> contains(
-    CG g, Key const& k, KeyEqual key_equal) noexcept
+    cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+    ProbeT const& element,
+    Equal equal) const noexcept
   {
-    auto current_slot = initial_slot(g, k);
+    auto current_slot = [&]() {
+      if constexpr (is_pair_contains) { return initial_slot(g, element.first); }
+      if constexpr (not is_pair_contains) { return initial_slot(g, element); }
+    }();
 
     while (true) {
       value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
@@ -637,7 +670,14 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       auto const slot_is_empty =
         detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
-      auto const equals = (not slot_is_empty and key_equal(existing_key, k));
+      auto const equals = [&]() {
+        if constexpr (is_pair_contains) {
+          return not slot_is_empty and equal(slot_contents, element);
+        }
+        if constexpr (not is_pair_contains) {
+          return not slot_is_empty and equal(existing_key, element);
+        }
+      }();
 
       // the key we were searching for was found by one of the threads, so we return true
       if (g.any(equals)) { return true; }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuda_runtime_api.h>
+
 #include <stdexcept>
 #include <string>
 
@@ -26,7 +27,17 @@ namespace cuco {
  *
  */
 struct cuda_error : public std::runtime_error {
+  /**
+   * @brief Constructs a `cuda_error` object with the given `message`.
+   *
+   * @param message The error char array used to construct `cuda_error`
+   */
   cuda_error(const char* message) : std::runtime_error(message) {}
+  /**
+   * @brief Constructs a `cuda_error` object with the given `message` string.
+   *
+   * @param message The `std::string` used to construct `cuda_error`
+   */
   cuda_error(std::string const& message) : cuda_error{message.c_str()} {}
 };
 }  // namespace cuco
@@ -80,3 +91,23 @@ struct cuda_error : public std::runtime_error {
     cudaError_t const status = (expr); \
     assert(cudaSuccess == status);     \
   } while (0)
+
+/**
+ * @brief Macro for checking runtime conditions that throws an exception when
+ * a condition is violated.
+ *
+ * Example usage:
+ *
+ * @code
+ * CUCO_RUNTIME_EXPECTS(key == value, "Key value mismatch");
+ * @endcode
+ *
+ * @param[in] cond Expression that evaluates to true or false
+ * @param[in] reason String literal description of the reason that cond is
+ * expected to be true
+ * @throw std::runtime_error if the condition evaluates to false.
+ */
+#define CUCO_RUNTIME_EXPECTS(cond, reason)                           \
+  (!!(cond)) ? static_cast<void>(0)                                  \
+             : throw std::runtime_error("cuco failure at: " __FILE__ \
+                                        ":" CUCO_STRINGIFY(__LINE__) ": " reason)

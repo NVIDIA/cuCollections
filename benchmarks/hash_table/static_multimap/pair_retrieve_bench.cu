@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,18 @@
  * limitations under the License.
  */
 
-#include <random>
-
-#include <nvbench/nvbench.cuh>
-#include <thrust/device_vector.h>
-#include <thrust/iterator/discard_iterator.h>
+#include <key_generator.hpp>
 
 #include <cuco/static_multimap.cuh>
-#include <key_generator.hpp>
+
+#include <nvbench/nvbench.cuh>
+
+#include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/iterator/discard_iterator.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/transform.h>
+#include <thrust/tuple.h>
 
 namespace {
 // Custom pair equal
@@ -66,7 +70,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_p
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
   auto const pair_begin = d_pairs.begin();
 
-  cuco::static_multimap<Key, Value> map{size, -1, -1};
+  cuco::static_multimap<Key, Value> map{
+    size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
   map.insert(pair_begin, pair_begin + num_input);
 
   generate_probe_keys<Key>(matching_rate, h_keys.begin(), h_keys.end());

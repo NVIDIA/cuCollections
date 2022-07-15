@@ -15,10 +15,14 @@
  */
 
 #include <cuco/detail/utils.cuh>
+#include <cuco/detail/utils.hpp>
 
 #include <thrust/count.h>
+#include <thrust/execution_policy.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/tuple.h>
+
+#include <iterator>
 
 namespace cuco {
 
@@ -29,14 +33,14 @@ template <typename Key,
           class ProbeSequence>
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
   std::size_t capacity,
-  Key empty_key_sentinel,
-  Value empty_value_sentinel,
+  sentinel::empty_key<Key> empty_key_sentinel,
+  sentinel::empty_value<Value> empty_value_sentinel,
   cudaStream_t stream,
   Allocator const& alloc)
   : capacity_{cuco::detail::get_valid_capacity<cg_size(), vector_width(), uses_vector_load()>(
       capacity)},
-    empty_key_sentinel_{empty_key_sentinel},
-    empty_value_sentinel_{empty_value_sentinel},
+    empty_key_sentinel_{empty_key_sentinel.value},
+    empty_value_sentinel_{empty_value_sentinel.value},
     counter_allocator_{alloc},
     slot_allocator_{alloc},
     delete_counter_{counter_allocator_},
@@ -49,7 +53,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
   auto const grid_size      = (get_capacity() + stride * block_size - 1) / (stride * block_size);
 
   detail::initialize<atomic_key_type, atomic_mapped_type><<<grid_size, block_size, 0, stream>>>(
-    slots_.get(), empty_key_sentinel, empty_value_sentinel, get_capacity());
+    slots_.get(), empty_key_sentinel_, empty_value_sentinel_, get_capacity());
 }
 
 template <typename Key,
@@ -62,12 +66,13 @@ void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::insert(InputI
                                                                           InputIt last,
                                                                           cudaStream_t stream)
 {
-  auto num_keys = std::distance(first, last);
-  auto view     = get_device_mutable_view();
+  auto const num_keys = std::distance(first, last);
+  if (num_keys == 0) { return; }
 
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_mutable_view();
 
   detail::insert<block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, first + num_keys, view);
@@ -83,16 +88,16 @@ template <typename InputIt, typename StencilIt, typename Predicate>
 void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::insert_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream)
 {
-  auto num_elements = std::distance(first, last);
-  auto view         = get_device_mutable_view();
+  auto const num_keys = std::distance(first, last);
+  if (num_keys == 0) { return; }
 
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
-  auto const grid_size =
-    (cg_size() * num_elements + stride * block_size - 1) / (stride * block_size);
+  auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_mutable_view();
 
   detail::insert_if_n<block_size, cg_size()>
-    <<<grid_size, block_size, 0, stream>>>(first, stencil, num_elements, view, pred);
+    <<<grid_size, block_size, 0, stream>>>(first, stencil, num_keys, view, pred);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 
@@ -103,17 +108,43 @@ template <typename Key,
           class ProbeSequence>
 template <typename InputIt, typename OutputIt, typename KeyEqual>
 void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
+  InputIt first, InputIt last, OutputIt output_begin, KeyEqual key_equal, cudaStream_t stream) const
 {
-  auto num_keys = std::distance(first, last);
-  auto view     = get_device_view();
+  auto const num_keys = std::distance(first, last);
+  if (num_keys == 0) { return; }
 
-  auto constexpr block_size = 128;
-  auto constexpr stride     = 1;
+  auto constexpr is_pair_contains = false;
+  auto constexpr block_size       = 128;
+  auto constexpr stride           = 1;
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_view();
 
-  detail::contains<block_size, cg_size()>
+  detail::contains<is_pair_contains, block_size, cg_size()>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, key_equal);
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
+template <typename InputIt, typename OutputIt, typename PairEqual>
+void static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_contains(
+  InputIt first, InputIt last, OutputIt output_begin, PairEqual pair_equal, cudaStream_t stream)
+  const
+{
+  auto const num_pairs = std::distance(first, last);
+  if (num_pairs == 0) { return; }
+
+  auto constexpr is_pair_contains = true;
+  auto constexpr block_size       = 128;
+  auto constexpr stride           = 1;
+  auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_view();
+
+  detail::contains<is_pair_contains, block_size, cg_size()>
+    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, pair_equal);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 }
 
@@ -126,13 +157,14 @@ template <typename InputIt, typename KeyEqual>
 std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::count(
   InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal) const
 {
-  auto num_keys = std::distance(first, last);
-  auto view     = get_device_view();
+  auto const num_keys = std::distance(first, last);
+  if (num_keys == 0) { return 0; }
 
   auto constexpr is_outer   = false;
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
 
+  auto view            = get_device_view();
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
@@ -156,13 +188,14 @@ template <typename InputIt, typename KeyEqual>
 std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::count_outer(
   InputIt first, InputIt last, cudaStream_t stream, KeyEqual key_equal) const
 {
-  auto num_keys = std::distance(first, last);
-  auto view     = get_device_view();
+  auto const num_keys = std::distance(first, last);
+  if (num_keys == 0) { return 0; }
 
   auto constexpr is_outer   = true;
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
 
+  auto view            = get_device_view();
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
@@ -186,13 +219,14 @@ template <typename InputIt, typename PairEqual>
 std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_count(
   InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream) const
 {
-  auto num_keys = std::distance(first, last);
-  auto view     = get_device_view();
+  auto const num_keys = std::distance(first, last);
+  if (num_keys == 0) { return 0; }
 
-  bool constexpr is_outer = false;
-
+  auto constexpr is_outer   = false;
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
+
+  auto view            = get_device_view();
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
@@ -250,13 +284,14 @@ template <typename InputIt, typename PairEqual>
 std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_count_outer(
   InputIt first, InputIt last, PairEqual pair_equal, cudaStream_t stream) const
 {
-  auto num_keys = std::distance(first, last);
-  auto view     = get_device_view();
+  auto const num_keys = std::distance(first, last);
+  if (num_keys == 0) { return 0; }
 
-  bool constexpr is_outer = true;
-
+  auto constexpr is_outer   = true;
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
+
+  auto view            = get_device_view();
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
@@ -280,14 +315,15 @@ template <typename InputIt, typename OutputIt, typename KeyEqual>
 OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
 {
-  auto num_keys = std::distance(first, last);
-  auto view     = get_device_view();
+  auto const num_keys = std::distance(first, last);
+  if (num_keys == 0) { return output_begin; }
 
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
   constexpr auto block_size  = 128;
   constexpr auto is_outer    = false;
 
+  auto view                   = get_device_view();
   auto const flushing_cg_size = [&]() {
     if constexpr (uses_vector_load()) { return warp_size(); }
     return cg_size();
@@ -329,14 +365,15 @@ template <typename InputIt, typename OutputIt, typename KeyEqual>
 OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve_outer(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, KeyEqual key_equal) const
 {
-  auto num_keys = std::distance(first, last);
-  auto view     = get_device_view();
+  auto const num_keys = std::distance(first, last);
+  if (num_keys == 0) { return output_begin; }
 
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
   constexpr auto block_size  = 128;
   constexpr auto is_outer    = true;
 
+  auto view                   = get_device_view();
   auto const flushing_cg_size = [&]() {
     if constexpr (uses_vector_load()) { return warp_size(); }
     return cg_size();
@@ -384,8 +421,8 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve(
   PairEqual pair_equal,
   cudaStream_t stream) const
 {
-  auto num_pairs = std::distance(first, last);
-  auto view      = get_device_view();
+  auto const num_pairs = std::distance(first, last);
+  if (num_pairs == 0) { return std::make_pair(probe_output_begin, contained_output_begin); }
 
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
@@ -393,11 +430,11 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve(
   constexpr auto is_outer    = false;
   constexpr auto stride      = 1;
 
+  auto view                   = get_device_view();
   auto const flushing_cg_size = [&]() {
     if constexpr (uses_vector_load()) { return warp_size(); }
     return cg_size();
   }();
-
   auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
@@ -487,8 +524,8 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve_oute
   PairEqual pair_equal,
   cudaStream_t stream) const
 {
-  auto num_pairs = std::distance(first, last);
-  auto view      = get_device_view();
+  auto const num_pairs = std::distance(first, last);
+  if (num_pairs == 0) { return std::make_pair(probe_output_begin, contained_output_begin); }
 
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
@@ -496,11 +533,11 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve_oute
   constexpr auto is_outer    = true;
   constexpr auto stride      = 1;
 
+  auto view                   = get_device_view();
   auto const flushing_cg_size = [&]() {
     if constexpr (uses_vector_load()) { return warp_size(); }
     return cg_size();
   }();
-
   auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
 
   cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
@@ -616,14 +653,31 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename Allocator,
           class ProbeSequence>
-template <typename KeyEqual>
+template <typename ProbeKey, typename KeyEqual>
 __device__ __forceinline__ bool
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::contains(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
-  Key const& k,
-  KeyEqual key_equal) noexcept
+  ProbeKey const& k,
+  KeyEqual key_equal) const noexcept
 {
-  return impl_.contains<uses_vector_load()>(g, k, key_equal);
+  constexpr bool is_pair_contains = false;
+  return impl_.contains<is_pair_contains, uses_vector_load()>(g, k, key_equal);
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
+template <typename ProbePair, typename PairEqual>
+__device__ __forceinline__ bool
+static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_contains(
+  cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+  ProbePair const& p,
+  PairEqual pair_equal) const noexcept
+{
+  constexpr bool is_pair_contains = true;
+  return impl_.contains<is_pair_contains, uses_vector_load()>(g, p, pair_equal);
 }
 
 template <typename Key,
@@ -934,11 +988,16 @@ template <typename Key,
 std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::get_size(
   cudaStream_t stream) const noexcept
 {
+<<<<<<< HEAD
   auto begin = thrust::make_transform_iterator(
     raw_slots(), [] __device__(cuco::pair_type<Key, Value> const& pair) { return pair.first; });
   cuco::detail::slot_is_filled<Key> filled(empty_key_sentinel_);
+=======
+  auto begin  = thrust::make_transform_iterator(raw_slots(), detail::slot_to_tuple<Key, Value>{});
+  auto filled = cuco::detail::slot_is_filled<Key>{get_empty_key_sentinel()};
+>>>>>>> upstream/dev
 
-  return thrust::count_if(thrust::cuda::par.on(stream), begin, begin + capacity_, filled);
+  return thrust::count_if(thrust::cuda::par.on(stream), begin, begin + get_capacity(), filled);
 }
 
 template <typename Key,

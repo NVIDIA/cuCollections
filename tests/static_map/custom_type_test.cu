@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,20 @@
  * limitations under the License.
  */
 
-#include <catch2/catch.hpp>
-#include <thrust/device_vector.h>
+#include <utils.hpp>
 
 #include <cuco/static_map.cuh>
 
-#include <utils.hpp>
+#include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
+#include <thrust/transform.h>
+
+#include <catch2/catch.hpp>
+
+#include <tuple>
 
 // User-defined key type
 template <typename T>
@@ -76,16 +84,16 @@ struct hash_custom_key {
   template <typename custom_type>
   __device__ uint32_t operator()(custom_type k)
   {
-    return k.a;
+    return thrust::raw_reference_cast(k).a;
   };
 };
 
 // User-defined device key equality
 struct custom_key_equals {
-  template <typename custom_type>
-  __device__ bool operator()(custom_type lhs, custom_type rhs)
+  template <typename lhs_type, typename rhs_type>
+  __device__ bool operator()(lhs_type lhs, rhs_type rhs)
   {
-    return std::tie(lhs.a, lhs.b) == std::tie(rhs.a, rhs.b);
+    return lhs == static_cast<lhs_type>(rhs);
   }
 };
 
@@ -104,7 +112,9 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
   constexpr std::size_t num      = 100;
   constexpr std::size_t capacity = num * 2;
-  cuco::static_map<Key, Value> map{capacity, sentinel_key, sentinel_value};
+  cuco::static_map<Key, Value> map{capacity,
+                                   cuco::sentinel::empty_key<Key>{sentinel_key},
+                                   cuco::sentinel::empty_value<Value>{sentinel_value}};
 
   thrust::device_vector<Key> insert_keys(num);
   thrust::device_vector<Value> insert_values(num);
@@ -155,8 +165,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                  contained.begin(),
                  hash_custom_key{},
                  custom_key_equals{});
-    REQUIRE(cuco::test::all_of(
-      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("All conditionally inserted keys-value pairs should be contained")
@@ -194,8 +203,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                  contained.begin(),
                  hash_custom_key{},
                  custom_key_equals{});
-    REQUIRE(cuco::test::none_of(
-      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("All inserted keys-value pairs should be contained")

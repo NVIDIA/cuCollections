@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
-#include <catch2/catch.hpp>
-#include <thrust/device_vector.h>
+#include <utils.hpp>
 
 #include <cuco/static_map.cuh>
 
-#include <utils.hpp>
+#include <thrust/device_vector.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
+
+#include <catch2/catch.hpp>
 
 #define SIZE 10
 __device__ int A[SIZE];
@@ -36,7 +39,8 @@ TEMPLATE_TEST_CASE_SIG(
   using Value = T;
 
   constexpr std::size_t num_keys{SIZE};
-  cuco::static_map<Key, Value> map{SIZE * 2, -1, -1};
+  cuco::static_map<Key, Value> map{
+    SIZE * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();

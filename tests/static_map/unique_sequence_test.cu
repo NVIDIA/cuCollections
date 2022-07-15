@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2021, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,21 @@
  * limitations under the License.
  */
 
-#include <catch2/catch.hpp>
-#include <thrust/device_vector.h>
+#include <utils.hpp>
 
 #include <cuco/static_map.cuh>
 
-#include <utils.hpp>
+#include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/for_each.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/sequence.h>
+#include <thrust/tuple.h>
+
+#include <catch2/catch.hpp>
 
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        "",
@@ -30,7 +39,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        (int64_t, int64_t))
 {
   constexpr std::size_t num_keys{500'000};
-  cuco::static_map<Key, Value> map{1'000'000, -1, -1};
+  cuco::static_map<Key, Value> map{
+    1'000'000, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();
@@ -65,16 +75,14 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     map.insert(pairs_begin, pairs_begin + num_keys);
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
-    REQUIRE(cuco::test::all_of(
-      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
-    REQUIRE(cuco::test::none_of(
-      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
 
   SECTION("Inserting unique keys should return insert success.")

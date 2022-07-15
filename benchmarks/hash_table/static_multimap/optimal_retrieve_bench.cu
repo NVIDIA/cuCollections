@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
+#include <cuco/static_multimap.cuh>
+
 #include <nvbench/nvbench.cuh>
 
-#include <random>
 #include <thrust/device_vector.h>
-
-#include "cuco/static_multimap.cuh"
 
 /**
  * @brief Generates input keys by a given number of repetitions per key.
@@ -79,7 +78,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_retrieve(
                         cuco::double_hashing<CGSize,
                                              cuco::detail::MurmurHash3_32<Key>,
                                              cuco::detail::MurmurHash3_32<Key>>>
-    map{size, -1, -1};
+    map{size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
   map.insert(d_pairs.begin(), d_pairs.end());
 
   auto const output_size = map.count_outer(d_keys.begin(), d_keys.end());

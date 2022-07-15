@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
-#include <catch2/catch.hpp>
-#include <thrust/device_vector.h>
+#include <utils.hpp>
 
 #include <cuco/static_multimap.cuh>
 
-#include <utils.hpp>
+#include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/sequence.h>
+#include <thrust/transform.h>
+
+#include <catch2/catch.hpp>
 
 template <typename Key, typename Map, typename PairIt, typename KeyIt>
 __inline__ void test_insert_if(Map& map, PairIt pair_begin, KeyIt key_begin, std::size_t size)
@@ -68,11 +73,12 @@ TEMPLATE_TEST_CASE_SIG(
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
                           cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
-      map{num_keys * 2, -1, -1};
+      map{num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     test_insert_if<Key>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }
   if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{num_keys * 2, -1, -1};
+    cuco::static_multimap<Key, Value> map{
+      num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     test_insert_if<Key>(map, d_pairs.begin(), d_keys.begin(), num_keys);
   }
 }

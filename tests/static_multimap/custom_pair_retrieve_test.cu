@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,23 @@
  * limitations under the License.
  */
 
-#include <catch2/catch.hpp>
-#include <thrust/device_vector.h>
-#include <thrust/iterator/discard_iterator.h>
+#include <utils.hpp>
 
 #include <cuco/static_multimap.cuh>
 
-#include <utils.hpp>
+#include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/discard_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
+#include <thrust/scan.h>
+#include <thrust/sort.h>
+#include <thrust/transform.h>
+
+#include <catch2/catch.hpp>
+
+#include <cooperative_groups.h>
 
 // Custom pair equal
 template <typename Key, typename Value>
@@ -192,11 +202,13 @@ TEMPLATE_TEST_CASE_SIG(
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
                           cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
-      map{num_pairs * 2, -1, -1};
+      map{
+        num_pairs * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     test_non_shmem_pair_retrieve(map, num_pairs);
   }
   if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{num_pairs * 2, -1, -1};
+    cuco::static_multimap<Key, Value> map{
+      num_pairs * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     test_non_shmem_pair_retrieve(map, num_pairs);
   }
 }

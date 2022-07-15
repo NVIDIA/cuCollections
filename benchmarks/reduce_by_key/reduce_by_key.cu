@@ -17,6 +17,9 @@
 #include <benchmark/benchmark.h>
 
 #include <thrust/device_vector.h>
+#include <thrust/distance.h>
+#include <thrust/execution_policy.h>
+#include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/iterator_traits.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/pair.h>

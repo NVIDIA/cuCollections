@@ -16,6 +16,16 @@ repos:
                 files: \.(cu|cuh|h|hpp|cpp|inl)$
                 'types_or': [file]
                 args: ['-fallback-style=none', '-style=file', '-i']
+      - repo: local
+        hooks:
+              - id: doxygen-check
+                name: doxygen-check
+                entry: ./ci/checks/doxygen.sh
+                files: ^include/
+                types_or: [file]
+                language: system
+                pass_filenames: false
+                verbose: true
 
 default_language_version:
       python: python3

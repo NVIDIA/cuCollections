@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,20 @@
  * limitations under the License.
  */
 
-#include <catch2/catch.hpp>
-#include <thrust/device_vector.h>
+#include <utils.hpp>
 
 #include <cuco/static_multimap.cuh>
 
-#include <utils.hpp>
+#include <thrust/device_vector.h>
+#include <thrust/distance.h>
+#include <thrust/execution_policy.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/sequence.h>
+#include <thrust/sort.h>
+#include <thrust/transform.h>
+
+#include <catch2/catch.hpp>
 
 template <typename Map>
 __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
@@ -54,8 +62,7 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
     REQUIRE(size == 0);
 
     map.contains(key_begin, key_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::none_of(
-      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
 
   map.insert(pair_begin, pair_begin + num_items);
@@ -67,8 +74,7 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
 
     map.contains(key_begin, key_begin + num_keys, d_contained.begin());
 
-    REQUIRE(cuco::test::all_of(
-      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
 
   SECTION("Total count should be equal to the number of inserted pairs.")
@@ -78,9 +84,9 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
 
     REQUIRE(num == num_items);
 
-    auto output_begin = result_begin;
-    auto output_end   = map.retrieve(key_begin, key_begin + num_keys, output_begin);
-    auto size         = thrust::distance(output_begin, output_end);
+    auto output_begin      = result_begin;
+    auto output_end        = map.retrieve(key_begin, key_begin + num_keys, output_begin);
+    std::size_t const size = thrust::distance(output_begin, output_end);
 
     REQUIRE(size == num_items);
 
@@ -161,11 +167,12 @@ TEMPLATE_TEST_CASE_SIG(
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
                           cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
-      map{5, -1, -1};
+      map{5, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     test_multiplicity_two(map, num_items);
   }
   if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{5, -1, -1};
+    cuco::static_multimap<Key, Value> map{
+      5, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
     test_multiplicity_two(map, num_items);
   }
 }

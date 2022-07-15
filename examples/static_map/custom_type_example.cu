@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
+#include <cuco/static_map.cuh>
+
 #include <thrust/device_vector.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 #include <thrust/logical.h>
 #include <thrust/transform.h>
-
-#include <cuco/static_map.cuh>
 
 // User-defined key type
 #ifdef CUCO_NO_INDEPENDENT_THREADS
@@ -91,7 +93,9 @@ int main(void)
   // Construct a map with 100,000 slots using the given empty key/value sentinels. Note the
   // capacity is chosen knowing we will insert 80,000 keys, for an load factor of 80%.
   cuco::static_map<custom_key_type, custom_value_type> map{
-    100'000, empty_key_sentinel, empty_value_sentinel};
+    100'000,
+    cuco::sentinel::empty_key{empty_key_sentinel},
+    cuco::sentinel::empty_value{empty_value_sentinel}};
 
   // Inserts 80,000 pairs into the map by using the custom hasher and custom equality callable
   map.insert(pairs_begin, pairs_begin + num_pairs, custom_hash{}, custom_key_equals{});

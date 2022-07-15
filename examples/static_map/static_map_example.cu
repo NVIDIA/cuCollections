@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
-#include <limits>
+#include <cuco/static_map.cuh>
 
 #include <thrust/device_vector.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/pair.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 
-#include <cuco/static_map.cuh>
+#include <limits>
 
 int main(void)
 {
@@ -32,8 +35,11 @@ int main(void)
   // for an load factor of 50%.
   cudaStream_t str;
   cudaStreamCreate(&str);
-  cuco::static_map<int, int> map{
-    100'000, empty_key_sentinel, empty_value_sentinel, cuco::cuda_allocator<char>{}, str};
+  cuco::static_map<int, int> map{100'000,
+                                 cuco::sentinel::empty_key{empty_key_sentinel},
+                                 cuco::sentinel::empty_value{empty_value_sentinel},
+                                 cuco::cuda_allocator<char>{},
+                                 str};
 
   thrust::device_vector<thrust::pair<int, int>> pairs(50'000);
 

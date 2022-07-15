@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,20 @@
  * limitations under the License.
  */
 
-#include <catch2/catch.hpp>
-#include <thrust/device_vector.h>
+#include <utils.hpp>
 
 #include <cuco/static_map.cuh>
 
-#include <utils.hpp>
+#include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/sequence.h>
+#include <thrust/tuple.h>
+
+#include <catch2/catch.hpp>
 
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
                        "",
@@ -33,10 +41,11 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
   cudaStreamCreate(&stream);
 
   constexpr std::size_t num_keys{500'000};
-  cuco::static_map<Key, Value> map{1'000'000, -1, -1, cuco::cuda_allocator<char>{}, stream};
-
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
+  cuco::static_map<Key, Value> map{1'000'000,
+                                   cuco::sentinel::empty_key<Key>{-1},
+                                   cuco::sentinel::empty_value<Value>{-1},
+                                   cuco::cuda_allocator<char>{},
+                                   stream};
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
@@ -75,8 +84,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
     map.insert(pairs_begin, pairs_begin + num_keys, hash_fn, equal_fn, stream);
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), hash_fn, equal_fn, stream);
 
-    REQUIRE(cuco::test::all_of(
-      d_contained.begin(), d_contained.end(), [] __device__(bool const& b) { return b; }, stream));
+    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}, stream));
   }
 
   cudaStreamDestroy(stream);

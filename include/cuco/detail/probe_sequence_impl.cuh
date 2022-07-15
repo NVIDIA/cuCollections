@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,14 @@
 
 #pragma once
 
-#include <cuda/std/atomic>
-
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
+
+#include <cuda/std/atomic>
+
+#include <cooperative_groups.h>
+
+#include <utility>
 
 namespace cuco {
 namespace detail {
@@ -39,11 +43,13 @@ class probe_sequence_base {
 
   /**
    * @brief Returns the number of elements loaded with each vector load.
+   *
+   * @return The number of elements loaded with each vector load
    */
   static constexpr uint32_t vector_width() noexcept { return 2u; }
 };
 
-/*
+/**
  * @brief Base class of probe sequence implementation.
  *
  * Hash map operations are generally memory-bandwidth bound. A vector-load loads two consecutive
@@ -66,14 +72,17 @@ template <typename Key,
           uint32_t CGSize>
 class probe_sequence_impl_base {
  protected:
-  using value_type         = cuco::pair_type<Key, Value>;
-  using key_type           = Key;
-  using mapped_type        = Value;
-  using atomic_key_type    = cuda::atomic<key_type, Scope>;
-  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;
-  using pair_atomic_type   = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
-  using iterator           = pair_atomic_type*;
-  using const_iterator     = pair_atomic_type const*;
+  using value_type         = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
+  using key_type           = Key;                               ///< Key type
+  using mapped_type        = Value;                             ///< Type of mapped values
+  using atomic_key_type    = cuda::atomic<key_type, Scope>;     ///< Type of atomic keys
+  using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;  ///< Type of atomic mapped values
+  /// Pair type of atomic key and atomic mapped value
+  using pair_atomic_type = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  /// Type of the forward iterator to `pair_atomic_type`
+  using iterator = pair_atomic_type*;
+  /// Type of the forward iterator to `const pair_atomic_type`
+  using const_iterator = pair_atomic_type const*;
 
   /**
    * @brief Returns the number of elements loaded with each vector-load.
@@ -111,6 +120,8 @@ class probe_sequence_impl_base {
  public:
   /**
    * @brief Returns the capacity of the hash map.
+   *
+   * @return The capacity of the hash map
    */
   __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
   {
@@ -119,11 +130,15 @@ class probe_sequence_impl_base {
 
   /**
    * @brief Returns slots array.
+   *
+   * @return Slots array
    */
   __device__ __forceinline__ iterator get_slots() noexcept { return slots_; }
 
   /**
    * @brief Returns slots array.
+   *
+   * @return Slots array
    */
   __device__ __forceinline__ const_iterator get_slots() const noexcept { return slots_; }
 
@@ -186,13 +201,33 @@ class linear_probing_impl
    *
    * If vector-load is enabled, the return slot is always even to avoid illegal memory access.
    *
-   * @tparam CG CUDA Cooperative Groups type
+   * @tparam ProbeKey Probe key type
+   *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename CG>
-  __device__ __forceinline__ iterator initial_slot(CG const& g, Key const k) noexcept
+  template <typename ProbeKey>
+  __device__ __forceinline__ iterator
+  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
+  {
+    return const_cast<iterator>(std::as_const(*this).initial_slot(g, k));
+  }
+
+  /**
+   * @brief Returns the initial slot for a given key `k`.
+   *
+   * If vector-load is enabled, the return slot is always even to avoid illegal memory access.
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param g the Cooperative Group for which the initial slot is needed
+   * @param k The key to get the slot for
+   * @return Pointer to the initial slot for `k`
+   */
+  template <typename ProbeKey>
+  __device__ __forceinline__ const_iterator initial_slot(
+    cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) const noexcept
   {
     auto const hash_value = [&]() {
       auto const tmp = hash_(k);
@@ -222,6 +257,19 @@ class linear_probing_impl
    * @return The next slot after `s`
    */
   __device__ __forceinline__ iterator next_slot(iterator s) noexcept
+  {
+    return const_cast<iterator>(std::as_const(*this).next_slot(s));
+  }
+
+  /**
+   * @brief Given a slot `s`, returns the next slot.
+   *
+   * If `s` is the last slot, wraps back around to the first slot.
+   *
+   * @param s The slot to advance
+   * @return The next slot after `s`
+   */
+  __device__ __forceinline__ const_iterator next_slot(const_iterator s) const noexcept
   {
     std::size_t index = s - slots_;
     std::size_t offset;
@@ -307,13 +355,34 @@ class double_hashing_impl
    * If vector-load is enabled, the return slot is always a multiple of (`cg_size` * `vector_width`)
    * to avoid illegal memory access.
    *
-   * @tparam CG CUDA Cooperative Groups type
+   * @tparam ProbeKey Probe key type
+   *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename CG>
-  __device__ __forceinline__ iterator initial_slot(CG const& g, Key const k) noexcept
+  template <typename ProbeKey>
+  __device__ __forceinline__ iterator
+  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
+  {
+    return const_cast<iterator>(std::as_const(*this).initial_slot(g, k));
+  }
+
+  /**
+   * @brief Returns the initial slot for a given key `k`.
+   *
+   * If vector-load is enabled, the return slot is always a multiple of (`cg_size` * `vector_width`)
+   * to avoid illegal memory access.
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param g the Cooperative Group for which the initial slot is needed
+   * @param k The key to get the slot for
+   * @return Pointer to the initial slot for `k`
+   */
+  template <typename ProbeKey>
+  __device__ __forceinline__ const_iterator initial_slot(
+    cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) const noexcept
   {
     std::size_t index;
     auto const hash_value = hash1_(k);
@@ -341,15 +410,28 @@ class double_hashing_impl
    */
   __device__ __forceinline__ iterator next_slot(iterator s) noexcept
   {
+    return const_cast<iterator>(std::as_const(*this).next_slot(s));
+  }
+
+  /**
+   * @brief Given a slot `s`, returns the next slot.
+   *
+   * If `s` is the last slot, wraps back around to the first slot.
+   *
+   * @param s The slot to advance
+   * @return The next slot after `s`
+   */
+  __device__ __forceinline__ const_iterator next_slot(const_iterator s) const noexcept
+  {
     std::size_t index = s - slots_;
     return &slots_[(index + step_size_) % capacity_];
   }
 
  private:
-  Hash1 hash1_;            ///< The first unary callable used to hash the key
-  Hash2 hash2_;            ///< The second unary callable used to determine step size
-  std::size_t step_size_;  ///< The step stride when searching for the next slot
-};                         // class double_hashing
+  Hash1 hash1_;                    ///< The first unary callable used to hash the key
+  Hash2 hash2_;                    ///< The second unary callable used to determine step size
+  mutable std::size_t step_size_;  ///< The step stride when searching for the next slot
+};                                 // class double_hashing
 
 /**
  * @brief Probe sequence used internally by hash map.
@@ -363,7 +445,8 @@ class double_hashing_impl
 template <typename ProbeImpl, typename Key, typename Value, cuda::thread_scope Scope>
 class probe_sequence : public ProbeImpl::template impl<Key, Value, Scope> {
  public:
-  using impl_type = typename ProbeImpl::template impl<Key, Value, Scope>;
+  using impl_type =
+    typename ProbeImpl::template impl<Key, Value, Scope>;  ///< Type of implementation details
 
   /**
    * @brief Constructs a probe sequence based on the given hash map features.

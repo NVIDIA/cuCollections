@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,22 @@
  * limitations under the License.
  */
 
-#include <catch2/catch.hpp>
-#include <thrust/device_vector.h>
+#include <utils.hpp>
 
 #include <cuco/static_multimap.cuh>
 
-#include <utils.hpp>
+#include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/functional.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/sort.h>
+#include <thrust/transform.h>
+#include <thrust/tuple.h>
+
+#include <catch2/catch.hpp>
+
+#include <tuple>
 
 // User-defined key type
 struct key_pair {
@@ -29,7 +39,7 @@ struct key_pair {
 };
 
 struct hash_key_pair {
-  __device__ uint32_t operator()(key_pair k) { return k.a; };
+  __device__ uint32_t operator()(key_pair k) const { return k.a; };
 };
 
 struct key_pair_equals {
@@ -45,7 +55,7 @@ struct value_pair {
 };
 
 template <typename Map>
-__inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
+__inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
 {
   using Key   = key_pair;
   using Value = value_pair;
@@ -88,7 +98,7 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
     thrust::device_vector<cuco::pair_type<Key, Value>> found_pairs(num_pairs);
     auto output_end = map.retrieve(
       key_begin, key_begin + num_pairs, found_pairs.begin(), stream, key_pair_equals{});
-    auto size = output_end - found_pairs.begin();
+    std::size_t const size = std::distance(found_pairs.begin(), output_end);
 
     REQUIRE(size == num_pairs);
 
@@ -131,7 +141,7 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
     thrust::device_vector<cuco::pair_type<Key, Value>> found_pairs(num_pairs);
     auto output_end = map.retrieve(
       query_key_begin, query_key_begin + num, found_pairs.begin(), stream, key_pair_equals{});
-    auto size = output_end - found_pairs.begin();
+    std::size_t const size = std::distance(found_pairs.begin(), output_end);
 
     REQUIRE(size == num_pairs);
 
@@ -173,7 +183,7 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
     thrust::device_vector<cuco::pair_type<Key, Value>> found_pairs(num);
     auto output_end = map.retrieve_outer(
       query_key_begin, query_key_begin + num, found_pairs.begin(), stream, key_pair_equals{});
-    auto size_outer = output_end - found_pairs.begin();
+    std::size_t const size_outer = std::distance(found_pairs.begin(), output_end);
 
     REQUIRE(size_outer == num);
   }
@@ -186,9 +196,9 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
     REQUIRE(size == num_pairs);
 
     thrust::device_vector<bool> contained(num_pairs);
-    map.contains(key_begin, key_begin + num_pairs, contained.begin(), stream, key_pair_equals{});
-    REQUIRE(cuco::test::all_of(
-      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    map.contains(key_begin, key_begin + num_pairs, contained.begin(), key_pair_equals{}, stream);
+
+    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
@@ -197,10 +207,9 @@ __inline__ void test_custom_key_value_type(Map& map, size_t num_pairs)
     REQUIRE(size == 0);
 
     thrust::device_vector<bool> contained(num_pairs);
-    map.contains(key_begin, key_begin + num_pairs, contained.begin(), stream, key_pair_equals{});
+    map.contains(key_begin, key_begin + num_pairs, contained.begin(), key_pair_equals{}, stream);
 
-    REQUIRE(cuco::test::none_of(
-      contained.begin(), contained.end(), [] __device__(bool const& b) { return b; }));
+    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 }
 
@@ -225,11 +234,15 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
                           cuco::linear_probing<1, hash_key_pair>>
-      map{capacity, sentinel_key, sentinel_value};
+      map{capacity,
+          cuco::sentinel::empty_key{sentinel_key},
+          cuco::sentinel::empty_value{sentinel_value}};
     test_custom_key_value_type(map, num_pairs);
   }
   if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{capacity, sentinel_key, sentinel_value};
+    cuco::static_multimap<Key, Value> map{capacity,
+                                          cuco::sentinel::empty_key{sentinel_key},
+                                          cuco::sentinel::empty_value{sentinel_value}};
     test_custom_key_value_type(map, num_pairs);
   }
 }
