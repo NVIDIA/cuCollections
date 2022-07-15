@@ -47,13 +47,6 @@
 #include <type_traits>
 #include <utility>
 
-#include <cooperative_groups.h>
-
-#include <thrust/distance.h>
-#include <thrust/functional.h>
-
-#include <memory>
-
 namespace cuco {
 
 /**
