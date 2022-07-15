@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,6 @@
 
 namespace cuco {
 namespace detail {
-
-auto constexpr DEFAULT_STRIDE     = 1;
-auto constexpr DEFAULT_BLOCK_SIZE = 128;
 
 /**
  * @brief Compute the number of bits of a simple type.

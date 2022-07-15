@@ -258,8 +258,8 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_c
   auto num_keys = std::distance(first, last);
   auto view     = get_device_view();
 
-  constexpr auto block_size = cuco::detail::DEFAULT_BLOCK_SIZE;
-  constexpr auto stride     = cuco::detail::DEFAULT_STRIDE;
+  constexpr auto block_size = 128;
+  constexpr auto stride     = 1;
 
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
@@ -478,8 +478,8 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve_if(
 
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
-  constexpr auto block_size  = cuco::detail::DEFAULT_BLOCK_SIZE;
-  constexpr auto stride      = cuco::detail::DEFAULT_STRIDE;
+  constexpr auto block_size  = 128;
+  constexpr auto stride      = 1;
 
   auto const flushing_cg_size = [&]() {
     if constexpr (uses_vector_load()) { return warp_size(); }
