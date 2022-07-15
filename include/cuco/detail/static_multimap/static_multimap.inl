@@ -988,14 +988,8 @@ template <typename Key,
 std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::get_size(
   cudaStream_t stream) const noexcept
 {
-<<<<<<< HEAD
-  auto begin = thrust::make_transform_iterator(
-    raw_slots(), [] __device__(cuco::pair_type<Key, Value> const& pair) { return pair.first; });
-  cuco::detail::slot_is_filled<Key> filled(empty_key_sentinel_);
-=======
   auto begin  = thrust::make_transform_iterator(raw_slots(), detail::slot_to_tuple<Key, Value>{});
   auto filled = cuco::detail::slot_is_filled<Key>{get_empty_key_sentinel()};
->>>>>>> upstream/dev
 
   return thrust::count_if(thrust::cuda::par.on(stream), begin, begin + get_capacity(), filled);
 }
