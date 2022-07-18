@@ -27,7 +27,8 @@ namespace cg = cooperative_groups;
  * @param num_slots Size of the storage pointed to by `slots`
  */
 template <std::size_t block_size, typename atomic_slot_type>
-__global__ void initialize(atomic_slot_type* const slots, std::size_t num_slots)
+__global__ void __launch_bounds__(block_size)
+  initialize(atomic_slot_type* const slots, std::size_t num_slots)
 {
   for (std::size_t tid = block_size * blockIdx.x + threadIdx.x; tid < num_slots;
        tid += gridDim.x * block_size) {
@@ -49,7 +50,8 @@ __global__ void initialize(atomic_slot_type* const slots, std::size_t num_slots)
  * @param hash The unary function to apply to hash each key
  */
 template <std::size_t block_size, typename InputIt, typename View, typename Hash>
-__global__ void insert(InputIt first, InputIt last, View view, Hash hash)
+__global__ void __launch_bounds__(block_size)
+  insert(InputIt first, InputIt last, View view, Hash hash)
 {
   std::size_t tid = block_size * blockIdx.x + threadIdx.x;
   auto it         = first + tid;
@@ -82,7 +84,8 @@ __global__ void insert(InputIt first, InputIt last, View view, Hash hash)
  * @param hash The unary function to apply to hash each key
  */
 template <std::size_t block_size, typename InputIt, typename OutputIt, typename View, typename Hash>
-__global__ void contains(InputIt first, InputIt last, OutputIt output_begin, View view, Hash hash)
+__global__ void __launch_bounds__(block_size)
+  contains(InputIt first, InputIt last, OutputIt output_begin, View view, Hash hash)
 {
   std::size_t tid = block_size * blockIdx.x + threadIdx.x;
   auto it         = first + tid;
