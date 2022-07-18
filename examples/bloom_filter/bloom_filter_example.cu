@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-#include <iostream>
+#include <cuco/bloom_filter.cuh>
+
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/sequence.h>
 
-#include <cuco/bloom_filter.cuh>
+#include <iostream>
 
 int main(void)
 {

@@ -15,8 +15,9 @@
  */
 
 #include <cuco/bloom_filter.cuh>
-#include <cuda_runtime_api.h>
+
 #include <nvbench/nvbench.cuh>
+
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>

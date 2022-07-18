@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
-#include <catch2/catch.hpp>
+#include <utils.hpp>
+
 #include <cuco/bloom_filter.cuh>
+
 #include <thrust/device_vector.h>
 #include <thrust/sequence.h>
-#include <utils.hpp>
+
+#include <catch2/catch.hpp>
 
 template <typename Key, typename Slot, std::size_t NumSlots>
 __global__ void shared_memory_filter_kernel(bool* key_found)

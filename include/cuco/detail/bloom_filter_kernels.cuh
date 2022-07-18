@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
+#include <cuda/std/atomic>
+
+#include <cstddef>
+
 namespace cuco {
 namespace detail {
-namespace cg = cooperative_groups;
 
 /**
  * @brief Initializes each slot in the flat `slot` storage.

@@ -14,6 +14,16 @@
  * limitations under the License.
  */
 
+#include <cuco/detail/hash_functions.cuh>
+#include <cuco/detail/utils.hpp>
+
+#include <cuda/std/atomic>
+
+#include <algorithm>
+#include <cstddef>
+#include <iterator>
+#include <memory>
+
 namespace cuco {
 
 template <typename Key, cuda::thread_scope Scope, typename Allocator, typename Slot>
