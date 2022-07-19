@@ -50,18 +50,25 @@ __global__ void __launch_bounds__(block_size)
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param view Mutable device view used to access the filter's slot storage
- * @param hash The unary function to apply to hash each key
+ * @param hash1 First hash function; used to determine a filter slot
+ * @param hash2 Second hash function; used to generate a signature of the key
+ * @param hash3 Third hash function; used to generate a signature of the key
  */
-template <std::size_t block_size, typename InputIt, typename View, typename Hash>
+template <std::size_t block_size,
+          typename InputIt,
+          typename View,
+          typename Hash1,
+          typename Hash2,
+          typename Hash3>
 __global__ void __launch_bounds__(block_size)
-  insert(InputIt first, InputIt last, View view, Hash hash)
+  insert(InputIt first, InputIt last, View view, Hash1 hash1, Hash2 hash2, Hash3 hash3)
 {
   std::size_t tid = block_size * blockIdx.x + threadIdx.x;
   auto it         = first + tid;
 
   while (it < last) {
     typename View::key_type const key{*it};
-    view.insert(key, hash);
+    view.insert(key, hash1, hash2, hash3);
     it += gridDim.x * block_size;
   }
 }
@@ -84,18 +91,31 @@ __global__ void __launch_bounds__(block_size)
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
  * @param view Mutable device view used to access the filter's slot storage
- * @param hash The unary function to apply to hash each key
+ * @param hash1 First hash function; used to determine a filter slot
+ * @param hash2 Second hash function; used to generate a signature of the key
+ * @param hash3 Third hash function; used to generate a signature of the key
  */
-template <std::size_t block_size, typename InputIt, typename OutputIt, typename View, typename Hash>
-__global__ void __launch_bounds__(block_size)
-  contains(InputIt first, InputIt last, OutputIt output_begin, View view, Hash hash)
+template <std::size_t block_size,
+          typename InputIt,
+          typename OutputIt,
+          typename View,
+          typename Hash1,
+          typename Hash2,
+          typename Hash3>
+__global__ void __launch_bounds__(block_size) contains(InputIt first,
+                                                       InputIt last,
+                                                       OutputIt output_begin,
+                                                       View view,
+                                                       Hash1 hash1,
+                                                       Hash2 hash2,
+                                                       Hash3 hash3)
 {
   std::size_t tid = block_size * blockIdx.x + threadIdx.x;
   auto it         = first + tid;
 
   while ((first + tid) < last) {
     typename View::key_type const key{*(first + tid)};
-    *(output_begin + tid) = view.contains(key, hash);
+    *(output_begin + tid) = view.contains(key, hash1, hash2, hash3);
     tid += gridDim.x * block_size;
   }
 }

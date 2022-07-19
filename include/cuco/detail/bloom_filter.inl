@@ -58,11 +58,9 @@ void bloom_filter<Key, Scope, Allocator, Slot>::initialize(cudaStream_t stream)
 }
 
 template <typename Key, cuda::thread_scope Scope, typename Allocator, typename Slot>
-template <typename InputIt, typename Hash>
-void bloom_filter<Key, Scope, Allocator, Slot>::insert(InputIt first,
-                                                       InputIt last,
-                                                       cudaStream_t stream,
-                                                       Hash hash)
+template <typename InputIt, typename Hash1, typename Hash2, typename Hash3>
+void bloom_filter<Key, Scope, Allocator, Slot>::insert(
+  InputIt first, InputIt last, cudaStream_t stream, Hash1 hash1, Hash2 hash2, Hash3 hash3)
 {
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
@@ -70,14 +68,19 @@ void bloom_filter<Key, Scope, Allocator, Slot>::insert(InputIt first,
   std::size_t constexpr block_size = 256;
   std::size_t constexpr stride     = 4;
   std::size_t const grid_size      = SDIV(num_keys, stride * block_size);
-  detail::insert<block_size>
-    <<<grid_size, block_size, 0, stream>>>(first, last, get_device_mutable_view(), hash);
+  detail::insert<block_size><<<grid_size, block_size, 0, stream>>>(
+    first, last, get_device_mutable_view(), hash1, hash2, hash3);
 }
 
 template <typename Key, cuda::thread_scope Scope, typename Allocator, typename Slot>
-template <typename InputIt, typename OutputIt, typename Hash>
-void bloom_filter<Key, Scope, Allocator, Slot>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream, Hash hash)
+template <typename InputIt, typename OutputIt, typename Hash1, typename Hash2, typename Hash3>
+void bloom_filter<Key, Scope, Allocator, Slot>::contains(InputIt first,
+                                                         InputIt last,
+                                                         OutputIt output_begin,
+                                                         cudaStream_t stream,
+                                                         Hash1 hash1,
+                                                         Hash2 hash2,
+                                                         Hash3 hash3)
 {
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
@@ -85,22 +88,27 @@ void bloom_filter<Key, Scope, Allocator, Slot>::contains(
   std::size_t constexpr block_size = 256;
   std::size_t constexpr stride     = 4;
   std::size_t const grid_size      = SDIV(num_keys, stride * block_size);
-  detail::contains<block_size>
-    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, get_device_view(), hash);
+  detail::contains<block_size><<<grid_size, block_size, 0, stream>>>(
+    first, last, output_begin, get_device_view(), hash1, hash2, hash3);
 }
-//////////////////////////////////////////
+
 template <typename Key, cuda::thread_scope Scope, typename Allocator, typename Slot>
-template <typename Hash>
+template <typename Hash1, typename Hash2>
 __device__ Slot bloom_filter<Key, Scope, Allocator, Slot>::device_view_base::key_pattern(
-  Key const& key, Hash hash) const noexcept
+  Key const& key, Hash1 hash1, Hash2 hash2) const noexcept
 {
   slot_type pattern = 0;
   std::size_t k     = 0;
   std::size_t i     = 0;
-  auto const h      = hash(key + 42);  // seed mitigates secondary clustering
+
+  auto h1 = hash1(key);
+  // odd number to be co-prime with the number of bits in the slot
+  auto h2 = hash2(key) | 1;
 
   while (k < num_hashes_) {
-    slot_type const bit = slot_type{1} << ((h + hash(key + i)) % detail::type_bits<slot_type>());
+    // extended double hashing
+    slot_type const bit =
+      slot_type{1} << ((h1 + (i * h2) + ((i * i * i - i) / 6)) % detail::type_bits<slot_type>());
 
     if (not(pattern & bit)) {
       pattern += bit;
@@ -108,16 +116,17 @@ __device__ Slot bloom_filter<Key, Scope, Allocator, Slot>::device_view_base::key
     }
     i++;
   }
+
   return pattern;
 }
 
 template <typename Key, cuda::thread_scope Scope, typename Allocator, typename Slot>
-template <typename Hash>
+template <typename Hash1, typename Hash2, typename Hash3>
 __device__ bool bloom_filter<Key, Scope, Allocator, Slot>::device_mutable_view::insert(
-  Key const& key, Hash hash) noexcept
+  Key const& key, Hash1 hash1, Hash2 hash2, Hash3 hash3) noexcept
 {
-  auto slot          = key_slot(key, hash);
-  auto const pattern = key_pattern(key, hash);
+  auto slot          = key_slot(key, hash1);
+  auto const pattern = key_pattern(key, hash2, hash3);
   auto const result  = slot->fetch_or(pattern, cuda::std::memory_order_relaxed);
 
   // return `true` if the key's pattern was not already present in the filter,
@@ -126,12 +135,12 @@ __device__ bool bloom_filter<Key, Scope, Allocator, Slot>::device_mutable_view::
 }
 
 template <typename Key, cuda::thread_scope Scope, typename Allocator, typename Slot>
-template <typename Hash>
+template <typename Hash1, typename Hash2, typename Hash3>
 __device__ bool bloom_filter<Key, Scope, Allocator, Slot>::device_view::contains(
-  Key const& key, Hash hash) const noexcept
+  Key const& key, Hash1 hash1, Hash2 hash2, Hash3 hash3) const noexcept
 {
-  auto slot          = key_slot(key, hash);
-  auto const pattern = key_pattern(key, hash);
+  auto slot          = key_slot(key, hash1);
+  auto const pattern = key_pattern(key, hash2, hash3);
   auto const result  = slot->load(cuda::std::memory_order_relaxed);
 
   // return `true` if the key's pattern was already present in the filter,

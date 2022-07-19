@@ -131,15 +131,27 @@ class bloom_filter {
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the filter's `key_type`
-   * @tparam Hash Unary callable type
+   * @tparam Hash1 Unary callable type
+   * @tparam Hash2 Unary callable type
+   * @tparam Hash3 Unary callable type
    * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param stream The CUDA stream this operation is executed in
-   * @param hash The unary function to apply to hash each key
+   * @param hash1 First hash function; used to determine a filter slot
+   * @param hash2 Second hash function; used to generate a signature of the key
+   * @param hash3 Third hash function; used to generate a signature of the key
    */
-  template <typename InputIt, typename Hash = cuco::detail::MurmurHash3_32<key_type>>
-  void insert(InputIt first, InputIt last, cudaStream_t stream = 0, Hash hash = Hash{});
+  template <typename InputIt,
+            typename Hash1 = cuco::detail::MurmurHash3_32<key_type>,
+            typename Hash2 = Hash1,
+            typename Hash3 = Hash2>
+  void insert(InputIt first,
+              InputIt last,
+              cudaStream_t stream = 0,
+              Hash1 hash1         = Hash1{},
+              Hash2 hash2         = Hash2{1},
+              Hash3 hash3         = Hash3{2});
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are
@@ -152,21 +164,29 @@ class bloom_filter {
    * convertible to the filter's `key_type`
    * @tparam OutputIt Device accessible output iterator whose `value_type` is
    * convertible to `bool`
-   * @tparam Hash Unary callable type
+   * @tparam Hash1 Unary callable type
+   * @tparam Hash2 Unary callable type
+   * @tparam Hash3 Unary callable type
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
    * @param stream The CUDA stream this operation is executed in
-   * @param hash The unary function to apply to hash each key
+   * @param hash1 First hash function; used to determine a filter slot
+   * @param hash2 Second hash function; used to generate a signature of the key
+   * @param hash3 Third hash function; used to generate a signature of the key
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash = cuco::detail::MurmurHash3_32<key_type>>
+            typename Hash1 = cuco::detail::MurmurHash3_32<key_type>,
+            typename Hash2 = Hash1,
+            typename Hash3 = Hash2>
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
                 cudaStream_t stream = 0,
-                Hash hash           = Hash{});
+                Hash1 hash1         = Hash1{},
+                Hash2 hash2         = Hash2{1},
+                Hash3 hash3         = Hash3{2});
 
   /**
    * @brief Gets slots array.
@@ -262,13 +282,15 @@ class bloom_filter {
     /**
      * @brief Returns the bit pattern for a given key `k`
      *
-     * @tparam Hash Unary callable type
+     * @tparam Hash1 Unary callable type
+     * @tparam Hash2 Unary callable type
      * @param k The key to calculate the pattern for
-     * @param hash The unary callable used to hash the key
+     * @param hash1 First hash function; used to generate a signature of the key
+     * @param hash2 Second hash function; used to generate a signature of the key
      * @return Bit pattern for key `k`
      */
-    template <typename Hash>
-    __device__ slot_type key_pattern(Key const& k, Hash hash) const noexcept;
+    template <typename Hash1, typename Hash2>
+    __device__ slot_type key_pattern(Key const& k, Hash1 hash1, Hash2 hash2) const noexcept;
 
     /**
      * @brief Initializes the given array of slots using the threads in the group `g`.
@@ -440,14 +462,23 @@ class bloom_filter {
      * Returns a `bool` denoting whether the key's signature was not already
      * present in the slot.
      *
-     * @tparam Hash Unary callable type
+     * @tparam Hash1 Unary callable type
+     * @tparam Hash2 Unary callable type
+     * @tparam Hash3 Unary callable type
      * @param key The key to insert
-     * @param hash The unary callable used to hash the key
+     * @param hash1 First hash function; used to determine a filter slot
+     * @param hash2 Second hash function; used to generate a signature of the key
+     * @param hash3 Third hash function; used to generate a signature of the key
      * @return `true` if the pattern was not already in the filter,
      * `false` otherwise.
      */
-    template <typename Hash = cuco::detail::MurmurHash3_32<key_type>>
-    __device__ bool insert(key_type const& key, Hash hash = Hash{}) noexcept;
+    template <typename Hash1 = cuco::detail::MurmurHash3_32<key_type>,
+              typename Hash2 = Hash1,
+              typename Hash3 = Hash2>
+    __device__ bool insert(key_type const& key,
+                           Hash1 hash1 = Hash1{},
+                           Hash2 hash2 = Hash2{1},
+                           Hash3 hash3 = Hash3{2}) noexcept;
   };  // class device mutable view
 
   /**
@@ -548,14 +579,23 @@ class bloom_filter {
      * If the siganture of the key `k` was inserted into the filter, `contains`
      * returns `true`. Otherwise, it returns `false`.
      *
-     * @tparam Hash Unary callable type
+     * @tparam Hash1 Unary callable type
+     * @tparam Hash2 Unary callable type
+     * @tparam Hash3 Unary callable type
      * @param k The key to search for
-     * @param hash The unary callable used to hash the key
+     * @param hash1 First hash function; used to determine a filter slot
+     * @param hash2 Second hash function; used to generate a signature of the key
+     * @param hash3 Third hash function; used to generate a signature of the key
      * @return A boolean indicating whether the key's signature is present in
      * the filter.
      */
-    template <typename Hash = cuco::detail::MurmurHash3_32<key_type>>
-    __device__ bool contains(Key const& k, Hash hash = Hash{}) const noexcept;
+    template <typename Hash1 = cuco::detail::MurmurHash3_32<key_type>,
+              typename Hash2 = Hash1,
+              typename Hash3 = Hash2>
+    __device__ bool contains(Key const& k,
+                             Hash1 hash1 = Hash1{},
+                             Hash2 hash2 = Hash2{1},
+                             Hash3 hash3 = Hash3{2}) const noexcept;
   };
 
   /**
