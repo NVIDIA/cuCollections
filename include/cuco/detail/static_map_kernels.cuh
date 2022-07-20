@@ -431,6 +431,7 @@ __global__ void find(
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
@@ -469,48 +470,53 @@ __global__ void contains(
 }
 
 /**
- * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+ * @brief Indicates whether the elements in the range `[first, last)` are contained in the map.
  *
- * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
+ * Stores `true` or `false` to `(output + i)` indicating if the element `*(first + i)` exists in the
+ * map.
+ *
  * Uses the CUDA Cooperative Groups API to leverage groups of multiple threads to perform the
- * contains operation for each key. This provides a significant boost in throughput compared
+ * contains operation for each element. This provides a significant boost in throughput compared
  * to the non Cooperative Group `contains` at moderate to high load factors.
  *
+ * @tparam is_pair_contains `true` if it's a `pair_contains` implementation
  * @tparam block_size The size of the thread block
- * @tparam tile_size The number of threads in the Cooperative Groups used to perform
- * inserts
- * @tparam InputIt Device accessible input iterator whose `value_type` is
- * convertible to the map's `key_type`
- * @tparam OutputIt Device accessible output iterator whose `value_type` is
- * convertible to the map's `mapped_type`
+ * @tparam tile_size The number of threads in the Cooperative Groups
+ * @tparam InputIt Device accessible input iterator
+ * @tparam OutputIt Device accessible output iterator assignable from `bool`
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
- * @tparam KeyEqual Binary callable type
- * @param first Beginning of the sequence of keys
- * @param last End of the sequence of keys
- * @param output_begin Beginning of the sequence of booleans for the presence of each key
+ * @tparam Equal Binary callable type
+ *
+ * @param first Beginning of the sequence of elements
+ * @param last End of the sequence of elements
+ * @param output_begin Beginning of the sequence of booleans for the presence of each element
  * @param view Device view used to access the hash map's slot storage
  * @param hash The unary function to apply to hash each key
- * @param key_equal The binary function to compare two keys for equality
+ * @param equal The binary function to compare input element and slot content for equality
  */
-template <std::size_t block_size,
+template <bool is_pair_contains,
+          uint32_t block_size,
           uint32_t tile_size,
           typename InputIt,
           typename OutputIt,
           typename viewT,
           typename Hash,
-          typename KeyEqual>
+          typename Equal>
 __global__ void contains(
-  InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
+  InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, Equal equal)
 {
-  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid / tile_size;
+  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid  = block_size * blockIdx.x + threadIdx.x;
+  auto idx  = tid / tile_size;
   __shared__ bool writeBuffer[block_size];
 
-  while (first + key_idx < last) {
-    auto key   = *(first + key_idx);
-    auto found = view.contains(tile, key, hash, key_equal);
+  while (first + idx < last) {
+    typename std::iterator_traits<InputIt>::value_type element = *(first + idx);
+    auto found                                                 = [&]() {
+      if constexpr (is_pair_contains) { return view.pair_contains(tile, element, hash, equal); }
+      if constexpr (not is_pair_contains) { return view.contains(tile, element, hash, equal); }
+    }();
 
     /*
      * The ld.relaxed.gpu instruction used in view.find causes L1 to
@@ -521,10 +527,8 @@ __global__ void contains(
      */
     if (tile.thread_rank() == 0) { writeBuffer[threadIdx.x / tile_size] = found; }
     __syncthreads();
-    if (tile.thread_rank() == 0) {
-      *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
-    }
-    key_idx += (gridDim.x * block_size) / tile_size;
+    if (tile.thread_rank() == 0) { *(output_begin + idx) = writeBuffer[threadIdx.x / tile_size]; }
+    idx += (gridDim.x * block_size) / tile_size;
   }
 }
 

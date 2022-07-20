@@ -419,6 +419,38 @@ class static_map {
                 KeyEqual key_equal  = KeyEqual{},
                 cudaStream_t stream = 0) const;
 
+  /**
+   * @brief Indicates whether the pairs in the range `[first, last)` are contained in the map.
+   *
+   * Stores `true` or `false` to `(output + i)` indicating if the pair `*(first + i)` exists in
+   * the map.
+   *
+   * The hasher `hash` should be callable with both
+   * <tt>std::iterator_traits<InputIt>::value_type::first_type</tt>
+   * and `Key` type. <tt>std::invoke_result<KeyEqual,
+   * std::iterator_traits<InputIt>::value_type::first_type, Key></tt>
+   * must be well-formed.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   * @tparam Hash The hasher unary callable type
+   * @tparam PairEqual Binary callable type used to compare input pair and slot content for equality
+   *
+   * @param first Beginning of the sequence of pairs
+   * @param last End of the sequence of pairs
+   * @param output_begin Beginning of the output sequence indicating whether each pair is present
+   * @param hash The unary function to apply to hash each key
+   * @param pair_equal The binary function to compare input pair and slot content for equality
+   * @param stream CUDA stream used for contains
+   */
+  template <typename InputIt, typename OutputIt, typename Hash, typename PairEqual>
+  void pair_contains(InputIt first,
+                     InputIt last,
+                     OutputIt output_begin,
+                     Hash hash,
+                     PairEqual pair_equal,
+                     cudaStream_t stream = 0) const;
+
  private:
   class device_view_base {
    protected:

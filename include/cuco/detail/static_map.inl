@@ -266,14 +266,38 @@ void static_map<Key, Value, Scope, Allocator>::contains(InputIt first,
   auto num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const tile_size  = 4;
-  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-  auto view             = get_device_view();
+  auto constexpr is_pair_contains = false;
+  auto constexpr block_size       = 128;
+  auto constexpr stride           = 1;
+  auto constexpr tile_size        = 4;
+  auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_view();
 
-  detail::contains<block_size, tile_size>
+  detail::contains<is_pair_contains, block_size, tile_size>
     <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename InputIt, typename OutputIt, typename Hash, typename PairEqual>
+void static_map<Key, Value, Scope, Allocator>::pair_contains(InputIt first,
+                                                             InputIt last,
+                                                             OutputIt output_begin,
+                                                             Hash hash,
+                                                             PairEqual pair_equal,
+                                                             cudaStream_t stream) const
+{
+  auto num_keys = std::distance(first, last);
+  if (num_keys == 0) { return; }
+
+  auto constexpr is_pair_contains = true;
+  auto constexpr block_size       = 128;
+  auto constexpr stride           = 1;
+  auto constexpr tile_size        = 4;
+  auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto view            = get_device_view();
+
+  detail::contains<is_pair_contains, block_size, tile_size>
+    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, pair_equal);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
