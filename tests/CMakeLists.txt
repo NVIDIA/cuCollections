@@ -60,6 +60,7 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/erase_test.cu
     static_map/heterogeneous_lookup_test.cu
     static_map/key_sentinel_test.cu
+    static_map/pair_function_test.cu
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
     static_map/unique_sequence_test.cu)
