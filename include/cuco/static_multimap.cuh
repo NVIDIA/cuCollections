@@ -899,7 +899,7 @@ class static_multimap {
      * `contains` at moderate to high load factors.
      *
      * ProbeSequence hashers should be callable with both ProbePair::first_type and Key type.
-     * `std::invoke_result<KeyEqual, ProbePair::first_type, Key>` must be well-formed.
+     * `std::invoke_result<PairEqual, ProbePair::first_type, Key>` must be well-formed.
      *
      * If `pair_equal(p, slot_content)` returns true, `hash(p.first) == hash(slot_key)` must
      * also be true.

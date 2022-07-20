@@ -1353,6 +1353,39 @@ class static_map {
       ProbeKey const& k,
       Hash hash          = Hash{},
       KeyEqual key_equal = KeyEqual{}) const noexcept;
+
+    /**
+     * @brief Indicates whether the pair `p` exists in the map.
+     *
+     * If the pair `p` was inserted into the map, `contains` returns
+     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
+     * to leverage multiple threads to perform a single `contains` operation. This provides a
+     * significant boost in throughput compared to the non Cooperative Group
+     * `contains` at moderate to high load factors.
+     *
+     * The hasher `hash` should be callable with both ProbePair::first_type and Key type.
+     * `std::invoke_result<PairEqual, ProbePair::first_type, Key>` must be well-formed.
+     *
+     * If `pair_equal(p, slot_content)` returns true, `hash(p.first) == hash(slot_key)` must
+     * also be true.
+     *
+     * @tparam CG Cooperative Group type
+     * @tparam ProbePair Probe pair type
+     * @tparam Hash Unary callable type
+     * @tparam PairEqual Binary callable type
+     *
+     * @param g The Cooperative Group used to perform the contains operation
+     * @param p The pair to search for
+     * @param hash The unary callable used to hash the key
+     * @param pair_equal The binary callable used to compare input pair and slot content
+     * for equality
+     * @return A boolean indicating whether the input pair was inserted in the map
+     */
+    template <typename CG, typename ProbePair, typename Hash, typename PairEqual>
+    __device__ __forceinline__ bool pair_contains(CG const& g,
+                                                  ProbePair const& p,
+                                                  Hash hash,
+                                                  PairEqual pair_equal) const noexcept;
   };  // class device_view
 
   /**

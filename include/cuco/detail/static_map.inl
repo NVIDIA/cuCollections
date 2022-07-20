@@ -786,4 +786,33 @@ static_map<Key, Value, Scope, Allocator>::device_view::contains(CG const& g,
     current_slot = next_slot(g, current_slot);
   }
 }
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename CG, typename ProbePair, typename Hash, typename PairEqual>
+__device__ __forceinline__ bool
+static_map<Key, Value, Scope, Allocator>::device_view::pair_contains(
+  CG const& g, ProbePair const& p, Hash hash, PairEqual pair_equal) const noexcept
+{
+  auto current_slot = initial_slot(g, p.first, hash);
+
+  while (true) {
+    value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
+
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
+    // the sentinel is not a valid key value. Therefore, first check for the sentinel
+    auto const slot_is_empty =
+      detail::bitwise_compare(slot_contents.first, this->get_empty_key_sentinel());
+
+    // the key we were searching for was found by one of the threads, so we return an iterator to
+    // the entry
+    if (g.any(not slot_is_empty and pair_equal(slot_contents, p))) { return true; }
+
+    // we found an empty slot, meaning that the key we're searching for isn't present
+    if (g.any(slot_is_empty)) { return false; }
+
+    // otherwise, all slots in the current window are full with other keys, so we move onto the
+    // next window
+    current_slot = next_slot(g, current_slot);
+  }
+}
 }  // namespace cuco
