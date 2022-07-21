@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/allocator.hpp>
+#include <cuco/detail/__config>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
@@ -27,10 +28,6 @@
 #include <thrust/functional.h>
 
 #include <cuda/std/atomic>
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
-  (__CUDA_ARCH__ >= 700)
-#define CUCO_HAS_CUDA_BARRIER
-#endif
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
@@ -156,7 +153,7 @@ class static_map {
   using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
     atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
 
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
+#if !defined(CUCO_HAS_LARGE_TYPE_SUPPORT)
   static_assert(atomic_key_type::is_always_lock_free,
                 "A key type larger than 8B is supported for only sm_70 and up.");
   static_assert(atomic_mapped_type::is_always_lock_free,
