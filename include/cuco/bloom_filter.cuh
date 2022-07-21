@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/allocator.hpp>
+#include <cuco/detail/__config>
 #include <cuco/detail/bloom_filter_kernels.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hash_functions.cuh>
@@ -25,13 +26,13 @@
 #include <cooperative_groups.h>
 
 #include <cuda/std/atomic>
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
-  (__CUDA_ARCH__ >= 700)
-#define CUCO_HAS_CUDA_BARRIER
-#endif
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
+#endif
+
+#if defined(CUCO_HAS_CUDA_ANNOTATED_PTR)
+#include <cuda/annotated_ptr>
 #endif
 
 #include <cstddef>
