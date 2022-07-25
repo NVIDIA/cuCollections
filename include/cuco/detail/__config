@@ -26,5 +26,5 @@
 #endif
 
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 700)
-#define CUCO_HAS_LARGE_TYPE_SUPPORT
+#define CUCO_HAS_INDEPENDENT_THREADS
 #endif

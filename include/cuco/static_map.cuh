@@ -153,7 +153,7 @@ class static_map {
   using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
     atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
 
-#if !defined(CUCO_HAS_LARGE_TYPE_SUPPORT)
+#if !defined(CUCO_HAS_INDEPENDENT_THREADS)
   static_assert(atomic_key_type::is_always_lock_free,
                 "A key type larger than 8B is supported for only sm_70 and up.");
   static_assert(atomic_mapped_type::is_always_lock_free,
