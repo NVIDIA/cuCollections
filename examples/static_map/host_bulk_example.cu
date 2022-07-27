@@ -43,14 +43,14 @@ int main(void)
 
   // Empty slots are represented by reserved "sentinel" values. These values should be selected such
   // that they never occur in your input data.
-  Key const empty_key_sentinel     = -1;
-  Value const empty_value_sentinel = -1;
+  Key constexpr empty_key_sentinel     = -1;
+  Value constexpr empty_value_sentinel = -1;
 
   // Number of key/value pairs to be inserted
-  std::size_t num_keys = 50'000;
+  std::size_t constexpr num_keys = 50'000;
 
   // Compute capacity based on a 50% load factor
-  auto const load_factor     = 0.5;
+  auto constexpr load_factor = 0.5;
   std::size_t const capacity = std::ceil(num_keys / load_factor);
 
   // Constructs a map with "capacity" slots using -1 and -1 as the empty key/value sentinels.

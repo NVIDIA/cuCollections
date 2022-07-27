@@ -17,10 +17,10 @@
 #include <cuco/static_map.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/equal.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/logical.h>
 #include <thrust/sequence.h>
+#include <thrust/tuple.h>
 
 #include <cmath>
 #include <cstddef>
@@ -83,6 +83,16 @@ __global__ void filtered_insert(Map map_view,
   atomicAdd(num_inserted, counter);
 }
 
+/**
+ * @brief For keys that have a match in the map, increments their corresponding value by one.
+ *
+ * @tparam Map Type of the map returned from static_map::get_device_view
+ * @tparam KeyIter Input iterator whose value_type convertible to Map::key_type
+ *
+ * @param map_view View of the map into which queries will be performed
+ * @param key_begin The beginning of the range of keys to query
+ * @param num_keys The total number of keys
+ */
 template <typename Map, typename KeyIter>
 __global__ void increment_values(Map map_view, KeyIter key_begin, std::size_t num_keys)
 {
@@ -107,11 +117,11 @@ int main(void)
 
   // Empty slots are represented by reserved "sentinel" values. These values should be selected such
   // that they never occur in your input data.
-  Key const empty_key_sentinel     = -1;
-  Value const empty_value_sentinel = -1;
+  Key constexpr empty_key_sentinel     = -1;
+  Value constexpr empty_value_sentinel = -1;
 
   // Number of key/value pairs to be inserted
-  std::size_t num_keys = 50'000;
+  std::size_t constexpr num_keys = 50'000;
 
   // Create a sequence of keys and values {{0,0}, {1,1}, ... {i,i}}
   thrust::device_vector<Key> insert_keys(num_keys);
@@ -120,7 +130,7 @@ int main(void)
   thrust::sequence(insert_values.begin(), insert_values.end(), 0);
 
   // Compute capacity based on a 50% load factor
-  auto const load_factor     = 0.5;
+  auto constexpr load_factor = 0.5;
   std::size_t const capacity = std::ceil(num_keys / load_factor);
 
   // Constructs a map with "capacity" slots using -1 and -1 as the empty key/value sentinels.
@@ -137,8 +147,8 @@ int main(void)
   // Allocate storage for count of number of inserted keys
   thrust::device_vector<int> num_inserted(1);
 
-  auto const block_size = 256;
-  auto const grid_size  = (num_keys + block_size - 1) / block_size;
+  auto constexpr block_size = 256;
+  auto const grid_size      = (num_keys + block_size - 1) / block_size;
   filtered_insert<<<grid_size, block_size>>>(device_insert_view,
                                              insert_keys.begin(),
                                              insert_values.begin(),
@@ -158,15 +168,15 @@ int main(void)
   thrust::device_vector<Value> contained_values(num_inserted[0]);
   map.retrieve_all(contained_keys.begin(), contained_values.begin());
 
-  // Iterate over all slot contents and check if `slot.key + 1 == slot.value` is always true.
-  auto pair_iter =
+  auto tuple_iter =
     thrust::make_zip_iterator(thrust::make_tuple(contained_keys.begin(), contained_values.begin()));
+  // Iterate over all slot contents and verify that `slot.key + 1 == slot.value` is always true.
   auto result = thrust::all_of(
-    thrust::device, pair_iter, pair_iter + num_inserted[0], [] __device__(auto const& pair) {
-      return thrust::get<0>(pair) + 1 == thrust::get<1>(pair);
+    thrust::device, tuple_iter, tuple_iter + num_inserted[0], [] __device__(auto const& tuple) {
+      return thrust::get<0>(tuple) + 1 == thrust::get<1>(tuple);
     });
 
-  if (result) { std::cout << "Success! All slot values are properly incremented.\n"; }
+  if (result) { std::cout << "Success! Target values are properly incremented.\n"; }
 
   return 0;
 }
