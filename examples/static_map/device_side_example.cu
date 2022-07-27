@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,18 @@
  * limitations under the License.
  */
 
-#include <iostream>
-#include <limits>
+#include <cuco/static_map.cuh>
 
 #include <thrust/device_vector.h>
 #include <thrust/equal.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
-#include <thrust/transform.h>
 
-#include <cuco/static_map.cuh>
+#include <cmath>
+#include <cstddef>
+#include <iostream>
+#include <limits>
 
 /**
  * @file device_side_example.cu
@@ -39,12 +41,13 @@
  */
 
 /**
- * @brief Inserts keys that pass the specified predicated into the map
+ * @brief Inserts keys that pass the specified predicated into the map.
  *
  * @tparam Map Type of the map returned from static_map::get_mutable_device_view
  * @tparam KeyIter Input iterator whose value_type convertible to Map::key_type
  * @tparam ValueIter Input iterator whose value_type is convertible to Map::mapped_type
  * @tparam Predicate Unary predicate
+ *
  * @param[in] map_view View of the map into which inserts will be performed
  * @param[in] key_begin The beginning of the range of keys to insert
  * @param[in] value_begin The beginning of the range of values associated with each key to insert
@@ -81,7 +84,7 @@ __global__ void filtered_insert(Map map_view,
 }
 
 template <typename Map, typename KeyIter>
-__global__ void count_keys(Map map_view, KeyIter key_begin, std::size_t num_keys)
+__global__ void increment_values(Map map_view, KeyIter key_begin, std::size_t num_keys)
 {
   auto tid = threadIdx.x + blockIdx.x * blockDim.x;
   while (tid < num_keys) {
@@ -121,7 +124,9 @@ int main(void)
   std::size_t const capacity = std::ceil(num_keys / load_factor);
 
   // Constructs a map with "capacity" slots using -1 and -1 as the empty key/value sentinels.
-  cuco::static_map<Key, Value> map{capacity, empty_key_sentinel, empty_value_sentinel};
+  cuco::static_map<Key, Value> map{capacity,
+                                   cuco::sentinel::empty_key{empty_key_sentinel},
+                                   cuco::sentinel::empty_value{empty_value_sentinel}};
 
   // Get a non-owning, mutable view of the map that allows inserts to pass by value into the kernel
   auto device_insert_view = map.get_device_mutable_view();
@@ -146,24 +151,22 @@ int main(void)
   // Get a non-owning view of the map that allows find operations to pass by value into the kernel
   auto device_find_view = map.get_device_view();
 
-  count_keys<<<grid_size, block_size>>>(device_find_view, insert_keys.begin(), num_keys);
+  increment_values<<<grid_size, block_size>>>(device_find_view, insert_keys.begin(), num_keys);
 
-  // Compute the sum of all the values in the map
-  // There is currently no way to iterate only the non-empty slots in the map. Therefore, you must
-  // iterate all of the slots and first check if they are empty by comparing against the sentinel.
+  // Retrieve contents of all the non-empty slots in the map
+  thrust::device_vector<Key> contained_keys(num_inserted[0]);
+  thrust::device_vector<Value> contained_values(num_inserted[0]);
+  map.retrieve_all(contained_keys.begin(), contained_values.begin());
 
-  // This doesn't work yet due to Thrust issue with non-copyable types
-  //auto const count = thrust::transform_reduce(
-  //  thrust::device,
-  //  device_find_view.begin_slot(),
-  //  device_find_view.end_slot(),
-  //  [empty_key_sentinel] __device__(auto const& slot) {
-  //    auto const slot_is_empty = slot.first == empty_key_sentinel;
-  //    return slot_is_empty ? 0 : slot.second.load(cuda::memory_order_relaxed);
-  //  },
-  //  0,
-  //  thrust::plus<int>{});
+  // Iterate over all slot contents and check if `slot.key + 1 == slot.value` is always true.
+  auto pair_iter =
+    thrust::make_zip_iterator(thrust::make_tuple(contained_keys.begin(), contained_values.begin()));
+  auto result = thrust::all_of(
+    thrust::device, pair_iter, pair_iter + num_inserted[0], [] __device__(auto const& pair) {
+      return thrust::get<0>(pair) + 1 == thrust::get<1>(pair);
+    });
 
-    std::cout << "count: " << count << std::endl;
+  if (result) { std::cout << "Success! All slot values are properly incremented.\n"; }
 
+  return 0;
 }
