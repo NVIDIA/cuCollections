@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2020, NVIDIA CORPORATION.
+# Copyright (c) 2018-2021, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,70 +15,76 @@
 #=============================================================================
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 
-project(cuCollections VERSION 0.0.1 LANGUAGES CXX CUDA)
+if(NOT EXISTS ${CMAKE_BINARY_DIR}/RAPIDS.cmake)
+  file(DOWNLOAD https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-22.08/RAPIDS.cmake
+       ${CMAKE_BINARY_DIR}/RAPIDS.cmake)
+endif()
+include(${CMAKE_BINARY_DIR}/RAPIDS.cmake)
 
-###################################################################################################
-# - build type ------------------------------------------------------------------------------------
+include(rapids-cmake)
+include(rapids-cpm)
+include(rapids-cuda)
+include(rapids-export)
+include(rapids-find)
+
+# * Determine GPU architectures
+# * Enable the CMake CUDA language
+rapids_cuda_init_architectures(CUCO)
+
+project(CUCO VERSION 0.0.1 LANGUAGES CXX CUDA)
+
+# Write the version header
+rapids_cmake_write_version_file(include/cuco/version_config.hpp)
+
+##############################################################################
+# - build type ---------------------------------------------------------------
 
 # Set a default build type if none was specified
-set(DEFAULT_BUILD_TYPE "Release")
+rapids_cmake_build_type(Release)
 
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "Setting build type to '${DEFAULT_BUILD_TYPE}' since none specified.")
-  set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}" CACHE STRING "Choose the type of build." FORCE)
-  # Set the possible values of build type for cmake-gui
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
-endif()
+# needed for clangd and clang-tidy
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+##############################################################################
+# - compiler options ---------------------------------------------------------
+
+# * Find CUDAToolkit package
+# * Offers support for CMAKE_CUDA_ARCHITECTURES=NATIVE
+rapids_find_package(
+    CUDAToolkit REQUIRED
+    BUILD_EXPORT_SET cuco-exports
+    INSTALL_EXPORT_SET cuco-exports
+)
 
 ###################################################################################################
 # - find packages we depend on --------------------------------------------------------------------
 
-# Note: CUDA 10.2 debian packages are broken for cuda/std/atomic header as it is located in
-# cuda/std/std/atomic
-find_package(CUDAToolkit 10.2 REQUIRED)
+rapids_cpm_init()
 
-include(cmake/Modules/CPM.cmake)
-
-CPMFindPackage(
-  NAME Thrust
-  GITHUB_REPOSITORY NVIDIA/thrust
-  GIT_TAG 1.10.0
-  GIT_SHALLOW TRUE
-)
-thrust_create_target(Thrust)
-
-CPMAddPackage(
-    NAME libcudacxx
-    GITHUB_REPOSITORY NVIDIA/libcudacxx
-    GIT_TAG 1.3.0
-    DOWNLOAD_ONLY YES
-)
-
-# TODO: Once libcu++ exports a target, use that instead
-add_library(libcudacxx INTERFACE)
-target_include_directories(libcudacxx INTERFACE "${libcudacxx_SOURCE_DIR}/include")
-
+include(cmake/thirdparty/get_thrust.cmake)
+include(cmake/thirdparty/get_libcudacxx.cmake)
 
 ###################################################################################################
 # - cuco target   ---------------------------------------------------------------------------------
 add_library(cuco INTERFACE)
-target_include_directories(cuco INTERFACE 
-                           "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
-                           $<INSTALL_INTERFACE:include>)
-target_link_libraries(cuco INTERFACE libcudacxx CUDA::cudart Thrust CUB::CUB)
+add_library(cuco::cuco ALIAS cuco)
+target_include_directories(cuco INTERFACE
+    INTERFACE   $<BUILD_INTERFACE:${CUCO_SOURCE_DIR}/include>
+                $<INSTALL_INTERFACE:include>)
+target_link_libraries(cuco INTERFACE libcudacxx::libcudacxx CUDA::toolkit $<BUILD_INTERFACE:cuco::Thrust>)
 target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
 
-
-# Build options
-option(BUILD_TESTS "Configure CMake to build tests" ON)
-option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ON)
-option(BUILD_EXAMPLES "Configure CMake to build examples" ON)
-
 ###################################################################################################
-# - cmake modules ---------------------------------------------------------------------------------
+# - build options ---------------------------------------------------------------------------------
 
-set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules/" ${CMAKE_MODULE_PATH})
+set(default_build_option_state OFF)
+if ("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_LIST_DIR}")
+  set(default_build_option_state ON)
+endif()
 
+option(BUILD_TESTS "Configure CMake to build tests" ${default_build_option_state})
+option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ${default_build_option_state})
+option(BUILD_EXAMPLES "Configure CMake to build examples" ${default_build_option_state})
 
 ###################################################################################################
 # - optionally build tests ------------------------------------------------------------------------
@@ -100,3 +106,49 @@ endif(BUILD_BENCHMARKS)
 if(BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif(BUILD_EXAMPLES)
+
+###################################################################################################
+# - Install targets -------------------------------------------------------------------------------
+
+install(TARGETS cuco EXPORT cuco-exports)
+install(DIRECTORY include/cuco/ DESTINATION include/cuco)
+install(FILES ${CUCO_BINARY_DIR}/include/cuco/version_config.hpp DESTINATION include/cuco)
+
+set(doc_string
+    [=[
+Provide targets for cuCollections.
+
+cuCollections (cuco) is an open-source, header-only library of GPU-accelerated,
+concurrent data structures.
+
+Similar to how Thrust and CUB provide STL-like, GPU accelerated algorithms and
+primitives, cuCollections provides STL-like concurrent data structures.
+cuCollections is not a one-to-one, drop-in replacement for STL data structures
+like std::unordered_map. Instead, it provides functionally similar data
+structures tailored for efficient use with GPUs.
+
+]=])
+
+# build install targets
+rapids_export(
+    INSTALL cuco
+    EXPORT_SET cuco-exports
+    GLOBAL_TARGETS cuco
+    NAMESPACE cuco::
+    DOCUMENTATION doc_string)
+
+set(code_string
+    [=[
+if(NOT TARGET cuco::Thrust)
+    thrust_create_target(cuco::Thrust FROM_OPTIONS)
+endif()
+]=])
+
+# build export targets
+rapids_export(
+    BUILD cuco
+    EXPORT_SET cuco-exports
+    GLOBAL_TARGETS cuco
+    NAMESPACE cuco::
+    DOCUMENTATION doc_string
+    FINAL_CODE_BLOCK code_string)

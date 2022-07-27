@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
+#pragma once
+
 #include <cstdint>
 #include <type_traits>
 
 namespace cuco {
 namespace detail {
-__host__ __device__ constexpr int cuda_memcmp(void const* __lhs, void const* __rhs, size_t __count)
+__host__ __device__ inline int cuda_memcmp(void const* __lhs, void const* __rhs, size_t __count)
 {
   auto __lhs_c = reinterpret_cast<unsigned char const*>(__lhs);
   auto __rhs_c = reinterpret_cast<unsigned char const*>(__rhs);
@@ -34,7 +36,7 @@ __host__ __device__ constexpr int cuda_memcmp(void const* __lhs, void const* __r
 
 template <std::size_t TypeSize>
 struct bitwise_compare_impl {
-  __host__ __device__ static constexpr bool compare(char const* lhs, char const* rhs)
+  __host__ __device__ static bool compare(char const* lhs, char const* rhs)
   {
     return cuda_memcmp(lhs, rhs, TypeSize) == 0;
   }
@@ -42,7 +44,7 @@ struct bitwise_compare_impl {
 
 template <>
 struct bitwise_compare_impl<4> {
-  __host__ __device__ static constexpr bool compare(char const* lhs, char const* rhs)
+  __host__ __device__ inline static bool compare(char const* lhs, char const* rhs)
   {
     return *reinterpret_cast<uint32_t const*>(lhs) == *reinterpret_cast<uint32_t const*>(rhs);
   }
@@ -50,7 +52,7 @@ struct bitwise_compare_impl<4> {
 
 template <>
 struct bitwise_compare_impl<8> {
-  __host__ __device__ static constexpr bool compare(char const* lhs, char const* rhs)
+  __host__ __device__ inline static bool compare(char const* lhs, char const* rhs)
   {
     return *reinterpret_cast<uint64_t const*>(lhs) == *reinterpret_cast<uint64_t const*>(rhs);
   }
@@ -67,8 +69,10 @@ struct bitwise_compare_impl<8> {
 template <typename T>
 __host__ __device__ constexpr bool bitwise_compare(T const& lhs, T const& rhs)
 {
-  static_assert(std::has_unique_object_representations_v<T>,
-                "Bitwise compared objects must have unique object representation.");
+  static_assert(
+    cuco::is_bitwise_comparable_v<T>,
+    "Bitwise compared objects must have unique object representations or be explicitly declared as "
+    "safe for bitwise comparison via specialization of cuco::is_bitwise_comparable_v.");
   return detail::bitwise_compare_impl<sizeof(T)>::compare(reinterpret_cast<char const*>(&lhs),
                                                           reinterpret_cast<char const*>(&rhs));
 }

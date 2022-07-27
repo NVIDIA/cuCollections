@@ -16,13 +16,16 @@
 
 #include <benchmark/benchmark.h>
 
+#include <thrust/device_vector.h>
+#include <thrust/distance.h>
+#include <thrust/execution_policy.h>
+#include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/iterator_traits.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/pair.h>
 #include <thrust/reduce.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
-#include <thrust/device_vector.h>
 
 /**
  * @brief Generates input sizes and number of unique keys
@@ -76,13 +79,11 @@ static void BM_thrust(::benchmark::State& state)
   }
 }
 BENCHMARK_TEMPLATE(BM_thrust, int32_t, int32_t)
-    ->Unit(benchmark::kMillisecond)
-    ->Apply(generate_size_and_num_unique);
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_num_unique);
 
 BENCHMARK_TEMPLATE(BM_thrust, int64_t, int64_t)
-    ->Unit(benchmark::kMillisecond)
-    ->Apply(generate_size_and_num_unique);
+  ->Unit(benchmark::kMillisecond)
+  ->Apply(generate_size_and_num_unique);
 
 // TODO: Hash based reduce by key benchmark
-
-

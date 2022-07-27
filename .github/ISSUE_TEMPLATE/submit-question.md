@@ -1,8 +1,8 @@
 ---
 name: Submit question
-about: Ask a general question about ___PROJECT___
+about: Ask a general question about cuCollections
 title: "[QST]"
-labels: "? - Needs Triage, question"
+labels: "type: question"
 assignees: ''
 
 ---

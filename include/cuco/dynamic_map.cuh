@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,20 @@
 
 #pragma once
 
-#include <cooperative_groups.h>
-#include <thrust/device_vector.h>
-#include <cub/cub.cuh>
 #include <cuco/detail/dynamic_map_kernels.cuh>
 #include <cuco/detail/error.hpp>
+#include <cuco/sentinel.cuh>
 #include <cuco/static_map.cuh>
+
+#include <thrust/device_vector.h>
+#include <thrust/functional.h>
+
 #include <cuda/std/atomic>
+
+#include <cstddef>
+#include <memory>
+#include <type_traits>
+#include <vector>
 
 namespace cuco {
 
@@ -92,11 +99,14 @@ class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
  public:
-  using key_type                  = Key;
-  using mapped_type               = Value;
-  using atomic_ctr_type           = cuda::atomic<std::size_t, Scope>;
-  using view_type                 = typename static_map<Key, Value, Scope>::device_view;
-  using mutable_view_type         = typename static_map<Key, Value, Scope>::device_mutable_view;
+  using value_type      = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
+  using key_type        = Key;                               ///< Key type
+  using mapped_type     = Value;                             ///< Type of mapped values
+  using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;  ///< Type of atomic counters
+  using view_type = typename static_map<Key, Value, Scope>::device_view;  ///< Device view type
+  using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view;
+  ///< Device mutable view type
+
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
   dynamic_map& operator=(dynamic_map const&) = delete;
@@ -118,14 +128,13 @@ class dynamic_map {
    * that contains either.
    *
    * @param initial_capacity The initial number of slots in the map
-   * @param growth_factor The factor by which the capacity increases when resizing
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param alloc Allocator used to allocate submap device storage
    */
   dynamic_map(std::size_t initial_capacity,
-              Key empty_key_sentinel,
-              Value empty_value_sentinel,
+              sentinel::empty_key<Key> empty_key_sentinel,
+              sentinel::empty_value<Value> empty_value_sentinel,
               Allocator const& alloc = Allocator{});
 
   /**

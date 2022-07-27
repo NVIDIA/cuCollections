@@ -8,6 +8,7 @@ __pycache__
 *.dylib
 .cache
 .vscode
+.devcontainer
 *.code-workspace
 *.swp
 *.pytest_cache
@@ -75,7 +76,10 @@ cpp/thirdparty/googletest/
 *.iws
 
 ## Doxygen
-cpp/doxygen/html
+/doxygen/html
+/doxygen/latex
+/html
+/latex
 
 #Java
 target
@@ -133,3 +137,6 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# clang
+compile_commands.json
