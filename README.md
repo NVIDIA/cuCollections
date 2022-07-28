@@ -185,7 +185,7 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 
 `cuco::static_map` is a fixed-size hash table using open addressing with linear probing. 
 
-It provides both host, bulk APIs ([example](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/static_map_example.cu)) as well as device APIs for individual operations ([example (TODO)]()).
+It provides both host, bulk APIs ([example](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/host_bulk_example.cu)) as well as device APIs for individual operations ([example](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/device_view_example.cu)).
 
 See the Doxygen documentation in `static_map.cuh` for more detailed information.
 
