@@ -18,47 +18,100 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/std/atomic>
+
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
-#include <thrust/fill.h>
 #include <thrust/sequence.h>
 
-enum class filter_op { INSERT, CONTAINS };
+#include <cstddef>
+
+#include <cooperative_groups.h>
+
+#if defined(CUCO_HAS_CUDA_ANNOTATED_PTR)
+#include <cuda/annotated_ptr>
+#endif
+
+namespace cg = cooperative_groups;
+
+static constexpr nvbench::int64_t block_size   = 256;
+static constexpr nvbench::int64_t stride       = 4;
+
+enum class FilterOperation { INSERT, CONTAINS };
+
 NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
-  filter_op,
-  [](filter_op op) {
+  FilterOperation,
+  [](FilterOperation op) {
     switch (op) {
-      case filter_op::INSERT: return "INSERT";
-      case filter_op::CONTAINS: return "CONTAINS";
+      case FilterOperation::INSERT: return "INSERT";
+      case FilterOperation::CONTAINS: return "CONTAINS";
       default: return "ERROR";
     }
   },
-  [](auto) { return std::string{}; })
+  [](FilterOperation op) {
+    switch (op) {
+      case FilterOperation::INSERT: return "FilterOperation::INSERT";
+      case FilterOperation::CONTAINS: return "FilterOperation::CONTAINS";
+      default: return "ERROR";
+    }
+  })
 
-enum class filter_scope { GMEM, L2 };
-NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
-  filter_scope,
-  [](filter_scope s) {
-    switch (s) {
-      case filter_scope::GMEM: return "GMEM";
-      case filter_scope::L2: return "L2";
-      default: return "ERROR";
-    }
-  },
-  [](auto) { return std::string{}; })
+enum class FilterScope { GMEM, L2 };
 
-enum class data_scope { GMEM, REGISTERS };
 NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
-  data_scope,
-  [](data_scope s) {
+  FilterScope,
+  [](FilterScope s) {
     switch (s) {
-      case data_scope::GMEM: return "GMEM";
-      case data_scope::REGISTERS: return "REGISTERS";
+      case FilterScope::GMEM: return "GMEM";
+      case FilterScope::L2: return "L2";
       default: return "ERROR";
     }
   },
-  [](auto) { return std::string{}; })
+  [](FilterScope s) {
+    switch (s) {
+      case FilterScope::GMEM: return "FilterScope::GMEM";
+      case FilterScope::L2: return "FilterScope::L2";
+      default: return "ERROR";
+    }
+  })
+
+enum class DataScope { GMEM, REGS };
+
+NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
+  DataScope,
+  [](DataScope s) {
+    switch (s) {
+      case DataScope::GMEM: return "GMEM";
+      case DataScope::REGS: return "REGS";
+      default: return "ERROR";
+    }
+  },
+  [](DataScope s) {
+    switch (s) {
+      case DataScope::GMEM: return "DataScope::GMEM";
+      case DataScope::REGS: return "DataScope::REGS";
+      default: return "ERROR";
+    }
+  })
+
+template <typename Key, typename Slot>
+void add_size_summary(nvbench::state& state)
+{
+  using filter_type =
+    cuco::bloom_filter<Key, cuda::thread_scope_device, cuco::cuda_allocator<char>, Slot>;
+
+  auto const num_keys   = state.get_int64("NumInputs");
+  auto const num_bits   = state.get_int64("NumBits");
+  auto const num_hashes = state.get_int64("NumHashes");
+
+  filter_type filter(num_bits, num_hashes);
+
+  auto& summ = state.add_summary("nv/filter/size/mb");
+  summ.set_string("hint", "FilterMB");
+  summ.set_string("short_name", "FilterMB");
+  summ.set_string("description", "Size of the Bloom filter in MB.");
+  summ.set_float64("value", filter.get_num_slots() * sizeof(Slot) / 1000 / 1000);
+}
 
 template <typename Key, typename Slot>
 void add_fpr_summary(nvbench::state& state)
@@ -85,219 +138,187 @@ void add_fpr_summary(nvbench::state& state)
 
   float fp = thrust::count(thrust::device, result.begin(), result.end(), true);
 
-  auto& summ = state.add_summary("False-Positive Rate");
+  auto& summ = state.add_summary("nv/filter/fpr");
   summ.set_string("hint", "FPR");
   summ.set_string("short_name", "FPR");
   summ.set_string("description", "False-positive rate of the bloom filter.");
   summ.set_float64("value", fp / num_keys);
 }
 
-template <typename MutableFilterView>
-__global__ void insert_from_regs_to_gmem_kernel(MutableFilterView mutable_view,
-                                                std::size_t num_keys)
+template <nvbench::int64_t BLOCK_SIZE, typename Filter, typename InputIt>
+__global__ void __launch_bounds__(BLOCK_SIZE)
+  insert_kernel(Filter mutable_view, InputIt first, InputIt last)
 {
-  using key_type = typename MutableFilterView::key_type;
+  std::size_t tid = block_size * blockIdx.x + threadIdx.x;
+  auto it         = first + tid;
 
-  for (std::size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < num_keys;
-       i += blockDim.x * gridDim.x) {
-    mutable_view.insert(key_type(i + 1));
+  while (it < last) {
+    mutable_view.insert(*it);
+    it += gridDim.x * BLOCK_SIZE;
   }
 }
 
-template <typename Key, typename Slot, filter_op Op, filter_scope FilterScope, data_scope DataScope>
-void nvbench_cuco_bloom_filter(nvbench::state& state,
-                               nvbench::type_list<Key,
-                                                  Slot,
-                                                  nvbench::enum_type<Op>,
-                                                  nvbench::enum_type<FilterScope>,
-                                                  nvbench::enum_type<DataScope>>)
+template <nvbench::int64_t BLOCK_SIZE, typename Filter, typename InputIt, typename OutputIt>
+__global__ void __launch_bounds__(BLOCK_SIZE)
+  contains_kernel(Filter view, InputIt first, InputIt last, OutputIt results)
 {
-  // using thread_scope = std::conditional<(FilterScope == filter_scope::SMEM),
-  // cuda::thread_scope_block, cuda::thread_scope_device>;
-  using filter_type =
-    cuco::bloom_filter<Key, cuda::thread_scope_device, cuco::cuda_allocator<char>, Slot>;
-  using mutable_view_type = typename filter_type::device_mutable_view;
-  using view_type         = typename filter_type::device_view;
+  std::size_t tid = block_size * blockIdx.x + threadIdx.x;
 
-  std::size_t constexpr block_size = 128;
+  while ((first + tid) < last) {
+    *(results + tid) = view.contains(*(first + tid));
+    tid += gridDim.x * BLOCK_SIZE;
+  }
+}
 
-  auto const num_keys   = state.get_int64("NumInputs");
-  auto const num_bits   = state.get_int64("NumBits");
-  auto const num_hashes = state.get_int64("NumHashes");
+template <nvbench::int64_t BLOCK_SIZE, typename Filter>
+__global__ void __launch_bounds__(BLOCK_SIZE)
+  insert_kernel(Filter mutable_view, nvbench::int64_t num_keys)
+{
+  using key_type = typename Filter::key_type;
 
-  state.add_element_count(num_keys);
+  auto g = cg::this_grid();
 
-  add_fpr_summary<Key, Slot>(state);
+  for (key_type key = g.thread_rank(); key < num_keys; key += g.num_threads()) {
+    mutable_view.insert(key);
+  }
+}
 
-  [[maybe_unused]] nvbench::float64_t l2_hit_rate;
-  [[maybe_unused]] nvbench::float64_t l2_carve_out;
+template <nvbench::int64_t BLOCK_SIZE, typename Filter>
+__global__ void __launch_bounds__(BLOCK_SIZE)
+  contains_kernel(Filter view, nvbench::int64_t num_keys)
+{
+  using key_type = typename Filter::key_type;
+
+  auto g = cg::this_grid();
+
+  for (key_type key = g.thread_rank(); key < num_keys; key += g.num_threads()) {
+    volatile bool contains = view.contains(key);
+  }
+}
+
+template <typename T>
+__global__ void pin_memory(T* ptr, nvbench::int64_t size)
+{
+#if defined(CUCO_HAS_CUDA_ANNOTATED_PTR)
+  auto g = cooperative_groups::this_grid();
+  for (int idx = g.thread_rank(); idx < size; idx += g.size())
+    cuda::apply_access_property(ptr + idx, sizeof(T), cuda::access_property::persisting{});
+#endif
+}
+
+template <typename T>
+__global__ void unpin_memory(T* ptr, nvbench::int64_t size)
+{
+#if defined(CUCO_HAS_CUDA_ANNOTATED_PTR)
+  auto g = cooperative_groups::this_grid();
+  for (int idx = g.thread_rank(); idx < size; idx += g.size())
+    cuda::apply_access_property(ptr + idx, sizeof(T), cuda::access_property::normal{});
+#endif
+}
+
+template <typename Key, typename Slot, FilterOperation Op, FilterScope FScope, DataScope DScope>
+void
+nvbench_cuco_bloom_filter(
+  nvbench::state& state,
+  nvbench::type_list<Key, Slot, nvbench::enum_type<Op>, nvbench::enum_type<FScope>, nvbench::enum_type<DScope>>)
+{
+  auto num_keys   = state.get_int64("NumInputs");
+  auto num_bits   = state.get_int64("NumBits");
+  auto num_hashes = state.get_int64("NumHashes");
+
   [[maybe_unused]] thrust::device_vector<Key> keys;
-  [[maybe_unused]] thrust::device_vector<bool> result;
+  [[maybe_unused]] thrust::device_vector<bool> results;
 
-  int device_id;
-  cudaGetDevice(&device_id);
-  cudaDeviceProp prop;
-  cudaGetDeviceProperties(&prop, device_id);
-
-  if constexpr (DataScope == data_scope::GMEM) {
+  if constexpr (DScope == DataScope::GMEM) {
     keys.resize(num_keys);
     thrust::sequence(thrust::device, keys.begin(), keys.end(), 1);
 
-    if constexpr (Op == filter_op::CONTAINS) { result.resize(num_keys); }
+    if constexpr (Op == FilterOperation::CONTAINS) { results.resize(num_keys); }
   }
 
-  if constexpr (FilterScope == filter_scope::L2) {
-    filter_type filter(num_bits, num_hashes);
-    auto const filter_bytes = filter.get_num_bits() / CHAR_BIT;
+  using filter_type =
+    cuco::bloom_filter<Key, cuda::thread_scope_device, cuco::cuda_allocator<char>, Slot>;
 
-    if (filter_bytes > prop.accessPolicyMaxWindowSize) {
-      state.skip("Filter size exceeds maximum access policy window size.");
-      return;
-    }
+  filter_type filter(num_bits, num_hashes);
+  auto mutable_view           = filter.get_device_mutable_view();
+  auto view                   = filter.get_device_view();
+  std::size_t const grid_size = SDIV(num_keys, stride * block_size);
 
-    l2_hit_rate  = state.get_float64("L2HitRate");
-    l2_carve_out = state.get_float64("L2CarveOut");
+  state.add_element_count(num_keys);
+  state.add_global_memory_writes<Slot>(num_keys);
 
-    if (l2_hit_rate <= 0.0 or l2_hit_rate > 1.0) {
-      state.skip("L2 hit ratio must be in (0,1].");
-      return;
-    }
+  add_fpr_summary<Key, Slot>(state);
+  add_size_summary<Key, Slot>(state);
 
-    if (l2_carve_out <= 0.0 or l2_carve_out > 1.0) {
-      state.skip("L2 carve out must be in (0,1].");
-      return;
-    }
-
-    cudaDeviceSetLimit(cudaLimitPersistingL2CacheSize,
-                       l2_carve_out * prop.persistingL2CacheMaxSize);
+  if constexpr (Op == FilterOperation::CONTAINS) {
+    insert_kernel<block_size>
+      <<<grid_size, block_size>>>(mutable_view, num_keys);
   }
 
-  state.exec(
-    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      filter_type filter(num_bits, num_hashes);
+  if constexpr (FScope == FilterScope::L2)
+    pin_memory<<<grid_size, block_size>>>(filter.get_slots(), filter.get_num_slots());
 
-      if constexpr (FilterScope == filter_scope::L2) {
-        // Stream level attributes data structure
-        cudaStreamAttrValue stream_attribute;
-        // Global Memory data pointer
-        stream_attribute.accessPolicyWindow.base_ptr = reinterpret_cast<void*>(filter.get_slots());
-        // Number of bytes for persistence access.
-        stream_attribute.accessPolicyWindow.num_bytes = filter.get_num_bits() / CHAR_BIT;
-        // Hint for cache hit ratio
-        stream_attribute.accessPolicyWindow.hitRatio = l2_hit_rate;
-        // Type of access property on cache hit
-        stream_attribute.accessPolicyWindow.hitProp = cudaAccessPropertyPersisting;
-        // Type of access property on cache miss.
-        stream_attribute.accessPolicyWindow.missProp = cudaAccessPropertyStreaming;
-        // Set the attributes to a CUDA stream of type cudaStream_t
-        cudaStreamSetAttribute(
-          launch.get_stream(), cudaStreamAttributeAccessPolicyWindow, &stream_attribute);
+  state.exec([&](nvbench::launch& launch) {
+    if constexpr (Op == FilterOperation::INSERT) {
+      filter.initialize(launch.get_stream());
+      if constexpr (DScope == DataScope::GMEM) {
+        insert_kernel<block_size>
+          <<<grid_size, block_size, 0, launch.get_stream()>>>(mutable_view, keys.begin(), keys.end());
       }
-
-      if constexpr (Op == filter_op::INSERT) {
-        if constexpr (DataScope == data_scope::GMEM) {
-          timer.start();
-          filter.insert(keys.begin(), keys.end(), launch.get_stream());
-          timer.stop();
-        } else if constexpr (DataScope == data_scope::REGISTERS) {
-          auto mutable_view = filter.get_device_mutable_view();
-
-          std::size_t const grid_size = cuco::detail::get_grid_size(
-            insert_from_regs_to_gmem_kernel<mutable_view_type>, block_size);
-
-          timer.start();
-          insert_from_regs_to_gmem_kernel<<<grid_size, block_size, 0, launch.get_stream()>>>(
-            mutable_view, num_keys);
-          timer.stop();
-        } else {
-          state.skip("Invalid data scope.");
-          return;
-        }
-      } else if constexpr (Op == filter_op::CONTAINS) {
-        if constexpr (DataScope == data_scope::GMEM) {
-          filter.insert(keys.begin(), keys.end(), launch.get_stream());
-          thrust::fill(
-            thrust::cuda::par.on(launch.get_stream()), result.begin(), result.end(), false);
-          timer.start();
-          filter.contains(keys.begin(), keys.end(), result.begin(), launch.get_stream());
-          timer.stop();
-        } else {
-          state.skip("Invalid data scope.");
-          return;
-        }
-      } else {
-        state.skip("Invalid filter operation.");
-        return;
+      if constexpr (DScope == DataScope::REGS) {
+        insert_kernel<block_size>
+          <<<grid_size, block_size, 0, launch.get_stream()>>>(mutable_view, num_keys);
       }
-
-      if constexpr (FilterScope == filter_scope::L2) {
-        cudaStreamAttrValue stream_attribute;
-        // Setting the window size to 0 disable it
-        stream_attribute.accessPolicyWindow.num_bytes = 0;
-        // Overwrite the access policy attribute to a CUDA Stream
-        cudaStreamSetAttribute(
-          launch.get_stream(), cudaStreamAttributeAccessPolicyWindow, &stream_attribute);
-        // Remove any persistent lines in L2
-        cudaCtxResetPersistingL2Cache();
+    }
+    if constexpr (Op == FilterOperation::CONTAINS) {
+      if constexpr (DScope == DataScope::GMEM) {
+        contains_kernel<block_size>
+          <<<grid_size, block_size, 0, launch.get_stream()>>>(view, keys.begin(), keys.end(), results.begin());
       }
-    });
+      if constexpr (DScope == DataScope::REGS) {
+        contains_kernel<block_size>
+          <<<grid_size, block_size, 0, launch.get_stream()>>>(view, num_keys);
+      }
+    }
+  });
+
+  if constexpr (FScope == FilterScope::L2)
+    unpin_memory<<<grid_size, block_size>>>(filter.get_slots(), filter.get_num_slots());
 }
 
-// type parameter dimensions for benchmark
-using key_type_range     = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
-using slot_type_range    = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
-using op_range           = nvbench::enum_type_list<filter_op::INSERT, filter_op::CONTAINS>;
-using filter_scope_range = nvbench::enum_type_list<filter_scope::L2, filter_scope::GMEM>;
-using data_scope_range   = nvbench::enum_type_list<data_scope::GMEM, data_scope::REGISTERS>;
+using key_type_range  = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
+using slot_type_range  = nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>;
+using op_range         = nvbench::enum_type_list<FilterOperation::INSERT, FilterOperation::CONTAINS>;
+using filter_scope_range = nvbench::enum_type_list<FilterScope::GMEM, FilterScope::L2>;
+using data_scope_range = nvbench::enum_type_list<DataScope::GMEM, DataScope::REGS>;
+
+// A100 L2 = 40MB ~ 330'000'000 bits
+// smem = 48kb ~ 390'0000 bits
+// 1GB ~ 8'500'000'000 bits
+// 4GB ~ 34'000'000'000 bits
 
 NVBENCH_BENCH_TYPES(nvbench_cuco_bloom_filter,
                     NVBENCH_TYPE_AXES(key_type_range,
-                                      nvbench::type_list<nvbench::int32_t>,
+                                      slot_type_range,
                                       op_range,
-                                      nvbench::enum_type_list<filter_scope::GMEM>,
+                                      filter_scope_range,
                                       data_scope_range))
-  .set_name("cuco_bloom_filter_gmem")
-  .set_type_axes_names({"KeyType", "SlotType", "Operation", "FilterScope", "DataScope"})
-  .set_max_noise(3)                                        // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {100'000'000, 10'000'000})  // Total number of keys
-  .add_int64_axis("NumBits",
-                  {100'000'000,
-                   200'000'000,
-                   250'000'000,
-                   300'000'000,
-                   350'000'000,
-                   400'000'000,
-                   450'000'000,
-                   500'000'000,
-                   1'000'000'000,
-                   5'000'000'000,
-                   10'000'000'000,
-                   50'000'000'000})  //, 100'000'000'000})
+  .set_name("cuco_bloom_filter_l2")
+  .set_type_axes_names({"KeyType", "SlotType", "FilterOperation", "FilterScope", "DataScope"})
+  .set_max_noise(3)
+  .add_int64_axis("NumInputs", {10'000'000, 100'000'000})
+  .add_int64_axis("NumBits", {300'000'000})
   .add_int64_axis("NumHashes", {2});
 
 NVBENCH_BENCH_TYPES(nvbench_cuco_bloom_filter,
                     NVBENCH_TYPE_AXES(key_type_range,
-                                      nvbench::type_list<nvbench::int32_t>,
+                                      slot_type_range,
                                       op_range,
-                                      nvbench::enum_type_list<filter_scope::L2>,
+                                      nvbench::enum_type_list<FilterScope::GMEM>,
                                       data_scope_range))
-  .set_name("cuco_bloom_filter_L2")
-  .set_type_axes_names({"KeyType", "SlotType", "Operation", "FilterScope", "DataScope"})
-  .set_max_noise(3)                                        // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {100'000'000, 10'000'000})  // Total number of keys
-  .add_int64_axis("NumBits",
-                  {100'000'000,
-                   200'000'000,
-                   250'000'000,
-                   300'000'000,
-                   350'000'000,
-                   400'000'000,
-                   450'000'000,
-                   500'000'000,
-                   1'000'000'000,
-                   5'000'000'000,
-                   10'000'000'000,
-                   50'000'000'000})
-  .add_int64_axis("NumHashes", {2})
-  .add_float64_axis("L2HitRate", nvbench::range(0.2, 1.0, 0.2))
-  .add_float64_axis("L2CarveOut", nvbench::range(0.2, 1.0, 0.2));
+  .set_name("cuco_bloom_filter_gmem")
+  .set_type_axes_names({"KeyType", "SlotType", "FilterOperation", "FilterScope", "DataScope"})
+  .set_max_noise(3)
+  .add_int64_axis("NumInputs", {1'000'000'000, 100'000'000})
+  .add_int64_axis("NumBits", {8'500'000'000, 34'000'000'000})
+  .add_int64_axis("NumHashes", {6});

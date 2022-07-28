@@ -104,5 +104,5 @@ set(RBK_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/reduce_by_key/reduce_by_key.cu")
 ConfigureBench(RBK_BENCH "${RBK_BENCH_SRC}")
 
 ###################################################################################################
-set(BLOOM_FILTER_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/bloom_filter/bloom_filter_bench.cu")
-ConfigureNVBench(BLOOM_FILTER_BENCH "${BLOOM_FILTER_BENCH_SRC}")
+ConfigureNVBench(BLOOM_FILTER_BENCH
+  "bloom_filter/bloom_filter_bench.cu")
