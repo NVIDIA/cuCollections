@@ -178,7 +178,7 @@ __global__ void __launch_bounds__(BLOCK_SIZE)
 
   auto g = cg::this_grid();
 
-  for (key_type key = g.thread_rank(); key < num_keys; key += g.num_threads()) {
+  for (key_type key = g.thread_rank(); key < num_keys; key += g.size()) {
     mutable_view.insert(key);
   }
 }
@@ -191,7 +191,7 @@ __global__ void __launch_bounds__(BLOCK_SIZE)
 
   auto g = cg::this_grid();
 
-  for (key_type key = g.thread_rank(); key < num_keys; key += g.num_threads()) {
+  for (key_type key = g.thread_rank(); key < num_keys; key += g.size()) {
     volatile bool contains = view.contains(key);
   }
 }
