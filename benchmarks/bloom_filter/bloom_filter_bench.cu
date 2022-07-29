@@ -34,8 +34,8 @@
 
 namespace cg = cooperative_groups;
 
-static constexpr nvbench::int64_t block_size   = 256;
-static constexpr nvbench::int64_t stride       = 4;
+static constexpr nvbench::int64_t block_size = 256;
+static constexpr nvbench::int64_t stride     = 4;
 
 enum class FilterOperation { INSERT, CONTAINS };
 
@@ -217,10 +217,12 @@ __global__ void unpin_memory(T* ptr, nvbench::int64_t size)
 }
 
 template <typename Key, typename Slot, FilterOperation Op, FilterScope FScope, DataScope DScope>
-void
-nvbench_cuco_bloom_filter(
-  nvbench::state& state,
-  nvbench::type_list<Key, Slot, nvbench::enum_type<Op>, nvbench::enum_type<FScope>, nvbench::enum_type<DScope>>)
+void nvbench_cuco_bloom_filter(nvbench::state& state,
+                               nvbench::type_list<Key,
+                                                  Slot,
+                                                  nvbench::enum_type<Op>,
+                                                  nvbench::enum_type<FScope>,
+                                                  nvbench::enum_type<DScope>>)
 {
   auto num_keys   = state.get_int64("NumInputs");
   auto num_bits   = state.get_int64("NumBits");
@@ -251,8 +253,7 @@ nvbench_cuco_bloom_filter(
   add_size_summary<Key, Slot>(state);
 
   if constexpr (Op == FilterOperation::CONTAINS) {
-    insert_kernel<block_size>
-      <<<grid_size, block_size>>>(mutable_view, num_keys);
+    insert_kernel<block_size><<<grid_size, block_size>>>(mutable_view, num_keys);
   }
 
   if constexpr (FScope == FilterScope::L2)
@@ -262,8 +263,8 @@ nvbench_cuco_bloom_filter(
     if constexpr (Op == FilterOperation::INSERT) {
       filter.initialize(launch.get_stream());
       if constexpr (DScope == DataScope::GMEM) {
-        insert_kernel<block_size>
-          <<<grid_size, block_size, 0, launch.get_stream()>>>(mutable_view, keys.begin(), keys.end());
+        insert_kernel<block_size><<<grid_size, block_size, 0, launch.get_stream()>>>(
+          mutable_view, keys.begin(), keys.end());
       }
       if constexpr (DScope == DataScope::REGS) {
         insert_kernel<block_size>
@@ -272,8 +273,8 @@ nvbench_cuco_bloom_filter(
     }
     if constexpr (Op == FilterOperation::CONTAINS) {
       if constexpr (DScope == DataScope::GMEM) {
-        contains_kernel<block_size>
-          <<<grid_size, block_size, 0, launch.get_stream()>>>(view, keys.begin(), keys.end(), results.begin());
+        contains_kernel<block_size><<<grid_size, block_size, 0, launch.get_stream()>>>(
+          view, keys.begin(), keys.end(), results.begin());
       }
       if constexpr (DScope == DataScope::REGS) {
         contains_kernel<block_size>
@@ -287,10 +288,10 @@ nvbench_cuco_bloom_filter(
 }
 
 using key_type_range  = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
-using slot_type_range  = nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>;
-using op_range         = nvbench::enum_type_list<FilterOperation::INSERT, FilterOperation::CONTAINS>;
+using slot_type_range = nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>;
+using op_range        = nvbench::enum_type_list<FilterOperation::INSERT, FilterOperation::CONTAINS>;
 using filter_scope_range = nvbench::enum_type_list<FilterScope::GMEM, FilterScope::L2>;
-using data_scope_range = nvbench::enum_type_list<DataScope::GMEM, DataScope::REGS>;
+using data_scope_range   = nvbench::enum_type_list<DataScope::GMEM, DataScope::REGS>;
 
 // A100 L2 = 40MB ~ 330'000'000 bits
 // smem = 48kb ~ 390'0000 bits
