@@ -64,6 +64,7 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/stream_test.cu
     static_map/unique_sequence_test.cu)
 
+####################################################################################################
 foreach(arch IN LISTS CMAKE_CUDA_ARCHITECTURES)
     if("${arch}" MATCHES "^6")
       target_compile_definitions(STATIC_MAP_TEST PRIVATE CUCO_NO_INDEPENDENT_THREADS)
@@ -86,3 +87,8 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/multiplicity_test.cu
     static_multimap/non_match_test.cu
     static_multimap/pair_function_test.cu)
+
+###################################################################################################
+# - bloom_filter tests -------------------------------------------------------------------------
+ConfigureTest(BLOOM_FILTER_TEST
+bloom_filter/bloom_filter_test.cu)
