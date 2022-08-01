@@ -98,39 +98,40 @@ class reduction_functor : detail::reduction_functor_base {
 
       do {
         desired = functor_(old, rhs);
-      } while (!lhs.compare_exchange_weak(
+      } while (not lhs.compare_exchange_weak(
         old, desired, cuda::memory_order_release, cuda::memory_order_relaxed));
 
       return desired;
     }
-    if constexpr (!uses_external_sync()) { return functor_(lhs, rhs); }
+    if constexpr (not uses_external_sync()) { return functor_(lhs, rhs); }
   }
 
   __host__ __device__ value_type identity() const noexcept { return identity_.value(); }
 
   __host__ __device__ static constexpr bool uses_external_sync() noexcept
   {
-    return !atomic_invocable_ || naive_invocable_;
+    return not atomic_invocable_ or naive_invocable_;
   }
 
  private:
   cuco::identity_value<value_type> identity_;
   Func functor_;
+
   static constexpr bool naive_invocable_ =
     cuda::std::is_invocable_r_v<value_type, Func, value_type, value_type>;
   static constexpr bool atomic_invocable_ =
     cuda::std::is_invocable_r_v<value_type,
                                 Func,
                                 cuda::atomic<value_type, cuda::thread_scope_system>&,
-                                value_type> ||
+                                value_type> or
     cuda::std::is_invocable_r_v<value_type,
                                 Func,
                                 cuda::atomic<value_type, cuda::thread_scope_device>&,
-                                value_type> ||
+                                value_type> or
     cuda::std::is_invocable_r_v<value_type,
                                 Func,
                                 cuda::atomic<value_type, cuda::thread_scope_block>&,
-                                value_type> ||
+                                value_type> or
     cuda::std::is_invocable_r_v<value_type,
                                 Func,
                                 cuda::atomic<value_type, cuda::thread_scope_thread>&,
@@ -139,24 +140,24 @@ class reduction_functor : detail::reduction_functor_base {
     cuda::std::is_invocable_r_v<value_type,
                                 Func,
                                 cuda::atomic<value_type, cuda::thread_scope_system> const&,
-                                value_type> ||
+                                value_type> or
     cuda::std::is_invocable_r_v<value_type,
                                 Func,
                                 cuda::atomic<value_type, cuda::thread_scope_device> const&,
-                                value_type> ||
+                                value_type> or
     cuda::std::is_invocable_r_v<value_type,
                                 Func,
                                 cuda::atomic<value_type, cuda::thread_scope_block> const&,
-                                value_type> ||
+                                value_type> or
     cuda::std::is_invocable_r_v<value_type,
                                 Func,
                                 cuda::atomic<value_type, cuda::thread_scope_thread> const&,
                                 value_type>;
 
-  static_assert((atomic_invocable_ && !atomic_const_invocable_) || naive_invocable_,
+  static_assert((atomic_invocable_ and not atomic_const_invocable_) or naive_invocable_,
                 "Invalid operator signature. Valid signatures are "
                 "(T const&, T const&)->T and (cuda::atomic<T, Scope>&, T const&)->T.");
-  static_assert(!(__nv_is_extended_device_lambda_closure_type(Func) ||
+  static_assert(!(__nv_is_extended_device_lambda_closure_type(Func) or
                   __nv_is_extended_host_device_lambda_closure_type(Func)),
                 "Extended __device__/__host__ __device__ lambdas are not supported."
                 " Use a named function object instead.");
