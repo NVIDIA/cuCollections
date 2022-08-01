@@ -29,7 +29,8 @@ namespace cuco {
 template <typename Key, cuda::thread_scope Scope, typename Allocator, typename Slot>
 bloom_filter<Key, Scope, Allocator, Slot>::bloom_filter(std::size_t num_bits,
                                                         std::size_t num_hashes,
-                                                        Allocator const& alloc)
+                                                        Allocator const& alloc,
+                                                        cudaStream_t stream)
   : num_bits_{SDIV(std::max(std::size_t{1}, num_bits), detail::type_bits<slot_type>()) *
               detail::type_bits<slot_type>()},
     num_slots_{SDIV(std::max(std::size_t{1}, num_bits), detail::type_bits<slot_type>())},
@@ -38,7 +39,7 @@ bloom_filter<Key, Scope, Allocator, Slot>::bloom_filter(std::size_t num_bits,
 {
   slots_ = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, num_slots_);
 
-  initialize();
+  initialize(stream);
 }
 
 template <typename Key, cuda::thread_scope Scope, typename Allocator, typename Slot>

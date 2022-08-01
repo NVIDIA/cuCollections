@@ -111,8 +111,12 @@ class bloom_filter {
    * @param num_bits The total number of bits in the filter
    * @param num_hashes The number of hashes to be applied to a key
    * @param alloc Allocator used for allocating device storage
+   * @param stream The CUDA stream this operation is executed in
    */
-  bloom_filter(std::size_t num_bits, std::size_t num_hashes, Allocator const& alloc = Allocator{});
+  bloom_filter(std::size_t num_bits,
+               std::size_t num_hashes,
+               Allocator const& alloc = Allocator{},
+               cudaStream_t stream    = 0);
 
   /**
    * @brief Destroys the filter and frees its contents.
