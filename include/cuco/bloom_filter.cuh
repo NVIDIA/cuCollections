@@ -95,7 +95,7 @@ class bloom_filter {
   using slot_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
     atomic_slot_type>;  ///< Type of the allocator to (de)allocate slots
 
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 700)
+#if !defined(CUCO_HAS_INDEPENDENT_THREADS)
   static_assert(atomic_slot_type::is_always_lock_free,
                 "A slot type larger than 8B is supported for only sm_70 and up.");
 #endif
