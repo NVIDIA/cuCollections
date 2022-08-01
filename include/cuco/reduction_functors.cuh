@@ -135,8 +135,25 @@ class reduction_functor : detail::reduction_functor_base {
                                 Func,
                                 cuda::atomic<value_type, cuda::thread_scope_thread>&,
                                 value_type>;
+  static constexpr bool atomic_const_invocable_ =
+    cuda::std::is_invocable_r_v<value_type,
+                                Func,
+                                cuda::atomic<value_type, cuda::thread_scope_system> const&,
+                                value_type> ||
+    cuda::std::is_invocable_r_v<value_type,
+                                Func,
+                                cuda::atomic<value_type, cuda::thread_scope_device> const&,
+                                value_type> ||
+    cuda::std::is_invocable_r_v<value_type,
+                                Func,
+                                cuda::atomic<value_type, cuda::thread_scope_block> const&,
+                                value_type> ||
+    cuda::std::is_invocable_r_v<value_type,
+                                Func,
+                                cuda::atomic<value_type, cuda::thread_scope_thread> const&,
+                                value_type>;
 
-  static_assert(atomic_invocable_ || naive_invocable_,
+  static_assert((atomic_invocable_ && !atomic_const_invocable_) || naive_invocable_,
                 "Invalid operator signature. Valid signatures are "
                 "(T const&, T const&)->T and (cuda::atomic<T, Scope>&, T const&)->T.");
   static_assert(!(__nv_is_extended_device_lambda_closure_type(Func) ||
