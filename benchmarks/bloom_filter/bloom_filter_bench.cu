@@ -15,6 +15,7 @@
  */
 
 #include <cuco/bloom_filter.cuh>
+#include <cuco/detail/cache_residency_control.cuh>
 
 #include <nvbench/nvbench.cuh>
 
@@ -27,10 +28,6 @@
 #include <cstddef>
 
 #include <cooperative_groups.h>
-
-#if defined(CUCO_HAS_CUDA_ANNOTATED_PTR)
-#include <cuda/annotated_ptr>
-#endif
 
 namespace cg = cooperative_groups;
 
@@ -196,26 +193,6 @@ __global__ void __launch_bounds__(BLOCK_SIZE)
   }
 }
 
-template <typename T>
-__global__ void pin_memory(T* ptr, nvbench::int64_t size)
-{
-#if defined(CUCO_HAS_CUDA_ANNOTATED_PTR)
-  auto g = cooperative_groups::this_grid();
-  for (int idx = g.thread_rank(); idx < size; idx += g.size())
-    cuda::apply_access_property(ptr + idx, sizeof(T), cuda::access_property::persisting{});
-#endif
-}
-
-template <typename T>
-__global__ void unpin_memory(T* ptr, nvbench::int64_t size)
-{
-#if defined(CUCO_HAS_CUDA_ANNOTATED_PTR)
-  auto g = cooperative_groups::this_grid();
-  for (int idx = g.thread_rank(); idx < size; idx += g.size())
-    cuda::apply_access_property(ptr + idx, sizeof(T), cuda::access_property::normal{});
-#endif
-}
-
 template <typename Key, typename Slot, FilterOperation Op, FilterScope FScope, DataScope DScope>
 void nvbench_cuco_bloom_filter(nvbench::state& state,
                                nvbench::type_list<Key,
@@ -256,8 +233,14 @@ void nvbench_cuco_bloom_filter(nvbench::state& state,
     insert_kernel<block_size><<<grid_size, block_size>>>(mutable_view, num_keys);
   }
 
+  cudaStream_t stream;
+  cudaStreamCreate(&stream);
+
   if constexpr (FScope == FilterScope::L2)
-    pin_memory<<<grid_size, block_size>>>(filter.get_slots(), filter.get_num_slots());
+    cuco::register_l2_persistence(
+      stream, filter.get_slots(), filter.get_slots() + filter.get_num_slots());
+
+  state.set_cuda_stream(nvbench::make_cuda_stream_view(stream));
 
   state.exec([&](nvbench::launch& launch) {
     if constexpr (Op == FilterOperation::INSERT) {
@@ -283,12 +266,11 @@ void nvbench_cuco_bloom_filter(nvbench::state& state,
     }
   });
 
-  if constexpr (FScope == FilterScope::L2)
-    unpin_memory<<<grid_size, block_size>>>(filter.get_slots(), filter.get_num_slots());
+  if constexpr (FScope == FilterScope::L2) cuco::unregister_l2_persistence(stream);
 }
 
 using key_type_range  = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
-using slot_type_range = nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>;
+using slot_type_range = nvbench::type_list<nvbench::int32_t, nvbench::uint64_t>;
 using op_range        = nvbench::enum_type_list<FilterOperation::INSERT, FilterOperation::CONTAINS>;
 using filter_scope_range = nvbench::enum_type_list<FilterScope::GMEM, FilterScope::L2>;
 using data_scope_range   = nvbench::enum_type_list<DataScope::GMEM, DataScope::REGS>;
@@ -299,8 +281,8 @@ using data_scope_range   = nvbench::enum_type_list<DataScope::GMEM, DataScope::R
 // 4GB ~ 34'000'000'000 bits
 
 NVBENCH_BENCH_TYPES(nvbench_cuco_bloom_filter,
-                    NVBENCH_TYPE_AXES(key_type_range,
-                                      slot_type_range,
+                    NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::int32_t>,
+                                      nvbench::type_list<nvbench::int64_t>,
                                       op_range,
                                       filter_scope_range,
                                       data_scope_range))
