@@ -26,9 +26,9 @@ namespace cuco {
  *
  * @tparam Iterator Accessor of the memory region
  *
- * @param[in, out] stream The CUDA stream this region is accessed through
  * @param[in] begin Start of the memory region to be mapped
  * @param[in] end End of the memory region
+ * @param[in, out] stream The CUDA stream this region is accessed through
  * @param[in] hit_rate Probability for a sub-segment to be mapped in L2
  * @param[in] carve_out Fraction of total L2 space to be blocked for resident memory segments
  *
@@ -37,7 +37,7 @@ namespace cuco {
  */
 template <typename Iterator>
 void register_l2_persistence(
-  cudaStream_t& stream, Iterator begin, Iterator end, float hit_rate = 0.6f, float carve_out = 1.0f)
+  Iterator begin, Iterator end, cudaStream_t& stream, float hit_rate = 0.6f, float carve_out = 1.0f)
 {
   using value_type = typename std::iterator_traits<Iterator>::value_type;
 
