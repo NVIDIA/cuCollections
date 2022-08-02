@@ -25,6 +25,7 @@ namespace cuco {
  * be permanently resident in L2 cache.
  *
  * @tparam Iterator Accessor of the memory region
+ *
  * @param[in, out] stream The CUDA stream this region is accessed through
  * @param[in] begin Start of the memory region to be mapped
  * @param[in] end End of the memory region
