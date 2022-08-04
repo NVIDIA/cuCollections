@@ -65,12 +65,19 @@ namespace cuco {
  * and `cuco::detail::double_hashing`. (see `detail/probe_sequences.cuh`)
  * @tparam Allocator Type of allocator used for device storage
  */
+// template<
+// class Key,
+// class Hash = std::hash<Key>,
+// class KeyEqual = std::equal_to<Key>,
+// class Allocator = std::allocator<Key>
+// > class unordered_set;
 template <class Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
+          class Hash               = cuco::detail::MurmurHash3_32<Key>,
           class KeyEqual           = thrust::equal_to<Key>,
-          class ProbeSequence      = cuco::linear_probing<2, detail::MurmurHash3_32<Key>>,
           class Allocator          = cuco::cuda_allocator<char>,
-          class Storage            = cuco::detail::aos_storage<Key, void, Allocator>>
+          class ProbeScheme        = cuco::linear_probing<2, uses_window_probing::YES>,
+          class Storage            = cuco::detail::soa_storage<Key, void>>
 class static_set {
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
@@ -175,251 +182,6 @@ class static_set {
   template <typename InputIt, typename OutputIt>
   void contains(InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream = 0) const;
 
- private:
-  /**
-   * @brief Custom deleter for unique pointer of device counter.
-   */
-  struct counter_deleter {
-    counter_deleter(counter_allocator_type& a) : allocator{a} {}
-
-    counter_deleter(counter_deleter const&) = default;
-
-    void operator()(atomic_ctr_type* ptr) { allocator.deallocate(ptr, 1); }
-
-    counter_allocator_type& allocator;
-  };
-
-  template <typename ViewImpl>
-  class device_view_base {
-   protected:
-    // Import member type definitions from `static_set`
-    using value_type          = value_type;
-    using key_type            = Key;
-    using mapped_type         = Value;
-    using pair_atomic_type    = pair_atomic_type;
-    using iterator            = pair_atomic_type*;
-    using const_iterator      = pair_atomic_type const*;
-    using probe_sequence_type = probe_sequence_type;
-
-    __host__ __device__ device_view_base(pair_atomic_type* slots,
-                                         std::size_t capacity,
-                                         sentinel::empty_key<Key> empty_key_sentinel,
-                                         sentinel::empty_value<Value> empty_value_sentinel) noexcept
-      : impl_{slots, capacity, empty_key_sentinel.value, empty_value_sentinel.value}
-    {
-    }
-
-   public:
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ __forceinline__ pair_atomic_type* get_slots() noexcept { return impl_.get_slots(); }
-
-    /**
-     * @brief Gets slots array.
-     *
-     * @return Slots array
-     */
-    __device__ __forceinline__ pair_atomic_type const* get_slots() const noexcept
-    {
-      return impl_.get_slots();
-    }
-
-    /**
-     * @brief Gets the maximum number of elements the hash map can hold.
-     *
-     * @return The maximum number of elements the hash map can hold
-     */
-    __host__ __device__ __forceinline__ std::size_t get_capacity() const noexcept
-    {
-      return impl_.get_capacity();
-    }
-
-    /**
-     * @brief Gets the sentinel value used to represent an empty key slot.
-     *
-     * @return The sentinel value used to represent an empty key slot
-     */
-    __host__ __device__ __forceinline__ Key get_empty_key_sentinel() const noexcept
-    {
-      return impl_.get_empty_key_sentinel();
-    }
-
-    /**
-     * @brief Gets the sentinel value used to represent an empty value slot.
-     *
-     * @return The sentinel value used to represent an empty value slot
-     */
-    __host__ __device__ __forceinline__ Value get_empty_value_sentinel() const noexcept
-    {
-      return impl_.get_empty_value_sentinel();
-    }
-
-   protected:
-    ViewImpl impl_;
-  };  // class device_view_base
-
- public:
-  /**
-   * @brief Mutable, non-owning view-type that may be used in device code to
-   * perform singular inserts into the map.
-   *
-   * `device_mutable_view` is trivially-copyable and is intended to be passed by
-   * value.
-   *
-   * Example:
-   * \code{.cpp}
-   * cuco::static_set<int,int> m{100'000, -1, -1};
-   *
-   * // Inserts a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
-   * thrust::for_each(thrust::make_counting_iterator(0),
-   *                  thrust::make_counting_iterator(50'000),
-   *                  [map = m.get_device_mutable_view()]
-   *                  __device__ (auto i) mutable {
-   *                     map.insert(thrust::make_pair(i,i));
-   *                  });
-   * \endcode
-   */
-  class device_mutable_view : public device_view_base<device_mutable_view_impl> {
-   public:
-    using view_base_type =
-      device_view_base<device_mutable_view_impl>;              ///< Base view implementation type
-    using value_type  = typename view_base_type::value_type;   ///< Type of key/value pairs
-    using key_type    = typename view_base_type::key_type;     ///< Key type
-    using mapped_type = typename view_base_type::mapped_type;  ///< Type of the mapped values
-    using iterator =
-      typename view_base_type::iterator;  ///< Type of the forward iterator to `value_type`
-    using const_iterator =
-      typename view_base_type::const_iterator;  ///< Type of the forward iterator to `const
-                                                ///< value_type`
-
-    /**
-     * @brief Construct a mutable view of the first `capacity` slots of the
-     * slots array pointed to by `slots`.
-     *
-     * @param slots Pointer to beginning of initialized slots array
-     * @param capacity The number of slots viewed by this object
-     * @param empty_key_sentinel The reserved value for keys to represent empty
-     * slots
-     * @param empty_value_sentinel The reserved value for mapped values to
-     * represent empty slots
-     */
-    __host__ __device__
-    device_mutable_view(pair_atomic_type* slots,
-                        std::size_t capacity,
-                        sentinel::empty_key<Key> empty_key_sentinel,
-                        sentinel::empty_value<Value> empty_value_sentinel) noexcept
-      : view_base_type{slots, capacity, empty_key_sentinel, empty_value_sentinel}
-    {
-    }
-
-    /**
-     * @brief Inserts the specified key/value pair into the map.
-     *
-     * @param g The Cooperative Group that performs the insert
-     * @param insert_pair The pair to insert
-     */
-    __device__ __forceinline__ void insert(
-      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
-      value_type const& insert_pair) noexcept;
-
-   private:
-    using device_view_base<device_mutable_view_impl>::impl_;
-  };  // class device mutable view
-
-  /**
-   * @brief Non-owning view-type that may be used in device code to
-   * perform singular find and contains operations for the map.
-   *
-   * `device_view` is trivially-copyable and is intended to be passed by
-   * value.
-   *
-   */
-  class device_view : public device_view_base<device_view_impl> {
-   public:
-    using view_base_type = device_view_base<device_view_impl>;    ///< Base view implementation type
-    using value_type     = typename view_base_type::value_type;   ///< Type of key/value pairs
-    using key_type       = typename view_base_type::key_type;     ///< Key type
-    using mapped_type    = typename view_base_type::mapped_type;  ///< Type of the mapped values
-    using iterator =
-      typename view_base_type::iterator;  ///< Type of the forward iterator to `value_type`
-    using const_iterator =
-      typename view_base_type::const_iterator;  ///< Type of the forward iterator to `const
-                                                ///< value_type`
-
-    /**
-     * @brief Construct a view of the first `capacity` slots of the
-     * slots array pointed to by `slots`.
-     *
-     * @param slots Pointer to beginning of initialized slots array
-     * @param capacity The number of slots viewed by this object
-     * @param empty_key_sentinel The reserved value for keys to represent empty
-     * slots
-     * @param empty_value_sentinel The reserved value for mapped values to
-     * represent empty slots
-     */
-    __host__ __device__ device_view(pair_atomic_type* slots,
-                                    std::size_t capacity,
-                                    sentinel::empty_key<Key> empty_key_sentinel,
-                                    sentinel::empty_value<Value> empty_value_sentinel) noexcept
-      : view_base_type{slots, capacity, empty_key_sentinel, empty_value_sentinel}
-    {
-    }
-
-    /**
-     * @brief Makes a copy of given `device_view` using non-owned memory.
-     *
-     * This function is intended to be used to create shared memory copies of small static maps,
-     * although global memory can be used as well.
-     *
-     * @tparam CG The type of the cooperative thread group
-     * @param g The cooperative thread group used to copy the slots
-     * @param source_device_view `device_view` to copy from
-     * @param memory_to_use Array large enough to support `capacity` elements. Object does not
-     * take the ownership of the memory
-     * @return Copy of passed `device_view`
-     */
-    template <typename CG>
-    __device__ __forceinline__ static device_view make_copy(
-      CG g, pair_atomic_type* const memory_to_use, device_view source_device_view) noexcept;
-
-    /**
-     * @brief Indicates whether the key `k` exists in the map.
-     *
-     * If the key `k` was inserted into the map, `contains` returns
-     * true. Otherwise, it returns false. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single `contains` operation. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `contains` at moderate to high load factors.
-     *
-     * ProbeSequence hashers should be callable with both ProbeKey and Key type.
-     * `std::invoke_result<KeyEqual, ProbeKey, Key>` must be well-formed.
-     *
-     * If `key_equal(probe_key, slot_key)` returns true, `hash(probe_key) == hash(slot_key)` must
-     * also be true.
-     *
-     * @tparam ProbeKey Probe key type
-     * @tparam KeyEqual Binary callable type
-     *
-     * @param g The Cooperative Group used to perform the contains operation
-     * @param k The key to search for
-     * @param key_equal The binary callable used to compare two keys
-     * for equality
-     * @return A boolean indicating whether the key/value pair
-     * containing `k` was inserted
-     */
-    template <typename ProbeKey, typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ __forceinline__ bool contains(
-      cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
-      ProbeKey const& k,
-      KeyEqual key_equal = KeyEqual{}) const noexcept;
-
-   private:
-    using device_view_base<device_view_impl>::impl_;  ///< Implementation detail of `device_view`
-  };                                                  // class device_view
-
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
    *
@@ -450,35 +212,20 @@ class static_set {
    */
   Key empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
-  /**
-   * @brief Constructs a device_view object based on the members of the `static_set`
-   * object.
-   *
-   * @return A device_view object based on the members of the `static_set` object
-   */
-  device_view get_device_view() const noexcept
-  {
-    return device_view(slots_.get(),
-                       capacity_,
-                       sentinel::empty_key<Key>{empty_key_sentinel_},
-                       sentinel::empty_value<Value>{empty_value_sentinel_});
-  }
-
-  /**
-   * @brief Constructs a device_mutable_view object based on the members of the
-   * `static_set` object
-   *
-   * @return A device_mutable_view object based on the members of the `static_set` object
-   */
-  device_mutable_view get_device_mutable_view() const noexcept
-  {
-    return device_mutable_view(slots_.get(),
-                               capacity_,
-                               sentinel::empty_key<Key>{empty_key_sentinel_},
-                               sentinel::empty_value<Value>{empty_value_sentinel_});
-  }
-
  private:
+  /**
+   * @brief Custom deleter for unique pointer of device counter.
+   */
+  struct counter_deleter {
+    counter_deleter(counter_allocator_type& a) : allocator{a} {}
+
+    counter_deleter(counter_deleter const&) = default;
+
+    void operator()(atomic_ctr_type* ptr) { allocator.deallocate(ptr, 1); }
+
+    counter_allocator_type& allocator;
+  };
+
   std::size_t capacity_{};                      ///< Total number of slots
   Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
@@ -489,5 +236,4 @@ class static_set {
 
 }  // namespace cuco
 
-#include <cuco/detail/static_set/device_view_impl.inl>
 #include <cuco/detail/static_set/static_set.inl>
