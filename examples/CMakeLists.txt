@@ -37,10 +37,3 @@ ConfigureExample(STATIC_MAP_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/stati
 ConfigureExample(STATIC_MAP_DEVICE_SIDE_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/device_view_example.cu")
 ConfigureExample(STATIC_MAP_CUSTOM_TYPE_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/custom_type_example.cu")
 ConfigureExample(STATIC_MULTIMAP_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_multimap/host_bulk_example.cu")
-
-foreach(arch IN LISTS CMAKE_CUDA_ARCHITECTURES)
-    if("${arch}" MATCHES "^6")
-      target_compile_definitions(STATIC_MAP_CUSTOM_TYPE_EXAMPLE PRIVATE CUCO_NO_INDEPENDENT_THREADS)
-      break()
-    endif()
-endforeach()

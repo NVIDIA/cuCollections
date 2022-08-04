@@ -23,7 +23,7 @@
 #include <thrust/transform.h>
 
 // User-defined key type
-#ifdef CUCO_NO_INDEPENDENT_THREADS
+#if !defined(CUCO_HAS_INDEPENDENT_THREADS)
 struct custom_key_type {
   int32_t a;
   int32_t b;

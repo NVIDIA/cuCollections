@@ -64,13 +64,6 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/stream_test.cu
     static_map/unique_sequence_test.cu)
 
-foreach(arch IN LISTS CMAKE_CUDA_ARCHITECTURES)
-    if("${arch}" MATCHES "^6")
-      target_compile_definitions(STATIC_MAP_TEST PRIVATE CUCO_NO_INDEPENDENT_THREADS)
-      break()
-    endif()
-endforeach()
-
 ###################################################################################################
 # - dynamic_map tests -----------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_MAP_TEST

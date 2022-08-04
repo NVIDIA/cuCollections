@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cuco/detail/__config>
 #include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/utils.cuh>
@@ -402,7 +403,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
         }
 
         if constexpr (not cuco::detail::is_packable<value_type>()) {
-#if __CUDA_ARCH__ < 700
+#if !defined(CUCO_HAS_INDEPENDENT_THREADS)
           return cas_dependent_write(current_slot, insert_pair, key_equal, existing_key);
 #else
           return back_to_back_cas(current_slot, insert_pair, key_equal, existing_key);
@@ -459,7 +460,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
         }
         // Otherwise, two back-to-back CAS operations
         else {
-#if __CUDA_ARCH__ < 700
+#if !defined(CUCO_HAS_INDEPENDENT_THREADS)
           status = cas_dependent_write(current_slot, insert_pair, key_equal, existing_key);
 #else
           status = back_to_back_cas(current_slot, insert_pair, key_equal, existing_key);

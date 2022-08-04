@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cuco/detail/__config>
 #include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/static_multimap/kernels.cuh>
 #include <cuco/detail/utils.cuh>
@@ -420,7 +421,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
         uint32_t src_lane = __ffs(window_contains_empty) - 1;
 
         if (g.thread_rank() == src_lane) {
-#if __CUDA_ARCH__ < 700
+#if !defined(CUCO_HAS_INDEPENDENT_THREADS)
           status = cas_dependent_write(current_slot, insert_pair);
 #else
           status = back_to_back_cas(current_slot, insert_pair);
