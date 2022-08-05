@@ -19,11 +19,41 @@
 #include <cuco/allocator.hpp>
 #include <cuco/detail/pair.cuh>
 
+#include <cuda/atomic>
+
 #include <cstddef>
 #include <memory>
 
 namespace cuco {
 namespace detail {
+/**
+ * @brief Custom deleter for unique pointer of slots.
+ *
+ * @tparam Allocator Type of allocator used for device storage
+ */
+template <typename Allocator>
+struct custom_deleter {
+  using pointer = typename Allocator::pointer;  ///< raw pointer to the value
+
+  /**
+   * @brief Constructor of custom deleter.
+   *
+   * @param size Number of values to deallocate
+   * @param allocator Allocator used for deallocating device storage
+   */
+  custom_deleter(std::size_t size, Allocator& allocator) : size_{size}, allocator_{allocator} {}
+
+  /**
+   * @brief Operator for deallocation
+   *
+   * @param ptr Pointer to the first value for deallocation
+   */
+  void operator()(pointer ptr) { allocator_.deallocate(ptr, size_); }
+
+  std::size_t size_;      ///< Number of values to delete
+  Allocator& allocator_;  ///< Allocator used deallocating values
+};
+
 /**
  * @brief Base class of open addressing storage. This class should not be used directly.
  */
@@ -48,19 +78,52 @@ class storage_base {
 };
 
 /**
- * @brief Array of structure open addressing storage class.
+ * @brief Counter storage class.
  *
- * @tparam Key Arithmetic type used for key
- * @tparam Value Type of the mapped values
+ * @tparam Scope The scope in which the counter will be used by individual threads
  * @tparam Allocator Type of allocator used for device storage
  */
-template <typename Key, typename T, typename Allocator>
+template <cuda::thread_scope Scope, typename Allocator>
+class counter_storage : public storage_base {
+ public:
+  using counter_type   = cuda::atomic<std::size_t, Scope>;  ///< Type of the counter
+  using allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+    counter_type>;  ///< Type of the allocator to (de)allocate counter
+  using counter_deleter_type = custom_deleter<allocator_type>;  ///< Type of counter deleter
+
+  /**
+   * @brief Constructor of counter storage.
+   *
+   * @param allocator Allocator used for (de)allocating device storage
+   */
+  counter_storage(Allocator& allocator)
+    : storage_base{1},
+      allocator_{allocator},
+      counter_deleter_{size_, allocator_},
+      counter_{allocator_.allocate(size_), delete_slots_}
+  {
+  }
+
+ private:
+  allocator_type& allocator_;             ///< Allocator used to (de)allocate counter
+  counter_deleter_type counter_deleter_;  ///< Custom counter deleter
+  std::unique_ptr<counter_type, counter_deleter_type> counter_;  ///< Pointer to counter storage
+};
+
+/**
+ * @brief Array of structure open addressing storage class.
+ *
+ * @tparam T struct type
+ * @tparam Allocator Type of allocator used for device storage
+ */
+template <typename T, typename Allocator>
 class aos_storage : public storage_base {
  public:
-  using value_type = cuco::pair<Key, T>;  ///< Type of key/value pairs
+  using value_type = T;  ///< Type of structs
   using allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<value_type>;  ///< Type of the allocator
                                                                           ///< to (de)allocate slots
+  using slot_deleter_type = custom_deleter<allocator_type>;               ///< Type of slot deleter
 
   /**
    * @brief Constructor of AoS storage.
@@ -68,7 +131,7 @@ class aos_storage : public storage_base {
    * @param size Number of slots to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
-  aos_storage(std::size_t size, Allocator allocator)
+  aos_storage(std::size_t size, Allocator& allocator)
     : storage_base{size},
       allocator_{allocator},
       delete_slots_{size_, allocator_},
@@ -89,24 +152,9 @@ class aos_storage : public storage_base {
   aos_storage& operator=(aos_storage const&) = delete;
 
  private:
-  /**
-   * @brief Custom deleter for unique pointer of slots.
-   */
-  struct slot_deleter {
-    slot_deleter(std::size_t size, allocator_type& alloc) : size_{size}, allocator_{alloc} {}
-
-    slot_deleter(slot_deleter const&) = default;
-
-    void operator()(value_type* ptr) { allocator_.deallocate(ptr, size_); }
-
-    std::size_t size_;
-    allocator_type& allocator_;
-  };
-
- private:
-  allocator_type allocator_;                         ///< Allocator used to allocate slots
-  slot_deleter delete_slots_;                        ///< Custom slots deleter
-  std::unique_ptr<value_type, slot_deleter> slots_;  ///< Pointer to AoS slots storage
+  allocator_type& allocator_;                             ///< Allocator used to (de)allocate slots
+  slot_deleter_type slot_deleter_;                        ///< Custom slots deleter
+  std::unique_ptr<value_type, slot_deleter_type> slots_;  ///< Pointer to AoS slots storage
 };
 }  // namespace detail
 }  // namespace cuco

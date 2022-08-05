@@ -58,12 +58,12 @@ namespace cuco {
  * <tt>static_set<Key>::supports_concurrent_insert_find()</tt> is true.
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
- * @tparam Scope The scope in which multimap operations will be performed by
- * individual threads
+ * @tparam Scope The scope in which set operations will be performed by individual threads
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
- * @tparam ProbeSequence Probe sequence chosen between `cuco::detail::linear_probing`
- * and `cuco::detail::double_hashing`. (see `detail/probe_sequences.cuh`)
+ * @tparam ProbeScheme Probe scheme chosen between `cuco::linear_probing`
+ * and `cuco::double_hashing`. (see `detail/probe_sequences.cuh`)
  * @tparam Allocator Type of allocator used for device storage
+ * @tparam Storage Slot storage type
  */
 // template<
 // class Key,
@@ -73,11 +73,16 @@ namespace cuco {
 // > class unordered_set;
 template <class Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class Hash               = cuco::detail::MurmurHash3_32<Key>,
           class KeyEqual           = thrust::equal_to<Key>,
-          class Allocator          = cuco::cuda_allocator<char>,
-          class ProbeScheme        = cuco::linear_probing<2, uses_window_probing::YES>,
-          class Storage            = cuco::detail::soa_storage<Key, void>>
+          class ProbeScheme =
+            cuco::double_hashing<2,                                  // CG size
+                                 2,                                  // Window size (vector length)
+                                 uses_window_probing::YES,           // uses window probing
+                                 cuco::detail::MurmurHash3_32<Key>,  // First hasher
+                                 cuco::detail::MurmurHash3_32<Key>   // Second hasher
+                                 >,
+          class Allocator = cuco::cuda_allocator<char>,
+          class Storage   = cuco::detail::aos_storage<Key, Allocator>>
 class static_set {
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
@@ -85,16 +90,19 @@ class static_set {
     "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
   static_assert(
-    std::is_base_of_v<cuco::detail::probe_sequence_base<ProbeSequence::cg_size>, ProbeSequence>,
-    "ProbeSequence must be a specialization of either cuco::double_hashing or "
+    std::is_base_of_v<cuco::detail::probe_sequence_base<ProbeScheme::cg_size>, ProbeScheme>,
+    "ProbeScheme must be a specialization of either cuco::double_hashing or "
     "cuco::linear_probing.");
 
  public:
-  using key_type       = Key;        ///< Key type
-  using value_type     = Key;        ///< Key type
-  using allocator_type = Allocator;  ///< Allocator type
-  using probe_sequence_type =
-    detail::probe_sequence<ProbeSequence, Key, Key, Scope>;  ///< Probe scheme type
+  using key_type   = Key;      ///< Key type
+  using value_type = Key;      ///< Key type
+  using key_equal  = KeyEqual  ///< Key equality comparator type
+    using probe_scheme_type =
+      detail::probe_scheme<ProbeScheme, Key, Key, Scope>;                  ///< Probe scheme type
+  using allocator_type       = Allocator;                                  ///< Allocator type
+  using slot_storage_type    = Storage;                                    ///< Slot storage type
+  using counter_storage_type = detail::counter_storage<Scope, Allocator>;  ///< Counter storage type
 
   static_set(static_set const&) = delete;
   static_set& operator=(static_set const&) = delete;
@@ -123,7 +131,7 @@ class static_set {
   /**
    * @brief The size of the CUDA cooperative thread group.
    */
-  __host__ __device__ static constexpr uint32_t cg_size = ProbeSequence::cg_size;
+  __host__ __device__ static constexpr uint32_t cg_size = ProbeScheme::cg_size;
 
   /**
    * @brief Construct a statically-sized set with the specified initial capacity,
@@ -166,7 +174,7 @@ class static_set {
    * Stores `true` or `false` to `(output + i)` indicating if the key `*(first + i)` exists in the
    * map.
    *
-   * ProbeSequence hashers should be callable with both
+   * ProbeScheme hashers should be callable with both
    * <tt>std::iterator_traits<InputIt>::value_type</tt> and Key type.
    * <tt>std::invoke_result<KeyEqual, std::iterator_traits<InputIt>::value_type, Key></tt> must be
    * well-formed.
@@ -213,25 +221,11 @@ class static_set {
   Key empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
  private:
-  /**
-   * @brief Custom deleter for unique pointer of device counter.
-   */
-  struct counter_deleter {
-    counter_deleter(counter_allocator_type& a) : allocator{a} {}
-
-    counter_deleter(counter_deleter const&) = default;
-
-    void operator()(atomic_ctr_type* ptr) { allocator.deallocate(ptr, 1); }
-
-    counter_allocator_type& allocator;
-  };
-
-  std::size_t capacity_{};                      ///< Total number of slots
-  Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
-  counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
-  counter_deleter delete_counter_;              ///< Custom counter deleter
-  std::unique_ptr<atomic_ctr_type, counter_deleter> d_counter_{};  ///< Preallocated device counter
-  std::unique_ptr<Storage> storage_{};                             ///< Pointer to flat slot storage
+  std::size_t capacity_;            ///< Total number of slots
+  key_type empty_key_sentinel_;     ///< Key value that represents an empty slot
+  key_equal key_eq_;                ///< Key equality binary predicate
+  counter_storage_type d_counter_;  ///< Device counter storage
+  slot_storage_type slot_storage_;  ///< Flat slot storage
 };
 
 }  // namespace cuco
