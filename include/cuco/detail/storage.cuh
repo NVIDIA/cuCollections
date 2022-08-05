@@ -33,7 +33,7 @@ namespace detail {
  */
 template <typename Allocator>
 struct custom_deleter {
-  using pointer = typename Allocator::pointer;  ///< raw pointer to the value
+  using pointer = typename Allocator::value_type*;  ///< Value pointer type
 
   /**
    * @brief Constructor of custom deleter.
