@@ -922,10 +922,6 @@ class static_map {
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
-     * Returns a pair consisting of an iterator to the inserted element (or to
-     * the element that prevented the insertion) and a `bool` denoting whether
-     * the insertion took place.
-     *
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param insert_pair The pair to insert
@@ -943,12 +939,10 @@ class static_map {
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
-     * Returns a pair consisting of an iterator to the inserted element (or to
-     * the element that prevented the insertion) and a `bool` denoting whether
-     * the insertion took place. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single insert. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `insert` at moderate to high load factors.
+     * Uses the CUDA Cooperative Groups API to to leverage multiple threads to
+     * perform a single insert. This provides a significant boost in throughput
+     * compared to the non Cooperative Group `insert` at moderate to high load
+     * factors.
      *
      * @tparam CG Cooperative Group type
      * @tparam Hash Unary callable type
