@@ -81,7 +81,8 @@ struct custom_key_equal {
 
 TEMPLATE_TEST_CASE("Heterogeneous lookup",
                    "",
-#ifndef CUCO_NO_INDEPENDENT_THREADS  // Key type larger than 8B only supported for sm_70 and up
+#if defined(CUCO_HAS_INDEPENDENT_THREADS)  // Key type larger than 8B only supported for sm_70 and
+                                           // up
                    int64_t,
 #endif
                    int32_t)

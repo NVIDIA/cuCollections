@@ -100,7 +100,8 @@ struct custom_key_equals {
 TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                        "",
                        ((typename Key, typename Value), Key, Value),
-#ifndef CUCO_NO_INDEPENDENT_THREADS  // Key type larger than 8B only supported for sm_70 and up
+#if defined(CUCO_HAS_INDEPENDENT_THREADS)  // Key type larger than 8B only supported for sm_70 and
+                                           // up
                        (key_pair_type<int64_t>, value_pair_type<int32_t>),
                        (key_pair_type<int64_t>, value_pair_type<int64_t>),
                        (large_key_type<int32_t>, value_pair_type<int32_t>),
