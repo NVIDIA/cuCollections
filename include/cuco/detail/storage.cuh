@@ -41,7 +41,9 @@ struct custom_deleter {
    * @param size Number of values to deallocate
    * @param allocator Allocator used for deallocating device storage
    */
-  custom_deleter(std::size_t size, Allocator& allocator) : size_{size}, allocator_{allocator} {}
+  custom_deleter(std::size_t const size, Allocator& allocator) : size_{size}, allocator_{allocator}
+  {
+  }
 
   /**
    * @brief Operator for deallocation
@@ -96,16 +98,16 @@ class counter_storage : public storage_base {
    *
    * @param allocator Allocator used for (de)allocating device storage
    */
-  counter_storage(Allocator& allocator)
+  counter_storage(Allocator const& allocator)
     : storage_base{1},
       allocator_{allocator},
       counter_deleter_{size_, allocator_},
-      counter_{allocator_.allocate(size_), delete_slots_}
+      counter_{allocator_.allocate(size_), counter_deleter_}
   {
   }
 
  private:
-  allocator_type& allocator_;             ///< Allocator used to (de)allocate counter
+  allocator_type allocator_;              ///< Allocator used to (de)allocate counter
   counter_deleter_type counter_deleter_;  ///< Custom counter deleter
   std::unique_ptr<counter_type, counter_deleter_type> counter_;  ///< Pointer to counter storage
 };
@@ -131,11 +133,11 @@ class aos_storage : public storage_base {
    * @param size Number of slots to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
-  aos_storage(std::size_t size, Allocator& allocator)
+  aos_storage(std::size_t const size, Allocator const& allocator)
     : storage_base{size},
       allocator_{allocator},
-      delete_slots_{size_, allocator_},
-      slots_{allocator_.allocate(size_), delete_slots_}
+      slot_deleter_{size_, allocator_},
+      slots_{allocator_.allocate(size_), slot_deleter_}
   {
   }
 
@@ -152,7 +154,7 @@ class aos_storage : public storage_base {
   aos_storage& operator=(aos_storage const&) = delete;
 
  private:
-  allocator_type& allocator_;                             ///< Allocator used to (de)allocate slots
+  allocator_type allocator_;                              ///< Allocator used to (de)allocate slots
   slot_deleter_type slot_deleter_;                        ///< Custom slots deleter
   std::unique_ptr<value_type, slot_deleter_type> slots_;  ///< Pointer to AoS slots storage
 };
