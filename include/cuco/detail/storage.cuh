@@ -113,6 +113,53 @@ class counter_storage : public storage_base {
 };
 
 /**
+ * @brief Non-owning AoS storage view type.
+ *
+ * @tparam T Storage element type
+ */
+template <typename T>
+class aos_storage_view {
+ public:
+  using value_type = T;  ///< Storage element type
+
+  /**
+   * @brief Constructor of AoS storage view.
+   *
+   * @param slots Pointer to the slots array
+   * @param size Size of the slots array
+   */
+  explicit aos_storage_view(value_type* slots, std::size_t const size) noexcept
+    : slots_{slots}, size_{size}
+  {
+  }
+
+  /**
+   * @brief Gets slots array.
+   *
+   * @return Pointer to the first slot
+   */
+  __host__ __device__ inline value_type* slots() noexcept { return slots_; }
+
+  /**
+   * @brief Gets slots array.
+   *
+   * @return Pointer to the first slot
+   */
+  __host__ __device__ inline value_type const* slots() const noexcept { return slots_; }
+
+  /**
+   * @brief Gets the total number of slots in the current storage.
+   *
+   * @return The total number of slots
+   */
+  __host__ __device__ inline std::size_t size() const noexcept { return size_; }
+
+ private:
+  value_type* slots_;  ///< Pointer to the slots array
+  std::size_t size_;   ///< Size of the slots array
+};
+
+/**
  * @brief Array of structure open addressing storage class.
  *
  * @tparam T struct type
@@ -126,6 +173,7 @@ class aos_storage : public storage_base {
     typename std::allocator_traits<Allocator>::rebind_alloc<value_type>;  ///< Type of the allocator
                                                                           ///< to (de)allocate slots
   using slot_deleter_type = custom_deleter<allocator_type>;               ///< Type of slot deleter
+  using view_type         = aos_storage_view<value_type>;                 ///< Storage view type
 
   /**
    * @brief Constructor of AoS storage.
@@ -153,10 +201,25 @@ class aos_storage : public storage_base {
   aos_storage(aos_storage const&) = delete;
   aos_storage& operator=(aos_storage const&) = delete;
 
+  /**
+   * @brief Gets slots array.
+   *
+   * @return Pointer to the first slot
+   */
+  __host__ __device__ value_type* slots() noexcept { return slots_.get(); }
+
+  /**
+   * @brief Gets slots array.
+   *
+   * @return Pointer to the first slot
+   */
+  __host__ __device__ value_type const* slots() const noexcept { return slots_.get(); }
+
  private:
   allocator_type allocator_;                              ///< Allocator used to (de)allocate slots
   slot_deleter_type slot_deleter_;                        ///< Custom slots deleter
   std::unique_ptr<value_type, slot_deleter_type> slots_;  ///< Pointer to AoS slots storage
 };
+
 }  // namespace detail
 }  // namespace cuco
