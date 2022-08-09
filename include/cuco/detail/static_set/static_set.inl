@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,87 +14,72 @@
  * limitations under the License.
  */
 
-#include <cuco/detail/utils.cuh>
-#include <cuco/detail/utils.hpp>
+#include <cuco/detail/common_kernels.cuh>
+#include <cuco/detail/defaults.cuh>
+#include <cuco/detail/error.hpp>
 
-#include <thrust/count.h>
-#include <thrust/execution_policy.h>
-#include <thrust/iterator/transform_iterator.h>
-#include <thrust/tuple.h>
-
-#include <iterator>
+#include <cstddef>
 
 namespace cuco {
 
 template <class Key,
           cuda::thread_scope Scope,
           class KeyEqual,
-          class ProbeSequence,
+          class ProbingScheme,
           class Allocator,
           class Storage>
-static_set<Key, Scope, KeyEqual, ProbeSequence, Allocator, Storage>::static_set(
+static_set<Key, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::static_set(
   std::size_t capacity,
   sentinel::empty_key<Key> empty_key_sentinel,
+  KeyEqual pred,
   Allocator const& alloc,
   cudaStream_t stream)
-  : capacity_{cuco::detail::get_valid_capacity<cg_size(), vector_width(), uses_vector_load()>(
-      capacity)},
+  : size_{0},
     empty_key_sentinel_{empty_key_sentinel.value},
-    counter_allocator_{alloc},
-    slot_allocator_{alloc},
-    delete_counter_{counter_allocator_},
-    delete_slots_{slot_allocator_, capacity_},
-    d_counter_{counter_allocator_.allocate(1), delete_counter_},
-    slots_{slot_allocator_.allocate(capacity_), delete_slots_}
+    predicate_{pred},
+    allocator_{alloc},
+    counter_{allocator_},
+    slot_storage_{cuco::detail::get_valid_capacity<ProbingScheme>(capacity), allocator_}
 {
+  auto constexpr stride = 4;
+  auto const grid_size  = (this->capacity() + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+                         (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+  detail::initialize<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    slot_storage_.slots(), empty_key_sentinel_, this->capacity());
 }
 
 template <class Key,
           cuda::thread_scope Scope,
           class KeyEqual,
-          class ProbeSequence,
+          class ProbingScheme,
           class Allocator,
           class Storage>
 template <typename InputIt>
-void static_set<Key, Scope, KeyEqual, ProbeSequence, Allocator, Storage>::insert(
+void static_set<Key, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cudaStream_t stream)
 {
-}
+  auto num_keys = std::distance(first, last);
+  if (num_keys == 0) { return; }
 
-template <class Key,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbeSequence,
-          class Allocator,
-          class Storage>
-template <typename InputIt, typename OutputIt, typename KeyEqual>
-void static_set<Key, Scope, KeyEqual, ProbeSequence, Allocator, Storage>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, KeyEqual key_equal, cudaStream_t stream) const
-{
-}
+  auto const grid_size =
+    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-template <class Key,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbeSequence,
-          class Allocator,
-          class Storage>
-std::size_t static_set<Key, Scope, KeyEqual, ProbeSequence, Allocator, Storage>::size(
-  cudaStream_t stream) const noexcept
-{
-  return 0;
-}
+  counter_.reset(stream);
+  std::size_t h_num_successes{};
 
-template <class Key,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbeSequence,
-          class Allocator,
-          class Storage>
-float static_set<Key, Scope, KeyEqual, ProbeSequence, Allocator, Storage>::load_factor(
-  cudaStream_t stream) const noexcept
-{
-  return 0;
+  /*
+  auto view             = device_mutable_view();
+  detail::insert<block_size><<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    first, first + num_keys, counter_.get(), view);
+  CUCO_CUDA_TRY(cudaMemcpyAsync(
+    &h_num_successes, counter_.get(), sizeof(std::size_t), cudaMemcpyDeviceToHost, stream));
+    */
+
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
+
+  size_ += h_num_successes;
 }
 
 }  // namespace cuco

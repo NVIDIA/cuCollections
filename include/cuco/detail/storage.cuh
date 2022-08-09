@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/allocator.hpp>
+#include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
 
 #include <cuda/atomic>
@@ -64,23 +65,23 @@ class storage_base {
   /**
    * @brief Constructor of base storage.
    *
-   * @param size Number of slots to (de)allocate
+   * @param capacity Number of slots to (de)allocate
    */
-  storage_base(std::size_t size) : size_{size} {}
+  storage_base(std::size_t capacity) : capacity_{capacity} {}
 
   /**
    * @brief Gets the total number of slots in the current storage.
    *
    * @return The total number of slots
    */
-  __host__ __device__ std::size_t size() const noexcept { return size_; }
+  __host__ __device__ std::size_t capacity() const noexcept { return capacity_; }
 
  protected:
-  std::size_t size_;  ///< Total number of slots
+  std::size_t capacity_;  ///< Total number of slots
 };
 
 /**
- * @brief Counter storage class.
+ * @brief Device counter storage class.
  *
  * @tparam Scope The scope in which the counter will be used by individual threads
  * @tparam Allocator Type of allocator used for device storage
@@ -101,9 +102,20 @@ class counter_storage : public storage_base {
   counter_storage(Allocator const& allocator)
     : storage_base{1},
       allocator_{allocator},
-      counter_deleter_{size_, allocator_},
-      counter_{allocator_.allocate(size_), counter_deleter_}
+      counter_deleter_{capacity_, allocator_},
+      counter_{allocator_.allocate(capacity_), counter_deleter_}
   {
+  }
+
+  /**
+   * @brief Asynchronously resets counter to zero.
+   *
+   * @param stream CUDA stream used to reset
+   */
+  inline void reset(cudaStream_t stream)
+  {
+    static_assert(sizeof(std::size_t) == sizeof(counter_type));
+    CUCO_CUDA_TRY(cudaMemsetAsync(counter_.get(), 0, sizeof(counter_type), stream));
   }
 
  private:
@@ -126,10 +138,10 @@ class aos_storage_view {
    * @brief Constructor of AoS storage view.
    *
    * @param slots Pointer to the slots array
-   * @param size Size of the slots array
+   * @param capacity Size of the slots array
    */
-  explicit aos_storage_view(value_type* slots, std::size_t const size) noexcept
-    : slots_{slots}, size_{size}
+  explicit aos_storage_view(value_type* slots, std::size_t const capacity) noexcept
+    : slots_{slots}, capacity_{capacity}
   {
   }
 
@@ -138,25 +150,25 @@ class aos_storage_view {
    *
    * @return Pointer to the first slot
    */
-  __host__ __device__ inline value_type* slots() noexcept { return slots_; }
+  __device__ inline value_type* slots() noexcept { return slots_; }
 
   /**
    * @brief Gets slots array.
    *
    * @return Pointer to the first slot
    */
-  __host__ __device__ inline value_type const* slots() const noexcept { return slots_; }
+  __device__ inline value_type const* slots() const noexcept { return slots_; }
 
   /**
    * @brief Gets the total number of slots in the current storage.
    *
    * @return The total number of slots
    */
-  __host__ __device__ inline std::size_t size() const noexcept { return size_; }
+  __device__ inline std::size_t capacity() const noexcept { return capacity_; }
 
  private:
-  value_type* slots_;  ///< Pointer to the slots array
-  std::size_t size_;   ///< Size of the slots array
+  value_type* slots_;     ///< Pointer to the slots array
+  std::size_t capacity_;  ///< Size of the slots array
 };
 
 /**
@@ -184,8 +196,8 @@ class aos_storage : public storage_base {
   aos_storage(std::size_t const size, Allocator const& allocator)
     : storage_base{size},
       allocator_{allocator},
-      slot_deleter_{size_, allocator_},
-      slots_{allocator_.allocate(size_), slot_deleter_}
+      slot_deleter_{capacity_, allocator_},
+      slots_{allocator_.allocate(capacity_), slot_deleter_}
   {
   }
 
@@ -206,14 +218,14 @@ class aos_storage : public storage_base {
    *
    * @return Pointer to the first slot
    */
-  __host__ __device__ value_type* slots() noexcept { return slots_.get(); }
+  value_type* slots() noexcept { return slots_.get(); }
 
   /**
    * @brief Gets slots array.
    *
    * @return Pointer to the first slot
    */
-  __host__ __device__ value_type const* slots() const noexcept { return slots_.get(); }
+  value_type const* slots() const noexcept { return slots_.get(); }
 
  private:
   allocator_type allocator_;                              ///< Allocator used to (de)allocate slots

@@ -58,6 +58,11 @@ ConfigureTest(UTILITY_TEST
     utility/storage_test.cu)
 
 ###################################################################################################
+# - static_set tests ------------------------------------------------------------------------------
+ConfigureTest(STATIC_SET_TEST
+    static_set/unique_sequence_test.cu)
+
+###################################################################################################
 # - static_map tests ------------------------------------------------------------------------------
 ConfigureTest(STATIC_MAP_TEST
     static_map/custom_type_test.cu

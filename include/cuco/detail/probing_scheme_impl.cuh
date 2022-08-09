@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,11 @@
 
 #pragma once
 
-#include <cuco/detail/hash_functions.cuh>
-#include <cuco/detail/pair.cuh>
-
-#include <cuda/std/atomic>
+#include <thrust/distance.h>
 
 #include <cooperative_groups.h>
 
+#include <cstddef>
 #include <utility>
 
 namespace cuco {
@@ -48,7 +46,7 @@ namespace detail {
  */
 template <int CGSize, int WindowSize, enable_window_probing UsesWindowProbing>
 class probing_scheme_base {
- protected:
+ public:
   /**
    * @brief The size of the CUDA cooperative thread group.
    */
@@ -75,7 +73,7 @@ class probing_scheme_base {
  */
 template <int CGSize, int WindowSize, enable_window_probing UsesWindowProbing, typename SlotView>
 class probing_scheme_impl_base {
- protected:
+ public:
   using slot_view_type = SlotView;                             ///< Slot view type
   using value_type     = typename slot_view_type::value_type;  ///< Slot element type
   /// Type of the forward iterator to `value_type`
@@ -108,13 +106,12 @@ class probing_scheme_impl_base {
   {
   }
 
- public:
   /**
    * @brief Returns the capacity of the hash map.
    *
    * @return The capacity of the hash map
    */
-  __host__ __device__ inline std::size_t capacity() const noexcept { return slot_view_.size(); }
+  __host__ __device__ inline std::size_t capacity() const noexcept { return slot_view_.capacity(); }
 
   /**
    * @brief Returns slots array.

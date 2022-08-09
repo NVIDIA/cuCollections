@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/probing_scheme_impl.cuh>
 #include <cuco/detail/utils.hpp>
 
 namespace cuco {
@@ -20164,6 +20165,34 @@ constexpr std::size_t compute_prime(std::size_t num) noexcept
     num++;
   }
   return num;
+}
+
+/**
+ * @brief Calculates the valid capacity based on `cg_size` , `vector_width`
+ * and the initial `capacity`.
+ *
+ * @tparam cg_size Cooperative Group size
+ * @tparam vector_width Length of vector load
+ * @tparam uses_vector_load If vector load is used
+ *
+ * @param capacity The initially requested capacity
+ * @return A valid capacity no smaller than the requested `capacity`
+ */
+template <typename ProbingScheme>
+constexpr std::size_t get_valid_capacity(std::size_t capacity) noexcept
+{
+  auto const stride = [&]() {
+    if constexpr (ProbingScheme::uses_window_probing == enable_window_probing::YES) {
+      return ProbingScheme::cg_size * ProbingScheme::window_size;
+    }
+    if constexpr (ProbingScheme::uses_window_probing == enable_window_probing::NO) {
+      return ProbingScheme::cg_size;
+    }
+  }();
+
+  auto const c         = SDIV(capacity, stride);
+  auto const min_prime = std::lower_bound(primes.begin(), primes.end(), c);
+  return *min_prime * stride;
 }
 
 /**

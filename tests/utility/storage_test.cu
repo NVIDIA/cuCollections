@@ -36,7 +36,7 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
   SECTION("Allocate array of pairs with AoS storage.")
   {
     auto s = cuco::detail::aos_storage<cuco::pair<Key, Value>, allocator_type>(size, allocator);
-    auto const res_size = s.size();
+    auto const res_size = s.capacity();
 
     REQUIRE(res_size == size);
   }
@@ -44,7 +44,7 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
   SECTION("Allocate array of keys with AoS storage.")
   {
     auto s              = cuco::detail::aos_storage<Key, allocator_type>(size, allocator);
-    auto const res_size = s.size();
+    auto const res_size = s.capacity();
 
     REQUIRE(res_size == size);
   }

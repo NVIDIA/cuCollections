@@ -11,33 +11,15 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License.
  */
-#pragma once
 
-#include <cstddef>
+#pragma once
 
 namespace cuco {
 namespace detail {
 
-/**
- * @brief Initializes each slot in the flat `slots` storage to contain `k`.
- *
- * @tparam Key Key type
- *
- * @param slots Pointer to flat storage for the keys
- * @param k Key to which all keys in `slots` are initialized
- * @param size Size of the storage pointed to by `slots`
- */
-template <typename Key>
-__global__ void initialize(Key* slots, Key k, std::size_t size)
-{
-  auto tid = blockDim.x * blockIdx.x + threadIdx.x;
-  while (tid < size) {
-    slots[tid] = k;
-    tid += gridDim.x * blockDim.x;
-  }
-}
+static constexpr int CUCO_DEFAULT_BLOCK_SIZE = 128;
+static constexpr int CUCO_DEFAULT_STRIDE     = 1;
 
 }  // namespace detail
 }  // namespace cuco
