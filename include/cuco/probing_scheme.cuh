@@ -20,7 +20,6 @@
 
 namespace cuco {
 namespace experimental {
-
 /**
  * @brief Public double hashing scheme class.
  *
@@ -33,7 +32,7 @@ template <int CGSize,
           enable_window_probing UsesWindowProbing,
           typename Hash1,
           typename Hash2>
-class double_hashing : public detail::probing_scheme_base<CGSize, WindowSize, UsesWindowProbing> {
+class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, UsesWindowProbing> {
  public:
   using probing_scheme_base_type =
     detail::probing_scheme_base<CGSize, WindowSize, UsesWindowProbing>;  ///< The base probe scheme
@@ -42,10 +41,98 @@ class double_hashing : public detail::probing_scheme_base<CGSize, WindowSize, Us
   using probing_scheme_base_type::uses_window_probing;
   using probing_scheme_base_type::window_size;
 
-  /// Type of implementation details
-  template <typename SlotView>
-  using impl =
-    detail::double_hashing_impl<CGSize, WindowSize, UsesWindowProbing, SlotView, Hash1, Hash2>;
+  /**
+   *@brief Constructs double hashing probing scheme with the two hasher callables.
+   *
+   * @param hash1 First hasher
+   * @param hash2 Second hasher
+   */
+  double_hashing(Hash1 const& hash1, Hash2 const& hash2) : hash1_{hash1}, hash2_{hash2} {}
+
+  /**
+   * @brief Operator to return a probing iterator
+   *
+   * @tparam ProbeKey Type of probing key
+   *
+   * @param probe_key The probing key
+   * @param upper_bound Upper bound of the iteration
+   * @return An iterator whose value_type is convertible to slot index type
+   */
+  template <typename ProbeKey>
+  __device__ constexpr auto operator()(ProbeKey const& probe_key,
+                                       std::size_t const upper_bound) const noexcept
+  {
+    auto const hash_value = hash1_(probe_key);
+
+    auto const [start, step_size] = [&]() {
+      if constexpr (uses_window_probing == enable_window_probing::YES) {
+        // step size in range [1, prime - 1] * window_size
+        return thrust::pair<std::size_t, std::size_t>{
+          (hash2_(probe_key) % (upper_bound / window_size - 1) + 1) * window_size,
+          hash_value % (upper_bound / window_size) * window_size};
+      }
+      if constexpr (uses_window_probing == enable_window_probing::NO) {
+        // step size in range [1, prime - 1]
+        return thrust::pair<std::size_t, std::size_t>{hash2_(probe_key) % (upper_bound - 1) + 1,
+                                                      hash_value % upper_bound};
+      }
+    }();
+    return iterator{start, step_size, upper_bound};
+  }
+
+  /**
+   * @brief Probing iterator class.
+   */
+  class iterator {
+   public:
+    /**
+     *@brief Constructs an probing iterator
+     *
+     * @param start Iteration starting point
+     * @param step_size Double hashing step size
+     * @param upper_bound Upper bound of the iteration
+     */
+    __device__ constexpr iterator(std::size_t start,
+                                  std::size_t step_size,
+                                  std::size_t upper_bound) noexcept
+      : curr_index_{start}, step_size_{step_size}, upper_bound_{upper_bound}
+    {
+    }
+
+    /**
+     * @brief Dereference operator
+     *
+     * @return Current slot ndex
+     */
+    __device__ constexpr auto operator*() const noexcept { return curr_index_; }
+
+    /**
+     * @brief Prefix advance operator
+     *
+     * @return Current iterator
+     */
+    __device__ constexpr auto operator++() noexcept
+    {
+      curr_index_ = (curr_index_ + step_size_) % upper_bound_;
+      return *this;
+    }
+
+    /**
+     * @brief Postfix advance operator
+     *
+     * @return Current iterator
+     */
+    constexpr auto operator++(int) noexcept { return ++(*this); }
+
+   private:
+    std::size_t curr_index_;
+    std::size_t step_size_;
+    std::size_t upper_bound_;
+  };
+
+ private:
+  Hash1 hash1_;
+  Hash2 hash2_;
 };
 
 }  // namespace experimental

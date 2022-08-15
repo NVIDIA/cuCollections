@@ -21,14 +21,14 @@ namespace cuco {
 /**
  * @brief Device reference of static_set.
  */
-template <typename ProbingScheme, typename Key, typename KeyEqual>
+template <typename Key, typename KeyEqual, typename ProbingScheme, typename StorageView>
 class static_set_ref {
  public:
-  using probing_scheme_type = ProbingScheme;                       ///< Type of probing scheme
-  using key_type            = Key;                                 ///< Key Type
-  using value_type          = typename ProbingScheme::value_type;  ///< Probing scheme element type
-  using key_equal           = KeyEqual;  ///< Type of key equality binary callable
-  using slot_view_type = typename probing_scheme_type::slot_view_type;  ///< Slot storage view type
+  using key_type            = Key;            ///< Key Type
+  using key_equal           = KeyEqual;       ///< Type of key equality binary callable
+  using probing_scheme_type = ProbingScheme;  ///< Type of probing scheme
+  using storage_view_type   = StorageView;    ///< Type of slot storage view
+  using value_type = typename storage_view_type::value_type;  ///< Probing scheme element type
 
   /// CG size
   static constexpr int cg_size = probing_scheme_type::cg_size;
@@ -41,18 +41,19 @@ class static_set_ref {
   /**
    * @brief Constructs static_set_ref.
    *
-   * @param slots Pointer to slot storage
-   * @param capacity Number of slots in the storage
    * @param empty_key_sentienl Sentinel indicating empty key
    * @param predicate Key equality binary callable
+   * @param probing_scheme Probing scheme
+   * @param slot_view View of slot storage
    */
-  static_set_ref(value_type* slots,
-                 std::size_t const capacity,
-                 Key empty_key_sentienl,
-                 KeyEqual const& predicate)
-    : probing_scheme_{slot_view_type{slots, capacity}},
-      empty_key_sentienl_{empty_key_sentienl},
-      predicate_{predicate}
+  static_set_ref(Key empty_key_sentienl,
+                 KeyEqual const& predicate,
+                 ProbingScheme const& probing_scheme,
+                 StorageView slot_view) noexcept
+    : empty_key_sentienl_{empty_key_sentienl},
+      predicate_{predicate},
+      probing_scheme_{probing_scheme},
+      slot_view_{slot_view}
   {
   }
 
@@ -64,8 +65,8 @@ class static_set_ref {
    */
   __device__ inline bool insert(key_type const& key) noexcept
   {
+    auto probing_iter = probing_scheme_(key, slot_view_.capacity());
     /*
-    auto iter = probing_scheme_(key);
     while (true) {
       auto slot_keys = get_window(iter);
 
@@ -90,8 +91,9 @@ class static_set_ref {
   }
 
  private:
-  probing_scheme_type probing_scheme_;  ///< Probing scheme
   key_type empty_key_sentienl_;         ///< Empty key sentinel
   key_equal predicate_;                 ///< Key equality binary callable
+  probing_scheme_type probing_scheme_;  ///< Probing scheme
+  storage_view_type slot_view_;         ///< View of slot storage
 };
 }  // namespace cuco

@@ -55,7 +55,7 @@ namespace cuco {
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
  * @tparam Scope The scope in which set operations will be performed by individual threads
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
- * @tparam ProbeScheme Probe scheme chosen between `cuco::linear_probing`
+ * @tparam ProbingScheme Probing scheme chosen between `cuco::linear_probing`
  * and `cuco::double_hashing`. (see `detail/probe_sequences.cuh`)
  * @tparam Allocator Type of allocator used for device storage
  * @tparam Storage Slot storage type
@@ -73,8 +73,8 @@ template <class Key,
             experimental::double_hashing<2,                           // CG size
                                          2,                           // Window size (vector length)
                                          enable_window_probing::YES,  // uses window probing
-                                         cuco::detail::MurmurHash3_32<Key>,  // First hasher
-                                         cuco::detail::MurmurHash3_32<Key>   // Second hasher
+                                         detail::MurmurHash3_32<Key>,  // Hash1
+                                         detail::MurmurHash3_32<Key>   // Hash2
                                          >,
           class Allocator = cuco::cuda_allocator<char>,
           class Storage   = cuco::detail::aos_storage<Key, Allocator>>
@@ -90,18 +90,17 @@ class static_set {
                                                       ProbingScheme::window_size,
                                                       ProbingScheme::uses_window_probing>,
       ProbingScheme>,
-    "ProbeScheme must be a specialization of either cuco::double_hashing or "
+    "ProbingScheme must be a specialization of either cuco::double_hashing or "
     "cuco::linear_probing.");
 
  public:
-  using key_type          = Key;        ///< Key type
-  using value_type        = Key;        ///< Key type
-  using key_equal         = KeyEqual;   ///< Key equality comparator type
-  using allocator_type    = Allocator;  ///< Allocator type
-  using slot_storage_type = Storage;    ///< Slot storage type
-  using slot_view_type    = typename slot_storage_type::view_type;  ///< Slot view type
-  using probing_scheme_type =
-    experimental::detail::probing_scheme<ProbingScheme, slot_view_type>;   ///< Probe scheme type
+  using key_type             = Key;        ///< Key type
+  using value_type           = Key;        ///< Key type
+  using key_equal            = KeyEqual;   ///< Key equality comparator type
+  using allocator_type       = Allocator;  ///< Allocator type
+  using slot_storage_type    = Storage;    ///< Slot storage type
+  using slot_view_type       = typename slot_storage_type::view_type;      ///< Slot view type
+  using probing_scheme_type  = ProbingScheme;                              ///< Probe scheme type
   using counter_storage_type = detail::counter_storage<Scope, Allocator>;  ///< Counter storage type
 
   static constexpr int cg_size = ProbingScheme::cg_size;  ///< CG size used to for probing
@@ -133,14 +132,17 @@ class static_set {
    * @param capacity The total number of slots in the set
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param pred Key equality binary predicate
+   * @param probing_scheme Probing scheme
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the map
    */
   static_set(std::size_t capacity,
              sentinel::empty_key<Key> empty_key_sentinel,
-             KeyEqual pred          = KeyEqual{},
-             Allocator const& alloc = Allocator{},
-             cudaStream_t stream    = 0);
+             KeyEqual pred                = KeyEqual{},
+             ProbingScheme probing_scheme = ProbingScheme{detail::MurmurHash3_32<Key>{},
+                                                          detail::MurmurHash3_32<Key>{}},
+             Allocator const& alloc       = Allocator{},
+             cudaStream_t stream          = 0);
 
   /**
    * @brief Inserts all keys in the range `[first, last)`.
@@ -174,6 +176,7 @@ class static_set {
   std::size_t size_;                ///< Number of entries
   key_type empty_key_sentinel_;     ///< Key value that represents an empty slot
   key_equal predicate_;             ///< Key equality binary predicate
+  ProbingScheme probing_scheme_;    ///< Probing scheme
   allocator_type allocator_;        ///< Allocator used to (de)allocate temporary storage
   counter_storage_type counter_;    ///< Device counter storage
   slot_storage_type slot_storage_;  ///< Flat slot storage

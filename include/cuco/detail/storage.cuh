@@ -242,6 +242,13 @@ class aos_storage : public storage_base {
    */
   value_type const* slots() const noexcept { return slots_.get(); }
 
+  /**
+   * @brief Gets view of slot storage.
+   *
+   * @return View of slot storage
+   */
+  view_type view() noexcept { return view_type{this->slots(), this->capacity()}; }
+
  private:
   allocator_type allocator_;                              ///< Allocator used to (de)allocate slots
   slot_deleter_type slot_deleter_;                        ///< Custom slots deleter

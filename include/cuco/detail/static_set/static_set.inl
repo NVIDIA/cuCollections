@@ -34,11 +34,13 @@ static_set<Key, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::static_set(
   std::size_t capacity,
   sentinel::empty_key<Key> empty_key_sentinel,
   KeyEqual pred,
+  ProbingScheme probing_scheme,
   Allocator const& alloc,
   cudaStream_t stream)
   : size_{0},
     empty_key_sentinel_{empty_key_sentinel.value},
     predicate_{pred},
+    probing_scheme_{probing_scheme},
     allocator_{alloc},
     counter_{allocator_},
     slot_storage_{cuco::detail::get_valid_capacity<ProbingScheme>(capacity), allocator_}
@@ -71,8 +73,8 @@ void static_set<Key, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert
   counter_.reset(stream);
   std::size_t h_num_successes{};
 
-  auto ref = cuco::static_set_ref<probing_scheme_type, key_type, key_equal>(
-    slot_storage_.slots(), slot_storage_.capacity(), empty_key_sentinel_, predicate_);
+  auto ref = cuco::static_set_ref<key_type, key_equal, probing_scheme_type, slot_view_type>(
+    empty_key_sentinel_, predicate_, probing_scheme_, slot_storage_.view());
 
   detail::insert<detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
