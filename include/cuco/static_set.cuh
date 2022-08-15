@@ -168,7 +168,7 @@ class static_set {
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  Key empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+  key_type empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
  private:
   std::size_t size_;                ///< Number of entries

@@ -17,6 +17,8 @@
 #include <cuco/detail/common_kernels.cuh>
 #include <cuco/detail/defaults.cuh>
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/static_set/kernels.cuh>
+#include <cuco/reference.cuh>
 
 #include <cstddef>
 
@@ -69,13 +71,15 @@ void static_set<Key, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert
   counter_.reset(stream);
   std::size_t h_num_successes{};
 
-  /*
-  auto view             = device_mutable_view();
-  detail::insert<block_size><<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-    first, first + num_keys, counter_.get(), view);
+  auto ref = cuco::static_set_ref<probing_scheme_type, key_type, key_equal>(
+    slot_storage_.slots(), slot_storage_.capacity(), empty_key_sentinel_, predicate_);
+
+  detail::insert<detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      first, first + num_keys, counter_.get(), ref);
+
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_num_successes, counter_.get(), sizeof(std::size_t), cudaMemcpyDeviceToHost, stream));
-    */
 
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
 

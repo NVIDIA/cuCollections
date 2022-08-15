@@ -118,6 +118,21 @@ class counter_storage : public storage_base {
     CUCO_CUDA_TRY(cudaMemsetAsync(counter_.get(), 0, sizeof(counter_type), stream));
   }
 
+  /**
+   * @brief Gets slots array.
+   *
+   * @return Pointer to the first slot
+   */
+  counter_type* get() noexcept { return counter_.get(); }
+
+  /**
+   * @brief Gets slots array.
+   *
+   * @return Pointer to the first slot
+   */
+  counter_type const* get() const noexcept { return counter_.get(); }
+
+ private:
  private:
   allocator_type allocator_;              ///< Allocator used to (de)allocate counter
   counter_deleter_type counter_deleter_;  ///< Custom counter deleter

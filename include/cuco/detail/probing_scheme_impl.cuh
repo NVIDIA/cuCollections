@@ -321,7 +321,8 @@ template <typename ProbingImpl, typename SlotView>
 class probing_scheme : public ProbingImpl::template impl<SlotView> {
  public:
   using impl_type =
-    typename ProbingImpl::template impl<SlotView>;  ///< Type of implementation details
+    typename ProbingImpl::template impl<SlotView>;  ///< Type of implementation detail
+  using slot_view_type = SlotView;                  ///< Type of slot storage view
 
   /**
    * @brief Constructs a probing scheme based on the given storage view.

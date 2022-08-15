@@ -22,7 +22,6 @@ namespace cuco {
 namespace experimental {
 
 /**
- *
  * @brief Public double hashing scheme class.
  *
  * @tparam CGSize Size of CUDA Cooperative Groups
