@@ -28,7 +28,7 @@
 #include <limits>
 
 /**
- * @file device_side_example.cu
+ * @file device_view_example.cu
  * @brief Demonstrates usage of the device side APIs for individual operations like insert/find.
  *
  * Individual operations like a single insert or find can be performed in device code via the
