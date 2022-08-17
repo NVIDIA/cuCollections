@@ -199,7 +199,7 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 
 ### `dynamic_map`
 
-`cuco::dynamic_map` links together multiple `cuco::static_map`s to provide a hash table that can grow as keys are inserted. It currently only provides host-bulk APIs. See the Doxygen documentation in `dynamic_map.cuh` for more detailed information.
+`cuco::dynamic_map` links together multiple `cuco::static_map`s to provide a hash table that can grow as key-value pairs are inserted. It currently only provides host-bulk APIs. See the Doxygen documentation in `dynamic_map.cuh` for more detailed information.
 
 #### Examples:
 - [Host-bulk APIs (TODO)]()
