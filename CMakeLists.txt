@@ -85,6 +85,7 @@ endif()
 option(BUILD_TESTS "Configure CMake to build tests" ${default_build_option_state})
 option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ${default_build_option_state})
 option(BUILD_EXAMPLES "Configure CMake to build examples" ${default_build_option_state})
+option(INSTALL_CUCO "Enable CMake install rules for cuco" ${default_build_option_state})
 
 ###################################################################################################
 # - optionally build tests ------------------------------------------------------------------------
@@ -110,11 +111,12 @@ endif(BUILD_EXAMPLES)
 ###################################################################################################
 # - Install targets -------------------------------------------------------------------------------
 
-install(TARGETS cuco EXPORT cuco-exports)
-install(DIRECTORY include/cuco/ DESTINATION include/cuco)
-install(FILES ${CUCO_BINARY_DIR}/include/cuco/version_config.hpp DESTINATION include/cuco)
+if(INSTALL_CUCO)
+    install(TARGETS cuco EXPORT cuco-exports)
+    install(DIRECTORY include/cuco/ DESTINATION include/cuco)
+    install(FILES ${CUCO_BINARY_DIR}/include/cuco/version_config.hpp DESTINATION include/cuco)
 
-set(doc_string
+    set(doc_string
     [=[
 Provide targets for cuCollections.
 
@@ -129,26 +131,27 @@ structures tailored for efficient use with GPUs.
 
 ]=])
 
-# build install targets
-rapids_export(
-    INSTALL cuco
-    EXPORT_SET cuco-exports
-    GLOBAL_TARGETS cuco
-    NAMESPACE cuco::
-    DOCUMENTATION doc_string)
+    # build install targets
+    rapids_export(
+        INSTALL cuco
+        EXPORT_SET cuco-exports
+        GLOBAL_TARGETS cuco
+        NAMESPACE cuco::
+        DOCUMENTATION doc_string)
 
-set(code_string
+    set(code_string
     [=[
 if(NOT TARGET cuco::Thrust)
     thrust_create_target(cuco::Thrust FROM_OPTIONS)
 endif()
 ]=])
 
-# build export targets
-rapids_export(
-    BUILD cuco
-    EXPORT_SET cuco-exports
-    GLOBAL_TARGETS cuco
-    NAMESPACE cuco::
-    DOCUMENTATION doc_string
-    FINAL_CODE_BLOCK code_string)
+    # build export targets
+    rapids_export(
+        BUILD cuco
+        EXPORT_SET cuco-exports
+        GLOBAL_TARGETS cuco
+        NAMESPACE cuco::
+        DOCUMENTATION doc_string
+        FINAL_CODE_BLOCK code_string)
+endif()
