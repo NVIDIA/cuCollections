@@ -33,6 +33,19 @@ rapids_cuda_init_architectures(CUCO)
 
 project(CUCO VERSION 0.0.1 LANGUAGES CXX CUDA)
 
+###################################################################################################
+# - build options ---------------------------------------------------------------------------------
+
+set(default_build_option_state OFF)
+if ("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_LIST_DIR}")
+  set(default_build_option_state ON)
+endif()
+
+option(BUILD_TESTS "Configure CMake to build tests" ${default_build_option_state})
+option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ${default_build_option_state})
+option(BUILD_EXAMPLES "Configure CMake to build examples" ${default_build_option_state})
+option(INSTALL_CUCO "Enable CMake install rules for cuco" ${default_build_option_state})
+
 # Write the version header
 rapids_cmake_write_version_file(include/cuco/version_config.hpp)
 
@@ -73,19 +86,6 @@ target_include_directories(cuco INTERFACE
                 $<INSTALL_INTERFACE:include>)
 target_link_libraries(cuco INTERFACE libcudacxx::libcudacxx CUDA::toolkit $<BUILD_INTERFACE:cuco::Thrust>)
 target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
-
-###################################################################################################
-# - build options ---------------------------------------------------------------------------------
-
-set(default_build_option_state OFF)
-if ("${CMAKE_SOURCE_DIR}" STREQUAL "${CMAKE_CURRENT_LIST_DIR}")
-  set(default_build_option_state ON)
-endif()
-
-option(BUILD_TESTS "Configure CMake to build tests" ${default_build_option_state})
-option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ${default_build_option_state})
-option(BUILD_EXAMPLES "Configure CMake to build examples" ${default_build_option_state})
-option(INSTALL_CUCO "Enable CMake install rules for cuco" ${default_build_option_state})
 
 ###################################################################################################
 # - optionally build tests ------------------------------------------------------------------------
