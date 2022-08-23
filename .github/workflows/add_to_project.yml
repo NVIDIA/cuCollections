@@ -26,4 +26,4 @@ jobs:
         uses: actions/add-to-project@v0.3.0
         with:
           project-url: https://github.com/orgs/NVIDIA/projects/6
-          github-token: ${TOKEN}
+          github-token: ${{ env.TOKEN }}
