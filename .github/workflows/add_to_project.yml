@@ -21,6 +21,8 @@ jobs:
           app_id: ${{ secrets.CCCL_AUTH_APP_ID }}
           private_key: ${{ secrets.CCCL_AUTH_APP_PEM }}
       - name: Add to Project
+        env:
+          TOKEN: ${{ steps.generate_token.outputs.token }}
         uses: actions/add-to-project@v0.3.0
           project-url:https://github.com/orgs/NVIDIA/projects/6
-          github-token:${{ steps.generate_token.outputs.token }}
+          github-token:${TOKEN}
