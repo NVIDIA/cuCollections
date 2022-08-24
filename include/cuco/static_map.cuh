@@ -922,10 +922,6 @@ class static_map {
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
-     * Returns a pair consisting of an iterator to the inserted element (or to
-     * the element that prevented the insertion) and a `bool` denoting whether
-     * the insertion took place.
-     *
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param insert_pair The pair to insert
@@ -945,10 +941,38 @@ class static_map {
      *
      * Returns a pair consisting of an iterator to the inserted element (or to
      * the element that prevented the insertion) and a `bool` denoting whether
-     * the insertion took place. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single insert. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `insert` at moderate to high load factors.
+     * the insertion took place.
+     *
+     * Note: In order to guarantee the validity of the returned iterator,
+     * `insert_and_find` may be less efficient than `insert` in some situations.
+     * Prefer using `insert` unless the returned iterator is required.
+     *
+     * Note: `insert_and_find` may only be used concurrently with `insert`,
+     * `find`, and `erase` when `supports_concurrent_insert_find()` returns
+     * true.
+     *
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     *
+     * @param insert_pair The pair to insert
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return a pair consisting of an iterator to the element and a bool,
+     * either `true` if the insert was successful, `false` otherwise.
+     */
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ thrust::pair<iterator, bool> insert_and_find(
+      value_type const& insert_pair, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Inserts the specified key/value pair into the map.
+     *
+     * Uses the CUDA Cooperative Groups API to to leverage multiple threads to
+     * perform a single insert. This provides a significant boost in throughput
+     * compared to the non Cooperative Group `insert` at moderate to high load
+     * factors.
      *
      * @tparam CG Cooperative Group type
      * @tparam Hash Unary callable type

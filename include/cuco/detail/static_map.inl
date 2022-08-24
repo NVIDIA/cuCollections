@@ -423,6 +423,96 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename Hash, typename KeyEqual>
+__device__
+  thrust::pair<typename static_map<Key, Value, Scope, Allocator>::device_mutable_view::iterator,
+               bool>
+  static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_and_find(
+    value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
+{
+#if __CUDA_ARCH__ < 700
+  // Spinning to ensure that the write to the value part took place requires
+  // independent thread scheduling introduced with the Volta architecture.
+  static_assert(cuco::detail::is_packable<value_type>(),
+                "insert_and_find is not supported for unpackable data on pre-Volta GPUs.");
+#endif
+
+  auto current_slot{initial_slot(insert_pair.first, hash)};
+
+  while (true) {
+    key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
+    // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
+    // sentinel is not a valid key value. Therefore, first check for the sentinel
+    auto const slot_is_available =
+      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel()) or
+      detail::bitwise_compare(existing_key, this->get_erased_key_sentinel());
+
+    // the key we are trying to insert is already in the map, so we return with failure to insert
+    if (not slot_is_available and key_equal(existing_key, insert_pair.first)) {
+      // If we cannot use a single CAS operation, ensure that the write to
+      // the value part also took place.
+      if constexpr (not cuco::detail::is_packable<value_type>()) {
+        auto& slot_value       = current_slot->second;
+        auto const empty_value = this->get_empty_value_sentinel();
+        while (
+          detail::bitwise_compare(slot_value.load(cuda::std::memory_order_relaxed), empty_value)) {
+          // spin
+        }
+      }
+
+      return thrust::make_pair(current_slot, false);
+    }
+
+    if (slot_is_available) {
+      auto const status = [&]() {
+        // One single CAS operation if `value_type` is packable
+        if constexpr (cuco::detail::is_packable<value_type>()) {
+          return packed_cas(current_slot, insert_pair, key_equal, existing_key);
+        }
+
+        if constexpr (not cuco::detail::is_packable<value_type>()) {
+          // Only use cas_dependent_write; for back_to_back_cas we cannot
+          // guarantee that we get a valid iterator: Consider the case of two
+          // threads inserting the same key, and one gets the key while the
+          // other gets the value. For a third thread, the entry looks valid,
+          // but the second thread will first reset the value to the empty
+          // sentinel to signal that the first thread can write its value.
+          // This ambiguity cannot be solved for the third thread, so we have
+          // to avoid it.
+          return cas_dependent_write(current_slot, insert_pair, key_equal, existing_key);
+        }
+      }();
+
+      // successful insert
+      if (status == insert_result::SUCCESS) {
+        // This thread did the insertion, so the iterator is guaranteed to be
+        // valid without any special care.
+        return thrust::make_pair(current_slot, true);
+      }
+      // duplicate present during insert
+      if (status == insert_result::DUPLICATE) {
+        // If we cannot use a single CAS operation, ensure that the write to
+        // the value part also took place.
+        if constexpr (not cuco::detail::is_packable<value_type>()) {
+          auto& slot_value       = current_slot->second;
+          auto const empty_value = this->get_empty_value_sentinel();
+          while (detail::bitwise_compare(slot_value.load(cuda::std::memory_order_relaxed),
+                                         empty_value)) {
+            // spin
+          }
+        }
+
+        return thrust::make_pair(current_slot, false);
+      }
+    }
+
+    // if we couldn't insert the key, but it wasn't a duplicate, then there must
+    // have been some other key there, so we keep looking for a slot
+    current_slot = next_slot(current_slot);
+  }
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(
   CG const& g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
