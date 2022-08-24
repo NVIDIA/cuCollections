@@ -29,7 +29,7 @@ template <typename SizeType, std::size_t N = dynamic_extent>
 struct extent {
   using value_type = SizeType;  ///< Extent value type
 
-  __host__ __device__ constexpr extent() = default;
+  constexpr extent() = default;
 
   /// Constructs from `SizeType`
   __host__ __device__ constexpr explicit extent(SizeType) noexcept {}
