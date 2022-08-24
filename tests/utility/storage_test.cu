@@ -18,6 +18,7 @@
 
 #include <cuco/allocator.hpp>
 #include <cuco/detail/storage.cuh>
+#include <cuco/extent.cuh>
 
 #include <catch2/catch.hpp>
 
@@ -35,7 +36,9 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
 
   SECTION("Allocate array of pairs with AoS storage.")
   {
-    auto s = cuco::detail::aos_storage<cuco::pair<Key, Value>, allocator_type>(size, allocator);
+    auto s =
+      cuco::detail::aos_storage<cuco::pair<Key, Value>, cuco::extent<std::size_t>, allocator_type>(
+        cuco::extent{size}, allocator);
     auto const res_size = s.capacity();
 
     REQUIRE(res_size == size);
@@ -43,7 +46,8 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
 
   SECTION("Allocate array of keys with AoS storage.")
   {
-    auto s              = cuco::detail::aos_storage<Key, allocator_type>(size, allocator);
+    auto s = cuco::detail::aos_storage<Key, cuco::extent<std::size_t>, allocator_type>(
+      cuco::extent{size}, allocator);
     auto const res_size = s.capacity();
 
     REQUIRE(res_size == size);

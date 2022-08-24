@@ -19,6 +19,7 @@
 #include <cuco/allocator.hpp>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
+#include <cuco/extent.cuh>
 
 #include <cuda/atomic>
 
@@ -59,37 +60,47 @@ struct custom_deleter {
 
 /**
  * @brief Base class of open addressing storage. This class should not be used directly.
+ *
+ * @tparam Extent Type of extent denoting storage capacity
  */
+template <typename Extent>
 class storage_base {
  public:
+  using extent_type = Extent;                            ///< Storage extent type
+  using size_type   = typename extent_type::value_type;  ///< Storage size type
+
   /**
    * @brief Constructor of base storage.
    *
    * @param capacity Number of slots to (de)allocate
    */
-  storage_base(std::size_t capacity) : capacity_{capacity} {}
+  storage_base(Extent capacity) : capacity_{capacity} {}
 
   /**
    * @brief Gets the total number of slots in the current storage.
    *
    * @return The total number of slots
    */
-  __host__ __device__ std::size_t capacity() const noexcept { return capacity_; }
+  __host__ __device__ size_type capacity() const noexcept { return capacity_; }
 
  protected:
-  std::size_t capacity_;  ///< Total number of slots
+  extent_type capacity_;  ///< Total number of slots
 };
 
 /**
  * @brief Device counter storage class.
  *
+ * @tparam SizeType Type of storage size
  * @tparam Scope The scope in which the counter will be used by individual threads
  * @tparam Allocator Type of allocator used for device storage
  */
-template <cuda::thread_scope Scope, typename Allocator>
-class counter_storage : public storage_base {
+template <typename SizeType, cuda::thread_scope Scope, typename Allocator>
+class counter_storage : public storage_base<cuco::extent<SizeType, 1>> {
  public:
-  using counter_type   = cuda::atomic<std::size_t, Scope>;  ///< Type of the counter
+  using storage_base<cuco::extent<SizeType, 1>>::capacity_;  ///< Storage capacity
+
+  using size_type      = SizeType;                        ///< Size type
+  using counter_type   = cuda::atomic<size_type, Scope>;  ///< Type of the counter
   using allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
     counter_type>;  ///< Type of the allocator to (de)allocate counter
   using counter_deleter_type = custom_deleter<allocator_type>;  ///< Type of counter deleter
@@ -100,7 +111,7 @@ class counter_storage : public storage_base {
    * @param allocator Allocator used for (de)allocating device storage
    */
   counter_storage(Allocator const& allocator)
-    : storage_base{1},
+    : storage_base<cuco::extent<SizeType, 1>>{cuco::extent<size_type, 1>{}},
       allocator_{allocator},
       counter_deleter_{capacity_, allocator_},
       counter_{allocator_.allocate(capacity_), counter_deleter_}
@@ -114,7 +125,7 @@ class counter_storage : public storage_base {
    */
   inline void reset(cudaStream_t stream)
   {
-    static_assert(sizeof(std::size_t) == sizeof(counter_type));
+    static_assert(sizeof(size_type) == sizeof(counter_type));
     CUCO_CUDA_TRY(cudaMemsetAsync(counter_.get(), 0, sizeof(counter_type), stream));
   }
 
@@ -133,7 +144,6 @@ class counter_storage : public storage_base {
   counter_type const* get() const noexcept { return counter_.get(); }
 
  private:
- private:
   allocator_type allocator_;              ///< Allocator used to (de)allocate counter
   counter_deleter_type counter_deleter_;  ///< Custom counter deleter
   std::unique_ptr<counter_type, counter_deleter_type> counter_;  ///< Pointer to counter storage
@@ -143,11 +153,14 @@ class counter_storage : public storage_base {
  * @brief Non-owning AoS storage view type.
  *
  * @tparam T Storage element type
+ * @tparam Extent Type of extent denoting storage capacity
  */
-template <typename T>
+template <typename T, typename Extent>
 class aos_storage_view {
  public:
-  using value_type = T;  ///< Storage element type
+  using value_type  = T;                                 ///< Storage element type
+  using extent_type = Extent;                            ///< Extent type
+  using size_type   = typename extent_type::value_type;  ///< Size type
 
   /**
    * @brief Constructor of AoS storage view.
@@ -155,7 +168,7 @@ class aos_storage_view {
    * @param slots Pointer to the slots array
    * @param capacity Size of the slots array
    */
-  explicit aos_storage_view(value_type* slots, std::size_t const capacity) noexcept
+  explicit aos_storage_view(value_type* slots, Extent const capacity) noexcept
     : slots_{slots}, capacity_{capacity}
   {
   }
@@ -179,28 +192,33 @@ class aos_storage_view {
    *
    * @return The total number of slots
    */
-  __device__ inline std::size_t capacity() const noexcept { return capacity_; }
+  __device__ inline size_type capacity() const noexcept { return capacity_; }
 
  private:
   value_type* slots_;     ///< Pointer to the slots array
-  std::size_t capacity_;  ///< Size of the slots array
+  extent_type capacity_;  ///< Size of the slots array
 };
 
 /**
  * @brief Array of structure open addressing storage class.
  *
  * @tparam T struct type
+ * @tparam Extent Type of extent denoting storage capacity
  * @tparam Allocator Type of allocator used for device storage
  */
-template <typename T, typename Allocator>
-class aos_storage : public storage_base {
+template <typename T, class Extent, typename Allocator>
+class aos_storage : public storage_base<Extent> {
  public:
+  using extent_type = typename storage_base<Extent>::extent_type;  ///< Storage extent type
+  using size_type   = typename storage_base<Extent>::size_type;    ///< Storage size type
+  using storage_base<Extent>::capacity_;                           ///< Storage capacity
+
   using value_type = T;  ///< Type of structs
   using allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<value_type>;  ///< Type of the allocator
                                                                           ///< to (de)allocate slots
   using slot_deleter_type = custom_deleter<allocator_type>;               ///< Type of slot deleter
-  using view_type         = aos_storage_view<value_type>;                 ///< Storage view type
+  using view_type         = aos_storage_view<value_type, extent_type>;    ///< Storage view type
 
   /**
    * @brief Constructor of AoS storage.
@@ -208,8 +226,8 @@ class aos_storage : public storage_base {
    * @param size Number of slots to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
-  aos_storage(std::size_t const size, Allocator const& allocator)
-    : storage_base{size},
+  aos_storage(Extent const size, Allocator const& allocator)
+    : storage_base<Extent>{size},
       allocator_{allocator},
       slot_deleter_{capacity_, allocator_},
       slots_{allocator_.allocate(capacity_), slot_deleter_}
@@ -254,6 +272,5 @@ class aos_storage : public storage_base {
   slot_deleter_type slot_deleter_;                        ///< Custom slots deleter
   std::unique_ptr<value_type, slot_deleter_type> slots_;  ///< Pointer to AoS slots storage
 };
-
 }  // namespace detail
 }  // namespace cuco

@@ -25,13 +25,14 @@
 namespace cuco {
 
 template <class Key,
+          class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
-static_set<Key, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::static_set(
-  std::size_t capacity,
+static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::static_set(
+  Extent capacity,
   sentinel::empty_key<Key> empty_key_sentinel,
   KeyEqual pred,
   ProbingScheme probing_scheme,
@@ -54,13 +55,14 @@ static_set<Key, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::static_set(
 }
 
 template <class Key,
+          class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
 template <typename InputIt>
-void static_set<Key, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cudaStream_t stream)
 {
   auto num_keys = std::distance(first, last);
@@ -71,7 +73,7 @@ void static_set<Key, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert
     (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
   counter_.reset(stream);
-  std::size_t h_num_successes{};
+  size_type h_num_successes{};
 
   auto ref = cuco::static_set_ref<key_type, key_equal, probing_scheme_type, slot_view_type>(
     empty_key_sentinel_, predicate_, probing_scheme_, slot_storage_.view());
@@ -81,7 +83,7 @@ void static_set<Key, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert
       first, first + num_keys, counter_.get(), ref);
 
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_num_successes, counter_.get(), sizeof(std::size_t), cudaMemcpyDeviceToHost, stream));
+    &h_num_successes, counter_.get(), sizeof(size_type), cudaMemcpyDeviceToHost, stream));
 
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
 

@@ -64,6 +64,6 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence",
 {
   constexpr std::size_t num_keys{400};
 
-  cuco::static_set<Key> set{5, cuco::sentinel::empty_key<Key>{-1}};
+  cuco::static_set<Key> set{cuco::extent<std::size_t>{500}, cuco::sentinel::empty_key<Key>{-1}};
   test_unique_sequence(set, num_keys);
 }
