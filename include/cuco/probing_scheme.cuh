@@ -53,14 +53,15 @@ class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, U
    * @brief Operator to return a probing iterator
    *
    * @tparam ProbeKey Type of probing key
+   * @tparam SizeType Type of storage size
    *
    * @param probe_key The probing key
    * @param upper_bound Upper bound of the iteration
    * @return An iterator whose value_type is convertible to slot index type
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename SizeType>
   __device__ constexpr auto operator()(ProbeKey const& probe_key,
-                                       std::size_t const upper_bound) const noexcept
+                                       SizeType const upper_bound) const noexcept
   {
     auto const hash_value = hash1_(probe_key);
 
@@ -82,9 +83,14 @@ class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, U
 
   /**
    * @brief Probing iterator class.
+   *
+   * @tparam SizeType Type of size
    */
+  template <typename SizeType>
   class iterator {
    public:
+    using size_type = SizeType;  ///< Size type
+
     /**
      *@brief Constructs an probing iterator
      *
@@ -92,9 +98,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, U
      * @param step_size Double hashing step size
      * @param upper_bound Upper bound of the iteration
      */
-    __device__ constexpr iterator(std::size_t start,
-                                  std::size_t step_size,
-                                  std::size_t upper_bound) noexcept
+    __device__ constexpr iterator(SizeType start, SizeType step_size, SizeType upper_bound) noexcept
       : curr_index_{start}, step_size_{step_size}, upper_bound_{upper_bound}
     {
     }
@@ -125,9 +129,9 @@ class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, U
     constexpr auto operator++(int) noexcept { return ++(*this); }
 
    private:
-    std::size_t curr_index_;
-    std::size_t step_size_;
-    std::size_t upper_bound_;
+    size_type curr_index_;
+    size_type step_size_;
+    size_type upper_bound_;
   };
 
  private:

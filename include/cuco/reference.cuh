@@ -68,7 +68,7 @@ class static_set_ref {
     auto probing_iter = probing_scheme_(key, slot_view_.capacity());
     /*
     while (true) {
-      auto slot_keys = get_window(iter);
+      auto slot_keys = get_window(*probing_iter);
 
       auto is_available = [](slots_keys){
         for (k in slot_keys) {
