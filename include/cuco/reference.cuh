@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cuda/std/array>
+
 namespace cuco {
 
 /**
@@ -29,6 +31,7 @@ class static_set_ref {
   using probing_scheme_type = ProbingScheme;  ///< Type of probing scheme
   using storage_view_type   = StorageView;    ///< Type of slot storage view
   using value_type = typename storage_view_type::value_type;  ///< Probing scheme element type
+  using size_type  = typename storage_view_type::size_type;   ///< Probing scheme element type
 
   /// CG size
   static constexpr int cg_size = probing_scheme_type::cg_size;
@@ -66,10 +69,10 @@ class static_set_ref {
   __device__ inline bool insert(key_type const& key) noexcept
   {
     auto probing_iter = probing_scheme_(key, slot_view_.capacity());
-    /*
-    while (true) {
-      auto slot_keys = get_window(*probing_iter);
 
+    while (true) {
+      auto slot_keys = window(*probing_iter);
+      /*
       auto is_available = [](slots_keys){
         for (k in slot_keys) {
           res = res or equality_wrapper(k, key);
@@ -85,9 +88,17 @@ class static_set_ref {
         }
       }
       iter++;
-    }
     */
+    }
     return true;
+  }
+
+ private:
+  __device__ cuda::std::array<value_type, window_size> window(size_type window_index) const noexcept
+  {
+    cuda::std::array<value_type, window_size> slot_array;
+    memcpy(&slot_array[0], slot_view_.slots() + window_index, window_size * sizeof(value_type));
+    return slot_array;
   }
 
  private:
