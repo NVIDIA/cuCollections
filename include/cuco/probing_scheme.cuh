@@ -78,7 +78,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, U
                                                       hash_value % upper_bound};
       }
     }();
-    return iterator{start, step_size, upper_bound};
+    return iterator<SizeType>{start, step_size, upper_bound};
   }
 
   /**
