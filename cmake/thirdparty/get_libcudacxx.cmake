@@ -16,8 +16,12 @@
 function(find_and_configure_libcudacxx)
     include(${rapids-cmake-dir}/cpm/libcudacxx.cmake)
 
-    rapids_cpm_libcudacxx(BUILD_EXPORT_SET cuco-exports
-                          INSTALL_EXPORT_SET cuco-exports)
+    set(exports BUILD_EXPORT_SET cuco-exports)
+    if(INSTALL_CUCO)
+      list(APPEND exports INSTALL_EXPORT_SET cuco-exports)
+    endif()
+
+    rapids_cpm_libcudacxx(${exports})
     set(LIBCUDACXX_INCLUDE_DIR "${libcudacxx_SOURCE_DIR}/include" PARENT_SCOPE)
 endfunction()
 

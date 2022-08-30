@@ -28,7 +28,7 @@
 #include <limits>
 
 /**
- * @file device_side_example.cu
+ * @file device_view_example.cu
  * @brief Demonstrates usage of the device side APIs for individual operations like insert/find.
  *
  * Individual operations like a single insert or find can be performed in device code via the
@@ -43,7 +43,7 @@
 /**
  * @brief Inserts keys that pass the specified predicated into the map.
  *
- * @tparam Map Type of the map returned from static_map::get_mutable_device_view
+ * @tparam Map Type of the map returned from static_map::get_device_mutable_view
  * @tparam KeyIter Input iterator whose value_type convertible to Map::key_type
  * @tparam ValueIter Input iterator whose value_type is convertible to Map::mapped_type
  * @tparam Predicate Unary predicate
@@ -70,7 +70,7 @@ __global__ void filtered_insert(Map map_view,
   while (tid < num_keys) {
     // Only insert keys that pass the predicate
     if (pred(key_begin[tid])) {
-      // mutable_device_view::insert returns `true` if it is the first time the given key was
+      // device_mutable_view::insert returns `true` if it is the first time the given key was
       // inserted and `false` if the key already existed
       if (map_view.insert({key_begin[tid], value_begin[tid]})) {
         ++counter;  // Count number of successfully inserted keys

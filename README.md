@@ -183,16 +183,25 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 
 ### `static_map`
 
-`cuco::static_map` is a fixed-size hash table using open addressing with linear probing. 
+`cuco::static_map` is a fixed-size hash table using open addressing with linear probing. See the Doxygen documentation in `static_map.cuh` for more detailed information.
 
-It provides both host, bulk APIs ([example](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/host_bulk_example.cu)) as well as device APIs for individual operations ([example](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/device_view_example.cu)).
+#### Examples:
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/ervPzqh64))
+- [Device-view APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/device_view_example.cu) (see [live example in godbolt](https://godbolt.org/z/qMWrfE6ET))
+- [Custom data types, key equality operators and hash functions](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/custom_type_example.cu) (see [live example in godbolt](https://godbolt.org/z/oGfYjzMGT))
 
-See the Doxygen documentation in `static_map.cuh` for more detailed information.
+### `static_multimap`
+
+`cuco::static_multimap` is a fixed-size hash table that supports storing equivalent keys. It uses double hashing by default and supports switching to linear probing. See the Doxygen documentation in `static_multimap.cuh` for more detailed information.
+
+#### Examples:
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_multimap/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/Po4eTEn1a))
 
 ### `dynamic_map`
 
-`cuco::dynamic_map` links together multiple `cuco::static_map`s to provide a hash table that can grow as keys are inserted. 
+`cuco::dynamic_map` links together multiple `cuco::static_map`s to provide a hash table that can grow as key-value pairs are inserted. It currently only provides host-bulk APIs. See the Doxygen documentation in `dynamic_map.cuh` for more detailed information.
 
-It currently only provides host, bulk APIs ([example (TODO)]()).
+#### Examples:
+- [Host-bulk APIs (TODO)]()
 
-See the Doxygen documentation in `dynamic_map.cuh` for more detailed information.
+

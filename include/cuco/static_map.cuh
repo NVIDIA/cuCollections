@@ -74,12 +74,12 @@ class dynamic_map;
  * The singular device-side operations allow individual threads to perform
  * independent insert or find/contains operations from device code. These
  * operations are accessed through non-owning, trivially copyable "view" types:
- * `device_view` and `mutable_device_view`. The `device_view` class is an
+ * `device_view` and `device_mutable_view`. The `device_view` class is an
  * immutable view that allows only non-modifying operations such as `find` or
- * `contains`. The `mutable_device_view` class only allows `insert` and `erase` operations.
+ * `contains`. The `device_mutable_view` class only allows `insert` and `erase` operations.
  * The two types are separate to prevent erroneous concurrent insert/erase/find
  * operations. Note that the device-side `erase` may only be called if the corresponding
- * `mutable_device_view` was constructed with a user-provided `erased_key_sentinel`. It is
+ * `device_mutable_view` was constructed with a user-provided `erased_key_sentinel`. It is
  * up to the user to ensure this condition is met.
  *
  * Example:
@@ -740,7 +740,7 @@ class static_map {
    * // Inserts a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
    * thrust::for_each(thrust::make_counting_iterator(0),
    *                  thrust::make_counting_iterator(50'000),
-   *                  [map = m.get_mutable_device_view()]
+   *                  [map = m.get_device_mutable_view()]
    *                  __device__ (auto i) mutable {
    *                     map.insert(thrust::make_pair(i,i));
    *                  });
@@ -922,10 +922,6 @@ class static_map {
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
-     * Returns a pair consisting of an iterator to the inserted element (or to
-     * the element that prevented the insertion) and a `bool` denoting whether
-     * the insertion took place.
-     *
      * @tparam Hash Unary callable type
      * @tparam KeyEqual Binary callable type
      * @param insert_pair The pair to insert
@@ -945,10 +941,38 @@ class static_map {
      *
      * Returns a pair consisting of an iterator to the inserted element (or to
      * the element that prevented the insertion) and a `bool` denoting whether
-     * the insertion took place. Uses the CUDA Cooperative Groups API to
-     * to leverage multiple threads to perform a single insert. This provides a
-     * significant boost in throughput compared to the non Cooperative Group
-     * `insert` at moderate to high load factors.
+     * the insertion took place.
+     *
+     * Note: In order to guarantee the validity of the returned iterator,
+     * `insert_and_find` may be less efficient than `insert` in some situations.
+     * Prefer using `insert` unless the returned iterator is required.
+     *
+     * Note: `insert_and_find` may only be used concurrently with `insert`,
+     * `find`, and `erase` when `supports_concurrent_insert_find()` returns
+     * true.
+     *
+     * @tparam Hash Unary callable type
+     * @tparam KeyEqual Binary callable type
+     *
+     * @param insert_pair The pair to insert
+     * @param hash The unary callable used to hash the key
+     * @param key_equal The binary callable used to compare two keys for
+     * equality
+     * @return a pair consisting of an iterator to the element and a bool,
+     * either `true` if the insert was successful, `false` otherwise.
+     */
+    template <typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+              typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ thrust::pair<iterator, bool> insert_and_find(
+      value_type const& insert_pair, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
+
+    /**
+     * @brief Inserts the specified key/value pair into the map.
+     *
+     * Uses the CUDA Cooperative Groups API to to leverage multiple threads to
+     * perform a single insert. This provides a significant boost in throughput
+     * compared to the non Cooperative Group `insert` at moderate to high load
+     * factors.
      *
      * @tparam CG Cooperative Group type
      * @tparam Hash Unary callable type
