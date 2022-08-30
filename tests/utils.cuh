@@ -16,8 +16,6 @@
 
 #pragma once
 
-
-
 namespace cuco {
 namespace test {
 namespace detail {
