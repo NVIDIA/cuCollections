@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2022, Jonas Hahnfeld, CERN.
+ * Copyright (c) 2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +20,9 @@
 #include <cuco/static_map.cuh>
 
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
 #include <thrust/functional.h>
+#include <thrust/sequence.h>
 
 #include <catch2/catch.hpp>
 
