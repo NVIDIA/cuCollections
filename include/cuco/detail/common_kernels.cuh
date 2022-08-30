@@ -18,6 +18,7 @@
 #include <cstddef>
 
 namespace cuco {
+namespace experimental {
 namespace detail {
 
 /**
@@ -40,4 +41,5 @@ __global__ void initialize(Key* slots, Key k, std::size_t size)
 }
 
 }  // namespace detail
+}  // namespace experimental
 }  // namespace cuco

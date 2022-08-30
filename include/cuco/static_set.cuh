@@ -46,6 +46,7 @@
 #include <type_traits>
 
 namespace cuco {
+namespace experimental {
 /**
  * @brief A GPU-accelerated, unordered, associative container of unique keys.
  *
@@ -68,18 +69,18 @@ namespace cuco {
 // class Allocator = std::allocator<Key>
 // > class unordered_set;
 template <class Key,
-          class Extent             = cuco::extent<std::size_t>,
+          class Extent             = cuco::experimental::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme =
             experimental::double_hashing<2,                           // CG size
                                          2,                           // Window size (vector length)
                                          enable_window_probing::YES,  // uses window probing
-                                         detail::MurmurHash3_32<Key>,  // Hash1
-                                         detail::MurmurHash3_32<Key>   // Hash2
+                                         cuco::detail::MurmurHash3_32<Key>,  // Hash1
+                                         cuco::detail::MurmurHash3_32<Key>   // Hash2
                                          >,
           class Allocator = cuco::cuda_allocator<char>,
-          class Storage   = cuco::detail::aos_storage<Key, Extent, Allocator>>
+          class Storage   = cuco::experimental::detail::aos_storage<Key, Extent, Allocator>>
 class static_set {
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
@@ -144,8 +145,8 @@ class static_set {
   static_set(Extent capacity,
              sentinel::empty_key<Key> empty_key_sentinel,
              KeyEqual pred                = KeyEqual{},
-             ProbingScheme probing_scheme = ProbingScheme{detail::MurmurHash3_32<Key>{},
-                                                          detail::MurmurHash3_32<Key>{}},
+             ProbingScheme probing_scheme = ProbingScheme{cuco::detail::MurmurHash3_32<Key>{},
+                                                          cuco::detail::MurmurHash3_32<Key>{}},
              Allocator const& alloc       = Allocator{},
              cudaStream_t stream          = 0);
 
@@ -187,6 +188,7 @@ class static_set {
   slot_storage_type slot_storage_;  ///< Flat slot storage
 };
 
+}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/static_set/static_set.inl>

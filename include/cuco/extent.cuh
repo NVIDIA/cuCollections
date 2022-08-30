@@ -17,6 +17,7 @@
 #pragma once
 
 namespace cuco {
+namespace experimental {
 static constexpr std::size_t dynamic_extent = static_cast<std::size_t>(-1);
 
 /**
@@ -68,4 +69,5 @@ struct extent<SizeType, dynamic_extent> {
  private:
   value_type value_;  ///< Size of extent
 };
+}  // namespace experimental
 }  // namespace cuco

@@ -23,6 +23,7 @@
 #include <cstddef>
 
 namespace cuco {
+namespace experimental {
 
 template <class Key,
           class Extent,
@@ -75,8 +76,8 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   counter_.reset(stream);
   size_type h_num_successes{};
 
-  auto ref =
-    cuco::static_set_ref(empty_key_sentinel_, predicate_, probing_scheme_, slot_storage_.view());
+  auto ref = cuco::experimental::static_set_ref(
+    empty_key_sentinel_, predicate_, probing_scheme_, slot_storage_.view());
 
   detail::insert<detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
@@ -90,4 +91,5 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   size_ += h_num_successes;
 }
 
+}  // namespace experimental
 }  // namespace cuco

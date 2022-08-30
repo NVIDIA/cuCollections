@@ -20,6 +20,7 @@
 #include <cuda/atomic>
 
 namespace cuco {
+namespace experimental {
 namespace detail {
 /**
  * @brief Inserts all keys in the range `[first, last)`.
@@ -65,4 +66,5 @@ __global__ void insert(InputIterator first,
   }
 }
 }  // namespace detail
+}  // namespace experimental
 }  // namespace cuco

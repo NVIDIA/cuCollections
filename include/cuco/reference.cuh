@@ -19,7 +19,7 @@
 #include <cuda/std/array>
 
 namespace cuco {
-
+namespace experimental {
 /**
  * @brief Device reference of static_set.
  */
@@ -107,4 +107,5 @@ class static_set_ref {
   probing_scheme_type probing_scheme_;  ///< Probing scheme
   storage_view_type slot_view_;         ///< View of slot storage
 };
+}  // namespace experimental
 }  // namespace cuco

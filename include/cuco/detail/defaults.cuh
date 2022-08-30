@@ -16,10 +16,12 @@
 #pragma once
 
 namespace cuco {
+namespace experimental {
 namespace detail {
 
 static constexpr int CUCO_DEFAULT_BLOCK_SIZE = 128;
 static constexpr int CUCO_DEFAULT_STRIDE     = 1;
 
 }  // namespace detail
+}  // namespace experimental
 }  // namespace cuco

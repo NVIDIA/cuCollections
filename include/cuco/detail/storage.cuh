@@ -27,6 +27,7 @@
 #include <memory>
 
 namespace cuco {
+namespace experimental {
 namespace detail {
 /**
  * @brief Custom deleter for unique pointer of slots.
@@ -95,9 +96,9 @@ class storage_base {
  * @tparam Allocator Type of allocator used for device storage
  */
 template <typename SizeType, cuda::thread_scope Scope, typename Allocator>
-class counter_storage : public storage_base<cuco::extent<SizeType, 1>> {
+class counter_storage : public storage_base<cuco::experimental::extent<SizeType, 1>> {
  public:
-  using storage_base<cuco::extent<SizeType, 1>>::capacity_;  ///< Storage capacity
+  using storage_base<cuco::experimental::extent<SizeType, 1>>::capacity_;  ///< Storage capacity
 
   using size_type      = SizeType;                        ///< Size type
   using counter_type   = cuda::atomic<size_type, Scope>;  ///< Type of the counter
@@ -111,7 +112,8 @@ class counter_storage : public storage_base<cuco::extent<SizeType, 1>> {
    * @param allocator Allocator used for (de)allocating device storage
    */
   counter_storage(Allocator const& allocator)
-    : storage_base<cuco::extent<SizeType, 1>>{cuco::extent<size_type, 1>{}},
+    : storage_base<cuco::experimental::extent<SizeType, 1>>{cuco::experimental::extent<size_type,
+                                                                                       1>{}},
       allocator_{allocator},
       counter_deleter_{capacity_, allocator_},
       counter_{allocator_.allocate(capacity_), counter_deleter_}
@@ -273,4 +275,5 @@ class aos_storage : public storage_base<Extent> {
   std::unique_ptr<value_type, slot_deleter_type> slots_;  ///< Pointer to AoS slots storage
 };
 }  // namespace detail
+}  // namespace experimental
 }  // namespace cuco
