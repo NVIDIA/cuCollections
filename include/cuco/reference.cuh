@@ -18,6 +18,7 @@
 
 #include <cuco/detail/bitwise_compare.cuh>
 
+#include <cuda/atomic>
 #include <cuda/std/array>
 
 namespace cuco {
@@ -62,7 +63,11 @@ struct equal_wrapper {
 /**
  * @brief Device reference of static_set.
  */
-template <typename Key, typename KeyEqual, typename ProbingScheme, typename StorageView>
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageView>
 class static_set_ref {
  public:
   using key_type            = Key;                            ///< Key Type
@@ -151,9 +156,9 @@ class static_set_ref {
 
   __device__ inline insert_result attempt_insert(value_type* slot, value_type const& key)
   {
-    auto ref      = cuda::atomic_ref{*slot};
+    auto ref      = cuda::atomic_ref<value_type, Scope>{*slot};
     auto expected = empty_key_sentienl_;
-    bool result   = ref.compare_exchange_strong(expected, key);
+    bool result   = ref.compare_exchange_strong(expected, key, cuda::std::memory_order_relaxed);
     if (result) {
       return insert_result::SUCCESS;
     } else {

@@ -178,6 +178,13 @@ class static_set {
    */
   key_type empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
+  /**
+   * @brief Get device reference.
+   *
+   * @return Device reference of the current static_set
+   */
+  auto reference() noexcept;
+
  private:
   size_type size_;                  ///< Number of entries
   key_type empty_key_sentinel_;     ///< Key value that represents an empty slot

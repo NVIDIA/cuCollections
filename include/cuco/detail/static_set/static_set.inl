@@ -76,8 +76,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   counter_.reset(stream);
   size_type h_num_successes{};
 
-  auto ref = cuco::experimental::static_set_ref(
-    empty_key_sentinel_, predicate_, probing_scheme_, slot_storage_.view());
+  auto ref = reference();
 
   detail::insert<detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
@@ -91,5 +90,19 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   size_ += h_num_successes;
 }
 
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  reference() noexcept
+{
+  return cuco::experimental::
+    static_set_ref<key_type, Scope, key_equal, probing_scheme_type, slot_view_type>{
+      empty_key_sentinel_, predicate_, probing_scheme_, slot_storage_.view()};
+}
 }  // namespace experimental
 }  // namespace cuco
