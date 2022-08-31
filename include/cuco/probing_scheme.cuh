@@ -111,7 +111,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, U
     __device__ constexpr auto operator*() const noexcept { return curr_index_; }
 
     /**
-     * @brief Prefix advance operator
+     * @brief Prefix increment operator
      *
      * @return Current iterator
      */
@@ -122,11 +122,16 @@ class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, U
     }
 
     /**
-     * @brief Postfix advance operator
+     * @brief Postfix increment operator
      *
-     * @return Current iterator
+     * @return Old iterator before increment
      */
-    constexpr auto operator++(int) noexcept { return ++(*this); }
+    __device__ constexpr auto operator++(int) noexcept
+    {
+      auto temp = *this;
+      ++(*this);
+      return temp;
+    }
 
    private:
     size_type curr_index_;
