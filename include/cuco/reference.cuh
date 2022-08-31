@@ -23,7 +23,11 @@
 namespace cuco {
 namespace experimental {
 namespace detail {
+/**
+ * @brief Enum of equality comparison results.
+ */
 enum result { EMPTY, EQUAL, UNEQUAL };
+
 /**
  * @brief Equality wrapper.
  *
@@ -34,9 +38,6 @@ enum result { EMPTY, EQUAL, UNEQUAL };
  */
 template <typename T, typename Equal>
 struct equal_wrapper {
-  /**
-   * @brief Enum of equality comparison results.
-   */
   T sentinel_;   ///< Sentinel value
   Equal equal_;  ///< Custom equality callable
 
