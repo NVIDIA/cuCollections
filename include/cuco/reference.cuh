@@ -16,22 +16,61 @@
 
 #pragma once
 
+#include <cuco/detail/bitwise_compare.cuh>
+
 #include <cuda/std/array>
 
 namespace cuco {
 namespace experimental {
+namespace detail {
+/**
+ * @brief Equality wrapper.
+ *
+ * User-provided equality binary callable cannot be used to compared against sentinel value.
+ *
+ * @tparam T Right-hand side Element type
+ * @tparam Equal Type of user-provided equality binary callable
+ */
+template <typename T, typename Equal>
+struct equal_wrapper {
+  /**
+   * @brief Enum of equality comparison results.
+   */
+  enum result { EMPTY, EQUAL, UNEQUAL };
+  T sentinel_;   ///< Sentinel value
+  Equal equal_;  ///< Custom equality callable
+
+  /**
+   * @brief Equality operator.
+   *
+   * @tparam U Left-hand side Element type
+   *
+   * @param lhs Left-hand side element to check equality
+   * @param rhs Right-hand side element to check equality
+   * @return Equality comparison result
+   */
+  template <typename U>
+  __device__ inline result operator()(T const& lhs, U const& rhs)
+  {
+    return cuco::detail::bitwise_compare(lhs, sentinel_) ? EMPTY
+                                                         : ((equal_(lhs, rhs)) ? EQUAL : UNEQUAL);
+  }
+};
+}  // namespace detail
+
 /**
  * @brief Device reference of static_set.
  */
 template <typename Key, typename KeyEqual, typename ProbingScheme, typename StorageView>
 class static_set_ref {
  public:
-  using key_type            = Key;            ///< Key Type
-  using key_equal           = KeyEqual;       ///< Type of key equality binary callable
-  using probing_scheme_type = ProbingScheme;  ///< Type of probing scheme
-  using storage_view_type   = StorageView;    ///< Type of slot storage view
+  using key_type            = Key;                            ///< Key Type
+  using probing_scheme_type = ProbingScheme;                  ///< Type of probing scheme
+  using storage_view_type   = StorageView;                    ///< Type of slot storage view
   using value_type = typename storage_view_type::value_type;  ///< Probing scheme element type
-  using size_type  = typename storage_view_type::size_type;   ///< Probing scheme element type
+  using size_type  = typename storage_view_type::size_type;   ///< Probing scheme size type
+  using key_equal =
+    detail::equal_wrapper<key_type, KeyEqual>;  ///< Type of key equality binary callable
 
   /// CG size
   static constexpr int cg_size = probing_scheme_type::cg_size;
@@ -54,7 +93,7 @@ class static_set_ref {
                  ProbingScheme const& probing_scheme,
                  StorageView slot_view) noexcept
     : empty_key_sentienl_{empty_key_sentienl},
-      predicate_{predicate},
+      predicate_{empty_key_sentienl_, predicate},
       probing_scheme_{probing_scheme},
       slot_view_{slot_view}
   {
@@ -71,7 +110,7 @@ class static_set_ref {
     auto probing_iter = probing_scheme_(key, slot_view_.capacity());
 
     while (true) {
-      auto slot_keys = window(*probing_iter);
+      auto window_slots = window(*probing_iter);
       /*
       auto is_available = [](slots_keys){
         for (k in slot_keys) {
@@ -94,6 +133,12 @@ class static_set_ref {
   }
 
  private:
+  /**
+   * @brief Returns an array of elements (window) for a given index.
+   *
+   * @param window_index Index of the first element of the window
+   * @return An array of elements
+   */
   __device__ cuda::std::array<value_type, window_size> window(size_type window_index) const noexcept
   {
     cuda::std::array<value_type, window_size> slot_array;
