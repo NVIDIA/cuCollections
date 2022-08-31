@@ -16,14 +16,13 @@
 
 #pragma once
 
-
 #include <cooperative_groups.h>
 #include <cub/cub.cuh>
+#include <cuco/detail/dynamic_map_kernels.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/sentinel.cuh>
 #include <cuco/static_map.cuh>
 #include <cuda/std/atomic>
-#include <cuco/detail/dynamic_map_kernels.cuh>
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
 
@@ -110,7 +109,7 @@ class dynamic_map {
   using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view;
   using counter_allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
-  
+
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
 
@@ -147,7 +146,7 @@ class dynamic_map {
               sentinel::empty_key<Key> empty_key_sentinel,
               sentinel::empty_value<Value> empty_value_sentinel,
               Allocator const& alloc = Allocator{});
-  
+
   /**
    * @brief Construct a dynamically-sized map with erase capability.
    *
@@ -212,7 +211,7 @@ class dynamic_map {
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
-  
+
   /**
    * @brief Erases keys in the range `[first, last)`.
    *
@@ -340,9 +339,11 @@ class dynamic_map {
     submap_mutable_views_;          ///< vector of mutable device views for each submap
   std::size_t min_insert_size_{};   ///< min remaining capacity of submap for insert
   atomic_ctr_type* num_successes_;  ///< number of successfully inserted keys on insert
-  std::vector<atomic_ctr_type*> submap_num_successes_; ///< number of succesfully erased keys for each submap
-  thrust::device_vector<atomic_ctr_type*> d_submap_num_successes_; ///< device-side number of successfully erased keys for each submap
-  Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
+  std::vector<atomic_ctr_type*>
+    submap_num_successes_;  ///< number of succesfully erased keys for each submap
+  thrust::device_vector<atomic_ctr_type*>
+    d_submap_num_successes_;  ///< device-side number of successfully erased keys for each submap
+  Allocator alloc_{};         ///< Allocator passed to submaps to allocate their device storage
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
 };
 }  // namespace cuco

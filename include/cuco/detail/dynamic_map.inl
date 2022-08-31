@@ -190,39 +190,40 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
   CUCO_CUDA_TRY(cudaMemset(num_successes_, 0, sizeof(atomic_ctr_type)));
 
   // zero out submap success counters
-  if(submaps_.size() > 1) {
+  if (submaps_.size() > 1) {
     static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
-    for(uint32_t i = 0; i < submaps_.size(); ++i) {
+    for (uint32_t i = 0; i < submaps_.size(); ++i) {
       CUCO_CUDA_TRY(cudaMemset(submap_num_successes_[i], 0, sizeof(atomic_ctr_type)));
     }
   }
-  
+
   auto const temp_storage_size = submaps_.size() * sizeof(unsigned long long);
 
   detail::erase<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
-    <<<grid_size, block_size, temp_storage_size>>>(
-      first,
-      first + num_keys,
-      submap_mutable_views_.data().get(),
-      num_successes_,
-      d_submap_num_successes_.data().get(),
-      submaps_.size(),
-      hash,
-      key_equal);
+    <<<grid_size, block_size, temp_storage_size>>>(first,
+                                                   first + num_keys,
+                                                   submap_mutable_views_.data().get(),
+                                                   num_successes_,
+                                                   d_submap_num_successes_.data().get(),
+                                                   submaps_.size(),
+                                                   hash,
+                                                   key_equal);
 
   // update total dynamic map size
   std::size_t h_num_successes;
   CUCO_CUDA_TRY(
     cudaMemcpy(&h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost));
   size_ -= h_num_successes;
-  
-  if(submaps_.size() == 1) {
+
+  if (submaps_.size() == 1) {
     submaps_[0]->size_ -= h_num_successes;
   } else {
-    for(uint32_t i = 0; i < submaps_.size(); ++i) {
+    for (uint32_t i = 0; i < submaps_.size(); ++i) {
       std::size_t h_submap_num_successes;
-      CUCO_CUDA_TRY(cudaMemcpy(
-        &h_submap_num_successes, submap_num_successes_[i], sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost));
+      CUCO_CUDA_TRY(cudaMemcpy(&h_submap_num_successes,
+                               submap_num_successes_[i],
+                               sizeof(atomic_ctr_type),
+                               cudaMemcpyDeviceToHost));
       submaps_[i]->size_ -= h_submap_num_successes;
     }
   }

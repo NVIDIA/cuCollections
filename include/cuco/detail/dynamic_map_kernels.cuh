@@ -233,14 +233,14 @@ __global__ void erase(InputIt first,
 
   std::size_t thread_num_successes = 0;
 
-  auto tid  = block_size * blockIdx.x + threadIdx.x;
-  auto it   = first + tid;
+  auto tid = block_size * blockIdx.x + threadIdx.x;
+  auto it  = first + tid;
 
-  if(num_submaps > 1) {
-    for(int i = threadIdx.x; i < num_submaps; i += block_size)
+  if (num_submaps > 1) {
+    for (int i = threadIdx.x; i < num_submaps; i += block_size)
       submap_block_num_successes[i] = 0;
     __syncthreads();
-  
+
     while (it < last) {
       int i;
       for (i = 0; i < num_submaps; ++i) {
@@ -254,8 +254,7 @@ __global__ void erase(InputIt first,
     }
   } else {
     while (it < last) {
-      if(submap_mutable_views[0].erase(*it, hash, key_equal))
-        thread_num_successes++;
+      if (submap_mutable_views[0].erase(*it, hash, key_equal)) thread_num_successes++;
       it += gridDim.x * blockDim.x;
     }
   }
@@ -265,11 +264,11 @@ __global__ void erase(InputIt first,
     num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
 
-  if(num_submaps > 1) {
-    for(int i = 0; i < num_submaps; ++i) {
-      if(threadIdx.x == 0) {
-        submap_num_successes[i]->fetch_add(
-          static_cast<std::size_t>(submap_block_num_successes[i]), cuda::std::memory_order_relaxed);
+  if (num_submaps > 1) {
+    for (int i = 0; i < num_submaps; ++i) {
+      if (threadIdx.x == 0) {
+        submap_num_successes[i]->fetch_add(static_cast<std::size_t>(submap_block_num_successes[i]),
+                                           cuda::std::memory_order_relaxed);
       }
     }
   }
@@ -310,13 +309,13 @@ template <uint32_t block_size,
           typename Hash,
           typename KeyEqual>
 __global__ void erase(InputIt first,
-                       InputIt last,
-                       mutableViewT* submap_mutable_views,
-                       atomicT* num_successes,
-                       atomicT** submap_num_successes,
-                       const uint32_t num_submaps,
-                       Hash hash,
-                       KeyEqual key_equal)
+                      InputIt last,
+                      mutableViewT* submap_mutable_views,
+                      atomicT* num_successes,
+                      atomicT** submap_num_successes,
+                      const uint32_t num_submaps,
+                      Hash hash,
+                      KeyEqual key_equal)
 {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
@@ -328,13 +327,13 @@ __global__ void erase(InputIt first,
   auto tid  = block_size * blockIdx.x + threadIdx.x;
   auto it   = first + tid / tile_size;
 
-  if(num_submaps > 1) {
-    for(int i = threadIdx.x; i < num_submaps; i += block_size)
+  if (num_submaps > 1) {
+    for (int i = threadIdx.x; i < num_submaps; i += block_size)
       submap_block_num_successes[i] = 0;
     __syncthreads();
-  
+
     while (it < last) {
-      auto erased     = false;
+      auto erased = false;
       int i;
       for (i = 0; i < num_submaps; ++i) {
         erased = submap_mutable_views[i].erase(tile, *it, hash, key_equal);
@@ -349,8 +348,7 @@ __global__ void erase(InputIt first,
   } else {
     while (it < last) {
       auto erased = submap_mutable_views[0].erase(tile, *it, hash, key_equal);
-      if (erased && tile.thread_rank() == 0)
-        thread_num_successes++;
+      if (erased && tile.thread_rank() == 0) thread_num_successes++;
 
       it += (gridDim.x * blockDim.x) / tile_size;
     }
@@ -361,11 +359,11 @@ __global__ void erase(InputIt first,
     num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
 
-  if(num_submaps > 1) {
-    for(int i = 0; i < num_submaps; ++i) {
-      if(threadIdx.x == 0) {
-        submap_num_successes[i]->fetch_add(
-          static_cast<std::size_t>(submap_block_num_successes[i]), cuda::std::memory_order_relaxed);
+  if (num_submaps > 1) {
+    for (int i = 0; i < num_submaps; ++i) {
+      if (threadIdx.x == 0) {
+        submap_num_successes[i]->fetch_add(static_cast<std::size_t>(submap_block_num_successes[i]),
+                                           cuda::std::memory_order_relaxed);
       }
     }
   }

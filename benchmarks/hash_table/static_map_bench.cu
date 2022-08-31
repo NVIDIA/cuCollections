@@ -346,4 +346,3 @@ BENCHMARK_TEMPLATE(BM_static_map_insert, int64_t, int64_t, dist_type::UNIQUE)
   ->Unit(benchmark::kMillisecond)
   ->Apply(generate_size_and_occupancy)
   ->UseManualTime();
-
