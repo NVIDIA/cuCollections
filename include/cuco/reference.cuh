@@ -23,6 +23,7 @@
 namespace cuco {
 namespace experimental {
 namespace detail {
+enum result { EMPTY, EQUAL, UNEQUAL };
 /**
  * @brief Equality wrapper.
  *
@@ -36,7 +37,6 @@ struct equal_wrapper {
   /**
    * @brief Enum of equality comparison results.
    */
-  enum result { EMPTY, EQUAL, UNEQUAL };
   T sentinel_;   ///< Sentinel value
   Equal equal_;  ///< Custom equality callable
 
@@ -70,7 +70,7 @@ class static_set_ref {
   using value_type = typename storage_view_type::value_type;  ///< Probing scheme element type
   using size_type  = typename storage_view_type::size_type;   ///< Probing scheme size type
   using key_equal =
-    detail::equal_wrapper<key_type, KeyEqual>;  ///< Type of key equality binary callable
+    detail::equal_wrapper<value_type, KeyEqual>;  ///< Type of key equality binary callable
 
   /// CG size
   static constexpr int cg_size = probing_scheme_type::cg_size;
@@ -100,39 +100,68 @@ class static_set_ref {
   }
 
   /**
+   * @brief Gets slots array.
+   *
+   * @return Pointer to the first slot
+   */
+  __device__ inline value_type* slots() noexcept { return slot_view_.slots(); }
+
+  /**
+   * @brief Gets slots array.
+   *
+   * @return Pointer to the first slot
+   */
+  __device__ inline value_type const* slots() const noexcept { return slot_view_.slots(); }
+
+  /**
    * @brief Inserts a key.
    *
    * @param key The key to insert
    * @return True if the given key is successfully inserted
    */
-  __device__ inline bool insert(key_type const& key) noexcept
+  __device__ inline bool insert(value_type const& key) noexcept
   {
     auto probing_iter = probing_scheme_(key, slot_view_.capacity());
 
     while (true) {
       auto window_slots = window(*probing_iter);
-      /*
-      auto is_available = [](slots_keys){
-        for (k in slot_keys) {
-          res = res or equality_wrapper(k, key);
-        };
-        return res;
-      }();
 
-      if (is_available) {
-        switch (cas(slot_key, key, sentinel)) {
-               case CONTINUE: continue;
-               case SUCCESS: return true;
-               case DUPLICATE: return false;
+      for (auto& slot_content : window_slots) {
+        auto const eq_res = predicate_(slot_content, key);
+
+        // If the key is already in the map, return false
+        if (eq_res == detail::result::EQUAL) { return false; }
+        if (eq_res == detail::result::EMPTY) {
+          auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+          auto const idx                = *probing_iter + intra_window_index;
+          switch (attempt_insert(slots() + idx, key)) {
+            case insert_result::CONTINUE: continue;
+            case insert_result::SUCCESS: return true;
+            case insert_result::DUPLICATE: return false;
+          }
         }
       }
-      iter++;
-    */
+      probing_iter++;
     }
-    return true;
   }
 
  private:
+  enum class insert_result { CONTINUE, SUCCESS, DUPLICATE };
+
+  __device__ inline insert_result attempt_insert(value_type* slot, value_type const& key)
+  {
+    auto ref      = cuda::atomic_ref{*slot};
+    auto expected = empty_key_sentienl_;
+    bool result   = ref.compare_exchange_strong(expected, key);
+    if (result) {
+      return insert_result::SUCCESS;
+    } else {
+      auto old = expected;
+      return predicate_(old, key) == detail::result::EQUAL ? insert_result::DUPLICATE
+                                                           : insert_result::CONTINUE;
+    }
+  }
+
   /**
    * @brief Returns an array of elements (window) for a given index.
    *
