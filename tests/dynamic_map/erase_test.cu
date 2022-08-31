@@ -16,6 +16,8 @@
 
 #include <catch2/catch.hpp>
 #include <thrust/device_vector.h>
+#include <thrust/sequence.h>
+#include <thrust/execution_policy.h>
 
 #include <cuco/dynamic_map.cuh>
 

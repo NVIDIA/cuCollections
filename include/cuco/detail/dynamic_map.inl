@@ -192,7 +192,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
   // zero out submap success counters
   if(submaps_.size() > 1) {
     static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
-    for(int i = 0; i < submaps_.size(); ++i) {
+    for(uint32_t i = 0; i < submaps_.size(); ++i) {
       CUCO_CUDA_TRY(cudaMemset(submap_num_successes_[i], 0, sizeof(atomic_ctr_type)));
     }
   }
@@ -219,7 +219,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
   if(submaps_.size() == 1) {
     submaps_[0]->size_ -= h_num_successes;
   } else {
-    for(int i = 0; i < submaps_.size(); ++i) {
+    for(uint32_t i = 0; i < submaps_.size(); ++i) {
       std::size_t h_submap_num_successes;
       CUCO_CUDA_TRY(cudaMemcpy(
         &h_submap_num_successes, submap_num_successes_[i], sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost));
