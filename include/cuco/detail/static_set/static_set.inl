@@ -76,11 +76,9 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   counter_.reset(stream);
   size_type h_num_successes{};
 
-  auto ref = reference();
-
   detail::insert<detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, first + num_keys, counter_.get(), ref);
+      first, first + num_keys, counter_.get(), reference());
 
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_num_successes, counter_.get(), sizeof(size_type), cudaMemcpyDeviceToHost, stream));
