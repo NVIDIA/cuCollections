@@ -45,7 +45,8 @@ __global__ void insert(InputIterator first,
                        AtomicCounter* num_successes,
                        Reference reference)
 {
-  std::size_t thread_num_successes = 0;
+  using size_type                = typename Reference::size_type;
+  size_type thread_num_successes = 0;
 
   auto tid = BlockSize * blockIdx.x + threadIdx.x;
   auto it  = first + tid;
@@ -58,9 +59,9 @@ __global__ void insert(InputIterator first,
 
   // compute number of successfully inserted elements for each block
   // and atomically add to the grand total
-  using block_reduce = cub::BlockReduce<std::size_t, BlockSize>;
+  using block_reduce = cub::BlockReduce<size_type, BlockSize>;
   __shared__ typename block_reduce::TempStorage temp_storage;
-  std::size_t block_num_successes = block_reduce(temp_storage).Sum(thread_num_successes);
+  size_type block_num_successes = block_reduce(temp_storage).Sum(thread_num_successes);
   if (threadIdx.x == 0) {
     num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }

@@ -69,13 +69,13 @@ class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, U
       if constexpr (uses_window_probing == enable_window_probing::YES) {
         // step size in range [1, prime - 1] * window_size
         return thrust::pair<std::size_t, std::size_t>{
-          (hash2_(probe_key) % (upper_bound / window_size - 1) + 1) * window_size,
-          hash_value % (upper_bound / window_size) * window_size};
+          hash_value % (upper_bound / window_size) * window_size,
+          (hash2_(probe_key) % (upper_bound / window_size - 1) + 1) * window_size};
       }
       if constexpr (uses_window_probing == enable_window_probing::NO) {
         // step size in range [1, prime - 1]
-        return thrust::pair<std::size_t, std::size_t>{hash2_(probe_key) % (upper_bound - 1) + 1,
-                                                      hash_value % upper_bound};
+        return thrust::pair<std::size_t, std::size_t>{hash_value % upper_bound,
+                                                      hash2_(probe_key) % (upper_bound - 1) + 1};
       }
     }();
     return iterator<SizeType>{start, step_size, upper_bound};

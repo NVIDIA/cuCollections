@@ -73,7 +73,7 @@ template <class Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme =
-            experimental::double_hashing<2,                           // CG size
+            experimental::double_hashing<1,                           // CG size
                                          2,                           // Window size (vector length)
                                          enable_window_probing::YES,  // uses window probing
                                          cuco::detail::MurmurHash3_32<Key>,  // Hash1
