@@ -260,7 +260,7 @@ class aos_storage : public storage_base<Extent> {
    *
    * @return Pointer to the first slot
    */
-  value_type const* slots() const noexcept { return slots_.get(); }
+  value_type* slots() const noexcept { return slots_.get(); }
 
   /**
    * @brief Gets view of slot storage.

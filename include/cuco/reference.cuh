@@ -119,7 +119,7 @@ class static_set_ref {
    *
    * @return Pointer to the first slot
    */
-  __device__ inline value_type* mutable_slots() noexcept { return slot_view_.slots(); }
+  __device__ inline value_type* slots() noexcept { return slot_view_.slots(); }
 
   /**
    * @brief Gets slots array.
