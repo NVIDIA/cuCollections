@@ -43,6 +43,14 @@ struct equal_wrapper {
   Equal equal_;  ///< Custom equality callable
 
   /**
+   * @brief Equality wrapper ctor.
+   *
+   * @param sentinel Sentinel value
+   * @param equal Equality binary callable
+   */
+  equal_wrapper(T const sentinel, Equal const& equal) : sentinel_{sentinel}, equal_{equal} {}
+
+  /**
    * @brief Equality operator.
    *
    * @tparam U Left-hand side Element type
@@ -52,10 +60,11 @@ struct equal_wrapper {
    * @return Equality comparison result
    */
   template <typename U>
-  __device__ inline result operator()(T const& lhs, U const& rhs)
+  __device__ inline result operator()(T const& lhs, U const& rhs) const noexcept
   {
-    return cuco::detail::bitwise_compare(lhs, sentinel_) ? EMPTY
-                                                         : ((equal_(lhs, rhs)) ? EQUAL : UNEQUAL);
+    return cuco::detail::bitwise_compare(lhs, sentinel_)
+             ? result::EMPTY
+             : ((equal_(lhs, rhs)) ? result::EQUAL : result::UNEQUAL);
   }
 };
 }  // namespace detail
@@ -110,7 +119,7 @@ class static_set_ref {
    *
    * @return Pointer to the first slot
    */
-  __device__ inline value_type* slots() noexcept { return slot_view_.slots(); }
+  __device__ inline value_type* mutable_slots() noexcept { return slot_view_.slots(); }
 
   /**
    * @brief Gets slots array.
@@ -147,7 +156,37 @@ class static_set_ref {
           }
         }
       }
-      probing_iter++;
+      ++probing_iter;
+    }
+  }
+
+  /**
+   * @brief Indicates whether the probe key `key` was inserted into the map.
+   *
+   * If the probe key `key` was inserted into the map, returns
+   * true. Otherwise, returns false.
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param key The key to search for
+   * @return A boolean indicating whether the probe key was inserted
+   */
+  template <typename ProbeKey>
+  __device__ inline bool contains(ProbeKey const& key) const noexcept
+  {
+    auto probing_iter = probing_scheme_(key, slot_view_.capacity());
+
+    while (true) {
+      auto window_slots = window(*probing_iter);
+
+      for (auto& slot_content : window_slots) {
+        switch (predicate_(slot_content, key)) {
+          case detail::result::UNEQUAL: continue;
+          case detail::result::EMPTY: return false;
+          case detail::result::EQUAL: return true;
+        }
+      }
+      ++probing_iter;
     }
   }
 

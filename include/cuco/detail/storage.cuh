@@ -267,7 +267,7 @@ class aos_storage : public storage_base<Extent> {
    *
    * @return View of slot storage
    */
-  view_type view() noexcept { return view_type{this->slots(), this->capacity()}; }
+  view_type view() const noexcept { return view_type{this->slots(), this->capacity()}; }
 
  private:
   allocator_type allocator_;                              ///< Allocator used to (de)allocate slots

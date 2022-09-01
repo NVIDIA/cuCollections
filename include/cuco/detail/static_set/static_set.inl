@@ -95,8 +95,33 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
-  reference() noexcept
+template <typename InputIt, typename OutputIt>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
+  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream) const
+{
+  auto num_keys = std::distance(first, last);
+  if (num_keys == 0) { return; }
+
+  auto const grid_size =
+    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+  auto const ref = reference();
+
+  detail::contains<detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      first, first + num_keys, output_begin, ref);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::reference()
+  const noexcept
 {
   return cuco::experimental::
     static_set_ref<key_type, Scope, key_equal, probing_scheme_type, slot_view_type>{
