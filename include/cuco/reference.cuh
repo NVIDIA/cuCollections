@@ -161,6 +161,41 @@ class static_set_ref {
   }
 
   /**
+   * @brief Inserts a key.
+   *
+   * @param g The Cooperative Group used to perform group insert
+   * @param key The key to insert
+   * @return True if the given key is successfully inserted
+   */
+  __device__ inline bool insert(cooperative_groups::thread_block_tile<cg_size> const& g,
+                                value_type const& key) noexcept
+  {
+    auto probing_iter = probing_scheme_(g, key, slot_view_.capacity());
+    /*
+    while (true) {
+      auto window_slots = window(*probing_iter);
+
+      for (auto& slot_content : window_slots) {
+        auto const eq_res = predicate_(slot_content, key);
+
+        // If the key is already in the map, return false
+        if (eq_res == detail::result::EQUAL) { return false; }
+        if (eq_res == detail::result::EMPTY) {
+          auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+          auto const idx                = *probing_iter + intra_window_index;
+          switch (attempt_insert(slots() + idx, key)) {
+            case insert_result::CONTINUE: continue;
+            case insert_result::SUCCESS: return true;
+            case insert_result::DUPLICATE: return false;
+          }
+        }
+      }
+      ++probing_iter;
+    }
+    */
+  }
+
+  /**
    * @brief Indicates whether the probe key `key` was inserted into the map.
    *
    * If the probe key `key` was inserted into the map, returns
