@@ -18,6 +18,8 @@
 
 #include <cuco/detail/probing_scheme_impl.cuh>
 
+#include <cooperative_groups.h>
+
 namespace cuco {
 namespace experimental {
 /**
@@ -76,6 +78,43 @@ class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, U
         // step size in range [1, prime - 1]
         return thrust::pair<SizeType, SizeType>{hash_value % upper_bound,
                                                 hash2_(probe_key) % (upper_bound - 1) + 1};
+      }
+    }();
+    return iterator<SizeType>{start, step_size, upper_bound};
+  }
+
+  /**
+   * @brief Operator to return a probing iterator
+   *
+   * @tparam ProbeKey Type of probing key
+   * @tparam SizeType Type of storage size
+   *
+   * @param g the Cooperative Group to generate probing iterator
+   * @param probe_key The probing key
+   * @param upper_bound Upper bound of the iteration
+   * @return An iterator whose value_type is convertible to slot index type
+   */
+  template <typename ProbeKey, typename SizeType>
+  __device__ constexpr auto operator()(cooperative_groups::thread_block_tile<cg_size> const& g,
+                                       ProbeKey const& probe_key,
+                                       SizeType const upper_bound) const noexcept
+  {
+    auto const hash_value = hash1_(probe_key);
+
+    auto const [start, step_size] = [&]() {
+      if constexpr (uses_window_probing == enable_window_probing::YES) {
+        // step size in range [1, prime - 1] * cg_size * vector_width
+        return thrust::pair<SizeType, SizeType>{
+          hash_value % (upper_bound / (cg_size * window_size)) * cg_size * window_size +
+            g.thread_rank() * window_size,
+          (hash2_(probe_key) % (upper_bound / (cg_size * window_size) - 1) + 1) * cg_size *
+            window_size};
+      }
+      if constexpr (uses_window_probing == enable_window_probing::NO) {
+        // step size in range [1, prime - 1] * cg_size
+        return thrust::pair<SizeType, SizeType>{
+          (hash_value + g.thread_rank()) % upper_bound,
+          (hash2_(probe_key) % (upper_bound / cg_size - 1) + 1) * cg_size};
       }
     }();
     return iterator<SizeType>{start, step_size, upper_bound};
