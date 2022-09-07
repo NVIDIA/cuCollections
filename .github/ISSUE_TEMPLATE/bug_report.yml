@@ -1,7 +1,7 @@
 name: Bug Report
 description: Create a report to help us improve
 title: '[BUG]: '
-labels: ['bug']
+labels: ['type: bug']
 body:
   - type: dropdown
     id: bug-type
@@ -22,7 +22,7 @@ body:
     attributes:
       label: Describe the bug
       description: A clear and concise description of what the bug is.
-      placeholder: e.g. '`cuco::static_map::insert`' is failing to insert certain keys.  
+      placeholder: "cuco::static_map::insert fails to insert all keys."  
     validations:
       required: true
   - type: textarea
@@ -31,7 +31,7 @@ body:
       label: How to Reproduce
       description: Steps used to reproduce the bug.
       placeholder: |
-        1. Construct a '`cuco::static_map<int,int>`' with capacity for 100,000 elements.
+        1. Construct a cuco::static_map<int,int> with capacity for 100,000 elements.
         2. Insert 50,000 unique key-values.
         3. Perform '`find`' for all the same keys.
         4. Not all keys are found.
@@ -42,7 +42,7 @@ body:
     attributes:
       label: Expected behavior
       description: A clear and concise description of what you expected to happen.
-      placeholder: cuco::static_map::find will find all inserted keys.
+      placeholder: "`cuco::static_map::find` will find all inserted keys."
     validations:
       required: true
   - type: input
