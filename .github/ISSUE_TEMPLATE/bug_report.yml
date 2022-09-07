@@ -51,7 +51,6 @@ body:
       label: Reproduction link
       description: If applicable, please provide a Compiler Explorer (godbolt) link to help explain your problem.
       placeholder:  https://godbolt.org/z/M1szv5e1b
-      value: Not applicable
     validations:
       required: false
   - type: markdown
