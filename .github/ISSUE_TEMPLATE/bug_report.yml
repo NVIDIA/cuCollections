@@ -1,0 +1,101 @@
+name: Bug Report
+description: Create a report to help us improve
+title: '[BUG]: '
+labels: ['bug']
+body:
+ - type: dropdown
+    id: bug-type
+    attributes:
+      label: Type of Bug
+      description: What kind of bug are you running into?
+      multiple: false
+      options:
+        - label: Compile-time Error
+        - label: Runtime Error
+        - label: Silent Error
+        - label: Something else
+    validations:
+      required: true
+ - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: e.g. `cuco::static_map::insert` is failing to insert certain keys.  
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: How to Reproduce
+      description: Steps used to reproduce the bug.
+      placeholder: |
+        1. Construct a `cuco::static_map<int,int>` with capacity for 100,000 elements.
+        2. Insert 50,000 unique key-values.
+        3. Perform `find` for all the same keys.
+        4. Not all keys are found.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+      placeholder: `cuco::static_map::find` all inserted keys.
+    validations:
+      required: true
+  - type: input
+    id: reproduction-link
+    attributes:
+      label: Reproduction link
+      description: If applicable, please provide a Compiler Explorer (godbolt) link to help explain your problem.
+      placeholder:  https://godbolt.org/z/M1szv5e1b
+      value: Not applicable
+    validations:
+      required: false
+  - type: markdown
+    attributes:
+      value: '# System information'
+  - type: input
+    id: operating-system
+    attributes:
+      label: Operating System
+      description:
+        If applicable, the OS version where this bug occurs. 
+      placeholder: Ubuntu Linux 20.04
+    validations:
+      required: false  
+  - type: textarea
+    id: nvidia-smi-output
+    attributes:
+      label: `nvidia-smi` output
+      description: If applicable, the output from running the `nvidia-smi` command. 
+      placeholder: |
+      +-----------------------------------------------------------------------------+
+      | NVIDIA-SMI 495.29.05    Driver Version: 495.29.05    CUDA Version: 11.5     |
+      |-------------------------------+----------------------+----------------------+
+      | GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+      | Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+      |                               |                      |               MIG M. |
+      |===============================+======================+======================|
+      |   0  NVIDIA GeForce ...  Off  | 00000000:41:00.0  On |                  N/A |
+      |  0%   25C    P8     8W / 320W |    491MiB / 10015MiB |      0%      Default |
+      |                               |                      |                  N/A |
+      +-------------------------------+----------------------+----------------------+
+    validations:
+      required: false
+      
+  - type: textarea
+    id: nvcc-version
+    attributes:
+      label: NVCC version
+      description: If applicable, the version of nvcc you're using. 
+      placeholder: |
+      nvcc --version
+      nvcc: NVIDIA (R) Cuda compiler driver
+      Copyright (c) 2005-2021 NVIDIA Corporation
+      Built on Thu_Nov_18_09:45:30_PST_2021
+      Cuda compilation tools, release 11.5, V11.5.119
+      Build cuda_11.5.r11.5/compiler.30672275_0
+    validations:
+      required: false
