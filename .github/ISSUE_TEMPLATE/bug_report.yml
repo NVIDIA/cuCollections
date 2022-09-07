@@ -10,12 +10,12 @@ body:
       description: What kind of bug are you running into?
       multiple: false
       options:
-        - label: Silent Failure
-        - label: Runtime Error
-        - label: Compile-time Error
-        - label: Performance
-        - label: Something else
-      validations:
+        - Silent Failure
+        - Runtime Error
+        - Compile-time Error
+        - Performance
+        - Something else
+    validations:
       required: true
   - type: textarea
     id: description
@@ -42,7 +42,7 @@ body:
     attributes:
       label: Expected behavior
       description: A clear and concise description of what you expected to happen.
-      placeholder: '`cuco::static_map::find`' returns true all inserted keys.
+      placeholder: cuco::static_map::find will find all inserted keys.
     validations:
       required: true
   - type: input
@@ -69,20 +69,20 @@ body:
   - type: textarea
     id: nvidia-smi-output
     attributes:
-      label: `nvidia-smi` output
+      label: nvidia-smi output
       description: If applicable, the output from running the `nvidia-smi` command. 
       placeholder: |
-      +-----------------------------------------------------------------------------+
-      | NVIDIA-SMI 495.29.05    Driver Version: 495.29.05    CUDA Version: 11.5     |
-      |-------------------------------+----------------------+----------------------+
-      | GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
-      | Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
-      |                               |                      |               MIG M. |
-      |===============================+======================+======================|
-      |   0  NVIDIA GeForce ...  Off  | 00000000:41:00.0  On |                  N/A |
-      |  0%   25C    P8     8W / 320W |    491MiB / 10015MiB |      0%      Default |
-      |                               |                      |                  N/A |
-      +-------------------------------+----------------------+----------------------+
+        +-----------------------------------------------------------------------------+
+        | NVIDIA-SMI 495.29.05    Driver Version: 495.29.05    CUDA Version: 11.5     |
+        |-------------------------------+----------------------+----------------------+
+        | GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+        | Fan  Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+        |                               |                      |               MIG M. |
+        |===============================+======================+======================|
+        |   0  NVIDIA GeForce ...  Off  | 00000000:41:00.0  On |                  N/A |
+        |  0%   25C    P8     8W / 320W |    491MiB / 10015MiB |      0%      Default |
+        |                               |                      |                  N/A |
+        +-------------------------------+----------------------+----------------------+
     validations:
       required: false
       
@@ -92,11 +92,11 @@ body:
       label: NVCC version
       description: If applicable, the version of nvcc you're using. 
       placeholder: |
-      nvcc --version
-      nvcc: NVIDIA (R) Cuda compiler driver
-      Copyright (c) 2005-2021 NVIDIA Corporation
-      Built on Thu_Nov_18_09:45:30_PST_2021
-      Cuda compilation tools, release 11.5, V11.5.119
-      Build cuda_11.5.r11.5/compiler.30672275_0
+        nvcc --version
+        nvcc: NVIDIA (R) Cuda compiler driver
+        Copyright (c) 2005-2021 NVIDIA Corporation
+        Built on Thu_Nov_18_09:45:30_PST_2021
+        Cuda compilation tools, release 11.5, V11.5.119
+        Build cuda_11.5.r11.5/compiler.30672275_0
     validations:
       required: false
