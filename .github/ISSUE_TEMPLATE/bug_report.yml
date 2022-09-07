@@ -42,7 +42,7 @@ body:
     attributes:
       label: Expected behavior
       description: A clear and concise description of what you expected to happen.
-      placeholder: `cuco::static_map::find` all inserted keys.
+      placeholder: '`cuco::static_map::find`' returns true all inserted keys.
     validations:
       required: true
   - type: input
