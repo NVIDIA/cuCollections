@@ -3,19 +3,21 @@ description: Create a report to help us improve
 title: '[BUG]: '
 labels: ['bug']
 body:
- - type: dropdown
+  - type: dropdown
+    id: bug-type
     attributes:
       label: Type of Bug
       description: What kind of bug are you running into?
       multiple: false
       options:
-        - label: Compile-time Error
+        - label: Silent Failure
         - label: Runtime Error
-        - label: Silent Error
+        - label: Compile-time Error
+        - label: Performance
         - label: Something else
-    validations:
+      validations:
       required: true
- - type: textarea
+  - type: textarea
     id: description
     attributes:
       label: Describe the bug
