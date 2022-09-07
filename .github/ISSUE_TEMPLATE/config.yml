@@ -2,4 +2,4 @@ blank_issues_enabled: true
 contact_links:
   - name: Question
     url: https://github.com/NVIDIA/cuCollections/discussions
-    about: Checkout our Discussions page to ask and answer questions. 
+    about: Check out our Discussions page to ask and answer questions. 
