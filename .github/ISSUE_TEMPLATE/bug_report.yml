@@ -3,6 +3,14 @@ description: Create a report to help us improve
 title: '[BUG]: '
 labels: ['type: bug']
 body:
+  - type: checkboxes
+    id: check-duplicates
+    attributes:
+      label: Is this a duplicate?
+      description: Check for duplicate issues.
+      options:
+        - label: I confirmed there appear to be no duplicate issues for this bug (https://github.com/NVIDIA/cuCollections/issues)
+          required: true
   - type: dropdown
     id: bug-type
     attributes:
