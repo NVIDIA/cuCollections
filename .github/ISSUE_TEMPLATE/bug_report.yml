@@ -4,7 +4,6 @@ title: '[BUG]: '
 labels: ['bug']
 body:
  - type: dropdown
-    id: bug-type
     attributes:
       label: Type of Bug
       description: What kind of bug are you running into?
