@@ -29,7 +29,7 @@ body:
     id: description
     attributes:
       label: Describe the bug
-      description: A clear and concise description of what the bug is.
+      description: A clear and concise description of what problem you are running into.
       placeholder: "cuco::static_map::insert fails to insert all keys."  
     validations:
       required: true
