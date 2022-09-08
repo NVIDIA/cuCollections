@@ -27,7 +27,7 @@ namespace detail {
 /**
  * @brief Enum of equality comparison results.
  */
-enum result { EMPTY, EQUAL, UNEQUAL };
+enum class result : int32_t { UNEQUAL = 0, EMPTY = 1, EQUAL = 2 };
 
 /**
  * @brief Equality wrapper.
@@ -171,28 +171,41 @@ class static_set_ref {
                                 value_type const& key) noexcept
   {
     auto probing_iter = probing_scheme_(g, key, slot_view_.capacity());
-    /*
+
     while (true) {
       auto window_slots = window(*probing_iter);
 
-      for (auto& slot_content : window_slots) {
-        auto const eq_res = predicate_(slot_content, key);
-
-        // If the key is already in the map, return false
-        if (eq_res == detail::result::EQUAL) { return false; }
-        if (eq_res == detail::result::EMPTY) {
-          auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          auto const idx                = *probing_iter + intra_window_index;
-          switch (attempt_insert(slots() + idx, key)) {
-            case insert_result::CONTINUE: continue;
-            case insert_result::SUCCESS: return true;
-            case insert_result::DUPLICATE: return false;
-          }
-        }
+      detail::result eq_result{detail::result::UNEQUAL};
+      auto empty_idx = 0;
+      // Loop over the all window slots find the index of the first empty slot
+      for (auto i = 0; i < window_size; ++i) {
+        auto res = predicate_(window_slots[i], key);
+        if (res == detail::result::EMPTY) { empty_idx = min(empty_idx, i); }
+        eq_result = max(eq_result, res);
       }
-      ++probing_iter;
+
+      // If the key is already in the map, return false
+      if (g.any(eq_result == detail::result::EQUAL)) { return false; }
+
+      auto const group_contains_empty = g.ballot(eq_result == detail::result::EMPTY);
+
+      if (group_contains_empty) {
+        auto const src_lane = __ffs(group_contains_empty) - 1;
+        auto status         = insert_result::CONTINUE;
+        if (g.thread_rank() == src_lane) {
+          auto insert_location = *probing_iter + src_lane * cg_size + empty_idx;
+          status               = attempt_insert(slots() + insert_location, key);
+        }
+        status = g.shfl(status, src_lane);
+
+        // successful insert
+        if (status == insert_result::SUCCESS) { return true; }
+        // duplicate present during insert
+        if (status == insert_result::DUPLICATE) { return false; }
+      } else {
+        ++probing_iter;
+      }
     }
-    */
   }
 
   /**
@@ -226,7 +239,7 @@ class static_set_ref {
   }
 
  private:
-  enum class insert_result { CONTINUE, SUCCESS, DUPLICATE };
+  enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
 
   __device__ inline insert_result attempt_insert(value_type* slot, value_type const& key)
   {
