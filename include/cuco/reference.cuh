@@ -193,7 +193,7 @@ class static_set_ref {
         auto const src_lane = __ffs(group_contains_empty) - 1;
         auto status         = insert_result::CONTINUE;
         if (g.thread_rank() == src_lane) {
-          auto insert_location = *probing_iter + src_lane * cg_size + empty_idx;
+          auto insert_location = *probing_iter + empty_idx;
           status               = attempt_insert(slots() + insert_location, key);
         }
         status = g.shfl(status, src_lane);
