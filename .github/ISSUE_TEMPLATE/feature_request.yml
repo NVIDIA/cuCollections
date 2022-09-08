@@ -17,13 +17,9 @@ body:
       label: Describe the solution you'd like
       description: A clear and concise description of what you want to happen.
       placeholder: |
-        Add a new overload of `insert` that takes an output iterator range.
-        ```
+        Add a new overload of `insert` that takes an output iterator range. Example API: 
         template <typename InputIt, typename OutputIt>
-        void insert(InputIt first_input, InputIt last_input,
-                    OutputIt first_input,
-                    cudaStream_t stream = 0);
-        ```
+        void insert(InputIt first_input, InputIt last_input, OutputIt first_input, cudaStream_t stream = 0);
     validations:
       required: true
   - type: textarea
