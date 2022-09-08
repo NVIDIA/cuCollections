@@ -238,6 +238,39 @@ class static_set_ref {
     }
   }
 
+  /**
+   * @brief Indicates whether the probe key `key` was inserted into the map.
+   *
+   * If the probe key `key` was inserted into the map, returns
+   * true. Otherwise, returns false.
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param g The Cooperative Group used to perform group contains
+   * @param key The key to search for
+   * @return A boolean indicating whether the probe key was inserted
+   */
+  template <typename ProbeKey>
+  __device__ inline bool contains(cooperative_groups::thread_block_tile<cg_size> const& g,
+                                  ProbeKey const& key) const noexcept
+  {
+    auto probing_iter = probing_scheme_(key, slot_view_.capacity());
+
+    while (true) {
+      auto window_slots = window(*probing_iter);
+
+      detail::result eq_result{detail::result::UNEQUAL};
+      for (auto& slot_content : window_slots) {
+        eq_result = max(eq_result, predicate_(slot_content, key));
+      }
+
+      if (g.any(eq_result == detail::result::EQUAL)) { return true; }
+      if (g.any(eq_result == detail::result::EMPTY)) { return false; }
+
+      ++probing_iter;
+    }
+  }
+
  private:
   enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
 
