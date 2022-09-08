@@ -4,9 +4,9 @@ NVIDIA is dedicated to the security and trust of our software products and servi
 
 If you need to report a security issue, please use the appropriate contact points outlined below. **Please do not report security vulnerabilities through GitHub.**
 
-## Reporting Potential Security Vulnerability in RAPIDS
+## Reporting Potential Security Vulnerability in cuCollections
 
-To report a potential security vulnerability in RAPIDS:
+To report a potential security vulnerability in cuCollections:
 - Web: [Security Vulnerability Submission Form](https://www.nvidia.com/object/submit-security-vulnerability.html)
 - E-Mail: psirt@nvidia.com
 - We encourage you to use the following PGP key for secure email communication: [NVIDIA public PGP Key for communication](https://www.nvidia.com/en-us/security/pgp-key)
