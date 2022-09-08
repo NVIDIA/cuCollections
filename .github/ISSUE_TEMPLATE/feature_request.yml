@@ -32,7 +32,7 @@ body:
         considered.
       placeholder: You can implement this yourself with the device-side API, but it would be more convenient as a bulk function.
     validations:
-      required: true
+      required: false
   - type: textarea
     id: additional-context
     attributes:
