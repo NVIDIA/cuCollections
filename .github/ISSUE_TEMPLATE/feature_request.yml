@@ -39,6 +39,5 @@ body:
       label: Additional context
       description: Add any other context about the request here.
       placeholder: This would be useful for sparse embedding tables in DL usecases. 
-      value: Not applicable
     validations:
       required: false
