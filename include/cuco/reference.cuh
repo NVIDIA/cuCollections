@@ -175,33 +175,34 @@ class static_set_ref {
     while (true) {
       auto window_slots = window(*probing_iter);
 
-      detail::result eq_result{detail::result::UNEQUAL};
-      auto empty_idx = 0;
-      // Loop over the all window slots find the index of the first empty slot
-      for (auto i = 0; i < window_size; ++i) {
-        auto res = predicate_(window_slots[i], key);
-        if (res == detail::result::EMPTY) { empty_idx = min(empty_idx, i); }
-        eq_result = max(eq_result, res);
-      }
+      auto const [state, index] = [&]() {
+        for (auto i = 0; i < window_size; ++i) {
+          switch (predicate_(window_slots[i], key)) {
+            case detail::result::EMPTY:
+              return cuco::pair<detail::result, int32_t>{detail::result::EMPTY, i};
+            case detail::result::EQUAL:
+              return cuco::pair<detail::result, int32_t>{detail::result::EQUAL, i};
+            default: continue;
+          }
+          return cuco::pair<detail::result, int32_t>{detail::result::UNEQUAL, -1};
+        }
+      }();
 
       // If the key is already in the map, return false
-      if (g.any(eq_result == detail::result::EQUAL)) { return false; }
+      if (g.any(state == detail::result::EQUAL)) { return false; }
 
-      auto const group_contains_empty = g.ballot(eq_result == detail::result::EMPTY);
+      auto const group_contains_empty = g.ballot(state == detail::result::EMPTY);
 
       if (group_contains_empty) {
         auto const src_lane = __ffs(group_contains_empty) - 1;
-        auto status         = insert_result::CONTINUE;
-        if (g.thread_rank() == src_lane) {
-          auto insert_location = *probing_iter + empty_idx;
-          status               = attempt_insert(slots() + insert_location, key);
-        }
-        status = g.shfl(status, src_lane);
+        auto const status   = (g.thread_rank() == src_lane) ? attempt_insert(slots() + index, key)
+                                                            : insert_result::CONTINUE;
 
-        // successful insert
-        if (status == insert_result::SUCCESS) { return true; }
-        // duplicate present during insert
-        if (status == insert_result::DUPLICATE) { return false; }
+        switch (g.shfl(status, src_lane)) {
+          case insert_result::SUCCESS: return true;
+          case insert_result::DUPLICATE: return false;
+          default: continue;
+        }
       } else {
         ++probing_iter;
       }
@@ -254,18 +255,24 @@ class static_set_ref {
   __device__ inline bool contains(cooperative_groups::thread_block_tile<cg_size> const& g,
                                   ProbeKey const& key) const noexcept
   {
-    auto probing_iter = probing_scheme_(key, slot_view_.capacity());
+    auto probing_iter = probing_scheme_(g, key, slot_view_.capacity());
 
     while (true) {
       auto window_slots = window(*probing_iter);
 
-      detail::result eq_result{detail::result::UNEQUAL};
-      for (auto& slot_content : window_slots) {
-        eq_result = max(eq_result, predicate_(slot_content, key));
-      }
+      auto const state = [&]() {
+        for (auto i = 0; i < window_size; ++i) {
+          switch (predicate_(window_slots[i], key)) {
+            case detail::result::EMPTY: return detail::result::EMPTY;
+            case detail::result::EQUAL: return detail::result::EQUAL;
+            default: continue;
+          }
+        }
+        return detail::result::UNEQUAL;
+      }();
 
-      if (g.any(eq_result == detail::result::EQUAL)) { return true; }
-      if (g.any(eq_result == detail::result::EMPTY)) { return false; }
+      if (g.any(state == detail::result::EQUAL)) { return true; }
+      if (g.any(state == detail::result::EMPTY)) { return false; }
 
       ++probing_iter;
     }
