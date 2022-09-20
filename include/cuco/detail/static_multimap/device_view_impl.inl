@@ -498,8 +498,13 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     }
     offset = g.shfl(offset, 0);
 
-    if constexpr (thrust::is_contiguous_iterator_v<OutputIt>) {
 #if defined(CUCO_HAS_CG_MEMCPY_ASYNC)
+    constexpr bool uses_memcpy_async = thrust::is_contiguous_iterator_v<OutputIt>;
+#else
+    constexpr bool uses_memcpy_async = false;
+#endif // end CUCO_HAS_CG_MEMCPY_ASYNC
+
+    if constexpr (uses_memcpy_async) {
 #if defined(CUCO_HAS_CUDA_BARRIER)
       cooperative_groups::memcpy_async(
         g,
@@ -512,9 +517,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
                                        output_buffer,
                                        sizeof(value_type) * num_outputs);
 #endif  // end CUCO_HAS_CUDA_BARRIER
-#endif  // end CUCO_HAS_CG_MEMCPY_ASYNC
     }
-    if constexpr (not thrust::is_contiguous_iterator_v<OutputIt>) {
+
+    if constexpr (not uses_memcpy_async) {
       for (auto index = lane_id; index < num_outputs; index += g.size()) {
         *(output_begin + offset + index) = output_buffer[index];
       }
