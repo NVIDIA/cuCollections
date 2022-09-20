@@ -22,6 +22,7 @@
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <cooperative_groups.h>
+#include <cooperative_groups/memcpy_async.h>
 
 namespace cuco {
 template <typename Key,
@@ -502,19 +503,24 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
 #if defined(CUCO_HAS_CUDA_BARRIER)
       cooperative_groups::memcpy_async(
         g,
-        output_begin + offset,
+        &thrust::raw_reference_cast(*(output_begin + offset)),
         output_buffer,
         cuda::aligned_size_t<alignof(value_type)>(sizeof(value_type) * num_outputs));
 #else
       cooperative_groups::memcpy_async(
-        g, output_begin + offset, output_buffer, sizeof(value_type) * num_outputs);
+        g,
+        &thrust::raw_reference_cast(*(output_begin + offset)),
+        output_buffer,
+        sizeof(value_type) * num_outputs);
 #endif  // end CUCO_HAS_CUDA_BARRIER
       return;
 #endif  // end CUCO_HAS_CG_MEMCPY_ASYNC
     }
+    #pragma nv_diag_suppress 128 // warning: unreachable
     for (auto index = lane_id; index < num_outputs; index += g.size()) {
       *(output_begin + offset + index) = output_buffer[index];
     }
+    #pragma nv_diag_default 128
   }
 
   /**
