@@ -502,7 +502,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     constexpr bool uses_memcpy_async = thrust::is_contiguous_iterator_v<OutputIt>;
 #else
     constexpr bool uses_memcpy_async = false;
-#endif // end CUCO_HAS_CG_MEMCPY_ASYNC
+#endif  // end CUCO_HAS_CG_MEMCPY_ASYNC
 
     if constexpr (uses_memcpy_async) {
 #if defined(CUCO_HAS_CUDA_BARRIER)
