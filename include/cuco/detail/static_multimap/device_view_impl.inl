@@ -512,14 +512,13 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
                                        output_buffer,
                                        sizeof(value_type) * num_outputs);
 #endif  // end CUCO_HAS_CUDA_BARRIER
-      return;
 #endif  // end CUCO_HAS_CG_MEMCPY_ASYNC
     }
-#pragma nv_diag_suppress 128  // warning: unreachable
-    for (auto index = lane_id; index < num_outputs; index += g.size()) {
-      *(output_begin + offset + index) = output_buffer[index];
+    if constexpr (not thrust::is_contiguous_iterator_v<OutputIt>) {
+      for (auto index = lane_id; index < num_outputs; index += g.size()) {
+        *(output_begin + offset + index) = output_buffer[index];
+      }
     }
-#pragma nv_diag_default 128
   }
 
   /**
