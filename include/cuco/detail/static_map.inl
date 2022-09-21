@@ -148,7 +148,6 @@ void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
     first, num_keys, num_successes_, view, stencil, pred, hash, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
-  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   size_ += h_num_successes;
 }
