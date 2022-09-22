@@ -161,10 +161,10 @@ class static_map {
 #endif
 
   static_map(static_map const&) = delete;
-  static_map(static_map&&)      = delete;
+  static_map(static_map&&)      = default;
 
   static_map& operator=(static_map const&) = delete;
-  static_map& operator=(static_map&&) = delete;
+  static_map& operator=(static_map&&) = default;
 
   /**
    * @brief Indicates if concurrent insert/find is supported for the key/value types.
