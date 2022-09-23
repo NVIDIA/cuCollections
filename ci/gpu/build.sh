@@ -32,7 +32,7 @@ nvidia-smi
 
 gpuci_logger "Install Dependencies"
 . /opt/conda/etc/profile.d/conda.sh
-conda create -y -n cuda -c nvidia -c conda-forge "cudatoolkit=${CUDA_VER}" "cmake>=3.18.*"
+conda create -y -n cuda -c nvidia -c conda-forge "cudatoolkit=${CUDA_VER}" "cmake>=3.23.1"
 conda activate cuda
 
 gpuci_logger "Check versions"
