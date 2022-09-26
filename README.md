@@ -28,7 +28,7 @@ We recommend using [CMake Package Manager (CPM)](https://github.com/TheLartians/
 With CPM, getting `cuCollections` is easy:
 
 ```
-cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
 include(path/to/CPM.cmake)
 
