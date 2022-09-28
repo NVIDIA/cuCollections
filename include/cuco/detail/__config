@@ -25,7 +25,7 @@
 #define CUCO_HAS_CUDA_BARRIER
 #endif
 
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11100)
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11010)
 #define CUCO_HAS_CG_MEMCPY_ASYNC
 #endif
 

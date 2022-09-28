@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #=============================================================================
-cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
 CPMAddPackage(
   NAME benchmark
@@ -25,6 +25,7 @@ CPMAddPackage(
     # Additionally, attempting to set the CMAKE_CXX_VERSION here doesn't propogate to the feature test build
     # Therefore, we just disable the feature test and assume platforms we care about have a regex impl available
     "RUN_HAVE_STD_REGEX 0" #
+    "BENCHMARK_ENABLE_INSTALL OFF"
 )
 
 CPMAddPackage(
@@ -32,6 +33,7 @@ CPMAddPackage(
   GITHUB_REPOSITORY NVIDIA/nvbench
   GIT_TAG main
   GIT_SHALLOW TRUE
+  EXCLUDE_FROM_ALL YES
 )
 
 ###################################################################################################
