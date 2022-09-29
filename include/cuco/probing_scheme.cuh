@@ -29,19 +29,12 @@ namespace experimental {
  * @tparam Hash1 Unary callable type
  * @tparam Hash2 Unary callable type
  */
-template <int CGSize,
-          int WindowSize,
-          enable_window_probing UsesWindowProbing,
-          typename Hash1,
-          typename Hash2>
-class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, UsesWindowProbing> {
+template <int CGSize, typename Hash1, typename Hash2>
+class double_hashing : private detail::probing_scheme_base<CGSize> {
  public:
   using probing_scheme_base_type =
-    detail::probing_scheme_base<CGSize, WindowSize, UsesWindowProbing>;  ///< The base probe scheme
-                                                                         ///< type
+    detail::probing_scheme_base<CGSize>;  ///< The base probe scheme type
   using probing_scheme_base_type::cg_size;
-  using probing_scheme_base_type::uses_window_probing;
-  using probing_scheme_base_type::window_size;
 
   /**
    *@brief Constructs double hashing probing scheme with the two hasher callables.
@@ -65,22 +58,12 @@ class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, U
   __device__ constexpr auto operator()(ProbeKey const& probe_key,
                                        SizeType const upper_bound) const noexcept
   {
-    auto const hash_value = hash1_(probe_key);
-
-    auto const [start, step_size] = [&]() {
-      if constexpr (uses_window_probing == enable_window_probing::YES) {
-        // step size in range [1, prime - 1] * window_size
-        return thrust::pair<SizeType, SizeType>{
-          hash_value % (upper_bound / window_size) * window_size,
-          (hash2_(probe_key) % (upper_bound / window_size - 1) + 1) * window_size};
-      }
-      if constexpr (uses_window_probing == enable_window_probing::NO) {
-        // step size in range [1, prime - 1]
-        return thrust::pair<SizeType, SizeType>{hash_value % upper_bound,
-                                                hash2_(probe_key) % (upper_bound - 1) + 1};
-      }
-    }();
-    return iterator<SizeType>{start, step_size, upper_bound};
+    return iterator<SizeType>
+    {
+      hash1_(probe_key) % upper_bound,
+        hash2_(probe_key) % (upper_bound - 1) + 1;  // step size in range [1, prime - 1]
+      upper_bound
+    };
   }
 
   /**
@@ -99,25 +82,9 @@ class double_hashing : private detail::probing_scheme_base<CGSize, WindowSize, U
                                        ProbeKey const& probe_key,
                                        SizeType const upper_bound) const noexcept
   {
-    auto const hash_value = hash1_(probe_key);
-
-    auto const [start, step_size] = [&]() {
-      if constexpr (uses_window_probing == enable_window_probing::YES) {
-        // step size in range [1, prime - 1] * cg_size * vector_width
-        return thrust::pair<SizeType, SizeType>{
-          hash_value % (upper_bound / (cg_size * window_size)) * cg_size * window_size +
-            g.thread_rank() * window_size,
-          (hash2_(probe_key) % (upper_bound / (cg_size * window_size) - 1) + 1) * cg_size *
-            window_size};
-      }
-      if constexpr (uses_window_probing == enable_window_probing::NO) {
-        // step size in range [1, prime - 1] * cg_size
-        return thrust::pair<SizeType, SizeType>{
-          (hash_value + g.thread_rank()) % upper_bound,
-          (hash2_(probe_key) % (upper_bound / cg_size - 1) + 1) * cg_size};
-      }
-    }();
-    return iterator<SizeType>{start, step_size, upper_bound};
+    return iterator<SizeType>{(hash1_(probe_key) + g.thread_rank()) % upper_bound,
+                              (hash2_(probe_key) % (upper_bound / cg_size - 1) + 1) * cg_size,
+                              upper_bound};
   }
 
   /**
