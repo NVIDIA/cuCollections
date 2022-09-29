@@ -73,14 +73,15 @@ template <class Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme =
-            experimental::double_hashing<1,                           // CG size
-                                         2,                           // Window size (vector length)
-                                         enable_window_probing::YES,  // uses window probing
+            experimental::double_hashing<1,                                  // CG size
                                          cuco::detail::MurmurHash3_32<Key>,  // Hash1
                                          cuco::detail::MurmurHash3_32<Key>   // Hash2
                                          >,
           class Allocator = cuco::cuda_allocator<char>,
-          class Storage   = cuco::experimental::detail::aos_storage<Key, Extent, Allocator>>
+          class Storage   = cuco::experimental::detail::aos_storage<2,  // window size
+                                                                  Key,
+                                                                  Extent,
+                                                                  Allocator>>
 class static_set {
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
@@ -88,11 +89,8 @@ class static_set {
     "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
   static_assert(
-    std::is_base_of_v<
-      cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size,
-                                                      ProbingScheme::window_size,
-                                                      ProbingScheme::uses_window_probing>,
-      ProbingScheme>,
+    std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
+                      ProbingScheme>,
     "ProbingScheme must be a specialization of either cuco::double_hashing or "
     "cuco::linear_probing.");
 
