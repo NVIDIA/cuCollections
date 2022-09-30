@@ -22,6 +22,7 @@
 #include <cuco/extent.cuh>
 
 #include <cuda/atomic>
+#include <cuda/std/array>
 
 #include <cstddef>
 #include <memory>
@@ -30,7 +31,7 @@ namespace cuco {
 namespace experimental {
 namespace detail {
 /**
- * @brief Custom deleter for unique pointer of slots.
+ * @brief Custom deleter for unique pointer.
  *
  * @tparam Allocator Type of allocator used for device storage
  */
@@ -60,7 +61,9 @@ struct custom_deleter {
 };
 
 /**
- * @brief Base class of open addressing storage. This class should not be used directly.
+ * @brief Base class of open addressing storage.
+ *
+ * This class should not be used directly.
  *
  * @tparam Extent Type of extent denoting storage capacity
  */
@@ -73,19 +76,19 @@ class storage_base {
   /**
    * @brief Constructor of base storage.
    *
-   * @param capacity Number of slots to (de)allocate
+   * @param size Number of elements to (de)allocate
    */
-  storage_base(Extent capacity) : capacity_{capacity} {}
+  storage_base(Extent size) : size_{size} {}
 
   /**
-   * @brief Gets the total number of slots in the current storage.
+   * @brief Gets the total number of elements in the current storage.
    *
-   * @return The total number of slots
+   * @return The total number of elements
    */
-  __host__ __device__ size_type capacity() const noexcept { return capacity_; }
+  __host__ __device__ constexpr size_type size() const noexcept { return size_; }
 
  protected:
-  extent_type capacity_;  ///< Total number of slots
+  extent_type size_;  ///< Total number of windows
 };
 
 /**
@@ -98,7 +101,7 @@ class storage_base {
 template <typename SizeType, cuda::thread_scope Scope, typename Allocator>
 class counter_storage : public storage_base<cuco::experimental::extent<SizeType, 1>> {
  public:
-  using storage_base<cuco::experimental::extent<SizeType, 1>>::capacity_;  ///< Storage capacity
+  using storage_base<cuco::experimental::extent<SizeType, 1>>::size_;  ///< Storage size
 
   using size_type      = SizeType;                        ///< Size type
   using counter_type   = cuda::atomic<size_type, Scope>;  ///< Type of the counter
@@ -115,8 +118,8 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
     : storage_base<cuco::experimental::extent<SizeType, 1>>{cuco::experimental::extent<size_type,
                                                                                        1>{}},
       allocator_{allocator},
-      counter_deleter_{capacity_, allocator_},
-      counter_{allocator_.allocate(capacity_), counter_deleter_}
+      counter_deleter_{size_, allocator_},
+      counter_{allocator_.allocate(size_), counter_deleter_}
   {
   }
 
@@ -132,18 +135,18 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
   }
 
   /**
-   * @brief Gets slots array.
+   * @brief Gets counter pointer.
    *
-   * @return Pointer to the first slot
+   * @return Pointer to the counter
    */
   counter_type* get() noexcept { return counter_.get(); }
 
   /**
-   * @brief Gets slots array.
+   * @brief Gets counter array.
    *
-   * @return Pointer to the first slot
+   * @return Pointer to the counter
    */
-  counter_type const* get() const noexcept { return counter_.get(); }
+  counter_type* get() const noexcept { return counter_.get(); }
 
  private:
   allocator_type allocator_;              ///< Allocator used to (de)allocate counter
@@ -152,75 +155,103 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
 };
 
 /**
- * @brief Non-owning AoS storage view type.
+ * @brief Non-owning AoS storage reference type.
  *
+ * @tparam WindowSize Number of slots in each window
  * @tparam T Storage element type
  * @tparam Extent Type of extent denoting storage capacity
  */
-template <typename T, typename Extent>
-class aos_storage_view {
+template <int WindowSize, typename T, typename Extent>
+class aos_storage_ref {
  public:
-  using value_type  = T;                                 ///< Storage element type
+  using window_type = T;                                 ///< Type of struct windows
+  using value_type  = typename window_type::value_type;  ///< Struct element type
   using extent_type = Extent;                            ///< Extent type
   using size_type   = typename extent_type::value_type;  ///< Size type
 
   /**
-   * @brief Constructor of AoS storage view.
-   *
-   * @param slots Pointer to the slots array
-   * @param capacity Size of the slots array
+   * @brief The number of elements processed per window.
    */
-  explicit aos_storage_view(value_type* slots, Extent const capacity) noexcept
-    : slots_{slots}, capacity_{capacity}
+  static constexpr int window_size = WindowSize;
+
+  /**
+   * @brief Constructor of AoS storage reference.
+   *
+   * @param windows Pointer to the windows array
+   * @param num_windows Number of slots
+   */
+  explicit aos_storage_ref(window_type* windows, Extent const num_windows) noexcept
+    : windows_{windows}, num_windows_{num_windows}
   {
   }
 
   /**
-   * @brief Gets slots array.
+   * @brief Gets windows array.
    *
-   * @return Pointer to the first slot
+   * @return Pointer to the first window
    */
-  __device__ inline value_type* slots() noexcept { return slots_; }
+  __device__ inline window_type* windows() noexcept { return windows_; }
 
   /**
-   * @brief Gets slots array.
+   * @brief Gets windows array.
    *
-   * @return Pointer to the first slot
+   * @return Pointer to the first window
    */
-  __device__ inline value_type const* slots() const noexcept { return slots_; }
+  __device__ inline window_type* windows() const noexcept { return windows_; }
+
+  /**
+   * @brief Gets the total number of slot windows in the current storage.
+   *
+   * @return The total number of slot windows
+   */
+  __device__ inline size_type num_windows() const noexcept { return num_windows_; }
 
   /**
    * @brief Gets the total number of slots in the current storage.
    *
    * @return The total number of slots
    */
-  __device__ inline size_type capacity() const noexcept { return capacity_; }
+  __device__ inline size_type capacity() const noexcept { return num_windows_ * window_size; }
 
  private:
-  value_type* slots_;     ///< Pointer to the slots array
-  extent_type capacity_;  ///< Size of the slots array
+  // TODO: should those members be renamed as `elements_` and `size_`? We are using `capacity` to
+  // denote the number of slots thus `capacity` is not an option here. `num_windows` is a bit
+  // too-specific but brings much less confusion when using it. This class is dedicated to
+  // general-purpose aos storage ref but for now it's more of Array of struct window.
+  window_type* windows_;     ///< Pointer to the windows array
+  extent_type num_windows_;  ///< Size of the windows array
 };
 
 /**
- * @brief Array of structure open addressing storage class.
+ * @brief Array of window structure open addressing storage class.
  *
+ * @tparam WindowSize Number of slots in each window
  * @tparam T struct type
- * @tparam Extent Type of extent denoting storage capacity
+ * @tparam Extent Type of extent denoting number of windows
  * @tparam Allocator Type of allocator used for device storage
  */
-template <typename T, class Extent, typename Allocator>
+template <int WindowSize, typename T, typename Extent, typename Allocator>
+// TODO: aow_storage? arrary of windows
 class aos_storage : public storage_base<Extent> {
  public:
+  /**
+   * @brief The number of elements processed per window.
+   */
+  static constexpr int window_size = WindowSize;
+
   using extent_type = typename storage_base<Extent>::extent_type;  ///< Storage extent type
   using size_type   = typename storage_base<Extent>::size_type;    ///< Storage size type
-  using storage_base<Extent>::capacity_;                           ///< Storage capacity
+  using storage_base<Extent>::size_;                               ///< Number of windows
 
-  using value_type = T;  ///< Type of structs
+  using value_type  = T;                                          ///< Type of structs
+  using window_type = cuda::std::array<value_type, window_size>;  ///< Type of struct windows
   using allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<value_type>;  ///< Type of the allocator
-                                                                          ///< to (de)allocate slots
-  using slot_deleter_type = custom_deleter<allocator_type>;               ///< Type of slot deleter
-  using view_type         = aos_storage_view<value_type, extent_type>;    ///< Storage view type
+    typename std::allocator_traits<Allocator>::rebind_alloc<window_type>;  ///< Type of the
+                                                                           ///< allocator to
+                                                                           ///< (de)allocate windows
+  using window_deleter_type = custom_deleter<allocator_type>;  ///< Type of window deleter
+  using reference_type =
+    aos_storage_ref<window_size, window_type, extent_type>;  ///< Storage ref type
 
   /**
    * @brief Constructor of AoS storage.
@@ -231,8 +262,8 @@ class aos_storage : public storage_base<Extent> {
   aos_storage(Extent const size, Allocator const& allocator)
     : storage_base<Extent>{size},
       allocator_{allocator},
-      slot_deleter_{capacity_, allocator_},
-      slots_{allocator_.allocate(capacity_), slot_deleter_}
+      window_deleter_{size_, allocator_},
+      windows_{allocator_.allocate(size_), window_deleter_}
   {
   }
 
@@ -249,30 +280,50 @@ class aos_storage : public storage_base<Extent> {
   aos_storage& operator=(aos_storage const&) = delete;
 
   /**
-   * @brief Gets slots array.
+   * @brief Gets windows array.
    *
-   * @return Pointer to the first slot
+   * @return Pointer to the first window
    */
-  value_type* slots() noexcept { return slots_.get(); }
+  window_type* windows() noexcept { return windows_.get(); }
 
   /**
-   * @brief Gets slots array.
+   * @brief Gets windows array.
    *
-   * @return Pointer to the first slot
+   * @return Pointer to the first window
    */
-  value_type* slots() const noexcept { return slots_.get(); }
+  window_type* windows() const noexcept { return windows_.get(); }
 
   /**
-   * @brief Gets view of slot storage.
+   * @brief Gets the total number of slot windows in the current storage.
    *
-   * @return View of slot storage
+   * @return The total number of slot windows
    */
-  view_type view() const noexcept { return view_type{this->slots(), this->capacity()}; }
+  __host__ __device__ constexpr size_type num_windows() const noexcept { return this->size(); }
+
+  /**
+   * @brief Gets the total number of slots in the current storage.
+   *
+   * @return The total number of slots
+   */
+  __host__ __device__ constexpr size_type capacity() const noexcept
+  {
+    return this->size() * window_size;
+  }
+
+  /**
+   * @brief Gets window storage reference.
+   *
+   * @return Reference of window storage
+   */
+  reference_type reference() const noexcept
+  {
+    return reference_type{this->windows(), this->num_windows()};
+  }
 
  private:
-  allocator_type allocator_;                              ///< Allocator used to (de)allocate slots
-  slot_deleter_type slot_deleter_;                        ///< Custom slots deleter
-  std::unique_ptr<value_type, slot_deleter_type> slots_;  ///< Pointer to AoS slots storage
+  allocator_type allocator_;            ///< Allocator used to (de)allocate windows
+  window_deleter_type window_deleter_;  ///< Custom windows deleter
+  std::unique_ptr<window_type, window_deleter_type> windows_;  ///< Pointer to AoS windows storage
 };
 }  // namespace detail
 }  // namespace experimental

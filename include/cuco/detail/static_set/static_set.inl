@@ -17,6 +17,7 @@
 #include <cuco/detail/common_kernels.cuh>
 #include <cuco/detail/defaults.cuh>
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/prime.hpp>
 #include <cuco/detail/static_set/kernels.cuh>
 #include <cuco/reference.cuh>
 
@@ -45,14 +46,15 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::sta
     probing_scheme_{probing_scheme},
     allocator_{alloc},
     counter_{allocator_},
-    slot_storage_{cuco::detail::get_valid_capacity<ProbingScheme>(capacity), allocator_}
+    window_storage_{cuco::detail::get_num_windows<cg_size, window_size, size_type>(capacity),
+                    allocator_}
 {
   auto constexpr stride = 4;
   auto const grid_size  = (this->capacity() + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
                          (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
   detail::initialize<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-    slot_storage_.slots(), empty_key_sentinel_, this->capacity());
+    window_storage_.windows(), empty_key_sentinel_, this->capacity());
 }
 
 template <class Key,
@@ -122,8 +124,8 @@ auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   const noexcept
 {
   return cuco::experimental::
-    static_set_ref<key_type, Scope, key_equal, probing_scheme_type, slot_view_type>{
-      empty_key_sentinel_, predicate_, probing_scheme_, slot_storage_.view()};
+    static_set_ref<key_type, Scope, key_equal, probing_scheme_type, window_reference_type>{
+      empty_key_sentinel_, predicate_, probing_scheme_, window_storage_.reference()};
 }
 }  // namespace experimental
 }  // namespace cuco

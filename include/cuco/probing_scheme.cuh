@@ -58,12 +58,10 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   __device__ constexpr auto operator()(ProbeKey const& probe_key,
                                        SizeType const upper_bound) const noexcept
   {
-    return iterator<SizeType>
-    {
+    return iterator<SizeType>{
       hash1_(probe_key) % upper_bound,
-        hash2_(probe_key) % (upper_bound - 1) + 1;  // step size in range [1, prime - 1]
-      upper_bound
-    };
+      hash2_(probe_key) % (upper_bound - 1) + 1,  // step size in range [1, prime - 1]
+      upper_bound};
   }
 
   /**

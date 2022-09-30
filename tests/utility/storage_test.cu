@@ -30,15 +30,18 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
                        (int64_t, int64_t))
 {
   constexpr std::size_t size{1'000};
+  constexpr int window_size{2};
 
   using allocator_type = cuco::cuda_allocator<char>;
   auto allocator       = allocator_type{};
 
   SECTION("Allocate array of pairs with AoS storage.")
   {
-    auto s = cuco::experimental::detail::
-      aos_storage<cuco::pair<Key, Value>, cuco::experimental::extent<std::size_t>, allocator_type>(
-        cuco::experimental::extent{size}, allocator);
+    auto s = cuco::experimental::detail::aos_storage<window_size,
+                                                     cuco::pair<Key, Value>,
+                                                     cuco::experimental::extent<std::size_t>,
+                                                     allocator_type>(
+      cuco::experimental::extent{size}, allocator);
     auto const res_size = s.capacity();
 
     REQUIRE(res_size == size);
@@ -47,7 +50,7 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
   SECTION("Allocate array of keys with AoS storage.")
   {
     auto s = cuco::experimental::detail::
-      aos_storage<Key, cuco::experimental::extent<std::size_t>, allocator_type>(
+      aos_storage<window_size, Key, cuco::experimental::extent<std::size_t>, allocator_type>(
         cuco::experimental::extent{size}, allocator);
     auto const res_size = s.capacity();
 

@@ -24,20 +24,23 @@ namespace detail {
 /**
  * @brief Initializes each slot in the flat `slots` storage to contain `k`.
  *
+ * @tparam WindowT Window type
  * @tparam Key Key type
  *
  * @param slots Pointer to flat storage for the keys
  * @param k Key to which all keys in `slots` are initialized
  * @param size Size of the storage pointed to by `slots`
  */
-template <typename Key>
-__global__ void initialize(Key* slots, Key k, std::size_t size)
+template <typename WindowT, typename Key>
+__global__ void initialize(WindowT* windows, Key k, std::size_t size)
 {
+  /*
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   while (tid < size) {
     slots[tid] = k;
     tid += gridDim.x * blockDim.x;
   }
+  */
 }
 
 }  // namespace detail

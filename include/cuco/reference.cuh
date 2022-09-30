@@ -76,24 +76,22 @@ template <typename Key,
           cuda::thread_scope Scope,
           typename KeyEqual,
           typename ProbingScheme,
-          typename StorageView>
+          typename StorageRef>
 class static_set_ref {
  public:
-  using key_type            = Key;                            ///< Key Type
-  using probing_scheme_type = ProbingScheme;                  ///< Type of probing scheme
-  using storage_view_type   = StorageView;                    ///< Type of slot storage view
-  using value_type = typename storage_view_type::value_type;  ///< Probing scheme element type
-  using size_type  = typename storage_view_type::size_type;   ///< Probing scheme size type
+  using key_type            = Key;                             ///< Key Type
+  using probing_scheme_type = ProbingScheme;                   ///< Type of probing scheme
+  using storage_ref_type    = StorageRef;                      ///< Type of slot storage ref
+  using window_type = typename storage_ref_type::window_type;  ///< Probing scheme element type
+  using value_type  = typename storage_ref_type::value_type;   ///< Probing scheme element type
+  using size_type   = typename storage_ref_type::size_type;    ///< Probing scheme size type
   using key_equal =
     detail::equal_wrapper<value_type, KeyEqual>;  ///< Type of key equality binary callable
 
   /// CG size
   static constexpr int cg_size = probing_scheme_type::cg_size;
   /// Number of elements handled per window
-  static constexpr int window_size = probing_scheme_type::window_size;
-  /// Whether window probing is used
-  static constexpr enable_window_probing uses_window_probing =
-    probing_scheme_type::uses_window_probing;
+  static constexpr int window_size = storage_ref_type::window_size;
 
   /**
    * @brief Constructs static_set_ref.
@@ -101,32 +99,32 @@ class static_set_ref {
    * @param empty_key_sentienl Sentinel indicating empty key
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
-   * @param slot_view View of slot storage
+   * @param storage_ref Non-owning ref of slot storage
    */
   static_set_ref(Key empty_key_sentienl,
                  KeyEqual const& predicate,
                  ProbingScheme const& probing_scheme,
-                 StorageView slot_view) noexcept
+                 StorageRef storage_ref) noexcept
     : empty_key_sentienl_{empty_key_sentienl},
       predicate_{empty_key_sentienl_, predicate},
       probing_scheme_{probing_scheme},
-      slot_view_{slot_view}
+      storage_ref_{storage_ref}
   {
   }
 
   /**
-   * @brief Gets slots array.
+   * @brief Gets window array.
    *
    * @return Pointer to the first slot
    */
-  __device__ inline value_type* slots() noexcept { return slot_view_.slots(); }
+  __device__ inline window_type* windows() noexcept { return storage_ref_.windows(); }
 
   /**
-   * @brief Gets slots array.
+   * @brief Gets window array.
    *
    * @return Pointer to the first slot
    */
-  __device__ inline value_type const* slots() const noexcept { return slot_view_.slots(); }
+  __device__ inline window_type const* windows() const noexcept { return storage_ref_.windows(); }
 
   /**
    * @brief Inserts a key.
@@ -136,7 +134,7 @@ class static_set_ref {
    */
   __device__ inline bool insert(value_type const& key) noexcept
   {
-    auto probing_iter = probing_scheme_(key, slot_view_.capacity());
+    auto probing_iter = probing_scheme_(key, storage_ref_.capacity());
 
     while (true) {
       auto window_slots = window(*probing_iter);
@@ -148,8 +146,8 @@ class static_set_ref {
         if (eq_res == detail::result::EQUAL) { return false; }
         if (eq_res == detail::result::EMPTY) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          auto const idx                = *probing_iter + intra_window_index;
-          switch (attempt_insert(slots() + idx, key)) {
+          auto const idx                = *probing_iter;
+          switch (attempt_insert(((windows() + idx)->data() + intra_window_index), key)) {
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: return false;
@@ -170,7 +168,7 @@ class static_set_ref {
   __device__ inline bool insert(cooperative_groups::thread_block_tile<cg_size> const& g,
                                 value_type const& key) noexcept
   {
-    auto probing_iter = probing_scheme_(g, key, slot_view_.capacity());
+    auto probing_iter = probing_scheme_(g, key, storage_ref_.capacity());
 
     while (true) {
       auto window_slots = window(*probing_iter);
@@ -195,7 +193,7 @@ class static_set_ref {
 
       if (group_contains_empty) {
         auto const src_lane = __ffs(group_contains_empty) - 1;
-        auto const status   = (g.thread_rank() == src_lane) ? attempt_insert(slots() + index, key)
+        auto const status   = (g.thread_rank() == src_lane) ? attempt_insert(windows() + index, key)
                                                             : insert_result::CONTINUE;
 
         switch (g.shfl(status, src_lane)) {
@@ -223,7 +221,7 @@ class static_set_ref {
   template <typename ProbeKey>
   __device__ inline bool contains(ProbeKey const& key) const noexcept
   {
-    auto probing_iter = probing_scheme_(key, slot_view_.capacity());
+    auto probing_iter = probing_scheme_(key, storage_ref_.capacity());
 
     while (true) {
       auto window_slots = window(*probing_iter);
@@ -255,7 +253,7 @@ class static_set_ref {
   __device__ inline bool contains(cooperative_groups::thread_block_tile<cg_size> const& g,
                                   ProbeKey const& key) const noexcept
   {
-    auto probing_iter = probing_scheme_(g, key, slot_view_.capacity());
+    auto probing_iter = probing_scheme_(g, key, storage_ref_.capacity());
 
     while (true) {
       auto window_slots = window(*probing_iter);
@@ -304,7 +302,7 @@ class static_set_ref {
   __device__ cuda::std::array<value_type, window_size> window(size_type window_index) const noexcept
   {
     cuda::std::array<value_type, window_size> slot_array;
-    memcpy(&slot_array[0], slot_view_.slots() + window_index, window_size * sizeof(value_type));
+    memcpy(&slot_array[0], storage_ref_.windows() + window_index, window_size * sizeof(value_type));
     return slot_array;
   }
 
@@ -312,7 +310,7 @@ class static_set_ref {
   key_type empty_key_sentienl_;         ///< Empty key sentinel
   key_equal predicate_;                 ///< Key equality binary callable
   probing_scheme_type probing_scheme_;  ///< Probing scheme
-  storage_view_type slot_view_;         ///< View of slot storage
+  storage_ref_type storage_ref_;        ///< Slot storage ref
 };
 }  // namespace experimental
 }  // namespace cuco
