@@ -34,7 +34,6 @@ namespace detail {
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the set's `value_type`
- * @tparam AtomicCounter Type of atomic counter
  * @tparam Reference Type of device reference allowing access of set storage
  *
  * @param first Beginning of the sequence of key/value pairs
@@ -42,31 +41,16 @@ namespace detail {
  * @param num_successes The number of successfully inserted key/value pairs
  * @param reference Mutable device reference used to access the set's slot storage
  */
-template <int BlockSize, typename InputIterator, typename AtomicCounter, typename Reference>
-__global__ void insert(InputIterator first,
-                       InputIterator last,
-                       AtomicCounter* num_successes,
-                       Reference reference)
+template <int BlockSize, typename InputIterator, typename Reference>
+__global__ void insert(InputIterator first, InputIterator last, Reference set_ref)
 {
-  using size_type                = typename Reference::size_type;
-  size_type thread_num_successes = 0;
-
   auto tid = BlockSize * blockIdx.x + threadIdx.x;
   auto it  = first + tid;
 
   while (it < last) {
     typename Reference::value_type const insert_pair{*it};
-    if (reference.insert(insert_pair)) { thread_num_successes++; }
+    set_ref.insert(insert_pair);
     it += gridDim.x * BlockSize;
-  }
-
-  // compute number of successfully inserted elements for each block
-  // and atomically add to the grand total
-  using block_reduce = cub::BlockReduce<size_type, BlockSize>;
-  __shared__ typename block_reduce::TempStorage temp_storage;
-  size_type block_num_successes = block_reduce(temp_storage).Sum(thread_num_successes);
-  if (threadIdx.x == 0) {
-    num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
 }
 
@@ -100,26 +84,14 @@ __global__ void insert(InputIterator first,
 {
   namespace cg = cooperative_groups;
 
-  using size_type                = typename Reference::size_type;
-  size_type thread_num_successes = 0;
-
   auto tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
   auto tid  = BlockSize * blockIdx.x + threadIdx.x;
   auto it   = first + tid / CGSize;
 
   while (it < last) {
     typename Reference::value_type const insert_pair{*it};
-    if (reference.insert(tile, insert_pair) and tile.thread_rank() == 0) { thread_num_successes++; }
+    reference.insert(tile, insert_pair);
     it += (gridDim.x * BlockSize) / CGSize;
-  }
-
-  // compute number of successfully inserted elements for each block
-  // and atomically add to the grand total
-  using block_reduce = cub::BlockReduce<size_type, BlockSize>;
-  __shared__ typename block_reduce::TempStorage temp_storage;
-  size_type block_num_successes = block_reduce(temp_storage).Sum(thread_num_successes);
-  if (threadIdx.x == 0) {
-    num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
 }
 

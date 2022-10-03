@@ -69,19 +69,9 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
     (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
     (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  counter_.reset(stream);
-  size_type h_num_successes{};
-
   detail::insert<detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, first + num_keys, counter_.get(), reference());
-
-  CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_num_successes, counter_.get(), sizeof(size_type), cudaMemcpyDeviceToHost, stream));
-
-  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
-
-  size_ += h_num_successes;
+      first, first + num_keys, reference());
 }
 
 template <class Key,
