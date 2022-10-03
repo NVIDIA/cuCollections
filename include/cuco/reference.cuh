@@ -134,7 +134,7 @@ class static_set_ref {
    */
   __device__ inline bool insert(value_type const& key) noexcept
   {
-    auto probing_iter = probing_scheme_(key, storage_ref_.capacity());
+    auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
 
     while (true) {
       auto const window_slots = storage_ref_.window(*probing_iter);
@@ -168,7 +168,7 @@ class static_set_ref {
   __device__ inline bool insert(cooperative_groups::thread_block_tile<cg_size> const& g,
                                 value_type const& key) noexcept
   {
-    auto probing_iter = probing_scheme_(g, key, storage_ref_.capacity());
+    auto probing_iter = probing_scheme_(g, key, storage_ref_.num_windows());
 
     while (true) {
       auto const window_slots = storage_ref_.window(*probing_iter);
@@ -221,7 +221,7 @@ class static_set_ref {
   template <typename ProbeKey>
   __device__ inline bool contains(ProbeKey const& key) const noexcept
   {
-    auto probing_iter = probing_scheme_(key, storage_ref_.capacity());
+    auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
 
     while (true) {
       auto const window_slots = storage_ref_.window(*probing_iter);
@@ -253,7 +253,7 @@ class static_set_ref {
   __device__ inline bool contains(cooperative_groups::thread_block_tile<cg_size> const& g,
                                   ProbeKey const& key) const noexcept
   {
-    auto probing_iter = probing_scheme_(g, key, storage_ref_.capacity());
+    auto probing_iter = probing_scheme_(g, key, storage_ref_.num_windows());
 
     while (true) {
       auto const window_slots = storage_ref_.window(*probing_iter);
