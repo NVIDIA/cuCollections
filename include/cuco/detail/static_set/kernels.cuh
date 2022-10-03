@@ -38,8 +38,7 @@ namespace detail {
  *
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
- * @param num_successes The number of successfully inserted key/value pairs
- * @param reference Mutable device reference used to access the set's slot storage
+ * @param set_ref Set device reference used to access the set's slot storage
  */
 template <int BlockSize, typename InputIterator, typename Reference>
 __global__ void insert(InputIterator first, InputIterator last, Reference set_ref)
@@ -64,23 +63,14 @@ __global__ void insert(InputIterator first, InputIterator last, Reference set_re
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the set's `value_type`
- * @tparam AtomicCounter Type of atomic counter
  * @tparam Reference Type of device reference allowing access of set storage
  *
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
- * @param num_successes The number of successfully inserted key/value pairs
- * @param reference Mutable device reference used to access the set's slot storage
+ * @param set_ref Set device reference used to access the set's slot storage
  */
-template <int CGSize,
-          int BlockSize,
-          typename InputIterator,
-          typename AtomicCounter,
-          typename Reference>
-__global__ void insert(InputIterator first,
-                       InputIterator last,
-                       AtomicCounter* num_successes,
-                       Reference reference)
+template <int CGSize, int BlockSize, typename InputIterator, typename Reference>
+__global__ void insert(InputIterator first, InputIterator last, Reference set_ref)
 {
   namespace cg = cooperative_groups;
 
@@ -90,7 +80,7 @@ __global__ void insert(InputIterator first,
 
   while (it < last) {
     typename Reference::value_type const insert_pair{*it};
-    reference.insert(tile, insert_pair);
+    set_ref.insert(tile, insert_pair);
     it += (gridDim.x * BlockSize) / CGSize;
   }
 }
@@ -108,10 +98,10 @@ __global__ void insert(InputIterator first,
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
- * @param reference Mutable device reference used to access the set's slot storage
+ * @param set_ref Set device reference used to access the set's slot storage
  */
 template <int BlockSize, typename InputIt, typename OutputIt, typename Reference>
-__global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Reference reference)
+__global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Reference set_ref)
 {
   namespace cg = cooperative_groups;
 
@@ -133,7 +123,7 @@ __global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Ref
        * to global, we no longer rely on L1, preventing the increase in sector stores from
        * L2 to global and improving performance.
        */
-      output_buffer[thread_idx] = reference.contains(key);
+      output_buffer[thread_idx] = set_ref.contains(key);
     }
 
     block.sync();
@@ -156,10 +146,10 @@ __global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Ref
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
- * @param reference Mutable device reference used to access the set's slot storage
+ * @param set_ref Set device reference used to access the set's slot storage
  */
 template <int CGSize, int BlockSize, typename InputIt, typename OutputIt, typename Reference>
-__global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Reference reference)
+__global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Reference set_ref)
 {
   namespace cg = cooperative_groups;
 
@@ -176,7 +166,7 @@ __global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Ref
          last) {  // the whole thread block falls into the same iteration
     if (first + key_idx < last) {
       auto key   = *(first + key_idx);
-      auto found = reference.contains(tile, key);
+      auto found = set_ref.contains(tile, key);
       /*
        * The ld.relaxed.gpu instruction used in view.find causes L1 to
        * flush more frequently, causing increased sector stores from L2 to global memory.
