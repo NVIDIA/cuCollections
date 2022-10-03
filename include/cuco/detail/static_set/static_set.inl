@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <cuco/detail/common_kernels.cuh>
 #include <cuco/detail/defaults.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
@@ -49,12 +48,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::sta
     window_storage_{cuco::detail::get_num_windows<cg_size, window_size, size_type>(capacity),
                     allocator_}
 {
-  auto constexpr stride = 4;
-  auto const grid_size  = (this->capacity() + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-                         (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
-
-  detail::initialize<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-    window_storage_.windows(), empty_key_sentinel_, this->capacity());
+  window_storage_.initialize(empty_key_sentinel_, stream);
 }
 
 template <class Key,

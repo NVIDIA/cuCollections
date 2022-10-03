@@ -137,7 +137,7 @@ class static_set_ref {
     auto probing_iter = probing_scheme_(key, storage_ref_.capacity());
 
     while (true) {
-      auto window_slots = window(*probing_iter);
+      auto const window_slots = storage_ref_.window(*probing_iter);
 
       for (auto& slot_content : window_slots) {
         auto const eq_res = predicate_(slot_content, key);
@@ -171,7 +171,7 @@ class static_set_ref {
     auto probing_iter = probing_scheme_(g, key, storage_ref_.capacity());
 
     while (true) {
-      auto window_slots = window(*probing_iter);
+      auto const window_slots = storage_ref_.window(*probing_iter);
 
       auto const [state, index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
@@ -224,7 +224,7 @@ class static_set_ref {
     auto probing_iter = probing_scheme_(key, storage_ref_.capacity());
 
     while (true) {
-      auto window_slots = window(*probing_iter);
+      auto const window_slots = storage_ref_.window(*probing_iter);
 
       for (auto& slot_content : window_slots) {
         switch (predicate_(slot_content, key)) {
@@ -256,7 +256,7 @@ class static_set_ref {
     auto probing_iter = probing_scheme_(g, key, storage_ref_.capacity());
 
     while (true) {
-      auto window_slots = window(*probing_iter);
+      auto const window_slots = storage_ref_.window(*probing_iter);
 
       auto const state = [&]() {
         for (auto i = 0; i < window_size; ++i) {
@@ -291,19 +291,6 @@ class static_set_ref {
       return predicate_(old, key) == detail::result::EQUAL ? insert_result::DUPLICATE
                                                            : insert_result::CONTINUE;
     }
-  }
-
-  /**
-   * @brief Returns an array of elements (window) for a given index.
-   *
-   * @param window_index Index of the first element of the window
-   * @return An array of elements
-   */
-  __device__ cuda::std::array<value_type, window_size> window(size_type window_index) const noexcept
-  {
-    cuda::std::array<value_type, window_size> slot_array;
-    memcpy(&slot_array[0], storage_ref_.windows() + window_index, window_size * sizeof(value_type));
-    return slot_array;
   }
 
  private:

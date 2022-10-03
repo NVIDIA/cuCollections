@@ -22,25 +22,27 @@ namespace experimental {
 namespace detail {
 
 /**
- * @brief Initializes each slot in the flat `slots` storage to contain `k`.
+ * @brief Initializes each slot in the flat storage to contain `k`.
  *
+ * @tparam WindowSize Number of slots per window
  * @tparam WindowT Window type
- * @tparam Key Key type
  *
  * @param slots Pointer to flat storage for the keys
  * @param k Key to which all keys in `slots` are initialized
  * @param size Size of the storage pointed to by `slots`
  */
-template <typename WindowT, typename Key>
-__global__ void initialize(WindowT* windows, Key k, std::size_t size)
+template <int WindowSize, typename WindowT>
+__global__ void initialize(WindowT* windows, typename WindowT::value_type k, std::size_t size)
 {
-  /*
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   while (tid < size) {
-    slots[tid] = k;
+    auto& window_slots = *(windows + tid);
+#pragma unroll
+    for (auto& slot : window_slots) {
+      slot = k;
+    }
     tid += gridDim.x * blockDim.x;
   }
-  */
 }
 
 }  // namespace detail

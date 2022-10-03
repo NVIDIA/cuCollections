@@ -17,6 +17,8 @@
 #pragma once
 
 #include <cuco/allocator.hpp>
+#include <cuco/detail/common_kernels.cuh>
+#include <cuco/detail/defaults.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
 #include <cuco/extent.cuh>
@@ -213,6 +215,14 @@ class aos_storage_ref {
    */
   __device__ inline size_type capacity() const noexcept { return num_windows_ * window_size; }
 
+  /**
+   * @brief Returns an array of elements (window) for a given index.
+   *
+   * @param index Index of the first element of the window
+   * @return An array of elements
+   */
+  __device__ window_type window(size_type index) const noexcept { return *(windows_ + index); }
+
  private:
   // TODO: should those members be renamed as `elements_` and `size_`? We are using `capacity` to
   // denote the number of slots thus `capacity` is not an option here. `num_windows` is a bit
@@ -318,6 +328,22 @@ class aos_storage : public storage_base<Extent> {
   reference_type reference() const noexcept
   {
     return reference_type{this->windows(), this->num_windows()};
+  }
+
+  /**
+   * @brief Initializes each slot in the flat storage to contain `key`.
+   *
+   * @param key Key to which all keys in `slots` are initialized
+   * @param stream Stream used for executing the kernels
+   */
+  void initialize(value_type const key, cudaStream_t stream) noexcept
+  {
+    auto constexpr stride = 4;
+    auto const grid_size  = (this->num_windows() + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+                           (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+    detail::initialize<window_size><<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      this->windows(), key, this->num_windows());
   }
 
  private:
