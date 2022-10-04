@@ -146,8 +146,7 @@ class static_set_ref {
         if (eq_res == detail::result::EQUAL) { return false; }
         if (eq_res == detail::result::EMPTY) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          auto const idx                = *probing_iter;
-          switch (attempt_insert(((windows() + idx)->data() + intra_window_index), key)) {
+          switch (attempt_insert((windows() + *probing_iter)->data() + intra_window_index, key)) {
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: return false;
@@ -173,7 +172,7 @@ class static_set_ref {
     while (true) {
       auto const window_slots = storage_ref_.window(*probing_iter);
 
-      auto const [state, index] = [&]() {
+      auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (predicate_(window_slots[i], key)) {
             case detail::result::EMPTY:
@@ -182,8 +181,8 @@ class static_set_ref {
               return cuco::pair<detail::result, int32_t>{detail::result::EQUAL, i};
             default: continue;
           }
-          return cuco::pair<detail::result, int32_t>{detail::result::UNEQUAL, -1};
         }
+        return cuco::pair<detail::result, int32_t>{detail::result::UNEQUAL, -1};
       }();
 
       // If the key is already in the map, return false
@@ -193,8 +192,10 @@ class static_set_ref {
 
       if (group_contains_empty) {
         auto const src_lane = __ffs(group_contains_empty) - 1;
-        auto const status   = (g.thread_rank() == src_lane) ? attempt_insert(windows() + index, key)
-                                                            : insert_result::CONTINUE;
+        auto const status =
+          (g.thread_rank() == src_lane)
+            ? attempt_insert((windows() + *probing_iter)->data() + intra_window_index, key)
+            : insert_result::CONTINUE;
 
         switch (g.shfl(status, src_lane)) {
           case insert_result::SUCCESS: return true;
@@ -259,8 +260,8 @@ class static_set_ref {
       auto const window_slots = storage_ref_.window(*probing_iter);
 
       auto const state = [&]() {
-        for (auto i = 0; i < window_size; ++i) {
-          switch (predicate_(window_slots[i], key)) {
+        for (auto& slot : window_slots) {
+          switch (predicate_(slot, key)) {
             case detail::result::EMPTY: return detail::result::EMPTY;
             case detail::result::EQUAL: return detail::result::EQUAL;
             default: continue;
