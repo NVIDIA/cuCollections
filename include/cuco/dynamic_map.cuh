@@ -338,7 +338,6 @@ class dynamic_map {
   thrust::device_vector<mutable_view_type>
     submap_mutable_views_;          ///< vector of mutable device views for each submap
   std::size_t min_insert_size_{};   ///< min remaining capacity of submap for insert
-  atomic_ctr_type* num_successes_;  ///< number of successfully inserted keys on insert
   std::vector<atomic_ctr_type*>
     submap_num_successes_;  ///< number of succesfully erased keys for each submap
   thrust::device_vector<atomic_ctr_type*>
