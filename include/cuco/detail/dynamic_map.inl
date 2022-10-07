@@ -37,7 +37,8 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(
     initial_capacity,
     sentinel::empty_key<Key>{empty_key_sentinel},
     sentinel::empty_value<Value>{empty_value_sentinel},
-    alloc, stream));
+    alloc,
+    stream));
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
   submap_num_successes_.push_back(submaps_[0]->get_num_successes());
@@ -67,7 +68,8 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(
     sentinel::empty_key<Key>{empty_key_sentinel_},
     sentinel::empty_value<Value>{empty_value_sentinel_},
     sentinel::erased_key<Key>{erased_key_sentinel_},
-    alloc, stream));
+    alloc,
+    stream));
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
   submap_num_successes_.push_back(submaps_[0]->get_num_successes());
@@ -95,13 +97,15 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n, cudaStrea
           sentinel::empty_key<Key>{empty_key_sentinel_},
           sentinel::empty_value<Value>{empty_value_sentinel_},
           sentinel::erased_key<Key>{erased_key_sentinel_},
-          alloc_, stream));
+          alloc_,
+          stream));
       } else {
         submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
           submap_capacity,
           sentinel::empty_key<Key>{empty_key_sentinel_},
           sentinel::empty_value<Value>{empty_value_sentinel_},
-          alloc_, stream));
+          alloc_,
+          stream));
       }
       submap_num_successes_.push_back(submaps_[submap_idx]->get_num_successes());
       d_submap_num_successes_ = submap_num_successes_;
@@ -117,11 +121,8 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n, cudaStrea
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
-void dynamic_map<Key, Value, Scope, Allocator>::insert(InputIt first,
-                                                       InputIt last,
-                                                       Hash hash,
-                                                       KeyEqual key_equal,
-                                                       cudaStream_t stream)
+void dynamic_map<Key, Value, Scope, Allocator>::insert(
+  InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
   std::size_t num_to_insert = std::distance(first, last);
 
@@ -147,18 +148,20 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(InputIt first,
 
       detail::insert<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
         <<<grid_size, block_size, 0, stream>>>(first,
-                                    first + n,
-                                    submap_views_.data().get(),
-                                    submap_mutable_views_.data().get(),
-                                    d_submap_num_successes_.data().get(),
-                                    submap_idx,
-                                    submaps_.size(),
-                                    hash,
-                                    key_equal);
+                                               first + n,
+                                               submap_views_.data().get(),
+                                               submap_mutable_views_.data().get(),
+                                               d_submap_num_successes_.data().get(),
+                                               submap_idx,
+                                               submaps_.size(),
+                                               hash,
+                                               key_equal);
 
       std::size_t h_num_successes;
-      CUCO_CUDA_TRY(cudaMemcpy(
-        &h_num_successes, submap_num_successes_[submap_idx], sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost));
+      CUCO_CUDA_TRY(cudaMemcpy(&h_num_successes,
+                               submap_num_successes_[submap_idx],
+                               sizeof(atomic_ctr_type),
+                               cudaMemcpyDeviceToHost));
       submaps_[submap_idx]->size_ += h_num_successes;
       size_ += h_num_successes;
       first += n;
@@ -170,11 +173,8 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(InputIt first,
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
-void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
-                                                      InputIt last,
-                                                      Hash hash,
-                                                      KeyEqual key_equal,
-                                                      cudaStream_t stream)
+void dynamic_map<Key, Value, Scope, Allocator>::erase(
+  InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
   std::size_t num_keys = std::distance(first, last);
 
@@ -196,19 +196,19 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
 
   detail::erase<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
     <<<grid_size, block_size, temp_storage_size, stream>>>(first,
-                                                   first + num_keys,
-                                                   submap_mutable_views_.data().get(),
-                                                   d_submap_num_successes_.data().get(),
-                                                   submaps_.size(),
-                                                   hash,
-                                                   key_equal);
+                                                           first + num_keys,
+                                                           submap_mutable_views_.data().get(),
+                                                           d_submap_num_successes_.data().get(),
+                                                           submaps_.size(),
+                                                           hash,
+                                                           key_equal);
 
   for (uint32_t i = 0; i < submaps_.size(); ++i) {
     std::size_t h_submap_num_successes;
     CUCO_CUDA_TRY(cudaMemcpy(&h_submap_num_successes,
-                              submap_num_successes_[i],
-                              sizeof(atomic_ctr_type),
-                              cudaMemcpyDeviceToHost));
+                             submap_num_successes_[i],
+                             sizeof(atomic_ctr_type),
+                             cudaMemcpyDeviceToHost));
     submaps_[i]->size_ -= h_submap_num_successes;
     size_ -= h_submap_num_successes;
   }
@@ -216,9 +216,12 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(InputIt first,
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void dynamic_map<Key, Value, Scope, Allocator>::find(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal,
-  cudaStream_t stream)
+void dynamic_map<Key, Value, Scope, Allocator>::find(InputIt first,
+                                                     InputIt last,
+                                                     OutputIt output_begin,
+                                                     Hash hash,
+                                                     KeyEqual key_equal,
+                                                     cudaStream_t stream)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;
@@ -233,9 +236,12 @@ void dynamic_map<Key, Value, Scope, Allocator>::find(
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename OutputIt, typename Hash, typename KeyEqual>
-void dynamic_map<Key, Value, Scope, Allocator>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, Hash hash, KeyEqual key_equal,
-  cudaStream_t stream)
+void dynamic_map<Key, Value, Scope, Allocator>::contains(InputIt first,
+                                                         InputIt last,
+                                                         OutputIt output_begin,
+                                                         Hash hash,
+                                                         KeyEqual key_equal,
+                                                         cudaStream_t stream)
 {
   auto num_keys         = std::distance(first, last);
   auto const block_size = 128;

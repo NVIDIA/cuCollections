@@ -147,7 +147,7 @@ __global__ void insert(InputIt first,
                        InputIt last,
                        viewT* submap_views,
                        mutableViewT* submap_mutable_views,
-                       //atomicT* num_successes,
+                       // atomicT* num_successes,
                        atomicT** submap_num_successes,
                        uint32_t insert_idx,
                        uint32_t num_submaps,
@@ -184,7 +184,7 @@ __global__ void insert(InputIt first,
   }
 
   std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
-  if (threadIdx.x == 0) { 
+  if (threadIdx.x == 0) {
     //*num_successes += block_num_successes;
     *submap_num_successes[insert_idx] += block_num_successes;
   }
@@ -255,7 +255,7 @@ __global__ void erase(InputIt first,
   for (int i = 0; i < num_submaps; ++i) {
     if (threadIdx.x == 0) {
       submap_num_successes[i]->fetch_add(static_cast<std::size_t>(submap_block_num_successes[i]),
-                                          cuda::std::memory_order_relaxed);
+                                         cuda::std::memory_order_relaxed);
     }
   }
 }
@@ -320,9 +320,7 @@ __global__ void erase(InputIt first,
       erased = submap_mutable_views[i].erase(tile, *it, hash, key_equal);
       if (erased) { break; }
     }
-    if (erased && tile.thread_rank() == 0) {
-      atomicAdd(&submap_block_num_successes[i], 1);
-    }
+    if (erased && tile.thread_rank() == 0) { atomicAdd(&submap_block_num_successes[i], 1); }
     it += (gridDim.x * blockDim.x) / tile_size;
   }
   __syncthreads();
@@ -330,7 +328,7 @@ __global__ void erase(InputIt first,
   for (int i = 0; i < num_submaps; ++i) {
     if (threadIdx.x == 0) {
       submap_num_successes[i]->fetch_add(static_cast<std::size_t>(submap_block_num_successes[i]),
-                                          cuda::std::memory_order_relaxed);
+                                         cuda::std::memory_order_relaxed);
     }
   }
 }

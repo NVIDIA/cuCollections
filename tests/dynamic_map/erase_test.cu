@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
 #include <cuco/dynamic_map.cuh>
+#include <utils.hpp>
 
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch.hpp>
-
 
 TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t))
 {
@@ -122,7 +121,7 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t))
     REQUIRE(cuco::test::all_of(d_keys_exist2.begin() + 2 * num_keys,
                                d_keys_exist2.end(),
                                [] __device__(const bool key_found) { return key_found; }));
-    
+
     REQUIRE(map.get_size() == 2 * num_keys);
     // check that keys can be successfully deleted from all submaps (some will be unsuccessful
     // erases)

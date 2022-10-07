@@ -101,14 +101,17 @@ class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
  public:
-  using value_type        = cuco::pair_type<Key, Value>; ///< Type of key/value pairs
-  using key_type          = Key;                         ///< Key type
-  using mapped_type       = Value;                       ///< Type of mapped values
-  using atomic_ctr_type   = cuda::atomic<std::size_t, Scope>; ///< Atomic counter type
-  using view_type         = typename static_map<Key, Value, Scope>::device_view; ///< Type for submap device view
-  using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view; ///< Type for submap mutable device view
+  using value_type      = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
+  using key_type        = Key;                               ///< Key type
+  using mapped_type     = Value;                             ///< Type of mapped values
+  using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;  ///< Atomic counter type
+  using view_type =
+    typename static_map<Key, Value, Scope>::device_view;  ///< Type for submap device view
+  using mutable_view_type =
+    typename static_map<Key, Value, Scope>::device_mutable_view;  ///< Type for submap mutable
+                                                                  ///< device view
   using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
-    atomic_ctr_type>; ///< Type of the allocator to (de)allocate atomic counters
+    atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
 
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
@@ -147,7 +150,7 @@ class dynamic_map {
               sentinel::empty_key<Key> empty_key_sentinel,
               sentinel::empty_value<Value> empty_value_sentinel,
               Allocator const& alloc = Allocator{},
-              cudaStream_t stream = 0);
+              cudaStream_t stream    = 0);
 
   /**
    * @brief Construct a dynamically-sized map with erase capability.
@@ -178,7 +181,7 @@ class dynamic_map {
               sentinel::empty_value<Value> empty_value_sentinel,
               sentinel::erased_key<Key> erased_key_sentinel,
               Allocator const& alloc = Allocator{},
-              cudaStream_t stream = 0);
+              cudaStream_t stream    = 0);
 
   /**
    * @brief Destroy the map and frees its contents
@@ -215,7 +218,10 @@ class dynamic_map {
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{},
+  void insert(InputIt first,
+              InputIt last,
+              Hash hash           = Hash{},
+              KeyEqual key_equal  = KeyEqual{},
               cudaStream_t stream = 0);
 
   /**
@@ -250,7 +256,10 @@ class dynamic_map {
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void erase(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{},
+  void erase(InputIt first,
+             InputIt last,
+             Hash hash           = Hash{},
+             KeyEqual key_equal  = KeyEqual{},
              cudaStream_t stream = 0);
 
   /**
@@ -279,8 +288,8 @@ class dynamic_map {
   void find(InputIt first,
             InputIt last,
             OutputIt output_begin,
-            Hash hash          = Hash{},
-            KeyEqual key_equal = KeyEqual{},
+            Hash hash           = Hash{},
+            KeyEqual key_equal  = KeyEqual{},
             cudaStream_t stream = 0);
 
   /**
@@ -308,8 +317,8 @@ class dynamic_map {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                Hash hash          = Hash{},
-                KeyEqual key_equal = KeyEqual{},
+                Hash hash           = Hash{},
+                KeyEqual key_equal  = KeyEqual{},
                 cudaStream_t stream = 0);
 
   /**
@@ -347,8 +356,8 @@ class dynamic_map {
     submaps_;                                      ///< vector of pointers to each submap
   thrust::device_vector<view_type> submap_views_;  ///< vector of device views for each submap
   thrust::device_vector<mutable_view_type>
-    submap_mutable_views_;          ///< vector of mutable device views for each submap
-  std::size_t min_insert_size_{};   ///< min remaining capacity of submap for insert
+    submap_mutable_views_;         ///< vector of mutable device views for each submap
+  std::size_t min_insert_size_{};  ///< min remaining capacity of submap for insert
   std::vector<atomic_ctr_type*>
     submap_num_successes_;  ///< number of succesfully erased keys for each submap
   thrust::device_vector<atomic_ctr_type*>
