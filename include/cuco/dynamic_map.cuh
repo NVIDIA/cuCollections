@@ -101,14 +101,14 @@ class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
  public:
-  using value_type        = cuco::pair_type<Key, Value>;
-  using key_type          = Key;
-  using mapped_type       = Value;
-  using atomic_ctr_type   = cuda::atomic<std::size_t, Scope>;
-  using view_type         = typename static_map<Key, Value, Scope>::device_view;
-  using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view;
-  using counter_allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<atomic_ctr_type>;
+  using value_type        = cuco::pair_type<Key, Value>; ///< Type of key/value pairs
+  using key_type          = Key;                         ///< Key type
+  using mapped_type       = Value;                       ///< Type of mapped values
+  using atomic_ctr_type   = cuda::atomic<std::size_t, Scope>; ///< Atomic counter type
+  using view_type         = typename static_map<Key, Value, Scope>::device_view; ///< Type for submap device view
+  using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view; ///< Type for submap mutable device view
+  using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+    atomic_ctr_type>; ///< Type of the allocator to (de)allocate atomic counters
 
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
@@ -141,11 +141,13 @@ class dynamic_map {
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param alloc Allocator used to allocate submap device storage
+   * @param stream Stream used for executing the kernels
    */
   dynamic_map(std::size_t initial_capacity,
               sentinel::empty_key<Key> empty_key_sentinel,
               sentinel::empty_value<Value> empty_value_sentinel,
-              Allocator const& alloc = Allocator{});
+              Allocator const& alloc = Allocator{},
+              cudaStream_t stream = 0);
 
   /**
    * @brief Construct a dynamically-sized map with erase capability.
@@ -162,11 +164,11 @@ class dynamic_map {
    * that contains either.
    *
    * @param initial_capacity The initial number of slots in the map
-   * @param growth_factor The factor by which the capacity increases when resizing
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param erased_key_sentinel The reserved key value for erased slots
    * @param alloc Allocator used to allocate submap device storage
+   * @param stream Stream used for executing the kernels
    *
    * @throw std::runtime error if the empty key sentinel and erased key sentinel
    * are the same value
@@ -175,13 +177,14 @@ class dynamic_map {
               sentinel::empty_key<Key> empty_key_sentinel,
               sentinel::empty_value<Value> empty_value_sentinel,
               sentinel::erased_key<Key> erased_key_sentinel,
-              Allocator const& alloc = Allocator{});
+              Allocator const& alloc = Allocator{},
+              cudaStream_t stream = 0);
 
   /**
    * @brief Destroy the map and frees its contents
    *
    */
-  ~dynamic_map();
+  ~dynamic_map() {}
 
   /**
    * @brief Grows the capacity of the map so there is enough space for `n` key/value pairs.
@@ -189,8 +192,9 @@ class dynamic_map {
    * If there is already enough space for `n` key/value pairs, the capacity remains the same.
    *
    * @param n The number of key value pairs for which there must be space
+   * @param stream Stream used for executing the kernels
    */
-  void reserve(std::size_t n);
+  void reserve(std::size_t n, cudaStream_t stream = 0);
 
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
@@ -206,11 +210,13 @@ class dynamic_map {
    * @param last End of the sequence of key/value pairs
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
+   * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
+  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{},
+              cudaStream_t stream = 0);
 
   /**
    * @brief Erases keys in the range `[first, last)`.
@@ -244,7 +250,8 @@ class dynamic_map {
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void erase(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
+  void erase(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{},
+             cudaStream_t stream = 0);
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -263,6 +270,7 @@ class dynamic_map {
    * @param output_begin Beginning of the sequence of values retrieved for each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
+   * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
             typename OutputIt,
@@ -272,7 +280,8 @@ class dynamic_map {
             InputIt last,
             OutputIt output_begin,
             Hash hash          = Hash{},
-            KeyEqual key_equal = KeyEqual{});
+            KeyEqual key_equal = KeyEqual{},
+            cudaStream_t stream = 0);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -290,6 +299,7 @@ class dynamic_map {
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
+   * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
             typename OutputIt,
@@ -299,7 +309,8 @@ class dynamic_map {
                 InputIt last,
                 OutputIt output_begin,
                 Hash hash          = Hash{},
-                KeyEqual key_equal = KeyEqual{});
+                KeyEqual key_equal = KeyEqual{},
+                cudaStream_t stream = 0);
 
   /**
    * @brief Gets the current number of elements in the map
