@@ -44,7 +44,6 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::sta
     predicate_{pred},
     probing_scheme_{probing_scheme},
     allocator_{alloc},
-    counter_{allocator_},
     window_storage_{cuco::detail::get_num_windows<cg_size, window_size, size_type>(capacity),
                     allocator_}
 {

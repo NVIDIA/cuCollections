@@ -97,8 +97,6 @@ class static_set {
   /// Window storage reference type
   using window_reference_type = typename window_storage_type::reference_type;
   using probing_scheme_type   = ProbingScheme;  ///< Probe scheme type
-  using counter_storage_type =
-    detail::counter_storage<size_type, Scope, Allocator>;  ///< Counter storage type
 
   static constexpr int cg_size = probing_scheme_type::cg_size;  ///< CG size used to for probing
   static constexpr int window_size =
@@ -200,7 +198,6 @@ class static_set {
   key_equal predicate_;                 ///< Key equality binary predicate
   ProbingScheme probing_scheme_;        ///< Probing scheme
   allocator_type allocator_;            ///< Allocator used to (de)allocate temporary storage
-  counter_storage_type counter_;        ///< Device counter storage
   window_storage_type window_storage_;  ///< Flat slot window storage
 };
 
