@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/allocator.hpp>
+#include <cuco/detail/__config>
 #include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/storage.cuh>
@@ -28,15 +29,6 @@
 #include <thrust/functional.h>
 
 #include <cuda/atomic>
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && defined(__CUDA_ARCH__) && \
-  (__CUDA_ARCH__ >= 700)
-#define CUCO_HAS_CUDA_BARRIER
-#endif
-
-// cg::memcpy_aysnc is supported for CUDA 11.1 and up
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11100)
-#define CUCO_HAS_CG_MEMCPY_ASYNC
-#endif
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
