@@ -57,9 +57,8 @@ auto get_grid_size(Kernel kernel, std::size_t block_size, std::size_t dynamic_sm
 template <typename Iterator>
 constexpr inline int64_t distance(Iterator begin, Iterator end)
 {
-  auto const res = std::distance(begin, end);
-  CUCO_RUNTIME_EXPECTS(res >= 0, "Potential overflow");
-  return static_cast<int64_t>(res);
+  // `int64_t` instead of arch-dependant `long int`
+  return static_cast<int64_t>(std::distance(begin, end));
 }
 
 }  // namespace detail
