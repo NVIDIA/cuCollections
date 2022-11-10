@@ -50,11 +50,12 @@ template <std::size_t block_size,
           typename pair_atomic_type>
 __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, int64_t size)
 {
-  int64_t idx = block_size * blockIdx.x + threadIdx.x;
+  int64_t const loop_stride = gridDim.x * block_size;
+  int64_t idx               = block_size * blockIdx.x + threadIdx.x;
   while (idx < size) {
     new (&slots[idx].first) atomic_key_type{k};
     new (&slots[idx].second) atomic_mapped_type{v};
-    idx += gridDim.x * block_size;
+    idx += loop_stride;
   }
 }
 
@@ -92,12 +93,13 @@ __global__ void insert(
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  int64_t idx = block_size * blockIdx.x + threadIdx.x;
+  int64_t const loop_stride = gridDim.x * block_size;
+  int64_t idx               = block_size * blockIdx.x + threadIdx.x;
 
   while (idx < n) {
     typename viewT::value_type const insert_pair{*(first + idx)};
     if (view.insert(insert_pair, hash, key_equal)) { thread_num_successes++; }
-    idx += gridDim.x * block_size;
+    idx += loop_stride;
   }
 
   // compute number of successfully inserted elements for each block
@@ -146,8 +148,9 @@ __global__ void insert(
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  auto tile   = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  int64_t idx = (block_size * blockIdx.x + threadIdx.x) / tile_size;
+  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  int64_t const loop_stride = gridDim.x * block_size / tile_size;
+  int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
   while (idx < n) {
     // force conversion to value_type
@@ -155,7 +158,7 @@ __global__ void insert(
     if (view.insert(tile, insert_pair, hash, key_equal) && tile.thread_rank() == 0) {
       thread_num_successes++;
     }
-    idx += (gridDim.x * block_size) / tile_size;
+    idx += loop_stride;
   }
 
   // compute number of successfully inserted elements for each block
@@ -177,11 +180,12 @@ __global__ void erase(
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  int64_t idx = block_size * blockIdx.x + threadIdx.x;
+  const int64_t loop_stride = gridDim.x * block_size;
+  int64_t idx               = block_size * blockIdx.x + threadIdx.x;
 
   while (idx < n) {
     if (view.erase(*(first + idx), hash, key_equal)) { thread_num_successes++; }
-    idx += gridDim.x * block_size;
+    idx += loop_stride;
   }
 
   // compute number of successfully inserted elements for each block
@@ -206,14 +210,15 @@ __global__ void erase(
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  auto tile   = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  int64_t idx = (block_size * blockIdx.x + threadIdx.x) / tile_size;
+  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  int64_t const loop_stride = gridDim.x * block_size / tile_size;
+  int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
   while (idx < n) {
     if (view.erase(tile, *(first + idx), hash, key_equal) and tile.thread_rank() == 0) {
       thread_num_successes++;
     }
-    idx += (gridDim.x * block_size) / tile_size;
+    idx += loop_stride;
   }
 
   // compute number of successfully inserted elements for each block
@@ -275,8 +280,9 @@ __global__ void insert_if_n(InputIt first,
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  auto tile   = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  int64_t idx = (block_size * blockIdx.x + threadIdx.x) / tile_size;
+  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  int64_t const loop_stride = gridDim.x * block_size / tile_size;
+  int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
@@ -285,7 +291,7 @@ __global__ void insert_if_n(InputIt first,
         thread_num_successes++;
       }
     }
-    idx += (gridDim.x * block_size) / tile_size;
+    idx += loop_stride;
   }
 
   // compute number of successfully inserted elements for each block
@@ -328,7 +334,8 @@ template <std::size_t block_size,
 __global__ void find(
   InputIt first, int64_t n, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
-  int64_t idx = block_size * blockIdx.x + threadIdx.x;
+  int64_t const loop_stride = gridDim.x * block_size;
+  int64_t idx               = block_size * blockIdx.x + threadIdx.x;
   __shared__ Value writeBuffer[block_size];
 
   while (idx < n) {
@@ -347,7 +354,7 @@ __global__ void find(
                                  : found->second.load(cuda::std::memory_order_relaxed);
     __syncthreads();
     *(output_begin + idx) = writeBuffer[threadIdx.x];
-    idx += gridDim.x * block_size;
+    idx += loop_stride;
   }
 }
 
@@ -389,8 +396,9 @@ template <std::size_t block_size,
 __global__ void find(
   InputIt first, int64_t n, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tile   = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  int64_t idx = (block_size * blockIdx.x + threadIdx.x) / tile_size;
+  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  int64_t const loop_stride = gridDim.x * block_size / tile_size;
+  int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
   __shared__ Value writeBuffer[block_size / tile_size];
 
   while (idx < n) {
@@ -411,7 +419,7 @@ __global__ void find(
     }
     __syncthreads();
     if (tile.thread_rank() == 0) { *(output_begin + idx) = writeBuffer[threadIdx.x / tile_size]; }
-    idx += (gridDim.x * block_size) / tile_size;
+    idx += loop_stride;
   }
 }
 
@@ -445,7 +453,8 @@ template <std::size_t block_size,
 __global__ void contains(
   InputIt first, int64_t n, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
-  int64_t idx = block_size * blockIdx.x + threadIdx.x;
+  int64_t const loop_stride = gridDim.x * block_size;
+  int64_t idx               = block_size * blockIdx.x + threadIdx.x;
   __shared__ bool writeBuffer[block_size];
 
   while (idx < n) {
@@ -461,7 +470,7 @@ __global__ void contains(
     writeBuffer[threadIdx.x] = view.contains(key, hash, key_equal);
     __syncthreads();
     *(output_begin + idx) = writeBuffer[threadIdx.x];
-    idx += gridDim.x * block_size;
+    idx += loop_stride;
   }
 }
 
@@ -501,8 +510,9 @@ template <std::size_t block_size,
 __global__ void contains(
   InputIt first, int64_t n, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tile   = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  int64_t idx = (block_size * blockIdx.x + threadIdx.x) / tile_size;
+  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  int64_t const loop_stride = gridDim.x * block_size / tile_size;
+  int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
   __shared__ bool writeBuffer[block_size / tile_size];
 
   while (idx < n) {
@@ -519,7 +529,7 @@ __global__ void contains(
     if (tile.thread_rank() == 0) { writeBuffer[threadIdx.x / tile_size] = found; }
     __syncthreads();
     if (tile.thread_rank() == 0) { *(output_begin + idx) = writeBuffer[threadIdx.x / tile_size]; }
-    idx += (gridDim.x * block_size) / tile_size;
+    idx += loop_stride;
   }
 }
 
