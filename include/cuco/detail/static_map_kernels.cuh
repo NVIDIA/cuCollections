@@ -15,6 +15,8 @@
  */
 #pragma once
 
+#include <thrust/distance.h>
+
 #include <cub/block/block_reduce.cuh>
 
 #include <cuda/std/atomic>
@@ -90,13 +92,13 @@ __global__ void insert(
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  auto tid = block_size * blockIdx.x + threadIdx.x;
-  auto it  = first + tid;
+  auto const n = thrust::distance(first, last);
+  auto tid     = block_size * blockIdx.x + threadIdx.x;
 
-  while (it < last) {
-    typename viewT::value_type const insert_pair{*it};
+  while (tid < n) {
+    typename viewT::value_type const insert_pair{*(first + tid)};
     if (view.insert(insert_pair, hash, key_equal)) { thread_num_successes++; }
-    it += gridDim.x * block_size;
+    tid += gridDim.x * block_size;
   }
 
   // compute number of successfully inserted elements for each block
@@ -144,17 +146,17 @@ __global__ void insert(
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid  = block_size * blockIdx.x + threadIdx.x;
-  auto it   = first + tid / tile_size;
+  auto const n = thrust::distance(first, last);
+  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto idx     = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
-  while (it < last) {
+  while (idx < n) {
     // force conversion to value_type
-    typename viewT::value_type const insert_pair{*it};
+    typename viewT::value_type const insert_pair{*(first + idx)};
     if (view.insert(tile, insert_pair, hash, key_equal) && tile.thread_rank() == 0) {
       thread_num_successes++;
     }
-    it += (gridDim.x * block_size) / tile_size;
+    idx += (gridDim.x * block_size) / tile_size;
   }
 
   // compute number of successfully inserted elements for each block
