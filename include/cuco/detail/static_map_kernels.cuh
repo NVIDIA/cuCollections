@@ -93,12 +93,12 @@ __global__ void insert(
   std::size_t thread_num_successes = 0;
 
   auto const n = thrust::distance(first, last);
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
+  auto idx     = block_size * blockIdx.x + threadIdx.x;
 
-  while (tid < n) {
-    typename viewT::value_type const insert_pair{*(first + tid)};
+  while (idx < n) {
+    typename viewT::value_type const insert_pair{*(first + idx)};
     if (view.insert(insert_pair, hash, key_equal)) { thread_num_successes++; }
-    tid += gridDim.x * block_size;
+    idx += gridDim.x * block_size;
   }
 
   // compute number of successfully inserted elements for each block
@@ -178,12 +178,12 @@ __global__ void erase(
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  auto tid = block_size * blockIdx.x + threadIdx.x;
-  auto it  = first + tid;
+  auto const n = thrust::distance(first, last);
+  auto idx     = block_size * blockIdx.x + threadIdx.x;
 
-  while (it < last) {
-    if (view.erase(*it, hash, key_equal)) { thread_num_successes++; }
-    it += gridDim.x * block_size;
+  while (idx < n) {
+    if (view.erase(*(first + idx), hash, key_equal)) { thread_num_successes++; }
+    idx += gridDim.x * block_size;
   }
 
   // compute number of successfully inserted elements for each block
@@ -208,15 +208,15 @@ __global__ void erase(
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid  = block_size * blockIdx.x + threadIdx.x;
-  auto it   = first + tid / tile_size;
+  auto const n = thrust::distance(first, last);
+  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto idx     = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
-  while (it < last) {
-    if (view.erase(tile, *it, hash, key_equal) and tile.thread_rank() == 0) {
+  while (idx < n) {
+    if (view.erase(tile, *(first + idx), hash, key_equal) and tile.thread_rank() == 0) {
       thread_num_successes++;
     }
-    it += (gridDim.x * block_size) / tile_size;
+    idx += (gridDim.x * block_size) / tile_size;
   }
 
   // compute number of successfully inserted elements for each block
@@ -278,17 +278,16 @@ __global__ void insert_if_n(InputIt first,
   std::size_t thread_num_successes = 0;
 
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid  = block_size * blockIdx.x + threadIdx.x;
-  auto i    = tid / tile_size;
+  auto idx  = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
-  while (i < n) {
-    if (pred(*(stencil + i))) {
-      typename viewT::value_type const insert_pair{*(first + i)};
+  while (idx < n) {
+    if (pred(*(stencil + idx))) {
+      typename viewT::value_type const insert_pair{*(first + idx)};
       if (view.insert(tile, insert_pair, hash, key_equal) and tile.thread_rank() == 0) {
         thread_num_successes++;
       }
     }
-    i += (gridDim.x * block_size) / tile_size;
+    idx += (gridDim.x * block_size) / tile_size;
   }
 
   // compute number of successfully inserted elements for each block
@@ -330,11 +329,11 @@ template <std::size_t block_size,
 __global__ void find(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid;
+  auto const n = thrust::distance(first, last);
+  auto key_idx = block_size * blockIdx.x + threadIdx.x;
   __shared__ Value writeBuffer[block_size];
 
-  while (first + key_idx < last) {
+  while (key_idx < n) {
     auto key   = *(first + key_idx);
     auto found = view.find(key, hash, key_equal);
 
@@ -391,12 +390,12 @@ template <std::size_t block_size,
 __global__ void find(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
+  auto const n = thrust::distance(first, last);
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid / tile_size;
-  __shared__ Value writeBuffer[block_size];
+  auto key_idx = (block_size * blockIdx.x + threadIdx.x) / tile_size;
+  __shared__ Value writeBuffer[block_size / tile_size];
 
-  while (first + key_idx < last) {
+  while (key_idx < n) {
     auto key   = *(first + key_idx);
     auto found = view.find(tile, key, hash, key_equal);
 
@@ -449,11 +448,11 @@ template <std::size_t block_size,
 __global__ void contains(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid;
+  auto const n = thrust::distance(first, last);
+  auto key_idx = block_size * blockIdx.x + threadIdx.x;
   __shared__ bool writeBuffer[block_size];
 
-  while (first + key_idx < last) {
+  while (key_idx < n) {
     auto key = *(first + key_idx);
 
     /*
@@ -505,12 +504,12 @@ template <std::size_t block_size,
 __global__ void contains(
   InputIt first, InputIt last, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
+  auto const n = thrust::distance(first, last);
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid / tile_size;
-  __shared__ bool writeBuffer[block_size];
+  auto key_idx = (block_size * blockIdx.x + threadIdx.x) / tile_size;
+  __shared__ bool writeBuffer[block_size / tile_size];
 
-  while (first + key_idx < last) {
+  while (key_idx < n) {
     auto key   = *(first + key_idx);
     auto found = view.contains(tile, key, hash, key_equal);
 
