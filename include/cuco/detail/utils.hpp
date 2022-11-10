@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,11 @@
  */
 
 #pragma once
+
+#include <cuco/detail/error.hpp>
+
+#include <iterator>
+#include <limits>
 
 namespace cuco {
 namespace detail {
@@ -47,6 +52,14 @@ auto get_grid_size(Kernel kernel, std::size_t block_size, std::size_t dynamic_sm
   cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
   grid_size *= num_sms;
   return grid_size;
+}
+
+template <typename Iterator>
+constexpr inline int64_t distance(Iterator begin, Iterator end)
+{
+  auto const res = std::distance(begin, end);
+  CUCO_RUNTIME_EXPECTS(res >= 0, "Potential overflow");
+  return static_cast<int64_t>(res);
 }
 
 }  // namespace detail
