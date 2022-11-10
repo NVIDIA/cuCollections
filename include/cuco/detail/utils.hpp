@@ -15,10 +15,7 @@
 
 #pragma once
 
-#include <cuco/detail/error.hpp>
-
 #include <iterator>
-#include <limits>
 
 namespace cuco {
 namespace detail {
