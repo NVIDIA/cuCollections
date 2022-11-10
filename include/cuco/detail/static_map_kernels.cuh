@@ -93,7 +93,7 @@ __global__ void insert(
   std::size_t thread_num_successes = 0;
 
   auto const n = thrust::distance(first, last);
-  auto idx     = block_size * blockIdx.x + threadIdx.x;
+  int64_t idx     = block_size * blockIdx.x + threadIdx.x;
 
   while (idx < n) {
     typename viewT::value_type const insert_pair{*(first + idx)};
@@ -148,7 +148,7 @@ __global__ void insert(
 
   auto const n = thrust::distance(first, last);
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto idx     = (block_size * blockIdx.x + threadIdx.x) / tile_size;
+  int64_t idx     = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
   while (idx < n) {
     // force conversion to value_type
@@ -179,7 +179,7 @@ __global__ void erase(
   std::size_t thread_num_successes = 0;
 
   auto const n = thrust::distance(first, last);
-  auto idx     = block_size * blockIdx.x + threadIdx.x;
+  int64_t idx     = block_size * blockIdx.x + threadIdx.x;
 
   while (idx < n) {
     if (view.erase(*(first + idx), hash, key_equal)) { thread_num_successes++; }
@@ -210,7 +210,7 @@ __global__ void erase(
 
   auto const n = thrust::distance(first, last);
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto idx     = (block_size * blockIdx.x + threadIdx.x) / tile_size;
+  int64_t idx     = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
   while (idx < n) {
     if (view.erase(tile, *(first + idx), hash, key_equal) and tile.thread_rank() == 0) {
@@ -278,7 +278,7 @@ __global__ void insert_if_n(InputIt first,
   std::size_t thread_num_successes = 0;
 
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto idx  = (block_size * blockIdx.x + threadIdx.x) / tile_size;
+  int64_t idx  = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
