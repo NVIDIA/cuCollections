@@ -382,7 +382,7 @@ class static_map {
   template <typename KeyOut, typename ValueOut>
   std::pair<KeyOut, ValueOut> retrieve_all(KeyOut keys_out,
                                            ValueOut values_out,
-                                           cudaStream_t stream = 0);
+                                           cudaStream_t stream = 0) const;
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.

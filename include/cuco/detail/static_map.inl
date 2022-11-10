@@ -92,7 +92,7 @@ template <typename InputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::insert(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const block_size = 128;
@@ -130,7 +130,7 @@ void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
                                                          KeyEqual key_equal,
                                                          cudaStream_t stream)
 {
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto constexpr block_size = 128;
@@ -161,7 +161,7 @@ void static_map<Key, Value, Scope, Allocator>::erase(
   CUCO_RUNTIME_EXPECTS(get_empty_key_sentinel() != get_erased_key_sentinel(),
                        "You must provide a unique erased key sentinel value at map construction.");
 
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto constexpr block_size = 128;
@@ -194,7 +194,7 @@ void static_map<Key, Value, Scope, Allocator>::find(InputIt first,
                                                     KeyEqual key_equal,
                                                     cudaStream_t stream)
 {
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const block_size = 128;
@@ -210,7 +210,7 @@ void static_map<Key, Value, Scope, Allocator>::find(InputIt first,
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename KeyOut, typename ValueOut>
 std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_all(
-  KeyOut keys_out, ValueOut values_out, cudaStream_t stream)
+  KeyOut keys_out, ValueOut values_out, cudaStream_t stream) const
 {
   static_assert(sizeof(pair_atomic_type) == sizeof(value_type));
   auto slots_begin = reinterpret_cast<value_type*>(slots_);
@@ -263,7 +263,7 @@ void static_map<Key, Value, Scope, Allocator>::contains(InputIt first,
                                                         KeyEqual key_equal,
                                                         cudaStream_t stream) const
 {
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const block_size = 128;
