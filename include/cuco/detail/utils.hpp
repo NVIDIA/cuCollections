@@ -16,6 +16,7 @@
 #pragma once
 
 #include <iterator>
+#include <type_traits>
 
 namespace cuco {
 namespace detail {
@@ -54,6 +55,9 @@ auto get_grid_size(Kernel kernel, std::size_t block_size, std::size_t dynamic_sm
 template <typename Iterator>
 constexpr inline int64_t distance(Iterator begin, Iterator end)
 {
+  using category = typename std::iterator_traits<Iterator>::iterator_category;
+  static_assert(std::is_base_of_v<std::random_access_iterator_tag, category>,
+                "Input iterator should be a random access iterator.");
   // `int64_t` instead of arch-dependant `long int`
   return static_cast<int64_t>(std::distance(begin, end));
 }
