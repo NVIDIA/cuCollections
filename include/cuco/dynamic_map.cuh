@@ -150,7 +150,11 @@ class dynamic_map {
               sentinel::empty_key<Key> empty_key_sentinel,
               sentinel::empty_value<Value> empty_value_sentinel,
               Allocator const& alloc = Allocator{},
+<<<<<<< HEAD
               cudaStream_t stream    = 0);
+=======
+              cudaStream_t stream = nullptr);
+>>>>>>> code cleanup
 
   /**
    * @brief Construct a dynamically-sized map with erase capability.
@@ -181,7 +185,7 @@ class dynamic_map {
               sentinel::empty_value<Value> empty_value_sentinel,
               sentinel::erased_key<Key> erased_key_sentinel,
               Allocator const& alloc = Allocator{},
-              cudaStream_t stream    = 0);
+              cudaStream_t stream = nullptr);
 
   /**
    * @brief Destroy the map and frees its contents
@@ -197,7 +201,7 @@ class dynamic_map {
    * @param n The number of key value pairs for which there must be space
    * @param stream Stream used for executing the kernels
    */
-  void reserve(std::size_t n, cudaStream_t stream = 0);
+  void reserve(std::size_t n, cudaStream_t stream = nullptr);
 
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
@@ -218,11 +222,8 @@ class dynamic_map {
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first,
-              InputIt last,
-              Hash hash           = Hash{},
-              KeyEqual key_equal  = KeyEqual{},
-              cudaStream_t stream = 0);
+  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{},
+              cudaStream_t stream = nullptr);
 
   /**
    * @brief Erases keys in the range `[first, last)`.
@@ -256,11 +257,8 @@ class dynamic_map {
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void erase(InputIt first,
-             InputIt last,
-             Hash hash           = Hash{},
-             KeyEqual key_equal  = KeyEqual{},
-             cudaStream_t stream = 0);
+  void erase(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{},
+             cudaStream_t stream = nullptr);
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -288,9 +286,9 @@ class dynamic_map {
   void find(InputIt first,
             InputIt last,
             OutputIt output_begin,
-            Hash hash           = Hash{},
-            KeyEqual key_equal  = KeyEqual{},
-            cudaStream_t stream = 0);
+            Hash hash          = Hash{},
+            KeyEqual key_equal = KeyEqual{},
+            cudaStream_t stream = nullptr);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -317,9 +315,9 @@ class dynamic_map {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                Hash hash           = Hash{},
-                KeyEqual key_equal  = KeyEqual{},
-                cudaStream_t stream = 0);
+                Hash hash          = Hash{},
+                KeyEqual key_equal = KeyEqual{},
+                cudaStream_t stream = nullptr);
 
   /**
    * @brief Gets the current number of elements in the map

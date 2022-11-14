@@ -305,13 +305,14 @@ __global__ void erase(InputIt first,
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   extern __shared__ unsigned long long submap_block_num_successes[];
 
+  auto block = cg::this_thread_block();
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid  = block_size * blockIdx.x + threadIdx.x;
+  auto tid  = block_size * block.group_index().x + block.thread_rank();
   auto it   = first + tid / tile_size;
 
   for (int i = threadIdx.x; i < num_submaps; i += block_size)
     submap_block_num_successes[i] = 0;
-  __syncthreads();
+  block.sync();
 
   while (it < last) {
     auto erased = false;
@@ -323,7 +324,7 @@ __global__ void erase(InputIt first,
     if (erased && tile.thread_rank() == 0) { atomicAdd(&submap_block_num_successes[i], 1); }
     it += (gridDim.x * blockDim.x) / tile_size;
   }
-  __syncthreads();
+  block.sync();
 
   for (int i = 0; i < num_submaps; ++i) {
     if (threadIdx.x == 0) {

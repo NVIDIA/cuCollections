@@ -63,6 +63,9 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(
     alloc_{alloc},
     counter_allocator_{alloc}
 {
+  CUCO_RUNTIME_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
+                       "The empty key sentinel and erased key sentinel cannot be the same value.");
+
   submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
     initial_capacity,
     sentinel::empty_key<Key>{empty_key_sentinel_},
@@ -124,6 +127,10 @@ template <typename InputIt, typename Hash, typename KeyEqual>
 void dynamic_map<Key, Value, Scope, Allocator>::insert(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
+  // TODO: memset an atomic variable is unsafe
+  CUCO_RUNTIME_EXPECTS(sizeof(std::size_t) == sizeof(atomic_ctr_type),
+                       "sizeof(atomic_ctr_type) must be equal to sizeof(std:size_t).");
+  
   std::size_t num_to_insert = std::distance(first, last);
 
   reserve(size_ + num_to_insert, stream);
@@ -136,8 +143,6 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(
     // only if we meet the minimum insert size.
 
     if (capacity_remaining >= min_insert_size_) {
-      // TODO: memset an atomic variable is unsafe
-      static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
       CUCO_CUDA_TRY(cudaMemset(submap_num_successes_[submap_idx], 0, sizeof(atomic_ctr_type)));
 
       auto n                = std::min(capacity_remaining, num_to_insert);
@@ -184,10 +189,10 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(
   auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
   // TODO: memset an atomic variable is unsafe
-  static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
+  CUCO_RUNTIME_EXPECTS(sizeof(std::size_t) == sizeof(atomic_ctr_type),
+                       "sizeof(atomic_ctr_type) must be equal to sizeof(std:size_t).");
 
   // zero out submap success counters
-  static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
   for (uint32_t i = 0; i < submaps_.size(); ++i) {
     CUCO_CUDA_TRY(cudaMemset(submap_num_successes_[i], 0, sizeof(atomic_ctr_type)));
   }
