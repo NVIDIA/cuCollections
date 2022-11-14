@@ -150,7 +150,7 @@ class dynamic_map {
               sentinel::empty_key<Key> empty_key_sentinel,
               sentinel::empty_value<Value> empty_value_sentinel,
               Allocator const& alloc = Allocator{},
-              cudaStream_t stream = nullptr);
+              cudaStream_t stream    = nullptr);
 
   /**
    * @brief Construct a dynamically-sized map with erase capability.
