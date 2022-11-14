@@ -71,7 +71,7 @@ __global__ void insert(InputIt first,
                        Hash hash,
                        KeyEqual key_equal)
 {
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
@@ -154,7 +154,7 @@ __global__ void insert(InputIt first,
                        Hash hash,
                        KeyEqual key_equal)
 {
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
@@ -230,7 +230,7 @@ __global__ void erase(InputIt first,
                       Hash hash,
                       KeyEqual key_equal)
 {
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
   extern __shared__ unsigned long long submap_block_num_successes[];
 
   auto tid = block_size * blockIdx.x + threadIdx.x;
@@ -302,7 +302,7 @@ __global__ void erase(InputIt first,
                       Hash hash,
                       KeyEqual key_equal)
 {
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
   extern __shared__ unsigned long long submap_block_num_successes[];
 
   auto block = cg::this_thread_block();
