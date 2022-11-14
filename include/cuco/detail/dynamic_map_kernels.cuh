@@ -306,9 +306,9 @@ __global__ void erase(InputIt first,
   extern __shared__ unsigned long long submap_block_num_successes[];
 
   auto block = cg::this_thread_block();
-  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid  = block_size * block.group_index().x + block.thread_rank();
-  auto it   = first + tid / tile_size;
+  auto tile  = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid   = block_size * block.group_index().x + block.thread_rank();
+  auto it    = first + tid / tile_size;
 
   for (int i = threadIdx.x; i < num_submaps; i += block_size)
     submap_block_num_successes[i] = 0;

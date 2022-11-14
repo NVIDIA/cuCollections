@@ -130,7 +130,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(
   // TODO: memset an atomic variable is unsafe
   CUCO_RUNTIME_EXPECTS(sizeof(std::size_t) == sizeof(atomic_ctr_type),
                        "sizeof(atomic_ctr_type) must be equal to sizeof(std:size_t).");
-  
+
   std::size_t num_to_insert = std::distance(first, last);
 
   reserve(size_ + num_to_insert, stream);

@@ -185,7 +185,7 @@ class dynamic_map {
               sentinel::empty_value<Value> empty_value_sentinel,
               sentinel::erased_key<Key> erased_key_sentinel,
               Allocator const& alloc = Allocator{},
-              cudaStream_t stream = nullptr);
+              cudaStream_t stream    = nullptr);
 
   /**
    * @brief Destroy the map and frees its contents
@@ -222,7 +222,10 @@ class dynamic_map {
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{},
+  void insert(InputIt first,
+              InputIt last,
+              Hash hash           = Hash{},
+              KeyEqual key_equal  = KeyEqual{},
               cudaStream_t stream = nullptr);
 
   /**
@@ -257,7 +260,10 @@ class dynamic_map {
   template <typename InputIt,
             typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void erase(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{},
+  void erase(InputIt first,
+             InputIt last,
+             Hash hash           = Hash{},
+             KeyEqual key_equal  = KeyEqual{},
              cudaStream_t stream = nullptr);
 
   /**
@@ -286,8 +292,8 @@ class dynamic_map {
   void find(InputIt first,
             InputIt last,
             OutputIt output_begin,
-            Hash hash          = Hash{},
-            KeyEqual key_equal = KeyEqual{},
+            Hash hash           = Hash{},
+            KeyEqual key_equal  = KeyEqual{},
             cudaStream_t stream = nullptr);
 
   /**
@@ -315,8 +321,8 @@ class dynamic_map {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                Hash hash          = Hash{},
-                KeyEqual key_equal = KeyEqual{},
+                Hash hash           = Hash{},
+                KeyEqual key_equal  = KeyEqual{},
                 cudaStream_t stream = nullptr);
 
   /**
