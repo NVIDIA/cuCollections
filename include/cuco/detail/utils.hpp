@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,9 @@
  */
 
 #pragma once
+
+#include <iterator>
+#include <type_traits>
 
 namespace cuco {
 namespace detail {
@@ -47,6 +50,16 @@ auto get_grid_size(Kernel kernel, std::size_t block_size, std::size_t dynamic_sm
   cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
   grid_size *= num_sms;
   return grid_size;
+}
+
+template <typename Iterator>
+constexpr inline int64_t distance(Iterator begin, Iterator end)
+{
+  using category = typename std::iterator_traits<Iterator>::iterator_category;
+  static_assert(std::is_base_of_v<std::random_access_iterator_tag, category>,
+                "Input iterator should be a random access iterator.");
+  // `int64_t` instead of arch-dependant `long int`
+  return static_cast<int64_t>(std::distance(begin, end));
 }
 
 }  // namespace detail
