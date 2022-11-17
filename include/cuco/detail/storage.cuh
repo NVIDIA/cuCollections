@@ -181,7 +181,8 @@ class aos_storage_ref {
    *
    * @param windows Pointer to the windows array
    * @param num_windows Number of slots
-   */
+   */ // TODO expect capacity instead of num_windows? Or just begin+end ptrs?
+   // TODO expect void* instead of window_type* and check alignment?
   explicit aos_storage_ref(window_type* windows, Extent const num_windows) noexcept
     : windows_{windows}, num_windows_{num_windows}
   {
@@ -191,21 +192,21 @@ class aos_storage_ref {
    * @brief Gets windows array.
    *
    * @return Pointer to the first window
-   */
+   */ // TODO should be named data()
   __device__ inline window_type* windows() noexcept { return windows_; }
 
   /**
    * @brief Gets windows array.
    *
    * @return Pointer to the first window
-   */
+   */ // TODO should be named data()
   __device__ inline window_type* windows() const noexcept { return windows_; }
 
   /**
    * @brief Gets the total number of slot windows in the current storage.
    *
    * @return The total number of slot windows
-   */
+   */ // TODO should be named windows()
   __device__ inline size_type num_windows() const noexcept { return num_windows_; }
 
   /**
@@ -223,11 +224,14 @@ class aos_storage_ref {
    */
   __device__ window_type window(size_type index) const noexcept { return *(windows_ + index); }
 
+  // TODO add T& operator[]
  private:
   // TODO: should those members be renamed as `elements_` and `size_`? We are using `capacity` to
   // denote the number of slots thus `capacity` is not an option here. `num_windows` is a bit
   // too-specific but brings much less confusion when using it. This class is dedicated to
   // general-purpose aos storage ref but for now it's more of Array of struct window.
+
+  // TODO use cuda::std::array<T, WindowSize>* data_
   window_type* windows_;     ///< Pointer to the windows array
   extent_type num_windows_;  ///< Size of the windows array
 };
