@@ -199,7 +199,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(
 
   auto const temp_storage_size = submaps_.size() * sizeof(unsigned long long);
 
-  detail::erase<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
+  detail::erase<block_size, tile_size>
     <<<grid_size, block_size, temp_storage_size, stream>>>(first,
                                                            first + num_keys,
                                                            submap_mutable_views_.data().get(),

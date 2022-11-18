@@ -41,6 +41,7 @@ namespace cg = cooperative_groups;
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
  * @param submap_views Array of `static_map::device_view` objects used to
@@ -122,6 +123,7 @@ __global__ void insert(InputIt first,
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
  * @param submap_views Array of `static_map::device_view` objects used to
@@ -196,14 +198,15 @@ __global__ void insert(InputIt first,
  * If the key `*(first + i)` exists in the map, its slot is erased and made available for future
    insertions.
  * Else, no effect.
+ *
  * @tparam block_size The size of the thread block
- * @tparam pair_type Type of the pairs contained in the map
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam mutableViewT Type of device view allowing modification of hash map storage
  * @tparam atomicT Type of atomic storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param submap_mutable_views Array of `static_map::mutable_device_view` objects used to
@@ -216,7 +219,6 @@ __global__ void insert(InputIt first,
  * @param key_equal The binary function to compare two keys for equality
  */
 template <uint32_t block_size,
-          typename pair_type,
           typename InputIt,
           typename mutableViewT,
           typename atomicT,
@@ -264,17 +266,18 @@ __global__ void erase(InputIt first,
  * @brief Erases the key/value pairs corresponding to all keys in the range `[first, last)`.
  *
  * If the key `*(first + i)` exists in the map, its slot is erased and made available for future
-   insertions.
+ * insertions.
  * Else, no effect.
+ *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform erase
- * @tparam pair_type Type of the pairs contained in the map
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
  * @tparam mutableViewT Type of device view allowing modification of hash map storage
  * @tparam atomicT Type of atomic storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param submap_mutable_views Array of `static_map::mutable_device_view` objects used to
@@ -288,7 +291,6 @@ __global__ void erase(InputIt first,
  */
 template <uint32_t block_size,
           uint32_t tile_size,
-          typename pair_type,
           typename InputIt,
           typename mutableViewT,
           typename atomicT,
@@ -339,6 +341,7 @@ __global__ void erase(InputIt first,
  *
  * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`.
  * Else, copies the empty value sentinel.
+ *
  * @tparam block_size The number of threads in the thread block
  * @tparam Value The mapped value type for the map
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -348,6 +351,7 @@ __global__ void erase(InputIt first,
  * @tparam viewT Type of `static_map` device view
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of values retrieved for each key
@@ -421,6 +425,7 @@ __global__ void find(InputIt first,
  * @tparam viewT Type of `static_map` device view
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of values retrieved for each key
@@ -493,6 +498,7 @@ __global__ void find(InputIt first,
  * @tparam viewT Type of `static_map` device view
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
@@ -559,6 +565,7 @@ __global__ void contains(InputIt first,
  * @tparam viewT Type of `static_map` device view
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key

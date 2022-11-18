@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <cooperative_groups.h>
-#include <cub/cub.cuh>
 #include <cuco/detail/dynamic_map_kernels.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/sentinel.cuh>
@@ -25,8 +23,6 @@
 #include <cuda/std/atomic>
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
-
-#include <cuda/std/atomic>
 
 #include <cstddef>
 #include <memory>
@@ -115,12 +111,6 @@ class dynamic_map {
 
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
-
-  template <typename T1, typename T2>
-  dynamic_map(std::size_t, T1, T2, Allocator const& = Allocator{}) = delete;
-
-  template <typename T1, typename T2, typename T3>
-  dynamic_map(std::size_t, T1, T2, T3, Allocator const& = Allocator{}) = delete;
 
   dynamic_map& operator=(dynamic_map const&) = delete;
   dynamic_map& operator=(dynamic_map&&) = delete;
@@ -244,6 +234,7 @@ class dynamic_map {
    * convertible to the map's `value_type`
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
+   *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param hash The unary function to apply to hash each key
@@ -274,6 +265,7 @@ class dynamic_map {
    * convertible to the map's `mapped_type`
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
+   *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of values retrieved for each key
@@ -303,6 +295,7 @@ class dynamic_map {
    * convertible to the map's `mapped_type`
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
+   *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key

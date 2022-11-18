@@ -167,8 +167,9 @@ __global__ void insert(
  * @brief Erases the key/value pairs corresponding to all keys in the range `[first, last)`.
  *
  * If the key `*(first + i)` exists in the map, its slot is erased and made available for future
-   insertions.
+ * insertions.
  * Else, no effect.
+ *
  * @tparam block_size The size of the thread block
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the map's `key_type`
@@ -176,6 +177,7 @@ __global__ void insert(
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param num_successes The number of successfully erased key/value pairs
@@ -216,8 +218,9 @@ __global__ void erase(
  * @brief Erases the key/value pairs corresponding to all keys in the range `[first, last)`.
  *
  * If the key `*(first + i)` exists in the map, its slot is erased and made available for future
-   insertions.
+ * insertions.
  * Else, no effect.
+ *
  * @tparam block_size The size of the thread block
  * @tparam tile_size The number of threads in the Cooperative Groups used to perform erase
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -226,6 +229,7 @@ __global__ void erase(
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param num_successes The number of successfully erased key/value pairs
