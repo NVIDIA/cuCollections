@@ -17,7 +17,7 @@
 #pragma once
 
 namespace cuco {
-namespace sentinel {
+inline namespace sentinel {
 /**
  * @brief A strong type wrapper used to denote the empty key sentinel.
  *
@@ -31,6 +31,14 @@ struct empty_key {
    * @param v The empty key sentinel value
    */
   __host__ __device__ explicit constexpr empty_key(T v) : value{v} {}
+
+  /**
+   * @brief Implicit conversion operator to the underlying value.
+   *
+   * @return Sentinel as underlying value type
+   */
+  __host__ __device__ constexpr operator T() const noexcept { return value; }
+
   T value;  ///< Empty key sentinel
 };
 
@@ -47,6 +55,14 @@ struct empty_value {
    * @param v The empty value sentinel value
    */
   __host__ __device__ explicit constexpr empty_value(T v) : value{v} {}
+
+  /**
+   * @brief Implicit conversion operator to the underlying value.
+   *
+   * @return Sentinel as underlying value type
+   */
+  __host__ __device__ constexpr operator T() const noexcept { return value; }
+
   T value;  ///< Empty value sentinel
 };
 
@@ -63,6 +79,14 @@ struct erased_key {
    * @param v The erased key sentinel value
    */
   __host__ __device__ explicit constexpr erased_key(T v) : value{v} {}
+
+  /**
+   * @brief Implicit conversion operator to the underlying value.
+   *
+   * @return Sentinel as underlying value type
+   */
+  __host__ __device__ constexpr operator T() const noexcept { return value; }
+
   T value;  ///< Erased key sentinel
 };
 
