@@ -185,12 +185,31 @@ class static_set {
    */
   key_type empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
+  // TODO rename to ref()
   /**
    * @brief Get device reference.
    *
+   * @tparam Functions Set of `cuco::functions` to be provided by the reference
+   *
    * @return Device reference of the current static_set
    */
+  template <typename... Functions>
   auto reference() const noexcept;
+
+  /**
+   * @brief Get device reference (alias definition).
+   *
+   * @tparam Functions Set of `cuco::functions` to be provided by the reference
+   *
+   * @return Device reference of the current static_set
+   */
+  template <typename... Functions>
+  auto reference_with_functions() const noexcept
+  {
+    return reference<Functions...>();
+  }
+
+  // TODO reference conversion operator
 
  private:
   size_type size_;                      ///< Number of entries

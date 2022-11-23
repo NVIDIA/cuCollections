@@ -18,7 +18,8 @@
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/static_set/kernels.cuh>
 #include <cuco/detail/tuning.cuh>  // TODO .hpp?
-#include <cuco/reference.cuh>
+#include <cuco/function.hpp>
+#include <cuco/static_set_ref.cuh>
 
 #include <cstddef>
 
@@ -70,7 +71,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 
   detail::insert<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, first + num_keys, reference());
+      first, first + num_keys, reference_with_functions<function::insert>());
 }
 
 template <class Key,
@@ -93,7 +94,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 
   detail::contains<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, first + num_keys, output_begin, reference());
+      first, first + num_keys, output_begin, reference_with_functions<function::contains>());
 }
 
 template <class Key,
@@ -103,12 +104,20 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename... Functions>
 auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::reference()
   const noexcept
 {
-  return cuco::experimental::
-    static_set_ref<key_type, Scope, key_equal, probing_scheme_type, window_reference_type>{
-      empty_key_sentinel_, predicate_, probing_scheme_, window_storage_.reference()};
+  return cuco::experimental::static_set_ref<key_type,
+                                            Scope,
+                                            key_equal,
+                                            probing_scheme_type,
+                                            window_reference_type,
+                                            Functions...>{
+    cuco::sentinel::empty_key<Key>(empty_key_sentinel_),
+    predicate_,
+    probing_scheme_,
+    window_storage_.reference()};
 }
 }  // namespace experimental
 }  // namespace cuco
