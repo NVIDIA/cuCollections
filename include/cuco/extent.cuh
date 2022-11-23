@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cstddef>
+
 namespace cuco {
 namespace experimental {
 static constexpr std::size_t dynamic_extent = static_cast<std::size_t>(-1);
