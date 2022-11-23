@@ -18,9 +18,9 @@
 
 #include <cuco/allocator.hpp>
 #include <cuco/detail/common_kernels.cuh>
-#include <cuco/detail/defaults.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
+#include <cuco/detail/tuning.cuh>
 #include <cuco/extent.cuh>
 
 #include <cuda/atomic>

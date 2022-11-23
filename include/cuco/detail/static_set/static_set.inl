@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-#include <cuco/detail/defaults.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/static_set/kernels.cuh>
+#include <cuco/detail/tuning.cuh>  // TODO .hpp?
 #include <cuco/reference.cuh>
 
 #include <cstddef>
