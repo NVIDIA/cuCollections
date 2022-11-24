@@ -41,7 +41,7 @@ template <typename Reference,
           typename ProbingScheme,
           typename StorageRef,
           typename... Functions>
-class open_address_ref {
+class open_address_container_ref {
  public:
   using ref_type            = Reference;                       ///< Type of derived reference type
   using key_type            = Key;                             ///< Key Type
@@ -84,17 +84,17 @@ class open_address_ref {
 
  protected:
   /**
-   * @brief Constructs open_address_ref.
+   * @brief Constructs open_address_container_ref.
    *
    * @param empty_key_sentinel Sentinel indicating empty key
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
    * @param storage_ref Non-owning ref of slot storage
    */
-  open_address_ref(cuco::sentinel::empty_key<Key> empty_key_sentinel,
-                   KeyEqual const& predicate,
-                   ProbingScheme const& probing_scheme,
-                   StorageRef storage_ref) noexcept
+  open_address_container_ref(cuco::sentinel::empty_key<Key> empty_key_sentinel,
+                             KeyEqual const& predicate,
+                             ProbingScheme const& probing_scheme,
+                             StorageRef storage_ref) noexcept
     : empty_key_sentinel_{empty_key_sentinel},
       predicate_{empty_key_sentinel_.value, predicate},
       probing_scheme_{probing_scheme},
@@ -134,10 +134,16 @@ template <typename Reference,
           typename ProbingScheme,
           typename StorageRef,
           typename... Functions>
-class function_impl<
-  function::insert,
-  open_address_ref<Reference, Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>> {
-  using base_type  = open_address_ref<Reference, Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+class function_impl<function::insert,
+                    open_address_container_ref<Reference,
+                                               Key,
+                                               Scope,
+                                               KeyEqual,
+                                               ProbingScheme,
+                                               StorageRef,
+                                               Functions...>> {
+  using base_type =
+    open_address_container_ref<Reference, Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
   using ref_type   = Reference;
   using key_type   = typename base_type::key_type;
   using value_type = typename base_type::value_type;
@@ -293,10 +299,16 @@ template <typename Reference,
           typename ProbingScheme,
           typename StorageRef,
           typename... Functions>
-class function_impl<
-  function::contains,
-  open_address_ref<Reference, Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>> {
-  using base_type  = open_address_ref<Reference, Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+class function_impl<function::contains,
+                    open_address_container_ref<Reference,
+                                               Key,
+                                               Scope,
+                                               KeyEqual,
+                                               ProbingScheme,
+                                               StorageRef,
+                                               Functions...>> {
+  using base_type =
+    open_address_container_ref<Reference, Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
   using ref_type   = Reference;
   using key_type   = typename base_type::key_type;
   using value_type = typename base_type::value_type;

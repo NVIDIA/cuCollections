@@ -17,7 +17,7 @@
 #pragma once
 
 #include <cuco/detail/equal_wrapper.cuh>
-#include <cuco/detail/open_address_ref.cuh>
+#include <cuco/detail/open_address_container/open_address_container_ref.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/function.hpp>
 #include <cuco/sentinel.cuh>  // TODO .hpp
@@ -32,7 +32,7 @@ namespace cuco {
 namespace experimental {
 namespace detail {
 
-// use `insert` from `open_address_ref` base class
+// use `insert` from `open_address_container_ref` base class
 template <typename Key,
           cuda::thread_scope Scope,
           typename KeyEqual,
@@ -43,7 +43,7 @@ class function_impl<function::insert,
                     static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>>
   : public function_impl<
       function::insert,
-      open_address_ref<
+      open_address_container_ref<
         static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>,
         Key,
         Scope,
@@ -53,7 +53,7 @@ class function_impl<function::insert,
         Functions...>> {
 };
 
-// use `contains` from `open_address_ref` base class
+// use `contains` from `open_address_container_ref` base class
 template <typename Key,
           cuda::thread_scope Scope,
           typename KeyEqual,
@@ -64,7 +64,7 @@ class function_impl<function::contains,
                     static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>>
   : public function_impl<
       function::contains,
-      open_address_ref<
+      open_address_container_ref<
         static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>,
         Key,
         Scope,

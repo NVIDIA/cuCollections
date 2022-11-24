@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/open_address_ref.cuh>
+#include <cuco/detail/open_address_container/open_address_container_ref.cuh>
 #include <cuco/function.hpp>
 #include <cuco/sentinel.cuh>  // TODO .hpp
 
@@ -35,7 +35,7 @@ template <typename Key,
           typename StorageRef,
           typename... Functions>
 class static_set_ref
-  : public detail::open_address_ref<
+  : public detail::open_address_container_ref<
       static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>,
       Key,
       Scope,
@@ -46,7 +46,7 @@ class static_set_ref
     public detail::function_impl<
       Functions,
       static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>>... {
-  using base_type = detail::open_address_ref<
+  using base_type = detail::open_address_container_ref<
     static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>,
     Key,
     Scope,
