@@ -126,7 +126,7 @@ class static_set_ref
   operator static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewFunctions...>() const
   {
     return with_functions<NewFunctions...>();
-  }  ///< Slot storage ref
+  }
 
   // Mixins need to be friends with this class in order to access private members
   template <typename F, typename Ref>
