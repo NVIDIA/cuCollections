@@ -91,10 +91,10 @@ class open_address_container_ref {
    * @param probing_scheme Probing scheme
    * @param storage_ref Non-owning ref of slot storage
    */
-  open_address_container_ref(cuco::sentinel::empty_key<Key> empty_key_sentinel,
-                             KeyEqual const& predicate,
-                             ProbingScheme const& probing_scheme,
-                             StorageRef storage_ref) noexcept
+  __host__ __device__ open_address_container_ref(cuco::sentinel::empty_key<Key> empty_key_sentinel,
+                                                 KeyEqual const& predicate,
+                                                 ProbingScheme const& probing_scheme,
+                                                 StorageRef storage_ref) noexcept
     : empty_key_sentinel_{empty_key_sentinel},
       predicate_{empty_key_sentinel_.value, predicate},
       probing_scheme_{probing_scheme},
@@ -109,7 +109,7 @@ class open_address_container_ref {
    *
    * @return The key
    */
-  inline constexpr auto extract_key(value_type const& value) const noexcept
+  __device__ inline constexpr auto extract_key(value_type const& value) const noexcept
   {
     if constexpr (cuco::detail::is_std_pair_like<value_type>::value) { return std::get<0>(value); }
     if constexpr (cuco::detail::is_thrust_pair_like<value_type>::value) {
@@ -194,7 +194,7 @@ class function_impl<function::insert,
    * @param value The element to insert
    * @return True if the given element is successfully inserted
    */
-  __device__ inline bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
+  __device__ inline bool insert(cooperative_groups::thread_block_tile<cg_size> group,
                                 value_type const& value) noexcept
   {
     auto& ref_        = static_cast<ref_type&>(*this);

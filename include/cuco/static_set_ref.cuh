@@ -80,10 +80,10 @@ class static_set_ref
    * @param probing_scheme Probing scheme
    * @param storage_ref Non-owning ref of slot storage
    */
-  static_set_ref(cuco::sentinel::empty_key<Key> empty_key_sentinel,
-                 KeyEqual const& predicate,
-                 ProbingScheme const& probing_scheme,
-                 StorageRef storage_ref) noexcept
+  __host__ __device__ static_set_ref(cuco::sentinel::empty_key<Key> empty_key_sentinel,
+                                     KeyEqual const& predicate,
+                                     ProbingScheme const& probing_scheme,
+                                     StorageRef storage_ref) noexcept
     : base_type{empty_key_sentinel, predicate, probing_scheme, storage_ref}
   {
   }
@@ -113,7 +113,10 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ auto with_functions() const
   {
     return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewFunctions...>(
-      this->empty_key_sentinel_, this->predicate_, this->probing_scheme_, this->storage_ref_);
+      this->empty_key_sentinel_,
+      this->predicate_.equal_,
+      this->probing_scheme_,
+      this->storage_ref_);
   }
 
   /**

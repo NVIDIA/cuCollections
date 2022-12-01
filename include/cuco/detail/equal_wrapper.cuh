@@ -47,7 +47,10 @@ struct equal_wrapper {
    * @param sentinel Sentinel value
    * @param equal Equality binary callable
    */
-  equal_wrapper(T const sentinel, Equal const& equal) : sentinel_{sentinel}, equal_{equal} {}
+  __host__ __device__ equal_wrapper(T const sentinel, Equal const& equal)
+    : sentinel_{sentinel}, equal_{equal}
+  {
+  }
 
   /**
    * @brief Equality operator.
