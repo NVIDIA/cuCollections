@@ -108,12 +108,7 @@ template <typename... Functions>
 auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::reference()
   const noexcept
 {
-  return cuco::experimental::static_set_ref<key_type,
-                                            Scope,
-                                            key_equal,
-                                            probing_scheme_type,
-                                            window_reference_type,
-                                            Functions...>{
+  return typename reference_type::make_with_functions<Functions...>{
     cuco::sentinel::empty_key<Key>(empty_key_sentinel_),
     predicate_,
     probing_scheme_,

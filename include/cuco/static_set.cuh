@@ -24,6 +24,7 @@
 #include <cuco/extent.cuh>
 #include <cuco/probing_scheme.cuh>
 #include <cuco/sentinel.cuh>
+#include <cuco/static_set_ref.cuh>
 #include <cuco/traits.hpp>
 
 #include <thrust/functional.h>
@@ -94,9 +95,15 @@ class static_set {
   using key_equal           = KeyEqual;                          ///< Key equality comparator type
   using allocator_type      = Allocator;                         ///< Allocator type
   using window_storage_type = Storage;                           ///< Window storage type
-  /// Window storage reference type
-  using window_reference_type = typename window_storage_type::reference_type;
-  using probing_scheme_type   = ProbingScheme;  ///< Probe scheme type
+  using window_reference_type =
+    typename window_storage_type::reference_type;  ///< Window storage reference type
+  using probing_scheme_type = ProbingScheme;       ///< Probe scheme type
+  using reference_type =
+    cuco::experimental::static_set_ref<key_type,
+                                       Scope,
+                                       key_equal,
+                                       probing_scheme_type,
+                                       window_reference_type>;  ///< Container reference type
 
   static constexpr int cg_size = probing_scheme_type::cg_size;  ///< CG size used to for probing
   static constexpr int window_size =
