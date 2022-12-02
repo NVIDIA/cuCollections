@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/open_address_container/open_address_container_ref.cuh>
+#include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/function.hpp>
 #include <cuco/sentinel.cuh>  // TODO .hpp
 
@@ -35,42 +35,25 @@ template <typename Key,
           typename StorageRef,
           typename... Functions>
 class static_set_ref
-  : public detail::open_address_container_ref<
-      static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>,
-      Key,
-      Scope,
-      KeyEqual,
-      ProbingScheme,
-      StorageRef,
-      Functions...>,
-    public detail::function_impl<
+  : public detail::function_impl<
       Functions,
       static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>>... {
-  using base_type = detail::open_address_container_ref<
-    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>,
-    Key,
-    Scope,
-    KeyEqual,
-    ProbingScheme,
-    StorageRef,
-    Functions...>;  // no Functions...?
  public:
-  using key_type            = typename base_type::key_type;             ///< Key Type
-  using probing_scheme_type = typename base_type::probing_scheme_type;  ///< Type of probing scheme
-  using storage_ref_type    = typename base_type::storage_ref_type;  ///< Type of slot storage ref
-  using window_type         = typename base_type::window_type;  ///< Probing scheme element type
-  using value_type          = typename base_type::value_type;   ///< Probing scheme element type
-  using size_type           = typename base_type::size_type;    ///< Probing scheme size type
-  using key_equal = typename base_type::key_equal;  ///< Type of key equality binary callable
+  using key_type            = Key;                             ///< Key Type
+  using probing_scheme_type = ProbingScheme;                   ///< Type of probing scheme
+  using storage_ref_type    = StorageRef;                      ///< Type of slot storage ref
+  using window_type = typename storage_ref_type::window_type;  ///< Probing scheme element type
+  using value_type  = typename storage_ref_type::value_type;   ///< Probing scheme element type
+  using size_type   = typename storage_ref_type::size_type;    ///< Probing scheme size type
+  using key_equal =
+    detail::equal_wrapper<value_type, KeyEqual>;  ///< Type of key equality binary callable
 
-  /// CG size
-  static constexpr int cg_size = probing_scheme_type::cg_size;
-  /// Number of elements handled per window
-  static constexpr int window_size = storage_ref_type::window_size;
-
+  static constexpr int cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
+  static constexpr int window_size =
+    storage_ref_type::window_size;                    ///< Number of elements handled per window
   static constexpr cuda::thread_scope scope = Scope;  ///< Thread scope
 
-  // TODO default/copy/move ctor
+  // TODO default ctor?
 
   /**
    * @brief Constructs static_set_ref.
@@ -84,8 +67,31 @@ class static_set_ref
                                      KeyEqual const& predicate,
                                      ProbingScheme const& probing_scheme,
                                      StorageRef storage_ref) noexcept
-    : base_type{empty_key_sentinel, predicate, probing_scheme, storage_ref}
+    : empty_key_sentinel_{empty_key_sentinel},
+      predicate_{empty_key_sentinel_.value, predicate},
+      probing_scheme_{probing_scheme},
+      storage_ref_{storage_ref}
   {
+  }
+
+  /**
+   * @brief Gets the maximum number of elements the hash map can hold.
+   *
+   * @return The maximum number of elements the hash map can hold
+   */
+  [[nodiscard]] __host__ __device__ inline size_type capacity() const noexcept
+  {
+    return storage_ref_.capacity();
+  }
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty key slot.
+   *
+   * @return The sentinel value used to represent an empty key slot
+   */
+  [[nodiscard]] __host__ __device__ inline key_type empty_key_sentinel() const noexcept
+  {
+    return empty_key_sentinel_;
   }
 
   /**
@@ -94,20 +100,21 @@ class static_set_ref
    * @tparam NewFunctions List of `cuco::function::*` types
    */
   template <typename... NewFunctions>
-  using make_with_functions = static_set_ref<Key,
-                                             Scope,
-                                             KeyEqual,
-                                             ProbingScheme,
-                                             StorageRef,
-                                             NewFunctions...>;  //< Type alias for the current ref
-                                                                // type with a new set of functions
+  using make_with_functions =
+    static_set_ref<Key,
+                   Scope,
+                   KeyEqual,
+                   ProbingScheme,
+                   StorageRef,
+                   NewFunctions...>;  ///< Type alias for the current ref type with a new set of
+                                      ///< functions
 
   /**
    * @brief Create a reference with new functions from the current object.
    *
    * @tparam NewFunctions List of `cuco::function::*` types
    *
-   * @return copy of `this` with `newFunctions`
+   * @return copy of `*this` with `newFunctions`
    */
   template <typename... NewFunctions>
   [[nodiscard]] __host__ __device__ auto with_functions() const
@@ -130,6 +137,12 @@ class static_set_ref
   {
     return with_functions<NewFunctions...>();
   }
+
+ private:
+  cuco::sentinel::empty_key<key_type> empty_key_sentinel_;  ///< Empty key sentinel
+  key_equal predicate_;                                     ///< Key equality binary callable
+  probing_scheme_type probing_scheme_;                      ///< Probing scheme
+  storage_ref_type storage_ref_;                            ///< Slot storage ref
 
   // Mixins need to be friends with this class in order to access private members
   template <typename F, typename Ref>
