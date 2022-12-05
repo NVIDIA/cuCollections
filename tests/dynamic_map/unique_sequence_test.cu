@@ -39,7 +39,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
 {
   constexpr std::size_t num_keys{50'000'000};
   cuco::dynamic_map<Key, Value> map{
-    30'000'000, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
+    30'000'000, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);

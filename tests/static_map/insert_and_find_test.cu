@@ -59,8 +59,8 @@ TEMPLATE_TEST_CASE_SIG("Parallel insert-or-update",
                        (int64_t, int32_t),
                        (int64_t, int64_t))
 {
-  cuco::sentinel::empty_key<Key> empty_key_sentinel{-1};
-  cuco::sentinel::empty_value<Value> empty_value_sentinel{-1};
+  cuco::empty_key<Key> empty_key_sentinel{-1};
+  cuco::empty_value<Value> empty_value_sentinel{-1};
   cuco::static_map<Key, Value> m(10 * Iters, empty_key_sentinel, empty_value_sentinel);
 
   static constexpr int Blocks  = 1024;
