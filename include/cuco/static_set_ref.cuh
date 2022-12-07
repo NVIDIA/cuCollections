@@ -17,7 +17,7 @@
 #pragma once
 
 #include <cuco/detail/equal_wrapper.cuh>
-#include <cuco/function.hpp>
+#include <cuco/operator.hpp>
 #include <cuco/sentinel.cuh>  // TODO .hpp
 
 #include <cuda/std/atomic>
@@ -33,11 +33,11 @@ template <typename Key,
           typename KeyEqual,
           typename ProbingScheme,
           typename StorageRef,
-          typename... Functions>
+          typename... Operators>
 class static_set_ref
-  : public detail::function_impl<
-      Functions,
-      static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>>... {
+  : public detail::operator_impl<
+      Operators,
+      static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
  public:
   using key_type            = Key;                             ///< Key Type
   using probing_scheme_type = ProbingScheme;                   ///< Type of probing scheme
@@ -95,31 +95,30 @@ class static_set_ref
   }
 
   /**
-   * @brief Create a reference with functions.
+   * @brief Create a reference with operators.
    *
-   * @tparam NewFunctions List of `cuco::function::*` types
+   * @tparam NewOperators List of `cuco::op::*` types
    */
-  template <typename... NewFunctions>
-  using make_with_functions =
-    static_set_ref<Key,
-                   Scope,
-                   KeyEqual,
-                   ProbingScheme,
-                   StorageRef,
-                   NewFunctions...>;  ///< Type alias for the current ref type with a new set of
-                                      ///< functions
+  template <typename... NewOperators>
+  using make_with = static_set_ref<Key,
+                                   Scope,
+                                   KeyEqual,
+                                   ProbingScheme,
+                                   StorageRef,
+                                   NewOperators...>;  ///< Type alias for the current ref type with
+                                                      ///< a new set of operators
 
   /**
-   * @brief Create a reference with new functions from the current object.
+   * @brief Create a reference with new operators from the current object.
    *
-   * @tparam NewFunctions List of `cuco::function::*` types
+   * @tparam NewOperators List of `cuco::operators::*` types
    *
-   * @return copy of `*this` with `newFunctions`
+   * @return copy of `*this` with `newOperators`
    */
-  template <typename... NewFunctions>
-  [[nodiscard]] __host__ __device__ auto with_functions() const
+  template <typename... NewOperators>
+  [[nodiscard]] __host__ __device__ auto with() const
   {
-    return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewFunctions...>(
+    return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>(
       this->empty_key_sentinel_,
       this->predicate_.equal_,
       this->probing_scheme_,
@@ -129,13 +128,13 @@ class static_set_ref
   /**
    * @brief Conversion operator for reference family.
    *
-   * @tparam NewFunctions List of `cuco::function::*` types
+   * @tparam NewOperators List of `cuco::op::*` types
    */
-  template <typename... NewFunctions>
+  template <typename... NewOperators>
   [[nodiscard]] __host__ __device__
-  operator static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewFunctions...>() const
+  operator static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>() const
   {
-    return with_functions<NewFunctions...>();
+    return with<NewOperators...>();
   }
 
  private:
@@ -145,8 +144,8 @@ class static_set_ref
   storage_ref_type storage_ref_;                            ///< Slot storage ref
 
   // Mixins need to be friends with this class in order to access private members
-  template <typename F, typename Ref>
-  friend class detail::function_impl;
+  template <typename Op, typename Ref>
+  friend class detail::operator_impl;
 };
 
 }  // namespace experimental

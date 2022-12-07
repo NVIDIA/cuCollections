@@ -96,9 +96,9 @@ class static_set {
   using allocator_type      = Allocator;                         ///< Allocator type
   using window_storage_type = Storage;                           ///< Window storage type
   using window_reference_type =
-    typename window_storage_type::reference_type;  ///< Window storage reference type
-  using probing_scheme_type = ProbingScheme;       ///< Probe scheme type
-  using reference_type =
+    typename window_storage_type::ref_type;   ///< Window storage reference type
+  using probing_scheme_type = ProbingScheme;  ///< Probe scheme type
+  using ref_type =
     cuco::experimental::static_set_ref<key_type,
                                        Scope,
                                        key_equal,
@@ -192,31 +192,28 @@ class static_set {
    */
   key_type empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
-  // TODO rename to ref()
   /**
    * @brief Get device reference.
    *
-   * @tparam Functions Set of `cuco::functions` to be provided by the reference
+   * @tparam Operators Set of `cuco::op` to be provided by the reference
    *
-   * @return Device reference of the current static_set
+   * @return Device reference of the current `static_set` object
    */
-  template <typename... Functions>
-  auto reference() const noexcept;
+  template <typename... Operators>
+  auto ref() const noexcept;
 
   /**
    * @brief Get device reference (alias definition).
    *
-   * @tparam Functions Set of `cuco::functions` to be provided by the reference
+   * @tparam Operators Set of `cuco::op` to be provided by the reference
    *
-   * @return Device reference of the current static_set
+   * @return Device reference of the current `static_set` object
    */
-  template <typename... Functions>
-  auto reference_with_functions() const noexcept
+  template <typename... Operators>
+  auto ref_with() const noexcept
   {
-    return reference<Functions...>();
+    return ref<Operators...>();
   }
-
-  // TODO reference conversion operator
 
  private:
   size_type size_;                      ///< Number of entries

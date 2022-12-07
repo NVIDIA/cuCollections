@@ -18,13 +18,13 @@
 
 namespace cuco {
 namespace experimental {
-inline namespace function {
+inline namespace op {
 
 class insert;
 class contains;
 
-}  // namespace function
+}  // namespace op
 }  // namespace experimental
 }  // namespace cuco
 
-#include <cuco/detail/function.inl>
+#include <cuco/detail/operator.inl>

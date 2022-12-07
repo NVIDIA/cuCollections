@@ -18,7 +18,7 @@
 
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/detail/pair.cuh>
-#include <cuco/function.hpp>
+#include <cuco/operator.hpp>
 #include <cuco/sentinel.cuh>  // TODO .hpp
 
 #include <thrust/distance.h>
@@ -36,11 +36,11 @@ template <typename Key,
           typename KeyEqual,
           typename ProbingScheme,
           typename StorageRef,
-          typename... Functions>
-class function_impl<function::insert,
-                    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>> {
+          typename... Operators>
+class operator_impl<op::insert,
+                    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
   using base_type  = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
-  using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>;
+  using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
   using key_type   = typename base_type::key_type;
   using value_type = typename base_type::value_type;
 
@@ -142,7 +142,7 @@ class function_impl<function::insert,
    * @brief Attempts to insert an element into a slot.
    *
    * @note Dispatches the correct implementation depending on the container
-   * type and presence of other function mixins.
+   * type and presence of other operator mixins.
    *
    * @param slot Pointer to the slot in memory
    * @param value Element to insert
@@ -189,11 +189,11 @@ template <typename Key,
           typename KeyEqual,
           typename ProbingScheme,
           typename StorageRef,
-          typename... Functions>
-class function_impl<function::contains,
-                    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>> {
+          typename... Operators>
+class operator_impl<op::contains,
+                    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
   using base_type  = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
-  using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Functions...>;
+  using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
   using key_type   = typename base_type::key_type;
   using value_type = typename base_type::value_type;
 

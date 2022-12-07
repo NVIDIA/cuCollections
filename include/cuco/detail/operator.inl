@@ -23,37 +23,37 @@ namespace experimental {
 namespace detail {
 
 /**
- * @brief CRTP mixin which augments a given `Reference` with a `Function`.
+ * @brief CRTP mixin which augments a given `Reference` with an `Operator`.
  *
- * @tparam Function Function type, i.e., `cuco::function::*`
+ * @tparam Operator Operator type, i.e., `cuco::op::*`
  * @tparam Reference The reference type.
  *
  * @note This primary template should never be instantiated.
  */
-template <typename Function, typename Reference>
-class function_impl {
+template <typename Operator, typename Reference>
+class operator_impl {
   // type-dependent dummy to make diagnostics a bit nicer
   template <typename, typename>
-  static constexpr bool supports_function()
+  static constexpr bool supports_operator()
   {
     return false;
   }
-  static_assert(supports_function<Function, Reference>(),
-                "Function type is not supported by reference type.");
+  static_assert(supports_operator<Operator, Reference>(),
+                "Operator type is not supported by reference type.");
 };
 
 /**
- * @brief Checks if the given `Function` is contained in a list of `Functions.
+ * @brief Checks if the given `Operator` is contained in a list of `Operators`.
  *
- * @tparam Function Function type, i.e., `cuco::function::*`
- * @tparam Functions List of functions to search in
+ * @tparam Operator Operator type, i.e., `cuco::op::*`
+ * @tparam Operators List of operators to search in
  *
- * @return `true` iff `Function` is contained in `Functions`, `false` otherwise.
+ * @return `true` iff `Operator` is contained in `Operators`, `false` otherwise.
  */
-template <typename Function, typename... Functions>
-static constexpr bool has_function()
+template <typename Operator, typename... Operators>
+static constexpr bool has_operator()
 {
-  return ((std::is_same_v<Functions, Function>) || ...);
+  return ((std::is_same_v<Operators, Operator>) || ...);
 }
 
 }  // namespace detail

@@ -264,8 +264,7 @@ class aos_storage : public storage_base<Extent> {
                                                                            ///< allocator to
                                                                            ///< (de)allocate windows
   using window_deleter_type = custom_deleter<allocator_type>;  ///< Type of window deleter
-  using reference_type =
-    aos_storage_ref<window_size, window_type, extent_type>;  ///< Storage ref type
+  using ref_type = aos_storage_ref<window_size, window_type, extent_type>;  ///< Storage ref type
 
   /**
    * @brief Constructor of AoS storage.
@@ -329,10 +328,7 @@ class aos_storage : public storage_base<Extent> {
    *
    * @return Reference of window storage
    */
-  reference_type reference() const noexcept
-  {
-    return reference_type{this->windows(), this->num_windows()};
-  }
+  ref_type ref() const noexcept { return ref_type{this->windows(), this->num_windows()}; }
 
   /**
    * @brief Initializes each slot in the flat storage to contain `key`.

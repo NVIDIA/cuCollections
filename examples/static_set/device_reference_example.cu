@@ -34,8 +34,8 @@ __global__ void custom_cooperative_insert(SetRef raw_set, InputIterator keys, st
 
   constexpr auto cg_size = SetRef::cg_size;
 
-  // we haven't spcified any functions yet so we make a copy with the desired functionality
-  auto set = raw_set.template with_functions<cuco::experimental::insert>();
+  // we haven't spcified any operatorss yet so we make a copy with the desired functionality
+  auto set = raw_set.template with<cuco::experimental::insert>();
 
   auto tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
 
@@ -96,16 +96,15 @@ int main(void)
   set.insert(keys.begin(), keys.begin() + num_keys / 2);
 
   // Insert the second half of keys using a custom CUDA kernel.
-  custom_cooperative_insert<<<128, 128>>>(
-    set.reference(), keys.begin() + num_keys / 2, num_keys / 2);
+  custom_cooperative_insert<<<128, 128>>>(set.ref(), keys.begin() + num_keys / 2, num_keys / 2);
 
   // Storage for result
   thrust::device_vector<bool> found(num_keys);
 
   // Check if all keys are now contained in the set. Note that we pass a reference that already has
-  // the `contains` functions
+  // the `contains` operator
   custom_contains<<<128, 128>>>(
-    set.template reference<cuco::experimental::contains>(), keys.begin(), num_keys, found.begin());
+    set.template ref_with<cuco::experimental::contains>(), keys.begin(), num_keys, found.begin());
 
   // Verify that all keys have been found
   bool const all_keys_found = thrust::all_of(found.begin(), found.end(), thrust::identity<bool>());
