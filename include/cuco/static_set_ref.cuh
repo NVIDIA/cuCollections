@@ -45,8 +45,7 @@ class static_set_ref
   using window_type = typename storage_ref_type::window_type;  ///< Probing scheme element type
   using value_type  = typename storage_ref_type::value_type;   ///< Probing scheme element type
   using size_type   = typename storage_ref_type::size_type;    ///< Probing scheme size type
-  using key_equal =
-    detail::equal_wrapper<value_type, KeyEqual>;  ///< Type of key equality binary callable
+  using key_equal   = KeyEqual;  ///< Type of key equality binary callable
 
   static constexpr int cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr int window_size =
@@ -139,7 +138,7 @@ class static_set_ref
 
  private:
   cuco::sentinel::empty_key<key_type> empty_key_sentinel_;  ///< Empty key sentinel
-  key_equal predicate_;                                     ///< Key equality binary callable
+  detail::equal_wrapper<value_type, key_equal> predicate_;  ///< Key equality binary callable
   probing_scheme_type probing_scheme_;                      ///< Probing scheme
   storage_ref_type storage_ref_;                            ///< Slot storage ref
 
