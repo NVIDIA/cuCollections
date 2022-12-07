@@ -96,6 +96,8 @@ class static_set_ref
   /**
    * @brief Create a reference with new operators from the current object.
    *
+   * Note that this function uses move semantics and thus invalidates the current object.
+   *
    * @tparam NewOperators List of `cuco::op::*_tag` types
    *
    * @param ops List of operators, e.g., `cuco::insert`
@@ -103,7 +105,7 @@ class static_set_ref
    * @return copy of `*this` with `newOperators`
    */
   template <typename... NewOperators>
-  [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) const noexcept;
+  [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
 
  private:
   cuco::sentinel::empty_key<key_type> empty_key_sentinel_;  ///< Empty key sentinel

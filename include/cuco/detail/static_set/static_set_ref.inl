@@ -38,10 +38,13 @@ template <typename Key,
           typename... Operators>
 template <typename... NewOperators>
 auto static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
-  NewOperators...) const noexcept
+  NewOperators...) && noexcept
 {
   return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>(
-    this->empty_key_sentinel_, this->predicate_.equal_, this->probing_scheme_, this->storage_ref_);
+    std::move(this->empty_key_sentinel_),
+    std::move(this->predicate_.equal_),
+    std::move(this->probing_scheme_),
+    std::move(this->storage_ref_));
 }
 
 namespace detail {
