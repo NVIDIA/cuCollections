@@ -25,7 +25,7 @@ namespace detail {
 /**
  * @brief CRTP mixin which augments a given `Reference` with an `Operator`.
  *
- * @tparam Operator Operator type, i.e., `cuco::op::*`
+ * @tparam Operator Operator type, i.e., `cuco::op::*_tag`
  * @tparam Reference The reference type.
  *
  * @note This primary template should never be instantiated.
@@ -45,7 +45,7 @@ class operator_impl {
 /**
  * @brief Checks if the given `Operator` is contained in a list of `Operators`.
  *
- * @tparam Operator Operator type, i.e., `cuco::op::*`
+ * @tparam Operator Operator type, i.e., `cuco::op::*_tag`
  * @tparam Operators List of operators to search in
  *
  * @return `true` iff `Operator` is contained in `Operators`, `false` otherwise.

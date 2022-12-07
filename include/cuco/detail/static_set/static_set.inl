@@ -70,7 +70,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 
   detail::insert<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, first + num_keys, ref_with<op::insert>());
+      first, first + num_keys, ref_with(op::insert));
 }
 
 template <class Key,
@@ -93,7 +93,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 
   detail::contains<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, first + num_keys, output_begin, ref_with<op::contains>());
+      first, first + num_keys, output_begin, ref_with(op::contains));
 }
 
 template <class Key,
@@ -104,14 +104,31 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename... Operators>
+auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref_with(
+  Operators...) const noexcept
+{
+  return static_set_ref<Key,
+                        Scope,
+                        KeyEqual,
+                        ProbingScheme,
+                        typename Storage::ref_type,
+                        Operators...>{cuco::sentinel::empty_key<Key>(empty_key_sentinel_),
+                                      predicate_,
+                                      probing_scheme_,
+                                      storage_.ref()};
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref()
   const noexcept
 {
-  return
-    typename ref_type::make_with<Operators...>{cuco::sentinel::empty_key<Key>(empty_key_sentinel_),
-                                               predicate_,
-                                               probing_scheme_,
-                                               storage_.ref()};
+  return ref_with();
 }
 }  // namespace experimental
 }  // namespace cuco

@@ -35,7 +35,7 @@ __global__ void custom_cooperative_insert(SetRef raw_set, InputIterator keys, st
   constexpr auto cg_size = SetRef::cg_size;
 
   // we haven't spcified any operatorss yet so we make a copy with the desired functionality
-  auto set = raw_set.template with<cuco::experimental::insert>();
+  auto set = raw_set.with(cuco::experimental::insert);
 
   auto tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
 
@@ -104,7 +104,7 @@ int main(void)
   // Check if all keys are now contained in the set. Note that we pass a reference that already has
   // the `contains` operator
   custom_contains<<<128, 128>>>(
-    set.template ref_with<cuco::experimental::contains>(), keys.begin(), num_keys, found.begin());
+    set.ref_with(cuco::experimental::contains), keys.begin(), num_keys, found.begin());
 
   // Verify that all keys have been found
   bool const all_keys_found = thrust::all_of(found.begin(), found.end(), thrust::identity<bool>());

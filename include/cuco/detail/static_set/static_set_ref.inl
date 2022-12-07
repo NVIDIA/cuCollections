@@ -29,6 +29,21 @@
 
 namespace cuco {
 namespace experimental {
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename... NewOperators>
+auto static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
+  NewOperators...) const noexcept
+{
+  return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>(
+    this->empty_key_sentinel_, this->predicate_.equal_, this->probing_scheme_, this->storage_ref_);
+}
+
 namespace detail {
 
 template <typename Key,
@@ -37,7 +52,7 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
-class operator_impl<op::insert,
+class operator_impl<op::insert_tag,
                     static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
   using base_type  = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
   using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
@@ -190,7 +205,7 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
-class operator_impl<op::contains,
+class operator_impl<op::contains_tag,
                     static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
   using base_type  = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
   using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;

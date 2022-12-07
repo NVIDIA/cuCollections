@@ -20,8 +20,13 @@ namespace cuco {
 namespace experimental {
 inline namespace op {
 
-class insert;
-class contains;
+struct insert_tag {
+};
+inline constexpr auto insert = insert_tag{};
+
+struct contains_tag {
+};
+inline constexpr auto contains = contains_tag{};
 
 }  // namespace op
 }  // namespace experimental

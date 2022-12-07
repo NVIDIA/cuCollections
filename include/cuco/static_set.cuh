@@ -191,27 +191,23 @@ class static_set {
   key_type empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
   /**
-   * @brief Get device reference.
+   * @brief Get device reference with operators.
    *
    * @tparam Operators Set of `cuco::op` to be provided by the reference
+   *
+   * @param ops List of operators, e.g., `cuco::insert`
    *
    * @return Device reference of the current `static_set` object
    */
   template <typename... Operators>
-  auto ref() const noexcept;
+  auto ref_with(Operators... ops) const noexcept;
 
   /**
-   * @brief Get device reference (alias definition).
-   *
-   * @tparam Operators Set of `cuco::op` to be provided by the reference
+   * @brief Get device reference.
    *
    * @return Device reference of the current `static_set` object
    */
-  template <typename... Operators>
-  auto ref_with() const noexcept
-  {
-    return ref<Operators...>();
-  }
+  auto ref() const noexcept;
 
  private:
   size_type size_;                ///< Number of entries

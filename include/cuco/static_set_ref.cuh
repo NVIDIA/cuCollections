@@ -94,47 +94,16 @@ class static_set_ref
   }
 
   /**
-   * @brief Create a reference with operators.
-   *
-   * @tparam NewOperators List of `cuco::op::*` types
-   */
-  template <typename... NewOperators>
-  using make_with = static_set_ref<Key,
-                                   Scope,
-                                   KeyEqual,
-                                   ProbingScheme,
-                                   StorageRef,
-                                   NewOperators...>;  ///< Type alias for the current ref type with
-                                                      ///< a new set of operators
-
-  /**
    * @brief Create a reference with new operators from the current object.
    *
-   * @tparam NewOperators List of `cuco::operators::*` types
+   * @tparam NewOperators List of `cuco::op::*_tag` types
+   *
+   * @param ops List of operators, e.g., `cuco::insert`
    *
    * @return copy of `*this` with `newOperators`
    */
   template <typename... NewOperators>
-  [[nodiscard]] __host__ __device__ auto with() const
-  {
-    return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>(
-      this->empty_key_sentinel_,
-      this->predicate_.equal_,
-      this->probing_scheme_,
-      this->storage_ref_);
-  }
-
-  /**
-   * @brief Conversion operator for reference family.
-   *
-   * @tparam NewOperators List of `cuco::op::*` types
-   */
-  template <typename... NewOperators>
-  [[nodiscard]] __host__ __device__
-  operator static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>() const
-  {
-    return with<NewOperators...>();
-  }
+  [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) const noexcept;
 
  private:
   cuco::sentinel::empty_key<key_type> empty_key_sentinel_;  ///< Empty key sentinel
