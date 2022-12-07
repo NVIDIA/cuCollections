@@ -44,7 +44,7 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
       cuco::experimental::extent{size}, allocator);
     auto const res_size = s.capacity();
 
-    REQUIRE(res_size == size);
+    REQUIRE(res_size == size * window_size);
   }
 
   SECTION("Allocate array of keys with AoS storage.")
@@ -54,6 +54,6 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
         cuco::experimental::extent{size}, allocator);
     auto const res_size = s.capacity();
 
-    REQUIRE(res_size == size);
+    REQUIRE(res_size == size * window_size);
   }
 }
