@@ -39,7 +39,7 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
 {
   constexpr std::size_t num_keys{500'000};
   cuco::static_map<Key, Value> map{
-    num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
+    num_keys * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);

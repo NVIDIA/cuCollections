@@ -54,9 +54,8 @@ int main(void)
   std::size_t const capacity = std::ceil(num_keys / load_factor);
 
   // Constructs a map with "capacity" slots using -1 and -1 as the empty key/value sentinels.
-  cuco::static_map<Key, Value> map{capacity,
-                                   cuco::sentinel::empty_key{empty_key_sentinel},
-                                   cuco::sentinel::empty_value{empty_value_sentinel}};
+  cuco::static_map<Key, Value> map{
+    capacity, cuco::empty_key{empty_key_sentinel}, cuco::empty_value{empty_value_sentinel}};
 
   // Create a sequence of keys and values {{0,0}, {1,1}, ... {i,i}}
   thrust::device_vector<Key> insert_keys(num_keys);

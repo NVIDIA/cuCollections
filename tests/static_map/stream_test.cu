@@ -42,8 +42,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
 
   constexpr std::size_t num_keys{500'000};
   cuco::static_map<Key, Value> map{1'000'000,
-                                   cuco::sentinel::empty_key<Key>{-1},
-                                   cuco::sentinel::empty_value<Value>{-1},
+                                   cuco::empty_key<Key>{-1},
+                                   cuco::empty_value<Value>{-1},
                                    cuco::cuda_allocator<char>{},
                                    stream};
 

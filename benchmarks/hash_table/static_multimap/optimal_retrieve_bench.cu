@@ -78,7 +78,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_retrieve(
                         cuco::double_hashing<CGSize,
                                              cuco::detail::MurmurHash3_32<Key>,
                                              cuco::detail::MurmurHash3_32<Key>>>
-    map{size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
+    map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(d_pairs.begin(), d_pairs.end());
 
   auto const output_size = map.count_outer(d_keys.begin(), d_keys.end());
