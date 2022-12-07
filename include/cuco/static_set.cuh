@@ -94,20 +94,18 @@ class static_set {
   using size_type           = typename extent_type::value_type;  ///< Size type
   using key_equal           = KeyEqual;                          ///< Key equality comparator type
   using allocator_type      = Allocator;                         ///< Allocator type
-  using window_storage_type = Storage;                           ///< Window storage type
-  using window_reference_type =
-    typename window_storage_type::ref_type;   ///< Window storage reference type
-  using probing_scheme_type = ProbingScheme;  ///< Probe scheme type
+  using storage_type        = Storage;                           ///< Window storage type
+  using storage_ref_type    = typename storage_type::ref_type;   ///< Window storage reference type
+  using probing_scheme_type = ProbingScheme;                     ///< Probe scheme type
   using ref_type =
     cuco::experimental::static_set_ref<key_type,
                                        Scope,
                                        key_equal,
                                        probing_scheme_type,
-                                       window_reference_type>;  ///< Container reference type
+                                       storage_ref_type>;  ///< Container reference type
 
-  static constexpr int cg_size = probing_scheme_type::cg_size;  ///< CG size used to for probing
-  static constexpr int window_size =
-    window_storage_type::window_size;  ///< CG size used to for probing
+  static constexpr int cg_size     = probing_scheme_type::cg_size;  ///< CG size used to for probing
+  static constexpr int window_size = storage_type::window_size;     ///< CG size used to for probing
 
   static_set(static_set const&) = delete;
   static_set& operator=(static_set const&) = delete;
@@ -183,7 +181,7 @@ class static_set {
    *
    * @return The maximum number of elements the hash map can hold
    */
-  size_type capacity() const noexcept { return window_storage_.capacity(); }
+  size_type capacity() const noexcept { return storage_.capacity(); }
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
@@ -216,12 +214,12 @@ class static_set {
   }
 
  private:
-  size_type size_;                      ///< Number of entries
-  key_type empty_key_sentinel_;         ///< Key value that represents an empty slot
-  key_equal predicate_;                 ///< Key equality binary predicate
-  ProbingScheme probing_scheme_;        ///< Probing scheme
-  allocator_type allocator_;            ///< Allocator used to (de)allocate temporary storage
-  window_storage_type window_storage_;  ///< Flat slot window storage
+  size_type size_;                ///< Number of entries
+  key_type empty_key_sentinel_;   ///< Key value that represents an empty slot
+  key_equal predicate_;           ///< Key equality binary predicate
+  ProbingScheme probing_scheme_;  ///< Probing scheme
+  allocator_type allocator_;      ///< Allocator used to (de)allocate temporary storage
+  storage_type storage_;          ///< Flat slot storage
 };
 
 }  // namespace experimental

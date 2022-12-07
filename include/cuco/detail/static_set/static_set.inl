@@ -45,10 +45,9 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::sta
     predicate_{pred},
     probing_scheme_{probing_scheme},
     allocator_{alloc},
-    window_storage_{cuco::detail::get_num_windows<cg_size, window_size, size_type>(capacity),
-                    allocator_}
+    storage_{cuco::detail::get_num_windows<cg_size, window_size, size_type>(capacity), allocator_}
 {
-  window_storage_.initialize(empty_key_sentinel_, stream);
+  storage_.initialize(empty_key_sentinel_, stream);
 }
 
 template <class Key,
@@ -112,7 +111,7 @@ auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
     typename ref_type::make_with<Operators...>{cuco::sentinel::empty_key<Key>(empty_key_sentinel_),
                                                predicate_,
                                                probing_scheme_,
-                                               window_storage_.ref()};
+                                               storage_.ref()};
 }
 }  // namespace experimental
 }  // namespace cuco
