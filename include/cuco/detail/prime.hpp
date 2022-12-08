@@ -18,6 +18,10 @@
 
 #include <cuco/detail/utils.hpp>
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
+
 namespace cuco {
 namespace detail {
 
