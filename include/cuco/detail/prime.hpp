@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,14 @@
 
 #include <cuco/detail/utils.hpp>
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
+
 namespace cuco {
 namespace detail {
 
-constexpr std::array<std::uint64_t, 140746> primes = {
+inline constexpr std::array<int64_t, 140746> primes = {
   2,           3,           5,           7,           13,          19,          29,
   37,          43,          53,          59,          67,          73,          79,
   89,          97,          103,         109,         127,         137,         149,
@@ -20130,43 +20134,6 @@ constexpr std::array<std::uint64_t, 140746> primes = {
   17177364857, 17177495953, 17177627053, 17177758133};
 
 /**
- * @brief Indicates whether the input `num` is a prime number.
- *
- * @param num
- * @return A boolean indicating whether the input `num` is a prime number
- */
-constexpr bool is_prime(std::size_t num) noexcept
-{
-  bool flag = true;
-  // 0 and 1 are not prime numbers
-  if (num == 0lu || num == 1lu) {
-    flag = false;
-  } else {
-    for (auto i = 2lu; i <= num / 2lu; ++i) {
-      if (num % i == 0) {
-        flag = false;
-        break;
-      }
-    }
-  }
-  return flag;
-}
-
-/**
- * @brief Computes the smallest prime number greater than or equal to `num`.
- *
- * @param num
- * @return The smallest prime number greater than or equal to `num`
- */
-constexpr std::size_t compute_prime(std::size_t num) noexcept
-{
-  while (not is_prime(num)) {
-    num++;
-  }
-  return num;
-}
-
-/**
  * @brief Calculates the valid capacity based on `cg_size` , `vector_width`
  * and the initial `capacity`.
  *
@@ -20177,8 +20144,8 @@ constexpr std::size_t compute_prime(std::size_t num) noexcept
  * @param capacity The initially requested capacity
  * @return A valid capacity no smaller than the requested `capacity`
  */
-template <uint32_t cg_size, uint32_t vector_width, bool uses_vector_load>
-constexpr std::size_t get_valid_capacity(std::size_t capacity) noexcept
+template <int32_t cg_size, int32_t vector_width, bool uses_vector_load, typename T>
+constexpr T get_valid_capacity(T capacity) noexcept
 {
   auto const stride = [&]() {
     if constexpr (uses_vector_load) { return cg_size * vector_width; }
