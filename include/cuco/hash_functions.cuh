@@ -20,8 +20,6 @@
 
 namespace cuco {
 
-using hash_value_type = uint32_t;
-
 /**
  * @brief A `murmurhash3_32` hash function to hash the given argument on host and device.
  *
