@@ -20,12 +20,12 @@
 
 #include <algorithm>
 #include <array>
-#include <cstddef>
+#include <cstdint>
 
 namespace cuco {
 namespace detail {
 
-inline constexpr std::array<std::uint64_t, 140746> primes = {
+inline constexpr std::array<int64_t, 140746> primes = {
   2,           3,           5,           7,           13,          19,          29,
   37,          43,          53,          59,          67,          73,          79,
   89,          97,          103,         109,         127,         137,         149,
@@ -20144,8 +20144,8 @@ inline constexpr std::array<std::uint64_t, 140746> primes = {
  * @param capacity The initially requested capacity
  * @return A valid capacity no smaller than the requested `capacity`
  */
-template <uint32_t cg_size, uint32_t vector_width, bool uses_vector_load>
-constexpr std::size_t get_valid_capacity(std::size_t capacity) noexcept
+template <int32_t cg_size, int32_t vector_width, bool uses_vector_load, typename T>
+constexpr T get_valid_capacity(T capacity) noexcept
 {
   auto const stride = [&]() {
     if constexpr (uses_vector_load) { return cg_size * vector_width; }
