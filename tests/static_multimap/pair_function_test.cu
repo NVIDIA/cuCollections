@@ -137,7 +137,7 @@ TEMPLATE_TEST_CASE_SIG(
                           Value,
                           cuda::thread_scope_device,
                           cuco::cuda_allocator<char>,
-                          cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
+                          cuco::linear_probing<1, cuco::murmurhash3_32<Key>>>
       map{num_pairs * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
     test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
   }

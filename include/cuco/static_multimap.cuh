@@ -132,7 +132,7 @@ template <typename Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>,
           class ProbeSequence =
-            cuco::double_hashing<8, cuco::MurmurHash3_32<Key>, cuco::MurmurHash3_32<Key>>>
+            cuco::double_hashing<8, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>
 class static_multimap {
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,

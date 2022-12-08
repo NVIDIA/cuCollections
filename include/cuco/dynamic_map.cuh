@@ -171,7 +171,7 @@ class dynamic_map {
    * @param key_equal The binary function to compare two keys for equality
    */
   template <typename InputIt,
-            typename Hash     = cuco::MurmurHash3_32<key_type>,
+            typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
 
@@ -195,7 +195,7 @@ class dynamic_map {
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash     = cuco::MurmurHash3_32<key_type>,
+            typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void find(InputIt first,
             InputIt last,
@@ -222,7 +222,7 @@ class dynamic_map {
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash     = cuco::MurmurHash3_32<key_type>,
+            typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,

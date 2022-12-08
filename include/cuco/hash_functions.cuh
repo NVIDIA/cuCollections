@@ -23,12 +23,11 @@ namespace cuco {
 using hash_value_type = uint32_t;
 
 /**
- * @brief A `MurmurHash3_32` hash function to hash the given argument on host and device.
+ * @brief A `murmurhash3_32` hash function to hash the given argument on host and device.
  *
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
-struct MurmurHash3_32 : public detail::MurmurHash3_32<Key> {
-};
+using murmurhash3_32 = detail::MurmurHash3_32<Key>;
 
 }  // namespace cuco
