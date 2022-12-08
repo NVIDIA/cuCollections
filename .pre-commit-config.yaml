@@ -26,6 +26,12 @@ repos:
                 language: system
                 pass_filenames: false
                 verbose: true
+              - id: copyright-check
+                name: copyright-check
+                entry: python ./ci/checks/copyright.py --git-modified-only --update-current-year
+                language: python
+                pass_filenames: false
+                additional_dependencies: [gitpython]
 
 default_language_version:
       python: python3
