@@ -20134,43 +20134,6 @@ inline constexpr std::array<std::uint64_t, 140746> primes = {
   17177364857, 17177495953, 17177627053, 17177758133};
 
 /**
- * @brief Indicates whether the input `num` is a prime number.
- *
- * @param num
- * @return A boolean indicating whether the input `num` is a prime number
- */
-constexpr bool is_prime(std::size_t num) noexcept
-{
-  bool flag = true;
-  // 0 and 1 are not prime numbers
-  if (num == 0lu || num == 1lu) {
-    flag = false;
-  } else {
-    for (auto i = 2lu; i <= num / 2lu; ++i) {
-      if (num % i == 0) {
-        flag = false;
-        break;
-      }
-    }
-  }
-  return flag;
-}
-
-/**
- * @brief Computes the smallest prime number greater than or equal to `num`.
- *
- * @param num
- * @return The smallest prime number greater than or equal to `num`
- */
-constexpr std::size_t compute_prime(std::size_t num) noexcept
-{
-  while (not is_prime(num)) {
-    num++;
-  }
-  return num;
-}
-
-/**
  * @brief Calculates the valid capacity based on `cg_size` , `vector_width`
  * and the initial `capacity`.
  *
