@@ -21,12 +21,10 @@ namespace experimental {
 inline namespace op {
 
 struct insert_tag {
-};
-inline constexpr auto insert = insert_tag{};
+} inline constexpr insert;
 
 struct contains_tag {
-};
-inline constexpr auto contains = contains_tag{};
+} inline constexpr contains;
 
 }  // namespace op
 }  // namespace experimental
