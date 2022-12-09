@@ -34,7 +34,9 @@ __global__ void custom_cooperative_insert(SetRef raw_set, InputIterator keys, st
 
   constexpr auto cg_size = SetRef::cg_size;
 
-  // we haven't spcified any operatorss yet so we make a copy with the desired functionality
+  // `raw_set` does not have any operators defined so we need to construct
+  // a new reference from it with the desired `insert` operator.
+  // Note that this invalidates `raw_set` to prevent concurrent use with `set`.
   auto set = std::move(raw_set).with(cuco::experimental::insert);
 
   auto tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
