@@ -25,7 +25,7 @@
 namespace cuco {
 namespace detail {
 
-inline constexpr std::array<int64_t, 140746> primes = {
+inline constexpr std::array<int64_t, 140739> primes = {
   2,           3,           5,           7,           13,          19,          29,
   37,          43,          53,          59,          67,          73,          79,
   89,          97,          103,         109,         127,         137,         149,
