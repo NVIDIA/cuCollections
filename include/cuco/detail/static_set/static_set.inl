@@ -18,6 +18,7 @@
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/static_set/kernels.cuh>
 #include <cuco/detail/tuning.cuh>
+#include <cuco/detail/utils.hpp>
 #include <cuco/operator.hpp>
 #include <cuco/static_set_ref.cuh>
 
@@ -45,7 +46,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::sta
     predicate_{pred},
     probing_scheme_{probing_scheme},
     allocator_{alloc},
-    storage_{cuco::detail::get_num_windows<cg_size, window_size, size_type>(capacity), allocator_}
+    storage_{cuco::detail::next_prime(SDIV(capacity, cg_size * window_size)) * cg_size, allocator_}
 {
   storage_.initialize(empty_key_sentinel_, stream);
 }
