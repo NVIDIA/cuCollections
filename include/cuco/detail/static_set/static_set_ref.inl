@@ -19,7 +19,7 @@
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/operator.hpp>
-#include <cuco/sentinel.cuh>  // TODO .hpp
+#include <cuco/sentinel.cuh>
 
 #include <thrust/distance.h>
 
@@ -83,8 +83,7 @@ class operator_impl<op::insert_tag,
       for (auto& slot_content : window_slots) {
         auto const eq_res = ref_.predicate_(slot_content, value);
 
-        // If the key is already in the map, return false
-        // TODO this needs to be disabled for static_multimap
+        // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) { return false; }
         if (eq_res == detail::equal_result::EMPTY) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
@@ -127,7 +126,7 @@ class operator_impl<op::insert_tag,
         return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
       }();
 
-      // If the key is already in the map, return false
+      // If the key is already in the container, return false
       if (group.any(state == detail::equal_result::EQUAL)) { return false; }
 
       auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
@@ -167,10 +166,7 @@ class operator_impl<op::insert_tag,
    */
   __device__ inline insert_result attempt_insert(value_type* slot, value_type const& value)
   {
-    // code path for static_set -> cas
-    if constexpr (std::is_same_v<key_type, value_type>) { return cas(slot, value); }
-
-    // TODO code path for static_map and static_multimap
+    return cas(slot, value);
   }
 
   /**
@@ -196,8 +192,6 @@ class operator_impl<op::insert_tag,
                                                                         : insert_result::CONTINUE;
     }
   }
-
-  // TODO packed_cas, back_to_back_cas, cas_dependent_write
 };
 
 template <typename Key,

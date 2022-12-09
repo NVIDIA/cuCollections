@@ -17,7 +17,7 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/static_set/kernels.cuh>
-#include <cuco/detail/tuning.cuh>  // TODO .hpp?
+#include <cuco/detail/tuning.cuh>
 #include <cuco/operator.hpp>
 #include <cuco/static_set_ref.cuh>
 

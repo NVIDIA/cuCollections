@@ -18,7 +18,7 @@
 
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/operator.hpp>
-#include <cuco/sentinel.cuh>  // TODO .hpp
+#include <cuco/sentinel.cuh>
 
 #include <cuda/std/atomic>
 
@@ -102,7 +102,7 @@ class static_set_ref
    *
    * @param ops List of operators, e.g., `cuco::insert`
    *
-   * @return copy of `*this` with `newOperators`
+   * @return copy of `*this` with `NewOperators...`
    */
   template <typename... NewOperators>
   [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;

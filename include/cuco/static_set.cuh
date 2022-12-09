@@ -55,12 +55,7 @@ namespace experimental {
  * @tparam Allocator Type of allocator used for device storage
  * @tparam Storage Slot window storage type
  */
-// template<
-// class Key,
-// class Hash = std::hash<Key>,
-// class KeyEqual = std::equal_to<Key>,
-// class Allocator = std::allocator<Key>
-// > class unordered_set;
+
 template <class Key,
           class Extent             = cuco::experimental::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
