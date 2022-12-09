@@ -22,11 +22,12 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <limits>
 
 namespace cuco {
 namespace detail {
 
-inline constexpr std::array<int64_t, 140746> primes = {
+inline constexpr std::array<uint64_t, 140739> primes = {
   2,           3,           5,           7,           13,          19,          29,
   37,          43,          53,          59,          67,          73,          79,
   89,          97,          103,         109,         127,         137,         149,
@@ -20145,9 +20146,12 @@ inline constexpr std::array<int64_t, 140746> primes = {
 template <typename T>
 [[nodiscard]] constexpr T next_prime(T const base) noexcept
 {
-  if (base <= 0 or base > primes.back()) return T{};
-  auto const prime = lower_bound(primes.begin(), primes.end(), base);
-  return (prime != primes.end()) ? *prime : T{};
+  auto const max_prime = primes.back();
+  auto const max_value = (static_cast<uint64_t>(std::numeric_limits<T>::max()) < max_prime)
+                           ? std::numeric_limits<T>::max()
+                           : static_cast<T>(max_prime);
+  if (base <= 0 or base > max_value) return T{};
+  return *lower_bound(primes.begin(), primes.end(), static_cast<uint64_t>(base));
 }
 
 /**
