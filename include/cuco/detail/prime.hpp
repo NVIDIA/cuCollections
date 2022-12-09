@@ -20145,7 +20145,7 @@ inline constexpr std::array<int64_t, 140746> primes = {
 template <typename T>
 [[nodiscard]] constexpr T next_prime(T const base) noexcept
 {
-  if (base <= 0) return T{};
+  if (base <= 0 or base > primes.back()) return T{};
   auto const prime = lower_bound(primes.begin(), primes.end(), base);
   return (prime != primes.end()) ? *prime : T{};
 }
