@@ -119,10 +119,8 @@ class operator_impl<op::insert_tag,
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (ref_.predicate_(window_slots[i], value)) {
-            case detail::equal_result::EMPTY:
-              return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL:
-              return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::EQUAL, i};
+            case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
             default: continue;
           }
         }
