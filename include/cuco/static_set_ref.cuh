@@ -98,6 +98,9 @@ class static_set_ref
    *
    * Note that this function uses move semantics and thus invalidates the current object.
    *
+   * @warning Using two or more reference objects to the same container but with
+   * a different set of operators concurrently is undefined behavior.
+   *
    * @tparam NewOperators List of `cuco::op::*_tag` types
    *
    * @param ops List of operators, e.g., `cuco::insert`

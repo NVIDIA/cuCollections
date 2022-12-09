@@ -200,6 +200,9 @@ class static_set {
   /**
    * @brief Get device reference.
    *
+   * @warning Using two or more reference objects to the same container but with
+   * a different set of operators concurrently is undefined behavior.
+   *
    * @return Device reference of the current `static_set` object
    */
   auto ref() const noexcept;

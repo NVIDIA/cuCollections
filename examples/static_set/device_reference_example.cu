@@ -104,7 +104,10 @@ int main(void)
   thrust::device_vector<bool> found(num_keys);
 
   // Check if all keys are now contained in the set. Note that we pass a reference that already has
-  // the `contains` operator
+  // the `contains` operator.
+  // In general, using two or more reference objects to the same container but with
+  // a different set of operators concurrently is undefined behavior.
+  // This does not apply here since the two kernels do not overlap.
   custom_contains<<<128, 128>>>(
     set.ref_with(cuco::experimental::contains), keys.begin(), num_keys, found.begin());
 
