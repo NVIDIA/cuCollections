@@ -25,6 +25,7 @@
 namespace cuco {
 namespace detail {
 
+// TODO use CTAD instead of explicitly specifying the array size once we drop support for nvcc <11.5
 inline constexpr std::array<int64_t, 140739> primes = {
   2,           3,           5,           7,           13,          19,          29,
   37,          43,          53,          59,          67,          73,          79,
