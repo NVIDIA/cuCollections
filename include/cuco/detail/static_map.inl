@@ -255,7 +255,7 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
     temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(std::size_t));
   std::allocator_traits<temp_allocator_type>::deallocate(
     temp_allocator, d_temp_storage, temp_storage_bytes);
-  
+
   return std::make_pair(keys_out + h_num_out, values_out + h_num_out);
 }
 
