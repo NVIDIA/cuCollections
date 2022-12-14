@@ -263,7 +263,7 @@ class aos_storage : public storage_base<Extent> {
    * @param size Number of slots to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
-  aos_storage(Extent const size, Allocator const& allocator)
+  aos_storage(Extent size, Allocator const& allocator)
     : storage_base<Extent>{size},
       allocator_{allocator},
       window_deleter_{size_, allocator_},
