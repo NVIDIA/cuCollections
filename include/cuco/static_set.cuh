@@ -57,7 +57,7 @@ namespace experimental {
  */
 
 template <class Key,
-          class Extent             = cuco::experimental::extent<std::size_t>,
+          class Extent,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme =
