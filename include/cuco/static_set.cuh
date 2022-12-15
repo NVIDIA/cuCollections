@@ -99,8 +99,9 @@ class static_set {
                                        probing_scheme_type,
                                        storage_ref_type>;  ///< Container reference type
 
-  static constexpr int cg_size     = probing_scheme_type::cg_size;  ///< CG size used to for probing
-  static constexpr int window_size = storage_type::window_size;     ///< CG size used to for probing
+  static constexpr int cg_size = probing_scheme_type::cg_size;  ///< CG size used to for probing
+  static constexpr int window_size =
+    storage_type::window_size;  ///< Window size used to for probing
 
   static_set(static_set const&) = delete;
   static_set& operator=(static_set const&) = delete;
