@@ -1414,14 +1414,6 @@ class static_map {
                                sentinel::erased_key<Key>{erased_key_sentinel_});
   }
 
-  /**
-   * @brief Gets the number of successfully inserted/erased keys from the last
-   * insert/erase operation
-   *
-   * @return Number of successfully inserted/erased keys from the last insert/erase operation
-   */
-  atomic_ctr_type* num_successes() const noexcept { return num_successes_; }
-
  private:
   pair_atomic_type* slots_{};                   ///< Pointer to flat slots storage
   std::size_t capacity_{};                      ///< Total number of slots

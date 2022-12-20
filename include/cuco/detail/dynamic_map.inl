@@ -41,7 +41,7 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(
     stream));
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
-  submap_num_successes_.push_back(submaps_[0]->num_successes());
+  submap_num_successes_.push_back(submaps_[0]->num_successes_);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -74,7 +74,7 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(
     stream));
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
-  submap_num_successes_.push_back(submaps_[0]->num_successes());
+  submap_num_successes_.push_back(submaps_[0]->num_successes_);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -108,7 +108,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n, cudaStrea
           alloc_,
           stream));
       }
-      submap_num_successes_.push_back(submaps_[submap_idx]->num_successes());
+      submap_num_successes_.push_back(submaps_[submap_idx]->num_successes_);
       submap_views_.push_back(submaps_[submap_idx]->get_device_view());
       submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
       capacity_ *= 2;
