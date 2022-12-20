@@ -119,8 +119,8 @@ class dynamic_map {
   dynamic_map& operator=(dynamic_map&&) = delete;
 
   /**
-   * @brief Construct a dynamically-sized map with the specified initial capacity, growth factor and
-   * sentinel values.
+   * @brief Constructs a dynamically-sized map with the specified initial capacity, growth factor
+   * and sentinel values.
    *
    * The capacity of the map will automatically increase as the user adds key/value pairs using
    * `insert`.
@@ -146,7 +146,7 @@ class dynamic_map {
               cudaStream_t stream    = nullptr);
 
   /**
-   * @brief Construct a dynamically-sized map with erase capability.
+   * @brief Constructs a dynamically-sized map with erase capability.
    *
    * The capacity of the map will automatically increase as the user adds key/value pairs using
    * `insert`.
@@ -177,7 +177,7 @@ class dynamic_map {
               cudaStream_t stream    = nullptr);
 
   /**
-   * @brief Destroy the map and frees its contents
+   * @brief Destroys the map and frees its contents
    *
    */
   ~dynamic_map() {}
