@@ -23,11 +23,14 @@
 
 #include <catch2/catch.hpp>
 
-TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t))
+TEMPLATE_TEST_CASE_SIG("erase key",
+                       "",
+                       ((typename Key, typename Value), Key, Value),
+                       (int32_t, int32_t),
+                       (int32_t, int64_t),
+                       (int64_t, int32_t),
+                       (int64_t, int64_t))
 {
-  using Key   = T;
-  using Value = T;
-
   unsigned long num_keys = 1'000'000;
   cuco::dynamic_map<Key, Value> map{num_keys * 2,
                                     cuco::sentinel::empty_key<Key>{-1},
