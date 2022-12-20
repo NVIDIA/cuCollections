@@ -209,7 +209,7 @@ class dynamic_map {
    * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
-            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+            typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void insert(InputIt first,
               InputIt last,
