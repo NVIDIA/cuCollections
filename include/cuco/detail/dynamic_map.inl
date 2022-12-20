@@ -41,8 +41,7 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(
     stream));
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
-  submap_num_successes_.push_back(submaps_[0]->get_num_successes());
-  d_submap_num_successes_ = submap_num_successes_;
+  submap_num_successes_.push_back(submaps_[0]->num_successes());
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -75,8 +74,7 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(
     stream));
   submap_views_.push_back(submaps_[0]->get_device_view());
   submap_mutable_views_.push_back(submaps_[0]->get_device_mutable_view());
-  submap_num_successes_.push_back(submaps_[0]->get_num_successes());
-  d_submap_num_successes_ = submap_num_successes_;
+  submap_num_successes_.push_back(submaps_[0]->num_successes());
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -110,8 +108,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n, cudaStrea
           alloc_,
           stream));
       }
-      submap_num_successes_.push_back(submaps_[submap_idx]->get_num_successes());
-      d_submap_num_successes_ = submap_num_successes_;
+      submap_num_successes_.push_back(submaps_[submap_idx]->num_successes());
       submap_views_.push_back(submaps_[submap_idx]->get_device_view());
       submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
       capacity_ *= 2;
@@ -143,7 +140,8 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(
     // only if we meet the minimum insert size.
 
     if (capacity_remaining >= min_insert_size_) {
-      CUCO_CUDA_TRY(cudaMemset(submap_num_successes_[submap_idx], 0, sizeof(atomic_ctr_type)));
+      CUCO_CUDA_TRY(
+        cudaMemsetAsync(submap_num_successes_[submap_idx], 0, sizeof(atomic_ctr_type), stream));
 
       auto n                = std::min(capacity_remaining, num_to_insert);
       auto const block_size = 128;
@@ -156,17 +154,18 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(
                                                first + n,
                                                submap_views_.data().get(),
                                                submap_mutable_views_.data().get(),
-                                               d_submap_num_successes_.data().get(),
+                                               submap_num_successes_.data().get(),
                                                submap_idx,
                                                submaps_.size(),
                                                hash,
                                                key_equal);
 
       std::size_t h_num_successes;
-      CUCO_CUDA_TRY(cudaMemcpy(&h_num_successes,
-                               submap_num_successes_[submap_idx],
-                               sizeof(atomic_ctr_type),
-                               cudaMemcpyDeviceToHost));
+      CUCO_CUDA_TRY(cudaMemcpyAsync(&h_num_successes,
+                                    submap_num_successes_[submap_idx],
+                                    sizeof(atomic_ctr_type),
+                                    cudaMemcpyDeviceToHost,
+                                    stream));
       submaps_[submap_idx]->size_ += h_num_successes;
       size_ += h_num_successes;
       first += n;
@@ -194,7 +193,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(
 
   // zero out submap success counters
   for (uint32_t i = 0; i < submaps_.size(); ++i) {
-    CUCO_CUDA_TRY(cudaMemset(submap_num_successes_[i], 0, sizeof(atomic_ctr_type)));
+    CUCO_CUDA_TRY(cudaMemsetAsync(submap_num_successes_[i], 0, sizeof(atomic_ctr_type), stream));
   }
 
   auto const temp_storage_size = submaps_.size() * sizeof(unsigned long long);
@@ -203,17 +202,18 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(
     <<<grid_size, block_size, temp_storage_size, stream>>>(first,
                                                            first + num_keys,
                                                            submap_mutable_views_.data().get(),
-                                                           d_submap_num_successes_.data().get(),
+                                                           submap_num_successes_.data().get(),
                                                            submaps_.size(),
                                                            hash,
                                                            key_equal);
 
   for (uint32_t i = 0; i < submaps_.size(); ++i) {
     std::size_t h_submap_num_successes;
-    CUCO_CUDA_TRY(cudaMemcpy(&h_submap_num_successes,
-                             submap_num_successes_[i],
-                             sizeof(atomic_ctr_type),
-                             cudaMemcpyDeviceToHost));
+    CUCO_CUDA_TRY(cudaMemcpyAsync(&h_submap_num_successes,
+                                  submap_num_successes_[i],
+                                  sizeof(atomic_ctr_type),
+                                  cudaMemcpyDeviceToHost,
+                                  stream));
     submaps_[i]->size_ -= h_submap_num_successes;
     size_ -= h_submap_num_successes;
   }
