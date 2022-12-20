@@ -14,21 +14,18 @@
  * limitations under the License.
  */
 
- #pragma once
+#pragma once
 
- #include <nv/target>
+#include <cuco/detail/probe_sequence_impl.cuh>
 
-// WAR for libcudacxx/296
-#define CUCO_CUDA_MINIMUM_ARCH _NV_FIRST_ARG(__CUDA_ARCH_LIST__)
+namespace cuco {
 
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && (CUCO_CUDA_MINIMUM_ARCH >= 700)
-#define CUCO_HAS_CUDA_BARRIER
-#endif
+/**
+ * @brief A `murmurhash3_32` hash function to hash the given argument on host and device.
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using murmurhash3_32 = detail::MurmurHash3_32<Key>;
 
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11010)
-#define CUCO_HAS_CG_MEMCPY_ASYNC
-#endif
-
-#if (CUCO_CUDA_MINIMUM_ARCH >= 700)
-#define CUCO_HAS_INDEPENDENT_THREADS
-#endif
+}  // namespace cuco

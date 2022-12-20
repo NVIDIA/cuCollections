@@ -96,9 +96,8 @@ TEMPLATE_TEST_CASE("Heterogeneous lookup",
 
   constexpr std::size_t num      = 100;
   constexpr std::size_t capacity = num * 2;
-  cuco::static_map<Key, Value> map{capacity,
-                                   cuco::sentinel::empty_key<Key>{sentinel_key},
-                                   cuco::sentinel::empty_value<Value>{sentinel_value}};
+  cuco::static_map<Key, Value> map{
+    capacity, cuco::empty_key<Key>{sentinel_key}, cuco::empty_value<Value>{sentinel_value}};
 
   auto insert_pairs = thrust::make_transform_iterator(
     thrust::counting_iterator<int>(0),

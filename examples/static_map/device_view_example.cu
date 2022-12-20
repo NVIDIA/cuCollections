@@ -135,9 +135,8 @@ int main(void)
   std::size_t const capacity = std::ceil(num_keys / load_factor);
 
   // Constructs a map with "capacity" slots using -1 and -1 as the empty key/value sentinels.
-  cuco::static_map<Key, Value> map{capacity,
-                                   cuco::sentinel::empty_key{empty_key_sentinel},
-                                   cuco::sentinel::empty_value{empty_value_sentinel}};
+  cuco::static_map<Key, Value> map{
+    capacity, cuco::empty_key{empty_key_sentinel}, cuco::empty_value{empty_value_sentinel}};
 
   // Get a non-owning, mutable view of the map that allows inserts to pass by value into the kernel
   auto device_insert_view = map.get_device_mutable_view();

@@ -22,6 +22,7 @@
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <cooperative_groups.h>
+#include <cooperative_groups/memcpy_async.h>
 
 namespace cuco {
 template <typename Key,
@@ -497,23 +498,31 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     }
     offset = g.shfl(offset, 0);
 
-    if constexpr (thrust::is_contiguous_iterator_v<OutputIt>) {
 #if defined(CUCO_HAS_CG_MEMCPY_ASYNC)
+    constexpr bool uses_memcpy_async = thrust::is_contiguous_iterator_v<OutputIt>;
+#else
+    constexpr bool uses_memcpy_async = false;
+#endif  // end CUCO_HAS_CG_MEMCPY_ASYNC
+
+    if constexpr (uses_memcpy_async) {
 #if defined(CUCO_HAS_CUDA_BARRIER)
       cooperative_groups::memcpy_async(
         g,
-        output_begin + offset,
+        &thrust::raw_reference_cast(*(output_begin + offset)),
         output_buffer,
         cuda::aligned_size_t<alignof(value_type)>(sizeof(value_type) * num_outputs));
 #else
-      cooperative_groups::memcpy_async(
-        g, output_begin + offset, output_buffer, sizeof(value_type) * num_outputs);
+      cooperative_groups::memcpy_async(g,
+                                       &thrust::raw_reference_cast(*(output_begin + offset)),
+                                       output_buffer,
+                                       sizeof(value_type) * num_outputs);
 #endif  // end CUCO_HAS_CUDA_BARRIER
-      return;
-#endif  // end CUCO_HAS_CG_MEMCPY_ASYNC
     }
-    for (auto index = lane_id; index < num_outputs; index += g.size()) {
-      *(output_begin + offset + index) = output_buffer[index];
+
+    if constexpr (not uses_memcpy_async) {
+      for (auto index = lane_id; index < num_outputs; index += g.size()) {
+        *(output_begin + offset + index) = output_buffer[index];
+      }
     }
   }
 

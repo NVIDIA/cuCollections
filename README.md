@@ -28,7 +28,7 @@ We recommend using [CMake Package Manager (CPM)](https://github.com/TheLartians/
 With CPM, getting `cuCollections` is easy:
 
 ```
-cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
 include(path/to/CPM.cmake)
 
@@ -186,16 +186,16 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 `cuco::static_map` is a fixed-size hash table using open addressing with linear probing. See the Doxygen documentation in `static_map.cuh` for more detailed information.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/ervPzqh64))
-- [Device-view APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/device_view_example.cu) (see [live example in godbolt](https://godbolt.org/z/qMWrfE6ET))
-- [Custom data types, key equality operators and hash functions](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/custom_type_example.cu) (see [live example in godbolt](https://godbolt.org/z/oGfYjzMGT))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/T49P85Mnd))
+- [Device-view APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/device_view_example.cu) (see [live example in godbolt](https://godbolt.org/z/dh8bMn3G1))
+- [Custom data types, key equality operators and hash functions](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/custom_type_example.cu) (see [live example in godbolt](https://godbolt.org/z/7djKevK6e))
 
 ### `static_multimap`
 
 `cuco::static_multimap` is a fixed-size hash table that supports storing equivalent keys. It uses double hashing by default and supports switching to linear probing. See the Doxygen documentation in `static_multimap.cuh` for more detailed information.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_multimap/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/Po4eTEn1a))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_multimap/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/PrbqG6ae4))
 
 ### `dynamic_map`
 

@@ -71,14 +71,13 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_retrieve(
   thrust::device_vector<Key> d_keys(h_keys);
   thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
 
-  cuco::static_multimap<Key,
-                        Value,
-                        cuda::thread_scope_device,
-                        cuco::cuda_allocator<char>,
-                        cuco::double_hashing<CGSize,
-                                             cuco::detail::MurmurHash3_32<Key>,
-                                             cuco::detail::MurmurHash3_32<Key>>>
-    map{size, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
+  cuco::static_multimap<
+    Key,
+    Value,
+    cuda::thread_scope_device,
+    cuco::cuda_allocator<char>,
+    cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>
+    map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(d_pairs.begin(), d_pairs.end());
 
   auto const output_size = map.count_outer(d_keys.begin(), d_keys.end());

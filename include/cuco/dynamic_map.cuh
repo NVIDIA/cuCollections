@@ -18,6 +18,7 @@
 
 #include <cuco/detail/dynamic_map_kernels.cuh>
 #include <cuco/detail/error.hpp>
+#include <cuco/hash_functions.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/static_map.cuh>
 #include <cuda/std/atomic>
@@ -56,14 +57,16 @@ namespace cuco {
  * Example:
  * \code{.cpp}
  * int empty_key_sentinel = -1;
- * int empty_value_sentine = -1;
+ * int empty_value_sentinel = -1;
  *
  * // Constructs a map with 100,000 initial slots using -1 and -1 as the empty key/value
  * // sentinels. Performs one bulk insert of 50,000 keys and a second bulk insert of
  * // 100,000 keys. The map automatically increases capacity to accomodate the excess keys
  * // within the second insert.
  *
- * dynamic_map<int, int> m{100'000, empty_key_sentinel, empty_value_sentinel};
+ * dynamic_map<int, int> m{100'000,
+ *                         sentinel::empty_key<int>{empty_key_sentinel},
+ *                         sentinel::empty_value<int>{empty_value_sentinel}};
  *
  * // Create a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
  * thrust::device_vector<thrust::pair<int,int>> pairs_0(50'000);
@@ -245,7 +248,7 @@ class dynamic_map {
    * provided at construction
    */
   template <typename InputIt,
-            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+            typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void erase(InputIt first,
              InputIt last,
@@ -275,7 +278,7 @@ class dynamic_map {
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+            typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void find(InputIt first,
             InputIt last,
@@ -305,7 +308,7 @@ class dynamic_map {
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash     = cuco::detail::MurmurHash3_32<key_type>,
+            typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,

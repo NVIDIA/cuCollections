@@ -42,8 +42,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
 
   constexpr std::size_t num_keys{500'000};
   cuco::static_map<Key, Value> map{1'000'000,
-                                   cuco::sentinel::empty_key<Key>{-1},
-                                   cuco::sentinel::empty_value<Value>{-1},
+                                   cuco::empty_key<Key>{-1},
+                                   cuco::empty_value<Value>{-1},
                                    cuco::cuda_allocator<char>{},
                                    stream};
 
@@ -57,7 +57,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
     thrust::make_counting_iterator<int>(0),
     [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
 
-  auto hash_fn  = cuco::detail::MurmurHash3_32<Key>{};
+  auto hash_fn  = cuco::murmurhash3_32<Key>{};
   auto equal_fn = thrust::equal_to<Value>{};
 
   // bulk function test cases

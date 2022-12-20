@@ -23,8 +23,6 @@
 
 #include <cuda/std/atomic>
 
-#include <cooperative_groups/memcpy_async.h>
-
 #include <iterator>
 
 namespace cuco {
@@ -42,6 +40,7 @@ namespace cg = cooperative_groups;
  * @tparam Key key type
  * @tparam Value value type
  * @tparam pair_atomic_type key/value pair type
+ *
  * @param slots Pointer to flat storage for the map's key/value pairs
  * @param k Key to which all keys in `slots` are initialized
  * @param v Value to which all values in `slots` are initialized
@@ -52,13 +51,14 @@ template <typename atomic_key_type,
           typename Key,
           typename Value,
           typename pair_atomic_type>
-__global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::size_t size)
+__global__ void initialize(pair_atomic_type* const slots, Key k, Value v, int64_t size)
 {
-  auto tid = threadIdx.x + blockIdx.x * blockDim.x;
-  while (tid < size) {
-    new (&slots[tid].first) atomic_key_type{k};
-    new (&slots[tid].second) atomic_mapped_type{v};
-    tid += gridDim.x * blockDim.x;
+  int64_t const loop_stride = gridDim.x * blockDim.x;
+  int64_t idx               = threadIdx.x + blockIdx.x * blockDim.x;
+  while (idx < size) {
+    new (&slots[idx].first) atomic_key_type{k};
+    new (&slots[idx].second) atomic_mapped_type{v};
+    idx += loop_stride;
   }
 }
 
@@ -78,21 +78,21 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, std::s
  * @tparam viewT Type of device view allowing access of hash map storage
  *
  * @param first Beginning of the sequence of key/value pairs
- * @param last End of the sequence of key/value pairs
+ * @param n Number of key/value pairs to insert
  * @param view Mutable device view used to access the hash map's slot storage
  */
 template <uint32_t block_size, uint32_t tile_size, typename InputIt, typename viewT>
-__global__ void insert(InputIt first, InputIt last, viewT view)
+__global__ void insert(InputIt first, int64_t n, viewT view)
 {
-  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid  = block_size * blockIdx.x + threadIdx.x;
-  auto it   = first + tid / tile_size;
+  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  int64_t const loop_stride = gridDim.x * block_size / tile_size;
+  int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
-  while (it < last) {
+  while (idx < n) {
     // force conversion to value_type
-    typename viewT::value_type const insert_pair{*it};
+    typename viewT::value_type const insert_pair{*(first + idx)};
     view.insert(tile, insert_pair);
-    it += (gridDim.x * block_size) / tile_size;
+    idx += loop_stride;
   }
 }
 
@@ -117,6 +117,7 @@ __global__ void insert(InputIt first, InputIt last, viewT view)
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
  * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`.
+ *
  * @param first Beginning of the sequence of key/value pairs
  * @param s Beginning of the stencil sequence
  * @param n Number of elements to insert
@@ -129,19 +130,19 @@ template <uint32_t block_size,
           typename StencilIt,
           typename viewT,
           typename Predicate>
-__global__ void insert_if_n(InputIt first, StencilIt s, std::size_t n, viewT view, Predicate pred)
+__global__ void insert_if_n(InputIt first, StencilIt s, int64_t n, viewT view, Predicate pred)
 {
-  auto tile      = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto const tid = block_size * blockIdx.x + threadIdx.x;
-  auto i         = tid / tile_size;
+  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  int64_t const loop_stride = gridDim.x * block_size / tile_size;
+  int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
-  while (i < n) {
-    if (pred(*(s + i))) {
-      typename viewT::value_type const insert_pair{*(first + i)};
+  while (idx < n) {
+    if (pred(*(s + idx))) {
+      typename viewT::value_type const insert_pair{*(first + idx)};
       // force conversion to value_type
       view.insert(tile, insert_pair);
     }
-    i += (gridDim.x * block_size) / tile_size;
+    idx += loop_stride;
   }
 }
 
@@ -164,7 +165,7 @@ __global__ void insert_if_n(InputIt first, StencilIt s, std::size_t n, viewT vie
  * @tparam Equal Binary callable type
  *
  * @param first Beginning of the sequence of elements
- * @param last End of the sequence of elements
+ * @param n Number of elements to query
  * @param output_begin Beginning of the sequence of booleans for the presence of each element
  * @param view Device view used to access the hash map's slot storage
  * @param equal The binary function to compare input element and slot content for equality
@@ -176,15 +177,14 @@ template <bool is_pair_contains,
           typename OutputIt,
           typename viewT,
           typename Equal>
-__global__ void contains(
-  InputIt first, InputIt last, OutputIt output_begin, viewT view, Equal equal)
+__global__ void contains(InputIt first, int64_t n, OutputIt output_begin, viewT view, Equal equal)
 {
-  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid  = block_size * blockIdx.x + threadIdx.x;
-  auto idx  = tid / tile_size;
-  __shared__ bool writeBuffer[block_size];
+  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  int64_t const loop_stride = gridDim.x * block_size / tile_size;
+  int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
+  __shared__ bool writeBuffer[block_size / tile_size];
 
-  while (first + idx < last) {
+  while (idx < n) {
     typename std::iterator_traits<InputIt>::value_type element = *(first + idx);
     auto found                                                 = [&]() {
       if constexpr (is_pair_contains) { return view.pair_contains(tile, element, equal); }
@@ -201,7 +201,7 @@ __global__ void contains(
     if (tile.thread_rank() == 0) { writeBuffer[threadIdx.x / tile_size] = found; }
     __syncthreads();
     if (tile.thread_rank() == 0) { *(output_begin + idx) = writeBuffer[threadIdx.x / tile_size]; }
-    idx += (gridDim.x * block_size) / tile_size;
+    idx += loop_stride;
   }
 }
 
@@ -221,8 +221,9 @@ __global__ void contains(
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam KeyEqual Binary callable
+ *
  * @param first Beginning of the sequence of keys to count
- * @param last End of the sequence of keys to count
+ * @param n Number of the keys to query
  * @param num_matches The number of all the matches for a sequence of keys
  * @param view Device view used to access the hash map's slot storage
  * @param key_equal Binary function to compare two keys for equality
@@ -235,24 +236,24 @@ template <uint32_t block_size,
           typename viewT,
           typename KeyEqual>
 __global__ void count(
-  InputIt first, InputIt last, atomicT* num_matches, viewT view, KeyEqual key_equal)
+  InputIt first, int64_t n, atomicT* num_matches, viewT view, KeyEqual key_equal)
 {
-  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid     = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx = tid / tile_size;
+  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  int64_t const loop_stride = gridDim.x * block_size / tile_size;
+  int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_matches = 0;
 
-  while (first + key_idx < last) {
-    auto key = *(first + key_idx);
+  while (idx < n) {
+    auto key = *(first + idx);
     if constexpr (is_outer) {
       thread_num_matches += view.count_outer(tile, key, key_equal);
     } else {
       thread_num_matches += view.count(tile, key, key_equal);
     }
-    key_idx += (gridDim.x * block_size) / tile_size;
+    idx += loop_stride;
   }
 
   // compute number of successfully inserted elements for each block
@@ -279,8 +280,9 @@ __global__ void count(
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam PairEqual Binary callable
+ *
  * @param first Beginning of the sequence of pairs to count
- * @param last End of the sequence of pairs to count
+ * @param n Number of the pairs to query
  * @param num_matches The number of all the matches for a sequence of pairs
  * @param view Device view used to access the hash map's slot storage
  * @param pair_equal Binary function to compare two pairs for equality
@@ -293,24 +295,24 @@ template <uint32_t block_size,
           typename viewT,
           typename PairEqual>
 __global__ void pair_count(
-  InputIt first, InputIt last, atomicT* num_matches, viewT view, PairEqual pair_equal)
+  InputIt first, int64_t n, atomicT* num_matches, viewT view, PairEqual pair_equal)
 {
-  auto tile     = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid      = block_size * blockIdx.x + threadIdx.x;
-  auto pair_idx = tid / tile_size;
+  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  int64_t const loop_stride = gridDim.x * block_size / tile_size;
+  int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_matches = 0;
 
-  while (first + pair_idx < last) {
-    typename viewT::value_type const pair = *(first + pair_idx);
+  while (idx < n) {
+    typename viewT::value_type const pair = *(first + idx);
     if constexpr (is_outer) {
       thread_num_matches += view.pair_count_outer(tile, pair, pair_equal);
     } else {
       thread_num_matches += view.pair_count(tile, pair, pair_equal);
     }
-    pair_idx += (gridDim.x * block_size) / tile_size;
+    idx += loop_stride;
   }
 
   // compute number of successfully inserted elements for each block
@@ -343,8 +345,9 @@ __global__ void pair_count(
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
- * @param last End of the sequence of keys
+ * @param n Number of the keys to query
  * @param output_begin Beginning of the sequence of values retrieved for each key
  * @param num_matches Size of the output sequence
  * @param view Device view used to access the hash map's slot storage
@@ -361,7 +364,7 @@ template <uint32_t block_size,
           typename viewT,
           typename KeyEqual>
 __global__ void retrieve(InputIt first,
-                         InputIt last,
+                         int64_t n,
                          OutputIt output_begin,
                          atomicT* num_matches,
                          viewT view,
@@ -372,10 +375,10 @@ __global__ void retrieve(InputIt first,
   constexpr uint32_t num_flushing_cgs = block_size / flushing_cg_size;
   const uint32_t flushing_cg_id       = threadIdx.x / flushing_cg_size;
 
-  auto flushing_cg = cg::tiled_partition<flushing_cg_size>(cg::this_thread_block());
-  auto probing_cg  = cg::tiled_partition<probing_cg_size>(cg::this_thread_block());
-  auto tid         = block_size * blockIdx.x + threadIdx.x;
-  auto key_idx     = tid / probing_cg_size;
+  auto flushing_cg          = cg::tiled_partition<flushing_cg_size>(cg::this_thread_block());
+  auto probing_cg           = cg::tiled_partition<probing_cg_size>(cg::this_thread_block());
+  int64_t const loop_stride = gridDim.x * block_size / probing_cg_size;
+  int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / probing_cg_size;
 
   __shared__ pair_type output_buffer[num_flushing_cgs][buffer_size];
   // TODO: replace this with shared memory cuda::atomic variables once the dynamiic initialization
@@ -384,12 +387,12 @@ __global__ void retrieve(InputIt first,
 
   if (flushing_cg.thread_rank() == 0) { flushing_cg_counter[flushing_cg_id] = 0; }
 
-  while (flushing_cg.any(first + key_idx < last)) {
-    bool active_flag        = first + key_idx < last;
+  while (flushing_cg.any(idx < n)) {
+    bool active_flag        = idx < n;
     auto active_flushing_cg = cg::binary_partition<flushing_cg_size>(flushing_cg, active_flag);
 
     if (active_flag) {
-      auto key = *(first + key_idx);
+      auto key = *(first + idx);
       if constexpr (is_outer) {
         view.retrieve_outer<buffer_size>(active_flushing_cg,
                                          probing_cg,
@@ -410,7 +413,7 @@ __global__ void retrieve(InputIt first,
                                    key_equal);
       }
     }
-    key_idx += (gridDim.x * block_size) / probing_cg_size;
+    idx += loop_stride;
   }
 
   // Final flush of output buffer
@@ -450,8 +453,9 @@ __global__ void retrieve(InputIt first,
  * @tparam atomicT Type of atomic storage
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam PairEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
- * @param last End of the sequence of keys
+ * @param n Number of keys to query
  * @param probe_output_begin Beginning of the sequence of the matched probe pairs
  * @param contained_output_begin Beginning of the sequence of the matched contained pairs
  * @param num_matches Size of the output sequence
@@ -470,7 +474,7 @@ template <uint32_t block_size,
           typename viewT,
           typename PairEqual>
 __global__ void pair_retrieve(InputIt first,
-                              InputIt last,
+                              int64_t n,
                               OutputIt1 probe_output_begin,
                               OutputIt2 contained_output_begin,
                               atomicT* num_matches,
@@ -482,10 +486,10 @@ __global__ void pair_retrieve(InputIt first,
   constexpr uint32_t num_flushing_cgs = block_size / flushing_cg_size;
   const uint32_t flushing_cg_id       = threadIdx.x / flushing_cg_size;
 
-  auto flushing_cg = cg::tiled_partition<flushing_cg_size>(cg::this_thread_block());
-  auto probing_cg  = cg::tiled_partition<probing_cg_size>(cg::this_thread_block());
-  auto tid         = block_size * blockIdx.x + threadIdx.x;
-  auto pair_idx    = tid / probing_cg_size;
+  auto flushing_cg          = cg::tiled_partition<flushing_cg_size>(cg::this_thread_block());
+  auto probing_cg           = cg::tiled_partition<probing_cg_size>(cg::this_thread_block());
+  int64_t const loop_stride = gridDim.x * block_size / probing_cg_size;
+  int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / probing_cg_size;
 
   __shared__ pair_type probe_output_buffer[num_flushing_cgs][buffer_size];
   __shared__ pair_type contained_output_buffer[num_flushing_cgs][buffer_size];
@@ -495,12 +499,12 @@ __global__ void pair_retrieve(InputIt first,
 
   if (flushing_cg.thread_rank() == 0) { flushing_cg_counter[flushing_cg_id] = 0; }
 
-  while (flushing_cg.any(first + pair_idx < last)) {
-    bool active_flag        = first + pair_idx < last;
+  while (flushing_cg.any(idx < n)) {
+    bool active_flag        = idx < n;
     auto active_flushing_cg = cg::binary_partition<flushing_cg_size>(flushing_cg, active_flag);
 
     if (active_flag) {
-      pair_type pair = *(first + pair_idx);
+      pair_type pair = *(first + idx);
       if constexpr (is_outer) {
         view.pair_retrieve_outer<buffer_size>(active_flushing_cg,
                                               probing_cg,
@@ -525,7 +529,7 @@ __global__ void pair_retrieve(InputIt first,
                                         pair_equal);
       }
     }
-    pair_idx += (gridDim.x * block_size) / probing_cg_size;
+    idx += loop_stride;
   }
 
   // Final flush of output buffer

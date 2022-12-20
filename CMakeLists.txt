@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #=============================================================================
-cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
 if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
-    file(DOWNLOAD https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-22.10/RAPIDS.cmake
+    file(DOWNLOAD https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-22.12/RAPIDS.cmake
          ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
 endif()
 include(${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
@@ -111,12 +111,9 @@ endif(BUILD_EXAMPLES)
 ###################################################################################################
 # - Install targets -------------------------------------------------------------------------------
 
-if(INSTALL_CUCO)
-    install(TARGETS cuco EXPORT cuco-exports)
-    install(DIRECTORY include/cuco/ DESTINATION include/cuco)
-    install(FILES ${CUCO_BINARY_DIR}/include/cuco/version_config.hpp DESTINATION include/cuco)
+install(TARGETS cuco EXPORT cuco-exports)
 
-    set(doc_string
+set(doc_string
     [=[
 Provide targets for cuCollections.
 
@@ -131,27 +128,30 @@ structures tailored for efficient use with GPUs.
 
 ]=])
 
-    # build install targets
+set(code_string
+[=[
+if(NOT TARGET cuco::Thrust)
+thrust_create_target(cuco::Thrust FROM_OPTIONS)
+endif()
+]=])
+
+# build directory cuco-config generation
+rapids_export(
+    BUILD cuco
+    EXPORT_SET cuco-exports
+    GLOBAL_TARGETS cuco
+    NAMESPACE cuco::
+    DOCUMENTATION doc_string
+    FINAL_CODE_BLOCK code_string)
+
+if(INSTALL_CUCO)
+    install(DIRECTORY include/cuco/ DESTINATION include/cuco)
+    install(FILES ${CUCO_BINARY_DIR}/include/cuco/version_config.hpp DESTINATION include/cuco)
+    # install directory cuco-config generation
     rapids_export(
         INSTALL cuco
         EXPORT_SET cuco-exports
         GLOBAL_TARGETS cuco
         NAMESPACE cuco::
         DOCUMENTATION doc_string)
-
-    set(code_string
-    [=[
-if(NOT TARGET cuco::Thrust)
-    thrust_create_target(cuco::Thrust FROM_OPTIONS)
-endif()
-]=])
-
-    # build export targets
-    rapids_export(
-        BUILD cuco
-        EXPORT_SET cuco-exports
-        GLOBAL_TARGETS cuco
-        NAMESPACE cuco::
-        DOCUMENTATION doc_string
-        FINAL_CODE_BLOCK code_string)
 endif()

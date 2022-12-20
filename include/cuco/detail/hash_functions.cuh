@@ -16,11 +16,7 @@
 
 #pragma once
 
-namespace cuco {
-
-using hash_value_type = uint32_t;
-
-namespace detail {
+namespace cuco::detail {
 
 /**
  * @brief A `MurmurHash3_32` hash function to hash the given argument on host and device.
@@ -118,5 +114,4 @@ struct MurmurHash3_32 {
   uint32_t m_seed;
 };
 
-}  // namespace detail
-}  // namespace cuco
+}  // namespace cuco::detail

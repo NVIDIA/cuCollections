@@ -76,5 +76,29 @@ struct slot_is_filled {
   }
 };
 
+/**
+ * @brief A strong type wrapper.
+ *
+ * @tparam T Type of the mapped values
+ */
+template <typename T>
+struct strong_type {
+  /**
+   * @brief Constructs a strong type.
+   *
+   * @param v Value to be wrapped as a strong type
+   */
+  __host__ __device__ explicit constexpr strong_type(T v) : value{v} {}
+
+  /**
+   * @brief Implicit conversion operator to the underlying value.
+   *
+   * @return Underlying value
+   */
+  __host__ __device__ constexpr operator T() const noexcept { return value; }
+
+  T value;  ///< Underlying value
+};
+
 }  // namespace detail
 }  // namespace cuco

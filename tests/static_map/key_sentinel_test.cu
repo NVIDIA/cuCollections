@@ -40,7 +40,7 @@ TEMPLATE_TEST_CASE_SIG(
 
   constexpr std::size_t num_keys{SIZE};
   cuco::static_map<Key, Value> map{
-    SIZE * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
+    SIZE * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   auto m_view = map.get_device_mutable_view();
   auto view   = map.get_device_view();
@@ -62,17 +62,15 @@ TEMPLATE_TEST_CASE_SIG(
       pairs_begin,
       pairs_begin + num_keys,
       [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-        return m_view.insert(pair, cuco::detail::MurmurHash3_32<Key>{}, custom_equals<Key>{});
+        return m_view.insert(pair, cuco::murmurhash3_32<Key>{}, custom_equals<Key>{});
       }));
   }
 
   SECTION(
     "Tests of CG insert: The custom `key_equal` can never be used to compare against sentinel")
   {
-    map.insert(pairs_begin,
-               pairs_begin + num_keys,
-               cuco::detail::MurmurHash3_32<Key>{},
-               custom_equals<Key>{});
+    map.insert(
+      pairs_begin, pairs_begin + num_keys, cuco::murmurhash3_32<Key>{}, custom_equals<Key>{});
     // All keys inserted via custom `key_equal` should be found
     REQUIRE(cuco::test::all_of(pairs_begin,
                                pairs_begin + num_keys,
