@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -125,8 +125,12 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
   // TODO: memset an atomic variable is unsafe
-  CUCO_RUNTIME_EXPECTS(sizeof(std::size_t) == sizeof(atomic_ctr_type),
-                       "sizeof(atomic_ctr_type) must be equal to sizeof(std:size_t).");
+  static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type),
+                "sizeof(atomic_ctr_type) must be equal to sizeof(std:size_t).");
+
+  auto constexpr block_size = 128;
+  auto constexpr stride     = 1;
+  auto constexpr tile_size  = 4;
 
   std::size_t num_to_insert = std::distance(first, last);
 
@@ -138,16 +142,12 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(
       max_load_factor_ * submaps_[submap_idx]->get_capacity() - submaps_[submap_idx]->get_size();
     // If we are tying to insert some of the remaining keys into this submap, we can insert
     // only if we meet the minimum insert size.
-
     if (capacity_remaining >= min_insert_size_) {
       CUCO_CUDA_TRY(
         cudaMemsetAsync(submap_num_successes_[submap_idx], 0, sizeof(atomic_ctr_type), stream));
 
-      auto n                = std::min(capacity_remaining, num_to_insert);
-      auto const block_size = 128;
-      auto const stride     = 1;
-      auto const tile_size  = 4;
-      auto const grid_size  = (tile_size * n + stride * block_size - 1) / (stride * block_size);
+      auto const n         = std::min(capacity_remaining, num_to_insert);
+      auto const grid_size = (tile_size * n + stride * block_size - 1) / (stride * block_size);
 
       detail::insert<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
         <<<grid_size, block_size, 0, stream>>>(first,
@@ -180,16 +180,16 @@ template <typename InputIt, typename Hash, typename KeyEqual>
 void dynamic_map<Key, Value, Scope, Allocator>::erase(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
-  std::size_t num_keys = std::distance(first, last);
-
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const tile_size  = 4;
-  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
-
   // TODO: memset an atomic variable is unsafe
-  CUCO_RUNTIME_EXPECTS(sizeof(std::size_t) == sizeof(atomic_ctr_type),
-                       "sizeof(atomic_ctr_type) must be equal to sizeof(std:size_t).");
+  static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type),
+                "sizeof(atomic_ctr_type) must be equal to sizeof(std:size_t).");
+
+  auto constexpr block_size = 128;
+  auto constexpr stride     = 1;
+  auto constexpr tile_size  = 4;
+
+  auto const num_keys  = std::distance(first, last);
+  auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
   // zero out submap success counters
   for (uint32_t i = 0; i < submaps_.size(); ++i) {
@@ -228,11 +228,12 @@ void dynamic_map<Key, Value, Scope, Allocator>::find(InputIt first,
                                                      KeyEqual key_equal,
                                                      cudaStream_t stream)
 {
-  auto num_keys         = std::distance(first, last);
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const tile_size  = 4;
-  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto constexpr block_size = 128;
+  auto constexpr stride     = 1;
+  auto constexpr tile_size  = 4;
+
+  auto const num_keys  = std::distance(first, last);
+  auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
   detail::find<block_size, tile_size, Value><<<grid_size, block_size, 0, stream>>>(
     first, last, output_begin, submap_views_.data().get(), submaps_.size(), hash, key_equal);
@@ -248,11 +249,12 @@ void dynamic_map<Key, Value, Scope, Allocator>::contains(InputIt first,
                                                          KeyEqual key_equal,
                                                          cudaStream_t stream)
 {
-  auto num_keys         = std::distance(first, last);
-  auto const block_size = 128;
-  auto const stride     = 1;
-  auto const tile_size  = 4;
-  auto const grid_size  = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
+  auto constexpr block_size = 128;
+  auto constexpr stride     = 1;
+  auto constexpr tile_size  = 4;
+
+  auto const num_keys  = std::distance(first, last);
+  auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
   detail::contains<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
     first, last, output_begin, submap_views_.data().get(), submaps_.size(), hash, key_equal);
