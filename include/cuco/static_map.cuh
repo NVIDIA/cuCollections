@@ -1415,7 +1415,7 @@ class static_map {
   }
 
  private:
-  pair_atomic_type* slots_{nullptr};            ///< Pointer to flat slots storage
+  pair_atomic_type* slots_{};                   ///< Pointer to flat slots storage
   std::size_t capacity_{};                      ///< Total number of slots
   std::size_t size_{};                          ///< Number of keys in map
   Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot

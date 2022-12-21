@@ -105,19 +105,22 @@ class dynamic_map {
   using value_type      = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
   using key_type        = Key;                               ///< Key type
   using mapped_type     = Value;                             ///< Type of mapped values
-  using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;  ///< Type of atomic counters
-  using view_type = typename static_map<Key, Value, Scope>::device_view;  ///< Device view type
-  using mutable_view_type = typename static_map<Key, Value, Scope>::device_mutable_view;
-  ///< Device mutable view type
+  using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;  ///< Atomic counter type
+  using view_type =
+    typename static_map<Key, Value, Scope>::device_view;  ///< Type for submap device view
+  using mutable_view_type =
+    typename static_map<Key, Value, Scope>::device_mutable_view;  ///< Type for submap mutable
+                                                                  ///< device view
 
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
+
   dynamic_map& operator=(dynamic_map const&) = delete;
   dynamic_map& operator=(dynamic_map&&) = delete;
 
   /**
-   * @brief Construct a dynamically-sized map with the specified initial capacity, growth factor and
-   * sentinel values.
+   * @brief Constructs a dynamically-sized map with the specified initial capacity, growth factor
+   * and sentinel values.
    *
    * The capacity of the map will automatically increase as the user adds key/value pairs using
    * `insert`.
@@ -134,17 +137,50 @@ class dynamic_map {
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param alloc Allocator used to allocate submap device storage
+   * @param stream Stream used for executing the kernels
    */
   dynamic_map(std::size_t initial_capacity,
               sentinel::empty_key<Key> empty_key_sentinel,
               sentinel::empty_value<Value> empty_value_sentinel,
-              Allocator const& alloc = Allocator{});
+              Allocator const& alloc = Allocator{},
+              cudaStream_t stream    = nullptr);
 
   /**
-   * @brief Destroy the map and frees its contents
+   * @brief Constructs a dynamically-sized map with erase capability.
+   *
+   * The capacity of the map will automatically increase as the user adds key/value pairs using
+   * `insert`.
+   *
+   * Capacity increases by a factor of growth_factor each time the size of the map exceeds a
+   * threshold occupancy. The performance of `find` and `contains` decreases somewhat each time the
+   * map's capacity grows.
+   *
+   * The `empty_key_sentinel` and `empty_value_sentinel` values are reserved and
+   * undefined behavior results from attempting to insert any key/value pair
+   * that contains either.
+   *
+   * @param initial_capacity The initial number of slots in the map
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param erased_key_sentinel The reserved key value for erased slots
+   * @param alloc Allocator used to allocate submap device storage
+   * @param stream Stream used for executing the kernels
+   *
+   * @throw std::runtime error if the empty key sentinel and erased key sentinel
+   * are the same value
+   */
+  dynamic_map(std::size_t initial_capacity,
+              sentinel::empty_key<Key> empty_key_sentinel,
+              sentinel::empty_value<Value> empty_value_sentinel,
+              sentinel::erased_key<Key> erased_key_sentinel,
+              Allocator const& alloc = Allocator{},
+              cudaStream_t stream    = nullptr);
+
+  /**
+   * @brief Destroys the map and frees its contents
    *
    */
-  ~dynamic_map();
+  ~dynamic_map() {}
 
   /**
    * @brief Grows the capacity of the map so there is enough space for `n` key/value pairs.
@@ -152,8 +188,9 @@ class dynamic_map {
    * If there is already enough space for `n` key/value pairs, the capacity remains the same.
    *
    * @param n The number of key value pairs for which there must be space
+   * @param stream Stream used for executing the kernels
    */
-  void reserve(std::size_t n);
+  void reserve(std::size_t n, cudaStream_t stream = nullptr);
 
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
@@ -169,11 +206,55 @@ class dynamic_map {
    * @param last End of the sequence of key/value pairs
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
+   * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
             typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first, InputIt last, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{});
+  void insert(InputIt first,
+              InputIt last,
+              Hash hash           = Hash{},
+              KeyEqual key_equal  = KeyEqual{},
+              cudaStream_t stream = nullptr);
+
+  /**
+   * @brief Erases keys in the range `[first, last)`.
+   *
+   * For each key `k` in `[first, last)`, if `contains(k) == true), removes `k` and it's
+   * associated value from the map. Else, no effect.
+   *
+   *  Side-effects:
+   *  - `contains(k) == false`
+   *  - `find(k) == end()`
+   *  - `insert({k,v}) == true`
+   *  - `get_size()` is reduced by the total number of erased keys
+   *
+   * This function synchronizes `stream`.
+   *
+   * Keep in mind that `erase` does not cause the map to shrink its memory allocation.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the map's `value_type`
+   * @tparam Hash Unary callable type
+   * @tparam KeyEqual Binary callable type
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param hash The unary function to apply to hash each key
+   * @param key_equal The binary function to compare two keys for equality
+   * @param stream Stream used for executing the kernels
+   *
+   * @throw std::runtime_error if a unique erased key sentinel value was not
+   * provided at construction
+   */
+  template <typename InputIt,
+            typename Hash     = cuco::murmurhash3_32<key_type>,
+            typename KeyEqual = thrust::equal_to<key_type>>
+  void erase(InputIt first,
+             InputIt last,
+             Hash hash           = Hash{},
+             KeyEqual key_equal  = KeyEqual{},
+             cudaStream_t stream = nullptr);
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -187,11 +268,13 @@ class dynamic_map {
    * convertible to the map's `mapped_type`
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
+   *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of values retrieved for each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
+   * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
             typename OutputIt,
@@ -200,8 +283,9 @@ class dynamic_map {
   void find(InputIt first,
             InputIt last,
             OutputIt output_begin,
-            Hash hash          = Hash{},
-            KeyEqual key_equal = KeyEqual{});
+            Hash hash           = Hash{},
+            KeyEqual key_equal  = KeyEqual{},
+            cudaStream_t stream = nullptr);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -214,11 +298,13 @@ class dynamic_map {
    * convertible to the map's `mapped_type`
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
+   *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
+   * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
             typename OutputIt,
@@ -227,8 +313,9 @@ class dynamic_map {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                Hash hash          = Hash{},
-                KeyEqual key_equal = KeyEqual{});
+                Hash hash           = Hash{},
+                KeyEqual key_equal  = KeyEqual{},
+                cudaStream_t stream = nullptr);
 
   /**
    * @brief Gets the current number of elements in the map
@@ -254,18 +341,22 @@ class dynamic_map {
  private:
   key_type empty_key_sentinel_{};       ///< Key value that represents an empty slot
   mapped_type empty_value_sentinel_{};  ///< Initial value of empty slot
-  std::size_t size_{};                  ///< Number of keys in the map
-  std::size_t capacity_{};              ///< Maximum number of keys that can be inserted
-  float max_load_factor_{};             ///< Max load factor before capacity growth
+  key_type erased_key_sentinel_{};      ///< Key value that represents an erased slot
+
+  // TODO: initialize this
+  std::size_t size_{};       ///< Number of keys in the map
+  std::size_t capacity_{};   ///< Maximum number of keys that can be inserted
+  float max_load_factor_{};  ///< Max load factor before capacity growth
 
   std::vector<std::unique_ptr<static_map<key_type, mapped_type, Scope>>>
     submaps_;                                      ///< vector of pointers to each submap
   thrust::device_vector<view_type> submap_views_;  ///< vector of device views for each submap
   thrust::device_vector<mutable_view_type>
-    submap_mutable_views_;          ///< vector of mutable device views for each submap
-  std::size_t min_insert_size_{};   ///< min remaining capacity of submap for insert
-  atomic_ctr_type* num_successes_;  ///< number of successfully inserted keys on insert
-  Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
+    submap_mutable_views_;         ///< vector of mutable device views for each submap
+  std::size_t min_insert_size_{};  ///< min remaining capacity of submap for insert
+  thrust::device_vector<atomic_ctr_type*>
+    submap_num_successes_;  ///< Number of successfully erased keys for each submap
+  Allocator alloc_{};       ///< Allocator passed to submaps to allocate their device storage
 };
 }  // namespace cuco
 

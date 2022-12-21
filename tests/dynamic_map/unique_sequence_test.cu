@@ -38,6 +38,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        (int64_t, int64_t))
 {
   constexpr std::size_t num_keys{50'000'000};
+
   cuco::dynamic_map<Key, Value> map{
     30'000'000, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
