@@ -21,9 +21,11 @@
 #include <cuco/hash_functions.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/static_map.cuh>
-#include <cuda/std/atomic>
+
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
+
+#include <cuda/std/atomic>
 
 #include <cstddef>
 #include <memory>
@@ -109,8 +111,6 @@ class dynamic_map {
   using mutable_view_type =
     typename static_map<Key, Value, Scope>::device_mutable_view;  ///< Type for submap mutable
                                                                   ///< device view
-  using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
-    atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
 
   dynamic_map(dynamic_map const&) = delete;
   dynamic_map(dynamic_map&&)      = delete;
@@ -357,7 +357,6 @@ class dynamic_map {
   thrust::device_vector<atomic_ctr_type*>
     submap_num_successes_;  ///< Number of successfully erased keys for each submap
   Allocator alloc_{};       ///< Allocator passed to submaps to allocate their device storage
-  counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
 };
 }  // namespace cuco
 
