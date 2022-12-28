@@ -36,7 +36,7 @@ template <class Key,
           class Storage>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::static_set(
   Extent capacity,
-  sentinel::empty_key<Key> empty_key_sentinel,
+  empty_key<Key> empty_key_sentinel,
   KeyEqual pred,
   ProbingScheme probing_scheme,
   Allocator const& alloc,
@@ -62,7 +62,7 @@ template <typename InputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cudaStream_t stream)
 {
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const grid_size =
@@ -85,7 +85,7 @@ template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream) const
 {
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = std::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const grid_size =
@@ -113,10 +113,8 @@ auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
                         KeyEqual,
                         ProbingScheme,
                         typename Storage::ref_type,
-                        Operators...>{cuco::sentinel::empty_key<Key>(empty_key_sentinel_),
-                                      predicate_,
-                                      probing_scheme_,
-                                      storage_.ref()};
+                        Operators...>{
+    cuco::empty_key<Key>(empty_key_sentinel_), predicate_, probing_scheme_, storage_.ref()};
 }
 
 template <class Key,

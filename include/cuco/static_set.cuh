@@ -57,7 +57,7 @@ namespace experimental {
  */
 
 template <class Key,
-          class Extent,
+          class Extent             = cuco::experimental::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme =
@@ -135,12 +135,12 @@ class static_set {
    * @param stream CUDA stream used to initialize the map
    */
   static_set(Extent capacity,
-             sentinel::empty_key<Key> empty_key_sentinel,
+             empty_key<Key> empty_key_sentinel,
              KeyEqual pred                = KeyEqual{},
              ProbingScheme probing_scheme = ProbingScheme{cuco::detail::MurmurHash3_32<Key>{},
                                                           cuco::detail::MurmurHash3_32<Key>{}},
              Allocator const& alloc       = Allocator{},
-             cudaStream_t stream          = 0);
+             cudaStream_t stream          = nullptr);
 
   /**
    * @brief Inserts all keys in the range `[first, last)`.
@@ -154,7 +154,7 @@ class static_set {
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt>
-  void insert(InputIt first, InputIt last, cudaStream_t stream = 0);
+  void insert(InputIt first, InputIt last, cudaStream_t stream = nullptr);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set.
@@ -170,7 +170,10 @@ class static_set {
    * @param stream Stream used for executing the kernels
    */
   template <typename InputIt, typename OutputIt>
-  void contains(InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream = 0) const;
+  void contains(InputIt first,
+                InputIt last,
+                OutputIt output_begin,
+                cudaStream_t stream = nullptr) const;
 
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
@@ -209,12 +212,12 @@ class static_set {
   auto ref() const noexcept;
 
  private:
-  size_type size_;                ///< Number of entries
-  key_type empty_key_sentinel_;   ///< Key value that represents an empty slot
-  key_equal predicate_;           ///< Key equality binary predicate
-  ProbingScheme probing_scheme_;  ///< Probing scheme
-  allocator_type allocator_;      ///< Allocator used to (de)allocate temporary storage
-  storage_type storage_;          ///< Flat slot storage
+  size_type size_;                      ///< Number of entries
+  key_type empty_key_sentinel_;         ///< Key value that represents an empty slot
+  key_equal predicate_;                 ///< Key equality binary predicate
+  probing_scheme_type probing_scheme_;  ///< Probing scheme
+  allocator_type allocator_;            ///< Allocator used to (de)allocate temporary storage
+  storage_type storage_;                ///< Flat slot storage
 };
 
 }  // namespace experimental
