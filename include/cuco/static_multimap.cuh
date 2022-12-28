@@ -225,8 +225,8 @@ class static_multimap {
    * @param alloc Allocator used for allocating device storage
    */
   static_multimap(std::size_t capacity,
-                  sentinel::empty_key<Key> empty_key_sentinel,
-                  sentinel::empty_value<Value> empty_value_sentinel,
+                  empty_key<Key> empty_key_sentinel,
+                  empty_value<Value> empty_value_sentinel,
                   cudaStream_t stream    = 0,
                   Allocator const& alloc = Allocator{});
 
@@ -611,8 +611,8 @@ class static_multimap {
 
     __host__ __device__ device_view_base(pair_atomic_type* slots,
                                          std::size_t capacity,
-                                         sentinel::empty_key<Key> empty_key_sentinel,
-                                         sentinel::empty_value<Value> empty_value_sentinel) noexcept
+                                         empty_key<Key> empty_key_sentinel,
+                                         empty_value<Value> empty_value_sentinel) noexcept
       : impl_{slots, capacity, empty_key_sentinel.value, empty_value_sentinel.value}
     {
     }
@@ -714,11 +714,10 @@ class static_multimap {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-    __host__ __device__
-    device_mutable_view(pair_atomic_type* slots,
-                        std::size_t capacity,
-                        sentinel::empty_key<Key> empty_key_sentinel,
-                        sentinel::empty_value<Value> empty_value_sentinel) noexcept
+    __host__ __device__ device_mutable_view(pair_atomic_type* slots,
+                                            std::size_t capacity,
+                                            empty_key<Key> empty_key_sentinel,
+                                            empty_value<Value> empty_value_sentinel) noexcept
       : view_base_type{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
     }
@@ -770,8 +769,8 @@ class static_multimap {
      */
     __host__ __device__ device_view(pair_atomic_type* slots,
                                     std::size_t capacity,
-                                    sentinel::empty_key<Key> empty_key_sentinel,
-                                    sentinel::empty_value<Value> empty_value_sentinel) noexcept
+                                    empty_key<Key> empty_key_sentinel,
+                                    empty_value<Value> empty_value_sentinel) noexcept
       : view_base_type{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
     }
@@ -1325,8 +1324,8 @@ class static_multimap {
   {
     return device_view(slots_.get(),
                        capacity_,
-                       sentinel::empty_key<Key>{empty_key_sentinel_},
-                       sentinel::empty_value<Value>{empty_value_sentinel_});
+                       empty_key<Key>{empty_key_sentinel_},
+                       empty_value<Value>{empty_value_sentinel_});
   }
 
   /**
@@ -1339,8 +1338,8 @@ class static_multimap {
   {
     return device_mutable_view(slots_.get(),
                                capacity_,
-                               sentinel::empty_key<Key>{empty_key_sentinel_},
-                               sentinel::empty_value<Value>{empty_value_sentinel_});
+                               empty_key<Key>{empty_key_sentinel_},
+                               empty_value<Value>{empty_value_sentinel_});
   }
 
  private:

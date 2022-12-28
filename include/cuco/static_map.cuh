@@ -200,8 +200,8 @@ class static_map {
    * @param stream Stream used for executing the kernels
    */
   static_map(std::size_t capacity,
-             sentinel::empty_key<Key> empty_key_sentinel,
-             sentinel::empty_value<Value> empty_value_sentinel,
+             empty_key<Key> empty_key_sentinel,
+             empty_value<Value> empty_value_sentinel,
              Allocator const& alloc = Allocator{},
              cudaStream_t stream    = 0);
 
@@ -220,9 +220,9 @@ class static_map {
    * @param stream Stream used for executing the kernels
    */
   static_map(std::size_t capacity,
-             sentinel::empty_key<Key> empty_key_sentinel,
-             sentinel::empty_value<Value> empty_value_sentinel,
-             sentinel::erased_key<Key> erased_key_sentinel,
+             empty_key<Key> empty_key_sentinel,
+             empty_value<Value> empty_value_sentinel,
+             erased_key<Key> erased_key_sentinel,
              Allocator const& alloc = Allocator{},
              cudaStream_t stream    = 0);
 
@@ -435,8 +435,8 @@ class static_map {
 
     __host__ __device__ device_view_base(pair_atomic_type* slots,
                                          std::size_t capacity,
-                                         sentinel::empty_key<Key> empty_key_sentinel,
-                                         sentinel::empty_value<Value> empty_value_sentinel) noexcept
+                                         empty_key<Key> empty_key_sentinel,
+                                         empty_value<Value> empty_value_sentinel) noexcept
       : slots_{slots},
         capacity_{capacity},
         empty_key_sentinel_{empty_key_sentinel.value},
@@ -447,9 +447,9 @@ class static_map {
 
     __host__ __device__ device_view_base(pair_atomic_type* slots,
                                          std::size_t capacity,
-                                         sentinel::empty_key<Key> empty_key_sentinel,
-                                         sentinel::empty_value<Value> empty_value_sentinel,
-                                         sentinel::erased_key<Key> erased_key_sentinel) noexcept
+                                         empty_key<Key> empty_key_sentinel,
+                                         empty_value<Value> empty_value_sentinel,
+                                         erased_key<Key> erased_key_sentinel) noexcept
       : slots_{slots},
         capacity_{capacity},
         empty_key_sentinel_{empty_key_sentinel.value},
@@ -768,11 +768,10 @@ class static_map {
      * @param empty_value_sentinel The reserved value for mapped values to
      * represent empty slots
      */
-    __host__ __device__
-    device_mutable_view(pair_atomic_type* slots,
-                        std::size_t capacity,
-                        sentinel::empty_key<Key> empty_key_sentinel,
-                        sentinel::empty_value<Value> empty_value_sentinel) noexcept
+    __host__ __device__ device_mutable_view(pair_atomic_type* slots,
+                                            std::size_t capacity,
+                                            empty_key<Key> empty_key_sentinel,
+                                            empty_value<Value> empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
     }
@@ -789,9 +788,9 @@ class static_map {
      */
     __host__ __device__ device_mutable_view(pair_atomic_type* slots,
                                             std::size_t capacity,
-                                            sentinel::empty_key<Key> empty_key_sentinel,
-                                            sentinel::empty_value<Value> empty_value_sentinel,
-                                            sentinel::erased_key<Key> erased_key_sentinel) noexcept
+                                            empty_key<Key> empty_key_sentinel,
+                                            empty_value<Value> empty_value_sentinel,
+                                            erased_key<Key> erased_key_sentinel) noexcept
       : device_view_base{
           slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel}
     {
@@ -878,8 +877,8 @@ class static_map {
       CG const& g,
       pair_atomic_type* slots,
       std::size_t capacity,
-      sentinel::empty_key<Key> empty_key_sentinel,
-      sentinel::empty_value<Value> empty_value_sentinel) noexcept
+      empty_key<Key> empty_key_sentinel,
+      empty_value<Value> empty_value_sentinel) noexcept
     {
       device_view_base::initialize_slots(
         g, slots, capacity, empty_key_sentinel.value, empty_value_sentinel.value);
@@ -887,7 +886,7 @@ class static_map {
                                  capacity,
                                  empty_key_sentinel,
                                  empty_value_sentinel,
-                                 sentinel::erased_key<Key>{empty_key_sentinel.value}};
+                                 erased_key<Key>{empty_key_sentinel.value}};
     }
 
     /**
@@ -909,9 +908,9 @@ class static_map {
       CG const& g,
       pair_atomic_type* slots,
       std::size_t capacity,
-      sentinel::empty_key<Key> empty_key_sentinel,
-      sentinel::empty_value<Value> empty_value_sentinel,
-      sentinel::erased_key<Key> erased_key_sentinel) noexcept
+      empty_key<Key> empty_key_sentinel,
+      empty_value<Value> empty_value_sentinel,
+      erased_key<Key> erased_key_sentinel) noexcept
     {
       device_view_base::initialize_slots(
         g, slots, capacity, empty_key_sentinel, empty_value_sentinel);
@@ -1070,8 +1069,8 @@ class static_map {
      */
     __host__ __device__ device_view(pair_atomic_type* slots,
                                     std::size_t capacity,
-                                    sentinel::empty_key<Key> empty_key_sentinel,
-                                    sentinel::empty_value<Value> empty_value_sentinel) noexcept
+                                    empty_key<Key> empty_key_sentinel,
+                                    empty_value<Value> empty_value_sentinel) noexcept
       : device_view_base{slots, capacity, empty_key_sentinel, empty_value_sentinel}
     {
     }
@@ -1088,9 +1087,9 @@ class static_map {
      */
     __host__ __device__ device_view(pair_atomic_type* slots,
                                     std::size_t capacity,
-                                    sentinel::empty_key<Key> empty_key_sentinel,
-                                    sentinel::empty_value<Value> empty_value_sentinel,
-                                    sentinel::erased_key<Key> erased_key_sentinel) noexcept
+                                    empty_key<Key> empty_key_sentinel,
+                                    empty_value<Value> empty_value_sentinel,
+                                    erased_key<Key> erased_key_sentinel) noexcept
       : device_view_base{
           slots, capacity, empty_key_sentinel, empty_value_sentinel, erased_key_sentinel}
     {
@@ -1104,9 +1103,9 @@ class static_map {
     __host__ __device__ explicit device_view(device_mutable_view mutable_map)
       : device_view_base{mutable_map.get_slots(),
                          mutable_map.get_capacity(),
-                         sentinel::empty_key<Key>{mutable_map.get_empty_key_sentinel()},
-                         sentinel::empty_value<Value>{mutable_map.get_empty_value_sentinel()},
-                         sentinel::erased_key<Key>{mutable_map.get_erased_key_sentinel()}}
+                         empty_key<Key>{mutable_map.get_empty_key_sentinel()},
+                         empty_value<Value>{mutable_map.get_empty_value_sentinel()},
+                         erased_key<Key>{mutable_map.get_erased_key_sentinel()}}
     {
     }
 
@@ -1175,12 +1174,11 @@ class static_map {
       g.sync();
 #endif
 
-      return device_view(
-        memory_to_use,
-        source_device_view.get_capacity(),
-        sentinel::empty_key<Key>{source_device_view.get_empty_key_sentinel()},
-        sentinel::empty_value<Value>{source_device_view.get_empty_value_sentinel()},
-        sentinel::erased_key<Key>{source_device_view.get_erased_key_sentinel()});
+      return device_view(memory_to_use,
+                         source_device_view.get_capacity(),
+                         empty_key<Key>{source_device_view.get_empty_key_sentinel()},
+                         empty_value<Value>{source_device_view.get_empty_value_sentinel()},
+                         erased_key<Key>{source_device_view.get_erased_key_sentinel()});
     }
 
     /**
@@ -1395,9 +1393,9 @@ class static_map {
   {
     return device_view(slots_,
                        capacity_,
-                       sentinel::empty_key<Key>{empty_key_sentinel_},
-                       sentinel::empty_value<Value>{empty_value_sentinel_},
-                       sentinel::erased_key<Key>{erased_key_sentinel_});
+                       empty_key<Key>{empty_key_sentinel_},
+                       empty_value<Value>{empty_value_sentinel_},
+                       erased_key<Key>{erased_key_sentinel_});
   }
 
   /**
@@ -1409,9 +1407,9 @@ class static_map {
   {
     return device_mutable_view(slots_,
                                capacity_,
-                               sentinel::empty_key<Key>{empty_key_sentinel_},
-                               sentinel::empty_value<Value>{empty_value_sentinel_},
-                               sentinel::erased_key<Key>{erased_key_sentinel_});
+                               empty_key<Key>{empty_key_sentinel_},
+                               empty_value<Value>{empty_value_sentinel_},
+                               erased_key<Key>{erased_key_sentinel_});
   }
 
  private:
