@@ -41,6 +41,7 @@ namespace cg = cooperative_groups;
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
  * @param submap_views Array of `static_map::device_view` objects used to
@@ -71,7 +72,7 @@ __global__ void insert(InputIt first,
                        Hash hash,
                        KeyEqual key_equal)
 {
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
@@ -97,8 +98,10 @@ __global__ void insert(InputIt first,
     tid += gridDim.x * blockDim.x;
   }
 
-  std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
-  if (threadIdx.x == 0) { *num_successes += block_num_successes; }
+  std::size_t const block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
+  if (threadIdx.x == 0) {
+    num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
+  }
 }
 
 /**
@@ -122,13 +125,14 @@ __global__ void insert(InputIt first,
  * @tparam viewT Type of device view allowing access of hash map storage
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of key/value pairs
  * @param last End of the sequence of key/value pairs
  * @param submap_views Array of `static_map::device_view` objects used to
  * perform `contains` operations on each underlying `static_map`
  * @param submap_mutable_views Array of `static_map::device_mutable_view` objects
  * used to perform an `insert` into the target `static_map` submap
- * @param num_successes The number of successfully inserted key/value pairs
+ * @param submap_num_successes The number of successfully inserted key/value pairs for each submap
  * @param insert_idx The index of the submap we are inserting into
  * @param num_submaps The total number of submaps in the map
  * @param hash The unary function to apply to hash each key
@@ -147,13 +151,13 @@ __global__ void insert(InputIt first,
                        InputIt last,
                        viewT* submap_views,
                        mutableViewT* submap_mutable_views,
-                       atomicT* num_successes,
+                       atomicT** submap_num_successes,
                        uint32_t insert_idx,
                        uint32_t num_submaps,
                        Hash hash,
                        KeyEqual key_equal)
 {
-  typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
+  using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
@@ -182,8 +186,154 @@ __global__ void insert(InputIt first,
     it += (gridDim.x * blockDim.x) / tile_size;
   }
 
-  std::size_t block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
-  if (threadIdx.x == 0) { *num_successes += block_num_successes; }
+  std::size_t const block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
+  if (threadIdx.x == 0) {
+    submap_num_successes[insert_idx]->fetch_add(block_num_successes,
+                                                cuda::std::memory_order_relaxed);
+  }
+}
+
+/**
+ * @brief Erases the key/value pairs corresponding to all keys in the range `[first, last)`.
+ *
+ * If the key `*(first + i)` exists in the map, its slot is erased and made available for future
+   insertions.
+ * Else, no effect.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam mutableViewT Type of device view allowing modification of hash map storage
+ * @tparam atomicT Type of atomic storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ *
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param submap_mutable_views Array of `static_map::mutable_device_view` objects used to
+ * perform `erase` operations on each underlying `static_map`
+ * @param num_successes The number of successfully erased key/value pairs
+ * @param submap_num_successes The number of successfully erased key/value pairs
+ * in each submap
+ * @param num_submaps The number of submaps in the map
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
+template <uint32_t block_size,
+          typename InputIt,
+          typename mutableViewT,
+          typename atomicT,
+          typename Hash,
+          typename KeyEqual>
+__global__ void erase(InputIt first,
+                      InputIt last,
+                      mutableViewT* submap_mutable_views,
+                      atomicT** submap_num_successes,
+                      uint32_t num_submaps,
+                      Hash hash,
+                      KeyEqual key_equal)
+{
+  extern __shared__ unsigned long long submap_block_num_successes[];
+
+  auto tid = block_size * blockIdx.x + threadIdx.x;
+  auto it  = first + tid;
+
+  for (auto i = threadIdx.x; i < num_submaps; i += block_size) {
+    submap_block_num_successes[i] = 0;
+  }
+  __syncthreads();
+
+  while (it < last) {
+    for (auto i = 0; i < num_submaps; ++i) {
+      if (submap_mutable_views[i].erase(*it, hash, key_equal)) {
+        atomicAdd(&submap_block_num_successes[i], 1);
+        break;
+      }
+    }
+    it += gridDim.x * blockDim.x;
+  }
+  __syncthreads();
+
+  for (auto i = 0; i < num_submaps; ++i) {
+    if (threadIdx.x == 0) {
+      submap_num_successes[i]->fetch_add(static_cast<std::size_t>(submap_block_num_successes[i]),
+                                         cuda::std::memory_order_relaxed);
+    }
+  }
+}
+
+/**
+ * @brief Erases the key/value pairs corresponding to all keys in the range `[first, last)`.
+ *
+ * If the key `*(first + i)` exists in the map, its slot is erased and made available for future
+ * insertions.
+ * Else, no effect.
+ *
+ * @tparam block_size The size of the thread block
+ * @tparam tile_size The number of threads in the Cooperative Groups used to perform erase
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam mutableViewT Type of device view allowing modification of hash map storage
+ * @tparam atomicT Type of atomic storage
+ * @tparam Hash Unary callable type
+ * @tparam KeyEqual Binary callable type
+ *
+ * @param first Beginning of the sequence of keys
+ * @param last End of the sequence of keys
+ * @param submap_mutable_views Array of `static_map::mutable_device_view` objects used to
+ * perform `erase` operations on each underlying `static_map`
+ * @param num_successes The number of successfully erased key/value pairs
+ * @param submap_num_successes The number of successfully erased key/value pairs
+ * in each submap
+ * @param num_submaps The number of submaps in the map
+ * @param hash The unary function to apply to hash each key
+ * @param key_equal The binary function to compare two keys for equality
+ */
+template <uint32_t block_size,
+          uint32_t tile_size,
+          typename InputIt,
+          typename mutableViewT,
+          typename atomicT,
+          typename Hash,
+          typename KeyEqual>
+__global__ void erase(InputIt first,
+                      InputIt last,
+                      mutableViewT* submap_mutable_views,
+                      atomicT** submap_num_successes,
+                      uint32_t num_submaps,
+                      Hash hash,
+                      KeyEqual key_equal)
+{
+  extern __shared__ unsigned long long submap_block_num_successes[];
+
+  auto block = cg::this_thread_block();
+  auto tile  = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tid   = block_size * block.group_index().x + block.thread_rank();
+  auto it    = first + tid / tile_size;
+
+  for (auto i = threadIdx.x; i < num_submaps; i += block_size) {
+    submap_block_num_successes[i] = 0;
+  }
+  block.sync();
+
+  while (it < last) {
+    auto erased = false;
+    int i       = 0;
+    for (i = 0; i < num_submaps; ++i) {
+      erased = submap_mutable_views[i].erase(tile, *it, hash, key_equal);
+      if (erased) { break; }
+    }
+    if (erased && tile.thread_rank() == 0) { atomicAdd(&submap_block_num_successes[i], 1); }
+    it += (gridDim.x * blockDim.x) / tile_size;
+  }
+  block.sync();
+
+  for (auto i = 0; i < num_submaps; ++i) {
+    if (threadIdx.x == 0) {
+      submap_num_successes[i]->fetch_add(static_cast<std::size_t>(submap_block_num_successes[i]),
+                                         cuda::std::memory_order_relaxed);
+    }
+  }
 }
 
 /**
@@ -191,6 +341,7 @@ __global__ void insert(InputIt first,
  *
  * If the key `*(first + i)` exists in the map, copies its associated value to `(output_begin + i)`.
  * Else, copies the empty value sentinel.
+ *
  * @tparam block_size The number of threads in the thread block
  * @tparam Value The mapped value type for the map
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -200,6 +351,7 @@ __global__ void insert(InputIt first,
  * @tparam viewT Type of `static_map` device view
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of values retrieved for each key
@@ -273,6 +425,7 @@ __global__ void find(InputIt first,
  * @tparam viewT Type of `static_map` device view
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of values retrieved for each key
@@ -345,6 +498,7 @@ __global__ void find(InputIt first,
  * @tparam viewT Type of `static_map` device view
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
@@ -411,6 +565,7 @@ __global__ void contains(InputIt first,
  * @tparam viewT Type of `static_map` device view
  * @tparam Hash Unary callable type
  * @tparam KeyEqual Binary callable type
+ *
  * @param first Beginning of the sequence of keys
  * @param last End of the sequence of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
