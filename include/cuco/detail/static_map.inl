@@ -28,12 +28,11 @@
 namespace cuco {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-static_map<Key, Value, Scope, Allocator>::static_map(
-  std::size_t capacity,
-  sentinel::empty_key<Key> empty_key_sentinel,
-  sentinel::empty_value<Value> empty_value_sentinel,
-  Allocator const& alloc,
-  cudaStream_t stream)
+static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
+                                                     empty_key<Key> empty_key_sentinel,
+                                                     empty_value<Value> empty_value_sentinel,
+                                                     Allocator const& alloc,
+                                                     cudaStream_t stream)
   : capacity_{std::max(capacity, std::size_t{1})},  // to avoid dereferencing a nullptr (Issue #72)
     empty_key_sentinel_{empty_key_sentinel.value},
     empty_value_sentinel_{empty_value_sentinel.value},
@@ -53,13 +52,12 @@ static_map<Key, Value, Scope, Allocator>::static_map(
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-static_map<Key, Value, Scope, Allocator>::static_map(
-  std::size_t capacity,
-  sentinel::empty_key<Key> empty_key_sentinel,
-  sentinel::empty_value<Value> empty_value_sentinel,
-  sentinel::erased_key<Key> erased_key_sentinel,
-  Allocator const& alloc,
-  cudaStream_t stream)
+static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
+                                                     empty_key<Key> empty_key_sentinel,
+                                                     empty_value<Value> empty_value_sentinel,
+                                                     erased_key<Key> erased_key_sentinel,
+                                                     Allocator const& alloc,
+                                                     cudaStream_t stream)
   : capacity_{std::max(capacity, std::size_t{1})},  // to avoid dereferencing a nullptr (Issue #72)
     empty_key_sentinel_{empty_key_sentinel.value},
     empty_value_sentinel_{empty_value_sentinel.value},

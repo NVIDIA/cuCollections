@@ -67,8 +67,8 @@ namespace cuco {
  * // within the second insert.
  *
  * dynamic_map<int, int> m{100'000,
- *                         sentinel::empty_key<int>{empty_key_sentinel},
- *                         sentinel::empty_value<int>{empty_value_sentinel}};
+ *                         empty_key<int>{empty_key_sentinel},
+ *                         empty_value<int>{empty_value_sentinel}};
  *
  * // Create a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
  * thrust::device_vector<thrust::pair<int,int>> pairs_0(50'000);
@@ -170,9 +170,9 @@ class dynamic_map {
    * are the same value
    */
   dynamic_map(std::size_t initial_capacity,
-              sentinel::empty_key<Key> empty_key_sentinel,
-              sentinel::empty_value<Value> empty_value_sentinel,
-              sentinel::erased_key<Key> erased_key_sentinel,
+              empty_key<Key> empty_key_sentinel,
+              empty_value<Value> empty_value_sentinel,
+              erased_key<Key> erased_key_sentinel,
               Allocator const& alloc = Allocator{},
               cudaStream_t stream    = nullptr);
 

@@ -17,12 +17,11 @@
 namespace cuco {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(
-  std::size_t initial_capacity,
-  sentinel::empty_key<Key> empty_key_sentinel,
-  sentinel::empty_value<Value> empty_value_sentinel,
-  Allocator const& alloc,
-  cudaStream_t stream)
+dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capacity,
+                                                       empty_key<Key> empty_key_sentinel,
+                                                       empty_value<Value> empty_value_sentinel,
+                                                       Allocator const& alloc,
+                                                       cudaStream_t stream)
   : empty_key_sentinel_(empty_key_sentinel.value),
     empty_value_sentinel_(empty_value_sentinel.value),
     erased_key_sentinel_(empty_key_sentinel.value),
@@ -34,8 +33,8 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(
 {
   submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
     initial_capacity,
-    sentinel::empty_key<Key>{empty_key_sentinel},
-    sentinel::empty_value<Value>{empty_value_sentinel},
+    empty_key<Key>{empty_key_sentinel},
+    empty_value<Value>{empty_value_sentinel},
     alloc,
     stream));
   submap_views_.push_back(submaps_[0]->get_device_view());
@@ -93,16 +92,16 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n, cudaStrea
       if (erased_key_sentinel_ != empty_key_sentinel_) {
         submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
           submap_capacity,
-          sentinel::empty_key<Key>{empty_key_sentinel_},
-          sentinel::empty_value<Value>{empty_value_sentinel_},
-          sentinel::erased_key<Key>{erased_key_sentinel_},
+          empty_key<Key>{empty_key_sentinel_},
+          empty_value<Value>{empty_value_sentinel_},
+          erased_key<Key>{erased_key_sentinel_},
           alloc_,
           stream));
       } else {
         submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
           submap_capacity,
-          sentinel::empty_key<Key>{empty_key_sentinel_},
-          sentinel::empty_value<Value>{empty_value_sentinel_},
+          empty_key<Key>{empty_key_sentinel_},
+          empty_value<Value>{empty_value_sentinel_},
           alloc_,
           stream));
       }
