@@ -57,32 +57,27 @@ constexpr std::size_t pair_alignment()
 }
 
 template <typename T, typename = void>
-struct is_std_pair_like : std::false_type {
-};
+struct is_std_pair_like : std::false_type {};
 
 template <typename T>
 struct is_std_pair_like<
   T,
   std::void_t<decltype(std::get<0>(std::declval<T>())), decltype(std::get<1>(std::declval<T>()))>>
-  : std::conditional_t<std::tuple_size<T>::value == 2, std::true_type, std::false_type> {
-};
+  : std::conditional_t<std::tuple_size<T>::value == 2, std::true_type, std::false_type> {};
 
 template <typename T, typename = void>
-struct is_thrust_pair_like_impl : std::false_type {
-};
+struct is_thrust_pair_like_impl : std::false_type {};
 
 template <typename T>
 struct is_thrust_pair_like_impl<T,
                                 std::void_t<decltype(thrust::get<0>(std::declval<T>())),
                                             decltype(thrust::get<1>(std::declval<T>()))>>
-  : std::conditional_t<thrust::tuple_size<T>::value == 2, std::true_type, std::false_type> {
-};
+  : std::conditional_t<thrust::tuple_size<T>::value == 2, std::true_type, std::false_type> {};
 
 template <typename T>
 struct is_thrust_pair_like
   : is_thrust_pair_like_impl<
-      std::remove_reference_t<decltype(thrust::raw_reference_cast(std::declval<T>()))>> {
-};
+      std::remove_reference_t<decltype(thrust::raw_reference_cast(std::declval<T>()))>> {};
 
 /**
  * @brief Denotes the equivalent packed type based on the size of the object.
