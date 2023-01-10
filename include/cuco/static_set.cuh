@@ -18,10 +18,10 @@
 
 #include <cuco/allocator.hpp>
 #include <cuco/detail/__config>
-#include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/storage.cuh>
 #include <cuco/extent.cuh>
+#include <cuco/hash_functions.cuh>
 #include <cuco/probing_scheme.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/static_set_ref.cuh>
@@ -60,13 +60,12 @@ template <class Key,
           class Extent             = cuco::experimental::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
-          class ProbingScheme =
-            experimental::double_hashing<1,                                  // CG size
-                                         cuco::detail::MurmurHash3_32<Key>,  // Hash1
-                                         cuco::detail::MurmurHash3_32<Key>   // Hash2
-                                         >,
-          class Allocator = cuco::cuda_allocator<char>,
-          class Storage   = cuco::experimental::detail::aos_storage<2,  // window size
+          class ProbingScheme      = experimental::double_hashing<1,  // CG size
+                                                             cuco::murmurhash3_32<Key>,  // Hash1
+                                                             cuco::murmurhash3_32<Key>  // Hash2
+                                                             >,
+          class Allocator          = cuco::cuda_allocator<char>,
+          class Storage            = cuco::experimental::detail::aos_storage<2,  // window size
                                                                   Key,
                                                                   Extent,
                                                                   Allocator>>
@@ -137,8 +136,8 @@ class static_set {
   static_set(Extent capacity,
              empty_key<Key> empty_key_sentinel,
              KeyEqual pred                = KeyEqual{},
-             ProbingScheme probing_scheme = ProbingScheme{cuco::detail::MurmurHash3_32<Key>{},
-                                                          cuco::detail::MurmurHash3_32<Key>{}},
+             ProbingScheme probing_scheme = ProbingScheme{cuco::murmurhash3_32<Key>{},
+                                                          cuco::murmurhash3_32<Key>{}},
              Allocator const& alloc       = Allocator{},
              cudaStream_t stream          = nullptr);
 
