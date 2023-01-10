@@ -33,8 +33,8 @@ template <typename Key,
           class ProbeSequence>
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
   std::size_t capacity,
-  sentinel::empty_key<Key> empty_key_sentinel,
-  sentinel::empty_value<Value> empty_value_sentinel,
+  empty_key<Key> empty_key_sentinel,
+  empty_value<Value> empty_value_sentinel,
   cudaStream_t stream,
   Allocator const& alloc)
   : capacity_{cuco::detail::get_valid_capacity<cg_size(), vector_width(), uses_vector_load()>(
