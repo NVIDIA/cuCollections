@@ -342,6 +342,33 @@ class aos_storage : public storage_base<Extent> {
   window_deleter_type window_deleter_;  ///< Custom windows deleter
   std::unique_ptr<window_type, window_deleter_type> windows_;  ///< Pointer to AoS windows storage
 };
+
+/**
+ * @brief Intermediate class internally used by data structures
+ *
+ * @tparam StorageImpl Storage implementation class
+ * @tparam T Storage element type
+ * @tparam Extent Type of extent denoting number of windows
+ * @tparam Allocator Type of allocator used for device storage
+ */
+template <class StorageImpl, class T, class Extent, class Allocator>
+class storage : StorageImpl::template impl<T, Extent, Allocator> {
+ public:
+  /// Storage implementation type
+  using impl_type = typename StorageImpl::template impl<T, Extent, Allocator>;
+
+  /**
+   * @brief Constructs storage.
+   *
+   * @param size Number of slots to (de)allocate
+   * @param allocator Allocator used for (de)allocating device storage
+   */
+  __host__ __device__ explicit storage(Extent size, Allocator const& allocator)
+    : impl_type{size, allocator}
+  {
+  }
+};
+
 }  // namespace detail
 }  // namespace experimental
 }  // namespace cuco
