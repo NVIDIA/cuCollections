@@ -56,7 +56,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    */
   template <typename ProbeKey, typename SizeType>
   __device__ constexpr auto operator()(ProbeKey const& probe_key,
-                                       SizeType const upper_bound) const noexcept
+                                       SizeType upper_bound) const noexcept
   {
     return iterator<SizeType>{
       hash1_(probe_key) % upper_bound,
@@ -78,7 +78,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   template <typename ProbeKey, typename SizeType>
   __device__ constexpr auto operator()(cooperative_groups::thread_block_tile<cg_size> const& g,
                                        ProbeKey const& probe_key,
-                                       SizeType const upper_bound) const noexcept
+                                       SizeType upper_bound) const noexcept
   {
     return iterator<SizeType>{(hash1_(probe_key) + g.thread_rank()) % upper_bound,
                               (hash2_(probe_key) % (upper_bound / cg_size - 1) + 1) * cg_size,
