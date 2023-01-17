@@ -65,10 +65,11 @@ struct extent {
     auto constexpr size = SDIV(N, CGSize * WindowSize);
     // TODO: conflict deduced return type
     // if (size <= 0 or size > max_value) {return extent<value_type, 0>{};}
-    return extent<
-      value_type,
-      static_cast<value_type>(*cuco::detail::lower_bound(
-        cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)))>{};
+    return extent<value_type,
+                  static_cast<value_type>(*cuco::detail::lower_bound(cuco::detail::primes.begin(),
+                                                                     cuco::detail::primes.end(),
+                                                                     static_cast<uint64_t>(size)) *
+                                          CGSize)>{};
   }
 };
 
@@ -113,8 +114,10 @@ struct extent<SizeType, dynamic_extent> {
         : static_cast<value_type>(max_prime);
     auto const size = SDIV(value_, CGSize * WindowSize);
     if (size <= 0 or size > max_value) { return extent<value_type>{0}; }
-    return extent<value_type>{static_cast<value_type>(*cuco::detail::lower_bound(
-      cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)))};
+    return extent<value_type>{static_cast<value_type>(
+      *cuco::detail::lower_bound(
+        cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
+      CGSize)};
   }
 
  private:

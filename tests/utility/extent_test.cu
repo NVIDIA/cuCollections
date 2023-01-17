@@ -23,9 +23,10 @@
 TEMPLATE_TEST_CASE_SIG(
   "Extent tests", "", ((typename SizeType), SizeType), (int32_t), (int64_t), (std::size_t))
 {
-  SizeType constexpr num     = 1234;
-  auto constexpr cg_size     = 2;
-  auto constexpr window_size = 4;
+  SizeType constexpr num            = 1234;
+  SizeType constexpr gold_reference = 314;  // 157 x 2
+  auto constexpr cg_size            = 2;
+  auto constexpr window_size        = 4;
 
   SECTION("Static extent must be evaluated at compile time.")
   {
@@ -43,13 +44,13 @@ TEMPLATE_TEST_CASE_SIG(
   {
     auto constexpr size = cuco::experimental::extent<SizeType, num>{};
     auto constexpr res  = size.template valid_extent<cg_size, window_size>();
-    static_assert(157 == res);
+    static_assert(gold_reference == res);
   }
 
   SECTION("Compute dynamic valid extent at run time.")
   {
     auto const size = cuco::experimental::extent<SizeType>{num};
     auto const res  = size.template valid_extent<cg_size, window_size>();
-    REQUIRE(157 == res);
+    REQUIRE(gold_reference == res);
   }
 }
