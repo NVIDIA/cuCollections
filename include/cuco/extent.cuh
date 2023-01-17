@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 
 #pragma once
+
+#include <cuco/detail/prime.hpp>
 
 #include <cstddef>
 
@@ -43,6 +45,31 @@ struct extent {
    * @return Extent size
    */
   __host__ __device__ constexpr operator value_type() const noexcept { return N; }
+
+  /**
+   * @brief Computes valid extent based on given parameters.
+   *
+   * @tparam CGSize Number of elements handled per CG
+   * @tparam WindowSize Number of elements handled per Window
+   *
+   * @return Resulting valid static extent
+   */
+  template <int CGSize, int WindowSize>
+  constexpr auto valid_extent() const noexcept
+  {
+    auto constexpr max_prime = cuco::detail::primes.back();
+    auto constexpr max_value =
+      (static_cast<uint64_t>(std::numeric_limits<value_type>::max()) < max_prime)
+        ? std::numeric_limits<value_type>::max()
+        : static_cast<value_type>(max_prime);
+    auto constexpr size = SDIV(N, CGSize * WindowSize);
+    // TODO: conflict deduced return type
+    // if (size <= 0 or size > max_value) {return extent<value_type, 0>{};}
+    return extent<
+      value_type,
+      static_cast<value_type>(*cuco::detail::lower_bound(
+        cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)))>{};
+  }
 };
 
 /**
@@ -67,6 +94,28 @@ struct extent<SizeType, dynamic_extent> {
    * @return Extent size
    */
   __host__ __device__ constexpr operator value_type() const noexcept { return value_; }
+
+  /**
+   * @brief Computes valid extent based on given parameters.
+   *
+   * @tparam CGSize Number of elements handled per CG
+   * @tparam WindowSize Number of elements handled per Window
+   *
+   * @return Resulting valid dynamic extent
+   */
+  template <int CGSize, int WindowSize>
+  constexpr auto valid_extent() const noexcept
+  {
+    auto constexpr max_prime = cuco::detail::primes.back();
+    auto constexpr max_value =
+      (static_cast<uint64_t>(std::numeric_limits<value_type>::max()) < max_prime)
+        ? std::numeric_limits<value_type>::max()
+        : static_cast<value_type>(max_prime);
+    auto const size = SDIV(value_, CGSize * WindowSize);
+    if (size <= 0 or size > max_value) { return extent<value_type>{0}; }
+    return extent<value_type>{static_cast<value_type>(*cuco::detail::lower_bound(
+      cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)))};
+  }
 
  private:
   value_type value_;  ///< Size of extent

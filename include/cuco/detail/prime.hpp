@@ -20145,7 +20145,7 @@ inline constexpr std::array<int64_t, 140739> primes = {
  * @return Next prime number larger than `base`
  */
 template <typename T>
-[[nodiscard]] constexpr T next_prime(T const base) noexcept
+[[nodiscard]] constexpr T next_prime(T base) noexcept
 {
   auto const max_prime = primes.back();
   auto const max_value = (static_cast<uint64_t>(std::numeric_limits<T>::max()) < max_prime)
