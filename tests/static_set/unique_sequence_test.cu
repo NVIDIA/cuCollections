@@ -64,8 +64,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence",
 {
   constexpr std::size_t num_keys{400};
 
-  cuco::experimental::static_set<Key, cuco::experimental::extent<std::size_t>> set{
-    cuco::experimental::extent<std::size_t>{400}, cuco::sentinel::empty_key<Key>{-1}};
+  cuco::experimental::static_set<Key> set{num_keys, cuco::sentinel::empty_key<Key>{-1}};
 
   auto constexpr gold_capacity = 422;  // 211 x 2
   REQUIRE(set.capacity() == gold_capacity);

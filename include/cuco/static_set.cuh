@@ -58,13 +58,15 @@ namespace experimental {
  */
 
 template <class Key,
-          class Extent,
+          class Extent             = cuco::experimental::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
-          class ProbingScheme =
-            experimental::double_hashing<1, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>,
-          class Allocator = cuco::cuda_allocator<std::byte>,
-          class Storage   = cuco::experimental::aow_storage<2>>
+          class ProbingScheme      = experimental::double_hashing<1,  // CG size
+                                                             cuco::murmurhash3_32<Key>,
+                                                             cuco::murmurhash3_32<Key>>,
+          class Allocator          = cuco::cuda_allocator<std::byte>,
+          class Storage            = cuco::experimental::aow_storage<2  // Window size
+                                                          >>
 class static_set {
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
