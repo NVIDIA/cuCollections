@@ -182,7 +182,7 @@ class aos_storage_ref {
    * @param windows Pointer to the windows array
    * @param num_windows Number of slots
    */
-  explicit aos_storage_ref(window_type* windows, Extent const num_windows) noexcept
+  explicit aos_storage_ref(window_type* windows, Extent num_windows) noexcept
     : windows_{windows}, num_windows_{num_windows}
   {
   }
@@ -206,14 +206,14 @@ class aos_storage_ref {
    *
    * @return The total number of slot windows
    */
-  __device__ inline size_type num_windows() const noexcept { return num_windows_; }
+  __device__ inline extent_type num_windows() const noexcept { return num_windows_; }
 
   /**
    * @brief Gets the total number of slots in the current storage.
    *
    * @return The total number of slots
    */
-  __device__ inline size_type capacity() const noexcept { return num_windows_ * window_size; }
+  __device__ inline extent_type capacity() const noexcept { return num_windows_ * window_size; }
 
   /**
    * @brief Returns an array of elements (window) for a given index.
@@ -302,14 +302,14 @@ class aos_storage : public storage_base<Extent> {
    *
    * @return The total number of slot windows
    */
-  __host__ __device__ constexpr size_type num_windows() const noexcept { return this->size(); }
+  __host__ __device__ constexpr extent_type num_windows() const noexcept { return this->size(); }
 
   /**
    * @brief Gets the total number of slots in the current storage.
    *
    * @return The total number of slots
    */
-  __host__ __device__ constexpr size_type capacity() const noexcept
+  __host__ __device__ constexpr extent_type capacity() const noexcept
   {
     return this->size() * window_size;
   }

@@ -48,17 +48,16 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @brief Operator to return a probing iterator
    *
    * @tparam ProbeKey Type of probing key
-   * @tparam SizeType Type of storage size
+   * @tparam Extent Type of extent
    *
    * @param probe_key The probing key
    * @param upper_bound Upper bound of the iteration
    * @return An iterator whose value_type is convertible to slot index type
    */
-  template <typename ProbeKey, typename SizeType>
-  __device__ constexpr auto operator()(ProbeKey const& probe_key,
-                                       SizeType upper_bound) const noexcept
+  template <typename ProbeKey, typename Extent>
+  __device__ constexpr auto operator()(ProbeKey const& probe_key, Extent upper_bound) const noexcept
   {
-    return iterator<SizeType>{
+    return iterator<Extent>{
       hash1_(probe_key) % upper_bound,
       hash2_(probe_key) % (upper_bound - 1) + 1,  // step size in range [1, prime - 1]
       upper_bound};
@@ -68,32 +67,33 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @brief Operator to return a probing iterator
    *
    * @tparam ProbeKey Type of probing key
-   * @tparam SizeType Type of storage size
+   * @tparam Extent Type of extent
    *
    * @param g the Cooperative Group to generate probing iterator
    * @param probe_key The probing key
    * @param upper_bound Upper bound of the iteration
    * @return An iterator whose value_type is convertible to slot index type
    */
-  template <typename ProbeKey, typename SizeType>
+  template <typename ProbeKey, typename Extent>
   __device__ constexpr auto operator()(cooperative_groups::thread_block_tile<cg_size> const& g,
                                        ProbeKey const& probe_key,
-                                       SizeType upper_bound) const noexcept
+                                       Extent upper_bound) const noexcept
   {
-    return iterator<SizeType>{(hash1_(probe_key) + g.thread_rank()) % upper_bound,
-                              (hash2_(probe_key) % (upper_bound / cg_size - 1) + 1) * cg_size,
-                              upper_bound};
+    return iterator<Extent>{(hash1_(probe_key) + g.thread_rank()) % upper_bound,
+                            (hash2_(probe_key) % (upper_bound / cg_size - 1) + 1) * cg_size,
+                            upper_bound};
   }
 
   /**
    * @brief Probing iterator class.
    *
-   * @tparam SizeType Type of size
+   * @tparam Extent Type of Extent
    */
-  template <typename SizeType>
+  template <typename Extent>
   class iterator {
    public:
-    using size_type = SizeType;  ///< Size type
+    using extent_type = Extent;                            ///< Extent type
+    using size_type   = typename extent_type::value_type;  ///< Size type
 
     /**
      *@brief Constructs an probing iterator
@@ -102,7 +102,9 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
      * @param step_size Double hashing step size
      * @param upper_bound Upper bound of the iteration
      */
-    __device__ constexpr iterator(SizeType start, SizeType step_size, SizeType upper_bound) noexcept
+    __device__ constexpr iterator(size_type start,
+                                  size_type step_size,
+                                  extent_type upper_bound) noexcept
       : curr_index_{start}, step_size_{step_size}, upper_bound_{upper_bound}
     {
     }
@@ -140,7 +142,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    private:
     size_type curr_index_;
     size_type step_size_;
-    size_type upper_bound_;
+    extent_type upper_bound_;
   };
 
  private:
