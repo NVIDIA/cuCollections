@@ -85,7 +85,7 @@ int main(void)
   auto constexpr load_factor = 0.5;
   std::size_t const capacity = std::ceil(num_keys / load_factor);
 
-  using set_type = cuco::experimental::static_set<Key>;
+  using set_type = cuco::experimental::static_set<Key, cuco::experimental::extent<std::size_t>>;
 
   // Constructs a hash set with at least "capacity" slots using -1 as the empty key sentinel.
   set_type set{capacity, cuco::empty_key{empty_key_sentinel}};

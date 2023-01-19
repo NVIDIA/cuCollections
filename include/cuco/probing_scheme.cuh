@@ -42,7 +42,10 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @param hash1 First hasher
    * @param hash2 Second hasher
    */
-  double_hashing(Hash1 const& hash1, Hash2 const& hash2) : hash1_{hash1}, hash2_{hash2} {}
+  explicit constexpr double_hashing(Hash1 const& hash1, Hash2 const& hash2)
+    : hash1_{hash1}, hash2_{hash2}
+  {
+  }
 
   /**
    * @brief Operator to return a probing iterator

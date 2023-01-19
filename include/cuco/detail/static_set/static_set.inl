@@ -46,7 +46,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::sta
     predicate_{pred},
     probing_scheme_{probing_scheme},
     allocator_{alloc},
-    storage_{cuco::detail::next_prime(SDIV(capacity, cg_size * window_size)) * cg_size, allocator_}
+    storage_{capacity.template valid_extent<cg_size, window_size>(), allocator_}
 {
   storage_.initialize(empty_key_sentinel_, stream);
 }
@@ -108,13 +108,13 @@ template <typename... Operators>
 auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref_with(
   Operators...) const noexcept
 {
-  return static_set_ref<Key,
-                        Scope,
-                        KeyEqual,
-                        ProbingScheme,
-                        typename Storage::ref_type,
+  return static_set_ref<key_type,
+                        thread_scope,
+                        key_equal,
+                        probing_scheme_type,
+                        storage_ref_type,
                         Operators...>{
-    cuco::empty_key<Key>(empty_key_sentinel_), predicate_, probing_scheme_, storage_.ref()};
+    cuco::empty_key<key_type>(empty_key_sentinel_), predicate_, probing_scheme_, storage_.ref()};
 }
 
 template <class Key,

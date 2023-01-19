@@ -39,18 +39,19 @@ class static_set_ref
       Operators,
       static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
  public:
-  using key_type            = Key;                             ///< Key Type
-  using probing_scheme_type = ProbingScheme;                   ///< Type of probing scheme
-  using storage_ref_type    = StorageRef;                      ///< Type of slot storage ref
-  using window_type = typename storage_ref_type::window_type;  ///< Probing scheme element type
-  using value_type  = typename storage_ref_type::value_type;   ///< Probing scheme element type
-  using size_type   = typename storage_ref_type::size_type;    ///< Probing scheme size type
-  using key_equal   = KeyEqual;  ///< Type of key equality binary callable
+  using key_type            = Key;                                     ///< Key Type
+  using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
+  using storage_ref_type    = StorageRef;                              ///< Type of storage ref
+  using window_type         = typename storage_ref_type::window_type;  ///< Window type
+  using value_type          = typename storage_ref_type::value_type;   ///< Storage element type
+  using extent_type         = typename storage_ref_type::extent_type;  ///< Extent type
+  using size_type           = typename storage_ref_type::size_type;    ///< Probing scheme size type
+  using key_equal           = KeyEqual;  ///< Type of key equality binary callable
 
-  static constexpr int cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
-  static constexpr int window_size =
-    storage_ref_type::window_size;                    ///< Number of elements handled per window
-  static constexpr cuda::thread_scope scope = Scope;  ///< Thread scope
+  static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
+  static constexpr auto window_size =
+    storage_ref_type::window_size;      ///< Number of elements handled per window
+  static constexpr auto scope = Scope;  ///< Thread scope
 
   // TODO default ctor?
 
@@ -62,10 +63,10 @@ class static_set_ref
    * @param probing_scheme Probing scheme
    * @param storage_ref Non-owning ref of slot storage
    */
-  __host__ __device__ static_set_ref(cuco::empty_key<Key> empty_key_sentinel,
-                                     KeyEqual const& predicate,
-                                     ProbingScheme const& probing_scheme,
-                                     StorageRef storage_ref) noexcept
+  __host__ __device__ static_set_ref(cuco::empty_key<key_type> empty_key_sentinel,
+                                     key_equal const& predicate,
+                                     probing_scheme_type const& probing_scheme,
+                                     storage_ref_type storage_ref) noexcept
     : empty_key_sentinel_{empty_key_sentinel},
       predicate_{empty_key_sentinel_.value, predicate},
       probing_scheme_{probing_scheme},
@@ -78,7 +79,7 @@ class static_set_ref
    *
    * @return The maximum number of elements the hash map can hold
    */
-  [[nodiscard]] __host__ __device__ inline size_type capacity() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr extent_type capacity() const noexcept
   {
     return storage_ref_.capacity();
   }

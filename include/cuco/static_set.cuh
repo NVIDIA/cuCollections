@@ -25,6 +25,7 @@
 #include <cuco/probing_scheme.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/static_set_ref.cuh>
+#include <cuco/storage.cuh>
 #include <cuco/traits.hpp>
 
 #include <thrust/functional.h>
@@ -57,18 +58,13 @@ namespace experimental {
  */
 
 template <class Key,
-          class Extent             = cuco::experimental::extent<std::size_t>,
+          class Extent,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
-          class ProbingScheme      = experimental::double_hashing<1,  // CG size
-                                                             cuco::murmurhash3_32<Key>,  // Hash1
-                                                             cuco::murmurhash3_32<Key>  // Hash2
-                                                             >,
-          class Allocator          = cuco::cuda_allocator<char>,
-          class Storage            = cuco::experimental::detail::aos_storage<2,  // window size
-                                                                  Key,
-                                                                  Extent,
-                                                                  Allocator>>
+          class ProbingScheme =
+            experimental::double_hashing<1, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>,
+          class Allocator = cuco::cuda_allocator<std::byte>,
+          class Storage   = cuco::experimental::aow_storage<2>>
 class static_set {
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
@@ -82,25 +78,30 @@ class static_set {
     "cuco::linear_probing.");
 
  public:
-  using key_type            = Key;                               ///< Key type
-  using value_type          = Key;                               ///< Key type
-  using extent_type         = Extent;                            ///< Extent type
-  using size_type           = typename extent_type::value_type;  ///< Size type
-  using key_equal           = KeyEqual;                          ///< Key equality comparator type
-  using allocator_type      = Allocator;                         ///< Allocator type
-  using storage_type        = Storage;                           ///< Window storage type
-  using storage_ref_type    = typename storage_type::ref_type;   ///< Window storage reference type
-  using probing_scheme_type = ProbingScheme;                     ///< Probe scheme type
+  static constexpr auto cg_size      = ProbingScheme::cg_size;  ///< CG size used to for probing
+  static constexpr auto window_size  = Storage::window_size;    ///< Window size used to for probing
+  static constexpr auto thread_scope = Scope;                   ///< CUDA thread scope
+
+  using key_type   = Key;  ///< Key type
+  using value_type = Key;  ///< Key type
+  /// Extent type
+  using extent_type =
+    decltype(std::declval<Extent>()
+               .template valid_extent<ProbingScheme::cg_size, Storage::window_size>());
+  using size_type      = typename extent_type::value_type;  ///< Size type
+  using key_equal      = KeyEqual;                          ///< Key equality comparator type
+  using allocator_type = Allocator;                         ///< Allocator type
+  using storage_type =
+    detail::storage<Storage, value_type, extent_type, allocator_type>;  ///< Storage type
+
+  using storage_ref_type    = typename storage_type::ref_type;  ///< Window storage reference type
+  using probing_scheme_type = ProbingScheme;                    ///< Probe scheme type
   using ref_type =
     cuco::experimental::static_set_ref<key_type,
-                                       Scope,
+                                       thread_scope,
                                        key_equal,
                                        probing_scheme_type,
                                        storage_ref_type>;  ///< Container reference type
-
-  static constexpr int cg_size = probing_scheme_type::cg_size;  ///< CG size used to for probing
-  static constexpr int window_size =
-    storage_type::window_size;  ///< Window size used to for probing
 
   static_set(static_set const&) = delete;
   static_set& operator=(static_set const&) = delete;
@@ -179,7 +180,7 @@ class static_set {
    *
    * @return The maximum number of elements the hash map can hold
    */
-  size_type capacity() const noexcept { return storage_.capacity(); }
+  extent_type capacity() const noexcept { return storage_.capacity(); }
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.

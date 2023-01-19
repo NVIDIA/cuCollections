@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/storage_impl.cuh>
+#include <cuco/detail/storage.cuh>
 
 namespace cuco {
 namespace experimental {
@@ -33,7 +33,7 @@ class aow_storage {
 
   /// Type of implementation details
   template <class T, class Extent, class Allocator>
-  using impl = detail::storage_impl<window_size, T, Extent, Allocator>;
+  using impl = detail::aow_storage<window_size, T, Extent, Allocator>;
 };
 
 }  // namespace experimental

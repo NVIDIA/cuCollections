@@ -87,7 +87,7 @@ class storage_base {
    *
    * @return The total number of elements
    */
-  __host__ __device__ constexpr size_type size() const noexcept { return size_; }
+  __host__ __device__ constexpr extent_type size() const noexcept { return size_; }
 
  protected:
   extent_type size_;  ///< Total number of windows
@@ -157,14 +157,14 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
 };
 
 /**
- * @brief Non-owning AoS storage reference type.
+ * @brief Non-owning AoW storage reference type.
  *
  * @tparam WindowSize Number of slots in each window
  * @tparam T Storage element type
  * @tparam Extent Type of extent denoting storage capacity
  */
 template <int WindowSize, typename T, typename Extent>
-class aos_storage_ref {
+class aow_storage_ref {
  public:
   using window_type = T;                                 ///< Type of struct windows
   using value_type  = typename window_type::value_type;  ///< Struct element type
@@ -182,7 +182,7 @@ class aos_storage_ref {
    * @param windows Pointer to the windows array
    * @param num_windows Number of slots
    */
-  explicit aos_storage_ref(window_type* windows, Extent num_windows) noexcept
+  explicit aow_storage_ref(window_type* windows, Extent num_windows) noexcept
     : windows_{windows}, num_windows_{num_windows}
   {
   }
@@ -237,7 +237,7 @@ class aos_storage_ref {
  * @tparam Allocator Type of allocator used for device storage
  */
 template <int WindowSize, typename T, typename Extent, typename Allocator>
-class aos_storage : public storage_base<Extent> {
+class aow_storage : public storage_base<Extent> {
  public:
   /**
    * @brief The number of elements processed per window.
@@ -255,15 +255,15 @@ class aos_storage : public storage_base<Extent> {
                                                                            ///< allocator to
                                                                            ///< (de)allocate windows
   using window_deleter_type = custom_deleter<allocator_type>;  ///< Type of window deleter
-  using ref_type = aos_storage_ref<window_size, window_type, extent_type>;  ///< Storage ref type
+  using ref_type = aow_storage_ref<window_size, window_type, extent_type>;  ///< Storage ref type
 
   /**
-   * @brief Constructor of AoS storage.
+   * @brief Constructor of AoW storage.
    *
    * @param size Number of slots to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
-  aos_storage(Extent size, Allocator const& allocator)
+  aow_storage(Extent size, Allocator const& allocator)
     : storage_base<Extent>{size},
       allocator_{allocator},
       window_deleter_{size_, allocator_},
@@ -271,17 +271,17 @@ class aos_storage : public storage_base<Extent> {
   {
   }
 
-  aos_storage(aos_storage&&) = default;  ///< Move constructor
+  aow_storage(aow_storage&&) = default;  ///< Move constructor
   /**
    * @brief Replaces the contents of the storage with another storage.
    *
    * @return Reference of the current storage object
    */
-  aos_storage& operator=(aos_storage&&) = default;
-  ~aos_storage()                        = default;  ///< Destructor
+  aow_storage& operator=(aow_storage&&) = default;
+  ~aow_storage()                        = default;  ///< Destructor
 
-  aos_storage(aos_storage const&) = delete;
-  aos_storage& operator=(aos_storage const&) = delete;
+  aow_storage(aow_storage const&) = delete;
+  aow_storage& operator=(aow_storage const&) = delete;
 
   /**
    * @brief Gets windows array.
@@ -302,17 +302,14 @@ class aos_storage : public storage_base<Extent> {
    *
    * @return The total number of slot windows
    */
-  __host__ __device__ constexpr extent_type num_windows() const noexcept { return this->size(); }
+  constexpr extent_type num_windows() const noexcept { return this->size(); }
 
   /**
    * @brief Gets the total number of slots in the current storage.
    *
    * @return The total number of slots
    */
-  __host__ __device__ constexpr extent_type capacity() const noexcept
-  {
-    return this->size() * window_size;
-  }
+  constexpr extent_type capacity() const noexcept { return this->size() * window_size; }
 
   /**
    * @brief Gets window storage reference.
@@ -356,6 +353,15 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
  public:
   /// Storage implementation type
   using impl_type = typename StorageImpl::template impl<T, Extent, Allocator>;
+  using ref_type  = typename impl_type::ref_type;  ///< Storage ref type
+
+  /// Number of elements per window
+  static constexpr int window_size = impl_type::window_size;
+
+  using impl_type::capacity;
+  using impl_type::initialize;
+  using impl_type::num_windows;
+  using impl_type::ref;
 
   /**
    * @brief Constructs storage.
@@ -363,10 +369,7 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
    * @param size Number of slots to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
-  __host__ __device__ explicit storage(Extent size, Allocator const& allocator)
-    : impl_type{size, allocator}
-  {
-  }
+  explicit storage(Extent size, Allocator const& allocator) : impl_type{size, allocator} {}
 };
 
 }  // namespace detail

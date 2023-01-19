@@ -37,7 +37,7 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
 
   SECTION("Allocate array of pairs with AoS storage.")
   {
-    auto s = cuco::experimental::detail::aos_storage<window_size,
+    auto s = cuco::experimental::detail::aow_storage<window_size,
                                                      cuco::pair<Key, Value>,
                                                      cuco::experimental::extent<std::size_t>,
                                                      allocator_type>(
@@ -50,7 +50,7 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
   SECTION("Allocate array of keys with AoS storage.")
   {
     auto s = cuco::experimental::detail::
-      aos_storage<window_size, Key, cuco::experimental::extent<std::size_t>, allocator_type>(
+      aow_storage<window_size, Key, cuco::experimental::extent<std::size_t>, allocator_type>(
         cuco::experimental::extent{size}, allocator);
     auto const res_size = s.capacity();
 
