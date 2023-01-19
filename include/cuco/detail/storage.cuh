@@ -47,7 +47,8 @@ struct custom_deleter {
    * @param size Number of values to deallocate
    * @param allocator Allocator used for deallocating device storage
    */
-  custom_deleter(std::size_t const size, Allocator& allocator) : size_{size}, allocator_{allocator}
+  explicit constexpr custom_deleter(std::size_t const size, Allocator& allocator)
+    : size_{size}, allocator_{allocator}
   {
   }
 
@@ -80,14 +81,17 @@ class storage_base {
    *
    * @param size Number of elements to (de)allocate
    */
-  storage_base(Extent size) : size_{size} {}
+  explicit constexpr storage_base(Extent size) : size_{size} {}
 
   /**
    * @brief Gets the total number of elements in the current storage.
    *
    * @return The total number of elements
    */
-  __host__ __device__ constexpr extent_type size() const noexcept { return size_; }
+  [[nodiscard]] __host__ __device__ inline constexpr extent_type size() const noexcept
+  {
+    return size_;
+  }
 
  protected:
   extent_type size_;  ///< Total number of windows
@@ -116,7 +120,7 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
    *
    * @param allocator Allocator used for (de)allocating device storage
    */
-  counter_storage(Allocator const& allocator)
+  explicit constexpr counter_storage(Allocator const& allocator)
     : storage_base<cuco::experimental::extent<SizeType, 1>>{cuco::experimental::extent<size_type,
                                                                                        1>{}},
       allocator_{allocator},
@@ -141,14 +145,14 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
    *
    * @return Pointer to the counter
    */
-  counter_type* get() noexcept { return counter_.get(); }
+  [[nodiscard]] inline constexpr counter_type* get() noexcept { return counter_.get(); }
 
   /**
    * @brief Gets counter array.
    *
    * @return Pointer to the counter
    */
-  counter_type* get() const noexcept { return counter_.get(); }
+  [[nodiscard]] inline constexpr counter_type* get() const noexcept { return counter_.get(); }
 
  private:
   allocator_type allocator_;              ///< Allocator used to (de)allocate counter
@@ -182,7 +186,7 @@ class aow_storage_ref {
    * @param windows Pointer to the windows array
    * @param num_windows Number of slots
    */
-  explicit aow_storage_ref(window_type* windows, Extent num_windows) noexcept
+  explicit constexpr aow_storage_ref(window_type* windows, Extent num_windows) noexcept
     : windows_{windows}, num_windows_{num_windows}
   {
   }
@@ -192,28 +196,37 @@ class aow_storage_ref {
    *
    * @return Pointer to the first window
    */
-  __device__ inline window_type* windows() noexcept { return windows_; }
+  [[nodiscard]] __device__ inline constexpr window_type* windows() noexcept { return windows_; }
 
   /**
    * @brief Gets windows array.
    *
    * @return Pointer to the first window
    */
-  __device__ inline window_type* windows() const noexcept { return windows_; }
+  [[nodiscard]] __device__ inline constexpr window_type* windows() const noexcept
+  {
+    return windows_;
+  }
 
   /**
    * @brief Gets the total number of slot windows in the current storage.
    *
    * @return The total number of slot windows
    */
-  __device__ inline extent_type num_windows() const noexcept { return num_windows_; }
+  [[nodiscard]] __device__ inline constexpr extent_type num_windows() const noexcept
+  {
+    return num_windows_;
+  }
 
   /**
    * @brief Gets the total number of slots in the current storage.
    *
    * @return The total number of slots
    */
-  __device__ inline extent_type capacity() const noexcept { return num_windows_ * window_size; }
+  [[nodiscard]] __device__ inline constexpr extent_type capacity() const noexcept
+  {
+    return num_windows_ * window_size;
+  }
 
   /**
    * @brief Returns an array of elements (window) for a given index.
@@ -221,7 +234,10 @@ class aow_storage_ref {
    * @param index Index of the first element of the window
    * @return An array of elements
    */
-  __device__ window_type window(size_type index) const noexcept { return *(windows_ + index); }
+  [[nodiscard]] __device__ inline constexpr window_type window(size_type index) const noexcept
+  {
+    return *(windows_ + index);
+  }
 
  private:
   window_type* windows_;     ///< Pointer to the windows array
@@ -263,7 +279,7 @@ class aow_storage : public storage_base<Extent> {
    * @param size Number of slots to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
-  aow_storage(Extent size, Allocator const& allocator)
+  explicit constexpr aow_storage(Extent size, Allocator const& allocator)
     : storage_base<Extent>{size},
       allocator_{allocator},
       window_deleter_{size_, allocator_},
@@ -288,35 +304,41 @@ class aow_storage : public storage_base<Extent> {
    *
    * @return Pointer to the first window
    */
-  window_type* windows() noexcept { return windows_.get(); }
+  [[nodiscard]] inline constexpr window_type* windows() noexcept { return windows_.get(); }
 
   /**
    * @brief Gets windows array.
    *
    * @return Pointer to the first window
    */
-  window_type* windows() const noexcept { return windows_.get(); }
+  [[nodiscard]] inline constexpr window_type* windows() const noexcept { return windows_.get(); }
 
   /**
    * @brief Gets the total number of slot windows in the current storage.
    *
    * @return The total number of slot windows
    */
-  constexpr extent_type num_windows() const noexcept { return this->size(); }
+  [[nodiscard]] inline constexpr extent_type num_windows() const noexcept { return this->size(); }
 
   /**
    * @brief Gets the total number of slots in the current storage.
    *
    * @return The total number of slots
    */
-  constexpr extent_type capacity() const noexcept { return this->size() * window_size; }
+  [[nodiscard]] inline constexpr extent_type capacity() const noexcept
+  {
+    return this->size() * window_size;
+  }
 
   /**
    * @brief Gets window storage reference.
    *
    * @return Reference of window storage
    */
-  ref_type ref() const noexcept { return ref_type{this->windows(), this->num_windows()}; }
+  [[nodiscard]] inline constexpr ref_type ref() const noexcept
+  {
+    return ref_type{this->windows(), this->num_windows()};
+  }
 
   /**
    * @brief Initializes each slot in the flat storage to contain `key`.
@@ -369,7 +391,9 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
    * @param size Number of slots to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
-  explicit storage(Extent size, Allocator const& allocator) : impl_type{size, allocator} {}
+  explicit constexpr storage(Extent size, Allocator const& allocator) : impl_type{size, allocator}
+  {
+  }
 };
 
 }  // namespace detail

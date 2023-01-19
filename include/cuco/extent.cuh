@@ -55,7 +55,7 @@ struct extent {
    * @return Resulting valid static extent
    */
   template <int CGSize, int WindowSize>
-  constexpr auto valid_extent() const noexcept
+  [[nodiscard]] constexpr auto valid_extent() const noexcept
   {
     auto constexpr max_prime = cuco::detail::primes.back();
     auto constexpr max_value =
@@ -105,7 +105,7 @@ struct extent<SizeType, dynamic_extent> {
    * @return Resulting valid dynamic extent
    */
   template <int CGSize, int WindowSize>
-  constexpr auto valid_extent() const noexcept
+  [[nodiscard]] constexpr auto valid_extent() const noexcept
   {
     auto constexpr max_prime = cuco::detail::primes.back();
     auto constexpr max_value =

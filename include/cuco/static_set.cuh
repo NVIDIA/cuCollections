@@ -180,14 +180,14 @@ class static_set {
    *
    * @return The maximum number of elements the hash map can hold
    */
-  extent_type capacity() const noexcept { return storage_.capacity(); }
+  [[nodiscard]] extent_type capacity() const noexcept { return storage_.capacity(); }
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  key_type empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
+  [[nodiscard]] key_type empty_key_sentinel() const noexcept { return empty_key_sentinel_; }
 
   /**
    * @brief Get device reference with operators.
@@ -199,7 +199,7 @@ class static_set {
    * @return Device reference of the current `static_set` object
    */
   template <typename... Operators>
-  auto ref_with(Operators... ops) const noexcept;
+  [[nodiscard]] auto ref_with(Operators... ops) const noexcept;
 
   /**
    * @brief Get device reference.
@@ -209,7 +209,7 @@ class static_set {
    *
    * @return Device reference of the current `static_set` object
    */
-  auto ref() const noexcept;
+  [[nodiscard]] auto ref() const noexcept;
 
  private:
   size_type size_;                      ///< Number of entries
