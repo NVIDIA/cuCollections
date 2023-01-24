@@ -27,7 +27,7 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 We recommend using [CMake Package Manager (CPM)](https://github.com/TheLartians/CPM.cmake) to fetch `cuCollections` into your project.
 With CPM, getting `cuCollections` is easy:
 
-```
+```cmake
 cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
 include(path/to/CPM.cmake)
