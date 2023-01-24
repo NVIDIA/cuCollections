@@ -27,7 +27,7 @@
 #include <thrust/sort.h>
 #include <thrust/transform.h>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 template <typename Set>
 __inline__ void test_unique_sequence(Set& set, std::size_t num_keys)

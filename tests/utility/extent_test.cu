@@ -18,7 +18,7 @@
 
 #include <cuco/extent.cuh>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 TEMPLATE_TEST_CASE_SIG(
   "Extent tests", "", ((typename SizeType), SizeType), (int32_t), (int64_t), (std::size_t))
@@ -31,7 +31,7 @@ TEMPLATE_TEST_CASE_SIG(
   SECTION("Static extent must be evaluated at compile time.")
   {
     auto const size = cuco::experimental::extent<SizeType, num>{};
-    static_assert(num == size);
+    STATIC_REQUIRE(num == size);
   }
 
   SECTION("Dynamic extent is evaluated at run time.")
@@ -44,7 +44,7 @@ TEMPLATE_TEST_CASE_SIG(
   {
     auto constexpr size = cuco::experimental::extent<SizeType, num>{};
     auto constexpr res  = size.template valid_extent<cg_size, window_size>();
-    static_assert(gold_reference == res);
+    STATIC_REQUIRE(gold_reference == res);
   }
 
   SECTION("Compute dynamic valid extent at run time.")

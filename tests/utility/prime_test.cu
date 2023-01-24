@@ -18,7 +18,7 @@
 
 #include <cuco/detail/prime.hpp>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #pragma nv_diag_suppress 177  // WAR for weird catch2 warning
 TEST_CASE("Prime number computation", "")
@@ -29,6 +29,6 @@ TEST_CASE("Prime number computation", "")
   REQUIRE(cuco::detail::next_prime(17177758132) == 17177758133);
 
   // make sure constexpr evaluation is possible
-  static_assert(cuco::detail::next_prime(6) == 7, "Constexpr evaluation fails");
+  STATIC_REQUIRE(cuco::detail::next_prime(6) == 7);
 }
 #pragma nv_diag_default 177
