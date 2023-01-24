@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2022, NVIDIA CORPORATION.
+# Copyright (c) 2018-2023, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,23 +23,18 @@ include(CTest)
 CPMAddPackage(
   NAME Catch2
   GITHUB_REPOSITORY catchorg/Catch2
-  VERSION 2.13.9
+  VERSION 3.3.0
 )
 
+# Header for catch_discover_tests
 if(Catch2_ADDED)
-    include(${Catch2_SOURCE_DIR}/contrib/Catch.cmake)
+    include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)
 endif()
-
-# catch_main.cpp defines `CATCH_CONFIG_MAIN` which provides main()
-# Compiles it to be linked into test executables
-add_library(CatchMain OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/catch_main.cpp)
-target_link_libraries(CatchMain Catch2::Catch2)
 
 ###################################################################################################
 function(ConfigureTest TEST_NAME)
-    add_executable(${TEST_NAME} ${ARGN}
-                   $<TARGET_OBJECTS:CatchMain>) # Link in the CatchMain object file
-    target_link_libraries(${TEST_NAME} Catch2::Catch2 cuco CUDA::cudart)
+    add_executable(${TEST_NAME} ${ARGN})
+    target_link_libraries(${TEST_NAME} PRIVATE Catch2::Catch2WithMain cuco CUDA::cudart)
     target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     set_target_properties(${TEST_NAME} PROPERTIES
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
