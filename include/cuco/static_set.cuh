@@ -136,13 +136,13 @@ class static_set {
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the map
    */
-  static_set(Extent capacity,
-             empty_key<Key> empty_key_sentinel,
-             KeyEqual pred                = KeyEqual{},
-             ProbingScheme probing_scheme = ProbingScheme{cuco::murmurhash3_32<Key>{},
-                                                          cuco::murmurhash3_32<Key>{}},
-             Allocator const& alloc       = Allocator{},
-             cudaStream_t stream          = nullptr);
+  constexpr static_set(Extent capacity,
+                       empty_key<Key> empty_key_sentinel,
+                       KeyEqual pred                = KeyEqual{},
+                       ProbingScheme probing_scheme = ProbingScheme{cuco::murmurhash3_32<Key>{},
+                                                                    cuco::murmurhash3_32<Key>{}},
+                       Allocator const& alloc       = Allocator{},
+                       cudaStream_t stream          = nullptr);
 
   /**
    * @brief Inserts all keys in the range `[first, last)`.
@@ -182,7 +182,7 @@ class static_set {
    *
    * @return The maximum number of elements the hash map can hold
    */
-  [[nodiscard]] extent_type capacity() const noexcept { return storage_.capacity(); }
+  [[nodiscard]] constexpr auto capacity() const noexcept { return storage_.capacity(); }
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.

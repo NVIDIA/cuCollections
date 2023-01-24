@@ -325,9 +325,9 @@ class aow_storage : public storage_base<Extent> {
    *
    * @return The total number of slots
    */
-  [[nodiscard]] inline constexpr extent_type capacity() const noexcept
+  [[nodiscard]] inline constexpr auto capacity() const noexcept
   {
-    return this->size() * window_size;
+    return this->size().template multiply<window_size>();
   }
 
   /**

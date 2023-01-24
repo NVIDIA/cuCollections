@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
 {
   constexpr std::size_t size{1'000};
   constexpr int window_size{2};
+  constexpr std::size_t gold_capacity{2'000};
 
   using allocator_type = cuco::cuda_allocator<char>;
   auto allocator       = allocator_type{};
@@ -42,9 +43,24 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
                                                      cuco::experimental::extent<std::size_t>,
                                                      allocator_type>(
       cuco::experimental::extent{size}, allocator);
-    auto const res_size = s.capacity();
+    auto const num_windows = s.num_windows();
+    auto const capacity    = s.capacity();
 
-    REQUIRE(res_size == size * window_size);
+    REQUIRE(num_windows == size);
+    REQUIRE(capacity == gold_capacity);
+  }
+
+  SECTION("Allocate array of pairs with AoS storage with static extent.")
+  {
+    using extent_type = cuco::experimental::extent<std::size_t, size>;
+    auto s            = cuco::experimental::detail::
+      aow_storage<window_size, cuco::pair<Key, Value>, extent_type, allocator_type>(extent_type{},
+                                                                                    allocator);
+    auto const num_windows = s.num_windows();
+    auto const capacity    = s.capacity();
+
+    STATIC_REQUIRE(num_windows == size);
+    STATIC_REQUIRE(capacity == gold_capacity);
   }
 
   SECTION("Allocate array of keys with AoS storage.")
@@ -52,8 +68,22 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
     auto s = cuco::experimental::detail::
       aow_storage<window_size, Key, cuco::experimental::extent<std::size_t>, allocator_type>(
         cuco::experimental::extent{size}, allocator);
-    auto const res_size = s.capacity();
+    auto const num_windows = s.num_windows();
+    auto const capacity    = s.capacity();
 
-    REQUIRE(res_size == size * window_size);
+    REQUIRE(num_windows == size);
+    REQUIRE(capacity == gold_capacity);
+  }
+
+  SECTION("Allocate array of keys with AoS storage with static extent.")
+  {
+    using extent_type = cuco::experimental::extent<std::size_t, size>;
+    auto s = cuco::experimental::detail::aow_storage<window_size, Key, extent_type, allocator_type>(
+      extent_type{}, allocator);
+    auto const num_windows = s.num_windows();
+    auto const capacity    = s.capacity();
+
+    STATIC_REQUIRE(num_windows == size);
+    STATIC_REQUIRE(capacity == gold_capacity);
   }
 }

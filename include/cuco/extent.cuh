@@ -71,6 +71,19 @@ struct extent {
                                                                      static_cast<uint64_t>(size)) *
                                           CGSize)>{};
   }
+
+  /**
+   * @brief Multiplies the current extent with the given `Value`.
+   *
+   * @tparam Value The input value to multiply with
+   *
+   * @return Resulting static extent
+   */
+  template <int Value>
+  constexpr auto multiply() const noexcept
+  {
+    return extent<value_type, N * Value>{};
+  }
 };
 
 /**
@@ -118,6 +131,19 @@ struct extent<SizeType, dynamic_extent> {
       *cuco::detail::lower_bound(
         cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
       CGSize)};
+  }
+
+  /**
+   * @brief Multiplies the current extent with the given `Value`.
+   *
+   * @tparam Value The input value to multiply with
+   *
+   * @return Resulting extent
+   */
+  template <int Value>
+  auto multiply() const noexcept
+  {
+    return extent<value_type>{Value * value_};
   }
 
  private:

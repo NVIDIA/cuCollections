@@ -34,7 +34,7 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::static_set(
+constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::static_set(
   Extent capacity,
   empty_key<Key> empty_key_sentinel,
   KeyEqual pred,
