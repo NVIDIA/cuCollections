@@ -31,6 +31,10 @@ TEST_CASE("Static set capacity", "")
                                                          cuco::sentinel::empty_key<Key>{-1}};
     auto const capacity = set.capacity();
     STATIC_REQUIRE(capacity == gold_capacity);
+
+    auto ref                = set.ref();
+    auto const ref_capacity = ref.capacity();
+    STATIC_REQUIRE(ref_capacity == gold_capacity);
   }
 
   SECTION("Dynamic extent is evaluated at run time.")
@@ -38,5 +42,9 @@ TEST_CASE("Static set capacity", "")
     cuco::experimental::static_set<Key> set{num_keys, cuco::sentinel::empty_key<Key>{-1}};
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);
+
+    auto ref                = set.ref();
+    auto const ref_capacity = ref.capacity();
+    REQUIRE(ref_capacity == gold_capacity);
   }
 }

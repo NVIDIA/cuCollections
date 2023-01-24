@@ -80,7 +80,7 @@ struct extent {
    * @return Resulting static extent
    */
   template <int Value>
-  constexpr auto multiply() const noexcept
+  __host__ __device__ constexpr auto multiply() const noexcept
   {
     return extent<value_type, N * Value>{};
   }
@@ -141,7 +141,7 @@ struct extent<SizeType, dynamic_extent> {
    * @return Resulting extent
    */
   template <int Value>
-  auto multiply() const noexcept
+  __host__ __device__ constexpr auto multiply() const noexcept
   {
     return extent<value_type>{Value * value_};
   }

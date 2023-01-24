@@ -63,10 +63,10 @@ class static_set_ref
    * @param probing_scheme Probing scheme
    * @param storage_ref Non-owning ref of slot storage
    */
-  __host__ __device__ static_set_ref(cuco::empty_key<key_type> empty_key_sentinel,
-                                     key_equal const& predicate,
-                                     probing_scheme_type const& probing_scheme,
-                                     storage_ref_type storage_ref) noexcept
+  __host__ __device__ constexpr static_set_ref(cuco::empty_key<key_type> empty_key_sentinel,
+                                               key_equal const& predicate,
+                                               probing_scheme_type const& probing_scheme,
+                                               storage_ref_type storage_ref) noexcept
     : empty_key_sentinel_{empty_key_sentinel},
       predicate_{empty_key_sentinel_.value, predicate},
       probing_scheme_{probing_scheme},
@@ -79,7 +79,7 @@ class static_set_ref
    *
    * @return The maximum number of elements the hash map can hold
    */
-  [[nodiscard]] __host__ __device__ constexpr extent_type capacity() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept
   {
     return storage_ref_.capacity();
   }

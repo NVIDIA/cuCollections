@@ -223,9 +223,9 @@ class aow_storage_ref {
    *
    * @return The total number of slots
    */
-  [[nodiscard]] __device__ inline constexpr extent_type capacity() const noexcept
+  [[nodiscard]] __device__ inline constexpr auto capacity() const noexcept
   {
-    return num_windows_ * window_size;
+    return this->num_windows().template multiply<window_size>();
   }
 
   /**
