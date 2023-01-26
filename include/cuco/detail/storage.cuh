@@ -21,7 +21,12 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/tuning.cuh>
+#include <cuco/detail/utils.cuh>
 #include <cuco/extent.cuh>
+
+#include <thrust/execution_policy.h>
+#include <thrust/iterator/transform_iterator.h>
+#include <thrust/reduce.h>
 
 #include <cuda/atomic>
 #include <cuda/std/array>
@@ -81,20 +86,20 @@ class storage_base {
    *
    * @param size Number of elements to (de)allocate
    */
-  explicit constexpr storage_base(Extent size) : size_{size} {}
+  explicit constexpr storage_base(Extent size) : capacity_{size} {}
 
   /**
    * @brief Gets the total number of elements in the current storage.
    *
    * @return The total number of elements
    */
-  [[nodiscard]] __host__ __device__ inline constexpr extent_type size() const noexcept
+  [[nodiscard]] __host__ __device__ inline constexpr extent_type capacity() const noexcept
   {
-    return size_;
+    return capacity_;
   }
 
  protected:
-  extent_type size_;  ///< Total number of windows
+  extent_type capacity_;  ///< Total number of elements
 };
 
 /**
@@ -262,7 +267,6 @@ class aow_storage : public storage_base<Extent> {
 
   using extent_type = typename storage_base<Extent>::extent_type;  ///< Storage extent type
   using size_type   = typename storage_base<Extent>::size_type;    ///< Storage size type
-  using storage_base<Extent>::size_;                               ///< Number of windows
 
   using value_type  = T;                                          ///< Type of structs
   using window_type = cuda::std::array<value_type, window_size>;  ///< Type of struct windows
@@ -282,8 +286,8 @@ class aow_storage : public storage_base<Extent> {
   explicit constexpr aow_storage(Extent size, Allocator const& allocator)
     : storage_base<Extent>{size},
       allocator_{allocator},
-      window_deleter_{size_, allocator_},
-      windows_{allocator_.allocate(size_), window_deleter_}
+      window_deleter_{storage_base<Extent>::capacity(), allocator_},
+      windows_{allocator_.allocate(storage_base<Extent>::capacity()), window_deleter_}
   {
   }
 
@@ -300,11 +304,22 @@ class aow_storage : public storage_base<Extent> {
   aow_storage& operator=(aow_storage const&) = delete;
 
   /**
-   * @brief Gets windows array.
+   * @brief Gets the number of elements in the storage.
    *
-   * @return Pointer to the first window
+   * @tparam Sentinel Empty sentinel type
+   *
+   * @param empty_sentinel The sentinel value denoting empty element
+   * @param stream CUDA stream used to get the number of inserted elements
+   * @return The number of elements in the storage
    */
-  [[nodiscard]] inline constexpr window_type* windows() noexcept { return windows_.get(); }
+  template <typename Sentinel>
+  [[nodiscard]] size_type size(Sentinel empty_sentinel,
+                               cudaStream_t stream = nullptr) const noexcept
+  {
+    auto const begin = thrust::make_transform_iterator(
+      windows(), cuco::detail::elements_per_window<T>{empty_sentinel});
+    return thrust::reduce(thrust::cuda::par_nosync.on(stream), begin, begin + num_windows(), 0);
+  }
 
   /**
    * @brief Gets windows array.
@@ -318,7 +333,10 @@ class aow_storage : public storage_base<Extent> {
    *
    * @return The total number of slot windows
    */
-  [[nodiscard]] inline constexpr extent_type num_windows() const noexcept { return this->size(); }
+  [[nodiscard]] inline constexpr extent_type num_windows() const noexcept
+  {
+    return storage_base<Extent>::capacity();
+  }
 
   /**
    * @brief Gets the total number of slots in the current storage.
@@ -327,7 +345,7 @@ class aow_storage : public storage_base<Extent> {
    */
   [[nodiscard]] inline constexpr auto capacity() const noexcept
   {
-    return this->size().template multiply<window_size>();
+    return storage_base<Extent>::capacity().template multiply<window_size>();
   }
 
   /**
@@ -384,6 +402,7 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
   using impl_type::initialize;
   using impl_type::num_windows;
   using impl_type::ref;
+  using impl_type::size;
 
   /**
    * @brief Constructs storage.

@@ -43,11 +43,14 @@ __inline__ void test_unique_sequence(Set& set, std::size_t num_keys)
 
   SECTION("Non-inserted keys should not be contained.")
   {
+    REQUIRE(set.size() == 0);
+
     set.contains(key_begin, key_begin + num_keys, d_contained.begin());
     REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
 
   set.insert(key_begin, key_begin + num_keys);
+  REQUIRE(set.size() == num_keys);
 
   SECTION("All inserted key/value pairs should be contained.")
   {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,8 +41,7 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   ProbingScheme probing_scheme,
   Allocator const& alloc,
   cudaStream_t stream)
-  : size_{0},
-    empty_key_sentinel_{empty_key_sentinel.value},
+  : empty_key_sentinel_{empty_key_sentinel.value},
     predicate_{pred},
     probing_scheme_{probing_scheme},
     allocator_{alloc},
@@ -95,6 +94,20 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   detail::contains<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
       first, first + num_keys, output_begin, ref_with(op::contains));
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
+  cudaStream_t stream) const noexcept
+{
+  return storage_.size(empty_key_sentinel_, stream);
 }
 
 template <class Key,
