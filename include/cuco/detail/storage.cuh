@@ -166,33 +166,86 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
 };
 
 /**
+ * @brief Base class of array of window structure open addressing storage.
+ *
+ * This should NOT be used directly.
+ *
+ * @tparam WindowSize Number of elements in each window
+ * @tparam T Element type
+ * @tparam Extent Type of extent denoting number of windows
+ */
+template <int32_t WindowSize, typename T, typename Extent>
+class aow_storage_base : public storage_base<Extent> {
+ public:
+  /**
+   * @brief The number of elements processed per window.
+   */
+  static constexpr int32_t window_size = WindowSize;
+
+  using extent_type = typename storage_base<Extent>::extent_type;  ///< Storage extent type
+  using size_type   = typename storage_base<Extent>::size_type;    ///< Storage size type
+
+  using value_type  = T;                                          ///< Type of structs
+  using window_type = cuda::std::array<value_type, window_size>;  ///< Type of struct windows
+
+  /**
+   * @brief Constructor of AoW base storage.
+   *
+   * @param size Number of elemets to store
+   */
+  explicit constexpr aow_storage_base(Extent size) : storage_base<Extent>{size} {}
+
+  /**
+   * @brief Gets the total number of slot windows in the current storage.
+   *
+   * @return The total number of slot windows
+   */
+  [[nodiscard]] __host__ __device__ inline constexpr extent_type num_windows() const noexcept
+  {
+    return storage_base<Extent>::capacity();
+  }
+
+  /**
+   * @brief Gets the total number of slots in the current storage.
+   *
+   * @return The total number of slots
+   */
+  [[nodiscard]] __host__ __device__ inline constexpr auto capacity() const noexcept
+  {
+    return storage_base<Extent>::capacity().template multiply<window_size>();
+  }
+};
+
+/**
  * @brief Non-owning AoW storage reference type.
  *
  * @tparam WindowSize Number of slots in each window
  * @tparam T Storage element type
  * @tparam Extent Type of extent denoting storage capacity
  */
-template <int WindowSize, typename T, typename Extent>
-class aow_storage_ref {
+template <int32_t WindowSize, typename T, typename Extent>
+class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
  public:
-  using window_type = T;                                 ///< Type of struct windows
-  using value_type  = typename window_type::value_type;  ///< Struct element type
-  using extent_type = Extent;                            ///< Extent type
-  using size_type   = typename extent_type::value_type;  ///< Size type
+  using base_type = aow_storage_base<WindowSize, T, Extent>;  ///< AoW base class type
+
+  using base_type::window_size;  ///< Number of elements processed per window
+
+  using extent_type = typename base_type::extent_type;  ///< Storage extent type
+  using size_type   = typename base_type::size_type;    ///< Storage size type
+  using value_type  = typename base_type::value_type;   ///< Storage element type
+  using window_type = typename base_type::window_type;  ///< Window storage type
+
+  using base_type::capacity;
+  using base_type::num_windows;
 
   /**
-   * @brief The number of elements processed per window.
-   */
-  static constexpr int window_size = WindowSize;
-
-  /**
-   * @brief Constructor of AoS storage reference.
+   * @brief Constructor of AoS storage ref.
    *
    * @param windows Pointer to the windows array
    * @param num_windows Number of slots
    */
-  explicit constexpr aow_storage_ref(window_type* windows, Extent num_windows) noexcept
-    : windows_{windows}, num_windows_{num_windows}
+  explicit constexpr aow_storage_ref(Extent num_windows, window_type* windows) noexcept
+    : aow_storage_base<WindowSize, T, Extent>{num_windows}, windows_{windows}
   {
   }
 
@@ -214,26 +267,6 @@ class aow_storage_ref {
   }
 
   /**
-   * @brief Gets the total number of slot windows in the current storage.
-   *
-   * @return The total number of slot windows
-   */
-  [[nodiscard]] __device__ inline constexpr extent_type num_windows() const noexcept
-  {
-    return num_windows_;
-  }
-
-  /**
-   * @brief Gets the total number of slots in the current storage.
-   *
-   * @return The total number of slots
-   */
-  [[nodiscard]] __device__ inline constexpr auto capacity() const noexcept
-  {
-    return this->num_windows().template multiply<window_size>();
-  }
-
-  /**
    * @brief Returns an array of elements (window) for a given index.
    *
    * @param index Index of the first element of the window
@@ -245,8 +278,7 @@ class aow_storage_ref {
   }
 
  private:
-  window_type* windows_;     ///< Pointer to the windows array
-  extent_type num_windows_;  ///< Size of the windows array
+  window_type* windows_;  ///< Pointer to the windows array
 };
 
 /**
@@ -257,25 +289,27 @@ class aow_storage_ref {
  * @tparam Extent Type of extent denoting number of windows
  * @tparam Allocator Type of allocator used for device storage
  */
-template <int WindowSize, typename T, typename Extent, typename Allocator>
-class aow_storage : public storage_base<Extent> {
+template <int32_t WindowSize, typename T, typename Extent, typename Allocator>
+class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
  public:
-  /**
-   * @brief The number of elements processed per window.
-   */
-  static constexpr int window_size = WindowSize;
+  using base_type = aow_storage_base<WindowSize, T, Extent>;  ///< AoW base class type
 
-  using extent_type = typename storage_base<Extent>::extent_type;  ///< Storage extent type
-  using size_type   = typename storage_base<Extent>::size_type;    ///< Storage size type
+  using base_type::window_size;  ///< Number of elements processed per window
 
-  using value_type  = T;                                          ///< Type of structs
-  using window_type = cuda::std::array<value_type, window_size>;  ///< Type of struct windows
+  using extent_type = typename base_type::extent_type;  ///< Storage extent type
+  using size_type   = typename base_type::size_type;    ///< Storage size type
+  using value_type  = typename base_type::value_type;   ///< Storage element type
+  using window_type = typename base_type::window_type;  ///< Window storage type
+
+  using base_type::capacity;
+  using base_type::num_windows;
+
   using allocator_type =
     typename std::allocator_traits<Allocator>::rebind_alloc<window_type>;  ///< Type of the
                                                                            ///< allocator to
                                                                            ///< (de)allocate windows
   using window_deleter_type = custom_deleter<allocator_type>;  ///< Type of window deleter
-  using ref_type = aow_storage_ref<window_size, window_type, extent_type>;  ///< Storage ref type
+  using ref_type = aow_storage_ref<window_size, value_type, extent_type>;  ///< Storage ref type
 
   /**
    * @brief Constructor of AoW storage.
@@ -284,10 +318,10 @@ class aow_storage : public storage_base<Extent> {
    * @param allocator Allocator used for (de)allocating device storage
    */
   explicit constexpr aow_storage(Extent size, Allocator const& allocator)
-    : storage_base<Extent>{size},
+    : aow_storage_base<WindowSize, T, Extent>{size},
       allocator_{allocator},
-      window_deleter_{storage_base<Extent>::capacity(), allocator_},
-      windows_{allocator_.allocate(storage_base<Extent>::capacity()), window_deleter_}
+      window_deleter_{capacity(), allocator_},
+      windows_{allocator_.allocate(capacity()), window_deleter_}
   {
   }
 
@@ -329,33 +363,13 @@ class aow_storage : public storage_base<Extent> {
   [[nodiscard]] inline constexpr window_type* windows() const noexcept { return windows_.get(); }
 
   /**
-   * @brief Gets the total number of slot windows in the current storage.
-   *
-   * @return The total number of slot windows
-   */
-  [[nodiscard]] inline constexpr extent_type num_windows() const noexcept
-  {
-    return storage_base<Extent>::capacity();
-  }
-
-  /**
-   * @brief Gets the total number of slots in the current storage.
-   *
-   * @return The total number of slots
-   */
-  [[nodiscard]] inline constexpr auto capacity() const noexcept
-  {
-    return storage_base<Extent>::capacity().template multiply<window_size>();
-  }
-
-  /**
    * @brief Gets window storage reference.
    *
    * @return Reference of window storage
    */
   [[nodiscard]] inline constexpr ref_type ref() const noexcept
   {
-    return ref_type{this->windows(), this->num_windows()};
+    return ref_type{this->num_windows(), this->windows()};
   }
 
   /**

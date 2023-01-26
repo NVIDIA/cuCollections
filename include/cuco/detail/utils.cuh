@@ -85,7 +85,7 @@ struct slot_is_filled {
  */
 template <typename Sentinel>
 struct elements_per_window {
-  Key empty_key_sentinel_;  ///< The value of the empty key sentinel
+  Sentinel empty_key_sentinel_;  ///< The value of the empty key sentinel
 
   /**
    * @brief Computes the number of filled elements per window.
