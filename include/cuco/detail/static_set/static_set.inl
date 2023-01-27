@@ -38,7 +38,7 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   Extent capacity,
   empty_key<Key> empty_key_sentinel,
   KeyEqual pred,
-  ProbingScheme probing_scheme,
+  ProbingScheme const& probing_scheme,
   Allocator const& alloc,
   cudaStream_t stream)
   : empty_key_sentinel_{empty_key_sentinel.value},
@@ -108,6 +108,34 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
   cudaStream_t stream) const
 {
   return storage_.size(empty_key_sentinel_, stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+constexpr auto
+static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::capacity()
+  const noexcept
+{
+  return storage_.capacity();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_type
+static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::empty_key_sentinel()
+  const noexcept
+{
+  return empty_key_sentinel_;
 }
 
 template <class Key,
