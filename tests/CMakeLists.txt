@@ -61,6 +61,11 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/unique_sequence_test.cu)
 
 ###################################################################################################
+# - priority_queue tests --------------------------------------------------------------------------
+ConfigureTest(PRIORITY_QUEUE_TEST
+    priority_queue/priority_queue_test.cu)
+
+###################################################################################################
 # - dynamic_map tests -----------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_MAP_TEST
     dynamic_map/unique_sequence_test.cu
@@ -76,3 +81,4 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/multiplicity_test.cu
     static_multimap/non_match_test.cu
     static_multimap/pair_function_test.cu)
+
