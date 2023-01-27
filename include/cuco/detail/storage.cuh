@@ -26,7 +26,8 @@
 
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/transform_iterator.h>
-#include <thrust/reduce.h>
+
+#include <cub/device/device_reduce.cuh>
 
 #include <cuda/atomic>
 #include <cuda/std/array>
@@ -347,12 +348,33 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
    * @return The number of elements in the storage
    */
   template <typename Sentinel>
-  [[nodiscard]] size_type size(Sentinel empty_sentinel,
-                               cudaStream_t stream = nullptr) const noexcept
+  [[nodiscard]] size_type size(Sentinel empty_sentinel, cudaStream_t stream = nullptr) const
   {
     auto const begin = thrust::make_transform_iterator(
       windows(), cuco::detail::elements_per_window<T>{empty_sentinel});
-    return thrust::reduce(thrust::cuda::par_nosync.on(stream), begin, begin + num_windows(), 0);
+
+    std::size_t temp_storage_bytes = 0;
+    using temp_allocator_type = typename std::allocator_traits<allocator_type>::rebind_alloc<char>;
+    auto temp_allocator       = temp_allocator_type{allocator_};
+    auto d_size               = reinterpret_cast<size_type*>(
+      std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
+    cub::DeviceReduce::Sum(nullptr, temp_storage_bytes, begin, d_size, num_windows());
+
+    auto d_temp_storage =
+      std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, temp_storage_bytes);
+
+    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, begin, d_size, num_windows());
+
+    size_type h_size;
+    CUCO_CUDA_TRY(
+      cudaMemcpyAsync(&h_size, d_size, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
+    CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+    std::allocator_traits<temp_allocator_type>::deallocate(
+      temp_allocator, reinterpret_cast<char*>(d_size), sizeof(size_type));
+    std::allocator_traits<temp_allocator_type>::deallocate(
+      temp_allocator, d_temp_storage, temp_storage_bytes);
+
+    return h_size;
   }
 
   /**

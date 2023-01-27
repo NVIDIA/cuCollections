@@ -105,7 +105,7 @@ template <class Key,
           class Storage>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
-  cudaStream_t stream) const noexcept
+  cudaStream_t stream) const
 {
   return storage_.size(empty_key_sentinel_, stream);
 }

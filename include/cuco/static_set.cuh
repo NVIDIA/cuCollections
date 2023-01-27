@@ -183,7 +183,7 @@ class static_set {
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cudaStream_t stream = nullptr) const noexcept;
+  [[nodiscard]] size_type size(cudaStream_t stream = nullptr) const;
 
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
