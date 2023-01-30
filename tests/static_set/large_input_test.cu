@@ -67,7 +67,7 @@ TEMPLATE_TEST_CASE_SIG("Large input",
 {
   constexpr std::size_t num_keys{1'200'000'000};
 
-  cuco::experimental::static_set<Key> set{num_keys, cuco::sentinel::empty_key<Key>{-1}};
+  cuco::experimental::static_set<Key> set{num_keys * 2, cuco::sentinel::empty_key<Key>{-1}};
 
   test_unique_sequence(set, num_keys);
 }
