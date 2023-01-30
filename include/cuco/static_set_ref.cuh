@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -63,36 +63,25 @@ class static_set_ref
    * @param probing_scheme Probing scheme
    * @param storage_ref Non-owning ref of slot storage
    */
-  __host__ __device__ constexpr static_set_ref(cuco::empty_key<key_type> empty_key_sentinel,
-                                               key_equal const& predicate,
-                                               probing_scheme_type const& probing_scheme,
-                                               storage_ref_type storage_ref) noexcept
-    : empty_key_sentinel_{empty_key_sentinel},
-      predicate_{empty_key_sentinel_.value, predicate},
-      probing_scheme_{probing_scheme},
-      storage_ref_{storage_ref}
-  {
-  }
+  __host__ __device__ explicit constexpr static_set_ref(
+    cuco::empty_key<key_type> empty_key_sentinel,
+    key_equal const& predicate,
+    probing_scheme_type const& probing_scheme,
+    storage_ref_type storage_ref) noexcept;
 
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
    *
    * @return The maximum number of elements the hash map can hold
    */
-  [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept
-  {
-    return storage_ref_.capacity();
-  }
+  [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  [[nodiscard]] __host__ __device__ inline key_type empty_key_sentinel() const noexcept
-  {
-    return empty_key_sentinel_;
-  }
+  [[nodiscard]] __host__ __device__ inline constexpr key_type empty_key_sentinel() const noexcept;
 
   /**
    * @brief Create a reference with new operators from the current object.

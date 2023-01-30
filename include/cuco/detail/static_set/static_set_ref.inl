@@ -36,6 +36,55 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+__host__ __device__ constexpr static_set_ref<
+  Key,
+  Scope,
+  KeyEqual,
+  ProbingScheme,
+  StorageRef,
+  Operators...>::static_set_ref(cuco::empty_key<Key> empty_key_sentinel,
+                                KeyEqual const& predicate,
+                                ProbingScheme const& probing_scheme,
+                                StorageRef storage_ref) noexcept
+  : empty_key_sentinel_{empty_key_sentinel},
+    predicate_{empty_key_sentinel.value, predicate},
+    probing_scheme_{probing_scheme},
+    storage_ref_{storage_ref}
+{
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr auto
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
+  const noexcept
+{
+  return storage_ref_.capacity();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ inline constexpr Key
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::empty_key_sentinel()
+  const noexcept
+{
+  return empty_key_sentinel_;
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename... NewOperators>
 auto static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
   NewOperators...) && noexcept
