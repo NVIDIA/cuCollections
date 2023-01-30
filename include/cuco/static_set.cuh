@@ -68,6 +68,8 @@ template <class Key,
           class Storage            = cuco::experimental::aow_storage<2  // Window size
                                                           >>
 class static_set {
+  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
+
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
     "Key type must have unique object representations or have been explicitly declared as safe for "
