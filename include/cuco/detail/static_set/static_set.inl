@@ -61,7 +61,7 @@ template <typename InputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cudaStream_t stream)
 {
-  auto const num_keys = std::distance(first, last);
+  auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const grid_size =
@@ -70,7 +70,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 
   detail::insert<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, first + num_keys, ref_with(op::insert));
+      first, num_keys, ref_with(op::insert));
 }
 
 template <class Key,
@@ -84,7 +84,7 @@ template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream) const
 {
-  auto const num_keys = std::distance(first, last);
+  auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const grid_size =
@@ -93,7 +93,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 
   detail::contains<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, first + num_keys, output_begin, ref_with(op::contains));
+      first, num_keys, output_begin, ref_with(op::contains));
 }
 
 template <class Key,

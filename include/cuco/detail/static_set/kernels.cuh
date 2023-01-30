@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 #pragma once
 
+#include <cuco/detail/utils.hpp>
+
 #include <cub/block/block_reduce.cuh>
 
 #include <cuda/atomic>
@@ -26,9 +28,9 @@ namespace experimental {
 namespace detail {
 
 /**
- * @brief Inserts all keys in the range `[first, last)`.
+ * @brief Inserts all keys in the range `[first, first + size)`.
  *
- * If multiple keys in `[first, last)` compare equal, it is unspecified which
+ * If multiple keys in `[first, first + size)` compare equal, it is unspecified which
  * element is inserted.
  *
  * @tparam BlockSize Number of threads in each block
@@ -37,26 +39,26 @@ namespace detail {
  * @tparam Reference Type of device reference allowing access of set storage
  *
  * @param first Beginning of the sequence of key/value pairs
- * @param last End of the sequence of key/value pairs
+ * @param n Number of key/value pairs
  * @param set_ref Set device reference used to access the set's slot storage
  */
 template <int BlockSize, typename InputIterator, typename Reference>
-__global__ void insert(InputIterator first, InputIterator last, Reference set_ref)
+__global__ void insert(InputIterator first, cuco::detail::index_type n, Reference set_ref)
 {
-  auto tid = BlockSize * blockIdx.x + threadIdx.x;
-  auto it  = first + tid;
+  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
+  cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
 
-  while (it < last) {
-    typename Reference::value_type const insert_pair{*it};
+  while (idx < n) {
+    typename Reference::value_type const insert_pair{*(first + idx)};
     set_ref.insert(insert_pair);
-    it += gridDim.x * BlockSize;
+    idx += loop_stride;
   }
 }
 
 /**
- * @brief Inserts all keys in the range `[first, last)`.
+ * @brief Inserts all keys in the range `[first, first + size)`.
  *
- * If multiple keys in `[first, last)` compare equal, it is unspecified which
+ * If multiple keys in `[first, first + size)` compare equal, it is unspecified which
  * element is inserted.
  *
  * @tparam CGSize Number of threads in each CG
@@ -66,27 +68,27 @@ __global__ void insert(InputIterator first, InputIterator last, Reference set_re
  * @tparam Reference Type of device reference allowing access of set storage
  *
  * @param first Beginning of the sequence of key/value pairs
- * @param last End of the sequence of key/value pairs
+ * @param n Number of key/value pairs
  * @param set_ref Set device reference used to access the set's slot storage
  */
 template <int CGSize, int BlockSize, typename InputIterator, typename Reference>
-__global__ void insert(InputIterator first, InputIterator last, Reference set_ref)
+__global__ void insert(InputIterator first, cuco::detail::index_type n, Reference set_ref)
 {
   namespace cg = cooperative_groups;
 
-  auto tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
-  auto tid  = BlockSize * blockIdx.x + threadIdx.x;
-  auto it   = first + tid / CGSize;
+  auto tile                                  = cg::tiled_partition<CGSize>(cg::this_thread_block());
+  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
+  cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
 
-  while (it < last) {
-    typename Reference::value_type const insert_pair{*it};
+  while (idx < n) {
+    typename Reference::value_type const insert_pair{*(first + idx)};
     set_ref.insert(tile, insert_pair);
-    it += (gridDim.x * BlockSize) / CGSize;
+    idx += loop_stride;
   }
 }
 
 /**
- * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+ * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the map.
  *
  * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
  *
@@ -96,26 +98,28 @@ __global__ void insert(InputIterator first, InputIterator last, Reference set_re
  * @tparam Reference Type of device reference allowing access of set storage
  *
  * @param first Beginning of the sequence of keys
- * @param last End of the sequence of keys
+ * @param n Number of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
  * @param set_ref Set device reference used to access the set's slot storage
  */
 template <int BlockSize, typename InputIt, typename OutputIt, typename Reference>
-__global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Reference set_ref)
+__global__ void contains(InputIt first,
+                         cuco::detail::index_type n,
+                         OutputIt output_begin,
+                         Reference set_ref)
 {
   namespace cg = cooperative_groups;
 
   auto block            = cg::this_thread_block();
   auto const thread_idx = block.thread_rank();
 
-  auto tid     = BlockSize * blockIdx.x + thread_idx;
-  auto key_idx = tid;
+  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
+  cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
   __shared__ bool output_buffer[BlockSize];
 
-  while (first + key_idx - thread_idx <
-         last) {  // the whole thread block falls into the same iteration
-    if (first + key_idx < last) {
-      auto key = *(first + key_idx);
+  while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
+    if (idx < n) {
+      auto key = *(first + idx);
       /*
        * The ld.relaxed.gpu instruction used in view.find causes L1 to
        * flush more frequently, causing increased sector stores from L2 to global memory.
@@ -127,13 +131,13 @@ __global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Ref
     }
 
     block.sync();
-    if (first + key_idx < last) { *(output_begin + key_idx) = output_buffer[thread_idx]; }
-    key_idx += gridDim.x * BlockSize;
+    if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
+    idx += loop_stride;
   }
 }
 
 /**
- * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+ * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the map.
  *
  * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
  *
@@ -144,28 +148,30 @@ __global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Ref
  * @tparam Reference Type of device reference allowing access of set storage
  *
  * @param first Beginning of the sequence of keys
- * @param last End of the sequence of keys
+ * @param n Number of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
  * @param set_ref Set device reference used to access the set's slot storage
  */
 template <int CGSize, int BlockSize, typename InputIt, typename OutputIt, typename Reference>
-__global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Reference set_ref)
+__global__ void contains(InputIt first,
+                         cuco::detail::index_type n,
+                         OutputIt output_begin,
+                         Reference set_ref)
 {
   namespace cg = cooperative_groups;
 
   auto block            = cg::this_thread_block();
   auto const thread_idx = block.thread_rank();
 
-  auto tile    = cg::tiled_partition<CGSize>(cg::this_thread_block());
-  auto tid     = BlockSize * blockIdx.x + threadIdx.x;
-  auto key_idx = tid / CGSize;
+  auto tile                                  = cg::tiled_partition<CGSize>(cg::this_thread_block());
+  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
+  cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
 
   __shared__ bool output_buffer[BlockSize / CGSize];
 
-  while (first + key_idx - thread_idx <
-         last) {  // the whole thread block falls into the same iteration
-    if (first + key_idx < last) {
-      auto key   = *(first + key_idx);
+  while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
+    if (idx < n) {
+      auto key   = *(first + idx);
       auto found = set_ref.contains(tile, key);
       /*
        * The ld.relaxed.gpu instruction used in view.find causes L1 to
@@ -178,10 +184,10 @@ __global__ void contains(InputIt first, InputIt last, OutputIt output_begin, Ref
     }
 
     block.sync();
-    if (first + key_idx < last and tile.thread_rank() == 0) {
-      *(output_begin + key_idx) = output_buffer[thread_idx / CGSize];
+    if (idx < n and tile.thread_rank() == 0) {
+      *(output_begin + idx) = output_buffer[thread_idx / CGSize];
     }
-    key_idx += (gridDim.x * BlockSize) / CGSize;
+    idx += loop_stride;
   }
 }
 }  // namespace detail
