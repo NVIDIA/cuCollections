@@ -38,7 +38,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
                        (int64_t, int64_t))
 {
   cudaStream_t stream;
-  cudaStreamCreate(&stream);
+  CUCO_CUDA_TRY(cudaStreamCreate(&stream));
 
   constexpr std::size_t num_keys{500'000};
   cuco::static_map<Key, Value> map{1'000'000,
@@ -67,7 +67,6 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
 
     map.insert(pairs_begin, pairs_begin + num_keys, hash_fn, equal_fn, stream);
     map.find(d_keys.begin(), d_keys.end(), d_results.begin(), hash_fn, equal_fn, stream);
-    // cudaStreamSynchronize(stream);
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), d_values.begin()));
 
     REQUIRE(cuco::test::all_of(
@@ -87,5 +86,5 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
     REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}, stream));
   }
 
-  cudaStreamDestroy(stream);
+  CUCO_CUDA_TRY(cudaStreamDestroy(stream));
 }

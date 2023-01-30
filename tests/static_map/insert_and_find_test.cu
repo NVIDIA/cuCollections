@@ -66,7 +66,7 @@ TEMPLATE_TEST_CASE_SIG("Parallel insert-or-update",
   static constexpr int Blocks  = 1024;
   static constexpr int Threads = 128;
   parallel_sum<<<Blocks, Threads>>>(m.get_device_mutable_view());
-  cudaDeviceSynchronize();
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   thrust::device_vector<Key> d_keys(Iters);
   thrust::device_vector<Value> d_values(Iters);
