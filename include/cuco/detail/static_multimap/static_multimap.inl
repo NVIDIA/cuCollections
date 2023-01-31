@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -167,7 +167,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::count(
   auto view            = get_device_view();
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
-  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
+  CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
 
   detail::count<block_size, cg_size(), is_outer>
@@ -198,7 +198,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::count_
   auto view            = get_device_view();
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
-  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
+  CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
 
   detail::count<block_size, cg_size(), is_outer>
@@ -229,7 +229,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_c
   auto view            = get_device_view();
   auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
 
-  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
+  CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
 
   detail::pair_count<block_size, cg_size(), is_outer>
@@ -260,7 +260,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_c
   auto view            = get_device_view();
   auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
 
-  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
+  CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
 
   detail::pair_count<block_size, cg_size(), is_outer>
@@ -307,7 +307,7 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve(
                                                                 KeyEqual>,
                                                block_size);
 
-  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
+  CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
 
   detail::retrieve<block_size, flushing_cg_size, cg_size(), buffer_size, is_outer>
@@ -357,7 +357,7 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve_
                                                                 KeyEqual>,
                                                block_size);
 
-  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
+  CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
 
   detail::retrieve<block_size, flushing_cg_size, cg_size(), buffer_size, is_outer>
@@ -403,7 +403,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve(
   }();
   auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
 
-  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
+  CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
 
   detail::pair_retrieve<block_size, flushing_cg_size, cg_size(), buffer_size, is_outer>
@@ -453,7 +453,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve_oute
   }();
   auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
 
-  cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream);
+  CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
 
   detail::pair_retrieve<block_size, flushing_cg_size, cg_size(), buffer_size, is_outer>

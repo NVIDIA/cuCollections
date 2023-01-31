@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cuco/detail/error.hpp>
+
 // Google Benchmark library
 #include <benchmark/benchmark.h>
 
@@ -23,17 +25,6 @@
 
 #include <stdexcept>
 
-#define BENCH_CUDA_TRY(call)                                                         \
-  do {                                                                               \
-    auto const status = (call);                                                      \
-    if (cudaSuccess != status) { throw std::runtime_error("CUDA error detected."); } \
-  } while (0)
-
-#define BENCH_ASSERT_CUDA_SUCCESS(expr) \
-  do {                                  \
-    cudaError_t const status = (expr);  \
-    assert(cudaSuccess == status);      \
-  } while (0)
 /**
  * @brief  This class serves as a wrapper for using `cudaEvent_t` as the user
  * defined timer within the framework of google benchmark
@@ -90,24 +81,24 @@ class cuda_event_timer {
     // flush all of L2$
     if (flush_l2_cache) {
       int current_device = 0;
-      BENCH_CUDA_TRY(cudaGetDevice(&current_device));
+      CUCO_CUDA_TRY(cudaGetDevice(&current_device));
 
       int l2_cache_bytes = 0;
-      BENCH_CUDA_TRY(
+      CUCO_CUDA_TRY(
         cudaDeviceGetAttribute(&l2_cache_bytes, cudaDevAttrL2CacheSize, current_device));
 
       if (l2_cache_bytes > 0) {
         const int memset_value = 0;
         int* l2_cache_buffer   = nullptr;
-        BENCH_CUDA_TRY(cudaMalloc(&l2_cache_buffer, l2_cache_bytes));
-        BENCH_CUDA_TRY(cudaMemsetAsync(l2_cache_buffer, memset_value, l2_cache_bytes, stream_));
-        BENCH_CUDA_TRY(cudaFree(l2_cache_buffer));
+        CUCO_CUDA_TRY(cudaMalloc(&l2_cache_buffer, l2_cache_bytes));
+        CUCO_CUDA_TRY(cudaMemsetAsync(l2_cache_buffer, memset_value, l2_cache_bytes, stream_));
+        CUCO_CUDA_TRY(cudaFree(l2_cache_buffer));
       }
     }
 
-    BENCH_CUDA_TRY(cudaEventCreate(&start_));
-    BENCH_CUDA_TRY(cudaEventCreate(&stop_));
-    BENCH_CUDA_TRY(cudaEventRecord(start_, stream_));
+    CUCO_CUDA_TRY(cudaEventCreate(&start_));
+    CUCO_CUDA_TRY(cudaEventCreate(&stop_));
+    CUCO_CUDA_TRY(cudaEventRecord(start_, stream_));
   }
 
   cuda_event_timer() = delete;
@@ -118,13 +109,13 @@ class cuda_event_timer {
    */
   ~cuda_event_timer()
   {
-    BENCH_ASSERT_CUDA_SUCCESS(cudaEventRecord(stop_, stream_));
-    BENCH_ASSERT_CUDA_SUCCESS(cudaEventSynchronize(stop_));
+    CUCO_ASSERT_CUDA_SUCCESS(cudaEventRecord(stop_, stream_));
+    CUCO_ASSERT_CUDA_SUCCESS(cudaEventSynchronize(stop_));
     float milliseconds = 0.0f;
-    BENCH_ASSERT_CUDA_SUCCESS(cudaEventElapsedTime(&milliseconds, start_, stop_));
+    CUCO_ASSERT_CUDA_SUCCESS(cudaEventElapsedTime(&milliseconds, start_, stop_));
     p_state->SetIterationTime(milliseconds / (1000.0f));
-    BENCH_ASSERT_CUDA_SUCCESS(cudaEventDestroy(start_));
-    BENCH_ASSERT_CUDA_SUCCESS(cudaEventDestroy(stop_));
+    CUCO_ASSERT_CUDA_SUCCESS(cudaEventDestroy(start_));
+    CUCO_ASSERT_CUDA_SUCCESS(cudaEventDestroy(stop_));
   }
 
  private:

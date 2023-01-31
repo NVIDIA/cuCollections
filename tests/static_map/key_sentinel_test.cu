@@ -49,7 +49,7 @@ TEMPLATE_TEST_CASE_SIG(
   for (int i = 0; i < SIZE; i++) {
     h_A[i] = i;
   }
-  cudaMemcpyToSymbol(A, h_A, SIZE * sizeof(int));
+  CUCO_CUDA_TRY(cudaMemcpyToSymbol(A, h_A, SIZE * sizeof(int)));
 
   auto pairs_begin = thrust::make_transform_iterator(
     thrust::make_counting_iterator<T>(0),
