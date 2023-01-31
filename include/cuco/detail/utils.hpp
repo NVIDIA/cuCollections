@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
  */
 
 #pragma once
+
+#include <cuco/detail/error.hpp>
 
 #include <iterator>
 #include <type_traits>
@@ -45,11 +47,12 @@ template <typename Kernel>
 auto get_grid_size(Kernel kernel, std::size_t block_size, std::size_t dynamic_smem_bytes = 0)
 {
   int grid_size{-1};
-  cudaOccupancyMaxActiveBlocksPerMultiprocessor(&grid_size, kernel, block_size, dynamic_smem_bytes);
+  CUCO_CUDA_TRY(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+    &grid_size, kernel, block_size, dynamic_smem_bytes));
   int dev_id{-1};
-  cudaGetDevice(&dev_id);
+  CUCO_CUDA_TRY(cudaGetDevice(&dev_id));
   int num_sms{-1};
-  cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id);
+  CUCO_CUDA_TRY(cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id));
   grid_size *= num_sms;
   return grid_size;
 }

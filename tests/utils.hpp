@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 #pragma once
 
 #include <utils.cuh>
+
+#include <cuco/detail/error.hpp>
 
 #include <thrust/functional.h>
 
@@ -39,19 +41,19 @@ int count_if(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = 0)
   auto const grid_size = (size + block_size - 1) / block_size;
 
   int* count;
-  cudaMallocManaged(&count, sizeof(int));
+  CUCO_CUDA_TRY(cudaMallocManaged(&count, sizeof(int)));
 
   *count = 0;
   int device_id;
-  cudaGetDevice(&device_id);
-  cudaMemPrefetchAsync(count, sizeof(int), device_id, stream);
+  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(count, sizeof(int), device_id, stream));
 
   detail::count_if<<<grid_size, block_size, 0, stream>>>(begin, end, count, p);
-  cudaStreamSynchronize(stream);
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   auto res = *count;
 
-  cudaFree(count);
+  CUCO_CUDA_TRY(cudaFree(count));
 
   return res;
 }
@@ -85,19 +87,19 @@ bool equal(Iterator1 begin1, Iterator1 end1, Iterator2 begin2, Predicate p, cuda
   auto const grid_size = (size + block_size - 1) / block_size;
 
   int* count;
-  cudaMallocManaged(&count, sizeof(int));
+  CUCO_CUDA_TRY(cudaMallocManaged(&count, sizeof(int)));
 
   *count = 0;
   int device_id;
-  cudaGetDevice(&device_id);
-  cudaMemPrefetchAsync(count, sizeof(int), device_id, stream);
+  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(count, sizeof(int), device_id, stream));
 
   detail::count_if<<<grid_size, block_size, 0, stream>>>(begin1, end1, begin2, count, p);
-  cudaStreamSynchronize(stream);
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   auto res = *count;
 
-  cudaFree(count);
+  CUCO_CUDA_TRY(cudaFree(count));
 
   return res == size;
 }

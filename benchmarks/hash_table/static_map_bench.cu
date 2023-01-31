@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -95,16 +95,16 @@ static void BM_static_map_insert(::benchmark::State& state)
     map_type map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
     cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
+    CUCO_CUDA_TRY(cudaEventCreate(&start));
+    CUCO_CUDA_TRY(cudaEventCreate(&stop));
 
-    cudaEventRecord(start);
+    CUCO_CUDA_TRY(cudaEventRecord(start));
     map.insert(d_pairs.begin(), d_pairs.end());
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
+    CUCO_CUDA_TRY(cudaEventRecord(stop));
+    CUCO_CUDA_TRY(cudaEventSynchronize(stop));
 
     float ms;
-    cudaEventElapsedTime(&ms, start, stop);
+    CUCO_CUDA_TRY(cudaEventElapsedTime(&ms, start, stop));
 
     state.SetIterationTime(ms / 1000);
   }
@@ -148,7 +148,7 @@ static void BM_static_map_search_all(::benchmark::State& state)
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
     // TODO: get rid of sync and rewrite the benchmark with `nvbench`
     // once https://github.com/NVIDIA/nvbench/pull/80 is merged
-    cudaDeviceSynchronize();
+    CUCO_CUDA_TRY(cudaDeviceSynchronize());
   }
 
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *
@@ -195,7 +195,7 @@ static void BM_static_map_search_none(::benchmark::State& state)
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
     // TODO: get rid of sync and rewrite the benchmark with `nvbench`
     // once https://github.com/NVIDIA/nvbench/pull/80 is merged
-    cudaDeviceSynchronize();
+    CUCO_CUDA_TRY(cudaDeviceSynchronize());
   }
 
   state.SetBytesProcessed((sizeof(Key) + sizeof(Value)) * int64_t(state.iterations()) *

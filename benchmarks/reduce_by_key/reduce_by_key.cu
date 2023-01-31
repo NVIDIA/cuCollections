@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+#include <cuco/detail/error.hpp>
 
 #include <benchmark/benchmark.h>
 
@@ -75,7 +77,7 @@ static void BM_thrust(::benchmark::State& state)
     thrust::device_vector<Value> values(state.range(0));
     state.ResumeTiming();
     thrust_reduce_by_key(keys.begin(), keys.end(), values.begin());
-    cudaDeviceSynchronize();
+    CUCO_CUDA_TRY(cudaDeviceSynchronize());
   }
 }
 BENCHMARK_TEMPLATE(BM_thrust, int32_t, int32_t)
