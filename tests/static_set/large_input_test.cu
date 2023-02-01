@@ -59,11 +59,14 @@ __inline__ void test_unique_sequence(Set& set, std::size_t num_keys)
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Large input",
-                       "",
-                       ((typename Key, cuco::test::probe_sequence Probe), Key, Probe),
-                       (int32_t, cuco::test::probe_sequence::double_hashing),
-                       (int64_t, cuco::test::probe_sequence::double_hashing))
+TEMPLATE_TEST_CASE_SIG(
+  "Large input",
+  "",
+  ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
+  (int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, cuco::test::probe_sequence::double_hashing, 2))
 {
   constexpr std::size_t num_keys{1'200'000'000};
 

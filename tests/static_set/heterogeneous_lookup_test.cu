@@ -79,11 +79,12 @@ struct custom_key_equal {
   }
 };
 
-TEMPLATE_TEST_CASE("Heterogeneous lookup", "", int32_t)
+TEMPLATE_TEST_CASE_SIG(
+  "Heterogeneous lookup", "", ((typename T, int CGSize), T, CGSize), (int32_t, 1), (int32_t, 2))
 {
-  using Key        = key_pair<TestType>;
-  using ProbeKey   = key_triplet<TestType>;
-  using probe_type = cuco::experimental::double_hashing<2, custom_hasher, custom_hasher>;
+  using Key        = key_pair<T>;
+  using ProbeKey   = key_triplet<T>;
+  using probe_type = cuco::experimental::double_hashing<CGSize, custom_hasher, custom_hasher>;
 
   auto const sentinel_key = Key{-1};
 
