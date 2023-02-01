@@ -129,6 +129,7 @@ class operator_impl<op::insert_tag,
     while (true) {
       auto const window_slots = ref_.storage_ref_.window(*probing_iter);
 
+      // TODO: perf gain with #pragma unroll since num_windows is build time constant
       for (auto& slot_content : window_slots) {
         auto const eq_res = ref_.predicate_(slot_content, value);
 
