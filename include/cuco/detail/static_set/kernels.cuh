@@ -119,7 +119,7 @@ __global__ void contains(InputIt first,
 
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
     if (idx < n) {
-      auto key = *(first + idx);
+      auto const key = *(first + idx);
       /*
        * The ld.relaxed.gpu instruction used in view.find causes L1 to
        * flush more frequently, causing increased sector stores from L2 to global memory.
@@ -171,8 +171,8 @@ __global__ void contains(InputIt first,
 
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
     if (idx < n) {
-      auto key   = *(first + idx);
-      auto found = set_ref.contains(tile, key);
+      auto const key   = *(first + idx);
+      auto const found = set_ref.contains(tile, key);
       /*
        * The ld.relaxed.gpu instruction used in view.find causes L1 to
        * flush more frequently, causing increased sector stores from L2 to global memory.
