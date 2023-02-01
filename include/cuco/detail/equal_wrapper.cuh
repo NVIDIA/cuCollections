@@ -47,7 +47,7 @@ struct equal_wrapper {
    * @param sentinel Sentinel value
    * @param equal Equality binary callable
    */
-  __host__ __device__ equal_wrapper(T const sentinel, Equal const& equal)
+  __host__ __device__ constexpr equal_wrapper(T const sentinel, Equal const& equal)
     : sentinel_{sentinel}, equal_{equal}
   {
   }
@@ -62,7 +62,7 @@ struct equal_wrapper {
    * @return Equality comparison result
    */
   template <typename U>
-  __device__ inline equal_result operator()(T const& lhs, U const& rhs) const noexcept
+  __device__ inline constexpr equal_result operator()(T const& lhs, U const& rhs) const noexcept
   {
     return cuco::detail::bitwise_compare(lhs, sentinel_)
              ? equal_result::EMPTY
