@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,27 @@
 #include <string>
 
 namespace cuco {
+/**
+ * @brief Exception thrown when logical precondition is violated.
+ *
+ * This exception should not be thrown directly and is instead thrown by the
+ * CUCO_EXPECTS macro.
+ */
+struct logic_error : public std::logic_error {
+  /**
+   * @brief Constructs a logic_error with the error message.
+   *
+   * @param message Message to be associated with the exception
+   */
+  logic_error(char const* const message) : std::logic_error(message) {}
+
+  /**
+   * @brief Construct a new logic error object with error message
+   *
+   * @param message Message to be associated with the exception
+   */
+  logic_error(std::string const& message) : std::logic_error(message) {}
+};
 /**
  * @brief Exception thrown when a CUDA error is encountered.
  *
@@ -93,21 +114,72 @@ struct cuda_error : public std::runtime_error {
   } while (0)
 
 /**
- * @brief Macro for checking runtime conditions that throws an exception when
+ * @brief Macro for checking (pre-)conditions that throws an exception when
  * a condition is violated.
  *
+ * Defaults to throwing `cuco::logic_error`, but a custom exception may also be
+ * specified.
+ *
  * Example usage:
+ * ```
+ * // throws cuco::logic_error
+ * CUCO_EXPECTS(p != nullptr, "Unexpected null pointer");
  *
- * @code
- * CUCO_RUNTIME_EXPECTS(key == value, "Key value mismatch");
- * @endcode
- *
- * @param[in] cond Expression that evaluates to true or false
- * @param[in] reason String literal description of the reason that cond is
- * expected to be true
- * @throw std::runtime_error if the condition evaluates to false.
+ * // throws std::runtime_error
+ * CUCO_EXPECTS(p != nullptr, "Unexpected nullptr", std::runtime_error);
+ * ```
+ * @param ... This macro accepts either two or three arguments:
+ *   - The first argument must be an expression that evaluates to true or
+ *     false, and is the condition being checked.
+ *   - The second argument is a string literal used to construct the `what` of
+ *     the exception.
+ *   - When given, the third argument is the exception to be thrown. When not
+ *     specified, defaults to `cuco::logic_error`.
+ * @throw `_exception_type` if the condition evaluates to 0 (false).
  */
-#define CUCO_RUNTIME_EXPECTS(cond, reason)                           \
-  (!!(cond)) ? static_cast<void>(0)                                  \
-             : throw std::runtime_error("cuco failure at: " __FILE__ \
-                                        ":" CUCO_STRINGIFY(__LINE__) ": " reason)
+#define CUCO_EXPECTS(...)                                             \
+  GET_CUCO_EXPECTS_MACRO(__VA_ARGS__, CUCO_EXPECTS_3, CUCO_EXPECTS_2) \
+  (__VA_ARGS__)
+
+#define GET_CUCO_EXPECTS_MACRO(_1, _2, _3, NAME, ...) NAME
+
+#define CUCO_EXPECTS_3(_condition, _reason, _exception_type)                    \
+  do {                                                                          \
+    static_assert(std::is_base_of_v<std::exception, _exception_type>);          \
+    (_condition) ? static_cast<void>(0)                                         \
+                 : throw _exception_type /*NOLINT(bugprone-macro-parentheses)*/ \
+      {"CUCO failure at: " __FILE__ ":" CUCO_STRINGIFY(__LINE__) ": " _reason}; \
+  } while (0)
+
+#define CUCO_EXPECTS_2(_condition, _reason) CUCO_EXPECTS_3(_condition, _reason, cuco::logic_error)
+
+/**
+ * @brief Indicates that an erroneous code path has been taken.
+ *
+ * Example usage:
+ * ```c++
+ * // Throws `cuco::logic_error`
+ * CUCO_FAIL("Unsupported code path");
+ *
+ * // Throws `std::runtime_error`
+ * CUCO_FAIL("Unsupported code path", std::runtime_error);
+ * ```
+ *
+ * @param ... This macro accepts either one or two arguments:
+ *   - The first argument is a string literal used to construct the `what` of
+ *     the exception.
+ *   - When given, the second argument is the exception to be thrown. When not
+ *     specified, defaults to `cuco::logic_error`.
+ * @throw `_exception_type` if the condition evaluates to 0 (false).
+ */
+#define CUCO_FAIL(...)                                       \
+  GET_CUCO_FAIL_MACRO(__VA_ARGS__, CUCO_FAIL_2, CUCO_FAIL_1) \
+  (__VA_ARGS__)
+
+#define GET_CUCO_FAIL_MACRO(_1, _2, NAME, ...) NAME
+
+#define CUCO_FAIL_2(_what, _exception_type)      \
+  /*NOLINTNEXTLINE(bugprone-macro-parentheses)*/ \
+  throw _exception_type { "CUCO failure at:" __FILE__ ":" CUCO_STRINGIFY(__LINE__) ": " _what }
+
+#define CUCO_FAIL_1(_what) CUCO_FAIL_2(_what, cuco::logic_error)
