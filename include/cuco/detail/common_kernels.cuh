@@ -31,7 +31,7 @@ namespace detail {
  * @param k Key to which all keys in `slots` are initialized
  * @param size Size of the storage pointed to by `slots`
  */
-template <int WindowSize, typename WindowT>
+template <int32_t WindowSize, typename WindowT>
 __global__ void initialize(WindowT* windows, typename WindowT::value_type k, std::size_t size)
 {
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;

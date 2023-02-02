@@ -29,7 +29,7 @@ namespace experimental {
  * @tparam Hash1 Unary callable type
  * @tparam Hash2 Unary callable type
  */
-template <int CGSize, typename Hash1, typename Hash2>
+template <int32_t CGSize, typename Hash1, typename Hash2>
 class double_hashing : private detail::probing_scheme_base<CGSize> {
  public:
   using probing_scheme_base_type =

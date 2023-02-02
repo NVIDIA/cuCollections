@@ -19,6 +19,7 @@
 #include <cuco/detail/prime.hpp>
 
 #include <cstddef>
+#include <cstdint>
 
 namespace cuco {
 namespace experimental {
@@ -54,7 +55,7 @@ struct extent {
    *
    * @return Resulting valid static extent
    */
-  template <int CGSize, int WindowSize>
+  template <int32_t CGSize, int32_t WindowSize>
   [[nodiscard]] constexpr auto valid_extent() const noexcept
   {
     auto constexpr max_prime = cuco::detail::primes.back();
@@ -79,7 +80,7 @@ struct extent {
    *
    * @return Resulting static extent
    */
-  template <int Value>
+  template <int32_t Value>
   __host__ __device__ constexpr auto multiply() const noexcept
   {
     return extent<value_type, N * Value>{};
@@ -117,7 +118,7 @@ struct extent<SizeType, dynamic_extent> {
    *
    * @return Resulting valid dynamic extent
    */
-  template <int CGSize, int WindowSize>
+  template <int32_t CGSize, int32_t WindowSize>
   [[nodiscard]] constexpr auto valid_extent() const noexcept
   {
     auto constexpr max_prime = cuco::detail::primes.back();
@@ -140,7 +141,7 @@ struct extent<SizeType, dynamic_extent> {
    *
    * @return Resulting extent
    */
-  template <int Value>
+  template <int32_t Value>
   __host__ __device__ constexpr auto multiply() const noexcept
   {
     return extent<value_type>{Value * value_};

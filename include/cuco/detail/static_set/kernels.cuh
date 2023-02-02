@@ -42,7 +42,7 @@ namespace detail {
  * @param n Number of key/value pairs
  * @param set_ref Set device reference used to access the set's slot storage
  */
-template <int BlockSize, typename InputIterator, typename Reference>
+template <int32_t BlockSize, typename InputIterator, typename Reference>
 __global__ void insert(InputIterator first, cuco::detail::index_type n, Reference set_ref)
 {
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
@@ -71,7 +71,7 @@ __global__ void insert(InputIterator first, cuco::detail::index_type n, Referenc
  * @param n Number of key/value pairs
  * @param set_ref Set device reference used to access the set's slot storage
  */
-template <int CGSize, int BlockSize, typename InputIterator, typename Reference>
+template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Reference>
 __global__ void insert(InputIterator first, cuco::detail::index_type n, Reference set_ref)
 {
   namespace cg = cooperative_groups;
@@ -102,7 +102,7 @@ __global__ void insert(InputIterator first, cuco::detail::index_type n, Referenc
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
  * @param set_ref Set device reference used to access the set's slot storage
  */
-template <int BlockSize, typename InputIt, typename OutputIt, typename Reference>
+template <int32_t BlockSize, typename InputIt, typename OutputIt, typename Reference>
 __global__ void contains(InputIt first,
                          cuco::detail::index_type n,
                          OutputIt output_begin,
@@ -152,7 +152,11 @@ __global__ void contains(InputIt first,
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
  * @param set_ref Set device reference used to access the set's slot storage
  */
-template <int CGSize, int BlockSize, typename InputIt, typename OutputIt, typename Reference>
+template <int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIt,
+          typename OutputIt,
+          typename Reference>
 __global__ void contains(InputIt first,
                          cuco::detail::index_type n,
                          OutputIt output_begin,

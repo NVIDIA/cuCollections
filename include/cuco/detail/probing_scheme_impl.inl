@@ -67,7 +67,7 @@ class probing_iterator {
    *
    * @return Old iterator before increment
    */
-  __device__ constexpr auto operator++(int) noexcept
+  __device__ constexpr auto operator++(int32_t) noexcept
   {
     auto temp = *this;
     ++(*this);
@@ -81,14 +81,14 @@ class probing_iterator {
 };
 }  // namespace detail
 
-template <int CGSize, typename Hash1, typename Hash2>
+template <int32_t CGSize, typename Hash1, typename Hash2>
 constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashing(Hash1 const& hash1,
                                                                Hash2 const& hash2)
   : hash1_{hash1}, hash2_{hash2}
 {
 }
 
-template <int CGSize, typename Hash1, typename Hash2>
+template <int32_t CGSize, typename Hash1, typename Hash2>
 template <typename ProbeKey, typename Extent>
 __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
@@ -99,7 +99,7 @@ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
     upper_bound};
 }
 
-template <int CGSize, typename Hash1, typename Hash2>
+template <int32_t CGSize, typename Hash1, typename Hash2>
 template <typename ProbeKey, typename Extent>
 __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
   cooperative_groups::thread_block_tile<cg_size> const& g,

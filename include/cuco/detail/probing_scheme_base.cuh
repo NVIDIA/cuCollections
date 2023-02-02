@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace cuco {
 namespace experimental {
 namespace detail {
@@ -26,13 +28,13 @@ namespace detail {
  *
  * @tparam CGSize Size of CUDA Cooperative Groups
  */
-template <int CGSize>
+template <int32_t CGSize>
 class probing_scheme_base {
  public:
   /**
    * @brief The size of the CUDA cooperative thread group.
    */
-  static constexpr int cg_size = CGSize;
+  static constexpr int32_t cg_size = CGSize;
 };
 }  // namespace detail
 }  // namespace experimental
