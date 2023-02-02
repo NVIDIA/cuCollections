@@ -148,7 +148,7 @@ struct cuda_error : public std::runtime_error {
     static_assert(std::is_base_of_v<std::exception, _exception_type>);          \
     (_condition) ? static_cast<void>(0)                                         \
                  : throw _exception_type /*NOLINT(bugprone-macro-parentheses)*/ \
-      {"CUDF failure at: " __FILE__ ":" CUCO_STRINGIFY(__LINE__) ": " _reason}; \
+      {"CUCO failure at: " __FILE__ ":" CUCO_STRINGIFY(__LINE__) ": " _reason}; \
   } while (0)
 
 #define CUCO_EXPECTS_2(_condition, _reason) CUCO_EXPECTS_3(_condition, _reason, cuco::logic_error)
@@ -180,6 +180,6 @@ struct cuda_error : public std::runtime_error {
 
 #define CUCO_FAIL_2(_what, _exception_type)      \
   /*NOLINTNEXTLINE(bugprone-macro-parentheses)*/ \
-  throw _exception_type { "CUDF failure at:" __FILE__ ":" CUCO_STRINGIFY(__LINE__) ": " _what }
+  throw _exception_type { "CUCO failure at:" __FILE__ ":" CUCO_STRINGIFY(__LINE__) ": " _what }
 
 #define CUCO_FAIL_1(_what) CUCO_FAIL_2(_what, cuco::logic_error)
