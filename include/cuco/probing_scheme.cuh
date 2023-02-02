@@ -23,6 +23,60 @@
 namespace cuco {
 namespace experimental {
 /**
+ * @brief Public linear probing scheme class.
+ *
+ * @tparam CGSize Size of CUDA Cooperative Groups
+ * @tparam Hash Unary callable type
+ */
+template <int32_t CGSize, typename Hash>
+class linear_probing : private detail::probing_scheme_base<CGSize> {
+ public:
+  using probing_scheme_base_type =
+    detail::probing_scheme_base<CGSize>;  ///< The base probe scheme type
+  using probing_scheme_base_type::cg_size;
+
+  /**
+   *@brief Constructs double hashing probing scheme with the two hasher callables.
+   *
+   * @param hash Hasher
+   */
+  explicit constexpr linear_probing(Hash const& hash);
+
+  /**
+   * @brief Operator to return a probing iterator
+   *
+   * @tparam ProbeKey Type of probing key
+   * @tparam Extent Type of extent
+   *
+   * @param probe_key The probing key
+   * @param upper_bound Upper bound of the iteration
+   * @return An iterator whose value_type is convertible to slot index type
+   */
+  template <typename ProbeKey, typename Extent>
+  __device__ constexpr auto operator()(ProbeKey const& probe_key,
+                                       Extent upper_bound) const noexcept;
+
+  /**
+   * @brief Operator to return a CG-based probing iterator
+   *
+   * @tparam ProbeKey Type of probing key
+   * @tparam Extent Type of extent
+   *
+   * @param g the Cooperative Group to generate probing iterator
+   * @param probe_key The probing key
+   * @param upper_bound Upper bound of the iteration
+   * @return An iterator whose value_type is convertible to slot index type
+   */
+  template <typename ProbeKey, typename Extent>
+  __device__ constexpr auto operator()(cooperative_groups::thread_block_tile<cg_size> const& g,
+                                       ProbeKey const& probe_key,
+                                       Extent upper_bound) const noexcept;
+
+ private:
+  Hash hash_;
+};
+
+/**
  * @brief Public double hashing scheme class.
  *
  * @tparam CGSize Size of CUDA Cooperative Groups
