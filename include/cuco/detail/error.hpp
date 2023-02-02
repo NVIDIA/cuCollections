@@ -114,24 +114,44 @@ struct cuda_error : public std::runtime_error {
   } while (0)
 
 /**
- * @brief Macro for checking runtime conditions that throws an exception when
+ * @brief Macro for checking (pre-)conditions that throws an exception when
  * a condition is violated.
  *
+ * Defaults to throwing `cuco::logic_error`, but a custom exception may also be
+ * specified.
+ *
  * Example usage:
+ * ```
+ * // throws cuco::logic_error
+ * CUCO_EXPECTS(p != nullptr, "Unexpected null pointer");
  *
- * @code
- * CUCO_RUNTIME_EXPECTS(key == value, "Key value mismatch");
- * @endcode
- *
- * @param[in] cond Expression that evaluates to true or false
- * @param[in] reason String literal description of the reason that cond is
- * expected to be true
- * @throw std::runtime_error if the condition evaluates to false.
+ * // throws std::runtime_error
+ * CUCO_EXPECTS(p != nullptr, "Unexpected nullptr", std::runtime_error);
+ * ```
+ * @param ... This macro accepts either two or three arguments:
+ *   - The first argument must be an expression that evaluates to true or
+ *     false, and is the condition being checked.
+ *   - The second argument is a string literal used to construct the `what` of
+ *     the exception.
+ *   - When given, the third argument is the exception to be thrown. When not
+ *     specified, defaults to `cuco::logic_error`.
+ * @throw `_exception_type` if the condition evaluates to 0 (false).
  */
-#define CUCO_RUNTIME_EXPECTS(cond, reason)                           \
-  (!!(cond)) ? static_cast<void>(0)                                  \
-             : throw std::runtime_error("cuco failure at: " __FILE__ \
-                                        ":" CUCO_STRINGIFY(__LINE__) ": " reason)
+#define CUCO_EXPECTS(...)                                             \
+  GET_CUCO_EXPECTS_MACRO(__VA_ARGS__, CUCO_EXPECTS_3, CUCO_EXPECTS_2) \
+  (__VA_ARGS__)
+
+#define GET_CUCO_EXPECTS_MACRO(_1, _2, _3, NAME, ...) NAME
+
+#define CUCO_EXPECTS_3(_condition, _reason, _exception_type)                    \
+  do {                                                                          \
+    static_assert(std::is_base_of_v<std::exception, _exception_type>);          \
+    (_condition) ? static_cast<void>(0)                                         \
+                 : throw _exception_type /*NOLINT(bugprone-macro-parentheses)*/ \
+      {"CUDF failure at: " __FILE__ ":" CUCO_STRINGIFY(__LINE__) ": " _reason}; \
+  } while (0)
+
+#define CUCO_EXPECTS_2(_condition, _reason) CUCO_EXPECTS_3(_condition, _reason, cuco::logic_error)
 
 /**
  * @brief Indicates that an erroneous code path has been taken.
