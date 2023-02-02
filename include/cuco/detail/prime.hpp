@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <cuco/detail/probing_scheme_impl.cuh>
 #include <cuco/detail/utils.hpp>
 
 #include <algorithm>
@@ -20135,25 +20134,6 @@ inline constexpr std::array<int64_t, 140739> primes = {
   17175529577, 17175660743, 17175791821, 17175922903, 17176053997, 17176185083, 17176316167,
   17176447243, 17176578343, 17176709449, 17176840529, 17176971601, 17177102693, 17177233783,
   17177364857, 17177495953, 17177627053, 17177758133};
-
-/**
- * @brief Get the next prime number from a given integer.
- *
- * @tparam T Type of integer
- *
- * @param base
- * @return Next prime number larger than `base`
- */
-template <typename T>
-[[nodiscard]] constexpr T next_prime(T base) noexcept
-{
-  auto const max_prime = primes.back();
-  auto const max_value = (static_cast<uint64_t>(std::numeric_limits<T>::max()) < max_prime)
-                           ? std::numeric_limits<T>::max()
-                           : static_cast<T>(max_prime);
-  if (base <= 0 or base > max_value) return T{};
-  return *lower_bound(primes.begin(), primes.end(), static_cast<uint64_t>(base));
-}
 
 /**
  * @brief Calculates the valid capacity based on `cg_size` , `vector_width`

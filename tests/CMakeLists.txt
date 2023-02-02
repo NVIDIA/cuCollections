@@ -51,7 +51,6 @@ endfunction(ConfigureTest)
 # - utility tests ---------------------------------------------------------------------------------
 ConfigureTest(UTILITY_TEST
     utility/extent_test.cu
-    utility/prime_test.cu
     utility/storage_test.cu)
 
 ###################################################################################################
