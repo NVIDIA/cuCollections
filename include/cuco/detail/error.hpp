@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,27 @@
 #include <string>
 
 namespace cuco {
+/**
+ * @brief Exception thrown when logical precondition is violated.
+ *
+ * This exception should not be thrown directly and is instead thrown by the
+ * CUCO_EXPECTS macro.
+ */
+struct logic_error : public std::logic_error {
+  /**
+   * @brief Constructs a logic_error with the error message.
+   *
+   * @param message Message to be associated with the exception
+   */
+  logic_error(char const* const message) : std::logic_error(message) {}
+
+  /**
+   * @brief Construct a new logic error object with error message
+   *
+   * @param message Message to be associated with the exception
+   */
+  logic_error(std::string const& message) : std::logic_error(message) {}
+};
 /**
  * @brief Exception thrown when a CUDA error is encountered.
  *
@@ -111,3 +132,34 @@ struct cuda_error : public std::runtime_error {
   (!!(cond)) ? static_cast<void>(0)                                  \
              : throw std::runtime_error("cuco failure at: " __FILE__ \
                                         ":" CUCO_STRINGIFY(__LINE__) ": " reason)
+
+/**
+ * @brief Indicates that an erroneous code path has been taken.
+ *
+ * Example usage:
+ * ```c++
+ * // Throws `cuco::logic_error`
+ * CUCO_FAIL("Unsupported code path");
+ *
+ * // Throws `std::runtime_error`
+ * CUCO_FAIL("Unsupported code path", std::runtime_error);
+ * ```
+ *
+ * @param ... This macro accepts either one or two arguments:
+ *   - The first argument is a string literal used to construct the `what` of
+ *     the exception.
+ *   - When given, the second argument is the exception to be thrown. When not
+ *     specified, defaults to `cuco::logic_error`.
+ * @throw `_exception_type` if the condition evaluates to 0 (false).
+ */
+#define CUCO_FAIL(...)                                       \
+  GET_CUCO_FAIL_MACRO(__VA_ARGS__, CUCO_FAIL_2, CUCO_FAIL_1) \
+  (__VA_ARGS__)
+
+#define GET_CUCO_FAIL_MACRO(_1, _2, NAME, ...) NAME
+
+#define CUCO_FAIL_2(_what, _exception_type)      \
+  /*NOLINTNEXTLINE(bugprone-macro-parentheses)*/ \
+  throw _exception_type { "CUDF failure at:" __FILE__ ":" CUCO_STRINGIFY(__LINE__) ": " _what }
+
+#define CUCO_FAIL_1(_what) CUCO_FAIL_2(_what, cuco::logic_error)
