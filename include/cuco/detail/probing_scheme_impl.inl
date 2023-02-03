@@ -81,6 +81,32 @@ class probing_iterator {
 };
 }  // namespace detail
 
+template <int32_t CGSize, typename Hash>
+constexpr linear_probing<CGSize, Hash>::linear_probing(Hash const& hash) : hash_{hash}
+{
+}
+
+template <int32_t CGSize, typename Hash>
+template <typename ProbeKey, typename Extent>
+__device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
+  ProbeKey const& probe_key, Extent upper_bound) const noexcept
+{
+  return detail::probing_iterator<Extent>{hash_(probe_key) % upper_bound,
+                                          1,  // step size is 1
+                                          upper_bound};
+}
+
+template <int32_t CGSize, typename Hash>
+template <typename ProbeKey, typename Extent>
+__device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
+  cooperative_groups::thread_block_tile<cg_size> const& g,
+  ProbeKey const& probe_key,
+  Extent upper_bound) const noexcept
+{
+  return detail::probing_iterator<Extent>{
+    (hash_(probe_key) + g.thread_rank()) % upper_bound, cg_size, upper_bound};
+}
+
 template <int32_t CGSize, typename Hash1, typename Hash2>
 constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashing(Hash1 const& hash1,
                                                                Hash2 const& hash2)

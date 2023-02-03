@@ -21,11 +21,12 @@
 TEST_CASE("Static set capacity", "")
 {
   constexpr std::size_t num_keys{400};
-  auto constexpr gold_capacity = 422;  // 211 x 2
-  using Key                    = int32_t;
+  using Key = int32_t;
 
   SECTION("Static extent must be evaluated at compile time.")
   {
+    auto constexpr gold_capacity = 422;  // 211 x 2
+
     using extent_type = cuco::experimental::extent<std::size_t, num_keys>;
     cuco::experimental::static_set<Key, extent_type> set{extent_type{},
                                                          cuco::sentinel::empty_key<Key>{-1}};
@@ -39,7 +40,54 @@ TEST_CASE("Static set capacity", "")
 
   SECTION("Dynamic extent is evaluated at run time.")
   {
+    auto constexpr gold_capacity = 422;  // 211 x 2
+
     cuco::experimental::static_set<Key> set{num_keys, cuco::sentinel::empty_key<Key>{-1}};
+    auto const capacity = set.capacity();
+    REQUIRE(capacity == gold_capacity);
+
+    auto ref                = set.ref();
+    auto const ref_capacity = ref.capacity();
+    REQUIRE(ref_capacity == gold_capacity);
+  }
+
+  SECTION("Static extent must be evaluated at compile time.")
+  {
+    auto constexpr gold_capacity = 412;  // 103 x 2 x 2
+
+    using extent_type = cuco::experimental::extent<std::size_t, num_keys>;
+    using probe       = cuco::experimental::linear_probing<2, cuco::murmurhash3_32<Key>>;
+    auto set          = cuco::experimental::
+      static_set<Key, extent_type, cuda::thread_scope_device, thrust::equal_to<Key>, probe>{
+        extent_type{},
+        cuco::empty_key<Key>{-1},
+        thrust::equal_to<Key>{},
+        probe{cuco::murmurhash3_32<Key>{}}};
+
+    REQUIRE(set.capacity() == gold_capacity);
+
+    auto const capacity = set.capacity();
+    STATIC_REQUIRE(capacity == gold_capacity);
+
+    auto ref                = set.ref();
+    auto const ref_capacity = ref.capacity();
+    STATIC_REQUIRE(ref_capacity == gold_capacity);
+  }
+
+  SECTION("Dynamic extent is evaluated at run time.")
+  {
+    auto constexpr gold_capacity = 412;  // 103 x 2 x 2
+
+    using probe = cuco::experimental::linear_probing<2, cuco::murmurhash3_32<Key>>;
+    auto set    = cuco::experimental::static_set<Key,
+                                              cuco::experimental::extent<std::size_t>,
+                                              cuda::thread_scope_device,
+                                              thrust::equal_to<Key>,
+                                              probe>{num_keys,
+                                                     cuco::empty_key<Key>{-1},
+                                                     thrust::equal_to<Key>{},
+                                                     probe{cuco::murmurhash3_32<Key>{}}};
+
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);
 

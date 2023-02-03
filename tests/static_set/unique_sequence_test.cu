@@ -66,14 +66,45 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, cuco::test::probe_sequence::double_hashing, 2))
+  (int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
   constexpr std::size_t num_keys{400};
+  auto constexpr gold_capacity = CGSize == 1 ? 422  // 211 x 1 x 2
+                                             : 412  // 103 x 2 x 2
+    ;
 
-  cuco::experimental::static_set<Key> set{num_keys, cuco::sentinel::empty_key<Key>{-1}};
+  using extent_type = cuco::experimental::extent<std::size_t>;
 
-  auto constexpr gold_capacity = 422;  // 211 x 2
-  REQUIRE(set.capacity() == gold_capacity);
+  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
+    using probe = cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>;
+    auto set    = cuco::experimental::
+      static_set<Key, extent_type, cuda::thread_scope_device, thrust::equal_to<Key>, probe>{
+        num_keys,
+        cuco::empty_key<Key>{-1},
+        thrust::equal_to<Key>{},
+        probe{cuco::murmurhash3_32<Key>{}}};
 
-  test_unique_sequence(set, num_keys);
+    REQUIRE(set.capacity() == gold_capacity);
+
+    test_unique_sequence(set, num_keys);
+  }
+
+  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
+    using probe = cuco::experimental::
+      double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>;
+    auto set = cuco::experimental::
+      static_set<Key, extent_type, cuda::thread_scope_device, thrust::equal_to<Key>, probe>{
+        num_keys,
+        cuco::empty_key<Key>{-1},
+        thrust::equal_to<Key>{},
+        probe{cuco::murmurhash3_32<Key>{}, cuco::murmurhash3_32<Key>{}}};
+
+    REQUIRE(set.capacity() == gold_capacity);
+
+    test_unique_sequence(set, num_keys);
+  }
 }
