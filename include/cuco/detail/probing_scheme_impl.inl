@@ -58,6 +58,8 @@ class probing_iterator {
    */
   __device__ constexpr auto operator++() noexcept
   {
+    // TODO: step_size_ can be a build time constant (e.g. linear probing)
+    //  Worth passing another extent type?
     curr_index_ = (curr_index_ + step_size_) % upper_bound_;
     return *this;
   }
