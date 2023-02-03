@@ -28,8 +28,7 @@ TEST_CASE("Static set capacity", "")
     auto constexpr gold_capacity = 422;  // 211 x 2
 
     using extent_type = cuco::experimental::extent<std::size_t, num_keys>;
-    cuco::experimental::static_set<Key, extent_type> set{extent_type{},
-                                                         cuco::sentinel::empty_key<Key>{-1}};
+    cuco::experimental::static_set<Key, extent_type> set{extent_type{}, cuco::empty_key<Key>{-1}};
     auto const capacity = set.capacity();
     STATIC_REQUIRE(capacity == gold_capacity);
 
@@ -42,7 +41,7 @@ TEST_CASE("Static set capacity", "")
   {
     auto constexpr gold_capacity = 422;  // 211 x 2
 
-    cuco::experimental::static_set<Key> set{num_keys, cuco::sentinel::empty_key<Key>{-1}};
+    cuco::experimental::static_set<Key> set{num_keys, cuco::empty_key<Key>{-1}};
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);
 
