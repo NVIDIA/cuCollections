@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -140,8 +140,8 @@ class dynamic_map {
    * @param stream Stream used for executing the kernels
    */
   dynamic_map(std::size_t initial_capacity,
-              sentinel::empty_key<Key> empty_key_sentinel,
-              sentinel::empty_value<Value> empty_value_sentinel,
+              empty_key<Key> empty_key_sentinel,
+              empty_value<Value> empty_value_sentinel,
               Allocator const& alloc = Allocator{},
               cudaStream_t stream    = nullptr);
 
