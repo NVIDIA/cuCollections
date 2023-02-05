@@ -1,5 +1,5 @@
 ﻿#=============================================================================
-# Copyright (c) 2018-2022, NVIDIA CORPORATION.
+# Copyright (c) 2018-2023, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -81,6 +81,12 @@ endfunction(ConfigureNVBench)
 # - dynamic_map benchmarks ------------------------------------------------------------------------
 set(DYNAMIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/dynamic_map_bench.cu")
 ConfigureBench(DYNAMIC_MAP_BENCH "${DYNAMIC_MAP_BENCH_SRC}")
+
+###################################################################################################
+# - static_multimap benchmarks --------------------------------------------------------------------
+ConfigureNVBench(STATIC_SET_BENCH
+  hash_table/static_set/contains_bench.cu
+  hash_table/static_set/insert_bench.cu)
 
 ###################################################################################################
 # - static_map benchmarks -------------------------------------------------------------------------
