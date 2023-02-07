@@ -27,7 +27,6 @@
 /**
  * @brief A benchmark evaluating multi-value `insert` performance:
  * - Total number of insertions: 100'000'000
- * - CG size: 8
  */
 template <typename Key, dist_type Dist, nvbench::int32_t Multiplicity>
 void nvbench_static_set_insert(
@@ -71,10 +70,10 @@ NVBENCH_BENCH_TYPES(nvbench_static_set_insert,
   .set_type_axes_names({"Key", "Distribution", "Multiplicity"})
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {0.8});
+  .add_float64_axis("Occupancy", {0.5});
 
 NVBENCH_BENCH_TYPES(nvbench_static_set_insert,
-                    NVBENCH_TYPE_AXES(key_type, d_type, nvbench::enum_type_list<8>))
+                    NVBENCH_TYPE_AXES(key_type, d_type, nvbench::enum_type_list<1>))
   .set_name("staic_set_insert_occupancy")
   .set_type_axes_names({"Key", "Distribution", "Multiplicity"})
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.

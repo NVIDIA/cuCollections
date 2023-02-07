@@ -73,11 +73,11 @@ NVBENCH_BENCH_TYPES(nvbench_static_set_contains,
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {0.8})
+  .add_float64_axis("Occupancy", {0.5})
   .add_float64_axis("MatchingRate", {0.5});
 
 NVBENCH_BENCH_TYPES(nvbench_static_set_contains,
-                    NVBENCH_TYPE_AXES(key_type, d_type, nvbench::enum_type_list<8>))
+                    NVBENCH_TYPE_AXES(key_type, d_type, nvbench::enum_type_list<1>))
   .set_name("staic_set_contains_occupancy")
   .set_type_axes_names({"Key", "Distribution", "Multiplicity"})
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
@@ -87,11 +87,11 @@ NVBENCH_BENCH_TYPES(nvbench_static_set_contains,
   .add_float64_axis("MatchingRate", {0.5});
 
 NVBENCH_BENCH_TYPES(nvbench_static_set_contains,
-                    NVBENCH_TYPE_AXES(key_type, d_type, nvbench::enum_type_list<8>))
+                    NVBENCH_TYPE_AXES(key_type, d_type, nvbench::enum_type_list<1>))
   .set_name("staic_set_contains_matching_rate")
   .set_type_axes_names({"Key", "Distribution", "Multiplicity"})
   .set_timeout(100)                            // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {0.8})
+  .add_float64_axis("Occupancy", {0.5})
   .add_float64_axis("MatchingRate", {0.01, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1});
