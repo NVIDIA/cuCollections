@@ -28,8 +28,8 @@ auto constexpr DEFAULT_MULTIPLICITY  = 1;
 auto constexpr DEFAULT_MATCHING_RATE = 0.5;
 auto constexpr DEFAULT_DISTRIBUTION  = dist_type::UNIFORM;
 
-auto const DEFAULT_OCCUPANCY_RANGE     = nvbench::range(0.1, 0.9, 0.1);
-auto const DEFAULT_MATCHING_RATE_RANGE = nvbench::range(0.1, 1., 0.1);
+auto const DEFAULT_OCCUPANCY_RANGE     = nvbench::range(0.2, 0.8, 0.2);
+auto const DEFAULT_MATCHING_RATE_RANGE = nvbench::range(0.5, 1., 0.5);
 
 using KEY_LIST   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using VALUE_LIST = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
