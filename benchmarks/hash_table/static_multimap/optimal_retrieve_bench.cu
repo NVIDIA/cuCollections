@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -84,7 +84,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_retrieve(
   thrust::device_vector<cuco::pair_type<Key, Value>> d_results(output_size);
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    map.retrieve_outer(d_keys.begin(), d_keys.end(), d_results.data().get(), launch.get_stream());
+    map.retrieve_outer(d_keys.begin(), d_keys.end(), d_results.begin(), launch.get_stream());
   });
 }
 

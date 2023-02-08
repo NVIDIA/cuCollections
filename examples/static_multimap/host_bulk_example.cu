@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,9 +64,8 @@ int main(void)
 
   // Finds all keys {0, 1, 2, ...} and stores associated key/value pairs into `d_results`
   // If a key `keys_to_find[i]` doesn't exist, `d_results[i].second == empty_value_sentinel`
-  auto output_end =
-    map.retrieve_outer(keys_to_find.begin(), keys_to_find.end(), d_results.data().get());
-  auto retrieve_size = output_end - d_results.data().get();
+  auto output_end = map.retrieve_outer(keys_to_find.begin(), keys_to_find.end(), d_results.begin());
+  auto retrieve_size = output_end - d_results.begin();
 
   // The total number of outer matches should be `N + N / 2`
   assert(not(output_size == retrieve_size == N + N / 2));

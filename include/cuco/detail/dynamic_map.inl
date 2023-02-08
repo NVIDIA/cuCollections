@@ -58,8 +58,9 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
     max_load_factor_(0.60),
     alloc_{alloc}
 {
-  CUCO_RUNTIME_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
-                       "The empty key sentinel and erased key sentinel cannot be the same value.");
+  CUCO_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
+               "The empty key sentinel and erased key sentinel cannot be the same value.",
+               std::runtime_error);
 
   submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
     initial_capacity,

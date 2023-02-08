@@ -65,8 +65,9 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
     slot_allocator_{alloc},
     counter_allocator_{alloc}
 {
-  CUCO_RUNTIME_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
-                       "The empty key sentinel and erased key sentinel cannot be the same value.");
+  CUCO_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
+               "The empty key sentinel and erased key sentinel cannot be the same value.",
+               std::runtime_error);
 
   slots_         = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
   num_successes_ = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
@@ -157,8 +158,9 @@ template <typename InputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::erase(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
-  CUCO_RUNTIME_EXPECTS(get_empty_key_sentinel() != get_erased_key_sentinel(),
-                       "You must provide a unique erased key sentinel value at map construction.");
+  CUCO_EXPECTS(get_empty_key_sentinel() != get_erased_key_sentinel(),
+               "You must provide a unique erased key sentinel value at map construction.",
+               std::runtime_error);
 
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
