@@ -125,6 +125,7 @@ class key_generator {
       // TODO static assert fail
     }
   }
+
   /**
    * @brief Generates a sequence of random keys in the interval [0, N).
    *
@@ -209,3 +210,9 @@ class key_generator {
 
 }  // namespace benchmark
 }  // namespace cuco
+
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::unique, "UNIQUE", "dist_type::unique");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::uniform, "UNIFORM", "dist_type::uniform");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::gaussian,
+                             "GAUSSIAN",
+                             "dist_type::gaussian");
