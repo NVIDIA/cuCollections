@@ -78,64 +78,24 @@ using namespace defaults;
 NVBENCH_BENCH_TYPES(nvbench_static_map_find,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::uniform>))
-  .set_name("static_map_find_uniform_multiplicity")
-  .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_timeout(100)                  // Custom timeout: 100 s. Default is 15 s.
-  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {OCCUPANCY})
-  .add_float64_axis("MatchingRate", {MATCHING_RATE})
-  .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
-
-NVBENCH_BENCH_TYPES(nvbench_static_map_find,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::uniform>))
+                                      nvbench::type_list<dist_type::unique>))
   .set_name("static_map_find_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_timeout(100)                  // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
   .add_float64_axis("Occupancy", OCCUPANCY_RANGE)
-  .add_float64_axis("MatchingRate", {MATCHING_RATE})
-  .add_int64_axis("Multiplicity", {MULTIPLICITY});
+  .add_float64_axis("MatchingRate", {MATCHING_RATE});
 
 NVBENCH_BENCH_TYPES(nvbench_static_map_find,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::uniform>))
+                                      nvbench::type_list<dist_type::unique>))
   .set_name("static_map_find_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_timeout(100)                  // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
   .add_float64_axis("Occupancy", {OCCUPANCY})
-  .add_float64_axis("MatchingRate", MATCHING_RATE_RANGE)
-  .add_int64_axis("Multiplicity", {MULTIPLICITY});
-
-NVBENCH_BENCH_TYPES(nvbench_static_map_find,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::unique>))
-  .set_name("static_map_find_unique")
-  .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_timeout(100)                  // Custom timeout: 100 s. Default is 15 s.
-  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {OCCUPANCY})
-  .add_float64_axis("MatchingRate", {MATCHING_RATE});
-
-NVBENCH_BENCH_TYPES(nvbench_static_map_find,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::gaussian>))
-  .set_name("static_map_find_gaussian")
-  .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_timeout(100)                  // Custom timeout: 100 s. Default is 15 s.
-  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {OCCUPANCY})
-  .add_float64_axis("MatchingRate", {MATCHING_RATE})
-  .add_float64_axis("Skew", SKEW_RANGE);
+  .add_float64_axis("MatchingRate", MATCHING_RATE_RANGE);
 }  // namespace cuco::benchmark
