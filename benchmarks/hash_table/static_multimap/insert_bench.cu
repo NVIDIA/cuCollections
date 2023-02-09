@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <defaults.hpp>
 #include <key_generator.hpp>
 
 #include <cuco/static_multimap.cuh>
@@ -24,13 +25,14 @@
 #include <thrust/execution_policy.h>
 #include <thrust/transform.h>
 
+namespace cuco {
+namespace benchmark {
+
 /**
- * @brief A benchmark evaluating multi-value `insert` performance:
- * - Total number of insertions: 100'000'000
- * - CG size: 8
+ * @brief A benchmark evaluating multi-value `insert` performance
  */
 template <typename Key, typename Value, typename Dist>
-std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_insert(
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_insert(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
   using pair_type = cuco::pair_type<Key, Value>;
@@ -70,39 +72,45 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_multimap_i
 }
 
 template <typename Key, typename Value, typename Dist>
-std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_multimap_insert(
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_multimap_insert(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
   state.skip("Key should be the same type as Value.");
 }
 
-using key_type   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
-using value_type = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
+using namespace defaults;
 
-NVBENCH_BENCH_TYPES(nvbench_static_multimap_insert,
-                    NVBENCH_TYPE_AXES(key_type, value_type, nvbench::type_list<dist_type::unique>))
-  .set_name("staic_multimap_insert_unique_occupancy")
+NVBENCH_BENCH_TYPES(static_multimap_insert,
+                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
+                                      VALUE_TYPE_RANGE,
+                                      nvbench::type_list<dist_type::unique>))
+  .set_name("static_multimap_insert_unique_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", nvbench::range(0.1, 0.9, 0.1));
+  .set_max_noise(MAX_NOISE)
+  .add_int64_axis("NumInputs", {N})
+  .add_float64_axis("Occupancy", OCCUPANCY_RANGE);
 
-NVBENCH_BENCH_TYPES(nvbench_static_multimap_insert,
-                    NVBENCH_TYPE_AXES(key_type, value_type, nvbench::type_list<dist_type::uniform>))
+NVBENCH_BENCH_TYPES(static_multimap_insert,
+                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
+                                      VALUE_TYPE_RANGE,
+                                      nvbench::type_list<dist_type::uniform>))
   .set_name("static_multimap_insert_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {0.8})
-  .add_int64_axis("Multiplicity", {1, 2, 4, 8, 16, 32, 64, 128, 256});
+  .set_max_noise(MAX_NOISE)
+  .add_int64_axis("NumInputs", {N})
+  .add_float64_axis("Occupancy", {OCCUPANCY})
+  .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
 
-NVBENCH_BENCH_TYPES(nvbench_static_multimap_insert,
-                    NVBENCH_TYPE_AXES(key_type,
-                                      value_type,
+NVBENCH_BENCH_TYPES(static_multimap_insert,
+                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
+                                      VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::gaussian>))
   .set_name("static_multimap_insert_gaussian_skew")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(3)                            // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {100'000'000})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {0.8})
-  .add_float64_axis("Skew", {0.0001, 0.001, 0.01, 0.1, 1});
+  .set_max_noise(MAX_NOISE)
+  .add_int64_axis("NumInputs", {N})
+  .add_float64_axis("Occupancy", {OCCUPANCY})
+  .add_float64_axis("Skew", SKEW_RANGE);
+
+}  // namespace benchmark
+}  // namespace cuco
