@@ -31,16 +31,19 @@
 #include <time.h>
 #include <type_traits>
 
+namespace cuco {
+namespace benchmark {
+
 namespace dist_type {
 struct unique {
 };
 
 struct uniform {
-  int64_t multiplicity = 8;  // TODO assert >0
+  int64_t multiplicity;  // TODO assert >0
 };
 
 struct gaussian {
-  double skew = 0.1;  // TODO assert >0
+  double skew;  // TODO assert >0
 };
 };  // namespace dist_type
 
@@ -122,6 +125,7 @@ class key_generator {
       // TODO static assert fail
     }
   }
+
   /**
    * @brief Generates a sequence of random keys in the interval [0, N).
    *
@@ -203,3 +207,12 @@ class key_generator {
  private:
   RNG rng_;  ///< Random number generator
 };
+
+}  // namespace benchmark
+}  // namespace cuco
+
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::unique, "UNIQUE", "dist_type::unique");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::uniform, "UNIFORM", "dist_type::uniform");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::gaussian,
+                             "GAUSSIAN",
+                             "dist_type::gaussian");
