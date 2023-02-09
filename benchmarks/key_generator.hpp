@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <defaults.hpp>
+
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/iterator/counting_iterator.h>
@@ -149,10 +151,12 @@ class key_generator {
     if constexpr (std::is_same_v<Dist, dist_type::unique>) {
       generate(exec_policy, Dist{}, out_begin, out_end);
     } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
-      auto const multiplicity = state.get_int64((axis.empty()) ? "Multiplicity" : axis);
+      auto const multiplicity =
+        state.get_int64_or_default((axis.empty()) ? "Multiplicity" : axis, defaults::MULTIPLICITY);
       generate(exec_policy, Dist{multiplicity}, out_begin, out_end);
     } else if constexpr (std::is_same_v<Dist, dist_type::gaussian>) {
-      auto const skew = state.get_float64((axis.empty()) ? "Skew" : axis);
+      auto const skew =
+        state.get_float64_or_default((axis.empty()) ? "Skew" : axis, defaults::SKEW);
       generate(exec_policy, Dist{skew}, out_begin, out_end);
     } else {
       // TODO static assert fail

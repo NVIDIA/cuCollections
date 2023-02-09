@@ -28,6 +28,8 @@
 namespace cuco {
 namespace benchmark {
 
+using namespace defaults;
+
 /**
  * @brief A benchmark evaluating multi-value `insert` performance
  */
@@ -37,8 +39,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_insert(
 {
   using pair_type = cuco::pair_type<Key, Value>;
 
-  auto const num_keys  = state.get_int64("NumInputs");
-  auto const occupancy = state.get_float64("Occupancy");
+  auto const num_keys  = state.get_int64_or_default("NumInputs", N);
+  auto const occupancy = state.get_float64_or_default("Occupancy", OCCUPANCY);
 
   std::size_t const size = num_keys / occupancy;
 
@@ -78,8 +80,6 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_multimap_insert(
   state.skip("Key should be the same type as Value.");
 }
 
-using namespace defaults;
-
 NVBENCH_BENCH_TYPES(static_multimap_insert,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
@@ -87,7 +87,6 @@ NVBENCH_BENCH_TYPES(static_multimap_insert,
   .set_name("static_multimap_insert_unique_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(MAX_NOISE)
-  .add_int64_axis("NumInputs", {N})
   .add_float64_axis("Occupancy", OCCUPANCY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_multimap_insert,
@@ -97,8 +96,6 @@ NVBENCH_BENCH_TYPES(static_multimap_insert,
   .set_name("static_multimap_insert_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(MAX_NOISE)
-  .add_int64_axis("NumInputs", {N})
-  .add_float64_axis("Occupancy", {OCCUPANCY})
   .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_multimap_insert,
@@ -108,8 +105,6 @@ NVBENCH_BENCH_TYPES(static_multimap_insert,
   .set_name("static_multimap_insert_gaussian_skew")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(MAX_NOISE)
-  .add_int64_axis("NumInputs", {N})
-  .add_float64_axis("Occupancy", {OCCUPANCY})
   .add_float64_axis("Skew", SKEW_RANGE);
 
 }  // namespace benchmark
