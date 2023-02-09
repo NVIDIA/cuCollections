@@ -14,43 +14,41 @@
  * limitations under the License.
  */
 
-#include "commons.hpp"
+#include <defaults.hpp>
+#include <key_generator.hpp>
 
 #include <cuco/static_map.cuh>
 
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/iterator/transform_iterator.h>
 
+namespace cuco::benchmark {
 /**
  * @brief A benchmark evaluating multi-value `insert` performance:
  * - Total number of insertions: 100'000'000
  */
-template <typename Key, typename Value, dist_type Dist, nvbench::int32_t Multiplicity>
+template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_map_insert(
-  nvbench::state& state,
-  nvbench::type_list<Key, Value, nvbench::enum_type<Dist>, nvbench::enum_type<Multiplicity>>)
+  nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
   auto const num_keys  = state.get_int64("NumInputs");
   auto const occupancy = state.get_float64("Occupancy");
 
   std::size_t const size = num_keys / occupancy;
 
-  std::vector<Key> h_keys(num_keys);
-  std::vector<cuco::pair_type<Key, Value>> h_pairs(num_keys);
+  thrust::device_vector<Key> keys(num_keys);
 
-  generate_keys<Dist, Multiplicity, Key>(h_keys.begin(), h_keys.end());
+  key_generator gen;
+  gen.generate<Dist>(state, thrust::device, keys.begin(), keys.end());
 
-  for (auto i = 0; i < num_keys; ++i) {
-    Key key           = h_keys[i];
-    Value val         = h_keys[i];
-    h_pairs[i].first  = key;
-    h_pairs[i].second = val;
-  }
-
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(h_pairs);
+  auto pairs_begin = thrust::make_transform_iterator(
+    keys.begin(), [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
 
   state.add_element_count(num_keys, "NumInputs");
+  state.set_global_memory_rw_bytes(num_keys * sizeof(cuco::pair_type<Key, Value>));
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                cuco::static_map<Key, Value> map{
@@ -58,8 +56,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_map_insert
 
                // Use timers to explicitly mark the target region
                timer.start();
-               map.insert(d_pairs.begin(),
-                          d_pairs.end(),
+               map.insert(pairs_begin,
+                          pairs_begin + num_keys,
                           cuco::murmurhash3_32<Key>{},
                           thrust::equal_to<Key>{},
                           launch.get_stream());
@@ -67,32 +65,34 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_map_insert
              });
 }
 
-template <typename Key, typename Value, dist_type Dist, nvbench::int32_t Multiplicity>
+template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_map_insert(
-  nvbench::state& state,
-  nvbench::type_list<Key, Value, nvbench::enum_type<Dist>, nvbench::enum_type<Multiplicity>>)
+  nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
   state.skip("Key should be the same type as Value.");
 }
 
-NVBENCH_BENCH_TYPES(nvbench_static_map_insert,
-                    NVBENCH_TYPE_AXES(KEY_LIST,
-                                      VALUE_LIST,
-                                      nvbench::enum_type_list<DEFAULT_DISTRIBUTION>,
-                                      MULTIPLICITY_LIST))
-  .set_name("static_map_insert_uniform_multiplicity")
-  .set_type_axes_names({"Key", "Value", "Distribution", "Multiplicity"})
-  .set_max_noise(3)                          // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {DEFAULT_N})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {DEFAULT_OCCUPANCY});
+using namespace defaults;
 
 NVBENCH_BENCH_TYPES(nvbench_static_map_insert,
-                    NVBENCH_TYPE_AXES(KEY_LIST,
-                                      VALUE_LIST,
-                                      DISTRIBUTION_LIST,
-                                      nvbench::enum_type_list<DEFAULT_MULTIPLICITY>))
+                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
+                                      VALUE_TYPE_RANGE,
+                                      nvbench::type_list<dist_type::uniform>))
+  .set_name("static_map_insert_uniform_multiplicity")
+  .set_type_axes_names({"Key", "Value", "Distribution"})
+  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
+  .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
+  .add_float64_axis("Occupancy", {OCCUPANCY})
+  .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
+
+NVBENCH_BENCH_TYPES(nvbench_static_map_insert,
+                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
+                                      VALUE_TYPE_RANGE,
+                                      nvbench::type_list<dist_type::uniform>))
   .set_name("static_map_insert_occupancy")
-  .set_type_axes_names({"Key", "Value", "Distribution", "Multiplicity"})
-  .set_max_noise(3)                          // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {DEFAULT_N})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", DEFAULT_OCCUPANCY_RANGE);
+  .set_type_axes_names({"Key", "Value", "Distribution"})
+  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
+  .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
+  .add_float64_axis("Occupancy", OCCUPANCY_RANGE)
+  .add_int64_axis("Multiplicity", {MULTIPLICITY});
+}  // namespace cuco::benchmark
