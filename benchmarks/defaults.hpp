@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <key_generator.hpp>
-
 #include <nvbench/nvbench.cuh>
 
 #include <cstdint>
@@ -32,8 +30,8 @@ using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 
 auto constexpr N             = 100'000'000;
 auto constexpr OCCUPANCY     = 0.5;
-auto constexpr MULTIPLICITY  = 1.0;
-auto constexpr MATCHING_RATE = 1.0;
+auto constexpr MULTIPLICITY  = 8;
+auto constexpr MATCHING_RATE = 0.5;
 auto constexpr MAX_NOISE     = 3;
 auto constexpr SKEW          = 0.5;
 
