@@ -28,7 +28,6 @@
 namespace cuco::benchmark {
 /**
  * @brief A benchmark evaluating `erase` performance:
- * - Total number of insertions: 100'000'000
  */
 template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_erase(
