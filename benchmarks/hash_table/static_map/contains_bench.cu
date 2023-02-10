@@ -81,8 +81,8 @@ NVBENCH_BENCH_TYPES(nvbench_static_map_contains,
                                       nvbench::type_list<dist_type::unique>))
   .set_name("static_map_contains_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_timeout(100)                  // Custom timeout: 100 s. Default is 15 s.
-  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
+  .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
+  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
   .add_float64_axis("Occupancy", OCCUPANCY_RANGE);
 
 NVBENCH_BENCH_TYPES(nvbench_static_map_contains,
