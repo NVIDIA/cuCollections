@@ -31,7 +31,7 @@ namespace cuco::benchmark {
  * - Total number of insertions: 100'000'000
  */
 template <typename Key, typename Value, typename Dist>
-std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_map_contains(
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_contains(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
   auto const num_keys      = state.get_int64("NumInputs");
@@ -67,7 +67,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_map_contai
 }
 
 template <typename Key, typename Value, typename Dist>
-std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_map_contains(
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_contains(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
   state.skip("Key should be the same type as Value.");
@@ -75,7 +75,7 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_map_contai
 
 using namespace defaults;
 
-NVBENCH_BENCH_TYPES(nvbench_static_map_contains,
+NVBENCH_BENCH_TYPES(static_map_contains,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))
@@ -87,7 +87,7 @@ NVBENCH_BENCH_TYPES(nvbench_static_map_contains,
   .add_float64_axis("Occupancy", OCCUPANCY_RANGE)
   .add_float64_axis("MatchingRate", {MATCHING_RATE});
 
-NVBENCH_BENCH_TYPES(nvbench_static_map_contains,
+NVBENCH_BENCH_TYPES(static_map_contains,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))

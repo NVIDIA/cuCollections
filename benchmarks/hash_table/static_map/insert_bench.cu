@@ -31,7 +31,7 @@ namespace cuco::benchmark {
  * - Total number of insertions: 100'000'000
  */
 template <typename Key, typename Value, typename Dist>
-std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_map_insert(
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
   auto const num_keys  = state.get_int64("NumInputs");
@@ -66,7 +66,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_map_insert
 }
 
 template <typename Key, typename Value, typename Dist>
-std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_map_insert(
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_insert(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
   state.skip("Key should be the same type as Value.");
@@ -74,7 +74,7 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_map_insert
 
 using namespace defaults;
 
-NVBENCH_BENCH_TYPES(nvbench_static_map_insert,
+NVBENCH_BENCH_TYPES(static_map_insert,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::uniform>))
@@ -85,7 +85,7 @@ NVBENCH_BENCH_TYPES(nvbench_static_map_insert,
   .add_float64_axis("Occupancy", {OCCUPANCY})
   .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
 
-NVBENCH_BENCH_TYPES(nvbench_static_map_insert,
+NVBENCH_BENCH_TYPES(static_map_insert,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))
@@ -95,7 +95,7 @@ NVBENCH_BENCH_TYPES(nvbench_static_map_insert,
   .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
   .add_float64_axis("Occupancy", OCCUPANCY_RANGE);
 
-NVBENCH_BENCH_TYPES(nvbench_static_map_insert,
+NVBENCH_BENCH_TYPES(static_map_insert,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::gaussian>))

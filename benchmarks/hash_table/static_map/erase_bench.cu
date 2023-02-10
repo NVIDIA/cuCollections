@@ -31,7 +31,7 @@ namespace cuco::benchmark {
  * - Total number of insertions: 100'000'000
  */
 template <typename Key, typename Value, typename Dist>
-std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_map_erase(
+std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_erase(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
   using pair_type = cuco::pair_type<Key, Value>;
@@ -77,7 +77,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> nvbench_static_map_erase(
 }
 
 template <typename Key, typename Value, typename Dist>
-std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_map_erase(
+std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_erase(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
   state.skip("Key should be the same type as Value.");
@@ -85,7 +85,7 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> nvbench_static_map_erase(
 
 using namespace defaults;
 
-NVBENCH_BENCH_TYPES(nvbench_static_map_erase,
+NVBENCH_BENCH_TYPES(static_map_erase,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::uniform>))
@@ -98,7 +98,7 @@ NVBENCH_BENCH_TYPES(nvbench_static_map_erase,
   .add_float64_axis("MatchingRate", {MATCHING_RATE})
   .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
 
-NVBENCH_BENCH_TYPES(nvbench_static_map_erase,
+NVBENCH_BENCH_TYPES(static_map_erase,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))
@@ -110,7 +110,7 @@ NVBENCH_BENCH_TYPES(nvbench_static_map_erase,
   .add_float64_axis("Occupancy", OCCUPANCY_RANGE)
   .add_float64_axis("MatchingRate", {MATCHING_RATE});
 
-NVBENCH_BENCH_TYPES(nvbench_static_map_erase,
+NVBENCH_BENCH_TYPES(static_map_erase,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))
