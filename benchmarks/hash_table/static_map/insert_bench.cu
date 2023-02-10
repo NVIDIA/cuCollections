@@ -27,15 +27,14 @@
 
 namespace cuco::benchmark {
 /**
- * @brief A benchmark evaluating multi-value `insert` performance:
- * - Total number of insertions: 100'000'000
+ * @brief A benchmark evaluating `insert` performance:
  */
 template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
-  auto const num_keys  = state.get_int64("NumInputs");
-  auto const occupancy = state.get_float64("Occupancy");
+  auto const num_keys  = state.get_int64_or_default("NumInputs", defaults::N);
+  auto const occupancy = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
 
   std::size_t const size = num_keys / occupancy;
 
@@ -80,9 +79,7 @@ NVBENCH_BENCH_TYPES(static_map_insert,
                                       nvbench::type_list<dist_type::uniform>))
   .set_name("static_map_insert_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {OCCUPANCY})
+  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
   .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_map_insert,
@@ -91,8 +88,7 @@ NVBENCH_BENCH_TYPES(static_map_insert,
                                       nvbench::type_list<dist_type::unique>))
   .set_name("static_map_insert_unique_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
+  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
   .add_float64_axis("Occupancy", OCCUPANCY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_map_insert,
@@ -101,8 +97,6 @@ NVBENCH_BENCH_TYPES(static_map_insert,
                                       nvbench::type_list<dist_type::gaussian>))
   .set_name("static_map_insert_gaussian")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {OCCUPANCY})
+  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
   .add_float64_axis("Skew", SKEW_RANGE);
 }  // namespace cuco::benchmark

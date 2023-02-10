@@ -34,9 +34,9 @@ template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_find(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
-  auto const num_keys      = state.get_int64("NumInputs");
-  auto const occupancy     = state.get_float64("Occupancy");
-  auto const matching_rate = state.get_float64("MatchingRate");
+  auto const num_keys      = state.get_int64_or_default("NumInputs", defaults::N);
+  auto const occupancy     = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
+  auto const matching_rate = state.get_float64_or_default("MatchingRate", defaults::MATCHING_RATE);
 
   std::size_t const size = num_keys / occupancy;
 
@@ -81,11 +81,9 @@ NVBENCH_BENCH_TYPES(static_map_find,
                                       nvbench::type_list<dist_type::unique>))
   .set_name("static_map_find_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_timeout(100)                  // Custom timeout: 100 s. Default is 15 s.
-  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", OCCUPANCY_RANGE)
-  .add_float64_axis("MatchingRate", {MATCHING_RATE});
+  .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
+  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
+  .add_float64_axis("Occupancy", OCCUPANCY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_map_find,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
@@ -93,9 +91,7 @@ NVBENCH_BENCH_TYPES(static_map_find,
                                       nvbench::type_list<dist_type::unique>))
   .set_name("static_map_find_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_timeout(100)                  // Custom timeout: 100 s. Default is 15 s.
-  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {OCCUPANCY})
+  .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
+  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
   .add_float64_axis("MatchingRate", MATCHING_RATE_RANGE);
 }  // namespace cuco::benchmark

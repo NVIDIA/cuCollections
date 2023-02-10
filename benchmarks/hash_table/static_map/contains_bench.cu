@@ -27,8 +27,7 @@
 
 namespace cuco::benchmark {
 /**
- * @brief A benchmark evaluating multi-value `contains` performance:
- * - Total number of insertions: 100'000'000
+ * @brief A benchmark evaluating `contains` performance:
  */
 template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_contains(
@@ -81,8 +80,8 @@ NVBENCH_BENCH_TYPES(static_map_contains,
                                       nvbench::type_list<dist_type::unique>))
   .set_name("static_map_contains_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_timeout(100)                  // Custom timeout: 100 s. Default is 15 s.
-  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
+  .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
+  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
   .add_float64_axis("Occupancy", OCCUPANCY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_map_contains,
@@ -91,9 +90,7 @@ NVBENCH_BENCH_TYPES(static_map_contains,
                                       nvbench::type_list<dist_type::unique>))
   .set_name("static_map_contains_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_timeout(100)                  // Custom timeout: 100 s. Default is 15 s.
-  .set_max_noise(MAX_NOISE)          // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("NumInputs", {N})  // Total number of key/value pairs: 100'000'000
-  .add_float64_axis("Occupancy", {OCCUPANCY})
+  .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
+  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
   .add_float64_axis("MatchingRate", MATCHING_RATE_RANGE);
 }  // namespace cuco::benchmark
