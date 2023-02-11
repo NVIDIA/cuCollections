@@ -67,30 +67,27 @@ class key_generator {
   /**
    * @brief Generates a sequence of random keys in the interval [0, N).
    *
-   * @tparam ExecPolicy Thrust execution policy
    * @tparam Dist Key distribution type
    * @tparam OutputIt Ouput iterator typy which value type is the desired key type
    *
-   * @param exec_policy Thrust execution policy this operation will be executed with
    * @param dist Random distribution to use
    * @param output_begin Start of the output sequence
    * @param output_end End of the output sequence
    */
-  template <typename ExecPolicy, typename Dist, typename OutputIt>
-  void generate(ExecPolicy exec_policy, Dist dist, OutputIt out_begin, OutputIt out_end)
+  template <typename Dist, typename OutputIt>
+  void generate(Dist dist, OutputIt out_begin, OutputIt out_end)
   {
     using value_type = typename std::iterator_traits<OutputIt>::value_type;
 
     if constexpr (std::is_same_v<Dist, dist_type::unique>) {
-      thrust::sequence(exec_policy, out_begin, out_end, 0);
-      thrust::shuffle(exec_policy, out_begin, out_end, this->rng_);
+      thrust::sequence(out_begin, out_end, 0);
+      thrust::shuffle(out_begin, out_end, this->rng_);
     } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
       size_t num_keys = thrust::distance(out_begin, out_end);
 
       thrust::counting_iterator<size_t> seq(this->rng_());
 
-      thrust::transform(exec_policy,
-                        seq,
+      thrust::transform(seq,
                         seq + num_keys,
                         out_begin,
                         [*this, dist, num_keys] __host__ __device__(size_t const n) {
@@ -105,8 +102,7 @@ class key_generator {
 
       thrust::counting_iterator<size_t> seq(this->rng_());
 
-      thrust::transform(exec_policy,
-                        seq,
+      thrust::transform(seq,
                         seq + num_keys,
                         out_begin,
                         [*this, dist, num_keys] __host__ __device__(size_t const n) {
@@ -132,32 +128,29 @@ class key_generator {
    * @brief Generates a sequence of random keys in the interval [0, N).
    *
    * @tparam Dist Key distribution type
-   * @tparam ExecPolicy Thrust execution policy
    * @tparam OutputIt Ouput iterator typy which value type is the desired key type
    *
    * @param state 'nvbench::state' object which provides the parameter axis
-   * @param exec_policy Thrust execution policy this operation will be executed with
    * @param output_begin Start of the output sequence
    * @param output_end End of the output sequence
    * @param axis Name of the parameter axis that holds the multiplicity/skew
    */
-  template <typename Dist, typename ExecPolicy, typename OutputIt>
+  template <typename Dist, typename OutputIt>
   void generate(nvbench::state const& state,
-                ExecPolicy exec_policy,
                 OutputIt out_begin,
                 OutputIt out_end,
                 std::string axis = "")
   {
     if constexpr (std::is_same_v<Dist, dist_type::unique>) {
-      generate(exec_policy, Dist{}, out_begin, out_end);
+      generate(Dist{}, out_begin, out_end);
     } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
       auto const multiplicity =
         state.get_int64_or_default((axis.empty()) ? "Multiplicity" : axis, defaults::MULTIPLICITY);
-      generate(exec_policy, Dist{multiplicity}, out_begin, out_end);
+      generate(Dist{multiplicity}, out_begin, out_end);
     } else if constexpr (std::is_same_v<Dist, dist_type::gaussian>) {
       auto const skew =
         state.get_float64_or_default((axis.empty()) ? "Skew" : axis, defaults::SKEW);
-      generate(exec_policy, Dist{skew}, out_begin, out_end);
+      generate(Dist{skew}, out_begin, out_end);
     } else {
       // TODO static assert fail
     }
@@ -167,16 +160,14 @@ class key_generator {
    * @brief Randomly replaces previously generated keys with new keys outside the input
    * distribution.
    *
-   * @tparam ExecPolicy Thrust execution policy
    * @tparam InOutIt Input/Ouput iterator typy which value type is the desired key type
    *
-   * @param exec_policy Thrust execution policy this operation will be executed with
    * @param begin Start of the key sequence
    * @param end End of the key sequence
    * @param keep_prob Probability that a key is kept
    */
-  template <typename ExecPolicy, typename InOutIt>
-  void dropout(ExecPolicy exec_policy, InOutIt begin, InOutIt end, double keep_prob)
+  template <typename InOutIt>
+  void dropout(InOutIt begin, InOutIt end, double keep_prob)
   {
     using value_type = typename std::iterator_traits<InOutIt>::value_type;
 
@@ -186,7 +177,6 @@ class key_generator {
       thrust::counting_iterator<size_t> seq(rng_());
 
       thrust::transform_if(
-        exec_policy,
         seq,
         seq + num_keys,
         begin,
@@ -205,7 +195,7 @@ class key_generator {
         });
     }
 
-    thrust::shuffle(exec_policy, begin, end, rng_);
+    thrust::shuffle(begin, end, rng_);
   }
 
  private:

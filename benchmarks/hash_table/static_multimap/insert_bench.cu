@@ -22,7 +22,6 @@
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 #include <thrust/transform.h>
 
 namespace cuco {
@@ -47,7 +46,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_insert(
   thrust::device_vector<Key> keys(num_keys);
 
   key_generator gen;
-  gen.generate<Dist>(state, thrust::device, keys.begin(), keys.end());
+  gen.generate<Dist>(state, keys.begin(), keys.end());
 
   thrust::device_vector<pair_type> pairs(num_keys);
   thrust::transform(thrust::device,
