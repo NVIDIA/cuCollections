@@ -24,8 +24,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
-namespace cuco {
-namespace benchmark {
+namespace cuco::benchmark {
 
 using namespace defaults;
 
@@ -112,5 +111,4 @@ NVBENCH_BENCH_TYPES(static_multimap_count,
   .set_max_noise(MAX_NOISE)
   .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
 
-}  // namespace benchmark
-}  // namespace cuco
+}  // namespace cuco::benchmark

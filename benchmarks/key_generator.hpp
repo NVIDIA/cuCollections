@@ -33,8 +33,7 @@
 #include <time.h>
 #include <type_traits>
 
-namespace cuco {
-namespace benchmark {
+namespace cuco::benchmark {
 
 namespace dist_type {
 struct unique {
@@ -202,8 +201,7 @@ class key_generator {
   RNG rng_;  ///< Random number generator
 };
 
-}  // namespace benchmark
-}  // namespace cuco
+}  // namespace cuco::benchmark
 
 NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::unique, "UNIQUE", "dist_type::unique");
 NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::uniform, "UNIFORM", "dist_type::uniform");
