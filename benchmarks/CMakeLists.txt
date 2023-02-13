@@ -61,11 +61,9 @@ endfunction(ConfigureBench)
 function(ConfigureNVBench BENCH_NAME)
     add_executable(${BENCH_NAME} ${ARGN})
     set_target_properties(${BENCH_NAME} PROPERTIES
-                                        POSITION_INDEPENDENT_CODE ON
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/nvbenchmarks")
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
-                                             #"${NVBench_SOURCE_DIR}")
     target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         nvbench::main
@@ -90,17 +88,20 @@ ConfigureNVBench(STATIC_SET_BENCH
 
 ###################################################################################################
 # - static_map benchmarks -------------------------------------------------------------------------
-set(STATIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
-ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
+ConfigureNVBench(STATIC_MAP_BENCH
+  hash_table/static_map/contains_bench.cu
+  hash_table/static_map/erase_bench.cu
+  hash_table/static_map/find_bench.cu
+  hash_table/static_map/insert_bench.cu)
 
 ###################################################################################################
 # - static_multimap benchmarks --------------------------------------------------------------------
 ConfigureNVBench(STATIC_MULTIMAP_BENCH
-  hash_table/static_multimap/count_bench.cu
-  hash_table/static_multimap/insert_bench.cu
-  hash_table/static_multimap/pair_retrieve_bench.cu
-  hash_table/static_multimap/query_bench.cu
-  hash_table/static_multimap/retrieve_bench.cu)
+  #hash_table/static_multimap/count_bench.cu
+  hash_table/static_multimap/insert_bench.cu)
+  #hash_table/static_multimap/pair_retrieve_bench.cu
+  #hash_table/static_multimap/query_bench.cu
+  #hash_table/static_multimap/retrieve_bench.cu)
 
 ConfigureNVBench(RETRIEVE_BENCH
   hash_table/static_multimap/optimal_retrieve_bench.cu)
