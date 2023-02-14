@@ -238,8 +238,10 @@ class operator_impl<op::insert_tag,
       return insert_result::SUCCESS;
     } else {
       auto old = expected;
-      return ref_.predicate_(old, value) == detail::equal_result::EQUAL ? insert_result::DUPLICATE
-                                                                        : insert_result::CONTINUE;
+      // Shouldn't use `predicate_` operator directly since it includes a redundant bitwise compare
+      return ref_.predicate_.equal_to(old, value) == detail::equal_result::EQUAL
+               ? insert_result::DUPLICATE
+               : insert_result::CONTINUE;
     }
   }
 };

@@ -55,7 +55,7 @@ struct equal_wrapper {
   /**
    * @brief Equality operator.
    *
-   * @tparam U Left-hand side Element type
+   * @tparam U Right-hand side Element type
    *
    * @param lhs Left-hand side element to check equality
    * @param rhs Right-hand side element to check equality
@@ -67,6 +67,22 @@ struct equal_wrapper {
     return cuco::detail::bitwise_compare(lhs, sentinel_)
              ? equal_result::EMPTY
              : ((equal_(lhs, rhs)) ? equal_result::EQUAL : equal_result::UNEQUAL);
+  }
+
+  /**
+   * @brief Equality check with no bitwise compare.
+   *
+   * @tparam LHS Left-hand side Element type
+   * @tparam RHS Right-hand side Element type
+   *
+   * @param lhs Left-hand side element to check equality
+   * @param rhs Right-hand side element to check equality
+   * @return Equality comparison result
+   */
+  template <typename LHS, typename RHS>
+  __device__ inline constexpr equal_result equal_to(LHS const& lhs, RHS const& rhs) const noexcept
+  {
+    return equal_(lhs, rhs) ? equal_result::EQUAL : equal_result::UNEQUAL;
   }
 };
 
