@@ -33,8 +33,8 @@ using namespace cuco::benchmark::defaults;
 template <typename Key, typename Dist>
 void static_set_insert(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
-  auto const num_keys  = state.get_int64("NumInputs");
-  auto const occupancy = state.get_float64("Occupancy");
+  auto const num_keys  = state.get_int64_or_default("NumInputs", defaults::N);
+  auto const occupancy = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
 
   std::size_t const size = num_keys / occupancy;
 
