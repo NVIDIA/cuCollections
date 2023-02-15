@@ -84,16 +84,16 @@ class key_generator {
     } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
       size_t num_keys = thrust::distance(out_begin, out_end);
 
-      thrust::counting_iterator<size_t> seq(this->rng_());
+      thrust::counting_iterator<size_t> seeds(this->rng_());
 
-      thrust::transform(seq,
-                        seq + num_keys,
+      thrust::transform(seeds,
+                        seeds + num_keys,
                         out_begin,
-                        [*this, dist, num_keys] __host__ __device__(size_t const n) {
+                        [*this, dist, num_keys] __host__ __device__(size_t const seed) {
                           RNG rng;
                           thrust::uniform_int_distribution<value_type> uniform_dist(
                             0, num_keys / dist.multiplicity);
-                          rng.discard(n);
+                          rng.seed(seed);
                           return uniform_dist(rng);
                         });
     } else if constexpr (std::is_same_v<Dist, dist_type::gaussian>) {
@@ -104,11 +104,11 @@ class key_generator {
       thrust::transform(seq,
                         seq + num_keys,
                         out_begin,
-                        [*this, dist, num_keys] __host__ __device__(size_t const n) {
+                        [*this, dist, num_keys] __host__ __device__(size_t const seed) {
                           RNG rng;
                           thrust::normal_distribution<> normal_dist(
                             static_cast<double>(num_keys / 2), num_keys * dist.skew);
-                          rng.discard(n);
+                          rng.seed(seed);
                           auto val = normal_dist(rng);
                           while (val < 0 or val >= num_keys) {
                             // Re-sample if the value is outside the range [0, N)
@@ -173,23 +173,23 @@ class key_generator {
     if (keep_prob >= 1.0) {
       size_t num_keys = thrust::distance(begin, end);
 
-      thrust::counting_iterator<size_t> seq(rng_());
+      thrust::counting_iterator<size_t> seeds(rng_());
 
       thrust::transform_if(
-        seq,
-        seq + num_keys,
+        seeds,
+        seeds + num_keys,
         begin,
-        [num_keys] __host__ __device__(size_t const n) {
+        [num_keys] __host__ __device__(size_t const seed) {
           RNG rng;
           thrust::uniform_int_distribution<value_type> non_match_dist{
             static_cast<value_type>(num_keys), std::numeric_limits<value_type>::max()};
-          rng.discard(n);
+          rng.seed(seed);
           return non_match_dist(rng);
         },
-        [keep_prob] __host__ __device__(size_t const n) {
+        [keep_prob] __host__ __device__(size_t const seed) {
           RNG rng;
           thrust::uniform_real_distribution<double> rate_dist(0.0, 1.0);
-          rng.discard(n);
+          rng.seed(seed);
           return (rate_dist(rng) > keep_prob);
         });
     }
