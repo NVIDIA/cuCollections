@@ -20,11 +20,15 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/iterator_traits.h>
 #include <thrust/random.h>
 #include <thrust/sequence.h>
 #include <thrust/shuffle.h>
+#include <thrust/system/detail/generic/select_system.h>
 #include <thrust/transform.h>
+#include <thrust/type_traits/is_execution_policy.h>
 
 #include <algorithm>
 #include <iterator>
@@ -68,25 +72,28 @@ class key_generator {
    *
    * @tparam Dist Key distribution type
    * @tparam OutputIt Ouput iterator typy which value type is the desired key type
+   * @tparam ExecPolicy Thrust execution policy
    *
    * @param dist Random distribution to use
    * @param output_begin Start of the output sequence
    * @param output_end End of the output sequence
+   * @param exec_policy Thrust execution policy this operation will be executed with
    */
-  template <typename Dist, typename OutputIt>
-  void generate(Dist dist, OutputIt out_begin, OutputIt out_end)
+  template <typename Dist, typename OutputIt, typename ExecPolicy>
+  void generate(Dist dist, OutputIt out_begin, OutputIt out_end, ExecPolicy exec_policy)
   {
     using value_type = typename std::iterator_traits<OutputIt>::value_type;
 
     if constexpr (std::is_same_v<Dist, dist_type::unique>) {
-      thrust::sequence(out_begin, out_end, 0);
-      thrust::shuffle(out_begin, out_end, this->rng_);
+      thrust::sequence(exec_policy, out_begin, out_end, 0);
+      thrust::shuffle(exec_policy, out_begin, out_end, this->rng_);
     } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
       size_t num_keys = thrust::distance(out_begin, out_end);
 
       thrust::counting_iterator<size_t> seeds(this->rng_());
 
-      thrust::transform(seeds,
+      thrust::transform(exec_policy,
+                        seeds,
                         seeds + num_keys,
                         out_begin,
                         [*this, dist, num_keys] __host__ __device__(size_t const seed) {
@@ -101,7 +108,8 @@ class key_generator {
 
       thrust::counting_iterator<size_t> seq(this->rng_());
 
-      thrust::transform(seq,
+      thrust::transform(exec_policy,
+                        seq,
                         seq + num_keys,
                         out_begin,
                         [*this, dist, num_keys] __host__ __device__(size_t const seed) {
@@ -124,35 +132,27 @@ class key_generator {
   }
 
   /**
-   * @brief Generates a sequence of random keys in the interval [0, N).
-   *
-   * @tparam Dist Key distribution type
-   * @tparam OutputIt Ouput iterator typy which value type is the desired key type
-   *
-   * @param state 'nvbench::state' object which provides the parameter axis
-   * @param output_begin Start of the output sequence
-   * @param output_end End of the output sequence
-   * @param axis Name of the parameter axis that holds the multiplicity/skew
+   * @brief Overload of 'generate' which automatically selects a suitable execution policy
    */
   template <typename Dist, typename OutputIt>
-  void generate(nvbench::state const& state,
-                OutputIt out_begin,
-                OutputIt out_end,
-                std::string axis = "")
+  void generate(Dist dist, OutputIt out_begin, OutputIt out_end)
   {
-    if constexpr (std::is_same_v<Dist, dist_type::unique>) {
-      generate(Dist{}, out_begin, out_end);
-    } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
-      auto const multiplicity =
-        state.get_int64_or_default((axis.empty()) ? "Multiplicity" : axis, defaults::MULTIPLICITY);
-      generate(Dist{multiplicity}, out_begin, out_end);
-    } else if constexpr (std::is_same_v<Dist, dist_type::gaussian>) {
-      auto const skew =
-        state.get_float64_or_default((axis.empty()) ? "Skew" : axis, defaults::SKEW);
-      generate(Dist{skew}, out_begin, out_end);
-    } else {
-      // TODO static assert fail
-    }
+    using thrust::system::detail::generic::select_system;
+
+    typedef typename thrust::iterator_system<OutputIt>::type System;
+    System system;
+
+    generate(dist, out_begin, out_end, select_system(system));
+  }
+
+  /**
+   * @brief Overload of 'generate' which uses 'thrust::cuda::par_nosync' execution policy on CUDA
+   * stream 'stream'
+   */
+  template <typename Dist, typename OutputIt>
+  void generate(Dist dist, OutputIt out_begin, OutputIt out_end, cudaStream_t stream)
+  {
+    generate(dist, out_begin, out_end, thrust::cuda::par_nosync.on(stream));
   }
 
   /**
@@ -160,13 +160,15 @@ class key_generator {
    * distribution.
    *
    * @tparam InOutIt Input/Ouput iterator typy which value type is the desired key type
+   * @tparam ExecPolicy Thrust execution policy
    *
    * @param begin Start of the key sequence
    * @param end End of the key sequence
    * @param keep_prob Probability that a key is kept
+   * @param exec_policy Thrust execution policy this operation will be executed with
    */
-  template <typename InOutIt>
-  void dropout(InOutIt begin, InOutIt end, double keep_prob)
+  template <typename InOutIt, typename ExecPolicy>
+  void dropout(InOutIt begin, InOutIt end, double keep_prob, ExecPolicy exec_policy)
   {
     using value_type = typename std::iterator_traits<InOutIt>::value_type;
 
@@ -176,6 +178,7 @@ class key_generator {
       thrust::counting_iterator<size_t> seeds(rng_());
 
       thrust::transform_if(
+        exec_policy,
         seeds,
         seeds + num_keys,
         begin,
@@ -194,12 +197,57 @@ class key_generator {
         });
     }
 
-    thrust::shuffle(begin, end, rng_);
+    thrust::shuffle(exec_policy, begin, end, rng_);
+  }
+
+  /**
+   * @brief Overload of 'dropout' which automatically selects a suitable execution policy
+   */
+  template <typename InOutIt>
+  void dropout(InOutIt begin, InOutIt end, double keep_prob)
+  {
+    using thrust::system::detail::generic::select_system;
+
+    typedef typename thrust::iterator_system<InOutIt>::type System;
+    System system;
+
+    dropout(begin, end, keep_prob, select_system(system));
+  }
+
+  /**
+   * @brief Overload of 'dropout' which uses 'thrust::cuda::par_nosync' execution policy on CUDA
+   * stream 'stream'
+   */
+  template <typename InOutIt>
+  void dropout(InOutIt begin, InOutIt end, double keep_prob, cudaStream_t stream)
+  {
+    using thrust::system::detail::generic::select_system;
+
+    typedef typename thrust::iterator_system<InOutIt>::type System;
+    System system;
+
+    dropout(begin, end, keep_prob, thrust::cuda::par_nosync.on(stream));
   }
 
  private:
   RNG rng_;  ///< Random number generator
 };
+
+template <typename Dist>
+auto dist_from_state(nvbench::state const& state)
+{
+  if constexpr (std::is_same_v<Dist, dist_type::unique>) {
+    return Dist{};
+  } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
+    auto const multiplicity = state.get_int64_or_default("Multiplicity", defaults::MULTIPLICITY);
+    return Dist{multiplicity};
+  } else if constexpr (std::is_same_v<Dist, dist_type::gaussian>) {
+    auto const skew = state.get_float64_or_default("Skew", defaults::SKEW);
+    return Dist{skew};
+  } else {
+    // TODO static assert fail
+  }
+}
 
 }  // namespace cuco::benchmark
 
