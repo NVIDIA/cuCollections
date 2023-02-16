@@ -25,9 +25,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
-namespace cuco::benchmark {
-
-using namespace defaults;
+using namespace cuco::benchmark;
+using namespace cuco::benchmark::defaults;
 
 /**
  * @brief A benchmark evaluating multi-value `insert` performance
@@ -102,5 +101,3 @@ NVBENCH_BENCH_TYPES(static_multimap_insert,
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(MAX_NOISE)
   .add_float64_axis("Skew", SKEW_RANGE);
-
-}  // namespace cuco::benchmark

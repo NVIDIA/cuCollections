@@ -25,9 +25,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
-namespace cuco::benchmark {
-
-using namespace defaults;
+using namespace cuco::benchmark;
+using namespace cuco::benchmark::defaults;
 
 /**
  * @brief A benchmark evaluating multi-value `count` performance
@@ -111,5 +110,3 @@ NVBENCH_BENCH_TYPES(static_multimap_count,
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(MAX_NOISE)
   .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
-
-}  // namespace cuco::benchmark
