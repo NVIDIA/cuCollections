@@ -15,6 +15,7 @@
  */
 
 #include <defaults.hpp>
+#include <distribution.hpp>
 #include <key_generator.hpp>
 
 #include <cuco/static_multimap.cuh>
