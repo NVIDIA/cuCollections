@@ -61,13 +61,17 @@ class key_generator {
    * @tparam Dist Key distribution type
    * @tparam OutputIt Ouput iterator typy which value type is the desired key type
    * @tparam ExecPolicy Thrust execution policy
+   * @tparam Enable SFINAE helper
    *
    * @param dist Random distribution to use
    * @param output_begin Start of the output sequence
    * @param output_end End of the output sequence
    * @param exec_policy Thrust execution policy this operation will be executed with
    */
-  template <typename Dist, typename OutputIt, typename ExecPolicy>
+  template <typename Dist,
+            typename OutputIt,
+            typename ExecPolicy,
+            typename Enable = std::enable_if_t<thrust::is_execution_policy<ExecPolicy>::value>>
   void generate(Dist dist, OutputIt out_begin, OutputIt out_end, ExecPolicy exec_policy)
   {
     using value_type = typename std::iterator_traits<OutputIt>::value_type;
@@ -149,13 +153,16 @@ class key_generator {
    *
    * @tparam InOutIt Input/Ouput iterator typy which value type is the desired key type
    * @tparam ExecPolicy Thrust execution policy
+   * @tparam Enable SFINAE helper
    *
    * @param begin Start of the key sequence
    * @param end End of the key sequence
    * @param keep_prob Probability that a key is kept
    * @param exec_policy Thrust execution policy this operation will be executed with
    */
-  template <typename InOutIt, typename ExecPolicy>
+  template <typename InOutIt,
+            typename ExecPolicy,
+            typename Enable = std::enable_if_t<thrust::is_execution_policy<ExecPolicy>::value>>
   void dropout(InOutIt begin, InOutIt end, double keep_prob, ExecPolicy exec_policy)
   {
     using value_type = typename std::iterator_traits<InOutIt>::value_type;
