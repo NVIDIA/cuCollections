@@ -19,6 +19,8 @@
 #include <defaults.hpp>
 #include <distribution.hpp>
 
+#include <cuco/detail/error.hpp>
+
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/execution_policy.h>
@@ -119,7 +121,7 @@ class key_generator {
                           return val;
                         });
     } else {
-      // TODO static assert fail
+      CUCO_FAIL("Unexpected distribution type");
     }
   }
 

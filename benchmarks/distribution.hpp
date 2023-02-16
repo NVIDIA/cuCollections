@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cuco/detail/error.hpp>
+
 #include <nvbench/nvbench.cuh>
 
 #include <cstdint>
@@ -47,7 +49,7 @@ auto dist_from_state(nvbench::state const& state)
     auto const skew = state.get_float64_or_default("Skew", defaults::SKEW);
     return Dist{skew};
   } else {
-    // TODO static assert fail
+    CUCO_FAIL("Unexpected distribution type");
   }
 }
 
