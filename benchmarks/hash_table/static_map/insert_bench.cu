@@ -56,8 +56,11 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
   state.set_global_memory_rw_bytes(num_keys * sizeof(pair_type));
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               cuco::static_map<Key, Value> map{
-                 size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+               cuco::static_map<Key, Value> map{size,
+                                                cuco::empty_key<Key>{-1},
+                                                cuco::empty_value<Value>{-1},
+                                                cuco::cuda_allocator<char>{},
+                                                launch.get_stream()};
 
                // Use timers to explicitly mark the target region
                timer.start();
