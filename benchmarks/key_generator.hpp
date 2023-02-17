@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,99 +16,218 @@
 
 #pragma once
 
+#include <defaults.hpp>
+#include <distribution.hpp>
+
+#include <cuco/detail/error.hpp>
+
 #include <nvbench/nvbench.cuh>
 
+#include <thrust/execution_policy.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/iterator_traits.h>
+#include <thrust/random.h>
+#include <thrust/sequence.h>
+#include <thrust/shuffle.h>
+#include <thrust/system/detail/generic/select_system.h>
+#include <thrust/transform.h>
+#include <thrust/type_traits/is_execution_policy.h>
+
+#include <algorithm>
+#include <iterator>
 #include <limits>
-#include <random>
+#include <string>
+#include <time.h>
+#include <type_traits>
 
-enum class dist_type { GAUSSIAN, GEOMETRIC, UNIFORM };
+namespace cuco::benchmark {
 
-NVBENCH_DECLARE_ENUM_TYPE_STRINGS(
-  // Enum type:
-  dist_type,
-  // Callable to generate input strings:
-  // Short identifier used for tables, command-line args, etc.
-  // Used when context is available to figure out the enum type.
-  [](dist_type d) {
-    switch (d) {
-      case dist_type::GAUSSIAN: return "GAUSSIAN";
-      case dist_type::GEOMETRIC: return "GEOMETRIC";
-      case dist_type::UNIFORM: return "UNIFORM";
-      default: return "ERROR";
+/**
+ * @brief Random key generator.
+ *
+ * @tparam RNG Pseudo-random number generator
+ */
+template <typename RNG = thrust::default_random_engine>
+class key_generator {
+ public:
+  /**
+   * @brief Construct a new key generator object.
+   *
+   * @param seed Seed for the random number generator
+   */
+  key_generator(uint32_t seed = static_cast<uint32_t>(time(nullptr))) : rng_(seed) {}
+
+  /**
+   * @brief Generates a sequence of random keys in the interval [0, N).
+   *
+   * @tparam Dist Key distribution type
+   * @tparam OutputIt Ouput iterator typy which value type is the desired key type
+   * @tparam ExecPolicy Thrust execution policy
+   * @tparam Enable SFINAE helper
+   *
+   * @param dist Random distribution to use
+   * @param output_begin Start of the output sequence
+   * @param output_end End of the output sequence
+   * @param exec_policy Thrust execution policy this operation will be executed with
+   */
+  template <typename Dist,
+            typename OutputIt,
+            typename ExecPolicy,
+            typename Enable = std::enable_if_t<thrust::is_execution_policy<ExecPolicy>::value>>
+  void generate(Dist dist, OutputIt out_begin, OutputIt out_end, ExecPolicy exec_policy)
+  {
+    using value_type = typename std::iterator_traits<OutputIt>::value_type;
+
+    if constexpr (std::is_same_v<Dist, dist_type::unique>) {
+      thrust::sequence(exec_policy, out_begin, out_end, 0);
+      thrust::shuffle(exec_policy, out_begin, out_end, this->rng_);
+    } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
+      size_t num_keys = thrust::distance(out_begin, out_end);
+
+      thrust::counting_iterator<size_t> seeds(this->rng_());
+
+      thrust::transform(exec_policy,
+                        seeds,
+                        seeds + num_keys,
+                        out_begin,
+                        [*this, dist, num_keys] __host__ __device__(size_t const seed) {
+                          RNG rng;
+                          thrust::uniform_int_distribution<value_type> uniform_dist(
+                            1, num_keys / dist.multiplicity);
+                          rng.seed(seed);
+                          return uniform_dist(rng);
+                        });
+    } else if constexpr (std::is_same_v<Dist, dist_type::gaussian>) {
+      size_t num_keys = thrust::distance(out_begin, out_end);
+
+      thrust::counting_iterator<size_t> seq(this->rng_());
+
+      thrust::transform(exec_policy,
+                        seq,
+                        seq + num_keys,
+                        out_begin,
+                        [*this, dist, num_keys] __host__ __device__(size_t const seed) {
+                          RNG rng;
+                          thrust::normal_distribution<> normal_dist(
+                            static_cast<double>(num_keys / 2), num_keys * dist.skew);
+                          rng.seed(seed);
+                          auto val = normal_dist(rng);
+                          while (val < 0 or val >= num_keys) {
+                            // Re-sample if the value is outside the range [0, N)
+                            // This is necessary because the normal distribution is not bounded
+                            // might be a better way to do this, e.g., discard(n)
+                            val = normal_dist(rng);
+                          }
+                          return val;
+                        });
+    } else {
+      CUCO_FAIL("Unexpected distribution type");
     }
-  },
-  // Callable to generate descriptions:
-  // If non-empty, these are used in `--list` to describe values.
-  // Used when context may not be available to figure out the type from the
-  // input string.
-  // Just use `[](auto) { return std::string{}; }` if you don't want these.
-  [](auto) { return std::string{}; })
-
-template <dist_type Dist, std::size_t Multiplicity, typename Key, typename OutputIt>
-static void generate_keys(OutputIt output_begin, OutputIt output_end)
-{
-  auto const num_keys = std::distance(output_begin, output_end);
-
-  std::random_device rd;
-  std::mt19937 gen{rd()};
-
-  switch (Dist) {
-    case dist_type::GAUSSIAN: {
-      auto const mean = static_cast<double>(num_keys / 2);
-      auto const dev  = static_cast<double>(num_keys / 5);
-
-      std::normal_distribution<> distribution{mean, dev};
-
-      for (auto i = 0; i < num_keys; ++i) {
-        auto k = distribution(gen);
-        while (k >= num_keys) {
-          k = distribution(gen);
-        }
-        output_begin[i] = k;
-      }
-      break;
-    }
-    case dist_type::GEOMETRIC: {
-      auto const max   = std::numeric_limits<int32_t>::max();
-      auto const coeff = static_cast<double>(num_keys) / static_cast<double>(max);
-      // Random sampling in range [0, INT32_MAX]
-      std::geometric_distribution<Key> distribution{1e-9};
-
-      for (auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = distribution(gen) * coeff;
-      }
-      break;
-    }
-    case dist_type::UNIFORM: {
-      std::uniform_int_distribution<Key> distribution{1, static_cast<Key>(num_keys / Multiplicity)};
-
-      for (auto i = 0; i < num_keys; ++i) {
-        output_begin[i] = distribution(gen);
-      }
-      break;
-    }
-  }  // switch
-}
-
-template <typename Key, typename OutputIt>
-static void generate_probe_keys(double const matching_rate,
-                                OutputIt output_begin,
-                                OutputIt output_end)
-{
-  auto const num_keys = std::distance(output_begin, output_end);
-  auto const max      = std::numeric_limits<Key>::max();
-
-  std::random_device rd;
-  std::mt19937 gen{rd()};
-
-  std::uniform_real_distribution<double> rate_dist(0.0, 1.0);
-  std::uniform_int_distribution<Key> non_match_dist{static_cast<Key>(num_keys), max};
-
-  for (auto i = 0; i < num_keys; ++i) {
-    auto const tmp_rate = rate_dist(gen);
-
-    if (tmp_rate > matching_rate) { output_begin[i] = non_match_dist(gen); }
   }
 
-  std::random_shuffle(output_begin, output_end);
-}
+  /**
+   * @brief Overload of 'generate' which automatically selects a suitable execution policy
+   */
+  template <typename Dist, typename OutputIt>
+  void generate(Dist dist, OutputIt out_begin, OutputIt out_end)
+  {
+    using thrust::system::detail::generic::select_system;
+
+    typedef typename thrust::iterator_system<OutputIt>::type System;
+    System system;
+
+    generate(dist, out_begin, out_end, select_system(system));
+  }
+
+  /**
+   * @brief Overload of 'generate' which uses 'thrust::cuda::par_nosync' execution policy on CUDA
+   * stream 'stream'
+   */
+  template <typename Dist, typename OutputIt>
+  void generate(Dist dist, OutputIt out_begin, OutputIt out_end, cudaStream_t stream)
+  {
+    generate(dist, out_begin, out_end, thrust::cuda::par_nosync.on(stream));
+  }
+
+  /**
+   * @brief Randomly replaces previously generated keys with new keys outside the input
+   * distribution.
+   *
+   * @tparam InOutIt Input/Ouput iterator typy which value type is the desired key type
+   * @tparam ExecPolicy Thrust execution policy
+   * @tparam Enable SFINAE helper
+   *
+   * @param begin Start of the key sequence
+   * @param end End of the key sequence
+   * @param keep_prob Probability that a key is kept
+   * @param exec_policy Thrust execution policy this operation will be executed with
+   */
+  template <typename InOutIt,
+            typename ExecPolicy,
+            typename Enable = std::enable_if_t<thrust::is_execution_policy<ExecPolicy>::value>>
+  void dropout(InOutIt begin, InOutIt end, double keep_prob, ExecPolicy exec_policy)
+  {
+    using value_type = typename std::iterator_traits<InOutIt>::value_type;
+
+    if (keep_prob >= 1.0) {
+      size_t num_keys = thrust::distance(begin, end);
+
+      thrust::counting_iterator<size_t> seeds(rng_());
+
+      thrust::transform_if(
+        exec_policy,
+        seeds,
+        seeds + num_keys,
+        begin,
+        [num_keys] __host__ __device__(size_t const seed) {
+          RNG rng;
+          thrust::uniform_int_distribution<value_type> non_match_dist{
+            static_cast<value_type>(num_keys), std::numeric_limits<value_type>::max()};
+          rng.seed(seed);
+          return non_match_dist(rng);
+        },
+        [keep_prob] __host__ __device__(size_t const seed) {
+          RNG rng;
+          thrust::uniform_real_distribution<double> rate_dist(0.0, 1.0);
+          rng.seed(seed);
+          return (rate_dist(rng) > keep_prob);
+        });
+    }
+
+    thrust::shuffle(exec_policy, begin, end, rng_);
+  }
+
+  /**
+   * @brief Overload of 'dropout' which automatically selects a suitable execution policy
+   */
+  template <typename InOutIt>
+  void dropout(InOutIt begin, InOutIt end, double keep_prob)
+  {
+    using thrust::system::detail::generic::select_system;
+
+    typedef typename thrust::iterator_system<InOutIt>::type System;
+    System system;
+
+    dropout(begin, end, keep_prob, select_system(system));
+  }
+
+  /**
+   * @brief Overload of 'dropout' which uses 'thrust::cuda::par_nosync' execution policy on CUDA
+   * stream 'stream'
+   */
+  template <typename InOutIt>
+  void dropout(InOutIt begin, InOutIt end, double keep_prob, cudaStream_t stream)
+  {
+    using thrust::system::detail::generic::select_system;
+
+    typedef typename thrust::iterator_system<InOutIt>::type System;
+    System system;
+
+    dropout(begin, end, keep_prob, thrust::cuda::par_nosync.on(stream));
+  }
+
+ private:
+  RNG rng_;  ///< Random number generator
+};
+
+}  // namespace cuco::benchmark
