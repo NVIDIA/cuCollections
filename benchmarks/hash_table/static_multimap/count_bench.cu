@@ -79,15 +79,6 @@ NVBENCH_BENCH_TYPES(static_multimap_count,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::uniform>))
-  .set_name("static_multimap_count_uniform_matching_rate")
-  .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)
-  .add_float64_axis("MatchingRate", MATCHING_RATE_RANGE);
-
-NVBENCH_BENCH_TYPES(static_multimap_count,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::uniform>))
   .set_name("static_multimap_count_uniform_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(MAX_NOISE)
