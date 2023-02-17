@@ -23,10 +23,11 @@
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 #include <thrust/iterator/transform_iterator.h>
 
-namespace cuco::benchmark {
+using namespace cuco::benchmark;
+using namespace cuco::benchmark::defaults;
+
 /**
  * @brief A benchmark evaluating `insert` performance:
  */
@@ -80,8 +81,6 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_insert(
   state.skip("Key should be the same type as Value.");
 }
 
-using namespace defaults;
-
 NVBENCH_BENCH_TYPES(static_map_insert,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
@@ -108,4 +107,3 @@ NVBENCH_BENCH_TYPES(static_map_insert,
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
   .add_float64_axis("Skew", SKEW_RANGE);
-}  // namespace cuco::benchmark

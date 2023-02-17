@@ -23,10 +23,11 @@
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 #include <thrust/iterator/discard_iterator.h>
 
-namespace cuco::benchmark {
+using namespace cuco::benchmark;
+using namespace cuco::benchmark::defaults;
+
 /**
  * @brief A benchmark evaluating `contains` performance:
  */
@@ -73,8 +74,6 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_contains(
   state.skip("Key should be the same type as Value.");
 }
 
-using namespace defaults;
-
 NVBENCH_BENCH_TYPES(static_map_contains,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
@@ -94,4 +93,3 @@ NVBENCH_BENCH_TYPES(static_map_contains,
   .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
   .add_float64_axis("MatchingRate", MATCHING_RATE_RANGE);
-}  // namespace cuco::benchmark
