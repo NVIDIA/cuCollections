@@ -93,7 +93,7 @@ class key_generator {
                         [*this, dist, num_keys] __host__ __device__(size_t const seed) {
                           RNG rng;
                           thrust::uniform_int_distribution<value_type> uniform_dist(
-                            0, num_keys / dist.multiplicity);
+                            1, num_keys / dist.multiplicity);
                           rng.seed(seed);
                           return uniform_dist(rng);
                         });
