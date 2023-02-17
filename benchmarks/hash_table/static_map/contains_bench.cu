@@ -35,9 +35,9 @@ template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_contains(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
-  auto const num_keys      = state.get_int64_or_default("NumInputs", defaults::N);
-  auto const occupancy     = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
-  auto const matching_rate = state.get_float64_or_default("MatchingRate", defaults::MATCHING_RATE);
+  auto const num_keys      = state.get_int64_or_default("NumInputs", N);
+  auto const occupancy     = state.get_float64_or_default("Occupancy", OCCUPANCY);
+  auto const matching_rate = state.get_float64_or_default("MatchingRate", MATCHING_RATE);
 
   std::size_t const size = num_keys / occupancy;
 
@@ -47,7 +47,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_contains(
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   auto pairs_begin = thrust::make_transform_iterator(
-    keys.begin(), [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
+    keys.begin(), [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, {}); });
 
   cuco::static_map<Key, Value> map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(pairs_begin, pairs_begin + num_keys);

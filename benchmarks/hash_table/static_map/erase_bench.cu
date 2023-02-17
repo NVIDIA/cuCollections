@@ -49,7 +49,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_erase(
 
   thrust::device_vector<pair_type> pairs(num_keys);
   thrust::transform(thrust::device, keys.begin(), keys.end(), pairs.begin(), [] __device__(auto i) {
-    return pair_type(i, i);
+    return pair_type(i, {});
   });
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);

@@ -84,10 +84,10 @@ ConfigureBench(DYNAMIC_MAP_BENCH "${DYNAMIC_MAP_BENCH_SRC}")
 ###################################################################################################
 # - static_map benchmarks -------------------------------------------------------------------------
 ConfigureNVBench(STATIC_MAP_BENCH
-  hash_table/static_map/contains_bench.cu
-  hash_table/static_map/erase_bench.cu
+  hash_table/static_map/insert_bench.cu
   hash_table/static_map/find_bench.cu
-  hash_table/static_map/insert_bench.cu)
+  hash_table/static_map/contains_bench.cu
+  hash_table/static_map/erase_bench.cu)
 
 ###################################################################################################
 # - static_multimap benchmarks --------------------------------------------------------------------
