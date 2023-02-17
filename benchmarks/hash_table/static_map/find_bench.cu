@@ -42,7 +42,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_find(
   thrust::device_vector<Key> keys(num_keys);
 
   key_generator gen;
-  gen.generate<Dist>(state, thrust::device, keys.begin(), keys.end());
+  gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   auto pairs_begin = thrust::make_transform_iterator(
     keys.begin(), [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
@@ -51,10 +51,10 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_find(
   map.insert(pairs_begin, pairs_begin + num_keys);
   CUCO_CUDA_TRY(cudaStreamSynchronize(nullptr));
 
-  gen.dropout(thrust::device, keys.begin(), keys.end(), matching_rate);
+  gen.dropout(keys.begin(), keys.end(), matching_rate);
 
   state.add_element_count(num_keys, "NumInputs");
-  state.set_global_memory_rw_bytes(num_keys * sizeof(cuco::pair_type<Key, Value>));
+  state.set_global_memory_rw_bytes(num_keys * sizeof(Key));
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
     map.find(keys.begin(),
              keys.end(),

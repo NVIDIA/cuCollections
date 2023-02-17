@@ -15,6 +15,7 @@
  */
 
 #include <defaults.hpp>
+#include <distribution.hpp>
 #include <key_generator.hpp>
 
 #include <cuco/static_map.cuh>
@@ -33,6 +34,8 @@ template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
+  using pair_type = cuco::pair_type<Key, Value>;
+
   auto const num_keys  = state.get_int64_or_default("NumInputs", defaults::N);
   auto const occupancy = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
 
@@ -41,13 +44,16 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
   thrust::device_vector<Key> keys(num_keys);
 
   key_generator gen;
-  gen.generate<Dist>(state, thrust::device, keys.begin(), keys.end());
+  gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
-  auto pairs_begin = thrust::make_transform_iterator(
-    keys.begin(), [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
+  thrust::device_vector<pair_type> pairs(num_keys);
+  thrust::transform(
+    thrust::device, keys.begin(), keys.end(), pairs.begin(), [] __device__(Key const& key) {
+      return pair_type(key, {});
+    });
 
   state.add_element_count(num_keys, "NumInputs");
-  state.set_global_memory_rw_bytes(num_keys * sizeof(cuco::pair_type<Key, Value>));
+  state.set_global_memory_rw_bytes(num_keys * sizeof(pair_type));
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                cuco::static_map<Key, Value> map{
@@ -55,8 +61,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
 
                // Use timers to explicitly mark the target region
                timer.start();
-               map.insert(pairs_begin,
-                          pairs_begin + num_keys,
+               map.insert(pairs.begin(),
+                          pairs.end(),
                           cuco::murmurhash3_32<Key>{},
                           thrust::equal_to<Key>{},
                           launch.get_stream());

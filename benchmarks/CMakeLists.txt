@@ -91,16 +91,7 @@ ConfigureNVBench(STATIC_MAP_BENCH
 ###################################################################################################
 # - static_multimap benchmarks --------------------------------------------------------------------
 ConfigureNVBench(STATIC_MULTIMAP_BENCH
-  #hash_table/static_multimap/count_bench.cu
-  hash_table/static_multimap/insert_bench.cu)
-  #hash_table/static_multimap/pair_retrieve_bench.cu
-  #hash_table/static_multimap/query_bench.cu
-  #hash_table/static_multimap/retrieve_bench.cu)
-
-ConfigureNVBench(RETRIEVE_BENCH
-  hash_table/static_multimap/optimal_retrieve_bench.cu)
-
-###################################################################################################
-# - reduce_by_key benchmarks ----------------------------------------------------------------------
-set(RBK_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/reduce_by_key/reduce_by_key.cu")
-ConfigureBench(RBK_BENCH "${RBK_BENCH_SRC}")
+  hash_table/static_multimap/insert_bench.cu
+  hash_table/static_multimap/retrieve_bench.cu
+  hash_table/static_multimap/query_bench.cu
+  hash_table/static_multimap/count_bench.cu)
