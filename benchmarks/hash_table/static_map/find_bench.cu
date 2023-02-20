@@ -77,7 +77,7 @@ NVBENCH_BENCH_TYPES(static_map_find,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))
-  .set_name("static_map_find_occupancy")
+  .set_name("static_map_find_unique_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
@@ -87,7 +87,7 @@ NVBENCH_BENCH_TYPES(static_map_find,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))
-  .set_name("static_map_find_matching_rate")
+  .set_name("static_map_find_unique_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
