@@ -1,5 +1,5 @@
 ﻿#=============================================================================
-# Copyright (c) 2018-2022, NVIDIA CORPORATION.
+# Copyright (c) 2018-2023, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,7 +65,6 @@ function(ConfigureNVBench BENCH_NAME)
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/nvbenchmarks")
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
-                                             #"${NVBench_SOURCE_DIR}")
     target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         nvbench::main
@@ -84,8 +83,11 @@ ConfigureBench(DYNAMIC_MAP_BENCH "${DYNAMIC_MAP_BENCH_SRC}")
 
 ###################################################################################################
 # - static_map benchmarks -------------------------------------------------------------------------
-set(STATIC_MAP_BENCH_SRC "${CMAKE_CURRENT_SOURCE_DIR}/hash_table/static_map_bench.cu")
-ConfigureBench(STATIC_MAP_BENCH "${STATIC_MAP_BENCH_SRC}")
+ConfigureNVBench(STATIC_MAP_BENCH
+  hash_table/static_map/insert_bench.cu
+  hash_table/static_map/find_bench.cu
+  hash_table/static_map/contains_bench.cu
+  hash_table/static_map/erase_bench.cu)
 
 ###################################################################################################
 # - static_multimap benchmarks --------------------------------------------------------------------
