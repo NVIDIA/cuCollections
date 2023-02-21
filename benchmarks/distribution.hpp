@@ -19,13 +19,10 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/utils.cuh>
 
-#include <nvbench/nvbench.cuh>
-
 #include <cstdint>
 
-namespace cuco::benchmark {
+namespace cuco::benchmark::dist_type {
 
-namespace dist_type {
 struct unique {
 };
 
@@ -43,28 +40,4 @@ struct gaussian : public cuco::detail::strong_type<double> {
   }
 };
 
-}  // namespace dist_type
-
-template <typename Dist>
-auto dist_from_state(nvbench::state const& state)
-{
-  if constexpr (std::is_same_v<Dist, dist_type::unique>) {
-    return Dist{};
-  } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
-    auto const multiplicity = state.get_int64_or_default("Multiplicity", defaults::MULTIPLICITY);
-    return Dist{multiplicity};
-  } else if constexpr (std::is_same_v<Dist, dist_type::gaussian>) {
-    auto const skew = state.get_float64_or_default("Skew", defaults::SKEW);
-    return Dist{skew};
-  } else {
-    CUCO_FAIL("Unexpected distribution type");
-  }
-}
-
-}  // namespace cuco::benchmark
-
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::unique, "UNIQUE", "dist_type::unique");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::uniform, "UNIFORM", "dist_type::uniform");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::gaussian,
-                             "GAUSSIAN",
-                             "dist_type::gaussian");
+}  // namespace cuco::benchmark::dist_type
