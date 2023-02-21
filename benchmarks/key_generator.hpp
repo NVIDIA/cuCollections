@@ -16,12 +16,9 @@
 
 #pragma once
 
-#include <defaults.hpp>
 #include <distribution.hpp>
 
 #include <cuco/detail/error.hpp>
-
-#include <nvbench/nvbench.cuh>
 
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -33,10 +30,7 @@
 #include <thrust/transform.h>
 #include <thrust/type_traits/is_execution_policy.h>
 
-#include <algorithm>
 #include <iterator>
-#include <limits>
-#include <string>
 #include <time.h>
 #include <type_traits>
 
