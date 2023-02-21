@@ -16,9 +16,8 @@
 
 #pragma once
 
-#include <distribution.hpp>
-
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/utils.cuh>
 
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -30,11 +29,33 @@
 #include <thrust/transform.h>
 #include <thrust/type_traits/is_execution_policy.h>
 
+#include <cstdint>
 #include <iterator>
 #include <time.h>
 #include <type_traits>
 
 namespace cuco::benchmark {
+
+namespace dist_type {
+
+struct unique {
+};
+
+struct uniform : public cuco::detail::strong_type<int64_t> {
+  uniform(int64_t multiplicity) : cuco::detail::strong_type<int64_t>{multiplicity}
+  {
+    CUCO_EXPECTS(multiplicity > 0, "Multiplicity must be greater than 0");
+  }
+};
+
+struct gaussian : public cuco::detail::strong_type<double> {
+  gaussian(double skew) : cuco::detail::strong_type<double>{skew}
+  {
+    CUCO_EXPECTS(skew > 0, "Skew must be greater than 0");
+  }
+};
+
+}  // namespace dist_type
 
 /**
  * @brief Random key generator.

@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <distribution.hpp>
+#include <key_generator.hpp>
 
 #include <cuco/detail/error.hpp>
 
