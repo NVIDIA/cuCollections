@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/utils.cuh>
 
 #include <nvbench/nvbench.cuh>
 
@@ -28,13 +29,20 @@ namespace dist_type {
 struct unique {
 };
 
-struct uniform {
-  int64_t multiplicity;  // TODO assert >0
+struct uniform : public cuco::detail::strong_type<int64_t> {
+  uniform(int64_t multiplicity) : cuco::detail::strong_type<int64_t>{multiplicity}
+  {
+    CUCO_EXPECTS(multiplicity > 0, "Multiplicity must be greater than 0");
+  }
 };
 
-struct gaussian {
-  double skew;  // TODO assert >0
+struct gaussian : public cuco::detail::strong_type<double> {
+  gaussian(double skew) : cuco::detail::strong_type<double>{skew}
+  {
+    CUCO_EXPECTS(skew > 0, "Skew must be greater than 0");
+  }
 };
+
 }  // namespace dist_type
 
 template <typename Dist>
