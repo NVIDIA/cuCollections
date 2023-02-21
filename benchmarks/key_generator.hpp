@@ -16,38 +16,46 @@
 
 #pragma once
 
-#include <defaults.hpp>
+#include <cuco/detail/error.hpp>
+#include <cuco/detail/utils.cuh>
 
-#include <nvbench/nvbench.cuh>
-
+#include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/iterator_traits.h>
 #include <thrust/random.h>
 #include <thrust/sequence.h>
 #include <thrust/shuffle.h>
+#include <thrust/system/detail/generic/select_system.h>
 #include <thrust/transform.h>
+#include <thrust/type_traits/is_execution_policy.h>
 
-#include <algorithm>
+#include <cstdint>
 #include <iterator>
-#include <limits>
-#include <string>
 #include <time.h>
 #include <type_traits>
 
-namespace cuco {
-namespace benchmark {
+namespace cuco::benchmark {
 
 namespace dist_type {
+
 struct unique {
 };
 
-struct uniform {
-  int64_t multiplicity;  // TODO assert >0
+struct uniform : public cuco::detail::strong_type<int64_t> {
+  uniform(int64_t multiplicity) : cuco::detail::strong_type<int64_t>{multiplicity}
+  {
+    CUCO_EXPECTS(multiplicity > 0, "Multiplicity must be greater than 0");
+  }
 };
 
-struct gaussian {
-  double skew;  // TODO assert >0
+struct gaussian : public cuco::detail::strong_type<double> {
+  gaussian(double skew) : cuco::detail::strong_type<double>{skew}
+  {
+    CUCO_EXPECTS(skew > 0, "Skew must be greater than 0");
+  }
 };
-};  // namespace dist_type
+
+}  // namespace dist_type
 
 /**
  * @brief Random key generator.
@@ -67,17 +75,21 @@ class key_generator {
   /**
    * @brief Generates a sequence of random keys in the interval [0, N).
    *
-   * @tparam ExecPolicy Thrust execution policy
    * @tparam Dist Key distribution type
    * @tparam OutputIt Ouput iterator typy which value type is the desired key type
+   * @tparam ExecPolicy Thrust execution policy
+   * @tparam Enable SFINAE helper
    *
-   * @param exec_policy Thrust execution policy this operation will be executed with
    * @param dist Random distribution to use
    * @param output_begin Start of the output sequence
    * @param output_end End of the output sequence
+   * @param exec_policy Thrust execution policy this operation will be executed with
    */
-  template <typename ExecPolicy, typename Dist, typename OutputIt>
-  void generate(ExecPolicy exec_policy, Dist dist, OutputIt out_begin, OutputIt out_end)
+  template <typename Dist,
+            typename OutputIt,
+            typename ExecPolicy,
+            typename Enable = std::enable_if_t<thrust::is_execution_policy<ExecPolicy>::value>>
+  void generate(Dist dist, OutputIt out_begin, OutputIt out_end, ExecPolicy exec_policy)
   {
     using value_type = typename std::iterator_traits<OutputIt>::value_type;
 
@@ -87,17 +99,17 @@ class key_generator {
     } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
       size_t num_keys = thrust::distance(out_begin, out_end);
 
-      thrust::counting_iterator<size_t> seq(this->rng_());
+      thrust::counting_iterator<size_t> seeds(this->rng_());
 
       thrust::transform(exec_policy,
-                        seq,
-                        seq + num_keys,
+                        seeds,
+                        seeds + num_keys,
                         out_begin,
-                        [*this, dist, num_keys] __host__ __device__(size_t const n) {
+                        [*this, dist, num_keys] __host__ __device__(size_t const seed) {
                           RNG rng;
                           thrust::uniform_int_distribution<value_type> uniform_dist(
-                            0, num_keys / dist.multiplicity);
-                          rng.discard(n);
+                            1, num_keys / dist.value);
+                          rng.seed(seed);
                           return uniform_dist(rng);
                         });
     } else if constexpr (std::is_same_v<Dist, dist_type::gaussian>) {
@@ -109,11 +121,11 @@ class key_generator {
                         seq,
                         seq + num_keys,
                         out_begin,
-                        [*this, dist, num_keys] __host__ __device__(size_t const n) {
+                        [*this, dist, num_keys] __host__ __device__(size_t const seed) {
                           RNG rng;
                           thrust::normal_distribution<> normal_dist(
-                            static_cast<double>(num_keys / 2), num_keys * dist.skew);
-                          rng.discard(n);
+                            static_cast<double>(num_keys / 2), num_keys * dist.value);
+                          rng.seed(seed);
                           auto val = normal_dist(rng);
                           while (val < 0 or val >= num_keys) {
                             // Re-sample if the value is outside the range [0, N)
@@ -124,83 +136,77 @@ class key_generator {
                           return val;
                         });
     } else {
-      // TODO static assert fail
+      CUCO_FAIL("Unexpected distribution type");
     }
   }
 
   /**
-   * @brief Generates a sequence of random keys in the interval [0, N).
-   *
-   * @tparam Dist Key distribution type
-   * @tparam ExecPolicy Thrust execution policy
-   * @tparam OutputIt Ouput iterator typy which value type is the desired key type
-   *
-   * @param state 'nvbench::state' object which provides the parameter axis
-   * @param exec_policy Thrust execution policy this operation will be executed with
-   * @param output_begin Start of the output sequence
-   * @param output_end End of the output sequence
-   * @param axis Name of the parameter axis that holds the multiplicity/skew
+   * @brief Overload of 'generate' which automatically selects a suitable execution policy
    */
-  template <typename Dist, typename ExecPolicy, typename OutputIt>
-  void generate(nvbench::state const& state,
-                ExecPolicy exec_policy,
-                OutputIt out_begin,
-                OutputIt out_end,
-                std::string axis = "")
+  template <typename Dist, typename OutputIt>
+  void generate(Dist dist, OutputIt out_begin, OutputIt out_end)
   {
-    if constexpr (std::is_same_v<Dist, dist_type::unique>) {
-      generate(exec_policy, Dist{}, out_begin, out_end);
-    } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
-      auto const multiplicity =
-        state.get_int64_or_default((axis.empty()) ? "Multiplicity" : axis, defaults::MULTIPLICITY);
-      generate(exec_policy, Dist{multiplicity}, out_begin, out_end);
-    } else if constexpr (std::is_same_v<Dist, dist_type::gaussian>) {
-      auto const skew =
-        state.get_float64_or_default((axis.empty()) ? "Skew" : axis, defaults::SKEW);
-      generate(exec_policy, Dist{skew}, out_begin, out_end);
-    } else {
-      // TODO static assert fail
-    }
+    using thrust::system::detail::generic::select_system;
+
+    typedef typename thrust::iterator_system<OutputIt>::type System;
+    System system;
+
+    generate(dist, out_begin, out_end, select_system(system));
+  }
+
+  /**
+   * @brief Overload of 'generate' which uses 'thrust::cuda::par_nosync' execution policy on CUDA
+   * stream 'stream'
+   */
+  template <typename Dist, typename OutputIt>
+  void generate(Dist dist, OutputIt out_begin, OutputIt out_end, cudaStream_t stream)
+  {
+    generate(dist, out_begin, out_end, thrust::cuda::par_nosync.on(stream));
   }
 
   /**
    * @brief Randomly replaces previously generated keys with new keys outside the input
    * distribution.
    *
-   * @tparam ExecPolicy Thrust execution policy
    * @tparam InOutIt Input/Ouput iterator typy which value type is the desired key type
+   * @tparam ExecPolicy Thrust execution policy
+   * @tparam Enable SFINAE helper
    *
-   * @param exec_policy Thrust execution policy this operation will be executed with
    * @param begin Start of the key sequence
    * @param end End of the key sequence
    * @param keep_prob Probability that a key is kept
+   * @param exec_policy Thrust execution policy this operation will be executed with
    */
-  template <typename ExecPolicy, typename InOutIt>
-  void dropout(ExecPolicy exec_policy, InOutIt begin, InOutIt end, double keep_prob)
+  template <typename InOutIt,
+            typename ExecPolicy,
+            typename Enable = std::enable_if_t<thrust::is_execution_policy<ExecPolicy>::value>>
+  void dropout(InOutIt begin, InOutIt end, double keep_prob, ExecPolicy exec_policy)
   {
     using value_type = typename std::iterator_traits<InOutIt>::value_type;
 
-    if (keep_prob >= 1.0) {
+    CUCO_EXPECTS(keep_prob >= 0.0 and keep_prob <= 1.0, "Probability needs to be between 0 and 1");
+
+    if (keep_prob < 1.0) {
       size_t num_keys = thrust::distance(begin, end);
 
-      thrust::counting_iterator<size_t> seq(rng_());
+      thrust::counting_iterator<size_t> seeds(rng_());
 
       thrust::transform_if(
         exec_policy,
-        seq,
-        seq + num_keys,
+        seeds,
+        seeds + num_keys,
         begin,
-        [num_keys] __host__ __device__(size_t const n) {
+        [num_keys] __host__ __device__(size_t const seed) {
           RNG rng;
           thrust::uniform_int_distribution<value_type> non_match_dist{
             static_cast<value_type>(num_keys), std::numeric_limits<value_type>::max()};
-          rng.discard(n);
+          rng.seed(seed);
           return non_match_dist(rng);
         },
-        [keep_prob] __host__ __device__(size_t const n) {
+        [keep_prob] __host__ __device__(size_t const seed) {
           RNG rng;
           thrust::uniform_real_distribution<double> rate_dist(0.0, 1.0);
-          rng.discard(n);
+          rng.seed(seed);
           return (rate_dist(rng) > keep_prob);
         });
     }
@@ -208,15 +214,37 @@ class key_generator {
     thrust::shuffle(exec_policy, begin, end, rng_);
   }
 
+  /**
+   * @brief Overload of 'dropout' which automatically selects a suitable execution policy
+   */
+  template <typename InOutIt>
+  void dropout(InOutIt begin, InOutIt end, double keep_prob)
+  {
+    using thrust::system::detail::generic::select_system;
+
+    typedef typename thrust::iterator_system<InOutIt>::type System;
+    System system;
+
+    dropout(begin, end, keep_prob, select_system(system));
+  }
+
+  /**
+   * @brief Overload of 'dropout' which uses 'thrust::cuda::par_nosync' execution policy on CUDA
+   * stream 'stream'
+   */
+  template <typename InOutIt>
+  void dropout(InOutIt begin, InOutIt end, double keep_prob, cudaStream_t stream)
+  {
+    using thrust::system::detail::generic::select_system;
+
+    typedef typename thrust::iterator_system<InOutIt>::type System;
+    System system;
+
+    dropout(begin, end, keep_prob, thrust::cuda::par_nosync.on(stream));
+  }
+
  private:
   RNG rng_;  ///< Random number generator
 };
 
-}  // namespace benchmark
-}  // namespace cuco
-
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::unique, "UNIQUE", "dist_type::unique");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::uniform, "UNIFORM", "dist_type::uniform");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::gaussian,
-                             "GAUSSIAN",
-                             "dist_type::gaussian");
+}  // namespace cuco::benchmark

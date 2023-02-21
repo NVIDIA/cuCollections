@@ -16,16 +16,18 @@
 
 #include <defaults.hpp>
 #include <key_generator.hpp>
+#include <utils.hpp>
 
 #include <cuco/static_map.cuh>
 
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 #include <thrust/iterator/discard_iterator.h>
 
-namespace cuco::benchmark {
+using namespace cuco::benchmark;
+using namespace cuco::benchmark::defaults;
+
 /**
  * @brief A benchmark evaluating `find` performance:
  */
@@ -42,19 +44,19 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_find(
   thrust::device_vector<Key> keys(num_keys);
 
   key_generator gen;
-  gen.generate<Dist>(state, thrust::device, keys.begin(), keys.end());
+  gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   auto pairs_begin = thrust::make_transform_iterator(
-    keys.begin(), [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
+    keys.begin(), [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, {}); });
 
   cuco::static_map<Key, Value> map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(pairs_begin, pairs_begin + num_keys);
   CUCO_CUDA_TRY(cudaStreamSynchronize(nullptr));
 
-  gen.dropout(thrust::device, keys.begin(), keys.end(), matching_rate);
+  gen.dropout(keys.begin(), keys.end(), matching_rate);
 
   state.add_element_count(num_keys, "NumInputs");
-  state.set_global_memory_rw_bytes(num_keys * sizeof(cuco::pair_type<Key, Value>));
+  state.set_global_memory_rw_bytes(num_keys * sizeof(Key));
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
     map.find(keys.begin(),
              keys.end(),
@@ -72,13 +74,11 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_find(
   state.skip("Key should be the same type as Value.");
 }
 
-using namespace defaults;
-
 NVBENCH_BENCH_TYPES(static_map_find,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))
-  .set_name("static_map_find_occupancy")
+  .set_name("static_map_find_unique_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
@@ -88,9 +88,8 @@ NVBENCH_BENCH_TYPES(static_map_find,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))
-  .set_name("static_map_find_matching_rate")
+  .set_name("static_map_find_unique_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
   .add_float64_axis("MatchingRate", MATCHING_RATE_RANGE);
-}  // namespace cuco::benchmark

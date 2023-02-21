@@ -21,10 +21,8 @@
 #include <cstdint>
 #include <vector>
 
-namespace cuco {
-namespace benchmark {
+namespace cuco::benchmark::defaults {
 
-namespace defaults {
 using KEY_TYPE_RANGE   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 
@@ -39,6 +37,5 @@ auto const OCCUPANCY_RANGE     = nvbench::range(0.1, 0.9, 0.1);
 auto const MULTIPLICITY_RANGE  = std::vector<nvbench::int64_t>{1, 2, 4, 8, 16};
 auto const MATCHING_RATE_RANGE = nvbench::range(0.1, 1., 0.1);
 auto const SKEW_RANGE          = nvbench::range(0.1, 1., 0.1);
-}  // namespace defaults
-}  // namespace benchmark
-}  // namespace cuco
+
+}  // namespace cuco::benchmark::defaults

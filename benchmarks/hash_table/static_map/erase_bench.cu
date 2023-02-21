@@ -16,16 +16,18 @@
 
 #include <defaults.hpp>
 #include <key_generator.hpp>
+#include <utils.hpp>
 
 #include <cuco/static_map.cuh>
 
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 #include <thrust/transform.h>
 
-namespace cuco::benchmark {
+using namespace cuco::benchmark;
+using namespace cuco::benchmark::defaults;
+
 /**
  * @brief A benchmark evaluating `erase` performance:
  */
@@ -44,16 +46,17 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_erase(
   thrust::device_vector<Key> keys(num_keys);
 
   key_generator gen;
-  gen.generate<Dist>(state, thrust::device, keys.begin(), keys.end());
+  gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   thrust::device_vector<pair_type> pairs(num_keys);
   thrust::transform(thrust::device, keys.begin(), keys.end(), pairs.begin(), [] __device__(auto i) {
-    return pair_type(i, i);
+    return pair_type(i, {});
   });
 
-  gen.dropout(thrust::device, keys.begin(), keys.end(), matching_rate);
+  gen.dropout(keys.begin(), keys.end(), matching_rate);
 
   state.add_element_count(num_keys, "NumInputs");
+  state.set_global_memory_rw_bytes(num_keys * sizeof(pair_type));
   state.exec(
     nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
       // static map with erase support
@@ -82,8 +85,6 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_erase(
   state.skip("Key should be the same type as Value.");
 }
 
-using namespace defaults;
-
 NVBENCH_BENCH_TYPES(static_map_erase,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
@@ -98,7 +99,7 @@ NVBENCH_BENCH_TYPES(static_map_erase,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))
-  .set_name("static_map_erase_occupancy")
+  .set_name("static_map_erase_unique_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
@@ -108,9 +109,8 @@ NVBENCH_BENCH_TYPES(static_map_erase,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
                                       VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))
-  .set_name("static_map_erase_matching_rate")
+  .set_name("static_map_erase_unique_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
   .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
   .add_float64_axis("MatchingRate", MATCHING_RATE_RANGE);
-}  // namespace cuco::benchmark

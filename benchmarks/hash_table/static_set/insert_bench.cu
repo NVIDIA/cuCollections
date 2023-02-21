@@ -16,19 +16,18 @@
 
 #include <defaults.hpp>
 #include <key_generator.hpp>
+#include <utils.hpp>
 
 #include <cuco/static_set.cuh>
 
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 
 using namespace cuco::benchmark;
-using namespace cuco::benchmark::defaults;
 
 /**
- * @brief A benchmark evaluating `insert` performance:
+ * @brief A benchmark evaluating `static_set::insert` performance:
  */
 template <typename Key, typename Dist>
 void static_set_insert(nvbench::state& state, nvbench::type_list<Key, Dist>)
@@ -41,13 +40,14 @@ void static_set_insert(nvbench::state& state, nvbench::type_list<Key, Dist>)
   thrust::device_vector<Key> keys(num_keys);
 
   key_generator gen;
-  gen.generate<Dist>(state, thrust::device, keys.begin(), keys.end());
+  gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   state.add_element_count(num_keys, "NumKeys");
   state.set_global_memory_rw_bytes(num_keys * sizeof(Key));
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                cuco::experimental::static_set<Key> myset{size, cuco::empty_key<Key>{-1}};
+               CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
                // Use timers to explicitly mark the target region
                timer.start();
@@ -57,22 +57,25 @@ void static_set_insert(nvbench::state& state, nvbench::type_list<Key, Dist>)
 }
 
 NVBENCH_BENCH_TYPES(static_set_insert,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE, nvbench::type_list<dist_type::uniform>))
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      nvbench::type_list<dist_type::uniform>))
   .set_name("static_set_insert_uniform_multiplicity")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_set_insert,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE, nvbench::type_list<dist_type::unique>))
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      nvbench::type_list<dist_type::unique>))
   .set_name("static_set_insert_unique_occupancy")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
-  .add_float64_axis("Occupancy", OCCUPANCY_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_set_insert,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE, nvbench::type_list<dist_type::gaussian>))
-  .set_name("static_set_insert_gaussian")
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      nvbench::type_list<dist_type::gaussian>))
+  .set_name("static_set_insert_gaussian_skew")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
-  .add_float64_axis("Skew", SKEW_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_float64_axis("Skew", defaults::SKEW_RANGE);

@@ -16,20 +16,19 @@
 
 #include <defaults.hpp>
 #include <key_generator.hpp>
+#include <utils.hpp>
 
 #include <cuco/static_set.cuh>
 
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 #include <thrust/iterator/discard_iterator.h>
 
 using namespace cuco::benchmark;
-using namespace cuco::benchmark::defaults;
 
 /**
- * @brief A benchmark evaluating `contains` performance:
+ * @brief A benchmark evaluating `static_set::contains` performance:
  */
 template <typename Key, typename Dist>
 void static_set_contains(nvbench::state& state, nvbench::type_list<Key, Dist>)
@@ -43,13 +42,13 @@ void static_set_contains(nvbench::state& state, nvbench::type_list<Key, Dist>)
   thrust::device_vector<Key> keys(num_keys);
 
   key_generator gen;
-  gen.generate<Dist>(state, thrust::device, keys.begin(), keys.end());
+  gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   cuco::experimental::static_set<Key> myset{size, cuco::empty_key<Key>{-1}};
   myset.insert(keys.begin(), keys.end());
   CUCO_CUDA_TRY(cudaStreamSynchronize(nullptr));
 
-  gen.dropout(thrust::device, keys.begin(), keys.end(), matching_rate);
+  gen.dropout(keys.begin(), keys.end(), matching_rate);
 
   state.add_element_count(num_keys, "NumInputs");
   state.set_global_memory_rw_bytes(num_keys * sizeof(Key));
@@ -59,17 +58,19 @@ void static_set_contains(nvbench::state& state, nvbench::type_list<Key, Dist>)
 }
 
 NVBENCH_BENCH_TYPES(static_set_contains,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE, nvbench::type_list<dist_type::unique>))
-  .set_name("static_set_contains_occupancy")
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      nvbench::type_list<dist_type::unique>))
+  .set_name("static_set_contains_unique_occupancy")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
-  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
-  .add_float64_axis("Occupancy", OCCUPANCY_RANGE);
+  .set_timeout(100)
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_set_contains,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE, nvbench::type_list<dist_type::unique>))
-  .set_name("static_set_contains_matching_rate")
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      nvbench::type_list<dist_type::unique>))
+  .set_name("static_set_contains_unique_matching_rate")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_timeout(100)          // Custom timeout: 100 s. Default is 15 s.
-  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
-  .add_float64_axis("MatchingRate", MATCHING_RATE_RANGE);
+  .set_timeout(100)
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE);

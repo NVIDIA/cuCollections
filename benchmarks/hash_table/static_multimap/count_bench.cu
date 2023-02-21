@@ -16,19 +16,17 @@
 
 #include <defaults.hpp>
 #include <key_generator.hpp>
+#include <utils.hpp>
 
 #include <cuco/static_multimap.cuh>
 
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 #include <thrust/transform.h>
 
-namespace cuco {
-namespace benchmark {
-
-using namespace defaults;
+using namespace cuco::benchmark;
+using namespace cuco::benchmark::defaults;
 
 /**
  * @brief A benchmark evaluating multi-value `count` performance
@@ -48,21 +46,18 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_count(
   thrust::device_vector<Key> keys(num_keys);
 
   key_generator gen;
-  gen.generate<Dist>(state, thrust::device, keys.begin(), keys.end());
+  gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   thrust::device_vector<pair_type> pairs(num_keys);
-  thrust::transform(thrust::device,
-                    keys.begin(),
-                    keys.end(),
-                    pairs.begin(),
-                    [] __host__ __device__(Key const& key) {
-                      return thrust::raw_reference_cast(pair_type(key, 42));
-                    });
+  thrust::transform(
+    thrust::device, keys.begin(), keys.end(), pairs.begin(), [] __device__(Key const& key) {
+      return pair_type(key, {});
+    });
 
-  gen.dropout(thrust::device, keys.begin(), keys.end(), matching_rate);
+  gen.dropout(keys.begin(), keys.end(), matching_rate);
 
   state.add_element_count(num_keys);
-  state.set_global_memory_rw_bytes(num_keys * sizeof(pair_type));
+  state.set_global_memory_rw_bytes(num_keys * sizeof(Key));
 
   cuco::static_multimap<Key, Value> map{
     size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
@@ -79,15 +74,6 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_multimap_count(
 {
   state.skip("Key should be the same type as Value.");
 }
-
-NVBENCH_BENCH_TYPES(static_multimap_count,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::uniform>))
-  .set_name("static_multimap_count_uniform_matching_rate")
-  .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)
-  .add_float64_axis("MatchingRate", MATCHING_RATE_RANGE);
 
 NVBENCH_BENCH_TYPES(static_multimap_count,
                     NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
@@ -115,6 +101,3 @@ NVBENCH_BENCH_TYPES(static_multimap_count,
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(MAX_NOISE)
   .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
-
-}  // namespace benchmark
-}  // namespace cuco
