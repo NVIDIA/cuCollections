@@ -184,7 +184,9 @@ class key_generator {
   {
     using value_type = typename std::iterator_traits<InOutIt>::value_type;
 
-    if (keep_prob >= 1.0) {
+    CUCO_EXPECTS(keep_prob >= 0.0 and keep_prob <= 1.0, "Probability needs to be between 0 and 1");
+
+    if (keep_prob < 1.0) {
       size_t num_keys = thrust::distance(begin, end);
 
       thrust::counting_iterator<size_t> seeds(rng_());
