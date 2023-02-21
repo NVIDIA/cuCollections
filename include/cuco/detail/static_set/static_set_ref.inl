@@ -231,17 +231,30 @@ class operator_impl<op::insert_tag,
   {
     auto& ref_ = static_cast<ref_type&>(*this);
 
-    auto ref      = cuda::atomic_ref<value_type, Scope>{*slot};
-    auto expected = ref_.empty_key_sentinel_.value;
-    bool result   = ref.compare_exchange_strong(expected, value, cuda::std::memory_order_relaxed);
-    if (result) {
-      return insert_result::SUCCESS;
-    } else {
-      auto old = expected;
+    // temporary workaround due to performance regression
+    // https://github.com/NVIDIA/libcudacxx/issues/366
+    value_type const old = [&]() {
+      value_type expected = ref_.empty_key_sentinel_.value;
+      value_type val      = value;
+      if constexpr (sizeof(value_type) == sizeof(uint32_t)) {
+        auto* expected_ptr = reinterpret_cast<unsigned int*>(&expected);
+        auto* value_ptr    = reinterpret_cast<unsigned int*>(&val);
+        return atomicCAS(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
+      }
+      if constexpr (sizeof(value_type) == sizeof(uint64_t)) {
+        auto* expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
+        auto* value_ptr    = reinterpret_cast<unsigned long long int*>(&val);
+        return atomicCAS(
+          reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
+      }
+    }();
+    if (*slot == old) {
       // Shouldn't use `predicate_` operator directly since it includes a redundant bitwise compare
       return ref_.predicate_.equal_to(old, value) == detail::equal_result::EQUAL
                ? insert_result::DUPLICATE
                : insert_result::CONTINUE;
+    } else {
+      return insert_result::SUCCESS;
     }
   }
 };
