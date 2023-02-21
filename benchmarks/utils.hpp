@@ -16,26 +16,13 @@
 
 #pragma once
 
+#include <key_generator.hpp>
+
 #include <cuco/detail/error.hpp>
 
 #include <nvbench/nvbench.cuh>
 
-#include <cstdint>
-
 namespace cuco::benchmark {
-
-namespace dist_type {
-struct unique {
-};
-
-struct uniform {
-  int64_t multiplicity;  // TODO assert >0
-};
-
-struct gaussian {
-  double skew;  // TODO assert >0
-};
-}  // namespace dist_type
 
 template <typename Dist>
 auto dist_from_state(nvbench::state const& state)

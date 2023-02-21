@@ -16,12 +16,8 @@
 
 #pragma once
 
-#include <defaults.hpp>
-#include <distribution.hpp>
-
 #include <cuco/detail/error.hpp>
-
-#include <nvbench/nvbench.cuh>
+#include <cuco/detail/utils.cuh>
 
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -33,14 +29,33 @@
 #include <thrust/transform.h>
 #include <thrust/type_traits/is_execution_policy.h>
 
-#include <algorithm>
+#include <cstdint>
 #include <iterator>
-#include <limits>
-#include <string>
 #include <time.h>
 #include <type_traits>
 
 namespace cuco::benchmark {
+
+namespace dist_type {
+
+struct unique {
+};
+
+struct uniform : public cuco::detail::strong_type<int64_t> {
+  uniform(int64_t multiplicity) : cuco::detail::strong_type<int64_t>{multiplicity}
+  {
+    CUCO_EXPECTS(multiplicity > 0, "Multiplicity must be greater than 0");
+  }
+};
+
+struct gaussian : public cuco::detail::strong_type<double> {
+  gaussian(double skew) : cuco::detail::strong_type<double>{skew}
+  {
+    CUCO_EXPECTS(skew > 0, "Skew must be greater than 0");
+  }
+};
+
+}  // namespace dist_type
 
 /**
  * @brief Random key generator.
@@ -93,7 +108,7 @@ class key_generator {
                         [*this, dist, num_keys] __host__ __device__(size_t const seed) {
                           RNG rng;
                           thrust::uniform_int_distribution<value_type> uniform_dist(
-                            1, num_keys / dist.multiplicity);
+                            1, num_keys / dist.value);
                           rng.seed(seed);
                           return uniform_dist(rng);
                         });
@@ -109,7 +124,7 @@ class key_generator {
                         [*this, dist, num_keys] __host__ __device__(size_t const seed) {
                           RNG rng;
                           thrust::normal_distribution<> normal_dist(
-                            static_cast<double>(num_keys / 2), num_keys * dist.skew);
+                            static_cast<double>(num_keys / 2), num_keys * dist.value);
                           rng.seed(seed);
                           auto val = normal_dist(rng);
                           while (val < 0 or val >= num_keys) {
@@ -169,7 +184,9 @@ class key_generator {
   {
     using value_type = typename std::iterator_traits<InOutIt>::value_type;
 
-    if (keep_prob >= 1.0) {
+    CUCO_EXPECTS(keep_prob >= 0.0 and keep_prob <= 1.0, "Probability needs to be between 0 and 1");
+
+    if (keep_prob < 1.0) {
       size_t num_keys = thrust::distance(begin, end);
 
       thrust::counting_iterator<size_t> seeds(rng_());
