@@ -26,7 +26,6 @@
 #include <thrust/transform.h>
 
 using namespace cuco::benchmark;
-using namespace cuco::benchmark::defaults;
 
 /**
  * @brief A benchmark evaluating `cuco::static_map::insert` performance
@@ -75,28 +74,28 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_insert(
 }
 
 NVBENCH_BENCH_TYPES(static_map_insert,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::uniform>))
   .set_name("static_map_insert_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)
-  .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_map_insert,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))
   .set_name("static_map_insert_unique_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)
-  .add_float64_axis("Occupancy", OCCUPANCY_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_map_insert,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::gaussian>))
   .set_name("static_map_insert_gaussian_skew")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)
-  .add_float64_axis("Skew", SKEW_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_float64_axis("Skew", defaults::SKEW_RANGE);
