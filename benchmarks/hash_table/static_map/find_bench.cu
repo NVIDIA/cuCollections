@@ -58,7 +58,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_find(
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);
 
-  thrust::device_vector<bool> result(num_keys);
+  thrust::device_vector<Value> result(num_keys);
 
   state.add_element_count(num_keys);
 
