@@ -15,10 +15,10 @@
  */
 
 #include <defaults.hpp>
-#include <key_generator.hpp>
 #include <utils.hpp>
 
 #include <cuco/static_multimap.cuh>
+#include <cuco/util/key_generator.hpp>
 
 #include <nvbench/nvbench.cuh>
 
@@ -26,6 +26,7 @@
 #include <thrust/transform.h>
 
 using namespace cuco::benchmark;
+using namespace cuco::util;
 
 /**
  * @brief A benchmark evaluating `cuco::static_multimap::insert` performance
