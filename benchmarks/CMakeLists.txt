@@ -28,19 +28,19 @@ CPMAddPackage(
 ###################################################################################################
 
 ###################################################################################################
-function(ConfigureNVBench BENCH_NAME)
+function(ConfigureBench BENCH_NAME)
     add_executable(${BENCH_NAME} ${ARGN})
     set_target_properties(${BENCH_NAME} PROPERTIES
                                         POSITION_INDEPENDENT_CODE ON
-                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/nvbenchmarks")
+                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks")
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
-    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr)
+    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr -lineinfo)
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         nvbench::main
                                         pthread
                                         cuco)
-endfunction(ConfigureNVBench)
+endfunction(ConfigureBench)
 
 ###################################################################################################
 ### benchmark sources #############################################################################
@@ -48,7 +48,7 @@ endfunction(ConfigureNVBench)
 
 ###################################################################################################
 # - static_map benchmarks -------------------------------------------------------------------------
-ConfigureNVBench(STATIC_MAP_BENCH
+ConfigureBench(STATIC_MAP_BENCH
   hash_table/static_map/insert_bench.cu
   hash_table/static_map/find_bench.cu
   hash_table/static_map/contains_bench.cu
@@ -56,7 +56,7 @@ ConfigureNVBench(STATIC_MAP_BENCH
 
 ###################################################################################################
 # - static_multimap benchmarks --------------------------------------------------------------------
-ConfigureNVBench(STATIC_MULTIMAP_BENCH
+ConfigureBench(STATIC_MULTIMAP_BENCH
   hash_table/static_multimap/insert_bench.cu
   hash_table/static_multimap/retrieve_bench.cu
   hash_table/static_multimap/query_bench.cu
@@ -64,7 +64,7 @@ ConfigureNVBench(STATIC_MULTIMAP_BENCH
 
 ###################################################################################################
 # - dynamic_map benchmarks ------------------------------------------------------------------------
-ConfigureNVBench(DYNAMIC_MAP_BENCH
+ConfigureBench(DYNAMIC_MAP_BENCH
   hash_table/dynamic_map/insert_bench.cu
   hash_table/dynamic_map/find_bench.cu
   hash_table/dynamic_map/contains_bench.cu
