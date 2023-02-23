@@ -23,13 +23,12 @@
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/iterator/transform_iterator.h>
+#include <thrust/transform.h>
 
 using namespace cuco::benchmark;
-using namespace cuco::benchmark::defaults;
 
 /**
- * @brief A benchmark evaluating `insert` performance:
+ * @brief A benchmark evaluating `cuco::static_map::insert` performance
  */
 template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
@@ -48,30 +47,21 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   thrust::device_vector<pair_type> pairs(num_keys);
-  thrust::transform(
-    thrust::device, keys.begin(), keys.end(), pairs.begin(), [] __device__(Key const& key) {
-      return pair_type(key, {});
+  thrust::transform(keys.begin(), keys.end(), pairs.begin(), [] __device__(Key const& key) {
+    return pair_type(key, {});
+  });
+
+  state.add_element_count(num_keys);
+
+  state.exec(
+    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+      cuco::static_map<Key, Value> map{
+        size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, {}, launch.get_stream()};
+
+      timer.start();
+      map.insert(pairs.begin(), pairs.end(), {}, {}, launch.get_stream());
+      timer.stop();
     });
-
-  state.add_element_count(num_keys, "NumInputs");
-  state.set_global_memory_rw_bytes(num_keys * sizeof(pair_type));
-  state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
-             [&](nvbench::launch& launch, auto& timer) {
-               cuco::static_map<Key, Value> map{size,
-                                                cuco::empty_key<Key>{-1},
-                                                cuco::empty_value<Value>{-1},
-                                                cuco::cuda_allocator<char>{},
-                                                launch.get_stream()};
-
-               // Use timers to explicitly mark the target region
-               timer.start();
-               map.insert(pairs.begin(),
-                          pairs.end(),
-                          cuco::murmurhash3_32<Key>{},
-                          thrust::equal_to<Key>{},
-                          launch.get_stream());
-               timer.stop();
-             });
 }
 
 template <typename Key, typename Value, typename Dist>
@@ -82,28 +72,28 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_insert(
 }
 
 NVBENCH_BENCH_TYPES(static_map_insert,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::uniform>))
   .set_name("static_map_insert_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
-  .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_map_insert,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::unique>))
   .set_name("static_map_insert_unique_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
-  .add_float64_axis("Occupancy", OCCUPANCY_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_map_insert,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::gaussian>))
-  .set_name("static_map_insert_gaussian")
+  .set_name("static_map_insert_gaussian_skew")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)  // Custom noise: 3%. By default: 0.5%.
-  .add_float64_axis("Skew", SKEW_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_float64_axis("Skew", defaults::SKEW_RANGE);
