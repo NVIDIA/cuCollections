@@ -77,7 +77,7 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_multimap_query(
 NVBENCH_BENCH_TYPES(static_multimap_query,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::uniform>))
+                                      nvbench::type_list<distribution::uniform>))
   .set_name("static_multimap_query_uniform_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
@@ -86,7 +86,7 @@ NVBENCH_BENCH_TYPES(static_multimap_query,
 NVBENCH_BENCH_TYPES(static_multimap_query,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::uniform>))
+                                      nvbench::type_list<distribution::uniform>))
   .set_name("static_multimap_query_uniform_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
@@ -95,7 +95,7 @@ NVBENCH_BENCH_TYPES(static_multimap_query,
 NVBENCH_BENCH_TYPES(static_multimap_query,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::uniform>))
+                                      nvbench::type_list<distribution::uniform>))
   .set_name("static_multimap_query_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)

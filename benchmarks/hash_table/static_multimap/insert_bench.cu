@@ -75,7 +75,7 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_multimap_insert(
 NVBENCH_BENCH_TYPES(static_multimap_insert,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::uniform>))
+                                      nvbench::type_list<distribution::uniform>))
   .set_name("static_multimap_insert_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
@@ -84,7 +84,7 @@ NVBENCH_BENCH_TYPES(static_multimap_insert,
 NVBENCH_BENCH_TYPES(static_multimap_insert,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::unique>))
+                                      nvbench::type_list<distribution::unique>))
   .set_name("static_multimap_insert_unique_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
@@ -93,7 +93,7 @@ NVBENCH_BENCH_TYPES(static_multimap_insert,
 NVBENCH_BENCH_TYPES(static_multimap_insert,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::gaussian>))
+                                      nvbench::type_list<distribution::gaussian>))
   .set_name("static_multimap_insert_gaussian_skew")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)

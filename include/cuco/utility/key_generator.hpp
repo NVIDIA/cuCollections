@@ -36,7 +36,7 @@
 
 namespace cuco::utility {
 
-namespace dist_type {
+namespace distribution {
 
 /**
  * @brief Tag struct representing a random distribution of unique keys.
@@ -70,7 +70,7 @@ struct gaussian : public cuco::detail::strong_type<double> {
   }
 };
 
-}  // namespace dist_type
+}  // namespace distribution
 
 /**
  * @brief Random key generator.
@@ -108,10 +108,10 @@ class key_generator {
   {
     using value_type = typename std::iterator_traits<OutputIt>::value_type;
 
-    if constexpr (std::is_same_v<Dist, dist_type::unique>) {
+    if constexpr (std::is_same_v<Dist, distribution::unique>) {
       thrust::sequence(exec_policy, out_begin, out_end, 0);
       thrust::shuffle(exec_policy, out_begin, out_end, this->rng_);
-    } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
+    } else if constexpr (std::is_same_v<Dist, distribution::uniform>) {
       size_t num_keys = thrust::distance(out_begin, out_end);
 
       thrust::counting_iterator<size_t> seeds(this->rng_());
@@ -127,7 +127,7 @@ class key_generator {
                           rng.seed(seed);
                           return uniform_dist(rng);
                         });
-    } else if constexpr (std::is_same_v<Dist, dist_type::gaussian>) {
+    } else if constexpr (std::is_same_v<Dist, distribution::gaussian>) {
       size_t num_keys = thrust::distance(out_begin, out_end);
 
       thrust::counting_iterator<size_t> seq(this->rng_());
