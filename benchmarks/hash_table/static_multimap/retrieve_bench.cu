@@ -26,10 +26,9 @@
 #include <thrust/transform.h>
 
 using namespace cuco::benchmark;
-using namespace cuco::benchmark::defaults;
 
 /**
- * @brief A benchmark evaluating multi-value `retrieve` performance
+ * @brief A benchmark evaluating `cuco::static_multimap::retrieve` performance
  */
 template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_retrieve(
@@ -37,9 +36,9 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_retrieve(
 {
   using pair_type = cuco::pair_type<Key, Value>;
 
-  auto const num_keys      = state.get_int64_or_default("NumInputs", N);
-  auto const occupancy     = state.get_float64_or_default("Occupancy", OCCUPANCY);
-  auto const matching_rate = state.get_float64_or_default("MatchingRate", MATCHING_RATE);
+  auto const num_keys      = state.get_int64_or_default("NumInputs", defaults::N);
+  auto const occupancy     = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
+  auto const matching_rate = state.get_float64_or_default("MatchingRate", defaults::MATCHING_RATE);
 
   std::size_t const size = num_keys / occupancy;
 
@@ -49,10 +48,9 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_retrieve(
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   thrust::device_vector<pair_type> pairs(num_keys);
-  thrust::transform(
-    thrust::device, keys.begin(), keys.end(), pairs.begin(), [] __device__(Key const& key) {
-      return pair_type(key, {});
-    });
+  thrust::transform(keys.begin(), keys.end(), pairs.begin(), [] __device__(Key const& key) {
+    return pair_type(key, {});
+  });
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);
 
@@ -76,28 +74,28 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_multimap_retrieve(
 }
 
 NVBENCH_BENCH_TYPES(static_multimap_retrieve,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::uniform>))
   .set_name("static_multimap_retrieve_uniform_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)
-  .add_float64_axis("Occupancy", OCCUPANCY_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_multimap_retrieve,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::uniform>))
   .set_name("static_multimap_retrieve_uniform_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)
-  .add_float64_axis("MatchingRate", MATCHING_RATE_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE);
 
 NVBENCH_BENCH_TYPES(static_multimap_retrieve,
-                    NVBENCH_TYPE_AXES(KEY_TYPE_RANGE,
-                                      VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<dist_type::uniform>))
   .set_name("static_multimap_retrieve_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(MAX_NOISE)
-  .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
