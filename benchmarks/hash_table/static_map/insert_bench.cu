@@ -47,10 +47,9 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   thrust::device_vector<pair_type> pairs(num_keys);
-  thrust::transform(
-    thrust::device, keys.begin(), keys.end(), pairs.begin(), [] __device__(Key const& key) {
-      return pair_type(key, {});
-    });
+  thrust::transform(keys.begin(), keys.end(), pairs.begin(), [] __device__(Key const& key) {
+    return pair_type(key, {});
+  });
 
   state.add_element_count(num_keys);
   state.set_global_memory_rw_bytes(num_keys * sizeof(pair_type));
