@@ -52,7 +52,6 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_insert(
   });
 
   state.add_element_count(num_keys);
-  state.set_global_memory_rw_bytes(num_keys * sizeof(pair_type));
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {

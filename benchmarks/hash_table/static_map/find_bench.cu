@@ -60,7 +60,6 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_find(
   thrust::device_vector<bool> result(num_keys);
 
   state.add_element_count(num_keys);
-  state.set_global_memory_rw_bytes(num_keys * (sizeof(Key) + sizeof(bool)));
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
     map.find(keys.begin(), keys.end(), result.begin(), {}, {}, launch.get_stream());
