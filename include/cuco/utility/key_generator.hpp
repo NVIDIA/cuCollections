@@ -34,28 +34,43 @@
 #include <time.h>
 #include <type_traits>
 
-namespace cuco::benchmark {
+namespace cuco::utility {
 
-namespace dist_type {
+namespace distribution {
 
+/**
+ * @brief Tag struct representing a random distribution of unique keys.
+ */
 struct unique {
 };
 
+/**
+ * @brief Tag struct representing a uniform distribution.
+ */
 struct uniform : public cuco::detail::strong_type<int64_t> {
+  /**
+   * @param multiplicity Average key multiplicity of the distribution.
+   */
   uniform(int64_t multiplicity) : cuco::detail::strong_type<int64_t>{multiplicity}
   {
     CUCO_EXPECTS(multiplicity > 0, "Multiplicity must be greater than 0");
   }
 };
 
+/**
+ * @brief Tag struct representing a gaussian distribution.
+ */
 struct gaussian : public cuco::detail::strong_type<double> {
+  /**
+   * @param skew 0 represents a uniform distribution; &infin; represents a Dirac delta distribution.
+   */
   gaussian(double skew) : cuco::detail::strong_type<double>{skew}
   {
     CUCO_EXPECTS(skew > 0, "Skew must be greater than 0");
   }
 };
 
-}  // namespace dist_type
+}  // namespace distribution
 
 /**
  * @brief Random key generator.
@@ -81,8 +96,8 @@ class key_generator {
    * @tparam Enable SFINAE helper
    *
    * @param dist Random distribution to use
-   * @param output_begin Start of the output sequence
-   * @param output_end End of the output sequence
+   * @param out_begin Start of the output sequence
+   * @param out_end End of the output sequence
    * @param exec_policy Thrust execution policy this operation will be executed with
    */
   template <typename Dist,
@@ -93,10 +108,10 @@ class key_generator {
   {
     using value_type = typename std::iterator_traits<OutputIt>::value_type;
 
-    if constexpr (std::is_same_v<Dist, dist_type::unique>) {
+    if constexpr (std::is_same_v<Dist, distribution::unique>) {
       thrust::sequence(exec_policy, out_begin, out_end, 0);
       thrust::shuffle(exec_policy, out_begin, out_end, this->rng_);
-    } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
+    } else if constexpr (std::is_same_v<Dist, distribution::uniform>) {
       size_t num_keys = thrust::distance(out_begin, out_end);
 
       thrust::counting_iterator<size_t> seeds(this->rng_());
@@ -112,7 +127,7 @@ class key_generator {
                           rng.seed(seed);
                           return uniform_dist(rng);
                         });
-    } else if constexpr (std::is_same_v<Dist, dist_type::gaussian>) {
+    } else if constexpr (std::is_same_v<Dist, distribution::gaussian>) {
       size_t num_keys = thrust::distance(out_begin, out_end);
 
       thrust::counting_iterator<size_t> seq(this->rng_());
@@ -142,6 +157,13 @@ class key_generator {
 
   /**
    * @brief Overload of 'generate' which automatically selects a suitable execution policy
+   *
+   * @tparam Dist Key distribution type
+   * @tparam OutputIt Ouput iterator typy which value type is the desired key type
+   *
+   * @param dist Random distribution to use
+   * @param out_begin Start of the output sequence
+   * @param out_end End of the output sequence
    */
   template <typename Dist, typename OutputIt>
   void generate(Dist dist, OutputIt out_begin, OutputIt out_end)
@@ -157,6 +179,14 @@ class key_generator {
   /**
    * @brief Overload of 'generate' which uses 'thrust::cuda::par_nosync' execution policy on CUDA
    * stream 'stream'
+   *
+   * @tparam Dist Key distribution type
+   * @tparam OutputIt Ouput iterator typy which value type is the desired key type
+   *
+   * @param dist Random distribution to use
+   * @param out_begin Start of the output sequence
+   * @param out_end End of the output sequence
+   * @param stream CUDA stream in which this operation is executed in
    */
   template <typename Dist, typename OutputIt>
   void generate(Dist dist, OutputIt out_begin, OutputIt out_end, cudaStream_t stream)
@@ -216,6 +246,12 @@ class key_generator {
 
   /**
    * @brief Overload of 'dropout' which automatically selects a suitable execution policy
+   *
+   * @tparam InOutIt Input/Ouput iterator typy which value type is the desired key type
+   *
+   * @param begin Start of the key sequence
+   * @param end End of the key sequence
+   * @param keep_prob Probability that a key is kept
    */
   template <typename InOutIt>
   void dropout(InOutIt begin, InOutIt end, double keep_prob)
@@ -231,6 +267,13 @@ class key_generator {
   /**
    * @brief Overload of 'dropout' which uses 'thrust::cuda::par_nosync' execution policy on CUDA
    * stream 'stream'
+   *
+   * @tparam InOutIt Input/Ouput iterator typy which value type is the desired key type
+   *
+   * @param begin Start of the key sequence
+   * @param end End of the key sequence
+   * @param keep_prob Probability that a key is kept
+   * @param stream CUDA stream in which this operation is executed in
    */
   template <typename InOutIt>
   void dropout(InOutIt begin, InOutIt end, double keep_prob, cudaStream_t stream)
@@ -247,4 +290,4 @@ class key_generator {
   RNG rng_;  ///< Random number generator
 };
 
-}  // namespace cuco::benchmark
+}  // namespace cuco::utility
