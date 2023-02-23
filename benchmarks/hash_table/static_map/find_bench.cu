@@ -15,10 +15,10 @@
  */
 
 #include <defaults.hpp>
-#include <key_generator.hpp>
 #include <utils.hpp>
 
 #include <cuco/static_map.cuh>
+#include <cuco/utility/key_generator.hpp>
 
 #include <nvbench/nvbench.cuh>
 
@@ -26,6 +26,7 @@
 #include <thrust/transform.h>
 
 using namespace cuco::benchmark;
+using namespace cuco::utility;
 
 /**
  * @brief A benchmark evaluating `cuco::static_map::find` performance
@@ -76,7 +77,7 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_find(
 NVBENCH_BENCH_TYPES(static_map_find,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::unique>))
+                                      nvbench::type_list<distribution::unique>))
   .set_name("static_map_find_unique_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
@@ -85,7 +86,7 @@ NVBENCH_BENCH_TYPES(static_map_find,
 NVBENCH_BENCH_TYPES(static_map_find,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::VALUE_TYPE_RANGE,
-                                      nvbench::type_list<dist_type::unique>))
+                                      nvbench::type_list<distribution::unique>))
   .set_name("static_map_find_unique_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)

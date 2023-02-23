@@ -16,9 +16,8 @@
 
 #pragma once
 
-#include <key_generator.hpp>
-
 #include <cuco/detail/error.hpp>
+#include <cuco/utility/key_generator.hpp>
 
 #include <nvbench/nvbench.cuh>
 
@@ -27,12 +26,12 @@ namespace cuco::benchmark {
 template <typename Dist>
 auto dist_from_state(nvbench::state const& state)
 {
-  if constexpr (std::is_same_v<Dist, dist_type::unique>) {
+  if constexpr (std::is_same_v<Dist, cuco::utility::distribution::unique>) {
     return Dist{};
-  } else if constexpr (std::is_same_v<Dist, dist_type::uniform>) {
+  } else if constexpr (std::is_same_v<Dist, cuco::utility::distribution::uniform>) {
     auto const multiplicity = state.get_int64_or_default("Multiplicity", defaults::MULTIPLICITY);
     return Dist{multiplicity};
-  } else if constexpr (std::is_same_v<Dist, dist_type::gaussian>) {
+  } else if constexpr (std::is_same_v<Dist, cuco::utility::distribution::gaussian>) {
     auto const skew = state.get_float64_or_default("Skew", defaults::SKEW);
     return Dist{skew};
   } else {
@@ -42,8 +41,10 @@ auto dist_from_state(nvbench::state const& state)
 
 }  // namespace cuco::benchmark
 
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::unique, "UNIQUE", "dist_type::unique");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::uniform, "UNIFORM", "dist_type::uniform");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::benchmark::dist_type::gaussian,
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::unique, "UNIQUE", "distribution::unique");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::uniform,
+                             "UNIFORM",
+                             "distribution::uniform");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::gaussian,
                              "GAUSSIAN",
-                             "dist_type::gaussian");
+                             "distribution::gaussian");
