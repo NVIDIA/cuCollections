@@ -18,7 +18,7 @@
 #include <utils.hpp>
 
 #include <cuco/static_map.cuh>
-#include <cuco/util/key_generator.hpp>
+#include <cuco/utility/key_generator.hpp>
 
 #include <nvbench/nvbench.cuh>
 
@@ -26,7 +26,7 @@
 #include <thrust/transform.h>
 
 using namespace cuco::benchmark;
-using namespace cuco::util;
+using namespace cuco::utility;
 
 /**
  * @brief A benchmark evaluating `cuco::static_map::find` performance

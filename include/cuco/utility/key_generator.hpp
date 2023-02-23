@@ -34,7 +34,7 @@
 #include <time.h>
 #include <type_traits>
 
-namespace cuco::util {
+namespace cuco::utility {
 
 namespace dist_type {
 
@@ -290,4 +290,4 @@ class key_generator {
   RNG rng_;  ///< Random number generator
 };
 
-}  // namespace cuco::util
+}  // namespace cuco::utility
