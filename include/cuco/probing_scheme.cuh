@@ -40,7 +40,7 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    *
    * @param hash Hasher
    */
-  explicit constexpr linear_probing(Hash const& hash);
+  constexpr linear_probing(Hash const& hash = {});
 
   /**
    * @brief Operator to return a probing iterator
@@ -96,7 +96,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @param hash1 First hasher
    * @param hash2 Second hasher
    */
-  explicit constexpr double_hashing(Hash1 const& hash1, Hash2 const& hash2);
+  constexpr double_hashing(Hash1 const& hash1 = {}, Hash2 const& hash2 = {});
 
   /**
    * @brief Operator to return a probing iterator

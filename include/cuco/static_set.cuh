@@ -140,11 +140,10 @@ class static_set {
    */
   constexpr static_set(Extent capacity,
                        empty_key<Key> empty_key_sentinel,
-                       KeyEqual pred = KeyEqual{},
-                       ProbingScheme const& probing_scheme =
-                         ProbingScheme{cuco::murmurhash3_32<Key>{}, cuco::murmurhash3_32<Key>{}},
-                       Allocator const& alloc = Allocator{},
-                       cudaStream_t stream    = nullptr);
+                       KeyEqual pred                       = {},
+                       ProbingScheme const& probing_scheme = {},
+                       Allocator const& alloc              = {},
+                       cudaStream_t stream                 = nullptr);
 
   /**
    * @brief Inserts all keys in the range `[first, last)`.
