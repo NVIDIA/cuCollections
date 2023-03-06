@@ -71,7 +71,7 @@ Since `cuCollections` is header-only, there is nothing to build to use it.
 
 To build the tests, benchmarks, and examples:
 
-```
+```bash
 cd $CUCO_ROOT
 mkdir -p build
 cd build
