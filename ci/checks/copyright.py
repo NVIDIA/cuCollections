@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# Copyright (c) 2023, NVIDIA CORPORATION.
+
 import sys
 import os
 import re
@@ -9,13 +11,11 @@ from datetime import datetime
 year = datetime.now().year
 
 # Define the regular expression pattern to match the copyright line
-copyright_pattern = re.compile(r"\s*\*\s*Copyright\s*\(c\)\s*(\d{4})(-(\d{4}))?\s*,\s*NVIDIA\s*CORPORATION")
+copyright_pattern = re.compile(r"\s*(\*|#)\s*Copyright\s*\(c\)\s*(\d{4})(-(\d{4}))?\s*,\s*NVIDIA\s*CORPORATION")
 
+exit_code = 0
 # Loop through all modified files and check the copyright year
-for line in sys.stdin:
-    # Extract the filename from the input
-    file_path = line.strip()
-
+for file_path in sys.argv[1:]:
     # Ignore deleted files
     if not os.path.isfile(file_path):
         continue
@@ -29,14 +29,16 @@ for line in sys.stdin:
 
     if match:
         # Extract the starting and ending years from the copyright line
-        starting_year = int(match.group(1))
-        ending_year = int(match.group(3)) if match.group(3) else starting_year
+        starting_year = int(match.group(2))
+        ending_year = int(match.group(4)) if match.group(4) else starting_year
 
         # Check if the ending year is up-to-date
         if ending_year != year:
-            sys.exit(f'>>>> FAILED: Copyright line in {file_path} is not up-to-date ({ending_year} != {year})')
+            print(f'warning: Copyright line in {file_path} is not up-to-date ({ending_year} != {year})')
+            exit_code = 1
     else:
         # Copyright line is missing
-        sys.exit(f'>>>> FAILED: Copyright line is missing from {file_path}')
+        print(f'warning: Copyright line is missing from {file_path}')
+        exit_code = 1
 
-print("\n>>>> PASSED: copyright check\n")
+sys.exit(exit_code)

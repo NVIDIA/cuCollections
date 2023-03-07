@@ -32,9 +32,10 @@ repos:
                 name: copyright-check
                 entry: python ./ci/checks/copyright.py
                 language: python
-                files: \.(cu|cuh|h|hpp|cpp|inl)$
+                files: \.(cu|cuh|h|hpp|cpp|inl|py|sh|cmake)$
                 'types_or': [file]
                 verbose: true
+                pass_filenames: true
 
 default_language_version:
       python: python3
