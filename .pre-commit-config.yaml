@@ -26,6 +26,15 @@ repos:
                 language: system
                 pass_filenames: false
                 verbose: true
+      - repo: local
+        hooks:
+              - id: copyright-check
+                name: copyright-check
+                entry: python ./ci/checks/copyright.py
+                language: python
+                files: \.(cu|cuh|h|hpp|cpp|inl)$
+                'types_or': [file]
+                verbose: true
 
 default_language_version:
       python: python3
