@@ -22,6 +22,10 @@
 #include <cuco/operator.hpp>
 #include <cuco/static_set_ref.cuh>
 
+#include <thrust/iterator/transform_iterator.h>
+
+#include <cub/device/device_reduce.cuh>
+
 #include <cstddef>
 
 namespace cuco {
@@ -119,7 +123,32 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cudaStream_t stream) const
 {
-  return storage_.size(empty_key_sentinel_, stream);
+  auto const begin = thrust::make_transform_iterator(
+    storage_.windows(),
+    cuco::detail::elements_per_window<typename storage_type::value_type>{empty_key_sentinel_});
+
+  std::size_t temp_storage_bytes = 0;
+  using temp_allocator_type = typename std::allocator_traits<allocator_type>::rebind_alloc<char>;
+  auto temp_allocator       = temp_allocator_type{allocator_};
+  auto d_size               = reinterpret_cast<size_type*>(
+    std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
+  cub::DeviceReduce::Sum(nullptr, temp_storage_bytes, begin, d_size, storage_.num_windows());
+
+  auto d_temp_storage =
+    std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, temp_storage_bytes);
+
+  cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, begin, d_size, storage_.num_windows());
+
+  size_type h_size;
+  CUCO_CUDA_TRY(
+    cudaMemcpyAsync(&h_size, d_size, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+  std::allocator_traits<temp_allocator_type>::deallocate(
+    temp_allocator, reinterpret_cast<char*>(d_size), sizeof(size_type));
+  std::allocator_traits<temp_allocator_type>::deallocate(
+    temp_allocator, d_temp_storage, temp_storage_bytes);
+
+  return h_size;
 }
 
 template <class Key,
