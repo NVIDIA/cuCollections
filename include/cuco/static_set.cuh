@@ -146,6 +146,23 @@ class static_set {
                        cudaStream_t stream                 = nullptr);
 
   /**
+   * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
+   * insertions.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_set<K>::value_type></tt> is `true`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream CUDA stream used for insert
+   *
+   * @return Number of successfully inserted keys
+   */
+  template <typename InputIt>
+  size_type insert(InputIt first, InputIt last, cudaStream_t stream = nullptr);
+
+  /**
    * @brief Inserts all keys in the range `[first, last)`.
    *
    * @tparam InputIt Device accessible random access input iterator where
@@ -157,7 +174,7 @@ class static_set {
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt>
-  void insert(InputIt first, InputIt last, cudaStream_t stream = nullptr);
+  void insert_async(InputIt first, InputIt last, cudaStream_t stream = nullptr);
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set.
