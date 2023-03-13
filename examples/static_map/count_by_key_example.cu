@@ -86,7 +86,8 @@ __global__ void count_by_key(Map map_view,
   // and atomically add to the grand total
   uint64_t block_unique_keys = BlockReduce(temp_storage).Sum(thread_unique_keys);
   if (threadIdx.x == 0) {
-    cuda::atomic_ref<uint64_t> grid_unique_keys(*thrust::raw_pointer_cast(num_unique_keys));
+    cuda::atomic_ref<uint64_t, cuda::thread_scope_device> grid_unique_keys(
+      *thrust::raw_pointer_cast(num_unique_keys));
     grid_unique_keys.fetch_add(block_unique_keys, cuda::memory_order_relaxed);
   }
 }
