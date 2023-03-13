@@ -62,7 +62,7 @@ __global__ void count_by_key(Map map_view,
                              uint64_t num_keys,
                              UniqueIter num_unique_keys)
 {
-  typedef cub::BlockReduce<uint64_t, BlockSize> BlockReduce;
+  using BlockReduce = cub::BlockReduce<uint64_t, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
 
   int64_t const loop_stride = gridDim.x * BlockSize;
