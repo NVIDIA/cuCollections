@@ -94,8 +94,9 @@ __global__ void count_by_key(Map map_view,
 
 int main(void)
 {
-  using Key   = uint64_t;
-  using Count = uint64_t;
+  // Note that if (sizeof(Key)+sizeof(Count))>8 then the minimum required CUDA architecture is sm_70
+  using Key   = uint32_t;
+  using Count = uint32_t;
 
   // Empty slots are represented by reserved "sentinel" values. These values should be selected such
   // that they never occur in your input data.
