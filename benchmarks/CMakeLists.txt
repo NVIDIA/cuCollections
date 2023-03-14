@@ -31,12 +31,8 @@ CPMAddPackage(
 function(ConfigureBench BENCH_NAME)
     add_executable(${BENCH_NAME} ${ARGN})
     set_target_properties(${BENCH_NAME} PROPERTIES
-<<<<<<< HEAD
-                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/nvbenchmarks")
-=======
                                         POSITION_INDEPENDENT_CODE ON
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks")
->>>>>>> upstream/dev
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
     target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr -lineinfo)
@@ -52,7 +48,7 @@ endfunction(ConfigureBench)
 
 ###################################################################################################
 # - static_set benchmarks -------------------------------------------------------------------------
-ConfigureNVBench(STATIC_SET_BENCH
+ConfigureBench(STATIC_SET_BENCH
   hash_table/static_set/contains_bench.cu
   hash_table/static_set/insert_bench.cu
   hash_table/static_set/size_bench.cu)
