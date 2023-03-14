@@ -385,8 +385,8 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
  public:
   /// Storage implementation type
   using impl_type  = typename StorageImpl::template impl<T, Extent, Allocator>;
-  using ref_type   = typename impl_type::ref_type;  ///< Storage ref type
-  using value_type = typename impl_type::value_type;
+  using ref_type   = typename impl_type::ref_type;    ///< Storage ref type
+  using value_type = typename impl_type::value_type;  ///< Storage value type
 
   /// Number of elements per window
   static constexpr int window_size = impl_type::window_size;

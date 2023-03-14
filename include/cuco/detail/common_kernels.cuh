@@ -39,7 +39,7 @@ __global__ void initialize(WindowT* windows, typename WindowT::value_type value,
     auto& window_slots = *(windows + tid);
 #pragma unroll
     for (auto& slot : window_slots) {
-      slot = k;
+      slot = value;
     }
     tid += gridDim.x * blockDim.x;
   }
