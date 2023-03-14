@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,12 +18,12 @@
 
 #include <cuco/allocator.hpp>
 #include <cuco/detail/__config>
-#include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/traits.hpp>
+#include <cuco/utility/error.hpp>
 
 #include <thrust/functional.h>
 

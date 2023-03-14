@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <cuco/detail/error.hpp>
 #include <cuco/detail/utils.cuh>
+#include <cuco/utility/error.hpp>
 
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>

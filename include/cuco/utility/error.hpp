@@ -79,7 +79,7 @@ struct cuda_error : public std::runtime_error {
  * Example:
  * ```c++
  *
- * // Throws `rmm::cuda_error` if `cudaMalloc` fails
+ * // Throws `cuco::cuda_error` if `cudaMalloc` fails
  * CUCO_CUDA_TRY(cudaMalloc(&p, 100));
  *
  * // Throws `std::runtime_error` if `cudaMalloc` fails

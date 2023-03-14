@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include <cuco/detail/error.hpp>
+#include <cuco/utility/error.hpp>
 
 #include <iterator>
 #include <type_traits>
