@@ -30,32 +30,28 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 template <typename Set>
-__inline__ void test_unique_sequence(Set& set, std::size_t num_keys)
+__inline__ void test_unique_sequence(Set& set, bool* res_begin, std::size_t num_keys)
 {
   using Key = typename Set::key_type;
 
-  thrust::device_vector<Key> d_keys(num_keys);
-
-  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
-
-  auto key_begin = d_keys.begin();
-  thrust::device_vector<bool> d_contained(num_keys);
+  auto const keys_begin = thrust::counting_iterator<Key>(0);
+  auto const keys_end   = thrust::counting_iterator<Key>(num_keys);
 
   SECTION("Non-inserted keys should not be contained.")
   {
     REQUIRE(set.size() == 0);
 
-    set.contains(key_begin, key_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
+    set.contains(keys_begin, keys_end, res_begin);
+    REQUIRE(cuco::test::none_of(res_begin, res_begin + num_keys, thrust::identity{}));
   }
 
-  set.insert(key_begin, key_begin + num_keys);
+  set.insert(keys_begin, keys_end);
   REQUIRE(set.size() == num_keys);
 
   SECTION("All inserted key/value pairs should be contained.")
   {
-    set.contains(key_begin, key_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
+    set.contains(keys_begin, keys_end, res_begin);
+    REQUIRE(cuco::test::all_of(res_begin, res_begin + num_keys, thrust::identity{}));
   }
 }
 
@@ -74,12 +70,19 @@ TEMPLATE_TEST_CASE_SIG(
   using probe       = cuco::experimental::
     double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>;
 
-  auto set = cuco::experimental::
-    static_set<Key, extent_type, cuda::thread_scope_device, thrust::equal_to<Key>, probe>{
-      num_keys * 2,
-      cuco::empty_key<Key>{-1},
-      thrust::equal_to<Key>{},
-      probe{cuco::murmurhash3_32<Key>{}, cuco::murmurhash3_32<Key>{}}};
+  try {
+    auto set = cuco::experimental::
+      static_set<Key, extent_type, cuda::thread_scope_device, thrust::equal_to<Key>, probe>{
+        num_keys * 2,
+        cuco::empty_key<Key>{-1},
+        thrust::equal_to<Key>{},
+        probe{cuco::murmurhash3_32<Key>{}, cuco::murmurhash3_32<Key>{}}};
 
-  test_unique_sequence(set, num_keys);
+    thrust::device_vector<bool> d_contained(num_keys);
+    test_unique_sequence(set, d_contained.data().get(), num_keys);
+  } catch (cuco::cuda_error&) {
+    SKIP("Out of memory");
+  } catch (std::bad_alloc&) {
+    SKIP("Out of memory");
+  }
 }
