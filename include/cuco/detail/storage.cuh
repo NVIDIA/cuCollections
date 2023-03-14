@@ -24,11 +24,6 @@
 #include <cuco/detail/utils.cuh>
 #include <cuco/extent.cuh>
 
-#include <thrust/execution_policy.h>
-#include <thrust/iterator/transform_iterator.h>
-
-#include <cub/device/device_reduce.cuh>
-
 #include <cuda/atomic>
 #include <cuda/std/array>
 
@@ -339,45 +334,6 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
   aow_storage& operator=(aow_storage const&) = delete;
 
   /**
-   * @brief Gets the number of elements in the storage.
-   *
-   * @tparam Sentinel Empty sentinel type
-   *
-   * @param empty_sentinel The sentinel value denoting empty element
-   * @param stream CUDA stream used to get the number of inserted elements
-   * @return The number of elements in the storage
-   */
-  template <typename Sentinel>
-  [[nodiscard]] size_type size(Sentinel empty_sentinel, cudaStream_t stream = nullptr) const
-  {
-    auto const begin = thrust::make_transform_iterator(
-      windows(), cuco::detail::elements_per_window<T>{empty_sentinel});
-
-    std::size_t temp_storage_bytes = 0;
-    using temp_allocator_type = typename std::allocator_traits<allocator_type>::rebind_alloc<char>;
-    auto temp_allocator       = temp_allocator_type{allocator_};
-    auto d_size               = reinterpret_cast<size_type*>(
-      std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
-    cub::DeviceReduce::Sum(nullptr, temp_storage_bytes, begin, d_size, num_windows());
-
-    auto d_temp_storage =
-      std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, temp_storage_bytes);
-
-    cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, begin, d_size, num_windows());
-
-    size_type h_size;
-    CUCO_CUDA_TRY(
-      cudaMemcpyAsync(&h_size, d_size, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
-    CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
-    std::allocator_traits<temp_allocator_type>::deallocate(
-      temp_allocator, reinterpret_cast<char*>(d_size), sizeof(size_type));
-    std::allocator_traits<temp_allocator_type>::deallocate(
-      temp_allocator, d_temp_storage, temp_storage_bytes);
-
-    return h_size;
-  }
-
-  /**
    * @brief Gets windows array.
    *
    * @return Pointer to the first window
@@ -428,8 +384,9 @@ template <class StorageImpl, class T, class Extent, class Allocator>
 class storage : StorageImpl::template impl<T, Extent, Allocator> {
  public:
   /// Storage implementation type
-  using impl_type = typename StorageImpl::template impl<T, Extent, Allocator>;
-  using ref_type  = typename impl_type::ref_type;  ///< Storage ref type
+  using impl_type  = typename StorageImpl::template impl<T, Extent, Allocator>;
+  using ref_type   = typename impl_type::ref_type;  ///< Storage ref type
+  using value_type = typename impl_type::value_type;
 
   /// Number of elements per window
   static constexpr int window_size = impl_type::window_size;
@@ -438,7 +395,7 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
   using impl_type::initialize;
   using impl_type::num_windows;
   using impl_type::ref;
-  using impl_type::size;
+  using impl_type::windows;
 
   /**
    * @brief Constructs storage.

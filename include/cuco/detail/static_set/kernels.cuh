@@ -28,22 +28,68 @@ namespace experimental {
 namespace detail {
 
 /**
- * @brief Inserts all keys in the range `[first, first + size)`.
+ * @brief Inserts all elements in the range `[first, first + size)` and returns the number of
+ * successful insertions.
  *
- * If multiple keys in `[first, first + size)` compare equal, it is unspecified which
+ * If multiple elements in `[first, first + size)` compare equal, it is unspecified which
  * element is inserted.
  *
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the set's `value_type`
- * @tparam Reference Type of device reference allowing access of set storage
+ * @tparam Reference Type of device reference allowing access of storage
  *
- * @param first Beginning of the sequence of key/value pairs
- * @param n Number of key/value pairs
- * @param set_ref Set device reference used to access the set's slot storage
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param num_successes Number of successful inserted elements
+ * @param set_ref Set device reference used to access the slot storage
  */
 template <int32_t BlockSize, typename InputIterator, typename Reference>
-__global__ void insert(InputIterator first, cuco::detail::index_type n, Reference set_ref)
+__global__ void insert(InputIterator first,
+                       cuco::detail::index_type n,
+                       typename Reference::size_type* num_successes,
+                       Reference set_ref)
+{
+  using BlockReduce = cub::BlockReduce<typename Reference::size_type, BlockSize>;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  typename Reference::size_type thread_num_successes = 0;
+
+  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
+  cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
+
+  while (idx < n) {
+    typename Reference::value_type const insert_pair{*(first + idx)};
+    if (set_ref.insert(insert_pair)) { thread_num_successes++; };
+    idx += loop_stride;
+  }
+
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  typename Reference::size_type block_num_successes =
+    BlockReduce(temp_storage).Sum(thread_num_successes);
+  if (threadIdx.x == 0) {
+    cuda::atomic_ref<typename Reference::size_type, Reference::scope> count_ref(*num_successes);
+    count_ref.fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
+  }
+}
+
+/**
+ * @brief Inserts all elements in the range `[first, first + size)`.
+ *
+ * If multiple elements in `[first, first + size)` compare equal, it is unspecified which
+ * element is inserted.
+ *
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIterator Device accessible input iterator whose `value_type` is
+ * convertible to the set's `value_type`
+ * @tparam Reference Type of device reference allowing access of storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param set_ref Set device reference used to access the slot storage
+ */
+template <int32_t BlockSize, typename InputIterator, typename Reference>
+__global__ void insert_async(InputIterator first, cuco::detail::index_type n, Reference set_ref)
 {
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
   cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
@@ -56,23 +102,73 @@ __global__ void insert(InputIterator first, cuco::detail::index_type n, Referenc
 }
 
 /**
- * @brief Inserts all keys in the range `[first, first + size)`.
+ * @brief Inserts all elements in the range `[first, first + size)` and returns the number of
+ * successful insertions.
  *
- * If multiple keys in `[first, first + size)` compare equal, it is unspecified which
+ * If multiple elements in `[first, first + size)` compare equal, it is unspecified which
  * element is inserted.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the set's `value_type`
- * @tparam Reference Type of device reference allowing access of set storage
+ * @tparam Reference Type of device reference allowing access of storage
  *
- * @param first Beginning of the sequence of key/value pairs
- * @param n Number of key/value pairs
- * @param set_ref Set device reference used to access the set's slot storage
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param num_successes Number of successful inserted elements
+ * @param set_ref Set device reference used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Reference>
-__global__ void insert(InputIterator first, cuco::detail::index_type n, Reference set_ref)
+__global__ void insert(InputIterator first,
+                       cuco::detail::index_type n,
+                       typename Reference::size_type* num_successes,
+                       Reference set_ref)
+{
+  namespace cg = cooperative_groups;
+
+  using BlockReduce = cub::BlockReduce<typename Reference::size_type, BlockSize>;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  typename Reference::size_type thread_num_successes = 0;
+
+  auto tile                                  = cg::tiled_partition<CGSize>(cg::this_thread_block());
+  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
+  cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
+
+  while (idx < n) {
+    typename Reference::value_type const insert_pair{*(first + idx)};
+    if (set_ref.insert(tile, insert_pair) && tile.thread_rank() == 0) { thread_num_successes++; };
+    idx += loop_stride;
+  }
+
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  typename Reference::size_type block_num_successes =
+    BlockReduce(temp_storage).Sum(thread_num_successes);
+  if (threadIdx.x == 0) {
+    cuda::atomic_ref<typename Reference::size_type, Reference::scope> count_ref(*num_successes);
+    count_ref.fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
+  }
+}
+
+/**
+ * @brief Inserts all elements in the range `[first, first + size)`.
+ *
+ * If multiple elements in `[first, first + size)` compare equal, it is unspecified which
+ * element is inserted.
+ *
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIterator Device accessible input iterator whose `value_type` is
+ * convertible to the set's `value_type`
+ * @tparam Reference Type of device reference allowing access of storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param set_ref Set device reference used to access the slot storage
+ */
+template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Reference>
+__global__ void insert_async(InputIterator first, cuco::detail::index_type n, Reference set_ref)
 {
   namespace cg = cooperative_groups;
 
@@ -194,6 +290,25 @@ __global__ void contains(InputIt first,
     idx += loop_stride;
   }
 }
+
+// template <int32_t BlockSize,
+//           typename OutputIt
+//           typename StorageReference>
+// __global__ void size(OutputIt output,
+//                      StorageReference storage_ref)
+// {
+//   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
+//   cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
+
+//   typename StorageRef::size_type thread_count = 0;
+
+//   while (idx < StorageRef::num_windows) {
+//     typename Reference::value_type const insert_pair{*(first + idx)};
+//     set_ref.insert(insert_pair);
+//     idx += loop_stride;
+//   }
+// }
+
 }  // namespace detail
 }  // namespace experimental
 }  // namespace cuco
