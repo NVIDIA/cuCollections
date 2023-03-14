@@ -32,7 +32,7 @@ namespace detail {
  * @param size Size of the storage pointed to by `slots`
  */
 template <int32_t WindowSize, typename WindowT>
-__global__ void initialize(WindowT* windows, typename WindowT::value_type k, std::size_t size)
+__global__ void initialize(WindowT* windows, typename WindowT::value_type value, std::size_t size)
 {
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   while (tid < size) {

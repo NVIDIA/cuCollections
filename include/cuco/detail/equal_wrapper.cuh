@@ -31,7 +31,7 @@ enum class equal_result : int32_t { UNEQUAL = 0, EMPTY = 1, EQUAL = 2 };
 /**
  * @brief Equality wrapper.
  *
- * User-provided equality binary callable cannot be used to compared against sentinel value.
+ * User-provided equality binary callable cannot be used to compare against sentinel value.
  *
  * @tparam T Right-hand side Element type
  * @tparam Equal Type of user-provided equality binary callable

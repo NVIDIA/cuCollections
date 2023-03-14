@@ -206,7 +206,7 @@ __global__ void contains(InputIt first,
 {
   namespace cg = cooperative_groups;
 
-  auto block            = cg::this_thread_block();
+  auto const block      = cg::this_thread_block();
   auto const thread_idx = block.thread_rank();
 
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
@@ -217,7 +217,7 @@ __global__ void contains(InputIt first,
     if (idx < n) {
       auto const key = *(first + idx);
       /*
-       * The ld.relaxed.gpu instruction used in view.find causes L1 to
+       * The ld.relaxed.gpu instruction used in this operation causes L1 to
        * flush more frequently, causing increased sector stores from L2 to global memory.
        * By writing results to shared memory and then synchronizing before writing back
        * to global, we no longer rely on L1, preventing the increase in sector stores from
