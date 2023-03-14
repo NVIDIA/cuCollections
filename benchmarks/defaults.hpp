@@ -32,7 +32,10 @@ auto constexpr MULTIPLICITY  = 8;
 auto constexpr MATCHING_RATE = 0.5;
 auto constexpr MAX_NOISE     = 3;
 auto constexpr SKEW          = 0.5;
+auto constexpr BATCH_SIZE    = 1'000'000;
+auto constexpr INITIAL_SIZE  = 50'000'000;
 
+auto const N_RANGE             = nvbench::range(10'000'000, 100'000'000, 20'000'000);
 auto const OCCUPANCY_RANGE     = nvbench::range(0.1, 0.9, 0.1);
 auto const MULTIPLICITY_RANGE  = std::vector<nvbench::int64_t>{1, 2, 4, 8, 16};
 auto const MATCHING_RATE_RANGE = nvbench::range(0.1, 1., 0.1);

@@ -71,7 +71,7 @@ Since `cuCollections` is header-only, there is nothing to build to use it.
 
 To build the tests, benchmarks, and examples:
 
-```
+```bash
 cd $CUCO_ROOT
 mkdir -p build
 cd build
@@ -189,6 +189,7 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 - [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/T49P85Mnd))
 - [Device-view APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/device_view_example.cu) (see [live example in godbolt](https://godbolt.org/z/dh8bMn3G1))
 - [Custom data types, key equality operators and hash functions](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/custom_type_example.cu) (see [live example in godbolt](https://godbolt.org/z/7djKevK6e))
+- [Key histogram](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/count_by_key_example.cu) (see [live example in godbolt](https://godbolt.org/z/vecGeYM48))
 
 ### `static_multimap`
 
