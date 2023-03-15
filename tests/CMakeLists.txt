@@ -40,7 +40,7 @@ function(ConfigureTest TEST_NAME)
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     target_compile_options(${TEST_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
       --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)
-    catch_discover_tests(${TEST_NAME})
+    catch_discover_tests(${TEST_NAME} EXTRA_ARGS --allow-running-no-tests)
 endfunction(ConfigureTest)
 
 ###################################################################################################
