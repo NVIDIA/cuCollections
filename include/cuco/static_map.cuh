@@ -16,13 +16,13 @@
 
 #pragma once
 
-#include <cuco/allocator.hpp>
 #include <cuco/detail/__config>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/traits.hpp>
+#include <cuco/utility/allocator.hpp>
 #include <cuco/utility/error.hpp>
 
 #include <thrust/functional.h>

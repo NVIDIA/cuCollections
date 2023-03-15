@@ -16,13 +16,13 @@
 
 #pragma once
 
-#include <cuco/allocator.hpp>
 #include <cuco/detail/__config>
 #include <cuco/detail/prime.hpp>
 #include <cuco/hash_functions.cuh>
 #include <cuco/probe_sequences.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/traits.hpp>
+#include <cuco/utility/allocator.hpp>
 #include <cuco/utility/error.hpp>
 
 #include <thrust/functional.h>
