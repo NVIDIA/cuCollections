@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/utility/error.hpp>
+#include <cuco/detail/error.hpp>
 #include <cuco/utility/key_generator.hpp>
 
 #include <nvbench/nvbench.cuh>
