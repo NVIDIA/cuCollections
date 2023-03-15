@@ -270,7 +270,8 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
    */
   [[nodiscard]] __device__ inline constexpr window_type window(size_type index) const noexcept
   {
-    return *reinterpret_cast<window_type*>(__builtin_assume_aligned(windows_ + index, sizeof(value_type)*window_size));
+    return *reinterpret_cast<window_type*>(
+      __builtin_assume_aligned(windows_ + index, sizeof(value_type) * window_size));
   }
 
  private:
