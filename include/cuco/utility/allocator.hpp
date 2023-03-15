@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/utility/error.hpp>
+#include <cuco/detail/error.hpp>
 
 namespace cuco {
 /**

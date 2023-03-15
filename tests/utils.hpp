@@ -18,7 +18,7 @@
 
 #include <utils.cuh>
 
-#include <cuco/utility/error.hpp>
+#include <cuco/detail/error.hpp>
 
 #include <thrust/functional.h>
 

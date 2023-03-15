@@ -21,9 +21,8 @@
 #include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/sentinel.cuh>
-#include <cuco/traits.hpp>
 #include <cuco/utility/allocator.hpp>
-#include <cuco/utility/error.hpp>
+#include <cuco/utility/traits.hpp>
 
 #include <thrust/functional.h>
 
