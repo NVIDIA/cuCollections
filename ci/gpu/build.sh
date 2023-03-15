@@ -64,7 +64,6 @@ else
     gpuci_logger "Check GPU usage"
     nvidia-smi
     cd ${WORKSPACE}/build/tests
-    ./STATIC_SET_TEST
     ctest .
 
     # This block may provide more verbose testing output since each test is ran individually
