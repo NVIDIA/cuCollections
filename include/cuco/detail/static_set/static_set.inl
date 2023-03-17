@@ -139,6 +139,21 @@ template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream) const
 {
+  contains_async(first, last, output_begin, stream);
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename OutputIt>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_async(
+  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream) const
+{
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
 

@@ -149,6 +149,9 @@ class static_set {
    * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
    * insertions.
    *
+   * @note This function synchonizes with the host thread. For asynchronous execution use
+   * `insert_async`.
+   *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
    * static_set<K>::value_type></tt> is `true`
@@ -179,7 +182,8 @@ class static_set {
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set.
    *
-   * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
+   * @note This function synchonizes with the host thread. For asynchronous execution use
+   * `contains_async`.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator assignable from `bool`
@@ -194,6 +198,23 @@ class static_set {
                 InputIt last,
                 OutputIt output_begin,
                 cudaStream_t stream = nullptr) const;
+
+  /**
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the set.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void contains_async(InputIt first,
+                      InputIt last,
+                      OutputIt output_begin,
+                      cudaStream_t stream = nullptr) const;
 
   /**
    * @brief Gets the number of elements in the container.
