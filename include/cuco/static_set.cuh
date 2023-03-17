@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <cuco/allocator.hpp>
 #include <cuco/detail/__config>
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/storage.cuh>
@@ -26,7 +25,8 @@
 #include <cuco/sentinel.cuh>
 #include <cuco/static_set_ref.cuh>
 #include <cuco/storage.cuh>
-#include <cuco/traits.hpp>
+#include <cuco/utility/allocator.hpp>
+#include <cuco/utility/traits.hpp>
 
 #include <thrust/functional.h>
 

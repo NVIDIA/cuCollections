@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <cuco/allocator.hpp>
 #include <cuco/detail/common_kernels.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>

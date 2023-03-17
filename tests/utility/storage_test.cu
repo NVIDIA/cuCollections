@@ -16,9 +16,9 @@
 
 #include <utils.hpp>
 
-#include <cuco/allocator.hpp>
 #include <cuco/detail/storage.cuh>
 #include <cuco/extent.cuh>
+#include <cuco/utility/allocator.hpp>
 
 #include <catch2/catch_template_test_macros.hpp>
 
