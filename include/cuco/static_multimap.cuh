@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,13 @@
 
 #pragma once
 
-#include <cuco/allocator.hpp>
 #include <cuco/detail/__config>
-#include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
 #include <cuco/hash_functions.cuh>
 #include <cuco/probe_sequences.cuh>
 #include <cuco/sentinel.cuh>
-#include <cuco/traits.hpp>
+#include <cuco/utility/allocator.hpp>
+#include <cuco/utility/traits.hpp>
 
 #include <thrust/functional.h>
 

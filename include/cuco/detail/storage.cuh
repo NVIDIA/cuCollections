@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <cuco/allocator.hpp>
 #include <cuco/detail/common_kernels.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/pair.cuh>
@@ -270,7 +269,8 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
    */
   [[nodiscard]] __device__ inline constexpr window_type window(size_type index) const noexcept
   {
-    return *(windows_ + index);
+    return *reinterpret_cast<window_type*>(
+      __builtin_assume_aligned(windows_ + index, sizeof(value_type) * window_size));
   }
 
  private:

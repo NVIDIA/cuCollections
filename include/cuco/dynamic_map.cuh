@@ -17,7 +17,6 @@
 #pragma once
 
 #include <cuco/detail/dynamic_map_kernels.cuh>
-#include <cuco/detail/error.hpp>
 #include <cuco/hash_functions.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/static_map.cuh>
