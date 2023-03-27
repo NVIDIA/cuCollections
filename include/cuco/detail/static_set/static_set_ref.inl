@@ -79,23 +79,6 @@ static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::e
   return empty_key_sentinel_;
 }
 
-template <typename Key,
-          cuda::thread_scope Scope,
-          typename KeyEqual,
-          typename ProbingScheme,
-          typename StorageRef,
-          typename... Operators>
-template <typename... NewOperators>
-auto static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
-  NewOperators...) && noexcept
-{
-  return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>(
-    std::move(this->empty_key_sentinel_),
-    std::move(this->predicate_.equal_),
-    std::move(this->probing_scheme_),
-    std::move(this->storage_ref_));
-}
-
 namespace detail {
 
 template <typename Key,

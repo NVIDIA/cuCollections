@@ -83,23 +83,6 @@ class static_set_ref
    */
   [[nodiscard]] __host__ __device__ inline constexpr key_type empty_key_sentinel() const noexcept;
 
-  /**
-   * @brief Create a reference with new operators from the current object.
-   *
-   * Note that this function uses move semantics and thus invalidates the current object.
-   *
-   * @warning Using two or more reference objects to the same container but with
-   * a different set of operators concurrently is undefined behavior.
-   *
-   * @tparam NewOperators List of `cuco::op::*_tag` types
-   *
-   * @param ops List of operators, e.g., `cuco::insert`
-   *
-   * @return copy of `*this` with `NewOperators...`
-   */
-  template <typename... NewOperators>
-  [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
-
  private:
   cuco::empty_key<key_type> empty_key_sentinel_;            ///< Empty key sentinel
   detail::equal_wrapper<value_type, key_equal> predicate_;  ///< Key equality binary callable

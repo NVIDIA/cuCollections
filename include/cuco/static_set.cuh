@@ -100,12 +100,13 @@ class static_set {
 
   using storage_ref_type    = typename storage_type::ref_type;  ///< Window storage reference type
   using probing_scheme_type = ProbingScheme;                    ///< Probe scheme type
-  using ref_type =
-    cuco::experimental::static_set_ref<key_type,
-                                       thread_scope,
-                                       key_equal,
-                                       probing_scheme_type,
-                                       storage_ref_type>;  ///< Container reference type
+  template <typename... Operators>
+  using ref_type = cuco::experimental::static_set_ref<key_type,
+                                                      thread_scope,
+                                                      key_equal,
+                                                      probing_scheme_type,
+                                                      storage_ref_type,
+                                                      Operators...>;  ///< Container reference type
 
   static_set(static_set const&) = delete;
   static_set& operator=(static_set const&) = delete;
@@ -239,26 +240,16 @@ class static_set {
   [[nodiscard]] constexpr key_type empty_key_sentinel() const noexcept;
 
   /**
-   * @brief Get device reference with operators.
+   * @brief Get device ref with operators.
    *
-   * @tparam Operators Set of `cuco::op` to be provided by the reference
+   * @tparam Operators Set of `cuco::op` to be provided by the ref
    *
    * @param ops List of operators, e.g., `cuco::insert`
    *
-   * @return Device reference of the current `static_set` object
+   * @return Device ref of the current `static_set` object
    */
   template <typename... Operators>
   [[nodiscard]] auto ref_with(Operators... ops) const noexcept;
-
-  /**
-   * @brief Get device reference.
-   *
-   * @warning Using two or more reference objects to the same container but with
-   * a different set of operators concurrently is undefined behavior.
-   *
-   * @return Device reference of the current `static_set` object
-   */
-  [[nodiscard]] auto ref() const noexcept;
 
  private:
   key_type empty_key_sentinel_;         ///< Key value that represents an empty slot

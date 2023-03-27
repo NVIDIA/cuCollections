@@ -250,26 +250,9 @@ template <typename... Operators>
 auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref_with(
   Operators...) const noexcept
 {
-  return static_set_ref<key_type,
-                        thread_scope,
-                        key_equal,
-                        probing_scheme_type,
-                        storage_ref_type,
-                        Operators...>{
+  static_assert(sizeof...(Operators), "set ref operator not specified");
+  return ref_type<Operators...>{
     cuco::empty_key<key_type>(empty_key_sentinel_), predicate_, probing_scheme_, storage_.ref()};
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref()
-  const noexcept
-{
-  return ref_with();
 }
 }  // namespace experimental
 }  // namespace cuco

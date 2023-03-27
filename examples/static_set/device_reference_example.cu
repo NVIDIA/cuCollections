@@ -28,16 +28,11 @@
 
 // insert a set of keys into a hash set using one cooperative group for each task
 template <typename SetRef, typename InputIterator>
-__global__ void custom_cooperative_insert(SetRef raw_set, InputIterator keys, std::size_t n)
+__global__ void custom_cooperative_insert(SetRef set, InputIterator keys, std::size_t n)
 {
   namespace cg = cooperative_groups;
 
   constexpr auto cg_size = SetRef::cg_size;
-
-  // `raw_set` does not have any operators defined so we need to construct
-  // a new reference from it with the desired `insert` operator.
-  // Note that this invalidates `raw_set` to prevent concurrent use with `set`.
-  auto set = std::move(raw_set).with(cuco::experimental::insert);
 
   auto tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
 
@@ -98,7 +93,8 @@ int main(void)
   set.insert(keys.begin(), keys.begin() + num_keys / 2);
 
   // Insert the second half of keys using a custom CUDA kernel.
-  custom_cooperative_insert<<<128, 128>>>(set.ref(), keys.begin() + num_keys / 2, num_keys / 2);
+  custom_cooperative_insert<<<128, 128>>>(
+    set.ref_with(cuco::experimental::insert), keys.begin() + num_keys / 2, num_keys / 2);
 
   // Storage for result
   thrust::device_vector<bool> found(num_keys);
