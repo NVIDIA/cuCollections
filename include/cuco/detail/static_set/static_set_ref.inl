@@ -222,13 +222,31 @@ class operator_impl<op::insert_tag,
       if constexpr (sizeof(value_type) == sizeof(uint32_t)) {
         auto* expected_ptr = reinterpret_cast<unsigned int*>(&expected);
         auto* value_ptr    = reinterpret_cast<unsigned int*>(&val);
-        return atomicCAS(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
+        if constexpr (Scope == cuda::thread_scope_system) {
+          return atomicCAS_system(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
+        }
+        if constexpr (Scope == cuda::thread_scope_device) {
+          return atomicCAS(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
+        }
+        if constexpr (Scope == cuda::thread_scope_block) {
+          return atomicCAS_block(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
+        }
       }
       if constexpr (sizeof(value_type) == sizeof(uint64_t)) {
         auto* expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
         auto* value_ptr    = reinterpret_cast<unsigned long long int*>(&val);
-        return atomicCAS(
-          reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
+        if constexpr (Scope == cuda::thread_scope_system) {
+          return atomicCAS_system(
+            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
+        }
+        if constexpr (Scope == cuda::thread_scope_device) {
+          return atomicCAS(
+            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
+        }
+        if constexpr (Scope == cuda::thread_scope_block) {
+          return atomicCAS_block(
+            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
+        }
       }
     }();
     if (*slot == old) {
