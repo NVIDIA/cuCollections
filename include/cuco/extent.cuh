@@ -66,10 +66,10 @@ struct extent {
     auto constexpr size = SDIV(N, CGSize * WindowSize);
     if (size <= 0 or size > max_value) { CUCO_FAIL("Invalid input extent"); }
     return extent<value_type,
-                  static_cast<value_type>(*cuco::detail::lower_bound(cuco::detail::primes.begin(),
-                                                                     cuco::detail::primes.end(),
-                                                                     static_cast<uint64_t>(size)) *
-                                          CGSize)>{};
+                  static_cast<std::size_t>(*cuco::detail::lower_bound(cuco::detail::primes.begin(),
+                                                                      cuco::detail::primes.end(),
+                                                                      static_cast<uint64_t>(size)) *
+                                           CGSize)>{};
   }
 
   /**
