@@ -94,7 +94,7 @@ int main(void)
 
   // Insert the second half of keys using a custom CUDA kernel.
   custom_cooperative_insert<<<128, 128>>>(
-    set.ref_with(cuco::experimental::insert), keys.begin() + num_keys / 2, num_keys / 2);
+    set.ref(cuco::experimental::insert), keys.begin() + num_keys / 2, num_keys / 2);
 
   // Storage for result
   thrust::device_vector<bool> found(num_keys);
@@ -105,7 +105,7 @@ int main(void)
   // a different set of operators concurrently is undefined behavior.
   // This does not apply here since the two kernels do not overlap.
   custom_contains<<<128, 128>>>(
-    set.ref_with(cuco::experimental::contains), keys.begin(), num_keys, found.begin());
+    set.ref(cuco::experimental::contains), keys.begin(), num_keys, found.begin());
 
   // Verify that all keys have been found
   bool const all_keys_found = thrust::all_of(found.begin(), found.end(), thrust::identity<bool>());

@@ -83,11 +83,11 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ins
   if constexpr (cg_size == 1) {
     detail::insert<detail::CUCO_DEFAULT_BLOCK_SIZE>
       <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-        first, num_keys, d_num_successes, ref_with(op::insert));
+        first, num_keys, d_num_successes, ref(op::insert));
   } else {
     detail::insert<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
       <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-        first, num_keys, d_num_successes, ref_with(op::insert));
+        first, num_keys, d_num_successes, ref(op::insert));
   }
 
   size_type h_num_successes;
@@ -119,12 +119,10 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 
   if constexpr (cg_size == 1) {
     detail::insert_async<detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-        first, num_keys, ref_with(op::insert));
+      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(first, num_keys, ref(op::insert));
   } else {
     detail::insert_async<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-        first, num_keys, ref_with(op::insert));
+      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(first, num_keys, ref(op::insert));
   }
 }
 
@@ -164,11 +162,11 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   if constexpr (cg_size == 1) {
     detail::contains<detail::CUCO_DEFAULT_BLOCK_SIZE>
       <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-        first, num_keys, output_begin, ref_with(op::contains));
+        first, num_keys, output_begin, ref(op::contains));
   } else {
     detail::contains<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
       <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-        first, num_keys, output_begin, ref_with(op::contains));
+        first, num_keys, output_begin, ref(op::contains));
   }
 }
 
@@ -247,7 +245,7 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename... Operators>
-auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref_with(
+auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref(
   Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "set ref operator not specified");

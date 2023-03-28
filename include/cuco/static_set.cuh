@@ -249,7 +249,7 @@ class static_set {
    * @return Device ref of the current `static_set` object
    */
   template <typename... Operators>
-  [[nodiscard]] auto ref_with(Operators... ops) const noexcept;
+  [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
  private:
   key_type empty_key_sentinel_;         ///< Key value that represents an empty slot

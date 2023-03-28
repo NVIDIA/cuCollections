@@ -43,7 +43,7 @@ TEST_CASE("Static set capacity", "")
     auto const capacity = set.capacity();
     STATIC_REQUIRE(capacity == gold_capacity);
 
-    auto ref                = set.ref_with(cuco::experimental::insert);
+    auto ref                = set.ref(cuco::experimental::insert);
     auto const ref_capacity = ref.capacity();
     STATIC_REQUIRE(ref_capacity == gold_capacity);
   }
@@ -63,7 +63,7 @@ TEST_CASE("Static set capacity", "")
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);
 
-    auto ref                = set.ref_with(cuco::experimental::insert);
+    auto ref                = set.ref(cuco::experimental::insert);
     auto const ref_capacity = ref.capacity();
     REQUIRE(ref_capacity == gold_capacity);
   }
@@ -83,7 +83,7 @@ TEST_CASE("Static set capacity", "")
     auto const capacity = set.capacity();
     STATIC_REQUIRE(capacity == gold_capacity);
 
-    auto ref                = set.ref_with(cuco::experimental::insert);
+    auto ref                = set.ref(cuco::experimental::insert);
     auto const ref_capacity = ref.capacity();
     STATIC_REQUIRE(ref_capacity == gold_capacity);
   }
@@ -105,7 +105,7 @@ TEST_CASE("Static set capacity", "")
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);
 
-    auto ref                = set.ref_with(cuco::experimental::insert);
+    auto ref                = set.ref(cuco::experimental::insert);
     auto const ref_capacity = ref.capacity();
     REQUIRE(ref_capacity == gold_capacity);
   }
