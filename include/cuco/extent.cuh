@@ -56,7 +56,7 @@ struct extent {
    * @return Resulting valid static extent
    */
   template <int32_t CGSize, int32_t WindowSize>
-  [[nodiscard]] constexpr auto valid_extent() const noexcept
+  [[nodiscard]] constexpr auto valid_extent() const
   {
     auto constexpr max_prime = cuco::detail::primes.back();
     auto constexpr max_value =
@@ -64,8 +64,7 @@ struct extent {
         ? std::numeric_limits<value_type>::max()
         : static_cast<value_type>(max_prime);
     auto constexpr size = SDIV(N, CGSize * WindowSize);
-    // TODO: conflict deduced return type
-    // if (size <= 0 or size > max_value) {return extent<value_type, 0>{};}
+    if (size <= 0 or size > max_value) { CUCO_FAIL("Invalid input extent"); }
     return extent<value_type,
                   static_cast<value_type>(*cuco::detail::lower_bound(cuco::detail::primes.begin(),
                                                                      cuco::detail::primes.end(),
