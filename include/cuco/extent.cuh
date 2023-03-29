@@ -48,31 +48,6 @@ struct extent {
   __host__ __device__ constexpr operator value_type() const noexcept { return N; }
 
   /**
-   * @brief Computes valid extent based on given parameters.
-   *
-   * @tparam CGSize Number of elements handled per CG
-   * @tparam WindowSize Number of elements handled per Window
-   *
-   * @return Resulting valid static extent
-   */
-  template <int32_t CGSize, int32_t WindowSize>
-  [[nodiscard]] constexpr auto valid_extent() const
-  {
-    auto constexpr max_prime = cuco::detail::primes.back();
-    auto constexpr max_value =
-      (static_cast<uint64_t>(std::numeric_limits<value_type>::max()) < max_prime)
-        ? std::numeric_limits<value_type>::max()
-        : static_cast<value_type>(max_prime);
-    auto constexpr size = SDIV(N, CGSize * WindowSize);
-    if (size <= 0 or size > max_value) { CUCO_FAIL("Invalid input extent"); }
-    return extent<value_type,
-                  static_cast<std::size_t>(*cuco::detail::lower_bound(cuco::detail::primes.begin(),
-                                                                      cuco::detail::primes.end(),
-                                                                      static_cast<uint64_t>(size)) *
-                                           CGSize)>{};
-  }
-
-  /**
    * @brief Multiplies the current extent with the given `Value`.
    *
    * @tparam Value The input value to multiply with
@@ -110,30 +85,6 @@ struct extent<SizeType, dynamic_extent> {
   __host__ __device__ constexpr operator value_type() const noexcept { return value_; }
 
   /**
-   * @brief Computes valid extent based on given parameters.
-   *
-   * @tparam CGSize Number of elements handled per CG
-   * @tparam WindowSize Number of elements handled per Window
-   *
-   * @return Resulting valid dynamic extent
-   */
-  template <int32_t CGSize, int32_t WindowSize>
-  [[nodiscard]] constexpr auto valid_extent() const noexcept
-  {
-    auto constexpr max_prime = cuco::detail::primes.back();
-    auto constexpr max_value =
-      (static_cast<uint64_t>(std::numeric_limits<value_type>::max()) < max_prime)
-        ? std::numeric_limits<value_type>::max()
-        : static_cast<value_type>(max_prime);
-    auto const size = SDIV(value_, CGSize * WindowSize);
-    if (size <= 0 or size > max_value) { return extent<value_type>{0}; }
-    return extent<value_type>{static_cast<value_type>(
-      *cuco::detail::lower_bound(
-        cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
-      CGSize)};
-  }
-
-  /**
    * @brief Multiplies the current extent with the given `Value`.
    *
    * @tparam Value The input value to multiply with
@@ -149,5 +100,44 @@ struct extent<SizeType, dynamic_extent> {
  private:
   value_type value_;  ///< Size of extent
 };
+
+/**
+ * @brief Computes valid extent based on given parameters.
+ *
+ * @tparam CGSize Number of elements handled per CG
+ * @tparam WindowSize Number of elements handled per Window
+ * @tparam SizeType Size type
+ * @tparam N Extent
+ *
+ * @throw If the input extent is invalid
+ *
+ * @return Resulting valid extent
+ */
+template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
+[[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
+{
+  auto constexpr max_prime = cuco::detail::primes.back();
+  auto constexpr max_value =
+    (static_cast<uint64_t>(std::numeric_limits<SizeType>::max()) < max_prime)
+      ? std::numeric_limits<SizeType>::max()
+      : static_cast<SizeType>(max_prime);
+  auto const size = SDIV(ext, CGSize * WindowSize);
+  if (size <= 0 or size > max_value) { CUCO_FAIL("Invalid input extent"); }
+
+  if constexpr (N == dynamic_extent) {
+    return extent<SizeType>{static_cast<SizeType>(
+      *cuco::detail::lower_bound(
+        cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
+      CGSize)};
+  }
+  if constexpr (N != dynamic_extent) {
+    return extent<SizeType,
+                  static_cast<std::size_t>(*cuco::detail::lower_bound(cuco::detail::primes.begin(),
+                                                                      cuco::detail::primes.end(),
+                                                                      static_cast<uint64_t>(size)) *
+                                           CGSize)>{};
+  }
+}
+
 }  // namespace experimental
 }  // namespace cuco

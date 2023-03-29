@@ -89,8 +89,7 @@ class static_set {
   using key_type   = Key;  ///< Key type
   using value_type = Key;  ///< Key type
   /// Extent type
-  using extent_type =
-    decltype(std::declval<Extent>().template valid_extent<cg_size, window_size>());
+  using extent_type    = decltype(make_valid_extent<cg_size, window_size>(std::declval<Extent>()));
   using size_type      = typename extent_type::value_type;  ///< Size type
   using key_equal      = KeyEqual;                          ///< Key equality comparator type
   using allocator_type = Allocator;                         ///< Allocator type

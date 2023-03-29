@@ -49,7 +49,7 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
     predicate_{pred},
     probing_scheme_{probing_scheme},
     allocator_{alloc},
-    storage_{capacity.template valid_extent<cg_size, window_size>(), allocator_}
+    storage_{make_valid_extent<cg_size, window_size>(capacity), allocator_}
 {
   storage_.initialize(empty_key_sentinel_, stream);
 }
