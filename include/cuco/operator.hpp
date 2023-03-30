@@ -19,10 +19,15 @@
 namespace cuco {
 namespace experimental {
 inline namespace op {
-
+/**
+ * @brief `insert` operator tag
+ */
 struct insert_tag {
 } inline constexpr insert;
 
+/**
+ * @brief `contains` operator tag
+ */
 struct contains_tag {
 } inline constexpr contains;
 

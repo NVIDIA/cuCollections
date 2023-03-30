@@ -44,15 +44,11 @@ namespace experimental {
 /**
  * @brief A GPU-accelerated, unordered, associative container of unique keys.
  *
- * Allows constant time concurrent inserts or concurrent find operations from threads in device
- * code. Concurrent insert/find is allowed only when
- * <tt>static_set<Key>::supports_concurrent_insert_find()</tt> is true.
- *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
  * @tparam Scope The scope in which set operations will be performed by individual threads
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme chosen between `cuco::linear_probing`
- * and `cuco::double_hashing`. (see `detail/probe_sequences.cuh`)
+ * and `cuco::double_hashing`. (see `probing_scheme.cuh`)
  * @tparam Allocator Type of allocator used for device storage
  * @tparam Storage Slot window storage type
  */
@@ -123,7 +119,7 @@ class static_set {
    * @brief Construct a statically-sized set with the specified initial capacity,
    * sentinel values and CUDA stream.
    *
-   * The capacity of the set is fixed. Insert operations will not automatically
+   * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the window size and it's computed via `make_valid_extent` factory. Insert operations will not automatically
    * grow the set. Attempting to insert more unique keys than the capacity of
    * the map results in undefined behavior.
    *
@@ -148,7 +144,7 @@ class static_set {
    * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
    * insertions.
    *
-   * @note This function synchonizes with the host thread. For asynchronous execution use
+   * @note This function synchronizes the given stream. For asynchronous execution use
    * `insert_async`.
    *
    * @tparam InputIt Device accessible random access input iterator where
@@ -165,7 +161,7 @@ class static_set {
   size_type insert(InputIt first, InputIt last, cudaStream_t stream = nullptr);
 
   /**
-   * @brief Inserts all keys in the range `[first, last)`.
+   * @brief Inserts all keys in the range `[first, last)` asynchronously.
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -181,7 +177,7 @@ class static_set {
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set.
    *
-   * @note This function synchonizes with the host thread. For asynchronous execution use
+   * @note This function synchronizes the given stream. For asynchronous execution use
    * `contains_async`.
    *
    * @tparam InputIt Device accessible input iterator
@@ -254,7 +250,7 @@ class static_set {
   key_equal predicate_;                 ///< Key equality binary predicate
   probing_scheme_type probing_scheme_;  ///< Probing scheme
   allocator_type allocator_;            ///< Allocator used to (de)allocate temporary storage
-  storage_type storage_;                ///< Flat slot storage
+  storage_type storage_;                ///< Slot window storage
 };
 
 }  // namespace experimental

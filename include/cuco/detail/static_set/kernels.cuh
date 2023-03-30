@@ -28,7 +28,7 @@ namespace experimental {
 namespace detail {
 
 /**
- * @brief Inserts all elements in the range `[first, first + size)` and returns the number of
+ * @brief Inserts all elements in the range `[first, first + n)` and returns the number of
  * successful insertions.
  *
  * If multiple elements in `[first, first + size)` compare equal, it is unspecified which
@@ -37,7 +37,7 @@ namespace detail {
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the set's `value_type`
- * @tparam Reference Type of device reference allowing access of storage
+ * @tparam Reference Type of device reference allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
@@ -74,9 +74,9 @@ __global__ void insert(InputIterator first,
 }
 
 /**
- * @brief Inserts all elements in the range `[first, first + size)`.
+ * @brief Inserts all elements in the range `[first, first + n)`.
  *
- * If multiple elements in `[first, first + size)` compare equal, it is unspecified which
+ * If multiple elements in `[first, first + n)` compare equal, it is unspecified which
  * element is inserted.
  *
  * @tparam BlockSize Number of threads in each block
@@ -102,17 +102,17 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
 }
 
 /**
- * @brief Inserts all elements in the range `[first, first + size)` and returns the number of
+ * @brief Inserts all elements in the range `[first, first + n)` and returns the number of
  * successful insertions.
  *
- * If multiple elements in `[first, first + size)` compare equal, it is unspecified which
+ * If multiple elements in `[first, first + n)` compare equal, it is unspecified which
  * element is inserted.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the set's `value_type`
- * @tparam Reference Type of device reference allowing access of storage
+ * @tparam Reference Type of device reference allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
@@ -152,16 +152,16 @@ __global__ void insert(InputIterator first,
 }
 
 /**
- * @brief Inserts all elements in the range `[first, first + size)`.
+ * @brief Inserts all elements in the range `[first, first + n)`.
  *
- * If multiple elements in `[first, first + size)` compare equal, it is unspecified which
+ * If multiple elements in `[first, first + n)` compare equal, it is unspecified which
  * element is inserted.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the set's `value_type`
- * @tparam Reference Type of device reference allowing access of storage
+ * @tparam Reference Type of device reference allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
@@ -191,7 +191,7 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
  * @tparam BlockSize The size of the thread block
  * @tparam InputIt Device accessible input iterator
  * @tparam OutputIt Device accessible output iterator assignable from `bool`
- * @tparam Reference Type of device reference allowing access of set storage
+ * @tparam Reference Type of device reference allowing access to set storage
  *
  * @param first Beginning of the sequence of keys
  * @param n Number of keys
@@ -241,7 +241,7 @@ __global__ void contains(InputIt first,
  * @tparam BlockSize The size of the thread block
  * @tparam InputIt Device accessible input iterator
  * @tparam OutputIt Device accessible output iterator assignable from `bool`
- * @tparam Reference Type of device reference allowing access of set storage
+ * @tparam Reference Type of device reference allowing access to set storage
  *
  * @param first Beginning of the sequence of keys
  * @param n Number of keys

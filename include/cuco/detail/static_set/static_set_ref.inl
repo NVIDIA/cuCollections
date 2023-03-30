@@ -135,7 +135,7 @@ class operator_impl<op::insert_tag,
   /**
    * @brief Inserts an element.
    *
-   * @param g The Cooperative Group used to perform group insert
+   * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    * @return True if the given element is successfully inserted
    */

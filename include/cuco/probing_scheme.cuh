@@ -36,7 +36,7 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
   using probing_scheme_base_type::cg_size;
 
   /**
-   *@brief Constructs double hashing probing scheme with the two hasher callables.
+   *@brief Constructs linear probing scheme with the hasher callable.
    *
    * @param hash Hasher
    */
