@@ -119,9 +119,10 @@ class static_set {
    * @brief Construct a statically-sized set with the specified initial capacity,
    * sentinel values and CUDA stream.
    *
-   * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the window size and it's computed via `make_valid_extent` factory. Insert operations will not automatically
-   * grow the set. Attempting to insert more unique keys than the capacity of
-   * the map results in undefined behavior.
+   * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
+   * window size and it's computed via `make_valid_extent` factory. Insert operations will not
+   * automatically grow the set. Attempting to insert more unique keys than the capacity of the map
+   * results in undefined behavior.
    *
    * The `empty_key_sentinel` is reserved and behavior is undefined when attempting to insert
    * this sentinel value.
