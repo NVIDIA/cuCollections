@@ -81,7 +81,7 @@ class static_set_ref
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  [[nodiscard]] __host__ __device__ inline constexpr key_type empty_key_sentinel() const noexcept;
+  [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept;
 
  private:
   cuco::empty_key<key_type> empty_key_sentinel_;            ///< Empty key sentinel

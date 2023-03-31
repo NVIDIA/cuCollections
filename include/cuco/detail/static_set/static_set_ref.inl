@@ -72,7 +72,7 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
-__host__ __device__ inline constexpr Key
+__host__ __device__ constexpr Key
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::empty_key_sentinel()
   const noexcept
 {
@@ -104,7 +104,7 @@ class operator_impl<op::insert_tag,
    * @param value The element to insert
    * @return True if the given element is successfully inserted
    */
-  __device__ inline bool insert(value_type const& value) noexcept
+  __device__ bool insert(value_type const& value) noexcept
   {
     ref_type& ref_    = static_cast<ref_type&>(*this);
     auto probing_iter = ref_.probing_scheme_(value, ref_.storage_ref_.num_windows());
@@ -139,8 +139,8 @@ class operator_impl<op::insert_tag,
    * @param value The element to insert
    * @return True if the given element is successfully inserted
    */
-  __device__ inline bool insert(cooperative_groups::thread_block_tile<cg_size> group,
-                                value_type const& value) noexcept
+  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> group,
+                         value_type const& value) noexcept
   {
     auto& ref_        = static_cast<ref_type&>(*this);
     auto probing_iter = ref_.probing_scheme_(group, value, ref_.storage_ref_.num_windows());
@@ -197,7 +197,7 @@ class operator_impl<op::insert_tag,
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  __device__ inline insert_result attempt_insert(value_type* slot, value_type const& value)
+  __device__ insert_result attempt_insert(value_type* slot, value_type const& value)
   {
     return cas(slot, value);
   }
@@ -210,7 +210,7 @@ class operator_impl<op::insert_tag,
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  __device__ inline insert_result cas(value_type* slot, value_type const& value)
+  __device__ insert_result cas(value_type* slot, value_type const& value)
   {
     auto& ref_ = static_cast<ref_type&>(*this);
 
@@ -289,7 +289,7 @@ class operator_impl<op::contains_tag,
    * @return A boolean indicating whether the probe key is present
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ inline bool contains(ProbeKey const& key) const noexcept
+  [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
   {
     // CRTP: cast `this` to the actual reference type
     auto const& ref_ = static_cast<ref_type const&>(*this);
@@ -324,8 +324,8 @@ class operator_impl<op::contains_tag,
    * @return A boolean indicating whether the probe key is present
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ inline bool contains(
-    cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& key) const noexcept
+  [[nodiscard]] __device__ bool contains(cooperative_groups::thread_block_tile<cg_size> const& g,
+                                         ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
 

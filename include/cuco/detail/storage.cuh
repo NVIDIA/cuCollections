@@ -88,7 +88,7 @@ class storage_base {
    *
    * @return The total number of elements
    */
-  [[nodiscard]] __host__ __device__ inline constexpr extent_type capacity() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr extent_type capacity() const noexcept
   {
     return capacity_;
   }
@@ -134,7 +134,7 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
    *
    * @param stream CUDA stream used to reset
    */
-  inline void reset(cudaStream_t stream)
+  void reset(cudaStream_t stream)
   {
     static_assert(sizeof(size_type) == sizeof(counter_type));
     CUCO_CUDA_TRY(cudaMemsetAsync(counter_.get(), 0, sizeof(counter_type), stream));
@@ -145,14 +145,14 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
    *
    * @return Pointer to the counter
    */
-  [[nodiscard]] inline constexpr counter_type* get() noexcept { return counter_.get(); }
+  [[nodiscard]] constexpr counter_type* get() noexcept { return counter_.get(); }
 
   /**
    * @brief Gets counter array.
    *
    * @return Pointer to the counter
    */
-  [[nodiscard]] inline constexpr counter_type* get() const noexcept { return counter_.get(); }
+  [[nodiscard]] constexpr counter_type* get() const noexcept { return counter_.get(); }
 
  private:
   allocator_type allocator_;              ///< Allocator used to (de)allocate counter
@@ -195,7 +195,7 @@ class aow_storage_base : public storage_base<Extent> {
    *
    * @return The total number of slot windows
    */
-  [[nodiscard]] __host__ __device__ inline constexpr extent_type num_windows() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr extent_type num_windows() const noexcept
   {
     return storage_base<Extent>::capacity();
   }
@@ -205,7 +205,7 @@ class aow_storage_base : public storage_base<Extent> {
    *
    * @return The total number of slots
    */
-  [[nodiscard]] __host__ __device__ inline constexpr auto capacity() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept
   {
     return storage_base<Extent>::capacity().template multiply<window_size>();
   }
@@ -249,17 +249,14 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
    *
    * @return Pointer to the first window
    */
-  [[nodiscard]] __device__ inline constexpr window_type* windows() noexcept { return windows_; }
+  [[nodiscard]] __device__ constexpr window_type* windows() noexcept { return windows_; }
 
   /**
    * @brief Gets windows array.
    *
    * @return Pointer to the first window
    */
-  [[nodiscard]] __device__ inline constexpr window_type* windows() const noexcept
-  {
-    return windows_;
-  }
+  [[nodiscard]] __device__ constexpr window_type* windows() const noexcept { return windows_; }
 
   /**
    * @brief Returns an array of elements (window) for a given index.
@@ -267,7 +264,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
    * @param index Index of the first element of the window
    * @return An array of elements
    */
-  [[nodiscard]] __device__ inline constexpr window_type window(size_type index) const noexcept
+  [[nodiscard]] __device__ constexpr window_type window(size_type index) const noexcept
   {
     return *reinterpret_cast<window_type*>(
       __builtin_assume_aligned(windows_ + index, sizeof(value_type) * window_size));
@@ -338,14 +335,14 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
    *
    * @return Pointer to the first window
    */
-  [[nodiscard]] inline constexpr window_type* windows() const noexcept { return windows_.get(); }
+  [[nodiscard]] constexpr window_type* windows() const noexcept { return windows_.get(); }
 
   /**
    * @brief Gets window storage reference.
    *
    * @return Reference of window storage
    */
-  [[nodiscard]] inline constexpr ref_type ref() const noexcept
+  [[nodiscard]] constexpr ref_type ref() const noexcept
   {
     return ref_type{this->num_windows(), this->windows()};
   }
