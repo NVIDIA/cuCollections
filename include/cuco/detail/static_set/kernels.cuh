@@ -48,7 +48,7 @@ template <int32_t BlockSize, typename InputIterator, typename Reference>
 __global__ void insert(InputIterator first,
                        cuco::detail::index_type n,
                        typename Reference::size_type* num_successes,
-                       Reference set_ref)
+                       Reference ref)
 {
   using BlockReduce = cub::BlockReduce<typename Reference::size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
@@ -59,7 +59,7 @@ __global__ void insert(InputIterator first,
 
   while (idx < n) {
     typename Reference::value_type const insert_pair{*(first + idx)};
-    if (set_ref.insert(insert_pair)) { thread_num_successes++; };
+    if (ref.insert(insert_pair)) { thread_num_successes++; };
     idx += loop_stride;
   }
 
@@ -86,17 +86,17 @@ __global__ void insert(InputIterator first,
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
- * @param set_ref Set device reference used to access the slot storage
+ * @param ref Set device reference used to access the slot storage
  */
 template <int32_t BlockSize, typename InputIterator, typename Reference>
-__global__ void insert_async(InputIterator first, cuco::detail::index_type n, Reference set_ref)
+__global__ void insert_async(InputIterator first, cuco::detail::index_type n, Reference ref)
 {
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
   cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
 
   while (idx < n) {
     typename Reference::value_type const insert_pair{*(first + idx)};
-    set_ref.insert(insert_pair);
+    ref.insert(insert_pair);
     idx += loop_stride;
   }
 }
@@ -117,13 +117,13 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
  * @param num_successes Number of successful inserted elements
- * @param set_ref Set device reference used to access the slot storage
+ * @param ref Set device reference used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Reference>
 __global__ void insert(InputIterator first,
                        cuco::detail::index_type n,
                        typename Reference::size_type* num_successes,
-                       Reference set_ref)
+                       Reference ref)
 {
   namespace cg = cooperative_groups;
 
@@ -137,7 +137,7 @@ __global__ void insert(InputIterator first,
 
   while (idx < n) {
     typename Reference::value_type const insert_pair{*(first + idx)};
-    if (set_ref.insert(tile, insert_pair) && tile.thread_rank() == 0) { thread_num_successes++; };
+    if (ref.insert(tile, insert_pair) && tile.thread_rank() == 0) { thread_num_successes++; };
     idx += loop_stride;
   }
 
@@ -165,10 +165,10 @@ __global__ void insert(InputIterator first,
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
- * @param set_ref Set device reference used to access the slot storage
+ * @param ref Set device reference used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Reference>
-__global__ void insert_async(InputIterator first, cuco::detail::index_type n, Reference set_ref)
+__global__ void insert_async(InputIterator first, cuco::detail::index_type n, Reference ref)
 {
   namespace cg = cooperative_groups;
 
@@ -178,7 +178,7 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
 
   while (idx < n) {
     typename Reference::value_type const insert_pair{*(first + idx)};
-    set_ref.insert(tile, insert_pair);
+    ref.insert(tile, insert_pair);
     idx += loop_stride;
   }
 }
@@ -198,13 +198,13 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
  * @param first Beginning of the sequence of keys
  * @param n Number of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
- * @param set_ref Set device reference used to access the slot storage
+ * @param ref Set device reference used to access the slot storage
  */
 template <int32_t BlockSize, typename InputIt, typename OutputIt, typename Reference>
 __global__ void contains(InputIt first,
                          cuco::detail::index_type n,
                          OutputIt output_begin,
-                         Reference set_ref)
+                         Reference ref)
 {
   namespace cg = cooperative_groups;
 
@@ -225,7 +225,7 @@ __global__ void contains(InputIt first,
        * to global, we no longer rely on L1, preventing the increase in sector stores from
        * L2 to global and improving performance.
        */
-      output_buffer[thread_idx] = set_ref.contains(key);
+      output_buffer[thread_idx] = ref.contains(key);
     }
 
     block.sync();
@@ -250,7 +250,7 @@ __global__ void contains(InputIt first,
  * @param first Beginning of the sequence of keys
  * @param n Number of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
- * @param set_ref Set device reference used to access the slot storage
+ * @param ref Set device reference used to access the slot storage
  */
 template <int32_t CGSize,
           int32_t BlockSize,
@@ -260,7 +260,7 @@ template <int32_t CGSize,
 __global__ void contains(InputIt first,
                          cuco::detail::index_type n,
                          OutputIt output_begin,
-                         Reference set_ref)
+                         Reference ref)
 {
   namespace cg = cooperative_groups;
 
@@ -277,7 +277,7 @@ __global__ void contains(InputIt first,
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
     if (idx < n) {
       auto const key   = *(first + idx);
-      auto const found = set_ref.contains(tile, key);
+      auto const found = ref.contains(tile, key);
       /*
        * The ld.relaxed.gpu instruction used in view.find causes L1 to
        * flush more frequently, causing increased sector stores from L2 to global memory.
