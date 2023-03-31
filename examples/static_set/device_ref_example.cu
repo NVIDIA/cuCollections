@@ -52,7 +52,7 @@ __global__ void custom_contains(SetRef set, InputIterator keys, std::size_t n, O
   int64_t idx               = blockDim.x * blockIdx.x + threadIdx.x;
 
   while (idx < n) {
-    found[idx] = set.contains(*(keys + idx)) ? true : false;
+    found[idx] = set.contains(*(keys + idx));
     idx += loop_stride;
   }
 }

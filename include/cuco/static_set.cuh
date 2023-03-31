@@ -127,7 +127,7 @@ class static_set {
    * The `empty_key_sentinel` is reserved and behavior is undefined when attempting to insert
    * this sentinel value.
    *
-   * @param capacity The total number of slots in the set
+   * @param capacity The lower-bound set size requested by the user
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme

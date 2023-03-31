@@ -36,13 +36,13 @@ namespace detail {
  *
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
- * convertible to the set's `value_type`
+ * convertible to the `value_type` of the data structure
  * @tparam Reference Type of device reference allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
  * @param num_successes Number of successful inserted elements
- * @param set_ref Set device reference used to access the slot storage
+ * @param ref Device reference used to access the slot storage
  */
 template <int32_t BlockSize, typename InputIterator, typename Reference>
 __global__ void insert(InputIterator first,
@@ -81,7 +81,7 @@ __global__ void insert(InputIterator first,
  *
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
- * convertible to the set's `value_type`
+ * convertible to the `value_type` of the data structure
  * @tparam Reference Type of device reference allowing access of storage
  *
  * @param first Beginning of the sequence of input elements
@@ -111,7 +111,7 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
- * convertible to the set's `value_type`
+ * convertible to the `value_type` of the data structure
  * @tparam Reference Type of device reference allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
@@ -131,7 +131,7 @@ __global__ void insert(InputIterator first,
   __shared__ typename BlockReduce::TempStorage temp_storage;
   typename Reference::size_type thread_num_successes = 0;
 
-  auto tile                                  = cg::tiled_partition<CGSize>(cg::this_thread_block());
+  auto const tile                            = cg::tiled_partition<CGSize>(cg::this_thread_block());
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
   cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
 
@@ -160,7 +160,7 @@ __global__ void insert(InputIterator first,
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
- * convertible to the set's `value_type`
+ * convertible to the `value_type` of the data structure
  * @tparam Reference Type of device reference allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
@@ -184,19 +184,19 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
 }
 
 /**
- * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the map.
+ * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the data structure.
  *
- * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
+ * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the data structure.
  *
  * @tparam BlockSize The size of the thread block
  * @tparam InputIt Device accessible input iterator
  * @tparam OutputIt Device accessible output iterator assignable from `bool`
- * @tparam Reference Type of device reference allowing access to set storage
+ * @tparam Reference Type of device reference allowing access to the underlying storage
  *
  * @param first Beginning of the sequence of keys
  * @param n Number of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
- * @param set_ref Set device reference used to access the set's slot storage
+ * @param set_ref Set device reference used to access the slot storage
  */
 template <int32_t BlockSize, typename InputIt, typename OutputIt, typename Reference>
 __global__ void contains(InputIt first,
@@ -233,20 +233,20 @@ __global__ void contains(InputIt first,
 }
 
 /**
- * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the map.
+ * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the data structure.
  *
- * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
+ * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the data structure.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize The size of the thread block
  * @tparam InputIt Device accessible input iterator
  * @tparam OutputIt Device accessible output iterator assignable from `bool`
- * @tparam Reference Type of device reference allowing access to set storage
+ * @tparam Reference Type of device reference allowing access to the underlying storage
  *
  * @param first Beginning of the sequence of keys
  * @param n Number of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
- * @param set_ref Set device reference used to access the set's slot storage
+ * @param set_ref Set device reference used to access the slot storage
  */
 template <int32_t CGSize,
           int32_t BlockSize,
@@ -268,6 +268,7 @@ __global__ void contains(InputIt first,
   cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
 
   __shared__ bool output_buffer[BlockSize / CGSize];
+  auto const tile_idx = thread_idx / CGSize;
 
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
     if (idx < n) {
@@ -280,34 +281,16 @@ __global__ void contains(InputIt first,
        * to global, we no longer rely on L1, preventing the increase in sector stores from
        * L2 to global and improving performance.
        */
-      if (tile.thread_rank() == 0) { output_buffer[thread_idx / CGSize] = found; }
+      if (tile.thread_rank() == 0) { output_buffer[tile_idx] = found; }
     }
 
     block.sync();
     if (idx < n and tile.thread_rank() == 0) {
-      *(output_begin + idx) = output_buffer[thread_idx / CGSize];
+      *(output_begin + idx) = output_buffer[tile_idx];
     }
     idx += loop_stride;
   }
 }
-
-// template <int32_t BlockSize,
-//           typename OutputIt
-//           typename StorageReference>
-// __global__ void size(OutputIt output,
-//                      StorageReference storage_ref)
-// {
-//   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
-//   cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
-
-//   typename StorageRef::size_type thread_count = 0;
-
-//   while (idx < StorageRef::num_windows) {
-//     typename Reference::value_type const insert_pair{*(first + idx)};
-//     set_ref.insert(insert_pair);
-//     idx += loop_stride;
-//   }
-// }
 
 }  // namespace detail
 }  // namespace experimental
