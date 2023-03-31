@@ -116,8 +116,8 @@ class static_set {
   ~static_set()                       = default;
 
   /**
-   * @brief Construct a statically-sized set with the specified initial capacity,
-   * sentinel values and CUDA stream.
+   * @brief Constructs a statically-sized set with the specified initial capacity, sentinel values
+   * and CUDA stream.
    *
    * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
    * window size and it's computed via `make_valid_extent` factory. Insert operations will not
