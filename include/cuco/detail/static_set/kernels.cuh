@@ -184,9 +184,11 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
 }
 
 /**
- * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the data structure.
+ * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the data
+ * structure.
  *
- * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the data structure.
+ * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the data
+ * structure.
  *
  * @tparam BlockSize The size of the thread block
  * @tparam InputIt Device accessible input iterator
@@ -233,9 +235,11 @@ __global__ void contains(InputIt first,
 }
 
 /**
- * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the data structure.
+ * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the data
+ * structure.
  *
- * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the data structure.
+ * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the data
+ * structure.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize The size of the thread block
@@ -285,9 +289,7 @@ __global__ void contains(InputIt first,
     }
 
     block.sync();
-    if (idx < n and tile.thread_rank() == 0) {
-      *(output_begin + idx) = output_buffer[tile_idx];
-    }
+    if (idx < n and tile.thread_rank() == 0) { *(output_begin + idx) = output_buffer[tile_idx]; }
     idx += loop_stride;
   }
 }
