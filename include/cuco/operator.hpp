@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@
 namespace cuco {
 namespace experimental {
 inline namespace op {
+// TODO enum class of int32_t instead of struct
+// https://github.com/NVIDIA/cuCollections/issues/239
 /**
  * @brief `insert` operator tag
  */
