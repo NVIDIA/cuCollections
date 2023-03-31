@@ -37,9 +37,9 @@ class probing_iterator {
    * @param step_size Double hashing step size
    * @param upper_bound Upper bound of the iteration
    */
-  __device__ constexpr probing_iterator(size_type start,
-                                        size_type step_size,
-                                        extent_type upper_bound) noexcept
+  __host__ __device__ constexpr probing_iterator(size_type start,
+                                                 size_type step_size,
+                                                 extent_type upper_bound) noexcept
     : curr_index_{start}, step_size_{step_size}, upper_bound_{upper_bound}
   {
   }
@@ -49,14 +49,14 @@ class probing_iterator {
    *
    * @return Current slot ndex
    */
-  __device__ constexpr auto operator*() const noexcept { return curr_index_; }
+  __host__ __device__ constexpr auto operator*() const noexcept { return curr_index_; }
 
   /**
    * @brief Prefix increment operator
    *
    * @return Current iterator
    */
-  __device__ constexpr auto operator++() noexcept
+  __host__ __device__ constexpr auto operator++() noexcept
   {
     // TODO: step_size_ can be a build time constant (e.g. linear probing)
     //  Worth passing another extent type?
@@ -69,7 +69,7 @@ class probing_iterator {
    *
    * @return Old iterator before increment
    */
-  __device__ constexpr auto operator++(int32_t) noexcept
+  __host__ __device__ constexpr auto operator++(int32_t) noexcept
   {
     auto temp = *this;
     ++(*this);
@@ -90,7 +90,7 @@ constexpr linear_probing<CGSize, Hash>::linear_probing(Hash const& hash) : hash_
 
 template <int32_t CGSize, typename Hash>
 template <typename ProbeKey, typename Extent>
-__device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
+__host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
 {
   return detail::probing_iterator<Extent>{hash_(probe_key) % upper_bound,
@@ -100,7 +100,7 @@ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
 
 template <int32_t CGSize, typename Hash>
 template <typename ProbeKey, typename Extent>
-__device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
+__host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
   cooperative_groups::thread_block_tile<cg_size> const& g,
   ProbeKey const& probe_key,
   Extent upper_bound) const noexcept
@@ -118,7 +118,7 @@ constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashing(Hash1 const& hash
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
 template <typename ProbeKey, typename Extent>
-__device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
+__host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
 {
   return detail::probing_iterator<Extent>{
@@ -129,7 +129,7 @@ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
 template <typename ProbeKey, typename Extent>
-__device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
+__host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
   cooperative_groups::thread_block_tile<cg_size> const& g,
   ProbeKey const& probe_key,
   Extent upper_bound) const noexcept
