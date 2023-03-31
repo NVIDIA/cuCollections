@@ -18,7 +18,6 @@
 
 #include <cuco/detail/__config>
 #include <cuco/detail/prime.hpp>
-#include <cuco/detail/storage.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/probing_scheme.cuh>

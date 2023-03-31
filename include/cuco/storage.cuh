@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/storage.cuh>
+#include <cuco/detail/storage/storage.cuh>
 
 namespace cuco {
 namespace experimental {

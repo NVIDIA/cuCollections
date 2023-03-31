@@ -16,7 +16,8 @@
 
 #include <utils.hpp>
 
-#include <cuco/detail/storage.cuh>
+#include <cuco/detail/pair.cuh>
+#include <cuco/detail/storage/aow_storage.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/utility/allocator.hpp>
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 #pragma once
 
+#include <cuco/detail/utils.hpp>
+
 #include <cstddef>
 
 namespace cuco {
@@ -22,26 +24,29 @@ namespace experimental {
 namespace detail {
 
 /**
- * @brief Initializes each slot in the flat storage to contain `k`.
+ * @brief Initializes each slot in the window storage to contain `value`.
  *
- * @tparam WindowSize Number of slots per window
  * @tparam WindowT Window type
  *
- * @param slots Pointer to flat storage for the keys
- * @param k Key to which all keys in `slots` are initialized
- * @param size Size of the storage pointed to by `slots`
+ * @param windows Pointer to flat storage for windows
+ * @param n Number of input windows
+ * @param value Value to which all values in `slots` are initialized
  */
-template <int32_t WindowSize, typename WindowT>
-__global__ void initialize(WindowT* windows, typename WindowT::value_type value, std::size_t size)
+template <typename WindowT>
+__global__ void initialize(WindowT* windows,
+                           cuco::detail::index_type n,
+                           typename WindowT::value_type value)
 {
-  auto tid = blockDim.x * blockIdx.x + threadIdx.x;
-  while (tid < size) {
-    auto& window_slots = *(windows + tid);
+  cuco::detail::index_type const loop_stride = gridDim.x * blockDim.x;
+  cuco::detail::index_type idx               = blockDim.x * blockIdx.x + threadIdx.x;
+
+  while (idx < n) {
+    auto& window_slots = *(windows + idx);
 #pragma unroll
     for (auto& slot : window_slots) {
       slot = value;
     }
-    tid += gridDim.x * blockDim.x;
+    idx += loop_stride;
   }
 }
 
