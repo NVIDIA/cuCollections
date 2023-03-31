@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 
 #pragma once
+
+#include <cuco/utility/traits.hpp>
 
 #include <type_traits>
 
@@ -32,13 +34,7 @@ namespace detail {
  */
 template <typename Operator, typename Reference>
 class operator_impl {
-  // type-dependent dummy to make diagnostics a bit nicer
-  template <typename, typename>
-  static constexpr bool supports_operator()
-  {
-    return false;
-  }
-  static_assert(supports_operator<Operator, Reference>(),
+  static_assert(cuco::dependent_false<Operator, Reference>,
                 "Operator type is not supported by reference type.");
 };
 

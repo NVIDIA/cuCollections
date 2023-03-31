@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,5 +57,11 @@ inline constexpr bool is_bitwise_comparable_v = is_bitwise_comparable<T>::value;
   struct is_bitwise_comparable<Type> : std::true_type { \
   };                                                    \
   }
+
+template <bool value, typename... Args>
+inline constexpr bool dependent_bool_value = value;
+
+template <typename... Args>
+inline constexpr bool dependent_false = dependent_bool_value<false, Args...>;
 
 }  // namespace cuco
