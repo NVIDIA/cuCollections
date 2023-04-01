@@ -32,7 +32,6 @@ namespace detail {
 template <int32_t CGSize>
 class probing_scheme_base {
  public:
-  
   /**
    * @brief The size of the CUDA cooperative thread group.
    */

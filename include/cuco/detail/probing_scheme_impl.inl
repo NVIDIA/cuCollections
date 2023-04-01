@@ -38,7 +38,7 @@ class probing_iterator {
    * @param step_size Double hashing step size
    * @param upper_bound Upper bound of the iteration
    */
-   // TODO: revise this API when introducing quadratic probing into cuco 
+  // TODO: revise this API when introducing quadratic probing into cuco
   __host__ __device__ constexpr probing_iterator(size_type start,
                                                  size_type step_size,
                                                  extent_type upper_bound) noexcept
