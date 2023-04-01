@@ -21,6 +21,7 @@
 namespace cuco {
 namespace experimental {
 namespace detail {
+
 /**
  * @brief Base class of public probing scheme.
  *
