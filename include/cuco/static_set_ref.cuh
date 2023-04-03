@@ -27,6 +27,18 @@ namespace experimental {
 
 /**
  * @brief Device reference of static_set.
+ *
+ * @note cuCollections data stuctures always place the slot keys on the left-hand
+ * side when invoking the key comparison predicate.
+ *
+ * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>` returning true
+ * @tparam Scope The scope in which insert/find operations will be performed by
+ * individual threads.
+ * @tparam KeyEqual Binary callable type used to compare two keys for equality
+ * @tparam ProbingScheme Probing scheme chosen between `cuco::linear_probing`
+ * and `cuco::double_hashing` (see `probing_scheme.cuh`)
+ * @tparam StorageRef Storage ref type
+ * @tparam Operators Data structure operator types defined in `operator.hpp`
  */
 template <typename Key,
           cuda::thread_scope Scope,
@@ -50,8 +62,8 @@ class static_set_ref
 
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr auto window_size =
-    storage_ref_type::window_size;      ///< Number of elements handled per window
-  static constexpr auto scope = Scope;  ///< Thread scope
+    storage_ref_type::window_size;             ///< Number of elements handled per window
+  static constexpr auto thread_scope = Scope;  ///< Thread scope
 
   // TODO default ctor?
 

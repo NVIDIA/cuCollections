@@ -48,9 +48,11 @@ namespace experimental {
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
  * @tparam Extent Data structure size type
+ * @tparam Scope The scope in which insert/find operations will be performed by
+ * individual threads.
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme chosen between `cuco::linear_probing`
- * and `cuco::double_hashing`. (see `probing_scheme.cuh`)
+ * and `cuco::double_hashing` (see `probing_scheme.cuh`)
  * @tparam Allocator Type of allocator used for device storage
  * @tparam Storage Slot window storage type
  */
