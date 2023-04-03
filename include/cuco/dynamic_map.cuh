@@ -43,8 +43,8 @@ namespace cuco {
  * concurrent insert and find) from threads in device code.
  *
  * Current limitations:
- * - Requires keys that are Arithmetic
- * - Does not support erasing keys
+ * - Requires keys and values that where `cuco::is_bitwise_comparable_v<T>` is true
+ *    - Comparisons against the "sentinel" values will always be done with bitwise comparisons.
  * - Capacity does not shrink automatically
  * - Requires the user to specify sentinel values for both key and mapped value
  *   to indicate empty slots
