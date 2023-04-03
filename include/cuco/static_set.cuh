@@ -44,7 +44,7 @@ namespace experimental {
  * @brief A GPU-accelerated, unordered, associative container of unique keys.
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
- * @tparam Scope The scope in which set operations will be performed by individual threads
+ * @tparam Extent Data structure size type
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme chosen between `cuco::linear_probing`
  * and `cuco::double_hashing`. (see `probing_scheme.cuh`)
@@ -60,8 +60,7 @@ template <class Key,
                                                              cuco::murmurhash3_32<Key>,
                                                              cuco::murmurhash3_32<Key>>,
           class Allocator          = cuco::cuda_allocator<std::byte>,
-          class Storage            = cuco::experimental::aow_storage<2  // Window size
-                                                          >>
+          class Storage            = cuco::experimental::aow_storage<2>>
 class static_set {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
 
@@ -161,7 +160,7 @@ class static_set {
   size_type insert(InputIt first, InputIt last, cudaStream_t stream = nullptr);
 
   /**
-   * @brief Inserts all keys in the range `[first, last)` asynchronously.
+   * @brief Asynchonously inserts all keys in the range `[first, last)`.
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -195,7 +194,8 @@ class static_set {
                 cudaStream_t stream = nullptr) const;
 
   /**
-   * @brief Indicates whether the keys in the range `[first, last)` are contained in the set.
+   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * the set.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator assignable from `bool`
@@ -213,6 +213,8 @@ class static_set {
 
   /**
    * @brief Gets the number of elements in the container.
+   *
+   * @note This function synchronizes the given stream.
    *
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the container
