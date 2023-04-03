@@ -44,7 +44,6 @@ namespace cuco {
  *
  * Current limitations:
  * - Requires keys that are Arithmetic
- * - Does not support erasing keys
  * - Capacity does not shrink automatically
  * - Requires the user to specify sentinel values for both key and mapped value
  *   to indicate empty slots
