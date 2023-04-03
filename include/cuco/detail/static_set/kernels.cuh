@@ -37,6 +37,7 @@ namespace detail {
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
+ * @tparam AtomicT Atomic counter type
  * @tparam Reference Type of device reference allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
@@ -44,10 +45,10 @@ namespace detail {
  * @param num_successes Number of successful inserted elements
  * @param ref Device reference used to access the slot storage
  */
-template <int32_t BlockSize, typename InputIterator, typename Reference>
+template <int32_t BlockSize, typename InputIterator, typename AtomicT, typename Reference>
 __global__ void insert(InputIterator first,
                        cuco::detail::index_type n,
-                       typename Reference::size_type* num_successes,
+                       AtomicT* num_successes,
                        Reference ref)
 {
   using BlockReduce = cub::BlockReduce<typename Reference::size_type, BlockSize>;
@@ -68,8 +69,7 @@ __global__ void insert(InputIterator first,
   typename Reference::size_type block_num_successes =
     BlockReduce(temp_storage).Sum(thread_num_successes);
   if (threadIdx.x == 0) {
-    cuda::atomic_ref<typename Reference::size_type, Reference::scope> count_ref(*num_successes);
-    count_ref.fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
+    num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
 }
 
@@ -112,6 +112,7 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
+ * @tparam AtomicT Atomic counter type
  * @tparam Reference Type of device reference allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
@@ -119,10 +120,14 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
  * @param num_successes Number of successful inserted elements
  * @param ref Set device reference used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Reference>
+template <int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIterator,
+          typename AtomicT,
+          typename Reference>
 __global__ void insert(InputIterator first,
                        cuco::detail::index_type n,
-                       typename Reference::size_type* num_successes,
+                       AtomicT* num_successes,
                        Reference ref)
 {
   namespace cg = cooperative_groups;
@@ -146,8 +151,7 @@ __global__ void insert(InputIterator first,
   typename Reference::size_type block_num_successes =
     BlockReduce(temp_storage).Sum(thread_num_successes);
   if (threadIdx.x == 0) {
-    cuda::atomic_ref<typename Reference::size_type, Reference::scope> count_ref(*num_successes);
-    count_ref.fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
+    num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
 }
 

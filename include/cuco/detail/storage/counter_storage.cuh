@@ -17,7 +17,7 @@
 #pragma once
 
 #include <cuco/detail/error.hpp>
-#include <cuco/detail/storage.storage_base.cuh>
+#include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/extent.cuh>
 
 #include <cuda/atomic>
@@ -28,7 +28,7 @@ namespace cuco {
 namespace experimental {
 namespace detail {
 /**
- * @brief Device counter storage class.
+ * @brief Device atomic counter storage class.
  *
  * @tparam SizeType Type of storage size
  * @tparam Scope The scope in which the counter will be used by individual threads
@@ -37,7 +37,7 @@ namespace detail {
 template <typename SizeType, cuda::thread_scope Scope, typename Allocator>
 class counter_storage : public storage_base<cuco::experimental::extent<SizeType, 1>> {
  public:
-  using storage_base<cuco::experimental::extent<SizeType, 1>>::size_;  ///< Storage size
+  using storage_base<cuco::experimental::extent<SizeType, 1>>::capacity_;  ///< Storage size
 
   using size_type      = SizeType;                        ///< Size type
   using value_type     = cuda::atomic<size_type, Scope>;  ///< Type of the counter
@@ -54,8 +54,8 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
     : storage_base<cuco::experimental::extent<SizeType, 1>>{cuco::experimental::extent<size_type,
                                                                                        1>{}},
       allocator_{allocator},
-      counter_deleter_{size_, allocator_},
-      counter_{allocator_.allocate(size_), counter_deleter_}
+      counter_deleter_{capacity_, allocator_},
+      counter_{allocator_.allocate(capacity_), counter_deleter_}
   {
   }
 
@@ -67,22 +67,39 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
   void reset(cudaStream_t stream)
   {
     static_assert(sizeof(size_type) == sizeof(value_type));
-    CUCO_CUDA_TRY(cudaMemsetAsync(counter_.get(), 0, sizeof(value_type), stream));
+    CUCO_CUDA_TRY(cudaMemsetAsync(this->data(), 0, sizeof(value_type), stream));
   }
 
   /**
-   * @brief Gets counter pointer.
+   * @brief Gets device atomic counter pointer.
    *
-   * @return Pointer to the counter
+   * @return Pointer to the device atomic counter
    */
-  [[nodiscard]] constexpr value_type* get() noexcept { return counter_.get(); }
+  [[nodiscard]] constexpr value_type* data() noexcept { return counter_.get(); }
 
   /**
-   * @brief Gets counter array.
+   * @brief Gets device atomic counter pointer.
    *
-   * @return Pointer to the counter
+   * @return Pointer to the device atomic counter
    */
-  [[nodiscard]] constexpr value_type* get() const noexcept { return counter_.get(); }
+  [[nodiscard]] constexpr value_type* data() const noexcept { return counter_.get(); }
+
+  /**
+   * @brief Atomically obtains the value of the device atomic counter and copies it to the host.
+   *
+   * @note This API synchronizes the given `stream`.
+   *
+   * @param stream CUDA stream used to copy device value to the host
+   * @return Value of the atomic counter
+   */
+  [[nodiscard]] constexpr size_type load_to_host(cudaStream_t stream) const
+  {
+    size_type h_count;
+    CUCO_CUDA_TRY(
+      cudaMemcpyAsync(&h_count, this->data(), sizeof(size_type), cudaMemcpyDeviceToHost, stream));
+    CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+    return h_count;
+  }
 
  private:
   allocator_type allocator_;              ///< Allocator used to (de)allocate counter
