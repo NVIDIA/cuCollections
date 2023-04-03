@@ -43,6 +43,9 @@ namespace experimental {
 /**
  * @brief A GPU-accelerated, unordered, associative container of unique keys.
  *
+ * @note cuCollections data stuctures always place the slot keys on the left-hand
+ * side when invoking the key comparison predicate.
+ *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
  * @tparam Extent Data structure size type
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
