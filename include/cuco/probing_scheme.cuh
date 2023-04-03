@@ -40,7 +40,7 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    *
    * @param hash Hasher
    */
-  constexpr linear_probing(Hash const& hash = {});
+  __host__ __device__ constexpr linear_probing(Hash const& hash = {});
 
   /**
    * @brief Operator to return a probing iterator
@@ -53,8 +53,8 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @return An iterator whose value_type is convertible to slot index type
    */
   template <typename ProbeKey, typename Extent>
-  __device__ constexpr auto operator()(ProbeKey const& probe_key,
-                                       Extent upper_bound) const noexcept;
+  __host__ __device__ constexpr auto operator()(ProbeKey const& probe_key,
+                                                Extent upper_bound) const noexcept;
 
   /**
    * @brief Operator to return a CG-based probing iterator
@@ -68,9 +68,10 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @return An iterator whose value_type is convertible to slot index type
    */
   template <typename ProbeKey, typename Extent>
-  __device__ constexpr auto operator()(cooperative_groups::thread_block_tile<cg_size> const& g,
-                                       ProbeKey const& probe_key,
-                                       Extent upper_bound) const noexcept;
+  __host__ __device__ constexpr auto operator()(
+    cooperative_groups::thread_block_tile<cg_size> const& g,
+    ProbeKey const& probe_key,
+    Extent upper_bound) const noexcept;
 
  private:
   Hash hash_;
@@ -96,7 +97,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @param hash1 First hasher
    * @param hash2 Second hasher
    */
-  constexpr double_hashing(Hash1 const& hash1 = {}, Hash2 const& hash2 = {});
+  __host__ __device__ constexpr double_hashing(Hash1 const& hash1 = {}, Hash2 const& hash2 = {});
 
   /**
    * @brief Operator to return a probing iterator
@@ -109,8 +110,8 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @return An iterator whose value_type is convertible to slot index type
    */
   template <typename ProbeKey, typename Extent>
-  __device__ constexpr auto operator()(ProbeKey const& probe_key,
-                                       Extent upper_bound) const noexcept;
+  __host__ __device__ constexpr auto operator()(ProbeKey const& probe_key,
+                                                Extent upper_bound) const noexcept;
 
   /**
    * @brief Operator to return a CG-based probing iterator
@@ -124,9 +125,10 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @return An iterator whose value_type is convertible to slot index type
    */
   template <typename ProbeKey, typename Extent>
-  __device__ constexpr auto operator()(cooperative_groups::thread_block_tile<cg_size> const& g,
-                                       ProbeKey const& probe_key,
-                                       Extent upper_bound) const noexcept;
+  __host__ __device__ constexpr auto operator()(
+    cooperative_groups::thread_block_tile<cg_size> const& g,
+    ProbeKey const& probe_key,
+    Extent upper_bound) const noexcept;
 
  private:
   Hash1 hash1_;

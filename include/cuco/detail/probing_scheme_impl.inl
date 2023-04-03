@@ -86,7 +86,8 @@ class probing_iterator {
 }  // namespace detail
 
 template <int32_t CGSize, typename Hash>
-constexpr linear_probing<CGSize, Hash>::linear_probing(Hash const& hash) : hash_{hash}
+__host__ __device__ constexpr linear_probing<CGSize, Hash>::linear_probing(Hash const& hash)
+  : hash_{hash}
 {
 }
 
@@ -112,8 +113,8 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
 }
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
-constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashing(Hash1 const& hash1,
-                                                               Hash2 const& hash2)
+__host__ __device__ constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashing(
+  Hash1 const& hash1, Hash2 const& hash2)
   : hash1_{hash1}, hash2_{hash2}
 {
 }
