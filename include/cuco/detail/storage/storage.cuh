@@ -41,10 +41,10 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
   static constexpr int window_size = impl_type::window_size;
 
   using impl_type::capacity;
+  using impl_type::data;
   using impl_type::initialize;
   using impl_type::num_windows;
   using impl_type::ref;
-  using impl_type::windows;
 
   /**
    * @brief Constructs storage.

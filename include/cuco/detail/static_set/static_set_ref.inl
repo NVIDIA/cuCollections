@@ -121,7 +121,7 @@ class operator_impl<op::insert_tag,
         if (eq_res == detail::equal_result::EMPTY) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           switch (attempt_insert(
-            (ref_.storage_ref_.windows() + *probing_iter)->data() + intra_window_index, value)) {
+            (ref_.storage_ref_.data() + *probing_iter)->data() + intra_window_index, value)) {
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: return false;
@@ -169,7 +169,7 @@ class operator_impl<op::insert_tag,
         auto const status =
           (group.thread_rank() == src_lane)
             ? attempt_insert(
-                (ref_.storage_ref_.windows() + *probing_iter)->data() + intra_window_index, value)
+                (ref_.storage_ref_.data() + *probing_iter)->data() + intra_window_index, value)
             : insert_result::CONTINUE;
 
         switch (group.shfl(status, src_lane)) {

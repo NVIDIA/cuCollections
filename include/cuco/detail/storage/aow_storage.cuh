@@ -118,14 +118,14 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
    *
    * @return Pointer to the first window
    */
-  [[nodiscard]] __device__ constexpr window_type* windows() noexcept { return windows_; }
+  [[nodiscard]] __device__ constexpr window_type* data() noexcept { return windows_; }
 
   /**
    * @brief Gets windows array.
    *
    * @return Pointer to the first window
    */
-  [[nodiscard]] __device__ constexpr window_type* windows() const noexcept { return windows_; }
+  [[nodiscard]] __device__ constexpr window_type* data() const noexcept { return windows_; }
 
   /**
    * @brief Returns an array of elements (window) for a given index.
@@ -136,7 +136,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
   [[nodiscard]] __device__ constexpr window_type window(size_type index) const noexcept
   {
     return *reinterpret_cast<window_type*>(
-      __builtin_assume_aligned(windows_ + index, sizeof(value_type) * window_size));
+      __builtin_assume_aligned(this->data() + index, sizeof(value_type) * window_size));
   }
 
  private:
@@ -204,7 +204,7 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
    *
    * @return Pointer to the first window
    */
-  [[nodiscard]] constexpr window_type* windows() const noexcept { return windows_.get(); }
+  [[nodiscard]] constexpr window_type* data() const noexcept { return windows_.get(); }
 
   /**
    * @brief Gets window storage reference.
@@ -213,7 +213,7 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
    */
   [[nodiscard]] constexpr ref_type ref() const noexcept
   {
-    return ref_type{this->num_windows(), this->windows()};
+    return ref_type{this->num_windows(), this->data()};
   }
 
   /**
@@ -229,7 +229,7 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
                            (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
     detail::initialize<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      this->windows(), this->num_windows(), key);
+      this->data(), this->num_windows(), key);
   }
 
  private:

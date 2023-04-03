@@ -173,7 +173,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
   cudaStream_t stream) const
 {
   auto const begin = thrust::make_transform_iterator(
-    storage_.windows(),
+    storage_.data(),
     cuco::detail::elements_per_window<typename storage_type::value_type>{empty_key_sentinel_});
 
   std::size_t temp_storage_bytes = 0;
