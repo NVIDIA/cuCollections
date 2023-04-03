@@ -110,7 +110,7 @@ class operator_impl<op::insert_tag,
     auto probing_iter = ref_.probing_scheme_(value, ref_.storage_ref_.num_windows());
 
     while (true) {
-      auto const window_slots = ref_.storage_ref_.window(*probing_iter);
+      auto const window_slots = ref_.storage_ref_[*probing_iter];
 
       // TODO: perf gain with #pragma unroll since num_windows is build time constant
       for (auto& slot_content : window_slots) {
@@ -146,7 +146,7 @@ class operator_impl<op::insert_tag,
     auto probing_iter = ref_.probing_scheme_(group, value, ref_.storage_ref_.num_windows());
 
     while (true) {
-      auto const window_slots = ref_.storage_ref_.window(*probing_iter);
+      auto const window_slots = ref_.storage_ref_[*probing_iter];
 
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
@@ -298,7 +298,7 @@ class operator_impl<op::contains_tag,
 
     while (true) {
       // TODO do we need to use atomic_ref::load here?
-      auto const window_slots = ref_.storage_ref_.window(*probing_iter);
+      auto const window_slots = ref_.storage_ref_[*probing_iter];
 
       for (auto& slot_content : window_slots) {
         switch (ref_.predicate_(slot_content, key)) {
@@ -332,7 +332,7 @@ class operator_impl<op::contains_tag,
     auto probing_iter = ref_.probing_scheme_(g, key, ref_.storage_ref_.num_windows());
 
     while (true) {
-      auto const window_slots = ref_.storage_ref_.window(*probing_iter);
+      auto const window_slots = ref_.storage_ref_[*probing_iter];
 
       auto const state = [&]() {
         for (auto& slot : window_slots) {

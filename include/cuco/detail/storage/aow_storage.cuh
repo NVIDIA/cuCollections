@@ -130,10 +130,10 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
   /**
    * @brief Returns an array of elements (window) for a given index.
    *
-   * @param index Index of the first element of the window
+   * @param index Index of the window
    * @return An array of elements
    */
-  [[nodiscard]] __device__ constexpr window_type window(size_type index) const noexcept
+  [[nodiscard]] __device__ constexpr window_type operator[](size_type index) const noexcept
   {
     return *reinterpret_cast<window_type*>(
       __builtin_assume_aligned(this->data() + index, sizeof(value_type) * window_size));
