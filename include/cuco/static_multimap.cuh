@@ -162,11 +162,11 @@ class static_multimap {
   using slot_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
     pair_atomic_type>;  ///< Type of the allocator to (de)allocate slots
   using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
-    atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
+    atomic_ctr_type>;   ///< Type of the allocator to (de)allocate atomic counters
   using probe_sequence_type =
     detail::probe_sequence<ProbeSequence, Key, Value, Scope>;  ///< Probe scheme type
 
-  static_multimap(static_multimap const&) = delete;
+  static_multimap(static_multimap const&)            = delete;
   static_multimap& operator=(static_multimap const&) = delete;
 
   static_multimap(static_multimap&&) = default;  ///< Move constructor
@@ -697,7 +697,7 @@ class static_multimap {
     using key_type    = typename view_base_type::key_type;     ///< Key type
     using mapped_type = typename view_base_type::mapped_type;  ///< Type of the mapped values
     using iterator =
-      typename view_base_type::iterator;  ///< Type of the forward iterator to `value_type`
+      typename view_base_type::iterator;        ///< Type of the forward iterator to `value_type`
     using const_iterator =
       typename view_base_type::const_iterator;  ///< Type of the forward iterator to `const
                                                 ///< value_type`
@@ -750,7 +750,7 @@ class static_multimap {
     using key_type       = typename view_base_type::key_type;     ///< Key type
     using mapped_type    = typename view_base_type::mapped_type;  ///< Type of the mapped values
     using iterator =
-      typename view_base_type::iterator;  ///< Type of the forward iterator to `value_type`
+      typename view_base_type::iterator;        ///< Type of the forward iterator to `value_type`
     using const_iterator =
       typename view_base_type::const_iterator;  ///< Type of the forward iterator to `const
                                                 ///< value_type`

@@ -441,7 +441,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
       }
     }  // while true
   }
-};  // class device_mutable_view_impl
+};     // class device_mutable_view_impl
 
 template <typename Key,
           typename Value,
@@ -1545,6 +1545,6 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       current_slot = next_slot(current_slot);
     }  // while running
   }
-};  // class device_view_impl
+};     // class device_view_impl
 
 }  // namespace cuco

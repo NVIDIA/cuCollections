@@ -101,12 +101,12 @@ class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
  public:
-  using value_type      = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
-  using key_type        = Key;                               ///< Key type
-  using mapped_type     = Value;                             ///< Type of mapped values
-  using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;  ///< Atomic counter type
+  using value_type      = cuco::pair_type<Key, Value>;            ///< Type of key/value pairs
+  using key_type        = Key;                                    ///< Key type
+  using mapped_type     = Value;                                  ///< Type of mapped values
+  using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;       ///< Atomic counter type
   using view_type =
-    typename static_map<Key, Value, Scope>::device_view;  ///< Type for submap device view
+    typename static_map<Key, Value, Scope>::device_view;          ///< Type for submap device view
   using mutable_view_type =
     typename static_map<Key, Value, Scope>::device_mutable_view;  ///< Type for submap mutable
                                                                   ///< device view
@@ -115,7 +115,7 @@ class dynamic_map {
   dynamic_map(dynamic_map&&)      = delete;
 
   dynamic_map& operator=(dynamic_map const&) = delete;
-  dynamic_map& operator=(dynamic_map&&) = delete;
+  dynamic_map& operator=(dynamic_map&&)      = delete;
 
   /**
    * @brief Constructs a dynamically-sized map with the specified initial capacity, growth factor
@@ -354,8 +354,8 @@ class dynamic_map {
     submap_mutable_views_;         ///< vector of mutable device views for each submap
   std::size_t min_insert_size_{};  ///< min remaining capacity of submap for insert
   thrust::device_vector<atomic_ctr_type*>
-    submap_num_successes_;  ///< Number of successfully erased keys for each submap
-  Allocator alloc_{};       ///< Allocator passed to submaps to allocate their device storage
+    submap_num_successes_;         ///< Number of successfully erased keys for each submap
+  Allocator alloc_{};              ///< Allocator passed to submaps to allocate their device storage
 };
 }  // namespace cuco
 

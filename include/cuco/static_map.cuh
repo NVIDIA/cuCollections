@@ -149,7 +149,7 @@ class static_map {
   using slot_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
     pair_atomic_type>;  ///< Type of the allocator to (de)allocate slots
   using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
-    atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
+    atomic_ctr_type>;   ///< Type of the allocator to (de)allocate atomic counters
 
 #if !defined(CUCO_HAS_INDEPENDENT_THREADS)
   static_assert(atomic_key_type::is_always_lock_free,
@@ -162,7 +162,7 @@ class static_map {
   static_map(static_map&&)      = delete;
 
   static_map& operator=(static_map const&) = delete;
-  static_map& operator=(static_map&&) = delete;
+  static_map& operator=(static_map&&)      = delete;
 
   /**
    * @brief Indicates if concurrent insert/find is supported for the key/value types.
@@ -750,7 +750,7 @@ class static_map {
     using key_type    = typename device_view_base::key_type;     ///< Key type
     using mapped_type = typename device_view_base::mapped_type;  ///< Type of the mapped values
     using iterator =
-      typename device_view_base::iterator;  ///< Type of the forward iterator to `value_type`
+      typename device_view_base::iterator;        ///< Type of the forward iterator to `value_type`
     using const_iterator =
       typename device_view_base::const_iterator;  ///< Type of the forward iterator to `const
                                                   ///< value_type`
@@ -1050,7 +1050,7 @@ class static_map {
     using key_type    = typename device_view_base::key_type;     ///< Key type
     using mapped_type = typename device_view_base::mapped_type;  ///< Type of the mapped values
     using iterator =
-      typename device_view_base::iterator;  ///< Type of the forward iterator to `value_type`
+      typename device_view_base::iterator;        ///< Type of the forward iterator to `value_type`
     using const_iterator =
       typename device_view_base::const_iterator;  ///< Type of the forward iterator to `const
                                                   ///< value_type`
