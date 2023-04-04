@@ -46,7 +46,7 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   ProbingScheme const& probing_scheme,
   Allocator const& alloc,
   cudaStream_t stream)
-  : empty_key_sentinel_{empty_key_sentinel.value},
+  : empty_key_sentinel_{empty_key_sentinel},
     predicate_{pred},
     probing_scheme_{probing_scheme},
     allocator_{alloc},
@@ -181,12 +181,12 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
   auto temp_allocator       = temp_allocator_type{allocator_};
   auto d_size               = reinterpret_cast<size_type*>(
     std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
-  cub::DeviceReduce::Sum(nullptr, temp_storage_bytes, begin, d_size, storage_.num_windows());
+  cub::DeviceReduce::Sum(nullptr, temp_storage_bytes, begin, d_size, storage_.num_windows(), stream);
 
   auto d_temp_storage =
     std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, temp_storage_bytes);
 
-  cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, begin, d_size, storage_.num_windows());
+  cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, begin, d_size, storage_.num_windows(), stream);
 
   size_type h_size;
   CUCO_CUDA_TRY(
@@ -239,7 +239,7 @@ template <typename... Operators>
 auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref(
   Operators...) const noexcept
 {
-  static_assert(sizeof...(Operators), "set ref operator not specified");
+  static_assert(sizeof...(Operators), "No operators specified");
   return ref_type<Operators...>{
     cuco::empty_key<key_type>(empty_key_sentinel_), predicate_, probing_scheme_, storage_.ref()};
 }

@@ -47,7 +47,7 @@ __host__ __device__ constexpr static_set_ref<
                                 ProbingScheme const& probing_scheme,
                                 StorageRef storage_ref) noexcept
   : empty_key_sentinel_{empty_key_sentinel},
-    predicate_{empty_key_sentinel.value, predicate},
+    predicate_{empty_key_sentinel, predicate},
     probing_scheme_{probing_scheme},
     storage_ref_{storage_ref}
 {
@@ -225,12 +225,12 @@ class operator_impl<op::insert_tag,
         auto* value_ptr    = reinterpret_cast<unsigned int*>(&val);
         if constexpr (thread_scope == cuda::thread_scope_system) {
           return atomicCAS_system(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-        }
-        if constexpr (thread_scope == cuda::thread_scope_device) {
+        } else if constexpr (thread_scope == cuda::thread_scope_device) {
           return atomicCAS(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-        }
-        if constexpr (thread_scope == cuda::thread_scope_block) {
+        } else if constexpr (thread_scope == cuda::thread_scope_block) {
           return atomicCAS_block(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
+        } else {
+          static_assert(cuco::dependent_false<decltype(thread_scope)>, "Unsupported thread scope");
         }
       }
       if constexpr (sizeof(value_type) == sizeof(uint64_t)) {
@@ -298,7 +298,7 @@ class operator_impl<op::contains_tag,
     auto probing_iter = ref_.probing_scheme_(key, ref_.storage_ref_.num_windows());
 
     while (true) {
-      // TODO do we need to use atomic_ref::load here?
+      // TODO atomic_ref::load if insert operator is present
       auto const window_slots = ref_.storage_ref_[*probing_iter];
 
       for (auto& slot_content : window_slots) {
