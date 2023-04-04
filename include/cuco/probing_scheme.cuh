@@ -25,6 +25,11 @@ namespace experimental {
 /**
  * @brief Public linear probing scheme class.
  *
+ * @note Linear probing is efficient when few collisions are present, e.g., low occupancy or low
+ * multiplicity.
+ *
+ * @note `Hash` should be callable object type.
+ *
  * @tparam CGSize Size of CUDA Cooperative Groups
  * @tparam Hash Unary callable type
  */
@@ -80,6 +85,13 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
 /**
  * @brief Public double hashing scheme class.
  *
+ * @note Default probing scheme for cuco data structures. It shows superior performance over linear
+ * probing especially when dealing with high multiplicty and/or high occupancy use cases.
+ *
+ * @note `Hash1` and `Hash2` should be callable object type.
+ *
+ * @note `Hash2` needs to be able to construct from an integer value to avoid secondary clustering.
+ *
  * @tparam CGSize Size of CUDA Cooperative Groups
  * @tparam Hash1 Unary callable type
  * @tparam Hash2 Unary callable type
@@ -97,7 +109,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @param hash1 First hasher
    * @param hash2 Second hasher
    */
-  __host__ __device__ constexpr double_hashing(Hash1 const& hash1 = {}, Hash2 const& hash2 = {});
+  __host__ __device__ constexpr double_hashing(Hash1 const& hash1 = {}, Hash2 const& hash2 = {1});
 
   /**
    * @brief Operator to return a probing iterator
