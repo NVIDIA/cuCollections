@@ -108,7 +108,7 @@ class static_set {
   static_set(static_set&&) = default;  ///< Move constructor
 
   /**
-   * @brief Replaces the contents of the map with another map.
+   * @brief Replaces the contents of the container with another container.
    *
    * @return Reference of the current map object
    */

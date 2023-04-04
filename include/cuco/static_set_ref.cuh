@@ -32,13 +32,11 @@ namespace experimental {
  * side when invoking the key comparison predicate.
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>` returning true
- * @tparam Scope The scope in which insert/find operations will be performed by
- * individual threads.
+ * @tparam Scope The scope in which operations will be performed by individual threads.
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
- * @tparam ProbingScheme Probing scheme chosen between `cuco::linear_probing`
- * and `cuco::double_hashing` (see `probing_scheme.cuh`)
+ * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
  * @tparam StorageRef Storage ref type
- * @tparam Operators Data structure operator types defined in `operator.hpp`
+ * @tparam Operators Data structure operator types defined in `include/cuco/operator.hpp`
  */
 template <typename Key,
           cuda::thread_scope Scope,
@@ -65,8 +63,6 @@ class static_set_ref
     storage_ref_type::window_size;             ///< Number of elements handled per window
   static constexpr auto thread_scope = Scope;  ///< Thread scope
 
-  // TODO default ctor?
-
   /**
    * @brief Constructs static_set_ref.
    *
@@ -82,9 +78,9 @@ class static_set_ref
     storage_ref_type storage_ref) noexcept;
 
   /**
-   * @brief Gets the maximum number of elements the hash map can hold.
+   * @brief Gets the maximum number of elements the container can hold.
    *
-   * @return The maximum number of elements the hash map can hold
+   * @return The maximum number of elements the container can hold
    */
   [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept;
 
