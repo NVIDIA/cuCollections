@@ -181,12 +181,14 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
   auto temp_allocator       = temp_allocator_type{allocator_};
   auto d_size               = reinterpret_cast<size_type*>(
     std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
-  cub::DeviceReduce::Sum(nullptr, temp_storage_bytes, begin, d_size, storage_.num_windows(), stream);
+  cub::DeviceReduce::Sum(
+    nullptr, temp_storage_bytes, begin, d_size, storage_.num_windows(), stream);
 
   auto d_temp_storage =
     std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, temp_storage_bytes);
 
-  cub::DeviceReduce::Sum(d_temp_storage, temp_storage_bytes, begin, d_size, storage_.num_windows(), stream);
+  cub::DeviceReduce::Sum(
+    d_temp_storage, temp_storage_bytes, begin, d_size, storage_.num_windows(), stream);
 
   size_type h_size;
   CUCO_CUDA_TRY(
