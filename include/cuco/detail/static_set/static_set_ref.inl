@@ -185,6 +185,7 @@ class operator_impl<op::insert_tag,
   }
 
  private:
+  // TODO: this should be a common enum for all data structures
   enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
 
   /**
