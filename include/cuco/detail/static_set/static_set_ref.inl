@@ -239,14 +239,14 @@ class operator_impl<op::insert_tag,
         if constexpr (thread_scope == cuda::thread_scope_system) {
           return atomicCAS_system(
             reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-        }
-        if constexpr (thread_scope == cuda::thread_scope_device) {
+        } else if constexpr (thread_scope == cuda::thread_scope_device) {
           return atomicCAS(
             reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-        }
-        if constexpr (thread_scope == cuda::thread_scope_block) {
+        } else if constexpr (thread_scope == cuda::thread_scope_block) {
           return atomicCAS_block(
             reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
+        } else {
+          static_assert(cuco::dependent_false<decltype(thread_scope)>, "Unsupported thread scope");
         }
       }
     }();
