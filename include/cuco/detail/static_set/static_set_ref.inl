@@ -198,7 +198,7 @@ class operator_impl<op::insert_tag,
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  __device__ insert_result attempt_insert(value_type* slot, value_type const& value)
+  [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot, value_type const& value)
   {
     return cas(slot, value);
   }
@@ -211,7 +211,7 @@ class operator_impl<op::insert_tag,
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  __device__ insert_result cas(value_type* slot, value_type const& value)
+  [[nodiscard]] __device__ insert_result cas(value_type* slot, value_type const& value)
   {
     auto& ref_ = static_cast<ref_type&>(*this);
 
