@@ -48,11 +48,9 @@ namespace experimental {
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
  * @tparam Extent Data structure size type
- * @tparam Scope The scope in which insert/find operations will be performed by
- * individual threads.
+ * @tparam Scope The scope in which operations will be performed by individual threads.
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
- * @tparam ProbingScheme Probing scheme chosen between `cuco::linear_probing`
- * and `cuco::double_hashing` (see `probing_scheme.cuh`)
+ * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for choices)
  * @tparam Allocator Type of allocator used for device storage
  * @tparam Storage Slot window storage type
  */
@@ -77,8 +75,7 @@ class static_set {
   static_assert(
     std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
                       ProbingScheme>,
-    "ProbingScheme must be a specialization of either cuco::double_hashing or "
-    "cuco::linear_probing.");
+    "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
  public:
   static constexpr auto cg_size      = ProbingScheme::cg_size;  ///< CG size used to for probing
@@ -130,7 +127,7 @@ class static_set {
    * The `empty_key_sentinel` is reserved and behavior is undefined when attempting to insert
    * this sentinel value.
    *
-   * @param capacity The lower-bound set size requested by the user
+   * @param capacity The requested lower-bound set size
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme

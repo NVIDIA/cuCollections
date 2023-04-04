@@ -36,7 +36,7 @@ struct custom_deleter {
    * @param size Number of values to deallocate
    * @param allocator Allocator used for deallocating device storage
    */
-  explicit constexpr custom_deleter(std::size_t const size, Allocator& allocator)
+  explicit constexpr custom_deleter(std::size_t size, Allocator& allocator)
     : size_{size}, allocator_{allocator}
   {
   }
