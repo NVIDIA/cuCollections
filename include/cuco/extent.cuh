@@ -26,7 +26,7 @@ namespace experimental {
 static constexpr std::size_t dynamic_extent = static_cast<std::size_t>(-1);
 
 /**
- * @brief Extent class.
+ * @brief Static extent class.
  *
  * @tparam SizeType Size type
  * @tparam N Extent
@@ -62,7 +62,7 @@ struct extent {
 };
 
 /**
- * @brief Extent class.
+ * @brief Dynamic extent class.
  *
  * @tparam SizeType Size type
  */
@@ -98,11 +98,17 @@ struct extent<SizeType, dynamic_extent> {
   }
 
  private:
-  value_type value_;  ///< Size of extent
+  value_type value_;  ///< Extent value
 };
 
 /**
  * @brief Computes valid extent based on given parameters.
+ *
+ * @note The actual capacity of a container (map/set) should be exclusively determined by the return
+ * value of this utility since the output depends on the requested low-bound size, the probing
+ * scheme, and the storage. This utility is used internally during container constructions while for
+ * container ref constructions, it would be users' responsibility to use this function to determine
+ * the input size of the ref.
  *
  * @tparam CGSize Number of elements handled per CG
  * @tparam WindowSize Number of elements handled per Window
