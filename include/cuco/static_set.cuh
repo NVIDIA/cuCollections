@@ -54,16 +54,19 @@ namespace experimental {
  *
  * The singular device-side operations allow individual threads (or cooperative groups) to perform
  * independent modify or lookup operations from device code. These operations are accessed through
- * non-owning, trivially copyable "ref" types. User can combine any arbitrary operators (see options
- * in `include/cuco/operator.hpp`) when creating the ref. Concurrent modify and lookup will be
- * supported if both kinds of operators are specified during the ref construction.
+ * non-owning, trivially copyable reference types (or "ref"). User can combine any arbitrary
+ * operators (see options in `include/cuco/operator.hpp`) when creating the ref. Concurrent modify
+ * and lookup will be supported if both kinds of operators are specified during the ref
+ * construction.
  *
  * @note Allows constant time concurrent modify or lookup operations from threads in device code.
  * @note cuCollections data stuctures always place the slot keys on the left-hand side when invoking
- * the key comparison predicate. Order-sensitive `KeyEqual` should be used with caution.
+ * the key comparison predicate, i.e., `pred(slot_key, query_key)`. Order-sensitive `KeyEqual`
+ * should be used with caution.
  *
  * @throw If the size of the given key type is larger than 8 bytes
- * @throw If the given key type doesn't have unique object representations
+ * @throw If the given key type doesn't have unique object representations, i.e.,
+ * `cuco::bitwise_comparable_v<T> == true`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
