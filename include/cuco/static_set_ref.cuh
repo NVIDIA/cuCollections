@@ -37,6 +37,11 @@ namespace experimental {
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
+ * @throw If the size of the given key type is larger than 8 bytes
+ * @throw If the given key type doesn't have unique object representations, i.e.,
+ * `cuco::bitwise_comparable_v<Key> == false`
+ * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
+ *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>` returning true
  * @tparam Scope The scope in which operations will be performed by individual threads.
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
@@ -54,6 +59,18 @@ class static_set_ref
   : public detail::operator_impl<
       Operators,
       static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
+  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
+
+  static_assert(
+    cuco::is_bitwise_comparable_v<Key>,
+    "Key type must have unique object representations or have been explicitly declared as safe for "
+    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
+
+  static_assert(
+    std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
+                      ProbingScheme>,
+    "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+
  public:
   using key_type            = Key;                                     ///< Key Type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme

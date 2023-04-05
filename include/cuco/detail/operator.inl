@@ -27,6 +27,8 @@ namespace detail {
 /**
  * @brief CRTP mixin which augments a given `Reference` with an `Operator`.
  *
+ * @throw If the operator is not defined in `include/cuco/operator.hpp`
+ *
  * @tparam Operator Operator type, i.e., `cuco::op::*_tag`
  * @tparam Reference The reference type.
  *
