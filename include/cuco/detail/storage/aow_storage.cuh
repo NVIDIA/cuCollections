@@ -30,32 +30,32 @@ namespace cuco {
 namespace experimental {
 namespace detail {
 /**
- * @brief Base class of array of window structure open addressing storage.
+ * @brief Base class of array of slot windows open addressing storage.
  *
  * This should NOT be used directly.
  *
  * @tparam WindowSize Number of elements in each window
  * @tparam T Element type
- * @tparam Extent Type of extent denoting number of windows
+ * @tparam Extent Type of extent denoting the number of windows
  */
 template <int32_t WindowSize, typename T, typename Extent>
 class aow_storage_base : public storage_base<Extent> {
  public:
   /**
-   * @brief The number of elements processed per window.
+   * @brief The number of elements (slots) processed per window.
    */
   static constexpr int32_t window_size = WindowSize;
 
   using extent_type = typename storage_base<Extent>::extent_type;  ///< Storage extent type
   using size_type   = typename storage_base<Extent>::size_type;    ///< Storage size type
 
-  using value_type  = T;                                          ///< Type of structs
-  using window_type = cuda::std::array<value_type, window_size>;  ///< Type of struct windows
+  using value_type  = T;                                          ///< Slot type
+  using window_type = cuda::std::array<value_type, window_size>;  ///< Slot window type
 
   /**
    * @brief Constructor of AoW base storage.
    *
-   * @param size Number of elemets to store
+   * @param size Number of windows to store
    */
   explicit constexpr aow_storage_base(Extent size) : storage_base<Extent>{size} {}
 
@@ -96,8 +96,8 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
 
   using extent_type = typename base_type::extent_type;  ///< Storage extent type
   using size_type   = typename base_type::size_type;    ///< Storage size type
-  using value_type  = typename base_type::value_type;   ///< Storage element type
-  using window_type = typename base_type::window_type;  ///< Window storage type
+  using value_type  = typename base_type::value_type;   ///< Slot type
+  using window_type = typename base_type::window_type;  ///< Slot window type
 
   using base_type::capacity;
   using base_type::num_windows;
@@ -106,7 +106,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
    * @brief Constructor of AoS storage ref.
    *
    * @param windows Pointer to the windows array
-   * @param num_windows Number of slots
+   * @param num_windows Number of windows
    */
   explicit constexpr aow_storage_ref(Extent num_windows, window_type* windows) noexcept
     : aow_storage_base<WindowSize, T, Extent>{num_windows}, windows_{windows}
@@ -128,10 +128,10 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
   [[nodiscard]] __device__ constexpr window_type* data() const noexcept { return windows_; }
 
   /**
-   * @brief Returns an array of elements (window) for a given index.
+   * @brief Returns an array of slots (or a window) for a given index.
    *
    * @param index Index of the window
-   * @return An array of elements
+   * @return An array of slots
    */
   [[nodiscard]] __device__ constexpr window_type operator[](size_type index) const noexcept
   {
@@ -144,12 +144,12 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
 };
 
 /**
- * @brief Array of window structure open addressing storage class.
+ * @brief Array of slot Window open addressing storage class.
  *
  * @tparam WindowSize Number of slots in each window
- * @tparam T struct type
+ * @tparam T Slot type
  * @tparam Extent Type of extent denoting number of windows
- * @tparam Allocator Type of allocator used for device storage
+ * @tparam Allocator Type of allocator used for device storage (de)allocation
  */
 template <int32_t WindowSize, typename T, typename Extent, typename Allocator>
 class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
@@ -160,8 +160,8 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
 
   using extent_type = typename base_type::extent_type;  ///< Storage extent type
   using size_type   = typename base_type::size_type;    ///< Storage size type
-  using value_type  = typename base_type::value_type;   ///< Storage element type
-  using window_type = typename base_type::window_type;  ///< Window storage type
+  using value_type  = typename base_type::value_type;   ///< Slot type
+  using window_type = typename base_type::window_type;  ///< Slot window type
 
   using base_type::capacity;
   using base_type::num_windows;
@@ -176,7 +176,11 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
   /**
    * @brief Constructor of AoW storage.
    *
-   * @param size Number of slots to (de)allocate
+   * @note The input `size` should be exclusively determined by the return value of
+   * `make_valid_extent` since it depends on the requested low-bound value, the probing scheme, and
+   * the storage.
+   *
+   * @param size Number of windows to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
   explicit constexpr aow_storage(Extent size, Allocator const& allocator)
@@ -217,10 +221,10 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
   }
 
   /**
-   * @brief Initializes each slot in the flat storage to contain `key`.
+   * @brief Initializes each slot in the AoW storage to contain `key`.
    *
    * @param key Key to which all keys in `slots` are initialized
-   * @param stream Stream used for executing the kernels
+   * @param stream Stream used for executing the kernel
    */
   void initialize(value_type key, cudaStream_t stream) noexcept
   {
@@ -235,7 +239,7 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
  private:
   allocator_type allocator_;            ///< Allocator used to (de)allocate windows
   window_deleter_type window_deleter_;  ///< Custom windows deleter
-  std::unique_ptr<window_type, window_deleter_type> windows_;  ///< Pointer to AoS windows storage
+  std::unique_ptr<window_type, window_deleter_type> windows_;  ///< Pointer to AoW storage
 };
 
 }  // namespace detail
