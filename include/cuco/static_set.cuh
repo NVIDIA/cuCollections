@@ -66,7 +66,7 @@ namespace experimental {
  *
  * @throw If the size of the given key type is larger than 8 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,
- * `cuco::bitwise_comparable_v<T> == true`
+ * `cuco::bitwise_comparable_v<Key> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
