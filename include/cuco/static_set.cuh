@@ -117,15 +117,16 @@ class static_set {
   using storage_type =
     detail::storage<Storage, value_type, extent_type, allocator_type>;  ///< Storage type
 
-  using storage_ref_type    = typename storage_type::ref_type;  ///< Window storage reference type
-  using probing_scheme_type = ProbingScheme;                    ///< Probe scheme type
+  using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
+  using probing_scheme_type = ProbingScheme;                 ///< Probe scheme type
   template <typename... Operators>
-  using ref_type = cuco::experimental::static_set_ref<key_type,
-                                                      thread_scope,
-                                                      key_equal,
-                                                      probing_scheme_type,
-                                                      storage_ref_type,
-                                                      Operators...>;  ///< Container reference type
+  using ref_type =
+    cuco::experimental::static_set_ref<key_type,
+                                       thread_scope,
+                                       key_equal,
+                                       probing_scheme_type,
+                                       storage_ref_type,
+                                       Operators...>;  ///< Non-owning container ref type
 
   static_set(static_set const&) = delete;
   static_set& operator=(static_set const&) = delete;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -157,6 +157,7 @@ class operator_impl<op::insert_tag,
             default: continue;
           }
         }
+        // returns dummy index `-1` for UNEQUAL
         return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
       }();
 
@@ -200,19 +201,6 @@ class operator_impl<op::insert_tag,
    * @return Result of this operation, i.e., success/continue/duplicate
    */
   [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot, value_type const& value)
-  {
-    return cas(slot, value);
-  }
-
-  /**
-   * @brief Try insert using simple atomic compare-and-swap.
-   *
-   * @param slot Pointer to the slot in memory
-   * @param value Element to insert
-   *
-   * @return Result of this operation, i.e., success/continue/duplicate
-   */
-  [[nodiscard]] __device__ insert_result cas(value_type* slot, value_type const& value)
   {
     auto& ref_ = static_cast<ref_type&>(*this);
 
@@ -293,7 +281,7 @@ class operator_impl<op::contains_tag,
   template <typename ProbeKey>
   [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
   {
-    // CRTP: cast `this` to the actual reference type
+    // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
 
     auto probing_iter = ref_.probing_scheme_(key, ref_.storage_ref_.num_windows());

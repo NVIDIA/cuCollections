@@ -38,36 +38,35 @@ namespace detail {
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
  * @tparam AtomicT Atomic counter type
- * @tparam Reference Type of device reference allowing access to storage
+ * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
  * @param num_successes Number of successful inserted elements
- * @param ref Device reference used to access the slot storage
+ * @param ref Non-owing set device ref used to access the slot storage
  */
-template <int32_t BlockSize, typename InputIterator, typename AtomicT, typename Reference>
+template <int32_t BlockSize, typename InputIterator, typename AtomicT, typename Ref>
 __global__ void insert(InputIterator first,
                        cuco::detail::index_type n,
                        AtomicT* num_successes,
-                       Reference ref)
+                       Ref ref)
 {
-  using BlockReduce = cub::BlockReduce<typename Reference::size_type, BlockSize>;
+  using BlockReduce = cub::BlockReduce<typename Ref::size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
-  typename Reference::size_type thread_num_successes = 0;
+  typename Ref::size_type thread_num_successes = 0;
 
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
   cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
 
   while (idx < n) {
-    typename Reference::value_type const insert_pair{*(first + idx)};
+    typename Ref::value_type const insert_pair{*(first + idx)};
     if (ref.insert(insert_pair)) { thread_num_successes++; };
     idx += loop_stride;
   }
 
   // compute number of successfully inserted elements for each block
   // and atomically add to the grand total
-  typename Reference::size_type block_num_successes =
-    BlockReduce(temp_storage).Sum(thread_num_successes);
+  typename Ref::size_type block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
   if (threadIdx.x == 0) {
     num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
@@ -82,20 +81,20 @@ __global__ void insert(InputIterator first,
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
- * @tparam Reference Type of device reference allowing access of storage
+ * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
- * @param ref Set device reference used to access the slot storage
+ * @param ref Non-owing set device ref used to access the slot storage
  */
-template <int32_t BlockSize, typename InputIterator, typename Reference>
-__global__ void insert_async(InputIterator first, cuco::detail::index_type n, Reference ref)
+template <int32_t BlockSize, typename InputIterator, typename Ref>
+__global__ void insert_async(InputIterator first, cuco::detail::index_type n, Ref ref)
 {
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
   cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
 
   while (idx < n) {
-    typename Reference::value_type const insert_pair{*(first + idx)};
+    typename Ref::value_type const insert_pair{*(first + idx)};
     ref.insert(insert_pair);
     idx += loop_stride;
   }
@@ -113,43 +112,38 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
  * @tparam AtomicT Atomic counter type
- * @tparam Reference Type of device reference allowing access to storage
+ * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
  * @param num_successes Number of successful inserted elements
- * @param ref Set device reference used to access the slot storage
+ * @param ref Non-owing set device ref used to access the slot storage
  */
-template <int32_t CGSize,
-          int32_t BlockSize,
-          typename InputIterator,
-          typename AtomicT,
-          typename Reference>
+template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename AtomicT, typename Ref>
 __global__ void insert(InputIterator first,
                        cuco::detail::index_type n,
                        AtomicT* num_successes,
-                       Reference ref)
+                       Ref ref)
 {
   namespace cg = cooperative_groups;
 
-  using BlockReduce = cub::BlockReduce<typename Reference::size_type, BlockSize>;
+  using BlockReduce = cub::BlockReduce<typename Ref::size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
-  typename Reference::size_type thread_num_successes = 0;
+  typename Ref::size_type thread_num_successes = 0;
 
   auto const tile                            = cg::tiled_partition<CGSize>(cg::this_thread_block());
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
   cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
 
   while (idx < n) {
-    typename Reference::value_type const insert_pair{*(first + idx)};
+    typename Ref::value_type const insert_pair{*(first + idx)};
     if (ref.insert(tile, insert_pair) && tile.thread_rank() == 0) { thread_num_successes++; };
     idx += loop_stride;
   }
 
   // compute number of successfully inserted elements for each block
   // and atomically add to the grand total
-  typename Reference::size_type block_num_successes =
-    BlockReduce(temp_storage).Sum(thread_num_successes);
+  typename Ref::size_type block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
   if (threadIdx.x == 0) {
     num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
@@ -165,14 +159,14 @@ __global__ void insert(InputIterator first,
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
- * @tparam Reference Type of device reference allowing access to storage
+ * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
- * @param ref Set device reference used to access the slot storage
+ * @param ref Non-owing set device ref used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Reference>
-__global__ void insert_async(InputIterator first, cuco::detail::index_type n, Reference ref)
+template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Ref>
+__global__ void insert_async(InputIterator first, cuco::detail::index_type n, Ref ref)
 {
   namespace cg = cooperative_groups;
 
@@ -181,7 +175,7 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
   cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
 
   while (idx < n) {
-    typename Reference::value_type const insert_pair{*(first + idx)};
+    typename Ref::value_type const insert_pair{*(first + idx)};
     ref.insert(tile, insert_pair);
     idx += loop_stride;
   }
@@ -197,18 +191,15 @@ __global__ void insert_async(InputIterator first, cuco::detail::index_type n, Re
  * @tparam BlockSize The size of the thread block
  * @tparam InputIt Device accessible input iterator
  * @tparam OutputIt Device accessible output iterator assignable from `bool`
- * @tparam Reference Type of device reference allowing access to the underlying storage
+ * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of keys
  * @param n Number of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
- * @param ref Set device reference used to access the slot storage
+ * @param ref Non-owing set device ref used to access the slot storage
  */
-template <int32_t BlockSize, typename InputIt, typename OutputIt, typename Reference>
-__global__ void contains(InputIt first,
-                         cuco::detail::index_type n,
-                         OutputIt output_begin,
-                         Reference ref)
+template <int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
+__global__ void contains(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
 {
   namespace cg = cooperative_groups;
 
@@ -249,22 +240,15 @@ __global__ void contains(InputIt first,
  * @tparam BlockSize The size of the thread block
  * @tparam InputIt Device accessible input iterator
  * @tparam OutputIt Device accessible output iterator assignable from `bool`
- * @tparam Reference Type of device reference allowing access to the underlying storage
+ * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of keys
  * @param n Number of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
- * @param ref Set device reference used to access the slot storage
+ * @param ref Non-owing set device ref used to access the slot storage
  */
-template <int32_t CGSize,
-          int32_t BlockSize,
-          typename InputIt,
-          typename OutputIt,
-          typename Reference>
-__global__ void contains(InputIt first,
-                         cuco::detail::index_type n,
-                         OutputIt output_begin,
-                         Reference ref)
+template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
+__global__ void contains(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
 {
   namespace cg = cooperative_groups;
 
