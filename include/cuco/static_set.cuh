@@ -63,6 +63,8 @@ namespace experimental {
  * @note cuCollections data stuctures always place the slot keys on the left-hand side when invoking
  * the key comparison predicate, i.e., `pred(slot_key, query_key)`. Order-sensitive `KeyEqual`
  * should be used with caution.
+ * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
+ * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
  * @throw If the size of the given key type is larger than 8 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,

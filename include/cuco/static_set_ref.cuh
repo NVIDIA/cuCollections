@@ -34,6 +34,8 @@ namespace experimental {
  * @note cuCollections data stuctures always place the slot keys on the left-hand
  * side when invoking the key comparison predicate.
  * @note Ref types are trivially-copyable and are intended to be passed by value.
+ * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
+ * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>` returning true
  * @tparam Scope The scope in which operations will be performed by individual threads.
