@@ -43,8 +43,28 @@ namespace experimental {
 /**
  * @brief A GPU-accelerated, unordered, associative container of unique keys.
  *
- * @note cuCollections data stuctures always place the slot keys on the left-hand
- * side when invoking the key comparison predicate.
+ * The `static_set` supports two types of operations:
+ * - Host-side "bulk" operations
+ * - Device-side "singular" operations
+ *
+ * The host-side bulk operations include `insert`, `contains`, etc. These APIs should be used when
+ * there are a large number of keys to modify or lookup. For example, given a range of keys
+ * specified by device-accessible iterators, the bulk `insert` function will insert all keys into
+ * the set.
+ *
+ * The singular device-side operations allow individual threads (or cooperative groups) to perform
+ * independent modify or lookup operations from device code. These operations are accessed through
+ * non-owning, trivially copyable "ref" types. User can combine any arbitrary operators (see options
+ * in `include/cuco/operators.hpp`) when creating the ref. Concurrent modify and lookup will be
+ * supported if both kinds of operators are specified during the ref construction.
+ *
+ * @note Allows constant time concurrent modify or lookup operations from threads in device code.
+ * @note cuCollections data stuctures always place the slot keys on the left-hand side when invoking
+ * the key comparison predicate. Order-sensitive `KeyEqual` should be used with caution.
+ *
+ * @throw If the size of the given key type is larger than 8 bytes
+ * @throw If the given key type doesn't have unique object representations
+ * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
  * @tparam Extent Data structure size type
