@@ -46,7 +46,7 @@ class operator_impl {
  * @tparam Operator Operator type, i.e., `cuco::op::*_tag`
  * @tparam Operators List of operators to search in
  *
- * @return `true` iff `Operator` is contained in `Operators`, `false` otherwise.
+ * @return `true` if `Operator` is contained in `Operators`, `false` otherwise.
  */
 template <typename Operator, typename... Operators>
 static constexpr bool has_operator()
