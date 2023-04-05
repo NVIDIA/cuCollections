@@ -26,17 +26,21 @@ namespace cuco {
 namespace experimental {
 
 /**
- * @brief Device reference of static_set.
+ * @brief Device non-owning "ref" type that can be used in device code to perform arbitrary
+ * operations defined in `include/cuco/operator.hpp`
  *
+ * @note Concurrent modify and lookup will be supported if both kinds of operators are specified
+ * during the ref construction.
  * @note cuCollections data stuctures always place the slot keys on the left-hand
  * side when invoking the key comparison predicate.
+ * @note Ref types are trivially-copyable and are intended to be passed by value.
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>` returning true
  * @tparam Scope The scope in which operations will be performed by individual threads.
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
  * @tparam StorageRef Storage ref type
- * @tparam Operators Data structure operator types defined in `include/cuco/operator.hpp`
+ * @tparam Operators Device operator options defined in `include/cuco/operator.hpp`
  */
 template <typename Key,
           cuda::thread_scope Scope,

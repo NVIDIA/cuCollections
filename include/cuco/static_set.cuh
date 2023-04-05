@@ -55,7 +55,7 @@ namespace experimental {
  * The singular device-side operations allow individual threads (or cooperative groups) to perform
  * independent modify or lookup operations from device code. These operations are accessed through
  * non-owning, trivially copyable "ref" types. User can combine any arbitrary operators (see options
- * in `include/cuco/operators.hpp`) when creating the ref. Concurrent modify and lookup will be
+ * in `include/cuco/operator.hpp`) when creating the ref. Concurrent modify and lookup will be
  * supported if both kinds of operators are specified during the ref construction.
  *
  * @note Allows constant time concurrent modify or lookup operations from threads in device code.
