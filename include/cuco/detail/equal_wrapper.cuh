@@ -53,36 +53,40 @@ struct equal_wrapper {
   }
 
   /**
-   * @brief Equality operator.
-   *
-   * @tparam U Right-hand side Element type
-   *
-   * @param lhs Left-hand side element to check equality
-   * @param rhs Right-hand side element to check equality
-   * @return Equality comparison result
-   */
-  template <typename U>
-  __device__ constexpr equal_result operator()(T const& lhs, U const& rhs) const noexcept
-  {
-    return cuco::detail::bitwise_compare(lhs, sentinel_)
-             ? equal_result::EMPTY
-             : ((equal_(lhs, rhs)) ? equal_result::EQUAL : equal_result::UNEQUAL);
-  }
-
-  /**
-   * @brief Equality check with no bitwise compare.
+   * @brief Equality check with the given equality callable.
    *
    * @tparam LHS Left-hand side Element type
    * @tparam RHS Right-hand side Element type
    *
    * @param lhs Left-hand side element to check equality
    * @param rhs Right-hand side element to check equality
-   * @return Equality comparison result
+   * @return Three way equality comparison result
    */
   template <typename LHS, typename RHS>
-  __device__ inline constexpr equal_result equal_to(LHS const& lhs, RHS const& rhs) const noexcept
+  __device__ constexpr equal_result equal_to(LHS const& lhs, RHS const& rhs) const noexcept
   {
     return equal_(lhs, rhs) ? equal_result::EQUAL : equal_result::UNEQUAL;
+  }
+
+  /**
+   * @brief Order-sensitive equality operator.
+   *
+   * This function always compares the left-hand side element against `sentinel_` value first
+   * then perform a equality check with the given `equal_` callable, i.e., `equal_(lhs, rhs)`.
+   *
+   * @note Container (like set or map) keys MUST be always on the left-hand side.
+   *
+   * @tparam U Right-hand side Element type
+   *
+   * @param lhs Left-hand side element to check equality
+   * @param rhs Right-hand side element to check equality
+   * @return Three way equality comparison result
+   */
+  template <typename U>
+  __device__ constexpr equal_result operator()(T const& lhs, U const& rhs) const noexcept
+  {
+    return cuco::detail::bitwise_compare(lhs, sentinel_) ? equal_result::EMPTY
+                                                         : this->equal_to(lhs, rhs);
   }
 };
 
