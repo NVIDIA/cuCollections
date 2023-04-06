@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
  */
 
 #pragma once
+
+#include <cuco/detail/bitwise_compare.cuh>
 
 #include <thrust/tuple.h>
 
@@ -59,7 +61,7 @@ struct slot_to_tuple {
  */
 template <typename Key>
 struct slot_is_filled {
-  Key empty_key_sentinel;  ///< The value of the empty key sentinel
+  Key empty_key_sentinel_;  ///< The value of the empty key sentinel
 
   /**
    * @brief Indicates if the target slot `s` is filled.
@@ -72,7 +74,35 @@ struct slot_is_filled {
   template <typename S>
   __device__ bool operator()(S const& s)
   {
-    return thrust::get<0>(s) != empty_key_sentinel;
+    return not cuco::detail::bitwise_compare(thrust::get<0>(s), empty_key_sentinel_);
+  }
+};
+
+/**
+ * @brief Device functor returning the number of filled elements per window.
+ *
+ * @tparam Sentinel Empty sentinel type
+ */
+template <typename Sentinel>
+struct elements_per_window {
+  Sentinel empty_key_sentinel_;  ///< The value of the empty key sentinel
+
+  /**
+   * @brief Computes the number of filled elements per window.
+   *
+   * @tparam Window Window storage type
+   *
+   * @param window The window to query
+   * @return Number of filled elements per window
+   */
+  template <typename Window>
+  __device__ inline int32_t operator()(Window const& window) const
+  {
+    int32_t num = 0;
+    for (auto const& element : window) {
+      num += not cuco::detail::bitwise_compare(element, empty_key_sentinel_);
+    }
+    return num;
   }
 };
 

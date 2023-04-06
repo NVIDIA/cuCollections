@@ -40,12 +40,27 @@ function(ConfigureTest TEST_NAME)
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     target_compile_options(${TEST_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
       --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)
-    catch_discover_tests(${TEST_NAME})
+    catch_discover_tests(${TEST_NAME} EXTRA_ARGS --allow-running-no-tests)
 endfunction(ConfigureTest)
 
 ###################################################################################################
 ### test sources ##################################################################################
 ###################################################################################################
+
+###################################################################################################
+# - utility tests ---------------------------------------------------------------------------------
+ConfigureTest(UTILITY_TEST
+    utility/extent_test.cu
+    utility/storage_test.cu)
+
+###################################################################################################
+# - static_set tests ------------------------------------------------------------------------------
+ConfigureTest(STATIC_SET_TEST
+    static_set/capacity_test.cu
+    static_set/heterogeneous_lookup_test.cu
+    static_set/large_input_test.cu
+    static_set/size_test.cu
+    static_set/unique_sequence_test.cu)
 
 ###################################################################################################
 # - static_map tests ------------------------------------------------------------------------------

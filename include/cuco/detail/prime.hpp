@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <limits>
 
 namespace cuco {
 namespace detail {
