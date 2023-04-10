@@ -33,9 +33,8 @@ using namespace cuco::utility;
 template <typename Key, typename Dist>
 void static_set_retrieve_all(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
-  auto const num_keys      = state.get_int64_or_default("NumInputs", defaults::N);
-  auto const occupancy     = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
-  auto const matching_rate = state.get_float64_or_default("MatchingRate", defaults::MATCHING_RATE);
+  auto const num_keys  = state.get_int64_or_default("NumInputs", defaults::N);
+  auto const occupancy = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
 
   std::size_t const size = num_keys / occupancy;
 
@@ -62,11 +61,3 @@ NVBENCH_BENCH_TYPES(static_set_retrieve_all,
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
-
-NVBENCH_BENCH_TYPES(static_set_retrieve_all,
-                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      nvbench::type_list<distribution::unique>))
-  .set_name("static_set_retrieve_all_unique_matching_rate")
-  .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
-  .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE);
