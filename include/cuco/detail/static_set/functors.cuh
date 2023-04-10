@@ -99,7 +99,7 @@ struct elements_per_window {
    * @return Number of filled elements per window
    */
   template <typename Window>
-  __device__ inline int32_t operator()(Window const& window) const
+  __device__ int32_t operator()(Window const& window) const
   {
     int32_t num = 0;
     for (auto const& element : window) {
