@@ -88,7 +88,7 @@ __global__ void insert(InputIterator first,
  * @param ref Non-owing set device ref used to access the slot storage
  */
 template <int32_t BlockSize, typename InputIterator, typename Ref>
-__global__ void insert_async(InputIterator first, cuco::detail::index_type n, Ref ref)
+__global__ void insert(InputIterator first, cuco::detail::index_type n, Ref ref)
 {
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
   cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
@@ -166,7 +166,7 @@ __global__ void insert(InputIterator first,
  * @param ref Non-owing set device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Ref>
-__global__ void insert_async(InputIterator first, cuco::detail::index_type n, Ref ref)
+__global__ void insert(InputIterator first, cuco::detail::index_type n, Ref ref)
 {
   namespace cg = cooperative_groups;
 

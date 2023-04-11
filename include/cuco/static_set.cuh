@@ -202,6 +202,58 @@ class static_set {
   void insert_async(InputIt first, InputIt last, cudaStream_t stream = nullptr);
 
   /**
+   * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
+   * true and returns the number of successful insertions.
+   *
+   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `insert_if_async`.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for the operation
+   *
+   * @return Number of successfully inserted keys
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  size_type insert_if(
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream = nullptr);
+
+  /**
+   * @brief Asynchonously inserts keys in the range `[first, last)` if `pred` of the corresponding
+   * stencil returns true.
+   *
+   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for the operation
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  void insert_if_async(
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream = nullptr);
+
+  /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
