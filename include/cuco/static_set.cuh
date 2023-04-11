@@ -84,11 +84,11 @@ template <class Key,
           class Extent             = cuco::experimental::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
-          class ProbingScheme      = experimental::double_hashing<1,  // CG size
+          class ProbingScheme      = experimental::double_hashing<4,  // CG size
                                                              cuco::murmurhash3_32<Key>,
                                                              cuco::murmurhash3_32<Key>>,
           class Allocator          = cuco::cuda_allocator<std::byte>,
-          class Storage            = cuco::experimental::aow_storage<2>>
+          class Storage            = cuco::experimental::aow_storage<1>>
 class static_set {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
 
