@@ -194,9 +194,9 @@ OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   cub::DeviceSelect::If(
     d_temp_storage, temp_storage_bytes, begin, output_begin, d_num_out, capacity(), filled, stream);
 
-  std::size_t h_num_out;
+  size_type h_num_out;
   CUCO_CUDA_TRY(
-    cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(std::size_t), cudaMemcpyDeviceToHost, stream));
+    cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
   std::allocator_traits<temp_allocator_type>::deallocate(
     temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(size_type));
