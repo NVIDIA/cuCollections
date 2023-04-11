@@ -242,6 +242,7 @@ class static_set {
   /**
    * @brief Retrieves all keys contained in the set.
    *
+   * @note This API synchronizes the given stream.
    * @note The order in which keys are returned is implementation defined and not guaranteed to be
    * consistent between subsequent calls to `retrieve_all`.
    * @note Behavior is undefined if the range beginning at `keys_out` is smaller than the return
