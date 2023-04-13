@@ -253,6 +253,7 @@ class static_set {
    *
    * @param output_begin Beginning output iterator for keys
    * @param stream CUDA stream used for this operation
+   *
    * @return Iterator indicating the end of the output
    */
   template <typename OutputIt>
