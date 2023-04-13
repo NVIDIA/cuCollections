@@ -175,9 +175,9 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
   auto counter = detail::counter_storage<size_type, thread_scope, allocator_type>{allocator_};
   counter.reset(stream);
 
-  auto const grid_size = (cg_size * storage_.num_windows() +
-                          detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-                         (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+  auto const grid_size =
+    (storage_.num_windows() + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
   // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
   // v2.1.0
