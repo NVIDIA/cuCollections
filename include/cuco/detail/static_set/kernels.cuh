@@ -59,20 +59,17 @@ __global__ void insert(InputIterator first,
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
   cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
 
-  if constexpr (CGSize == 1) {
-    while (idx < n) {
-      typename Ref::value_type const insert_pair{*(first + idx)};
+  [[maybe_unused]] auto const tile =
+    cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+
+  while (idx < n) {
+    typename Ref::value_type const insert_pair{*(first + idx)};
+    if constexpr (CGSize == 1) {
       if (ref.insert(insert_pair)) { thread_num_successes++; };
-      idx += loop_stride;
-    }
-  } else {
-    auto const tile =
-      cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-    while (idx < n) {
-      typename Ref::value_type const insert_pair{*(first + idx)};
+    } else {
       if (ref.insert(tile, insert_pair) && tile.thread_rank() == 0) { thread_num_successes++; };
-      idx += loop_stride;
     }
+    idx += loop_stride;
   }
 
   // compute number of successfully inserted elements for each block
@@ -105,20 +102,17 @@ __global__ void insert(InputIterator first, cuco::detail::index_type n, Ref ref)
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
   cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
 
-  if constexpr (CGSize == 1) {
-    while (idx < n) {
-      typename Ref::value_type const insert_pair{*(first + idx)};
+  [[maybe_unused]] auto const tile =
+    cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+
+  while (idx < n) {
+    typename Ref::value_type const insert_pair{*(first + idx)};
+    if constexpr (CGSize == 1) {
       ref.insert(insert_pair);
-      idx += loop_stride;
-    }
-  } else {
-    auto tile =
-      cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-    while (idx < n) {
-      typename Ref::value_type const insert_pair{*(first + idx)};
+    } else {
       ref.insert(tile, insert_pair);
-      idx += loop_stride;
     }
+    idx += loop_stride;
   }
 }
 
