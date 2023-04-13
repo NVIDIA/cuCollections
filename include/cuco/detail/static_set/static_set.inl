@@ -184,14 +184,20 @@ OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   auto temp_allocator       = temp_allocator_type{allocator_};
   auto d_num_out            = reinterpret_cast<size_type*>(
     std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
-  cub::DeviceSelect::If(
-    nullptr, temp_storage_bytes, begin, output_begin, d_num_out, capacity(), filled, stream);
+  CUCO_CUDA_TRY(cub::DeviceSelect::If(
+    nullptr, temp_storage_bytes, begin, output_begin, d_num_out, capacity(), filled, stream));
 
   // Allocate temporary storage
   auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
 
-  cub::DeviceSelect::If(
-    d_temp_storage, temp_storage_bytes, begin, output_begin, d_num_out, capacity(), filled, stream);
+  CUCO_CUDA_TRY(cub::DeviceSelect::If(d_temp_storage,
+                                      temp_storage_bytes,
+                                      begin,
+                                      output_begin,
+                                      d_num_out,
+                                      capacity(),
+                                      filled,
+                                      stream));
 
   size_type h_num_out;
   CUCO_CUDA_TRY(
