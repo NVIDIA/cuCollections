@@ -43,7 +43,7 @@ namespace detail {
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
  * @param num_successes Number of successful inserted elements
- * @param ref Non-owing set device ref used to access the slot storage
+ * @param ref Non-owning set device ref used to access the slot storage
  */
 template <int32_t BlockSize, typename InputIterator, typename AtomicT, typename Ref>
 __global__ void insert(InputIterator first,
@@ -85,7 +85,7 @@ __global__ void insert(InputIterator first,
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
- * @param ref Non-owing set device ref used to access the slot storage
+ * @param ref Non-owning set device ref used to access the slot storage
  */
 template <int32_t BlockSize, typename InputIterator, typename Ref>
 __global__ void insert(InputIterator first, cuco::detail::index_type n, Ref ref)
@@ -117,7 +117,7 @@ __global__ void insert(InputIterator first, cuco::detail::index_type n, Ref ref)
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
  * @param num_successes Number of successful inserted elements
- * @param ref Non-owing set device ref used to access the slot storage
+ * @param ref Non-owning set device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename AtomicT, typename Ref>
 __global__ void insert(InputIterator first,
@@ -163,7 +163,7 @@ __global__ void insert(InputIterator first,
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
- * @param ref Non-owing set device ref used to access the slot storage
+ * @param ref Non-owning set device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Ref>
 __global__ void insert(InputIterator first, cuco::detail::index_type n, Ref ref)
@@ -196,7 +196,7 @@ __global__ void insert(InputIterator first, cuco::detail::index_type n, Ref ref)
  * @param first Beginning of the sequence of keys
  * @param n Number of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
- * @param ref Non-owing set device ref used to access the slot storage
+ * @param ref Non-owning set device ref used to access the slot storage
  */
 template <int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
 __global__ void contains(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
@@ -245,7 +245,7 @@ __global__ void contains(InputIt first, cuco::detail::index_type n, OutputIt out
  * @param first Beginning of the sequence of keys
  * @param n Number of keys
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
- * @param ref Non-owing set device ref used to access the slot storage
+ * @param ref Non-owning set device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
 __global__ void contains(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
@@ -280,6 +280,45 @@ __global__ void contains(InputIt first, cuco::detail::index_type n, OutputIt out
     if (idx < n and tile.thread_rank() == 0) { *(output_begin + idx) = output_buffer[tile_idx]; }
     idx += loop_stride;
   }
+}
+
+/**
+ * @brief Calculates the number of filled slots for the given window storage.
+ *
+ * @tparam BlockSize Number of threads in each block
+ * @tparam StorageRef Type of non-owning ref allowing access to storage
+ * @tparam AtomicT Atomic counter type
+ *
+ * @param storage Non-owning device ref used to access the slot storage
+ * @param empty_sentinel Sentinel indicating empty slots
+ * @param count Number of filled slots
+ */
+template <int32_t BlockSize, typename StorageRef, typename AtomicT>
+__global__ void size(StorageRef storage,
+                     typename StorageRef::value_type empty_sentinel,
+                     AtomicT* count)
+{
+  using size_type = typename StorageRef::size_type;
+
+  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
+  cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
+
+  size_type thread_count = 0;
+  auto const n           = storage.num_windows();
+
+  while (idx < n) {
+    auto const window = storage[idx];
+#pragma unroll
+    for (auto const& it : window) {
+      thread_count += static_cast<size_type>(not cuco::detail::bitwise_compare(it, empty_sentinel));
+    }
+    idx += loop_stride;
+  }
+
+  using BlockReduce = cub::BlockReduce<size_type, BlockSize>;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  size_type const block_count = BlockReduce(temp_storage).Sum(thread_count);
+  if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
 }
 
 }  // namespace detail
