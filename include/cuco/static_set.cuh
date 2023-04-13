@@ -203,11 +203,11 @@ class static_set {
 
   /**
    * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
-   * true and returns the number of successful insertions.
+   * true.
    *
    * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
-   * @note This function synchronizes the given stream. For asynchronous execution use
-   * `insert_if_async`.
+   * @note This function synchronizes the given stream and returns the number of successful
+   * insertions. For asynchronous execution use `insert_if_async`.
    *
    * @tparam InputIt Device accessible random access iterator whose `value_type` is
    * convertible to the container's `value_type`
