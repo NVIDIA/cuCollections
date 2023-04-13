@@ -77,16 +77,19 @@ TEMPLATE_TEST_CASE_SIG(
                                              : 422  // 211 x 2 x 1
     ;
 
-  using extent_type = cuco::experimental::extent<std::size_t>;
+  using extent_type    = cuco::experimental::extent<std::size_t>;
+  using allocator_type = cuco::cuda_allocator<std::byte>;
+  using storage_type   = cuco::experimental::aow_storage<2>;
 
   if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
     using probe = cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>;
-    auto set    = cuco::experimental::
-      static_set<Key, extent_type, cuda::thread_scope_device, thrust::equal_to<Key>, probe>{
-        num_keys,
-        cuco::empty_key<Key>{-1},
-        thrust::equal_to<Key>{},
-        probe{cuco::murmurhash3_32<Key>{}}};
+    auto set    = cuco::experimental::static_set<Key,
+                                              extent_type,
+                                              cuda::thread_scope_device,
+                                              thrust::equal_to<Key>,
+                                              probe,
+                                              allocator_type,
+                                              storage_type>{num_keys, cuco::empty_key<Key>{-1}};
 
     REQUIRE(set.capacity() == gold_capacity);
 
@@ -96,12 +99,13 @@ TEMPLATE_TEST_CASE_SIG(
   if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
     using probe = cuco::experimental::
       double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>;
-    auto set = cuco::experimental::
-      static_set<Key, extent_type, cuda::thread_scope_device, thrust::equal_to<Key>, probe>{
-        num_keys,
-        cuco::empty_key<Key>{-1},
-        thrust::equal_to<Key>{},
-        probe{cuco::murmurhash3_32<Key>{}, cuco::murmurhash3_32<Key>{}}};
+    auto set = cuco::experimental::static_set<Key,
+                                              extent_type,
+                                              cuda::thread_scope_device,
+                                              thrust::equal_to<Key>,
+                                              probe,
+                                              allocator_type,
+                                              storage_type>{num_keys, cuco::empty_key<Key>{-1}};
 
     REQUIRE(set.capacity() == gold_capacity);
 
