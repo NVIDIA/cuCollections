@@ -188,8 +188,7 @@ OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
     nullptr, temp_storage_bytes, begin, output_begin, d_num_out, capacity(), filled, stream);
 
   // Allocate temporary storage
-  auto d_temp_storage =
-    std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, temp_storage_bytes);
+  auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
 
   cub::DeviceSelect::If(
     d_temp_storage, temp_storage_bytes, begin, output_begin, d_num_out, capacity(), filled, stream);
@@ -200,8 +199,7 @@ OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
   std::allocator_traits<temp_allocator_type>::deallocate(
     temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(size_type));
-  std::allocator_traits<temp_allocator_type>::deallocate(
-    temp_allocator, d_temp_storage, temp_storage_bytes);
+  temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
 
   return output_begin + h_num_out;
 }
