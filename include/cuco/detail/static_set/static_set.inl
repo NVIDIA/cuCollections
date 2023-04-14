@@ -23,6 +23,8 @@
 #include <cuco/operator.hpp>
 #include <cuco/static_set_ref.cuh>
 
+#include <thrust/functional.h>
+#include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
 #include <cub/device/device_reduce.cuh>
@@ -77,9 +79,15 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ins
     (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
     (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  detail::insert<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+  auto constexpr pred_val = true;
+  detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, num_keys, counter.data(), ref(op::insert));
+      first,
+      num_keys,
+      thrust::constant_iterator<bool>(pred_val),
+      thrust::identity{},
+      counter.data(),
+      ref(op::insert));
 
   return counter.load_to_host(stream);
 }
@@ -102,8 +110,14 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
     (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
     (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  detail::insert<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(first, num_keys, ref(op::insert));
+  auto constexpr pred_val = true;
+  detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      first,
+      num_keys,
+      thrust::constant_iterator<bool>(pred_val),
+      thrust::identity{},
+      ref(op::insert));
 }
 
 template <class Key,
