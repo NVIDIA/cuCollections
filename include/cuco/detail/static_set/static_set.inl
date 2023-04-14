@@ -79,12 +79,12 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ins
     (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
     (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  auto constexpr pred_val = true;
+  auto constexpr always_true = thrust::constant_iterator{true};
   detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
       first,
       num_keys,
-      thrust::constant_iterator<bool>(pred_val),
+      always_true,
       thrust::identity{},
       counter.data(),
       ref(op::insert));
