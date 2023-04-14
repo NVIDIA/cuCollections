@@ -28,7 +28,7 @@ using namespace cuco::benchmark;
 using namespace cuco::utility;
 
 /**
- * @brief A benchmark evaluating `cuco::static_set::contains` performance
+ * @brief A benchmark evaluating `cuco::static_set::retrieve_all` performance
  */
 template <typename Key, typename Dist>
 void static_set_retrieve_all(nvbench::state& state, nvbench::type_list<Key, Dist>)
