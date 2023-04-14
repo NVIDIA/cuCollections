@@ -38,7 +38,7 @@ struct get_slot {
   get_slot(StorageRef s) : storage_{s} {}
 
   /**
-   * @brief Indicates if the target slot `s` is filled.
+   * @brief Accesses the slot content with the given index.
    *
    * @param idx The slot index
    * @return The slot content
