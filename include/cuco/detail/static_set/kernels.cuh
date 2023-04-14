@@ -73,15 +73,14 @@ __global__ void insert_if_n(InputIterator first,
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
   cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
 
-  [[maybe_unused]] auto const tile =
-    cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-
   while (idx < n) {
     if (pred(*(stencil + idx))) {
       typename Ref::value_type const insert_pair{*(first + idx)};
       if constexpr (CGSize == 1) {
         if (ref.insert(insert_pair)) { thread_num_successes++; };
       } else {
+        auto const tile =
+          cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
         if (ref.insert(tile, insert_pair) && tile.thread_rank() == 0) { thread_num_successes++; };
       }
     }
@@ -130,15 +129,14 @@ __global__ void insert_if_n(
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
   cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
 
-  [[maybe_unused]] auto const tile =
-    cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-
   while (idx < n) {
     if (pred(*(stencil + idx))) {
       typename Ref::value_type const insert_pair{*(first + idx)};
       if constexpr (CGSize == 1) {
         ref.insert(insert_pair);
       } else {
+        auto const tile =
+          cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
         ref.insert(tile, insert_pair);
       }
     }
