@@ -127,11 +127,17 @@ __global__ void insert(InputIterator first, cuco::detail::index_type n, Ref ref)
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
  * @tparam AtomicT Atomic counter type
  * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[s, s + n)`
  * @param num_successes Number of successful inserted elements
  * @param ref Non-owning set device ref used to access the slot storage
  */
@@ -189,10 +195,16 @@ __global__ void insert_if_n(InputIterator first,
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIterator Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
  * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[s, s + n)`
  * @param ref Non-owning set device ref used to access the slot storage
  */
 template <int32_t CGSize,
