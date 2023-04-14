@@ -127,6 +127,12 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ins
   auto const grid_size =
     (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
     (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+  detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      first, num_keys, stencil, pred, counter.data(), ref(op::insert));
+
+  return counter.load_to_host(stream);
 }
 
 template <class Key,
@@ -146,6 +152,10 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   auto const grid_size =
     (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
     (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+  detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      first, num_keys, stencil, pred, ref(op::insert));
 }
 
 template <class Key,
