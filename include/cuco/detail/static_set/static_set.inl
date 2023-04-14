@@ -16,6 +16,7 @@
 
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
+#include <cuco/detail/static_set/functors.cuh>
 #include <cuco/detail/static_set/kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/tuning.cuh>
@@ -23,9 +24,11 @@
 #include <cuco/operator.hpp>
 #include <cuco/static_set_ref.cuh>
 
+#include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
 #include <cub/device/device_reduce.cuh>
+#include <cub/device/device_select.cuh>
 
 #include <cstddef>
 
@@ -159,6 +162,52 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
       <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
         first, num_keys, output_begin, ref(op::contains));
   }
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename OutputIt>
+OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
+  OutputIt output_begin, cudaStream_t stream) const
+{
+  auto begin  = thrust::make_transform_iterator(thrust::counting_iterator<size_type>(0),
+                                               detail::get_slot<storage_ref_type>(storage_.ref()));
+  auto filled = detail::slot_is_filled<key_type>(empty_key_sentinel_);
+
+  std::size_t temp_storage_bytes = 0;
+  using temp_allocator_type = typename std::allocator_traits<allocator_type>::rebind_alloc<char>;
+  auto temp_allocator       = temp_allocator_type{allocator_};
+  auto d_num_out            = reinterpret_cast<size_type*>(
+    std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
+  CUCO_CUDA_TRY(cub::DeviceSelect::If(
+    nullptr, temp_storage_bytes, begin, output_begin, d_num_out, capacity(), filled, stream));
+
+  // Allocate temporary storage
+  auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
+
+  CUCO_CUDA_TRY(cub::DeviceSelect::If(d_temp_storage,
+                                      temp_storage_bytes,
+                                      begin,
+                                      output_begin,
+                                      d_num_out,
+                                      capacity(),
+                                      filled,
+                                      stream));
+
+  size_type h_num_out;
+  CUCO_CUDA_TRY(
+    cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+  std::allocator_traits<temp_allocator_type>::deallocate(
+    temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(size_type));
+  temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
+
+  return output_begin + h_num_out;
 }
 
 template <class Key,

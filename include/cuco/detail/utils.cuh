@@ -79,34 +79,6 @@ struct slot_is_filled {
 };
 
 /**
- * @brief Device functor returning the number of filled elements per window.
- *
- * @tparam Sentinel Empty sentinel type
- */
-template <typename Sentinel>
-struct elements_per_window {
-  Sentinel empty_key_sentinel_;  ///< The value of the empty key sentinel
-
-  /**
-   * @brief Computes the number of filled elements per window.
-   *
-   * @tparam Window Window storage type
-   *
-   * @param window The window to query
-   * @return Number of filled elements per window
-   */
-  template <typename Window>
-  __device__ inline int32_t operator()(Window const& window) const
-  {
-    int32_t num = 0;
-    for (auto const& element : window) {
-      num += not cuco::detail::bitwise_compare(element, empty_key_sentinel_);
-    }
-    return num;
-  }
-};
-
-/**
  * @brief A strong type wrapper.
  *
  * @tparam T Type of the mapped values
