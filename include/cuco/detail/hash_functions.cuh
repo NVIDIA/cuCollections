@@ -226,49 +226,53 @@ struct XXH32 {
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
-    constexpr auto nbytes   = sizeof(Key);
-    char const* const bytes = (char const*)&key;
-    // constexpr auto nblocks = nbytes / 4;
-    uint32_t const* const blocks = (uint32_t const*)&key;
+    // TODO do we need to add checks/hints for alignment?
+    constexpr auto nbytes        = sizeof(Key);
+    char const* const bytes      = (char const*)&key;      // for per-byte access
+    uint32_t const* const blocks = (uint32_t const*)&key;  // for per-word access
 
     uint32_t offset = 0;
     uint32_t h32;
 
     if constexpr (nbytes >= 16) {
-      uint32_t limit = nbytes - 16;
-      uint32_t v1    = seed_ + prime1 + prime2;
-      uint32_t v2    = seed_ + prime2;
-      uint32_t v3    = seed_;
-      uint32_t v4    = seed_ - prime1;
+      constexpr auto limit = nbytes - 16;
+      uint32_t v1          = seed_ + prime1 + prime2;
+      uint32_t v2          = seed_ + prime2;
+      uint32_t v3          = seed_;
+      uint32_t v4          = seed_ - prime1;
 
       do {
-        v1 += bytes[offset / 4] * prime2;
+        // pipeline 4*4byte computations
+        auto const pipeline_offset = offset >> 2;  // optimized division by 4
+        v1 += blocks[pipeline_offset] * prime2;
         v1 = rotl(v1, 13);
         v1 *= prime1;
-        offset += 4;
-        v2 += bytes[offset / 4] * prime2;
+        v2 += blocks[pipeline_offset + 1] * prime2;
         v2 = rotl(v2, 13);
         v2 *= prime1;
-        offset += 4;
-        v3 += bytes[offset / 4] * prime2;
+        v3 += blocks[pipeline_offset + 2] * prime2;
         v3 = rotl(v3, 13);
         v3 *= prime1;
-        offset += 4;
-        v4 += bytes[offset / 4] * prime2;
+        v4 += blocks[pipeline_offset + 3] * prime2;
         v4 = rotl(v4, 13);
         v4 *= prime1;
-        offset += 4;
+        offset += 16;
       } while (offset <= limit);
+
       h32 = rotl(v1, 1) + rotl(v2, 7) + rotl(v3, 12) + rotl(v4, 18);
     } else {
       h32 = seed_ + prime5;
     }
 
+    // TODO unroll?
     for (h32 += nbytes; offset <= nbytes - 4; offset += 4) {
-      h32 += blocks[offset / 4] * prime3;  // TODO optimize division
+      h32 += blocks[offset >> 2] * prime3;  // optimized division by 4
       h32 = rotl(h32, 17) * prime4;
     }
 
+    // TODO if constexpr (nbytes % 4) { ?
+    // the following loop is only needed if the size of the key is no multiple of the block/word
+    // size
     while (offset < nbytes) {
       h32 += (bytes[offset] & 255) * prime5;
       h32 = rotl(h32, 11) * prime1;
@@ -279,7 +283,7 @@ struct XXH32 {
   }
 
  private:
-  constexpr __host__ __device__ uint32_t rotl(uint32_t h, int32_t r) const noexcept
+  constexpr __host__ __device__ uint32_t rotl(uint32_t h, int8_t r) const noexcept
   {
     return ((h << r) | (h >> (32 - r)));
   }
