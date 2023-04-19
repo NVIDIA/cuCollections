@@ -22,6 +22,8 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <thrust/device_vector.h>
+
 #include <cstdint>
 
 using namespace cuco::benchmark;
@@ -41,14 +43,18 @@ struct large_key {
   int32_t data_[Words];
 };
 
-template <int32_t BlockSize, typename Hasher>
-__global__ void hash_bench_kernel(Hasher hash, cuco::detail::index_type n)
+template <int32_t BlockSize, typename Hasher, typename OutputIt>
+__global__ void hash_bench_kernel(Hasher hash,
+                                  cuco::detail::index_type n,
+                                  OutputIt out,
+                                  bool materialize_result)
 {
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
   cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
 
   while (idx < n) {
-    volatile auto hash_value = hash(idx);
+    auto const hash_value = hash(idx);
+    if (materialize_result) { out[idx] = hash_value; }
     idx += loop_stride;
   }
 }
@@ -59,16 +65,19 @@ __global__ void hash_bench_kernel(Hasher hash, cuco::detail::index_type n)
 template <typename Hash>
 void hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
 {
-  constexpr auto block_size = 128;
-  auto const num_keys       = state.get_int64_or_default("NumInputs", defaults::N);
-  auto const grid_size =
-    state.get_int64_or_default("GridSize", SDIV(num_keys + 4 * block_size, 4 * block_size));
+  bool const materialize_result = false;
+  constexpr auto block_size     = 128;
+  auto const num_keys           = state.get_int64_or_default("NumInputs", defaults::N * 10);
+  auto const grid_size = state.get_int64_or_default("GridSize", SDIV(num_keys, block_size * 16));
+
+  thrust::device_vector<typename Hash::result_type> hash_values((materialize_result) ? num_keys
+                                                                                     : 1);
 
   state.add_element_count(num_keys);
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    hash_bench_kernel<block_size>
-      <<<grid_size, block_size, 0, launch.get_stream()>>>(Hash{}, num_keys);
+    hash_bench_kernel<block_size><<<grid_size, block_size, 0, launch.get_stream()>>>(
+      Hash{}, num_keys, hash_values.begin(), materialize_result);
   });
 }
 
