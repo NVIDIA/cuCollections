@@ -21,6 +21,28 @@
 namespace cuco {
 
 /**
+ * @brief The 32-bit integer finalizer function of `MurmurHash3` to hash the given argument on host
+ * and device.
+ *
+ * @throw Key type must be 4 bytes in size
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using fmix_32 = detail::MurmurHash3_fmix32<Key>;
+
+/**
+ * @brief The 64-bit integer finalizer function of `MurmurHash3` to hash the given argument on host
+ * and device.
+ *
+ * @throw Key type must be 8 bytes in size
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using fmix_64 = detail::MurmurHash3_fmix64<Key>;
+
+/**
  * @brief A `murmurhash3_32` hash function to hash the given argument on host and device.
  *
  * @tparam Key The type of the values to hash
