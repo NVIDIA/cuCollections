@@ -24,6 +24,7 @@
 #include <cuda/std/array>
 
 #include <cstddef>
+#include <iterator>
 #include <memory>
 
 namespace cuco {
@@ -111,6 +112,114 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
   explicit constexpr aow_storage_ref(Extent num_windows, window_type* windows) noexcept
     : aow_storage_base<WindowSize, T, Extent>{num_windows}, windows_{windows}
   {
+  }
+
+  /**
+   * @brief Custom forward iterator for the convenience of `find` operations.
+   */
+  struct Iterator {
+   public:
+    using iterator_category = std::forward_iterator_tag;  ///< Iterator category
+    using difference_type   = std::ptrdiff_t;             ///< Iterator difference type
+    using reference         = value_type&;                ///< Iterator reference type
+
+    /**
+     * @brief Constructs a device side forward iterator for slots.
+     *
+     * @param current The slot index
+     * @param data Pointer to the window storage
+     */
+    __device__ constexpr Iterator(size_type current, window_type* data) noexcept
+      : current_{current}, data_{data}
+    {
+    }
+
+    /**
+     * @brief Prefix increment operator
+     *
+     * @return Current iterator
+     */
+    __device__ constexpr Iterator& operator++() noexcept
+    {
+      current_++;
+      return *this;
+    }
+
+    /**
+     * @brief Postfix increment operator
+     *
+     * @return Old iterator before increment
+     */
+    __device__ constexpr Iterator operator++(int32_t) noexcept
+    {
+      auto tmp = *this;
+      ++(*this);
+      return tmp;
+    }
+
+    /**
+     * @brief Dereference operator
+     *
+     * @return Reference to the current slot
+     */
+    __device__ constexpr reference operator*() const
+    {
+      auto const window_index       = current_ / window_size;
+      auto const intra_window_index = current_ % window_size;
+      return data_[window_index][intra_window_index];
+    }
+
+    /**
+     * Equality operator
+     *
+     * @return True if two iterators are identical
+     */
+    friend __device__ constexpr bool operator==(Iterator const& lhs, Iterator const& rhs) noexcept
+    {
+      return lhs.current_ == rhs.current_ and lhs.data_ == rhs.data_;
+    }
+
+    /**
+     * Inequality operator
+     *
+     * @return True if two iterators are not identical
+     */
+    friend __device__ constexpr bool operator!=(Iterator const& lhs, Iterator const& rhs) noexcept
+    {
+      return not lhs == rhs;
+    }
+
+   private:
+    size_type current_{};  ///< Current index
+    window_type* data_{};  ///< Pointer to the window data
+  };
+  using iterator       = Iterator;        ///< Forward iterator type
+  using const_iterator = Iterator const;  ///< Const forward iterator type
+
+  /**
+   * @brief Returns an iterator to one past the last slot.
+   *
+   * This is provided for convenience for those familiar with checking
+   * an iterator returned from `find()` against the `end()` iterator.
+   *
+   * @return An iterator to one past the last slot
+   */
+  [[nodiscard]] __device__ constexpr iterator end() noexcept
+  {
+    return {this->capacity(), this->data()};
+  }
+
+  /**
+   * @brief Returns a const_iterator to one past the last slot.
+   *
+   * This is provided for convenience for those familiar with checking
+   * an iterator returned from `find()` against the `end()` iterator.
+   *
+   * @return A const_iterator to one past the last slot
+   */
+  [[nodiscard]] __device__ constexpr const_iterator end() const noexcept
+  {
+    return {this->capacity(), this->data()};
   }
 
   /**
