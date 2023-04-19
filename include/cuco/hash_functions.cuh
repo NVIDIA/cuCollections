@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,5 +27,13 @@ namespace cuco {
  */
 template <typename Key>
 using murmurhash3_32 = detail::MurmurHash3_32<Key>;
+
+/**
+ * @brief A `XXH64` hash function to hash the given argument on host and device.
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using xxhash_64 = detail::XXH64<Key>;
 
 }  // namespace cuco

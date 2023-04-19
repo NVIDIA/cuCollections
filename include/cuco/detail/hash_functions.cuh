@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2017-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -112,6 +112,159 @@ struct MurmurHash3_32 {
     return h;
   }
   uint32_t m_seed;
+};
+
+/**
+ * @brief A `XXH64` hash function to hash the given argument on host and device.
+ *
+ * XXH64 implementation from
+ * https://github.com/Cyan4973/xxHash
+ * TODO Copyright disclaimer
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+struct XXH64 {
+ private:
+  static constexpr uint64_t prime1_ = 11400714785074694791ULL;
+  static constexpr uint64_t prime2_ = 14029467366897019727ULL;
+  static constexpr uint64_t prime3_ = 1609587929392839161ULL;
+  static constexpr uint64_t prime4_ = 9650029242287828579ULL;
+  static constexpr uint64_t prime5_ = 2870177450012600261ULL;
+
+ public:
+  using argument_type = Key;       ///< The type of the values taken as argument
+  using result_type   = uint64_t;  ///< The type of the hash values produced
+
+  /// Default constructor
+  __host__ __device__ constexpr XXH64() : XXH64{0} {}
+
+  /**
+   * @brief Constructs a XXH64 hash function with the given `seed`.
+   *
+   * @param seed A custom number to randomize the resulting hash value
+   */
+  __host__ __device__ constexpr XXH64(uint64_t seed) : seed_(seed) {}
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @param key The input argument to hash
+   * @return A resulting hash value for `key`
+   */
+  constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
+  {
+    constexpr auto len  = sizeof(Key);
+    char const* const p = (char const*)&key;
+
+    return finalize(
+      (len >= 32 ? h32bytes(p, len, seed_) : seed_ + prime5_) + len, p + (len & ~0x1F), len & 0x1F);
+  }
+
+ private:
+#ifdef XXH64_BIG_ENDIAN
+  constexpr __host__ __device__ uint32_t endian32(char const* v) const noexcept
+  {
+    return uint32_t(uint8_t(v[3])) | (uint32_t(uint8_t(v[2])) << 8) |
+           (uint32_t(uint8_t(v[1])) << 16) | (uint32_t(uint8_t(v[0])) << 24);
+  }
+
+  constexpr __host__ __device__ uint64_t endian64(char const* v) const noexcept
+  {
+    return uint64_t(uint8_t(v[7])) | (uint64_t(uint8_t(v[6])) << 8) |
+           (uint64_t(uint8_t(v[5])) << 16) | (uint64_t(uint8_t(v[4])) << 24) |
+           (uint64_t(uint8_t(v[3])) << 32) | (uint64_t(uint8_t(v[2])) << 40) |
+           (uint64_t(uint8_t(v[1])) << 48) | (uint64_t(uint8_t(v[0])) << 56);
+  }
+#else
+  constexpr __host__ __device__ uint32_t endian32(char const* v) const noexcept
+  {
+    return uint32_t(uint8_t(v[0])) | (uint32_t(uint8_t(v[1])) << 8) |
+           (uint32_t(uint8_t(v[2])) << 16) | (uint32_t(uint8_t(v[3])) << 24);
+  }
+
+  constexpr __host__ __device__ uint64_t endian64(char const* v) const noexcept
+  {
+    return uint64_t(uint8_t(v[0])) | (uint64_t(uint8_t(v[1])) << 8) |
+           (uint64_t(uint8_t(v[2])) << 16) | (uint64_t(uint8_t(v[3])) << 24) |
+           (uint64_t(uint8_t(v[4])) << 32) | (uint64_t(uint8_t(v[5])) << 40) |
+           (uint64_t(uint8_t(v[6])) << 48) | (uint64_t(uint8_t(v[7])) << 56);
+  }
+#endif
+
+  constexpr __host__ __device__ uint64_t rotl(uint64_t x, int32_t r) const noexcept
+  {
+    return ((x << r) | (x >> (64 - r)));
+  }
+
+  constexpr __host__ __device__ uint64_t mix1(uint64_t h,
+                                              uint64_t prime,
+                                              int32_t rshift) const noexcept
+  {
+    return (h ^ (h >> rshift)) * prime;
+  }
+
+  constexpr __host__ __device__ uint64_t mix2(uint64_t p, uint64_t v = 0) const noexcept
+  {
+    return rotl(v + p * prime2_, 31) * prime1_;
+  }
+
+  constexpr __host__ __device__ uint64_t mix3(uint64_t h, uint64_t v) const noexcept
+  {
+    return (h ^ mix2(v)) * prime1_ + prime4_;
+  }
+
+  constexpr __host__ __device__ uint64_t fetch64(char const* p, const uint64_t v = 0) const noexcept
+  {
+    return mix2(endian64(p), v);
+  }
+
+  constexpr __host__ __device__ uint64_t fetch32(char const* p) const noexcept
+  {
+    return uint64_t(endian32(p)) * prime1_;
+  }
+
+  constexpr __host__ __device__ uint64_t fetch8(char const* p) const noexcept
+  {
+    return uint8_t(*p) * prime5_;
+  }
+
+  constexpr __host__ __device__ uint64_t finalize(uint64_t h,
+                                                  char const* p,
+                                                  uint64_t len) const noexcept
+  {
+    return (len >= 8)
+             ? (finalize(rotl(h ^ fetch64(p), 27) * prime1_ + prime4_, p + 8, len - 8))
+             : ((len >= 4)
+                  ? (finalize(rotl(h ^ fetch32(p), 23) * prime2_ + prime3_, p + 4, len - 4))
+                  : ((len > 0) ? (finalize(rotl(h ^ fetch8(p), 11) * prime1_, p + 1, len - 1))
+                               : (mix1(mix1(mix1(h, prime2_, 33), prime3_, 29), 1, 32))));
+  }
+
+  constexpr __host__ __device__ uint64_t h32bytes(
+    char const* p, uint64_t len, uint64_t v1, uint64_t v2, uint64_t v3, uint64_t v4) const noexcept
+  {
+    return (len >= 32)
+             ? h32bytes(p + 32,
+                        len - 32,
+                        fetch64(p, v1),
+                        fetch64(p + 8, v2),
+                        fetch64(p + 16, v3),
+                        fetch64(p + 24, v4))
+             : mix3(
+                 mix3(mix3(mix3(rotl(v1, 1) + rotl(v2, 7) + rotl(v3, 12) + rotl(v4, 18), v1), v2),
+                      v3),
+                 v4);
+  }
+
+  constexpr __host__ __device__ uint64_t h32bytes(char const* p,
+                                                  uint64_t len,
+                                                  uint64_t seed) const noexcept
+  {
+    return h32bytes(p, len, seed + prime1_ + prime2_, seed + prime2_, seed, seed - prime1_);
+  }
+
+  uint64_t seed_;
 };
 
 }  // namespace cuco::detail
