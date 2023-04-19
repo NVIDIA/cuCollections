@@ -22,6 +22,7 @@
 #include <thrust/distance.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
+#include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
@@ -38,24 +39,49 @@ __inline__ void test_unique_sequence(Set& set, std::size_t num_keys)
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
 
-  auto key_begin = d_keys.begin();
+  auto keys_begin = d_keys.begin();
   thrust::device_vector<bool> d_contained(num_keys);
 
   SECTION("Non-inserted keys should not be contained.")
   {
     REQUIRE(set.size() == 0);
 
-    set.contains(key_begin, key_begin + num_keys, d_contained.begin());
+    set.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
     REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
 
-  set.insert(key_begin, key_begin + num_keys);
+  SECTION("Non-inserted keys have no matches")
+  {
+    thrust::device_vector<Key> d_results(num_keys);
+
+    set.find(keys_begin, keys_begin + num_keys, d_results.begin());
+    auto zip = thrust::make_zip_iterator(thrust::make_tuple(
+      d_results.begin(), thrust::constant_iterator<Key>{set.empty_key_sentinel()}));
+
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, [] __device__(auto const& p) {
+      return thrust::get<0>(p) == thrust::get<1>(p);
+    }));
+  }
+
+  set.insert(keys_begin, keys_begin + num_keys);
   REQUIRE(set.size() == num_keys);
 
   SECTION("All inserted key/value pairs should be contained.")
   {
-    set.contains(key_begin, key_begin + num_keys, d_contained.begin());
+    set.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
     REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
+  }
+
+  SECTION("All inserted keys should be correctly recovered during find")
+  {
+    thrust::device_vector<Key> d_results(num_keys);
+
+    set.find(keys_begin, keys_begin + num_keys, d_results.begin());
+    auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), keys_begin));
+
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, [] __device__(auto const& p) {
+      return thrust::get<0>(p) == thrust::get<1>(p);
+    }));
   }
 }
 
