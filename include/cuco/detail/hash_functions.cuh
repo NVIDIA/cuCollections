@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace cuco::detail {
 
 /**
@@ -188,6 +190,114 @@ struct MurmurHash3_32 {
 };
 
 /**
+ * @brief A `XXH32` hash function to hash the given argument on host and device.
+ *
+ * XXH32 implementation from
+ * https://github.com/Cyan4973/xxHash
+ * TODO Copyright disclaimer
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+struct XXH32 {
+ private:
+  static constexpr uint32_t prime1 = 0x9E3779B1U;
+  static constexpr uint32_t prime2 = 0x85EBCA77U;
+  static constexpr uint32_t prime3 = 0xC2B2AE3DU;
+  static constexpr uint32_t prime4 = 0x27D4EB2FU;
+  static constexpr uint32_t prime5 = 0x165667B1U;
+
+ public:
+  using argument_type = Key;       ///< The type of the values taken as argument
+  using result_type   = uint32_t;  ///< The type of the hash values produced
+
+  /**
+   * @brief Constructs a XXH32 hash function with the given `seed`.
+   *
+   * @param seed A custom number to randomize the resulting hash value
+   */
+  __host__ __device__ constexpr XXH32(uint32_t seed = 0) : seed_(seed) {}
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @param key The input argument to hash
+   * @return A resulting hash value for `key`
+   */
+  constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
+  {
+    constexpr auto nbytes   = sizeof(Key);
+    char const* const bytes = (char const*)&key;
+    // constexpr auto nblocks = nbytes / 4;
+    uint32_t const* const blocks = (uint32_t const*)&key;
+
+    uint32_t offset = 0;
+    uint32_t h32;
+
+    if constexpr (nbytes >= 16) {
+      uint32_t limit = nbytes - 16;
+      uint32_t v1    = seed_ + prime1 + prime2;
+      uint32_t v2    = seed_ + prime2;
+      uint32_t v3    = seed_;
+      uint32_t v4    = seed_ - prime1;
+
+      do {
+        v1 += bytes[offset / 4] * prime2;
+        v1 = rotl(v1, 13);
+        v1 *= prime1;
+        offset += 4;
+        v2 += bytes[offset / 4] * prime2;
+        v2 = rotl(v2, 13);
+        v2 *= prime1;
+        offset += 4;
+        v3 += bytes[offset / 4] * prime2;
+        v3 = rotl(v3, 13);
+        v3 *= prime1;
+        offset += 4;
+        v4 += bytes[offset / 4] * prime2;
+        v4 = rotl(v4, 13);
+        v4 *= prime1;
+        offset += 4;
+      } while (offset <= limit);
+      h32 = rotl(v1, 1) + rotl(v2, 7) + rotl(v3, 12) + rotl(v4, 18);
+    } else {
+      h32 = seed_ + prime5;
+    }
+
+    for (h32 += nbytes; offset <= nbytes - 4; offset += 4) {
+      h32 += blocks[offset / 4] * prime3;  // TODO optimize division
+      h32 = rotl(h32, 17) * prime4;
+    }
+
+    while (offset < nbytes) {
+      h32 += (bytes[offset] & 255) * prime5;
+      h32 = rotl(h32, 11) * prime1;
+      ++offset;
+    }
+
+    return finalize(h32);
+  }
+
+ private:
+  constexpr __host__ __device__ uint32_t rotl(uint32_t h, int32_t r) const noexcept
+  {
+    return ((h << r) | (h >> (32 - r)));
+  }
+
+  constexpr __host__ __device__ uint32_t finalize(uint32_t h) const noexcept
+  {
+    h ^= h >> 15;
+    h *= prime2;
+    h ^= h >> 13;
+    h *= prime3;
+    h ^= h >> 16;
+    return h;
+  }
+
+  uint32_t seed_;
+};
+
+/**
  * @brief A `XXH64` hash function to hash the given argument on host and device.
  *
  * XXH64 implementation from
@@ -209,15 +319,12 @@ struct XXH64 {
   using argument_type = Key;       ///< The type of the values taken as argument
   using result_type   = uint64_t;  ///< The type of the hash values produced
 
-  /// Default constructor
-  __host__ __device__ constexpr XXH64() : XXH64{0} {}
-
   /**
    * @brief Constructs a XXH64 hash function with the given `seed`.
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr XXH64(uint64_t seed) : seed_(seed) {}
+  __host__ __device__ constexpr XXH64(uint64_t seed = 0) : seed_(seed) {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.

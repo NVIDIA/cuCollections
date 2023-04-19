@@ -76,10 +76,13 @@ NVBENCH_BENCH_TYPES(
   hash_eval,
   NVBENCH_TYPE_AXES(nvbench::type_list<cuco::murmurhash3_32<nvbench::int32_t>,
                                        cuco::murmurhash3_32<nvbench::int64_t>,
-                                       cuco::murmurhash3_32<large_key<64>>,  // 64*4bytes
+                                       cuco::murmurhash3_32<large_key<32>>,  // 32*4bytes
+                                       cuco::xxhash_32<nvbench::int32_t>,
+                                       cuco::xxhash_32<nvbench::int64_t>,
+                                       cuco::xxhash_32<large_key<32>>,
                                        cuco::xxhash_64<nvbench::int32_t>,
                                        cuco::xxhash_64<nvbench::int64_t>,
-                                       cuco::xxhash_64<large_key<64>>,
+                                       cuco::xxhash_64<large_key<32>>,
                                        cuco::fmix_32<nvbench::int32_t>,
                                        cuco::fmix_64<nvbench::int64_t>>))
   .set_name("hash_function_eval")
