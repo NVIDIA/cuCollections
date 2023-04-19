@@ -293,23 +293,11 @@ __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_
         block.sync();
         *(output_begin + idx) = output_buffer[thread_idx];
       } else {
-        auto const tile     = cg::tiled_partition<CGSize>(block);
-        auto const tile_idx = thread_idx / CGSize;
-        auto const found    = ref.find(tile, key);
-        /*
-         * The ld.relaxed.gpu instruction used in ref.find causes L1 to
-         * flush more frequently, causing increased sector stores from L2 to global memory.
-         * By writing results to shared memory and then synchronizing before writing back
-         * to global, we no longer rely on L1, preventing the increase in sector stores from
-         * L2 to global and improving performance.
-         */
-        if (tile.thread_rank() == 0) {
-          output_buffer[tile_idx] = found == ref.end() ? ref.empty_key_sentinel() : *found;
-        }
+        auto const tile  = cg::tiled_partition<CGSize>(block);
+        auto const found = ref.find(tile, key);
 
-        block.sync();
-        if (tile.thread_rank() == 0 and idx < n) {
-          *(output_begin + idx) = output_buffer[tile_idx];
+        if (tile.thread_rank() == 0) {
+          *(output_begin + idx) = found == ref.end() ? ref.empty_key_sentinel() : *found;
         }
       }
     }
