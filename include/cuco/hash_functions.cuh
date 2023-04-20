@@ -56,7 +56,7 @@ using murmurhash3_32 = detail::MurmurHash3_32<Key>;
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
-using xxhash_32 = detail::XXH32<Key>;
+using xxhash_32 = detail::XXHash_32<Key>;
 
 /**
  * @brief A `XXH64` hash function to hash the given argument on host and device.
@@ -64,6 +64,6 @@ using xxhash_32 = detail::XXH32<Key>;
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
-using xxhash_64 = detail::XXH64<Key>;
+using xxhash_64 = detail::XXHash_64<Key>;
 
 }  // namespace cuco

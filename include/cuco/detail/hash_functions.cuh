@@ -190,16 +190,16 @@ struct MurmurHash3_32 {
 };
 
 /**
- * @brief A `XXH32` hash function to hash the given argument on host and device.
+ * @brief A `XXHash_32` hash function to hash the given argument on host and device.
  *
- * XXH32 implementation from
+ * XXHash_32 implementation from
  * https://github.com/Cyan4973/xxHash
  * TODO Copyright disclaimer
  *
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
-struct XXH32 {
+struct XXHash_32 {
  private:
   static constexpr uint32_t prime1 = 0x9E3779B1U;
   static constexpr uint32_t prime2 = 0x85EBCA77U;
@@ -216,7 +216,7 @@ struct XXH32 {
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr XXH32(uint32_t seed = 0) : seed_(seed) {}
+  __host__ __device__ constexpr XXHash_32(uint32_t seed = 0) : seed_(seed) {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
@@ -228,12 +228,13 @@ struct XXH32 {
   {
     // TODO do we need to add checks/hints for alignment?
     constexpr auto nbytes        = sizeof(Key);
-    char const* const bytes      = (char const*)&key;      // for per-byte access
-    uint32_t const* const blocks = (uint32_t const*)&key;  // for per-word access
+    char const* const bytes      = (char const*)&key;      ///< per-byte access
+    uint32_t const* const blocks = (uint32_t const*)&key;  ///< 4-byte word access
 
     uint32_t offset = 0;
     uint32_t h32;
 
+    // data can be processed in 16-byte chunks
     if constexpr (nbytes >= 16) {
       constexpr auto limit = nbytes - 16;
       uint32_t v1          = seed_ + prime1 + prime2;
@@ -264,19 +265,23 @@ struct XXH32 {
       h32 = seed_ + prime5;
     }
 
-    // TODO unroll?
-    for (h32 += nbytes; offset <= nbytes - 4; offset += 4) {
-      h32 += blocks[offset >> 2] * prime3;  // optimized division by 4
-      h32 = rotl(h32, 17) * prime4;
+    h32 += nbytes;
+
+    // remaining data can be processed in 4-byte chunks
+    if constexpr ((nbytes % 16) >= 4) {
+      for (; offset <= nbytes - 4; offset += 4) {
+        h32 += blocks[offset >> 2] * prime3;  // optimized division by 4
+        h32 = rotl(h32, 17) * prime4;
+      }
     }
 
-    // TODO if constexpr (nbytes % 4) { ?
-    // the following loop is only needed if the size of the key is no multiple of the block/word
-    // size
-    while (offset < nbytes) {
-      h32 += (bytes[offset] & 255) * prime5;
-      h32 = rotl(h32, 11) * prime1;
-      ++offset;
+    // the following loop is only needed if the size of the key is no multiple of the block size
+    if constexpr (nbytes % 4) {
+      while (offset < nbytes) {
+        h32 += (bytes[offset] & 255) * prime5;
+        h32 = rotl(h32, 11) * prime1;
+        ++offset;
+      }
     }
 
     return finalize(h32);
@@ -288,6 +293,7 @@ struct XXH32 {
     return ((h << r) | (h >> (32 - r)));
   }
 
+  // avalanche helper
   constexpr __host__ __device__ uint32_t finalize(uint32_t h) const noexcept
   {
     h ^= h >> 15;
@@ -302,22 +308,23 @@ struct XXH32 {
 };
 
 /**
- * @brief A `XXH64` hash function to hash the given argument on host and device.
+ * @brief A `XXHash_64` hash function to hash the given argument on host and device.
  *
- * XXH64 implementation from
- * https://github.com/Cyan4973/xxHash
+ * XXHash_64 implementation from
+ * https://github.com/Cyan4973/xxHash and
+ * https://github.com/lz4/lz4-java/blob/812d2e27489995645d878c9fb2ddcb83e54cc7d2/src/build/source_templates/xxhash64_hash.template
  * TODO Copyright disclaimer
  *
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
-struct XXH64 {
+struct XXHash_64 {
  private:
-  static constexpr uint64_t prime1_ = 11400714785074694791ULL;
-  static constexpr uint64_t prime2_ = 14029467366897019727ULL;
-  static constexpr uint64_t prime3_ = 1609587929392839161ULL;
-  static constexpr uint64_t prime4_ = 9650029242287828579ULL;
-  static constexpr uint64_t prime5_ = 2870177450012600261ULL;
+  static constexpr uint64_t prime1 = 11400714785074694791ULL;
+  static constexpr uint64_t prime2 = 14029467366897019727ULL;
+  static constexpr uint64_t prime3 = 1609587929392839161ULL;
+  static constexpr uint64_t prime4 = 9650029242287828579ULL;
+  static constexpr uint64_t prime5 = 2870177450012600261ULL;
 
  public:
   using argument_type = Key;       ///< The type of the values taken as argument
@@ -328,7 +335,7 @@ struct XXH64 {
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr XXH64(uint64_t seed = 0) : seed_(seed) {}
+  __host__ __device__ constexpr XXHash_64(uint64_t seed = 0) : seed_(seed) {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
@@ -338,114 +345,117 @@ struct XXH64 {
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
-    constexpr auto len  = sizeof(Key);
-    char const* const p = (char const*)&key;
+    // TODO do we need to add checks/hints for alignment?
+    constexpr auto nbytes         = sizeof(Key);
+    char const* const bytes       = (char const*)&key;      ///< per-byte access
+    uint32_t const* const blocks4 = (uint32_t const*)&key;  ///< 4-byte word access
+    uint64_t const* const blocks8 = (uint64_t const*)&key;  ///< 8-byte word access
 
-    return finalize(
-      (len >= 32 ? h32bytes(p, len, seed_) : seed_ + prime5_) + len, p + (len & ~0x1F), len & 0x1F);
+    uint64_t offset = 0;
+    uint64_t h64;
+
+    // data can be processed in 32-byte chunks
+    if constexpr (nbytes >= 32) {
+      constexpr auto limit = nbytes - 32;
+      uint64_t v1          = seed_ + prime1 + prime2;
+      uint64_t v2          = seed_ + prime2;
+      uint64_t v3          = seed_;
+      uint64_t v4          = seed_ - prime1;
+
+      do {
+        // pipeline 4*8byte computations
+        auto const pipeline_offset = offset >> 3;  // optimized division by 8
+        v1 += blocks8[pipeline_offset] * prime2;
+        v1 = rotl(v1, 31);
+        v1 *= prime1;
+        v2 += blocks8[pipeline_offset + 1] * prime2;
+        v2 = rotl(v2, 31);
+        v2 *= prime1;
+        v3 += blocks8[pipeline_offset + 2] * prime2;
+        v3 = rotl(v3, 31);
+        v3 *= prime1;
+        v4 += blocks8[pipeline_offset + 3] * prime2;
+        v4 = rotl(v4, 31);
+        v4 *= prime1;
+        offset += 32;
+      } while (offset <= limit);
+
+      h64 = rotl(v1, 1) + rotl(v2, 7) + rotl(v3, 12) + rotl(v4, 18);
+
+      v1 *= prime2;
+      v1 = rotl(v1, 31);
+      v1 *= prime1;
+      h64 ^= v1;
+      h64 = h64 * prime1 + prime4;
+
+      v2 *= prime2;
+      v2 = rotl(v2, 31);
+      v2 *= prime1;
+      h64 ^= v2;
+      h64 = h64 * prime1 + prime4;
+
+      v3 *= prime2;
+      v3 = rotl(v3, 31);
+      v3 *= prime1;
+      h64 ^= v3;
+      h64 = h64 * prime1 + prime4;
+
+      v4 *= prime2;
+      v4 = rotl(v4, 31);
+      v4 *= prime1;
+      h64 ^= v4;
+      h64 = h64 * prime1 + prime4;
+    } else {
+      h64 = seed_ + prime5;
+    }
+
+    h64 += nbytes;
+
+    // remaining data can be processed in 8-byte chunks
+    if constexpr ((nbytes % 32) >= 8) {
+      for (; offset <= nbytes - 8; offset += 8) {
+        uint64_t k1 = blocks8[offset >> 3] * prime2;
+        k1          = rotl(k1, 31) * prime1;
+        h64 ^= k1;
+        h64 = rotl(h64, 27) * prime1 + prime4;
+      }
+    }
+
+    // remaining data can be processed in 4-byte chunks
+    if constexpr (((nbytes % 32) % 8) >= 4) {
+      for (; offset <= nbytes - 4; offset += 4) {
+        h64 ^= (blocks4[offset >> 2] & 0xFFFFFFFFULL) * prime1;
+        h64 = rotl(h64, 23) * prime2 + prime3;
+      }
+    }
+
+    // the following loop is only needed if the size of the key is no multiple of a previous block
+    // size
+    if constexpr (nbytes % 4) {
+      while (offset < nbytes) {
+        h64 += (bytes[offset] & 0xFF) * prime5;
+        h64 = rotl(h64, 11) * prime1;
+        ++offset;
+      }
+    }
+    return finalize(h64);
   }
 
  private:
-#ifdef XXH64_BIG_ENDIAN
-  constexpr __host__ __device__ uint32_t endian32(char const* v) const noexcept
+  constexpr __host__ __device__ uint64_t rotl(uint64_t h, int8_t r) const noexcept
   {
-    return uint32_t(uint8_t(v[3])) | (uint32_t(uint8_t(v[2])) << 8) |
-           (uint32_t(uint8_t(v[1])) << 16) | (uint32_t(uint8_t(v[0])) << 24);
+    return ((h << r) | (h >> (64 - r)));
   }
 
-  constexpr __host__ __device__ uint64_t endian64(char const* v) const noexcept
+  // avalanche helper
+  constexpr __host__ __device__ uint64_t finalize(uint64_t h) const noexcept
   {
-    return uint64_t(uint8_t(v[7])) | (uint64_t(uint8_t(v[6])) << 8) |
-           (uint64_t(uint8_t(v[5])) << 16) | (uint64_t(uint8_t(v[4])) << 24) |
-           (uint64_t(uint8_t(v[3])) << 32) | (uint64_t(uint8_t(v[2])) << 40) |
-           (uint64_t(uint8_t(v[1])) << 48) | (uint64_t(uint8_t(v[0])) << 56);
-  }
-#else
-  constexpr __host__ __device__ uint32_t endian32(char const* v) const noexcept
-  {
-    return uint32_t(uint8_t(v[0])) | (uint32_t(uint8_t(v[1])) << 8) |
-           (uint32_t(uint8_t(v[2])) << 16) | (uint32_t(uint8_t(v[3])) << 24);
-  }
-
-  constexpr __host__ __device__ uint64_t endian64(char const* v) const noexcept
-  {
-    return uint64_t(uint8_t(v[0])) | (uint64_t(uint8_t(v[1])) << 8) |
-           (uint64_t(uint8_t(v[2])) << 16) | (uint64_t(uint8_t(v[3])) << 24) |
-           (uint64_t(uint8_t(v[4])) << 32) | (uint64_t(uint8_t(v[5])) << 40) |
-           (uint64_t(uint8_t(v[6])) << 48) | (uint64_t(uint8_t(v[7])) << 56);
-  }
-#endif
-
-  constexpr __host__ __device__ uint64_t rotl(uint64_t x, int32_t r) const noexcept
-  {
-    return ((x << r) | (x >> (64 - r)));
-  }
-
-  constexpr __host__ __device__ uint64_t mix1(uint64_t h,
-                                              uint64_t prime,
-                                              int32_t rshift) const noexcept
-  {
-    return (h ^ (h >> rshift)) * prime;
-  }
-
-  constexpr __host__ __device__ uint64_t mix2(uint64_t p, uint64_t v = 0) const noexcept
-  {
-    return rotl(v + p * prime2_, 31) * prime1_;
-  }
-
-  constexpr __host__ __device__ uint64_t mix3(uint64_t h, uint64_t v) const noexcept
-  {
-    return (h ^ mix2(v)) * prime1_ + prime4_;
-  }
-
-  constexpr __host__ __device__ uint64_t fetch64(char const* p, const uint64_t v = 0) const noexcept
-  {
-    return mix2(endian64(p), v);
-  }
-
-  constexpr __host__ __device__ uint64_t fetch32(char const* p) const noexcept
-  {
-    return uint64_t(endian32(p)) * prime1_;
-  }
-
-  constexpr __host__ __device__ uint64_t fetch8(char const* p) const noexcept
-  {
-    return uint8_t(*p) * prime5_;
-  }
-
-  constexpr __host__ __device__ uint64_t finalize(uint64_t h,
-                                                  char const* p,
-                                                  uint64_t len) const noexcept
-  {
-    return (len >= 8)
-             ? (finalize(rotl(h ^ fetch64(p), 27) * prime1_ + prime4_, p + 8, len - 8))
-             : ((len >= 4)
-                  ? (finalize(rotl(h ^ fetch32(p), 23) * prime2_ + prime3_, p + 4, len - 4))
-                  : ((len > 0) ? (finalize(rotl(h ^ fetch8(p), 11) * prime1_, p + 1, len - 1))
-                               : (mix1(mix1(mix1(h, prime2_, 33), prime3_, 29), 1, 32))));
-  }
-
-  constexpr __host__ __device__ uint64_t h32bytes(
-    char const* p, uint64_t len, uint64_t v1, uint64_t v2, uint64_t v3, uint64_t v4) const noexcept
-  {
-    return (len >= 32)
-             ? h32bytes(p + 32,
-                        len - 32,
-                        fetch64(p, v1),
-                        fetch64(p + 8, v2),
-                        fetch64(p + 16, v3),
-                        fetch64(p + 24, v4))
-             : mix3(
-                 mix3(mix3(mix3(rotl(v1, 1) + rotl(v2, 7) + rotl(v3, 12) + rotl(v4, 18), v1), v2),
-                      v3),
-                 v4);
-  }
-
-  constexpr __host__ __device__ uint64_t h32bytes(char const* p,
-                                                  uint64_t len,
-                                                  uint64_t seed) const noexcept
-  {
-    return h32bytes(p, len, seed + prime1_ + prime2_, seed + prime2_, seed, seed - prime1_);
+    h ^= h >> 33;
+    h *= prime2;
+    h ^= h >> 29;
+    h *= prime3;
+    h ^= h >> 32;
+    return h;
   }
 
   uint64_t seed_;
