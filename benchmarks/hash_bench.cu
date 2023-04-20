@@ -49,14 +49,20 @@ __global__ void hash_bench_kernel(Hasher hash,
                                   OutputIt out,
                                   bool materialize_result)
 {
+  cuco::detail::index_type const gid         = BlockSize * blockIdx.x + threadIdx.x;
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
-  cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
+  cuco::detail::index_type idx               = gid;
+  typename Hasher::result_type agg           = 0;
 
   while (idx < n) {
-    auto const hash_value = hash(idx);
-    if (materialize_result) { out[idx] = hash_value; }
+    typename Hasher::argument_type key(idx);
+    for (int32_t i = 0; i < 100; ++i) {  // execute hash func 100 times
+      agg += hash(key);
+    }
     idx += loop_stride;
   }
+
+  if (materialize_result) { out[gid] = agg; }
 }
 
 /**
