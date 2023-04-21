@@ -199,15 +199,58 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
     (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
     (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  if constexpr (cg_size == 1) {
-    detail::contains<detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-        first, num_keys, output_begin, ref(op::contains));
-  } else {
-    detail::contains<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-        first, num_keys, output_begin, ref(op::contains));
-  }
+  auto const always_true = thrust::constant_iterator<bool>{true};
+  detail::contains_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      first, num_keys, always_true, thrust::identity{}, output_begin, ref(op::contains));
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_if(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  Predicate pred,
+  OutputIt output_begin,
+  cudaStream_t stream) const
+{
+  contains_async(first, last, stencil, pred, output_begin, stream);
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_if_async(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  Predicate pred,
+  OutputIt output_begin,
+  cudaStream_t stream) const
+{
+  auto const num_keys = cuco::detail::distance(first, last);
+  if (num_keys == 0) { return; }
+
+  auto const grid_size =
+    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+  detail::contains_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      first, num_keys, stencil, pred, output_begin, ref(op::contains));
 }
 
 template <class Key,
