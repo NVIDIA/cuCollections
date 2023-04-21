@@ -391,8 +391,8 @@ class operator_impl<op::find_tag,
   /**
    * @brief Finds an element in the set with key equivalent to the probe key.
    *
-   * @note Returns an iterator to the element whose key is equivalent to `key`. If no such element
-   * exists, returns `end()`.
+   * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
+   * `key`. If no such element exists, returns `end()`.
    *
    * @tparam ProbeKey Probe key type
    *
@@ -430,8 +430,8 @@ class operator_impl<op::find_tag,
   /**
    * @brief Finds an element in the set with key equivalent to the probe key.
    *
-   * @note Returns an iterator to the element whose key is equivalent to `key`. If no such element
-   * exists, returns `end()`.
+   * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
+   * `key`. If no such element exists, returns `end()`.
    *
    * @tparam ProbeKey Probe key type
    *

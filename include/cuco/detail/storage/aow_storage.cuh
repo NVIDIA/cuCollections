@@ -115,13 +115,12 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
   }
 
   /**
-   * @brief Custom forward iterator for the convenience of `find` operations.
+   * @brief Custom un-incrementable input iterator for the convenience of `find` operations.
    */
   struct Iterator {
    public:
-    using iterator_category = std::forward_iterator_tag;  ///< Iterator category
-    using difference_type   = std::ptrdiff_t;             ///< Iterator difference type
-    using reference         = value_type&;                ///< Iterator reference type
+    using iterator_category = std::input_iterator_tag;  ///< Iterator category
+    using reference         = value_type&;              ///< Iterator reference type
 
     /**
      * @brief Constructs a device side forward iterator for slots.
@@ -137,24 +136,25 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
     /**
      * @brief Prefix increment operator
      *
+     * @throw This code path should never be chosen.
+     *
      * @return Current iterator
      */
     __device__ constexpr Iterator& operator++() noexcept
     {
-      current_++;
-      return *this;
+      static_assert("Un-incrementable input iterator");
     }
 
     /**
      * @brief Postfix increment operator
      *
-     * @return Old iterator before increment
+     * @throw This code path should never be chosen.
+     *
+     * @return Current iterator
      */
     __device__ constexpr Iterator operator++(int32_t) noexcept
     {
-      auto tmp = *this;
-      ++(*this);
-      return tmp;
+      static_assert("Un-incrementable input iterator");
     }
 
     /**
