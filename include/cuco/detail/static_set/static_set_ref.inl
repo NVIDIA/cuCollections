@@ -22,6 +22,7 @@
 #include <cuco/sentinel.cuh>
 
 #include <thrust/distance.h>
+#include <thrust/pair.h>
 
 #include <cooperative_groups.h>
 #include <cuda/std/atomic>
@@ -184,6 +185,20 @@ class operator_impl<op::insert_tag,
       }
     }
   }
+
+  /**
+   * @brief Inserts the given element into the set.
+   *
+   * @note This API returns a pair consisting of an iterator to the inserted element (or to the
+   * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
+   * not.
+   *
+   * @param value The element to insert
+   *
+   * @return a pair consisting of an iterator to the element and a bool indicating whether the
+   * insertion is successful or not.
+   */
+  __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept;
 
  private:
   // TODO: this should be a common enum for all data structures
