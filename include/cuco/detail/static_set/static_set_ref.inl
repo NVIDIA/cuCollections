@@ -198,7 +198,41 @@ class operator_impl<op::insert_tag,
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept;
+  __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
+  {
+    ref_type& ref_    = static_cast<ref_type&>(*this);
+    auto probing_iter = ref_.probing_scheme_(value, ref_.storage_ref_.num_windows());
+
+    while (true) {
+      auto const window_slots = ref_.storage_ref_[*probing_iter];
+
+      for (auto& slot_content : window_slots) {
+        auto const eq_res             = ref_.predicate_(slot_content, value);
+        auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+
+        // If the key is already in the container, return false
+        if (eq_res == detail::equal_result::EQUAL) {
+          return {{*probing_iter * window_size + intra_window_index, ref_.storage_ref_.data()},
+                  false};
+        }
+        if (eq_res == detail::equal_result::EMPTY) {
+          switch (attempt_insert(
+            (ref_.storage_ref_.data() + *probing_iter)->data() + intra_window_index, value)) {
+            case insert_result::SUCCESS: {
+              return {{*probing_iter * window_size + intra_window_index, ref_.storage_ref_.data()},
+                      true};
+            }
+            case insert_result::DUPLICATE: {
+              return {{*probing_iter * window_size + intra_window_index, ref_.storage_ref_.data()},
+                      false};
+            }
+            default: continue;
+          }
+        }
+      }
+      ++probing_iter;
+    };
+  }
 
  private:
   // TODO: this should be a common enum for all data structures
