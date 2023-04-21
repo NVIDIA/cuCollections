@@ -295,8 +295,9 @@ class static_set {
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set if
    * `pred` of the corresponding stencil returns true.
    *
-   * @note The key `*(first + i)` will be checked for its presence in the set if `pred( *(stencil +
-   * i) )` returns true.
+   * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
+   * indicating if the key `*(first + i)` is present in the set. If `pred( *(stencil + i) )` is
+   * false, stores false to `(output_begin + i)`.
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `contains_if_async`.
    *
@@ -327,8 +328,9 @@ class static_set {
    * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
    * the set if `pred` of the corresponding stencil returns true.
    *
-   * @note The key `*(first + i)` will be checked for its presence in the set if `pred( *(stencil +
-   * i) )` returns true.
+   * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
+   * indicating if the key `*(first + i)` is present in the set. If `pred( *(stencil + i) )` is
+   * false, stores false to `(output_begin + i)`.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam StencilIt Device accessible random access iterator whose value_type is

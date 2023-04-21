@@ -29,10 +29,11 @@ namespace detail {
 
 /**
  * @brief Inserts all elements in the range `[first, first + n)` and returns the number of
- * successful insertions.
+ * successful insertions if `pred` of the corresponding stencil returns true.
  *
- * If multiple elements in `[first, first + n)` compare equal, it is unspecified which
- * element is inserted.
+ * @note If multiple elements in `[first, first + n)` compare equal, it is unspecified which element
+ * is inserted.
+ * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
@@ -96,10 +97,12 @@ __global__ void insert_if_n(InputIterator first,
 }
 
 /**
- * @brief Inserts all elements in the range `[first, first + n)`.
+ * @brief Inserts all elements in the range `[first, first + n)` if `pred` of the corresponding
+ * stencil returns true.
  *
- * If multiple elements in `[first, first + n)` compare equal, it is unspecified which
- * element is inserted.
+ * @note If multiple elements in `[first, first + n)` compare equal, it is unspecified which element
+ * is inserted.
+ * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
@@ -146,10 +149,11 @@ __global__ void insert_if_n(
 
 /**
  * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the data
- * structure.
+ * structure if `pred` of the corresponding stencil returns true.
  *
- * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the data
- * structure.
+ * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
+ * indicating if the key `*(first + i)` is present in the set. If `pred( *(stencil + i) )` is false,
+ * stores false to `(output_begin + i)`.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize The size of the thread block
