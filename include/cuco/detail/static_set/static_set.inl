@@ -99,7 +99,7 @@ template <class Key,
           class Storage>
 template <typename InputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_async(
-  InputIt first, InputIt last, cudaStream_t stream)
+  InputIt first, InputIt last, cudaStream_t stream) noexcept
 {
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
@@ -152,7 +152,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if_async(
-  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream)
+  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream) noexcept
 {
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
@@ -190,7 +190,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_async(
-  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream) const
+  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream) const noexcept
 {
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
@@ -239,7 +239,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   StencilIt stencil,
   Predicate pred,
   OutputIt output_begin,
-  cudaStream_t stream) const
+  cudaStream_t stream) const noexcept
 {
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
@@ -308,7 +308,7 @@ template <class Key,
           class Storage>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
-  cudaStream_t stream) const
+  cudaStream_t stream) const noexcept
 {
   auto counter = detail::counter_storage<size_type, thread_scope, allocator_type>{allocator_};
   counter.reset(stream);

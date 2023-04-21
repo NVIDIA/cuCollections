@@ -199,7 +199,7 @@ class static_set {
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt>
-  void insert_async(InputIt first, InputIt last, cudaStream_t stream = nullptr);
+  void insert_async(InputIt first, InputIt last, cudaStream_t stream = nullptr) noexcept;
 
   /**
    * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
@@ -250,8 +250,11 @@ class static_set {
    * @param stream CUDA stream used for the operation
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
-  void insert_if_async(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream = nullptr);
+  void insert_if_async(InputIt first,
+                       InputIt last,
+                       StencilIt stencil,
+                       Predicate pred,
+                       cudaStream_t stream = nullptr) noexcept;
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set.
@@ -289,7 +292,7 @@ class static_set {
   void contains_async(InputIt first,
                       InputIt last,
                       OutputIt output_begin,
-                      cudaStream_t stream = nullptr) const;
+                      cudaStream_t stream = nullptr) const noexcept;
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set if
@@ -353,7 +356,7 @@ class static_set {
                          StencilIt stencil,
                          Predicate pred,
                          OutputIt output_begin,
-                         cudaStream_t stream = nullptr) const;
+                         cudaStream_t stream = nullptr) const noexcept;
 
   /**
    * @brief Retrieves all keys contained in the set.
@@ -383,7 +386,7 @@ class static_set {
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cudaStream_t stream = nullptr) const;
+  [[nodiscard]] size_type size(cudaStream_t stream = nullptr) const noexcept;
 
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
