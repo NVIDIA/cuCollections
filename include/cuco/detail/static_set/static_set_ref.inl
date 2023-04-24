@@ -467,9 +467,9 @@ class operator_impl<op::find_tag,
       auto const group_finds_match = g.ballot(state == detail::equal_result::EQUAL);
       if (group_finds_match) {
         auto const src_lane = __ffs(group_finds_match) - 1;
-        auto res            = g.shfl(reinterpret_cast<intptr_t>(
-                            &(*(ref_.storage_ref_.data() + *probing_iter))[intra_window_index]),
-                          src_lane);
+        auto const res      = g.shfl(reinterpret_cast<intptr_t>(&(
+                                  *(ref_.storage_ref_.data() + *probing_iter))[intra_window_index]),
+                                src_lane);
         return const_iterator{reinterpret_cast<value_type*>(res)};
       }
 
