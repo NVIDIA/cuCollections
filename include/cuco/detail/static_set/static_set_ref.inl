@@ -418,7 +418,7 @@ class operator_impl<op::find_tag,
             return this->end();
           }
           case detail::equal_result::EQUAL: {
-            return const_iterator{*probing_iter * window_size + i, ref_.storage_ref_.data()};
+            return const_iterator{&(*(ref_.storage_ref_.data() + *probing_iter))[i]};
           }
           default: continue;
         }
@@ -467,8 +467,10 @@ class operator_impl<op::find_tag,
       auto const group_finds_match = g.ballot(state == detail::equal_result::EQUAL);
       if (group_finds_match) {
         auto const src_lane = __ffs(group_finds_match) - 1;
-        return const_iterator{g.shfl(*probing_iter * window_size + intra_window_index, src_lane),
-                              ref_.storage_ref_.data()};
+        auto res            = g.shfl(reinterpret_cast<intptr_t>(
+                            &(*(ref_.storage_ref_.data() + *probing_iter))[intra_window_index]),
+                          src_lane);
+        return const_iterator{reinterpret_cast<value_type*>(res)};
       }
 
       // Find an empty slot, meaning that the probe key isn't present in the set

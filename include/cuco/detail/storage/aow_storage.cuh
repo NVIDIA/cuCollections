@@ -116,6 +116,8 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
 
   /**
    * @brief Custom un-incrementable input iterator for the convenience of `find` operations.
+   *
+   * @note This iterator is for read only and NOT incrementable.
    */
   struct Iterator {
    public:
@@ -123,15 +125,11 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
     using reference         = value_type&;              ///< Iterator reference type
 
     /**
-     * @brief Constructs a device side forward iterator for slots.
+     * @brief Constructs a device side input iterator of the given slot.
      *
-     * @param current The slot index
-     * @param data Pointer to the window storage
+     * @param current The slot pointer
      */
-    __device__ constexpr Iterator(size_type current, window_type* data) noexcept
-      : current_{current}, data_{data}
-    {
-    }
+    __device__ constexpr explicit Iterator(value_type* current) noexcept : current_{current} {}
 
     /**
      * @brief Prefix increment operator
@@ -162,12 +160,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
      *
      * @return Reference to the current slot
      */
-    __device__ constexpr reference operator*() const
-    {
-      auto const window_index       = current_ / window_size;
-      auto const intra_window_index = current_ % window_size;
-      return data_[window_index][intra_window_index];
-    }
+    __device__ constexpr reference operator*() const { return *current_; }
 
     /**
      * Equality operator
@@ -176,7 +169,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
      */
     friend __device__ constexpr bool operator==(Iterator const& lhs, Iterator const& rhs) noexcept
     {
-      return lhs.current_ == rhs.current_ and lhs.data_ == rhs.data_;
+      return lhs.current_ == rhs.current_;
     }
 
     /**
@@ -190,8 +183,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
     }
 
    private:
-    size_type current_{};  ///< Current index
-    window_type* data_{};  ///< Pointer to the window data
+    value_type* current_{};  ///< Pointer to the current slot
   };
   using iterator       = Iterator;        ///< Forward iterator type
   using const_iterator = Iterator const;  ///< Const forward iterator type
@@ -206,7 +198,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
    */
   [[nodiscard]] __device__ constexpr iterator end() noexcept
   {
-    return {this->capacity(), this->data()};
+    return iterator{reinterpret_cast<value_type*>(this->data() + this->capacity())};
   }
 
   /**
@@ -219,7 +211,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
    */
   [[nodiscard]] __device__ constexpr const_iterator end() const noexcept
   {
-    return {this->capacity(), this->data()};
+    return const_iterator{reinterpret_cast<value_type*>(this->data() + this->capacity())};
   }
 
   /**
