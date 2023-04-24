@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/extent_base.cuh>
 #include <cuco/detail/prime.hpp>
 
 #include <cstddef>
@@ -32,8 +33,8 @@ static constexpr std::size_t dynamic_extent = static_cast<std::size_t>(-1);
  * @tparam N Extent
  */
 template <typename SizeType, std::size_t N = dynamic_extent>
-struct extent {
-  using value_type = SizeType;  ///< Extent value type
+struct extent : private detail::extent_base<SizeType> {
+  using value_type = typename detail::extent_base<SizeType>::value_type;  ///< Extent value type
 
   constexpr extent() = default;
 
@@ -67,8 +68,8 @@ struct extent {
  * @tparam SizeType Size type
  */
 template <typename SizeType>
-struct extent<SizeType, dynamic_extent> {
-  using value_type = SizeType;  ///< Extent value type
+struct extent<SizeType, dynamic_extent> : private detail::extent_base<SizeType> {
+  using value_type = typename detail::extent_base<SizeType>::value_type;  ///< Extent value type
 
   /**
    * @brief Constructs extent from a given `size`.
