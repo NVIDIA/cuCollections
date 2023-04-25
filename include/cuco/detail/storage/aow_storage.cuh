@@ -119,17 +119,17 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
    *
    * @note This iterator is for read only and NOT incrementable.
    */
-  struct Iterator {
+  struct iterator {
    public:
-    using iterator_category = std::input_iterator_tag;  ///< Iterator category
-    using reference         = value_type&;              ///< Iterator reference type
+    using iterator_category = std::input_iterator_tag;  ///< iterator category
+    using reference         = value_type&;              ///< iterator reference type
 
     /**
      * @brief Constructs a device side input iterator of the given slot.
      *
      * @param current The slot pointer
      */
-    __device__ constexpr explicit Iterator(value_type* current) noexcept : current_{current} {}
+    __device__ constexpr explicit iterator(value_type* current) noexcept : current_{current} {}
 
     /**
      * @brief Prefix increment operator
@@ -138,7 +138,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
      *
      * @return Current iterator
      */
-    __device__ constexpr Iterator& operator++() noexcept
+    __device__ constexpr iterator& operator++() noexcept
     {
       static_assert("Un-incrementable input iterator");
     }
@@ -150,7 +150,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
      *
      * @return Current iterator
      */
-    __device__ constexpr Iterator operator++(int32_t) noexcept
+    __device__ constexpr iterator operator++(int32_t) noexcept
     {
       static_assert("Un-incrementable input iterator");
     }
@@ -167,7 +167,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
      *
      * @return True if two iterators are identical
      */
-    friend __device__ constexpr bool operator==(Iterator const& lhs, Iterator const& rhs) noexcept
+    friend __device__ constexpr bool operator==(iterator const& lhs, iterator const& rhs) noexcept
     {
       return lhs.current_ == rhs.current_;
     }
@@ -177,7 +177,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
      *
      * @return True if two iterators are not identical
      */
-    friend __device__ constexpr bool operator!=(Iterator const& lhs, Iterator const& rhs) noexcept
+    friend __device__ constexpr bool operator!=(iterator const& lhs, iterator const& rhs) noexcept
     {
       return not lhs == rhs;
     }
@@ -185,8 +185,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
    private:
     value_type* current_{};  ///< Pointer to the current slot
   };
-  using iterator       = Iterator;        ///< Forward iterator type
-  using const_iterator = Iterator const;  ///< Const forward iterator type
+  using const_iterator = iterator const;  ///< Const forward iterator type
 
   /**
    * @brief Returns an iterator to one past the last slot.
