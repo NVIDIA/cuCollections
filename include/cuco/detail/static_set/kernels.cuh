@@ -225,11 +225,8 @@ __global__ void contains_if_n(InputIt first,
          * to global, we no longer rely on L1, preventing the increase in sector stores from
          * L2 to global and improving performance.
          */
-        if (tile.thread_rank() == 0) { output_buffer[tile_idx] = found; }
+        if (tile.thread_rank() == 0) { *(output_begin + idx) = found; }
       }
-
-      block.sync();
-      if (tile.thread_rank() == 0 and idx < n) { *(output_begin + idx) = output_buffer[tile_idx]; }
     }
     idx += loop_stride;
   }
