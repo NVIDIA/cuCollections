@@ -23,8 +23,11 @@
 
 #include <thrust/distance.h>
 
-#include <cooperative_groups.h>
 #include <cuda/std/atomic>
+
+#include <cooperative_groups.h>
+
+#include <cstdint>
 #include <type_traits>
 
 namespace cuco {
