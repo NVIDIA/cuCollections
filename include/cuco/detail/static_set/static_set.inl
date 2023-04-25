@@ -222,7 +222,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   OutputIt output_begin,
   cuda_stream_ref stream) const
 {
-  contains_async(first, last, stencil, pred, output_begin, stream);
+  contains_if_async(first, last, stencil, pred, output_begin, stream);
   stream.synchronize();
 }
 
