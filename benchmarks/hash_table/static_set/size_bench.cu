@@ -50,7 +50,7 @@ void static_set_size(nvbench::state& state, nvbench::type_list<Key, Dist>)
   set.insert(keys.begin(), keys.end());
 
   state.exec(nvbench::exec_tag::sync,
-             [&](nvbench::launch& launch) { auto const size = set.size(launch.get_stream()); });
+             [&](nvbench::launch& launch) { auto const size = set.size({launch.get_stream()}); });
 }
 
 NVBENCH_BENCH_TYPES(static_set_size,

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/storage/kernels.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/detail/tuning.cuh>
@@ -327,7 +328,7 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
    */
-  void initialize(value_type key, cudaStream_t stream) noexcept
+  void initialize(value_type key, cuda_stream_ref stream) noexcept
   {
     auto constexpr stride = 4;
     auto const grid_size  = (this->num_windows() + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /

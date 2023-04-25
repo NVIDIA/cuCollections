@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/__config>
 #include <cuco/detail/prime.hpp>
 #include <cuco/extent.cuh>
@@ -165,7 +166,7 @@ class static_set {
                        KeyEqual pred                       = {},
                        ProbingScheme const& probing_scheme = {},
                        Allocator const& alloc              = {},
-                       cudaStream_t stream                 = nullptr);
+                       cuda_stream_ref stream              = {});
 
   /**
    * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
@@ -185,7 +186,7 @@ class static_set {
    * @return Number of successfully inserted keys
    */
   template <typename InputIt>
-  size_type insert(InputIt first, InputIt last, cudaStream_t stream = nullptr);
+  size_type insert(InputIt first, InputIt last, cuda_stream_ref stream = {});
 
   /**
    * @brief Asynchonously inserts all keys in the range `[first, last)`.
@@ -199,7 +200,7 @@ class static_set {
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt>
-  void insert_async(InputIt first, InputIt last, cudaStream_t stream = nullptr);
+  void insert_async(InputIt first, InputIt last, cuda_stream_ref stream = {});
 
   /**
    * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
@@ -227,7 +228,7 @@ class static_set {
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
   size_type insert_if(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream = nullptr);
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream = {});
 
   /**
    * @brief Asynchonously inserts keys in the range `[first, last)` if `pred` of the corresponding
@@ -251,7 +252,7 @@ class static_set {
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
   void insert_if_async(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream = nullptr);
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream = {});
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set.
@@ -271,7 +272,7 @@ class static_set {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                cudaStream_t stream = nullptr) const;
+                cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
@@ -289,7 +290,7 @@ class static_set {
   void contains_async(InputIt first,
                       InputIt last,
                       OutputIt output_begin,
-                      cudaStream_t stream = nullptr) const;
+                      cuda_stream_ref stream = {}) const;
 
   /**
    * @brief For all keys in the range `[first, last)`, finds an element with key equivalent to the
@@ -352,7 +353,7 @@ class static_set {
    * @return Iterator indicating the end of the output
    */
   template <typename OutputIt>
-  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cudaStream_t stream = nullptr) const;
+  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Gets the number of elements in the container.
@@ -362,7 +363,7 @@ class static_set {
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cudaStream_t stream = nullptr) const;
+  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
