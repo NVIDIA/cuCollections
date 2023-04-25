@@ -201,11 +201,10 @@ __global__ void contains_if_n(InputIt first,
       if (idx < n) {
         auto const key = *(first + idx);
         /*
-         * The ld.relaxed.gpu instruction used in this operation causes L1 to
-         * flush more frequently, causing increased sector stores from L2 to global memory.
-         * By writing results to shared memory and then synchronizing before writing back
-         * to global, we no longer rely on L1, preventing the increase in sector stores from
-         * L2 to global and improving performance.
+         * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased
+         * sector stores from L2 to global memory. By writing results to shared memory and then
+         * synchronizing before writing back to global, we no longer rely on L1, preventing the
+         * increase in sector stores from L2 to global and improving performance.
          */
         output_buffer[thread_idx] = pred(*(stencil + idx)) ? ref.contains(key) : false;
       }
