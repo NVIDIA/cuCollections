@@ -213,8 +213,7 @@ __global__ void contains_if_n(InputIt first,
       block.sync();
       if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
     } else {
-      auto const tile     = cg::tiled_partition<CGSize>(cg::this_thread_block());
-      auto const tile_idx = thread_idx / CGSize;
+      auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
       if (idx < n) {
         auto const key   = *(first + idx);
         auto const found = pred(*(stencil + idx)) ? ref.contains(tile, key) : false;
