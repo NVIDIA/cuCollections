@@ -73,8 +73,8 @@ namespace experimental {
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
- * @tparam Extent Data structure size type
  * @tparam Scope The scope in which operations will be performed by individual threads.
+ * @tparam Extent Data structure size type
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for choices)
  * @tparam Allocator Type of allocator used for device storage
@@ -82,8 +82,8 @@ namespace experimental {
  */
 
 template <class Key,
-          class Extent             = cuco::experimental::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
+          class Extent             = cuco::experimental::extent<std::size_t>,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme      = experimental::double_hashing<4,  // CG size
                                                              cuco::murmurhash3_32<Key>,

@@ -39,13 +39,13 @@ namespace cuco {
 namespace experimental {
 
 template <class Key,
-          class Extent,
           cuda::thread_scope Scope,
+          class Extent,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
-constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::static_set(
+constexpr static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::static_set(
   Extent capacity,
   empty_key<Key> empty_key_sentinel,
   KeyEqual pred,
@@ -62,15 +62,15 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
 }
 
 template <class Key,
-          class Extent,
           cuda::thread_scope Scope,
+          class Extent,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
 template <typename InputIt>
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
+static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cuda_stream_ref stream)
 {
   auto const num_keys = cuco::detail::distance(first, last);
@@ -92,14 +92,14 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ins
 }
 
 template <class Key,
-          class Extent,
           cuda::thread_scope Scope,
+          class Extent,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
 template <typename InputIt>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_async(
+void static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::insert_async(
   InputIt first, InputIt last, cuda_stream_ref stream)
 {
   auto const num_keys = cuco::detail::distance(first, last);
@@ -116,15 +116,15 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 }
 
 template <class Key,
-          class Extent,
           cuda::thread_scope Scope,
+          class Extent,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
+static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream)
 {
   auto const num_keys = cuco::detail::distance(first, last);
@@ -145,14 +145,14 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ins
 }
 
 template <class Key,
-          class Extent,
           cuda::thread_scope Scope,
+          class Extent,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if_async(
+void static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if_async(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream)
 {
   auto const num_keys = cuco::detail::distance(first, last);
@@ -168,14 +168,14 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 }
 
 template <class Key,
-          class Extent,
           cuda::thread_scope Scope,
+          class Extent,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
 template <typename InputIt, typename OutputIt>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
+void static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
   contains_async(first, last, output_begin, stream);
@@ -183,14 +183,14 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 }
 
 template <class Key,
-          class Extent,
           cuda::thread_scope Scope,
+          class Extent,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
 template <typename InputIt, typename OutputIt>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_async(
+void static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::contains_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
   auto const num_keys = cuco::detail::distance(first, last);
@@ -212,14 +212,14 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 }
 
 template <class Key,
-          class Extent,
           cuda::thread_scope Scope,
+          class Extent,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
 template <typename OutputIt>
-OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
+OutputIt static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   OutputIt output_begin, cuda_stream_ref stream) const
 {
   auto begin  = thrust::make_transform_iterator(thrust::counting_iterator<size_type>(0),
@@ -258,14 +258,14 @@ OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
 }
 
 template <class Key,
-          class Extent,
           cuda::thread_scope Scope,
+          class Extent,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
+static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cuda_stream_ref stream) const
 {
   auto counter = detail::counter_storage<size_type, thread_scope, allocator_type>{allocator_};
@@ -285,42 +285,42 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
 }
 
 template <class Key,
-          class Extent,
           cuda::thread_scope Scope,
+          class Extent,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
 constexpr auto
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::capacity()
+static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::capacity()
   const noexcept
 {
   return storage_.capacity();
 }
 
 template <class Key,
-          class Extent,
           cuda::thread_scope Scope,
+          class Extent,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
-constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_type
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::empty_key_sentinel()
+constexpr static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::key_type
+static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::empty_key_sentinel()
   const noexcept
 {
   return empty_key_sentinel_;
 }
 
 template <class Key,
-          class Extent,
           cuda::thread_scope Scope,
+          class Extent,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
 template <typename... Operators>
-auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref(
+auto static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>::ref(
   Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
