@@ -56,7 +56,7 @@ void static_set_find(nvbench::state& state, nvbench::type_list<Key, Dist>)
   state.add_element_count(num_keys);
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    set.find(keys.begin(), keys.end(), result.begin(), launch.get_stream());
+    set.find(keys.begin(), keys.end(), result.begin(), {launch.get_stream()});
   });
 }
 
