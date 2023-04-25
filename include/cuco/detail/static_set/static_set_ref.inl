@@ -435,7 +435,7 @@ class operator_impl<op::find_tag,
    *
    * @tparam ProbeKey Probe key type
    *
-   * @param g The Cooperative Group used to perform group contains
+   * @param g The Cooperative Group used to perform this operation
    * @param key The key to search for
    *
    * @return An iterator to the position at which the equivalent key is stored
