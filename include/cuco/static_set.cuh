@@ -309,10 +309,7 @@ class static_set {
    * @param stream Stream used for executing the kernels
    */
   template <typename InputIt, typename OutputIt>
-  void find(InputIt first,
-            InputIt last,
-            OutputIt output_begin,
-            cudaStream_t stream = nullptr) const;
+  void find(InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream = {}) const;
 
   /**
    * @brief For all keys in the range `[first, last)`, asynchonously finds an element with key
@@ -333,7 +330,7 @@ class static_set {
   void find_async(InputIt first,
                   InputIt last,
                   OutputIt output_begin,
-                  cudaStream_t stream = nullptr) const;
+                  cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Retrieves all keys contained in the set.

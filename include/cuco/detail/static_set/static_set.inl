@@ -220,10 +220,10 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find(
-  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream) const
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
   find_async(first, last, output_begin, stream);
-  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+  stream.synchronize();
 }
 
 template <class Key,
@@ -235,7 +235,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
-  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream) const
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
