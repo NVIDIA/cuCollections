@@ -159,6 +159,7 @@ class static_set {
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
    * @param alloc Allocator used for allocating device storage
+   * @param storage Instance of slot window storage type
    * @param stream CUDA stream used to initialize the map
    */
   constexpr static_set(Extent capacity,
@@ -166,6 +167,7 @@ class static_set {
                        KeyEqual pred                       = {},
                        ProbingScheme const& probing_scheme = {},
                        Allocator const& alloc              = {},
+                       Storage const& storage              = {},
                        cuda_stream_ref stream              = {});
 
   /**

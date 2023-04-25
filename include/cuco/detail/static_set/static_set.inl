@@ -51,6 +51,7 @@ constexpr static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Sto
   KeyEqual pred,
   ProbingScheme const& probing_scheme,
   Allocator const& alloc,
+  [[maybe_unused]] Storage const& storage,
   cuda_stream_ref stream)
   : empty_key_sentinel_{empty_key_sentinel},
     predicate_{pred},
