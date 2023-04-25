@@ -177,11 +177,10 @@ __global__ void contains(InputIt first, cuco::detail::index_type n, OutputIt out
     if (idx < n) {
       auto const key = *(first + idx);
       /*
-       * The ld.relaxed.gpu instruction used in this operation causes L1 to
-       * flush more frequently, causing increased sector stores from L2 to global memory.
-       * By writing results to shared memory and then synchronizing before writing back
-       * to global, we no longer rely on L1, preventing the increase in sector stores from
-       * L2 to global and improving performance.
+       * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased sector
+       * stores from L2 to global memory. By writing results to shared memory and then synchronizing
+       * before writing back to global, we no longer rely on L1, preventing the increase in sector
+       * stores from L2 to global and improving performance.
        */
       output_buffer[thread_idx] = ref.contains(key);
     }
@@ -230,11 +229,10 @@ __global__ void contains(InputIt first, cuco::detail::index_type n, OutputIt out
       auto const key   = *(first + idx);
       auto const found = ref.contains(tile, key);
       /*
-       * The ld.relaxed.gpu instruction used in view.contains causes L1 to
-       * flush more frequently, causing increased sector stores from L2 to global memory.
-       * By writing results to shared memory and then synchronizing before writing back
-       * to global, we no longer rely on L1, preventing the increase in sector stores from
-       * L2 to global and improving performance.
+       * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased sector
+       * stores from L2 to global memory. By writing results to shared memory and then synchronizing
+       * before writing back to global, we no longer rely on L1, preventing the increase in sector
+       * stores from L2 to global and improving performance.
        */
       if (tile.thread_rank() == 0) { output_buffer[tile_idx] = found; }
     }
@@ -283,11 +281,10 @@ __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_
       if constexpr (CGSize == 1) {
         auto const found = ref.find(key);
         /*
-         * The ld.relaxed.gpu instruction used in ref.find causes L1 to
-         * flush more frequently, causing increased sector stores from L2 to global memory.
-         * By writing results to shared memory and then synchronizing before writing back
-         * to global, we no longer rely on L1, preventing the increase in sector stores from
-         * L2 to global and improving performance.
+         * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased
+         * sector stores from L2 to global memory. By writing results to shared memory and then
+         * synchronizing before writing back to global, we no longer rely on L1, preventing the
+         * increase in sector stores from L2 to global and improving performance.
          */
         output_buffer[thread_idx] = found == ref.end() ? ref.empty_key_sentinel() : *found;
         block.sync();
