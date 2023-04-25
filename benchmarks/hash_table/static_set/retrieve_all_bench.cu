@@ -50,7 +50,7 @@ void static_set_retrieve_all(nvbench::state& state, nvbench::type_list<Key, Dist
 
   state.add_element_count(num_keys);
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    auto end = set.retrieve_all(result.begin(), launch.get_stream());
+    auto end = set.retrieve_all(result.begin(), {launch.get_stream()});
   });
 }
 
