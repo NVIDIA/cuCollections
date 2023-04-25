@@ -217,13 +217,6 @@ __global__ void contains_if_n(InputIt first,
       if (idx < n) {
         auto const key   = *(first + idx);
         auto const found = pred(*(stencil + idx)) ? ref.contains(tile, key) : false;
-        /*
-         * The ld.relaxed.gpu instruction used in view.find causes L1 to
-         * flush more frequently, causing increased sector stores from L2 to global memory.
-         * By writing results to shared memory and then synchronizing before writing back
-         * to global, we no longer rely on L1, preventing the increase in sector stores from
-         * L2 to global and improving performance.
-         */
         if (tile.thread_rank() == 0) { *(output_begin + idx) = found; }
       }
     }
