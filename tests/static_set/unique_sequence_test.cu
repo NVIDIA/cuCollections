@@ -42,6 +42,9 @@ __inline__ void test_unique_sequence(Set& set, std::size_t num_keys)
   auto keys_begin = d_keys.begin();
   thrust::device_vector<bool> d_contained(num_keys);
 
+  auto zip_equal = [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); };
+  auto is_even   = [] __device__(auto const& i) { return i % 2 == 0; };
+
   SECTION("Non-inserted keys should not be contained.")
   {
     REQUIRE(set.size() == 0);
@@ -58,17 +61,13 @@ __inline__ void test_unique_sequence(Set& set, std::size_t num_keys)
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(
       d_results.begin(), thrust::constant_iterator<Key>{set.empty_key_sentinel()}));
 
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, [] __device__(auto const& p) {
-      return thrust::get<0>(p) == thrust::get<1>(p);
-    }));
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 
   SECTION("All conditionally inserted keys should be contained")
   {
-    auto const inserted = set.insert_if(keys_begin,
-                                        keys_begin + num_keys,
-                                        thrust::counting_iterator<std::size_t>(0),
-                                        [] __device__(auto const& key) { return (key % 2) == 0; });
+    auto const inserted = set.insert_if(
+      keys_begin, keys_begin + num_keys, thrust::counting_iterator<std::size_t>(0), is_even);
     REQUIRE(inserted == num_keys / 2);
     REQUIRE(set.size() == num_keys / 2);
 
@@ -92,18 +91,15 @@ __inline__ void test_unique_sequence(Set& set, std::size_t num_keys)
 
   SECTION("Conditional contains should return true on even inputs.")
   {
-    set.contains_if(
-      keys_begin,
-      keys_begin + num_keys,
-      thrust::counting_iterator<std::size_t>(0),
-      [] __device__(auto idx) { return idx % 2 == 0; },
-      d_contained.begin());
-    auto gold_iter = thrust::make_transform_iterator(
-      thrust::counting_iterator<std::size_t>(0), [] __device__(auto idx) { return idx % 2 == 0; });
+    set.contains_if(keys_begin,
+                    keys_begin + num_keys,
+                    thrust::counting_iterator<std::size_t>(0),
+                    is_even,
+                    d_contained.begin());
+    auto gold_iter =
+      thrust::make_transform_iterator(thrust::counting_iterator<std::size_t>(0), is_even);
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_contained.begin(), gold_iter));
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, [] __device__(auto const& p) {
-      return thrust::get<0>(p) == thrust::get<1>(p);
-    }));
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 
   SECTION("All inserted keys should be correctly recovered during find")
@@ -113,9 +109,7 @@ __inline__ void test_unique_sequence(Set& set, std::size_t num_keys)
     set.find(keys_begin, keys_begin + num_keys, d_results.begin());
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), keys_begin));
 
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, [] __device__(auto const& p) {
-      return thrust::get<0>(p) == thrust::get<1>(p);
-    }));
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 }
 
