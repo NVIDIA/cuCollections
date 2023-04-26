@@ -49,7 +49,7 @@ class probing_iterator {
   /**
    * @brief Dereference operator
    *
-   * @return Current slot ndex
+   * @return Current slot index
    */
   __host__ __device__ constexpr auto operator*() const noexcept { return curr_index_; }
 
