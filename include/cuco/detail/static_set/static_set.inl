@@ -261,6 +261,44 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename OutputIt>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find(
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+{
+  find_async(first, last, output_begin, stream);
+  stream.synchronize();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename OutputIt>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+{
+  auto const num_keys = cuco::detail::distance(first, last);
+  if (num_keys == 0) { return; }
+
+  auto const grid_size =
+    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+  detail::find<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      first, num_keys, output_begin, ref(op::find));
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename OutputIt>
 OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   OutputIt output_begin, cuda_stream_ref stream) const
