@@ -20,6 +20,7 @@
 #include <cuco/detail/static_set/functors.cuh>
 #include <cuco/detail/static_set/kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
+#include <cuco/detail/traits.hpp>
 #include <cuco/detail/tuning.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/operator.hpp>
@@ -328,5 +329,26 @@ auto static_set<Key, Scope, Extent, KeyEqual, ProbingScheme, Allocator, Storage>
   return ref_type<Operators...>{
     cuco::empty_key<key_type>(empty_key_sentinel_), predicate_, probing_scheme_, storage_.ref()};
 }
+
+template <class Key, cuda::thread_scope Scope, class... Args>
+constexpr auto make_static_set(Args&&... args)
+{
+  // TODO don't repeat defaults
+  return static_set<Key, Scope>{
+    detail::find_arg<detail::is_extent>(std::forward<Args>(args)...),  // required parameter
+    detail::find_arg<empty_key<Key>>(std::forward<Args>(args)...),     // required parameter
+    detail::find_arg<detail::key_equal_traits<Key>::template is_equal_functor_t>(
+      std::forward<Args>(args)..., thrust::equal_to<Key>{}),
+    detail::find_arg<detail::is_probing_scheme>(std::forward<Args>(args)...,
+                                                double_hashing<4,  // CG size
+                                                               cuco::murmurhash3_32<Key>,
+                                                               cuco::murmurhash3_32<Key>>{}),
+    detail::find_arg<detail::is_allocator>(std::forward<Args>(args)...,
+                                           cuco::cuda_allocator<std::byte>{}),
+    detail::find_arg<detail::is_storage>(std::forward<Args>(args)...,
+                                         cuco::experimental::aow_storage<1>{}),
+    detail::find_arg<cuda_stream_ref>(std::forward<Args>(args)..., cuda_stream_ref{})};
+}
+
 }  // namespace experimental
 }  // namespace cuco

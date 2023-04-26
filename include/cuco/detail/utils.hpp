@@ -105,4 +105,44 @@ constexpr ForwardIt lower_bound(ForwardIt first, ForwardIt last, const T& value)
 }
 
 }  // namespace detail
+
+namespace experimental::detail {
+
+// TODO docs
+template <template <typename> typename Predicate, typename...>
+constexpr void find_arg(...)
+{  // end of parameter pack
+  static_assert(Predicate<void>(), "Missing required parameter");
+}
+
+template <template <typename> typename Predicate, typename T, typename... Args>
+constexpr decltype(auto) find_arg(T&& t, Args&&... args)
+{
+  // if the current head of the parameter pack matches the predicate
+  if constexpr (Predicate<std::remove_reference_t<T>>()) { return std::forward<T>(t); }
+  // else go to the next element in the pack
+  if constexpr (not Predicate<std::remove_reference_t<T>>()) {
+    return find_arg<Predicate>(std::forward<Args&&>(args)...);
+  }
+}
+
+// TODO docs
+template <typename Compare, typename...>
+constexpr void find_arg(...)
+{  // end of parameter pack
+  static_assert(std::is_same_v<Compare, void>, "Missing required parameter");
+}
+
+template <typename Compare, typename T, typename... Args>
+constexpr decltype(auto) find_arg(T&& t, Args&&... args)
+{
+  // if the current head of the parameter pack matches the Compare type
+  if constexpr (std::is_same_v<Compare, T>) { return std::forward<T>(t); }
+  // else go to the next element in the pack
+  if constexpr (not std::is_same_v<Compare, T>) {
+    return find_arg<Compare>(std::forward<Args&&>(args)...);
+  }
+}
+
+}  // namespace experimental::detail
 }  // namespace cuco

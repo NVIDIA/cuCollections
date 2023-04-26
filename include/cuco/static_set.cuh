@@ -358,6 +358,10 @@ class static_set {
   storage_type storage_;                ///< Slot window storage
 };
 
+// TODO docs
+template <class Key, cuda::thread_scope Scope = cuda::thread_scope_device, class... Args>
+[[nodiscard]] constexpr auto make_static_set(Args&&... args);
+
 }  // namespace experimental
 }  // namespace cuco
 
