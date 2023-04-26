@@ -73,8 +73,8 @@ namespace experimental {
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
- * @tparam Extent Data structure size type
  * @tparam Scope The scope in which operations will be performed by individual threads.
+ * @tparam Extent Data structure size type
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for choices)
  * @tparam Allocator Type of allocator used for device storage
@@ -82,8 +82,8 @@ namespace experimental {
  */
 
 template <class Key,
-          class Extent             = cuco::experimental::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
+          class Extent             = cuco::experimental::extent<std::size_t>,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme      = experimental::double_hashing<4,  // CG size
                                                              cuco::murmurhash3_32<Key>,
@@ -159,6 +159,7 @@ class static_set {
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
    * @param alloc Allocator used for allocating device storage
+   * @param storage Instance of slot window storage type
    * @param stream CUDA stream used to initialize the map
    */
   constexpr static_set(Extent capacity,
@@ -166,6 +167,7 @@ class static_set {
                        KeyEqual pred                       = {},
                        ProbingScheme const& probing_scheme = {},
                        Allocator const& alloc              = {},
+                       Storage const& storage              = {},
                        cuda_stream_ref stream              = {});
 
   /**
@@ -395,6 +397,10 @@ class static_set {
   allocator_type allocator_;            ///< Allocator used to (de)allocate temporary storage
   storage_type storage_;                ///< Slot window storage
 };
+
+// TODO docs
+template <class Key, cuda::thread_scope Scope = cuda::thread_scope_device, class... Args>
+[[nodiscard]] constexpr auto make_static_set(Args&&... args);
 
 }  // namespace experimental
 }  // namespace cuco
