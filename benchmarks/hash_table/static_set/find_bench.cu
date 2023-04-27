@@ -23,18 +23,20 @@
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/device_vector.h>
+#include <thrust/transform.h>
 
 using namespace cuco::benchmark;
 using namespace cuco::utility;
 
 /**
- * @brief A benchmark evaluating `cuco::static_set::retrieve_all` performance
+ * @brief A benchmark evaluating `cuco::static_set::find` performance
  */
 template <typename Key, typename Dist>
-void static_set_retrieve_all(nvbench::state& state, nvbench::type_list<Key, Dist>)
+void static_set_find(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
-  auto const num_keys  = state.get_int64_or_default("NumInputs", defaults::N);
-  auto const occupancy = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
+  auto const num_keys      = state.get_int64_or_default("NumInputs", defaults::N);
+  auto const occupancy     = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
+  auto const matching_rate = state.get_float64_or_default("MatchingRate", defaults::MATCHING_RATE);
 
   std::size_t const size = num_keys / occupancy;
 
@@ -46,18 +48,30 @@ void static_set_retrieve_all(nvbench::state& state, nvbench::type_list<Key, Dist
   cuco::experimental::static_set<Key> set{size, cuco::empty_key<Key>{-1}};
   set.insert(keys.begin(), keys.end());
 
+  // TODO: would crash if not passing nullptr, why?
+  gen.dropout(keys.begin(), keys.end(), matching_rate, nullptr);
+
   thrust::device_vector<Key> result(num_keys);
 
   state.add_element_count(num_keys);
+
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    auto end = set.retrieve_all(result.begin(), {launch.get_stream()});
+    set.find(keys.begin(), keys.end(), result.begin(), {launch.get_stream()});
   });
 }
 
-NVBENCH_BENCH_TYPES(static_set_retrieve_all,
+NVBENCH_BENCH_TYPES(static_set_find,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       nvbench::type_list<distribution::unique>))
-  .set_name("static_set_retrieve_all_unique_occupancy")
+  .set_name("static_set_find_unique_occupancy")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
+
+NVBENCH_BENCH_TYPES(static_set_find,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      nvbench::type_list<distribution::unique>))
+  .set_name("static_set_find_unique_matching_rate")
+  .set_type_axes_names({"Key", "Distribution"})
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE);

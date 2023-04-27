@@ -24,8 +24,11 @@
 #include <thrust/distance.h>
 #include <thrust/pair.h>
 
-#include <cooperative_groups.h>
 #include <cuda/std/atomic>
+
+#include <cooperative_groups.h>
+
+#include <cstdint>
 #include <type_traits>
 
 namespace cuco {
@@ -386,6 +389,144 @@ class operator_impl<op::contains_tag,
 
       if (g.any(state == detail::equal_result::EQUAL)) { return true; }
       if (g.any(state == detail::equal_result::EMPTY)) { return false; }
+
+      ++probing_iter;
+    }
+  }
+};
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<op::find_tag,
+                    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type  = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type   = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+  using iterator   = typename StorageRef::iterator;
+  using const_iterator = typename StorageRef::const_iterator;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief Returns a const_iterator to one past the last slot.
+   *
+   * @note This API is available only when `find_tag` is present.
+   *
+   * @return A const_iterator to one past the last slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.storage_ref_.end();
+  }
+
+  /**
+   * @brief Returns an iterator to one past the last slot.
+   *
+   * @note This API is available only when `find_tag` is present.
+   *
+   * @return An iterator to one past the last slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.storage_ref_.end();
+  }
+
+  /**
+   * @brief Finds an element in the set with key equivalent to the probe key.
+   *
+   * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
+   * `key`. If no such element exists, returns `end()`.
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param key The key to search for
+   *
+   * @return An iterator to the position at which the equivalent key is stored
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ const_iterator find(ProbeKey const& key) const noexcept
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+
+    auto probing_iter = ref_.probing_scheme_(key, ref_.storage_ref_.num_windows());
+
+    while (true) {
+      // TODO atomic_ref::load if insert operator is present
+      auto const window_slots = ref_.storage_ref_[*probing_iter];
+
+      for (auto i = 0; i < window_size; ++i) {
+        switch (ref_.predicate_(window_slots[i], key)) {
+          case detail::equal_result::EMPTY: {
+            return this->end();
+          }
+          case detail::equal_result::EQUAL: {
+            return const_iterator{&(*(ref_.storage_ref_.data() + *probing_iter))[i]};
+          }
+          default: continue;
+        }
+      }
+      ++probing_iter;
+    }
+  }
+
+  /**
+   * @brief Finds an element in the set with key equivalent to the probe key.
+   *
+   * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
+   * `key`. If no such element exists, returns `end()`.
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param g The Cooperative Group used to perform this operation
+   * @param key The key to search for
+   *
+   * @return An iterator to the position at which the equivalent key is stored
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ const_iterator
+  find(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+
+    auto probing_iter = ref_.probing_scheme_(g, key, ref_.storage_ref_.num_windows());
+
+    while (true) {
+      auto const window_slots = ref_.storage_ref_[*probing_iter];
+
+      auto const [state, intra_window_index] = [&]() {
+        for (auto i = 0; i < window_size; ++i) {
+          switch (ref_.predicate_(window_slots[i], key)) {
+            case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
+            default: continue;
+          }
+        }
+        // returns dummy index `-1` for UNEQUAL
+        return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
+      }();
+
+      // Find a match for the probe key, thus return an iterator to the entry
+      auto const group_finds_match = g.ballot(state == detail::equal_result::EQUAL);
+      if (group_finds_match) {
+        auto const src_lane = __ffs(group_finds_match) - 1;
+        auto const res      = g.shfl(reinterpret_cast<intptr_t>(&(
+                                  *(ref_.storage_ref_.data() + *probing_iter))[intra_window_index]),
+                                src_lane);
+        return const_iterator{reinterpret_cast<value_type*>(res)};
+      }
+
+      // Find an empty slot, meaning that the probe key isn't present in the set
+      if (g.any(state == detail::equal_result::EMPTY)) { return this->end(); }
 
       ++probing_iter;
     }

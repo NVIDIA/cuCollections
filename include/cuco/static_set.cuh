@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/__config>
 #include <cuco/detail/prime.hpp>
 #include <cuco/extent.cuh>
@@ -165,7 +166,7 @@ class static_set {
                        KeyEqual pred                       = {},
                        ProbingScheme const& probing_scheme = {},
                        Allocator const& alloc              = {},
-                       cudaStream_t stream                 = nullptr);
+                       cuda_stream_ref stream              = {});
 
   /**
    * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
@@ -185,7 +186,7 @@ class static_set {
    * @return Number of successfully inserted keys
    */
   template <typename InputIt>
-  size_type insert(InputIt first, InputIt last, cudaStream_t stream = nullptr);
+  size_type insert(InputIt first, InputIt last, cuda_stream_ref stream = {});
 
   /**
    * @brief Asynchonously inserts all keys in the range `[first, last)`.
@@ -199,7 +200,7 @@ class static_set {
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt>
-  void insert_async(InputIt first, InputIt last, cudaStream_t stream = nullptr);
+  void insert_async(InputIt first, InputIt last, cuda_stream_ref stream = {}) noexcept;
 
   /**
    * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
@@ -227,7 +228,7 @@ class static_set {
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
   size_type insert_if(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream = nullptr);
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream = {});
 
   /**
    * @brief Asynchonously inserts keys in the range `[first, last)` if `pred` of the corresponding
@@ -250,8 +251,11 @@ class static_set {
    * @param stream CUDA stream used for the operation
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
-  void insert_if_async(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream = nullptr);
+  void insert_if_async(InputIt first,
+                       InputIt last,
+                       StencilIt stencil,
+                       Predicate pred,
+                       cuda_stream_ref stream = {}) noexcept;
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set.
@@ -271,7 +275,7 @@ class static_set {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                cudaStream_t stream = nullptr) const;
+                cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
@@ -289,7 +293,111 @@ class static_set {
   void contains_async(InputIt first,
                       InputIt last,
                       OutputIt output_begin,
-                      cudaStream_t stream = nullptr) const;
+                      cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the set if
+   * `pred` of the corresponding stencil returns true.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
+   * indicating if the key `*(first + i)` is present in the set. If `pred( *(stencil + i) )` is
+   * false, stores false to `(output_begin + i)`.
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `contains_if_async`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+  void contains_if(InputIt first,
+                   InputIt last,
+                   StencilIt stencil,
+                   Predicate pred,
+                   OutputIt output_begin,
+                   cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * the set if `pred` of the corresponding stencil returns true.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
+   * indicating if the key `*(first + i)` is present in the set. If `pred( *(stencil + i) )` is
+   * false, stores false to `(output_begin + i)`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+  void contains_if_async(InputIt first,
+                         InputIt last,
+                         StencilIt stencil,
+                         Predicate pred,
+                         OutputIt output_begin,
+                         cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief For all keys in the range `[first, last)`, finds an element with key equivalent to the
+   * query key.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use `find_async`.
+   * @note If the key `*(first + i)` has a matched `element` in the set, copies `element` to
+   * `(output_begin + i)`. Else, copies the empty key sentinel.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from the set's `value_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of elements retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void find(InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief For all keys in the range `[first, last)`, asynchonously finds an element with key
+   * equivalent to the query key.
+   *
+   * @note If the key `*(first + i)` has a matched `element` in the set, copies `element` to
+   * `(output_begin + i)`. Else, copies the empty key sentinel.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from the set's `value_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of elements retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void find_async(InputIt first,
+                  InputIt last,
+                  OutputIt output_begin,
+                  cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Retrieves all keys contained in the set.
@@ -309,7 +417,7 @@ class static_set {
    * @return Iterator indicating the end of the output
    */
   template <typename OutputIt>
-  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cudaStream_t stream = nullptr) const;
+  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Gets the number of elements in the container.
@@ -319,7 +427,7 @@ class static_set {
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cudaStream_t stream = nullptr) const;
+  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Gets the maximum number of elements the hash map can hold.

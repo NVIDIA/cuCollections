@@ -33,6 +33,12 @@ struct insert_tag {
 struct contains_tag {
 } inline constexpr contains;
 
+/**
+ * @brief `find` operator tag
+ */
+struct find_tag {
+} inline constexpr find;
+
 }  // namespace op
 }  // namespace experimental
 }  // namespace cuco

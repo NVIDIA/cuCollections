@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/storage/kernels.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/detail/tuning.cuh>
@@ -24,6 +25,8 @@
 #include <cuda/std/array>
 
 #include <cstddef>
+#include <cstdint>
+#include <iterator>
 #include <memory>
 
 namespace cuco {
@@ -111,6 +114,105 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
   explicit constexpr aow_storage_ref(Extent num_windows, window_type* windows) noexcept
     : aow_storage_base<WindowSize, T, Extent>{num_windows}, windows_{windows}
   {
+  }
+
+  /**
+   * @brief Custom un-incrementable input iterator for the convenience of `find` operations.
+   *
+   * @note This iterator is for read only and NOT incrementable.
+   */
+  struct iterator {
+   public:
+    using iterator_category = std::input_iterator_tag;  ///< iterator category
+    using reference         = value_type&;              ///< iterator reference type
+
+    /**
+     * @brief Constructs a device side input iterator of the given slot.
+     *
+     * @param current The slot pointer
+     */
+    __device__ constexpr explicit iterator(value_type* current) noexcept : current_{current} {}
+
+    /**
+     * @brief Prefix increment operator
+     *
+     * @throw This code path should never be chosen.
+     *
+     * @return Current iterator
+     */
+    __device__ constexpr iterator& operator++() noexcept
+    {
+      static_assert("Un-incrementable input iterator");
+    }
+
+    /**
+     * @brief Postfix increment operator
+     *
+     * @throw This code path should never be chosen.
+     *
+     * @return Current iterator
+     */
+    __device__ constexpr iterator operator++(int32_t) noexcept
+    {
+      static_assert("Un-incrementable input iterator");
+    }
+
+    /**
+     * @brief Dereference operator
+     *
+     * @return Reference to the current slot
+     */
+    __device__ constexpr reference operator*() const { return *current_; }
+
+    /**
+     * Equality operator
+     *
+     * @return True if two iterators are identical
+     */
+    friend __device__ constexpr bool operator==(iterator const& lhs, iterator const& rhs) noexcept
+    {
+      return lhs.current_ == rhs.current_;
+    }
+
+    /**
+     * Inequality operator
+     *
+     * @return True if two iterators are not identical
+     */
+    friend __device__ constexpr bool operator!=(iterator const& lhs, iterator const& rhs) noexcept
+    {
+      return not lhs == rhs;
+    }
+
+   private:
+    value_type* current_{};  ///< Pointer to the current slot
+  };
+  using const_iterator = iterator const;  ///< Const forward iterator type
+
+  /**
+   * @brief Returns an iterator to one past the last slot.
+   *
+   * This is provided for convenience for those familiar with checking
+   * an iterator returned from `find()` against the `end()` iterator.
+   *
+   * @return An iterator to one past the last slot
+   */
+  [[nodiscard]] __device__ constexpr iterator end() noexcept
+  {
+    return iterator{reinterpret_cast<value_type*>(this->data() + this->capacity())};
+  }
+
+  /**
+   * @brief Returns a const_iterator to one past the last slot.
+   *
+   * This is provided for convenience for those familiar with checking
+   * an iterator returned from `find()` against the `end()` iterator.
+   *
+   * @return A const_iterator to one past the last slot
+   */
+  [[nodiscard]] __device__ constexpr const_iterator end() const noexcept
+  {
+    return const_iterator{reinterpret_cast<value_type*>(this->data() + this->capacity())};
   }
 
   /**
@@ -226,7 +328,7 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
    */
-  void initialize(value_type key, cudaStream_t stream) noexcept
+  void initialize(value_type key, cuda_stream_ref stream) noexcept
   {
     auto constexpr stride = 4;
     auto const grid_size  = (this->num_windows() + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
