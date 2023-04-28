@@ -235,20 +235,18 @@ class operator_impl<op::insert_and_find_tag,
       auto const window_slots = ref_.storage_ref_[*probing_iter];
 
       for (auto i = 0; i < window_size; ++i) {
-        auto const eq_res = ref_.predicate_(window_slots[i], value);
+        auto const eq_res      = ref_.predicate_(window_slots[i], value);
+        auto const* window_ptr = (ref_.storage_ref_.data() + *probing_iter)->data();
 
         // If the key is already in the container, return false
-        if (eq_res == detail::equal_result::EQUAL) {
-          return {iterator{&(*(ref_.storage_ref_.data() + *probing_iter))[i]}, false};
-        }
+        if (eq_res == detail::equal_result::EQUAL) { return {iterator{&window_ptr[i]}, false}; }
         if (eq_res == detail::equal_result::EMPTY) {
-          switch (
-            ref_.attempt_insert((ref_.storage_ref_.data() + *probing_iter)->data() + i, value)) {
+          switch (ref_.attempt_insert(window_ptr + i, value)) {
             case insert_result::SUCCESS: {
-              return {iterator{&(*(ref_.storage_ref_.data() + *probing_iter))[i]}, true};
+              return {iterator{&window_ptr[i]}, true};
             }
             case insert_result::DUPLICATE: {
-              return {iterator{&(*(ref_.storage_ref_.data() + *probing_iter))[i]}, false};
+              return {iterator{&window_ptr[i]}, false};
             }
             default: continue;
           }
