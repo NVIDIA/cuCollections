@@ -255,6 +255,75 @@ class operator_impl<op::insert_and_find_tag,
       ++probing_iter;
     };
   }
+
+  /**
+   * @brief Inserts the given element into the set.
+   *
+   * @note This API returns a pair consisting of an iterator to the inserted element (or to the
+   * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
+   * not.
+   *
+   * @param group The Cooperative Group used to perform group insert_and_find
+   * @param value The element to insert
+   *
+   * @return a pair consisting of an iterator to the element and a bool indicating whether the
+   * insertion is successful or not.
+   */
+  __device__ thrust::pair<iterator, bool> insert_and_find(
+    cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
+  {
+    using insert_result = typename ref_type::insert_result;
+
+    ref_type& ref_    = static_cast<ref_type&>(*this);
+    auto probing_iter = ref_.probing_scheme_(group, value, ref_.storage_ref_.num_windows());
+
+    while (true) {
+      auto const window_slots = ref_.storage_ref_[*probing_iter];
+
+      auto const [state, intra_window_index] = [&]() {
+        for (auto i = 0; i < window_size; ++i) {
+          switch (ref_.predicate_(window_slots[i], value)) {
+            case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
+            default: continue;
+          }
+        }
+        // returns dummy index `-1` for UNEQUAL
+        return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
+      }();
+
+      auto const* slot_ptr =
+        (ref_.storage_ref_.data() + *probing_iter)->data() + intra_window_index;
+
+      // If the key is already in the container, return false
+      auto const group_finds_equal = group.ballot(state == detail::equal_result::EQUAL);
+      if (group_finds_equal) {
+        auto const src_lane = __ffs(group_finds_equal) - 1;
+        auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
+        return {iterator{reinterpret_cast<value_type*>(res)}, false};
+      }
+
+      auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
+      if (group_contains_empty) {
+        auto const src_lane = __ffs(group_contains_empty) - 1;
+        auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
+        auto const status = (group.thread_rank() == src_lane) ? ref_.attempt_insert(slot_ptr, value)
+                                                              : insert_result::CONTINUE;
+
+        switch (group.shfl(status, src_lane)) {
+          case insert_result::SUCCESS: {
+            return {iterator{reinterpret_cast<value_type*>(res)}, true};
+          }
+          case insert_result::DUPLICATE: {
+            return {iterator{reinterpret_cast<value_type*>(res)}, false};
+          }
+          default: continue;
+        }
+      } else {
+        ++probing_iter;
+      }
+    }
+  }
 };
 
 template <typename Key,
@@ -316,17 +385,17 @@ class operator_impl<op::contains_tag,
    *
    * @tparam ProbeKey Probe key type
    *
-   * @param g The Cooperative Group used to perform group contains
+   * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
    * @return A boolean indicating whether the probe key is present
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ bool contains(cooperative_groups::thread_block_tile<cg_size> const& g,
-                                         ProbeKey const& key) const noexcept
+  [[nodiscard]] __device__ bool contains(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
 
-    auto probing_iter = ref_.probing_scheme_(g, key, ref_.storage_ref_.num_windows());
+    auto probing_iter = ref_.probing_scheme_(group, key, ref_.storage_ref_.num_windows());
 
     while (true) {
       auto const window_slots = ref_.storage_ref_[*probing_iter];
@@ -342,8 +411,8 @@ class operator_impl<op::contains_tag,
         return detail::equal_result::UNEQUAL;
       }();
 
-      if (g.any(state == detail::equal_result::EQUAL)) { return true; }
-      if (g.any(state == detail::equal_result::EMPTY)) { return false; }
+      if (group.any(state == detail::equal_result::EQUAL)) { return true; }
+      if (group.any(state == detail::equal_result::EMPTY)) { return false; }
 
       ++probing_iter;
     }
@@ -442,18 +511,18 @@ class operator_impl<op::find_tag,
    *
    * @tparam ProbeKey Probe key type
    *
-   * @param g The Cooperative Group used to perform this operation
+   * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    *
    * @return An iterator to the position at which the equivalent key is stored
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ const_iterator
-  find(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& key) const noexcept
+  [[nodiscard]] __device__ const_iterator find(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
 
-    auto probing_iter = ref_.probing_scheme_(g, key, ref_.storage_ref_.num_windows());
+    auto probing_iter = ref_.probing_scheme_(group, key, ref_.storage_ref_.num_windows());
 
     while (true) {
       auto const window_slots = ref_.storage_ref_[*probing_iter];
@@ -471,17 +540,18 @@ class operator_impl<op::find_tag,
       }();
 
       // Find a match for the probe key, thus return an iterator to the entry
-      auto const group_finds_match = g.ballot(state == detail::equal_result::EQUAL);
+      auto const group_finds_match = group.ballot(state == detail::equal_result::EQUAL);
       if (group_finds_match) {
         auto const src_lane = __ffs(group_finds_match) - 1;
-        auto const res      = g.shfl(reinterpret_cast<intptr_t>(&(
-                                  *(ref_.storage_ref_.data() + *probing_iter))[intra_window_index]),
-                                src_lane);
+        auto const res =
+          group.shfl(reinterpret_cast<intptr_t>(
+                       &(*(ref_.storage_ref_.data() + *probing_iter))[intra_window_index]),
+                     src_lane);
         return const_iterator{reinterpret_cast<value_type*>(res)};
       }
 
       // Find an empty slot, meaning that the probe key isn't present in the set
-      if (g.any(state == detail::equal_result::EMPTY)) { return this->end(); }
+      if (group.any(state == detail::equal_result::EMPTY)) { return this->end(); }
 
       ++probing_iter;
     }
