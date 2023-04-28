@@ -130,52 +130,7 @@ class static_set_ref
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot, value_type const& value)
-  {
-    // temporary workaround due to performance regression
-    // https://github.com/NVIDIA/libcudacxx/issues/366
-    value_type const old = [&]() {
-      value_type expected = this->empty_key_sentinel();
-      value_type val      = value;
-      if constexpr (sizeof(value_type) == sizeof(uint32_t)) {
-        auto* expected_ptr = reinterpret_cast<unsigned int*>(&expected);
-        auto* value_ptr    = reinterpret_cast<unsigned int*>(&val);
-        if constexpr (Scope == cuda::thread_scope_system) {
-          return atomicCAS_system(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-        } else if constexpr (Scope == cuda::thread_scope_device) {
-          return atomicCAS(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-        } else if constexpr (Scope == cuda::thread_scope_block) {
-          return atomicCAS_block(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-        } else {
-          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-        }
-      }
-      if constexpr (sizeof(value_type) == sizeof(uint64_t)) {
-        auto* expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
-        auto* value_ptr    = reinterpret_cast<unsigned long long int*>(&val);
-        if constexpr (Scope == cuda::thread_scope_system) {
-          return atomicCAS_system(
-            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-        } else if constexpr (Scope == cuda::thread_scope_device) {
-          return atomicCAS(
-            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-        } else if constexpr (Scope == cuda::thread_scope_block) {
-          return atomicCAS_block(
-            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-        } else {
-          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-        }
-      }
-    }();
-    if (*slot == old) {
-      // Shouldn't use `predicate_` operator directly since it includes a redundant bitwise compare
-      return predicate_.equal_to(old, value) == detail::equal_result::EQUAL
-               ? insert_result::DUPLICATE
-               : insert_result::CONTINUE;
-    } else {
-      return insert_result::SUCCESS;
-    }
-  }
+  [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot, value_type const& value);
 
   cuco::empty_key<key_type> empty_key_sentinel_;            ///< Empty key sentinel
   detail::equal_wrapper<value_type, key_equal> predicate_;  ///< Key equality binary callable
