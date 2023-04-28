@@ -80,11 +80,12 @@ class static_set_ref
   using extent_type         = typename storage_ref_type::extent_type;  ///< Extent type
   using size_type           = typename storage_ref_type::size_type;    ///< Probing scheme size type
   using key_equal           = KeyEqual;  ///< Type of key equality binary callable
+  using iterator            = typename storage_ref_type::iterator;   ///< Slot iterator type
+  using const_iterator = typename storage_ref_type::const_iterator;  ///< Const slot iterator type
 
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr auto window_size =
-    storage_ref_type::window_size;             ///< Number of elements handled per window
-  static constexpr auto thread_scope = Scope;  ///< Thread scope
+    storage_ref_type::window_size;  ///< Number of elements handled per window
 
   /**
    * @brief Constructs static_set_ref.
@@ -115,6 +116,67 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept;
 
  private:
+  // TODO: this should be a common enum for all data structures
+  enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
+
+  /**
+   * @brief Attempts to insert an element into a slot.
+   *
+   * @note Dispatches the correct implementation depending on the container
+   * type and presence of other operator mixins.
+   *
+   * @param slot Pointer to the slot in memory
+   * @param value Element to insert
+   *
+   * @return Result of this operation, i.e., success/continue/duplicate
+   */
+  [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot, value_type const& value)
+  {
+    // temporary workaround due to performance regression
+    // https://github.com/NVIDIA/libcudacxx/issues/366
+    value_type const old = [&]() {
+      value_type expected = this->empty_key_sentinel();
+      value_type val      = value;
+      if constexpr (sizeof(value_type) == sizeof(uint32_t)) {
+        auto* expected_ptr = reinterpret_cast<unsigned int*>(&expected);
+        auto* value_ptr    = reinterpret_cast<unsigned int*>(&val);
+        if constexpr (Scope == cuda::thread_scope_system) {
+          return atomicCAS_system(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
+        } else if constexpr (Scope == cuda::thread_scope_device) {
+          return atomicCAS(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
+        } else if constexpr (Scope == cuda::thread_scope_block) {
+          return atomicCAS_block(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
+        } else {
+          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+        }
+      }
+      if constexpr (sizeof(value_type) == sizeof(uint64_t)) {
+        auto* expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
+        auto* value_ptr    = reinterpret_cast<unsigned long long int*>(&val);
+        if constexpr (Scope == cuda::thread_scope_system) {
+          return atomicCAS_system(
+            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
+        } else if constexpr (Scope == cuda::thread_scope_device) {
+          return atomicCAS(
+            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
+        } else if constexpr (Scope == cuda::thread_scope_block) {
+          return atomicCAS_block(
+            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
+        } else {
+          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+        }
+      }
+    }();
+    if (*slot == old) {
+      // Shouldn't use `predicate_` operator directly since it includes a redundant bitwise compare
+      return predicate_.equal_to(old, value) == detail::equal_result::EQUAL
+               ? insert_result::DUPLICATE
+               : insert_result::CONTINUE;
+    } else {
+      return insert_result::SUCCESS;
+    }
+  }
+
   cuco::empty_key<key_type> empty_key_sentinel_;            ///< Empty key sentinel
   detail::equal_wrapper<value_type, key_equal> predicate_;  ///< Key equality binary callable
   probing_scheme_type probing_scheme_;                      ///< Probing scheme

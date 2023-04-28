@@ -98,9 +98,8 @@ class operator_impl<op::insert_tag,
   using key_type   = typename base_type::key_type;
   using value_type = typename base_type::value_type;
 
-  static constexpr auto cg_size      = base_type::cg_size;
-  static constexpr auto window_size  = base_type::window_size;
-  static constexpr auto thread_scope = base_type::thread_scope;
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
 
  public:
   /**
@@ -111,6 +110,8 @@ class operator_impl<op::insert_tag,
    */
   __device__ bool insert(value_type const& value) noexcept
   {
+    using insert_result = typename ref_type::insert_result;
+
     ref_type& ref_    = static_cast<ref_type&>(*this);
     auto probing_iter = ref_.probing_scheme_(value, ref_.storage_ref_.num_windows());
 
@@ -125,7 +126,7 @@ class operator_impl<op::insert_tag,
         if (eq_res == detail::equal_result::EQUAL) { return false; }
         if (eq_res == detail::equal_result::EMPTY) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          switch (attempt_insert(
+          switch (ref_.attempt_insert(
             (ref_.storage_ref_.data() + *probing_iter)->data() + intra_window_index, value)) {
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
@@ -147,6 +148,8 @@ class operator_impl<op::insert_tag,
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> group,
                          value_type const& value) noexcept
   {
+    using insert_result = typename ref_type::insert_result;
+
     auto& ref_        = static_cast<ref_type&>(*this);
     auto probing_iter = ref_.probing_scheme_(group, value, ref_.storage_ref_.num_windows());
 
@@ -174,7 +177,7 @@ class operator_impl<op::insert_tag,
         auto const src_lane = __ffs(group_contains_empty) - 1;
         auto const status =
           (group.thread_rank() == src_lane)
-            ? attempt_insert(
+            ? ref_.attempt_insert(
                 (ref_.storage_ref_.data() + *probing_iter)->data() + intra_window_index, value)
             : insert_result::CONTINUE;
 
@@ -188,7 +191,27 @@ class operator_impl<op::insert_tag,
       }
     }
   }
+};
 
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<op::insert_and_find_tag,
+                    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type  = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type   = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+  using iterator   = typename base_type::iterator;
+  using const_iterator = typename base_type::const_iterator;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
   /**
    * @brief Inserts the given element into the set.
    *
@@ -203,31 +226,29 @@ class operator_impl<op::insert_tag,
    */
   __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
   {
+    using insert_result = typename ref_type::insert_result;
+
     ref_type& ref_    = static_cast<ref_type&>(*this);
     auto probing_iter = ref_.probing_scheme_(value, ref_.storage_ref_.num_windows());
 
     while (true) {
       auto const window_slots = ref_.storage_ref_[*probing_iter];
 
-      for (auto& slot_content : window_slots) {
-        auto const eq_res             = ref_.predicate_(slot_content, value);
-        auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+      for (auto i = 0; i < window_size; ++i) {
+        auto const eq_res = ref_.predicate_(window_slots[i], value);
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) {
-          return {{*probing_iter * window_size + intra_window_index, ref_.storage_ref_.data()},
-                  false};
+          return {iterator{&(*(ref_.storage_ref_.data() + *probing_iter))[i]}, false};
         }
         if (eq_res == detail::equal_result::EMPTY) {
-          switch (attempt_insert(
-            (ref_.storage_ref_.data() + *probing_iter)->data() + intra_window_index, value)) {
+          switch (
+            ref_.attempt_insert((ref_.storage_ref_.data() + *probing_iter)->data() + i, value)) {
             case insert_result::SUCCESS: {
-              return {{*probing_iter * window_size + intra_window_index, ref_.storage_ref_.data()},
-                      true};
+              return {iterator{&(*(ref_.storage_ref_.data() + *probing_iter))[i]}, true};
             }
             case insert_result::DUPLICATE: {
-              return {{*probing_iter * window_size + intra_window_index, ref_.storage_ref_.data()},
-                      false};
+              return {iterator{&(*(ref_.storage_ref_.data() + *probing_iter))[i]}, false};
             }
             default: continue;
           }
@@ -235,70 +256,6 @@ class operator_impl<op::insert_tag,
       }
       ++probing_iter;
     };
-  }
-
- private:
-  // TODO: this should be a common enum for all data structures
-  enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
-
-  /**
-   * @brief Attempts to insert an element into a slot.
-   *
-   * @note Dispatches the correct implementation depending on the container
-   * type and presence of other operator mixins.
-   *
-   * @param slot Pointer to the slot in memory
-   * @param value Element to insert
-   *
-   * @return Result of this operation, i.e., success/continue/duplicate
-   */
-  [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot, value_type const& value)
-  {
-    auto& ref_ = static_cast<ref_type&>(*this);
-
-    // temporary workaround due to performance regression
-    // https://github.com/NVIDIA/libcudacxx/issues/366
-    value_type const old = [&]() {
-      value_type expected = ref_.empty_key_sentinel_.value;
-      value_type val      = value;
-      if constexpr (sizeof(value_type) == sizeof(uint32_t)) {
-        auto* expected_ptr = reinterpret_cast<unsigned int*>(&expected);
-        auto* value_ptr    = reinterpret_cast<unsigned int*>(&val);
-        if constexpr (thread_scope == cuda::thread_scope_system) {
-          return atomicCAS_system(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-        } else if constexpr (thread_scope == cuda::thread_scope_device) {
-          return atomicCAS(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-        } else if constexpr (thread_scope == cuda::thread_scope_block) {
-          return atomicCAS_block(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-        } else {
-          static_assert(cuco::dependent_false<decltype(thread_scope)>, "Unsupported thread scope");
-        }
-      }
-      if constexpr (sizeof(value_type) == sizeof(uint64_t)) {
-        auto* expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
-        auto* value_ptr    = reinterpret_cast<unsigned long long int*>(&val);
-        if constexpr (thread_scope == cuda::thread_scope_system) {
-          return atomicCAS_system(
-            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-        } else if constexpr (thread_scope == cuda::thread_scope_device) {
-          return atomicCAS(
-            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-        } else if constexpr (thread_scope == cuda::thread_scope_block) {
-          return atomicCAS_block(
-            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-        } else {
-          static_assert(cuco::dependent_false<decltype(thread_scope)>, "Unsupported thread scope");
-        }
-      }
-    }();
-    if (*slot == old) {
-      // Shouldn't use `predicate_` operator directly since it includes a redundant bitwise compare
-      return ref_.predicate_.equal_to(old, value) == detail::equal_result::EQUAL
-               ? insert_result::DUPLICATE
-               : insert_result::CONTINUE;
-    } else {
-      return insert_result::SUCCESS;
-    }
   }
 };
 
@@ -407,8 +364,8 @@ class operator_impl<op::find_tag,
   using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
   using key_type   = typename base_type::key_type;
   using value_type = typename base_type::value_type;
-  using iterator   = typename StorageRef::iterator;
-  using const_iterator = typename StorageRef::const_iterator;
+  using iterator   = typename base_type::iterator;
+  using const_iterator = typename base_type::const_iterator;
 
   static constexpr auto cg_size     = base_type::cg_size;
   static constexpr auto window_size = base_type::window_size;
