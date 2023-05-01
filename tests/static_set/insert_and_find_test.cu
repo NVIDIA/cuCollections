@@ -93,32 +93,20 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr std::size_t num_keys{400};
 
-  using extent_type    = cuco::experimental::extent<std::size_t>;
-  using allocator_type = cuco::cuda_allocator<std::byte>;
-  using storage_type   = cuco::experimental::aow_storage<2>;
+  using probe =
+    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                       cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+                       cuco::experimental::double_hashing<CGSize,
+                                                          cuco::murmurhash3_32<Key>,
+                                                          cuco::murmurhash3_32<Key>>>;
 
-  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
-    using probe = cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>;
-    auto set    = cuco::experimental::static_set<Key,
-                                              extent_type,
-                                              cuda::thread_scope_device,
-                                              thrust::equal_to<Key>,
-                                              probe,
-                                              allocator_type,
-                                              storage_type>{num_keys, cuco::empty_key<Key>{-1}};
-    test_insert_and_find(set, num_keys);
-  }
-
-  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    using probe = cuco::experimental::
-      double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>;
-    auto set = cuco::experimental::static_set<Key,
-                                              extent_type,
-                                              cuda::thread_scope_device,
-                                              thrust::equal_to<Key>,
-                                              probe,
-                                              allocator_type,
-                                              storage_type>{num_keys, cuco::empty_key<Key>{-1}};
-    test_insert_and_find(set, num_keys);
-  }
+  auto set = cuco::experimental::static_set<Key,
+                                            cuco::experimental::extent<std::size_t>,
+                                            cuda::thread_scope_device,
+                                            thrust::equal_to<Key>,
+                                            probe,
+                                            cuco::cuda_allocator<std::byte>,
+                                            cuco::experimental::aow_storage<2>>{
+    num_keys, cuco::empty_key<Key>{-1}};
+  test_insert_and_find(set, num_keys);
 }
