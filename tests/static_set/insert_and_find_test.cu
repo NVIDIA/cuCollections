@@ -1,0 +1,124 @@
+/*
+ * Copyright (c) 2023, NVIDIA CORPORATION.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <utils.hpp>
+
+#include <cuco/static_set.cuh>
+
+#include <thrust/functional.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
+
+#include <catch2/catch_template_test_macros.hpp>
+
+template <typename Set>
+__inline__ void test_insert_and_find(Set& set, std::size_t num_keys)
+{
+  using Key                     = typename Set::key_type;
+  static auto constexpr cg_size = Set::cg_size;
+
+  auto const keys_begin = [&]() {
+    if constexpr (cg_size == 1) {
+      return thrust::counting_iterator<Key>(0);
+    } else {
+      return thrust::make_transform_iterator(thrust::counting_iterator<Key>(0),
+                                             [] __device__(auto i) { return i / cg_size; });
+    }
+  }();
+  auto const keys_end = [&]() {
+    if constexpr (cg_size == 1) {
+      return keys_begin + num_keys;
+    } else {
+      return keys_begin + num_keys * cg_size;
+    }
+  }();
+
+  auto ref = set.ref(cuco::experimental::op::insert_and_find);
+
+  REQUIRE(cuco::test::all_of(keys_begin, keys_end, [ref] __device__(Key key) mutable {
+    auto [iter, inserted] = [&]() {
+      if constexpr (cg_size == 1) {
+        return ref.insert_and_find(key);
+      } else {
+        auto const tile =
+          cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
+        return ref.insert_and_find(tile, key);
+      }
+    }();
+    return inserted == true;
+  }));
+
+  SECTION("Inserting elements for the second time will always fail.")
+  {
+    REQUIRE(cuco::test::all_of(keys_begin, keys_end, [ref] __device__(Key key) mutable {
+      auto [iter, inserted] = [&]() {
+        if constexpr (cg_size == 1) {
+          return ref.insert_and_find(key);
+        } else {
+          auto const tile =
+            cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
+          return ref.insert_and_find(tile, key);
+        }
+      }();
+      return inserted == false and key == *iter;
+    }));
+  }
+}
+
+TEMPLATE_TEST_CASE_SIG(
+  "Insert and find",
+  "",
+  ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
+  (int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2))
+{
+  constexpr std::size_t num_keys{400};
+
+  using extent_type    = cuco::experimental::extent<std::size_t>;
+  using allocator_type = cuco::cuda_allocator<std::byte>;
+  using storage_type   = cuco::experimental::aow_storage<2>;
+
+  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
+    using probe = cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>;
+    auto set    = cuco::experimental::static_set<Key,
+                                              extent_type,
+                                              cuda::thread_scope_device,
+                                              thrust::equal_to<Key>,
+                                              probe,
+                                              allocator_type,
+                                              storage_type>{num_keys, cuco::empty_key<Key>{-1}};
+    test_insert_and_find(set, num_keys);
+  }
+
+  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
+    using probe = cuco::experimental::
+      double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>;
+    auto set = cuco::experimental::static_set<Key,
+                                              extent_type,
+                                              cuda::thread_scope_device,
+                                              thrust::equal_to<Key>,
+                                              probe,
+                                              allocator_type,
+                                              storage_type>{num_keys, cuco::empty_key<Key>{-1}};
+    test_insert_and_find(set, num_keys);
+  }
+}
