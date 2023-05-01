@@ -290,8 +290,8 @@ class operator_impl<op::insert_and_find_tag,
       auto const window_slots = ref_.storage_ref_[*probing_iter];
 
       for (auto i = 0; i < window_size; ++i) {
-        auto const eq_res      = ref_.predicate_(window_slots[i], value);
-        auto const* window_ptr = (ref_.storage_ref_.data() + *probing_iter)->data();
+        auto const eq_res = ref_.predicate_(window_slots[i], value);
+        auto* window_ptr  = (ref_.storage_ref_.data() + *probing_iter)->data();
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) { return {iterator{&window_ptr[i]}, false}; }
@@ -347,8 +347,7 @@ class operator_impl<op::insert_and_find_tag,
         return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
       }();
 
-      auto const* slot_ptr =
-        (ref_.storage_ref_.data() + *probing_iter)->data() + intra_window_index;
+      auto* slot_ptr = (ref_.storage_ref_.data() + *probing_iter)->data() + intra_window_index;
 
       // If the key is already in the container, return false
       auto const group_finds_equal = group.ballot(state == detail::equal_result::EQUAL);
