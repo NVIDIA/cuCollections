@@ -99,7 +99,7 @@ __device__
   value_type const old = [&]() {
     value_type expected = this->empty_key_sentinel();
     value_type val      = value;
-    if constexpr (sizeof(value_type) == sizeof(uint32_t)) {
+    if constexpr (sizeof(value_type) == sizeof(unsigned int)) {
       auto* expected_ptr = reinterpret_cast<unsigned int*>(&expected);
       auto* value_ptr    = reinterpret_cast<unsigned int*>(&val);
       if constexpr (Scope == cuda::thread_scope_system) {
@@ -112,7 +112,7 @@ __device__
         static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
       }
     }
-    if constexpr (sizeof(value_type) == sizeof(uint64_t)) {
+    if constexpr (sizeof(value_type) == sizeof(unsigned long long int)) {
       auto* expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
       auto* value_ptr    = reinterpret_cast<unsigned long long int*>(&val);
       if constexpr (Scope == cuda::thread_scope_system) {
