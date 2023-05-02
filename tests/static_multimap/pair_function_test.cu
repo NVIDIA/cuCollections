@@ -132,18 +132,12 @@ TEMPLATE_TEST_CASE_SIG(
                       return cuco::pair_type<Key, Value>{i / 2, i};
                     });
 
-  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
-    cuco::static_multimap<Key,
-                          Value,
-                          cuda::thread_scope_device,
-                          cuco::cuda_allocator<char>,
-                          cuco::linear_probing<1, cuco::murmurhash3_32<Key>>>
-      map{num_pairs * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
-    test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
-  }
-  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{
-      num_pairs * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
-    test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
-  }
+  using probe = std::conditional_t<
+    Probe == cuco::test::probe_sequence::linear_probing,
+    cuco::linear_probing<1, cuco::murmurhash3_32<Key>>,
+    cuco::double_hashing<8, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+
+  cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
+    map{num_pairs * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
 }
