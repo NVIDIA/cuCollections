@@ -99,7 +99,7 @@ bool equal(Iterator1 begin1, Iterator1 end1, Iterator2 begin2, Predicate p, cuda
   detail::count_if<<<grid_size, block_size, 0, stream>>>(begin1, end1, begin2, count, p);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
-  auto res = *count;
+  auto const res = *count;
 
   CUCO_CUDA_TRY(cudaFree(count));
 
