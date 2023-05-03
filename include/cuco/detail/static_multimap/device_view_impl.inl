@@ -174,9 +174,9 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   }
 
   /**
-   * @brief Gets the sentinel value used to represent an erased key slot.
+   * @brief Gets the sentinel value used to represent an erased slot.
    *
-   * @return The sentinel value used to represent an erased key slot
+   * @return The sentinel value used to represent an erased slot
    */
   __host__ __device__ Key get_erased_key_sentinel() const noexcept { return erased_key_sentinel_; }
 
