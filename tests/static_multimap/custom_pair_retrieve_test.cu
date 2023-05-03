@@ -196,18 +196,12 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr std::size_t num_pairs{200};
 
-  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
-    cuco::static_multimap<Key,
-                          Value,
-                          cuda::thread_scope_device,
-                          cuco::cuda_allocator<char>,
-                          cuco::linear_probing<1, cuco::murmurhash3_32<Key>>>
-      map{num_pairs * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
-    test_non_shmem_pair_retrieve(map, num_pairs);
-  }
-  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{
-      num_pairs * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
-    test_non_shmem_pair_retrieve(map, num_pairs);
-  }
+  using probe = std::conditional_t<
+    Probe == cuco::test::probe_sequence::linear_probing,
+    cuco::linear_probing<1, cuco::murmurhash3_32<Key>>,
+    cuco::double_hashing<8, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+
+  cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
+    map{num_pairs * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  test_non_shmem_pair_retrieve(map, num_pairs);
 }

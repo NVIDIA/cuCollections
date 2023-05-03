@@ -161,18 +161,12 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr std::size_t num_items{4};
 
-  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
-    cuco::static_multimap<Key,
-                          Value,
-                          cuda::thread_scope_device,
-                          cuco::cuda_allocator<char>,
-                          cuco::linear_probing<1, cuco::murmurhash3_32<Key>>>
-      map{5, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
-    test_multiplicity_two(map, num_items);
-  }
-  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{
-      5, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
-    test_multiplicity_two(map, num_items);
-  }
+  using probe = std::conditional_t<
+    Probe == cuco::test::probe_sequence::linear_probing,
+    cuco::linear_probing<1, cuco::murmurhash3_32<Key>>,
+    cuco::double_hashing<8, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+
+  cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
+    map{5, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  test_multiplicity_two(map, num_items);
 }
