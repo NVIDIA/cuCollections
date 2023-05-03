@@ -46,10 +46,10 @@ __global__ void size(View view, AtomicT* count)
   size_type thread_count = 0;
   auto const n           = view.get_capacity();
 
-  auto* slots = reinterpret_cast<typename View::value_type*>(view.get_slots());
+  auto* slots = view.get_slots();
 
   while (idx < n) {
-    auto const key = (*(slots + idx)).first;
+    auto const key = (slots + idx)->first.load(cuda::std::memory_order_relaxed);
     thread_count += not cuco::detail::bitwise_compare(key, view.get_empty_key_sentinel());
     idx += loop_stride;
   }

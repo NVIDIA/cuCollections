@@ -1286,7 +1286,8 @@ class static_multimap {
   /**
    * @brief Gets the number of elements in the hash map.
    *
-   * @param stream CUDA stream used to get the number of inserted elements
+   * @param stream CUDA stream used for size computation
+   *
    * @return The number of elements in the map
    */
   std::size_t get_size(cudaStream_t stream = 0) const noexcept;
