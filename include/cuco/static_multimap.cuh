@@ -664,6 +664,16 @@ class static_multimap {
       return impl_.get_empty_value_sentinel();
     }
 
+    /**
+     * @brief Gets the sentinel value used to represent an empty key slot.
+     *
+     * @return The sentinel value used to represent an empty key slot
+     */
+    __host__ __device__ __forceinline__ Key get_erased_key_sentinel() const noexcept
+    {
+      return impl_.get_erased_key_sentinel();
+    }
+
    protected:
     ViewImpl impl_;
   };  // class device_view_base
@@ -1343,9 +1353,11 @@ class static_multimap {
   }
 
  private:
-  std::size_t capacity_{};                      ///< Total number of slots
-  Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
-  Value empty_value_sentinel_{};                ///< Initial value of empty slot
+  std::size_t capacity_{};        ///< Total number of slots
+  Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};  ///< Initial value of empty slot
+  // TODO multimap erase
+  Key erased_key_sentinel_{};                   ///< Key value that represents an erased slot
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
   counter_deleter delete_counter_;              ///< Custom counter deleter

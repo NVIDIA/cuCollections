@@ -50,7 +50,8 @@ __global__ void size(View view, AtomicT* count)
 
   while (idx < n) {
     auto const key = (slots + idx)->first.load(cuda::std::memory_order_relaxed);
-    thread_count += not cuco::detail::bitwise_compare(key, view.get_empty_key_sentinel());
+    thread_count += not(cuco::detail::bitwise_compare(key, view.get_empty_key_sentinel()) or
+                        cuco::detail::bitwise_compare(key, view.get_erased_key_sentinel()));
     idx += loop_stride;
   }
 

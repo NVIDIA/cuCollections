@@ -63,7 +63,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
                                             Value empty_value_sentinel) noexcept
     : probe_sequence_{slots, capacity},
       empty_key_sentinel_{empty_key_sentinel},
-      empty_value_sentinel_{empty_value_sentinel}
+      empty_value_sentinel_{empty_value_sentinel},
+      erased_key_sentinel_{empty_key_sentinel}
   {
   }
 
@@ -173,6 +174,13 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   }
 
   /**
+   * @brief Gets the sentinel value used to represent an erased key slot.
+   *
+   * @return The sentinel value used to represent an erased key slot
+   */
+  __host__ __device__ Key get_erased_key_sentinel() const noexcept { return erased_key_sentinel_; }
+
+  /**
    * @brief Gets slots array.
    *
    * @return Slots array
@@ -206,6 +214,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   probe_sequence_type probe_sequence_;  ///< Probe sequence used to probe the hash map
   Key empty_key_sentinel_{};            ///< Key value that represents an empty slot
   Value empty_value_sentinel_{};        ///< Initial Value of empty slot
+  Key erased_key_sentinel_{};           ///< Key value that represents an erased slot
 };                                      // class device_view_impl_base
 
 template <typename Key,
