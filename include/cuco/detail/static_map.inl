@@ -306,6 +306,12 @@ std::size_t static_map<Key, Value, Scope, Allocator>::get_size(cudaStream_t stre
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+float static_map<Key, Value, Scope, Allocator>::get_load_factor(cudaStream_t stream) const noexcept
+{
+  return static_cast<float>(this->get_size(stream)) / capacity_;
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename KeyEqual>
 __device__ static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert_result
 static_map<Key, Value, Scope, Allocator>::device_mutable_view::packed_cas(

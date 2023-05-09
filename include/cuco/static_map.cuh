@@ -1368,12 +1368,11 @@ class static_map {
   /**
    * @brief Gets the load factor of the hash map.
    *
+   * @param stream Stream used for load factor computation
+   *
    * @return The load factor of the hash map
    */
-  float get_load_factor(cudaStream_t stream = 0) const noexcept
-  {
-    return static_cast<float>(this->get_size()) / capacity_;
-  }
+  [[nodiscard]] float get_load_factor(cudaStream_t stream = 0) const noexcept;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
