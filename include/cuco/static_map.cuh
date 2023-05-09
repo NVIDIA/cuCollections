@@ -242,20 +242,23 @@ class static_map {
    * convertible to the map's `value_type`
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
+   *
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    * @param stream Stream used for executing the kernels
+   *
+   * @return Number of successful insertions
    */
   template <typename InputIt,
             typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert(InputIt first,
-              InputIt last,
-              Hash hash           = Hash{},
-              KeyEqual key_equal  = KeyEqual{},
-              cudaStream_t stream = 0);
+  std::size_t insert(InputIt first,
+                     InputIt last,
+                     Hash hash           = Hash{},
+                     KeyEqual key_equal  = KeyEqual{},
+                     cudaStream_t stream = 0);
 
   /**
    * @brief Inserts key/value pairs in the range `[first, last)` if `pred`
@@ -271,6 +274,7 @@ class static_map {
    * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
+   *
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
    * @param stencil Beginning of the stencil sequence
@@ -279,19 +283,21 @@ class static_map {
    * @param hash The unary function to hash each key
    * @param key_equal The binary function to compare two keys for equality
    * @param stream CUDA stream used for insert
+   *
+   * @return Number of successful insertions
    */
   template <typename InputIt,
             typename StencilIt,
             typename Predicate,
             typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void insert_if(InputIt first,
-                 InputIt last,
-                 StencilIt stencil,
-                 Predicate pred,
-                 Hash hash           = Hash{},
-                 KeyEqual key_equal  = KeyEqual{},
-                 cudaStream_t stream = 0);
+  std::size_t insert_if(InputIt first,
+                        InputIt last,
+                        StencilIt stencil,
+                        Predicate pred,
+                        Hash hash           = Hash{},
+                        KeyEqual key_equal  = KeyEqual{},
+                        cudaStream_t stream = 0);
 
   /**
    * @brief Erases keys in the range `[first, last)`.
@@ -307,27 +313,30 @@ class static_map {
    *
    * This function synchronizes `stream`.
    *
+   * @throw std::runtime_error if a unique erased key sentinel value was not
+   * provided at construction
+   *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `value_type`
    * @tparam Hash Unary callable type
    * @tparam KeyEqual Binary callable type
+   *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param hash The unary function to apply to hash each key
    * @param key_equal The binary function to compare two keys for equality
    * @param stream Stream used for executing the kernels
    *
-   * @throw std::runtime_error if a unique erased key sentinel value was not
-   * provided at construction
+   * @return Number of successful erasures
    */
   template <typename InputIt,
             typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
-  void erase(InputIt first,
-             InputIt last,
-             Hash hash           = Hash{},
-             KeyEqual key_equal  = KeyEqual{},
-             cudaStream_t stream = 0);
+  std::size_t erase(InputIt first,
+                    InputIt last,
+                    Hash hash           = Hash{},
+                    KeyEqual key_equal  = KeyEqual{},
+                    cudaStream_t stream = 0);
 
   /**
    * @brief Finds the values corresponding to all keys in the range `[first, last)`.
@@ -1350,16 +1359,20 @@ class static_map {
   /**
    * @brief Gets the number of elements in the hash map.
    *
+   * @param stream Stream used for size computation
+   *
    * @return The number of elements in the map
    */
-  std::size_t get_size() const noexcept { return size_; }
+  [[nodiscard]] std::size_t get_size(cudaStream_t stream = 0) const noexcept;
 
   /**
    * @brief Gets the load factor of the hash map.
    *
+   * @param stream Stream used for load factor computation
+   *
    * @return The load factor of the hash map
    */
-  float get_load_factor() const noexcept { return static_cast<float>(size_) / capacity_; }
+  [[nodiscard]] float get_load_factor(cudaStream_t stream = 0) const noexcept;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
