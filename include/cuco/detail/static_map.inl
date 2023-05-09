@@ -287,20 +287,21 @@ void static_map<Key, Value, Scope, Allocator>::contains(InputIt first,
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 std::size_t static_map<Key, Value, Scope, Allocator>::get_size(cudaStream_t stream) const noexcept
 {
-  using namespace experimental::detail;
-
-  auto view    = get_device_view();
-  auto counter = counter_storage<std::size_t, Scope, Allocator>{slot_allocator_};
+  auto view = get_device_view();
+  auto counter =
+    experimental::detail::counter_storage<std::size_t, Scope, Allocator>{slot_allocator_};
   counter.reset(stream);
 
   auto const grid_size =
-    (this->get_capacity() + CUCO_DEFAULT_STRIDE * CUCO_DEFAULT_BLOCK_SIZE - 1) /
-    (CUCO_DEFAULT_STRIDE * CUCO_DEFAULT_BLOCK_SIZE);
+    (this->get_capacity() +
+     experimental::detail::CUCO_DEFAULT_STRIDE * experimental::detail::CUCO_DEFAULT_BLOCK_SIZE -
+     1) /
+    (experimental::detail::CUCO_DEFAULT_STRIDE * experimental::detail::CUCO_DEFAULT_BLOCK_SIZE);
 
   // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
   // v2.1.0
-  detail::size<CUCO_DEFAULT_BLOCK_SIZE>
-    <<<grid_size, CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(view, counter.data());
+  detail::size<experimental::detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, experimental::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(view, counter.data());
 
   return counter.load_to_host(stream);
 }

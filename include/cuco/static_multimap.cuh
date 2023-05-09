@@ -1300,7 +1300,7 @@ class static_multimap {
    *
    * @return The number of elements in the map
    */
-  std::size_t get_size(cudaStream_t stream = 0) const noexcept;
+  [[nodiscard]] std::size_t get_size(cudaStream_t stream = 0) const noexcept;
 
   /**
    * @brief Gets the load factor of the hash map.
@@ -1308,7 +1308,7 @@ class static_multimap {
    * @param stream CUDA stream used to get the load factor
    * @return The load factor of the hash map
    */
-  float get_load_factor(cudaStream_t stream = 0) const noexcept;
+  [[nodiscard]] float get_load_factor(cudaStream_t stream = 0) const noexcept;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
