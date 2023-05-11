@@ -95,3 +95,8 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/multiplicity_test.cu
     static_multimap/non_match_test.cu
     static_multimap/pair_function_test.cu)
+
+###################################################################################################
+# - bit_vector tests ------------------------------------------------------------------------------
+ConfigureTest(BIT_VECTOR_TEST
+    bit_vector/size_test.cu)
