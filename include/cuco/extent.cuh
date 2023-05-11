@@ -43,6 +43,8 @@ struct extent {
 
   using value_type = SizeType;  ///< Extent value type
 
+  static constexpr extent_kind kind = Kind;  ///< Extent kind
+
   constexpr extent() = default;
 
   /// Constructs from `SizeType`
@@ -89,6 +91,8 @@ struct extent<SizeType, dynamic_extent, Kind> {
   static_assert(std::is_integral_v<SizeType>, "SizeType must be an integer type");
 
   using value_type = SizeType;  ///< Extent value type
+
+  static constexpr extent_kind kind = Kind;  ///< Extent kind
 
   /**
    * @brief Constructs extent from a given `size`.

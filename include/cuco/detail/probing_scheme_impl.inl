@@ -62,7 +62,7 @@ class probing_iterator {
   {
     // TODO: step_size_ can be a build time constant (e.g. linear probing)
     //  Worth passing another extent type?
-    curr_index_ = (curr_index_ + step_size_) % upper_bound_;
+    curr_index_ = upper_bound_.mod(curr_index_ + step_size_);
     return *this;
   }
 
@@ -96,7 +96,7 @@ template <typename ProbeKey, typename Extent>
 __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
 {
-  return detail::probing_iterator<Extent>{hash_(probe_key) % upper_bound,
+  return detail::probing_iterator<Extent>{upper_bound.mod(hash_(probe_key)),
                                           1,  // step size is 1
                                           upper_bound};
 }
@@ -109,7 +109,7 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
   Extent upper_bound) const noexcept
 {
   return detail::probing_iterator<Extent>{
-    (hash_(probe_key) + g.thread_rank()) % upper_bound, cg_size, upper_bound};
+    upper_bound.mod(hash_(probe_key) + g.thread_rank()), cg_size, upper_bound};
 }
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
@@ -124,9 +124,13 @@ template <typename ProbeKey, typename Extent>
 __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
 {
+  static_assert(Extent::kind != extent_kind::PLAIN,
+                "Double hashing cannot be used with extent_kind::PLAIN");
+
   return detail::probing_iterator<Extent>{
-    hash1_(probe_key) % upper_bound,
-    hash2_(probe_key) % (upper_bound - 1) + 1,  // step size in range [1, prime - 1]
+    upper_bound.mod(hash1_(probe_key)),
+    max(static_cast<typename Extent::value_type>(1),
+        upper_bound.mod(hash2_(probe_key))),  // step size in range [1, prime - 1]
     upper_bound};
 }
 
@@ -137,9 +141,12 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
   ProbeKey const& probe_key,
   Extent upper_bound) const noexcept
 {
+  static_assert(Extent::kind != extent_kind::PLAIN,
+                "Double hashing cannot be used with extent_kind::PLAIN");
+
   return detail::probing_iterator<Extent>{
-    (hash1_(probe_key) + g.thread_rank()) % upper_bound,
-    (hash2_(probe_key) % (upper_bound / cg_size - 1) + 1) * cg_size,
+    upper_bound.mod(hash1_(probe_key) + g.thread_rank()),
+    (hash2_(probe_key) % (upper_bound / cg_size - 1) + 1) * cg_size,  // TODO use upper_bound.mod
     upper_bound};
 }
 }  // namespace experimental
