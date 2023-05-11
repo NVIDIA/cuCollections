@@ -664,16 +664,6 @@ class static_multimap {
       return impl_.get_empty_value_sentinel();
     }
 
-    /**
-     * @brief Gets the sentinel value used to represent an empty key slot.
-     *
-     * @return The sentinel value used to represent an empty key slot
-     */
-    __host__ __device__ __forceinline__ Key get_erased_key_sentinel() const noexcept
-    {
-      return impl_.get_erased_key_sentinel();
-    }
-
    protected:
     ViewImpl impl_;
   };  // class device_view_base
@@ -1296,11 +1286,10 @@ class static_multimap {
   /**
    * @brief Gets the number of elements in the hash map.
    *
-   * @param stream CUDA stream used for size computation
-   *
+   * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the map
    */
-  [[nodiscard]] std::size_t get_size(cudaStream_t stream = 0) const noexcept;
+  std::size_t get_size(cudaStream_t stream = 0) const noexcept;
 
   /**
    * @brief Gets the load factor of the hash map.
@@ -1308,7 +1297,7 @@ class static_multimap {
    * @param stream CUDA stream used to get the load factor
    * @return The load factor of the hash map
    */
-  [[nodiscard]] float get_load_factor(cudaStream_t stream = 0) const noexcept;
+  float get_load_factor(cudaStream_t stream = 0) const noexcept;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
@@ -1353,11 +1342,9 @@ class static_multimap {
   }
 
  private:
-  std::size_t capacity_{};        ///< Total number of slots
-  Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
-  Value empty_value_sentinel_{};  ///< Initial value of empty slot
-  // TODO multimap erase
-  Key erased_key_sentinel_{};                   ///< Key value that represents an erased slot
+  std::size_t capacity_{};                      ///< Total number of slots
+  Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};                ///< Initial value of empty slot
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
   counter_deleter delete_counter_;              ///< Custom counter deleter
