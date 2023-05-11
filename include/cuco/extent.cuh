@@ -20,9 +20,14 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 namespace cuco {
 namespace experimental {
+
+// TODO docs
+enum class extent_kind : std::int32_t { PLAIN, PRIME, POW2 };
+
 static constexpr std::size_t dynamic_extent = static_cast<std::size_t>(-1);
 
 /**
@@ -30,9 +35,12 @@ static constexpr std::size_t dynamic_extent = static_cast<std::size_t>(-1);
  *
  * @tparam SizeType Size type
  * @tparam N Extent
+ * @tparam Kind Extent kind
  */
-template <typename SizeType, std::size_t N = dynamic_extent>
+template <typename SizeType, std::size_t N = dynamic_extent, extent_kind Kind = extent_kind::PRIME>
 struct extent {
+  static_assert(std::is_integral_v<SizeType>, "SizeType must be an integer type");
+
   using value_type = SizeType;  ///< Extent value type
 
   constexpr extent() = default;
@@ -59,15 +67,27 @@ struct extent {
   {
     return extent<value_type, N * Value>{};
   }
+
+  /**
+   * @brief Optimized modulo operator for `lhs % *this`.
+   *
+   * @param lhs Left hand side operand
+   *
+   * @return Resulting remainder
+   */
+  [[nodiscard]] constexpr value_type mod(value_type lhs) const noexcept { return lhs % N; }
 };
 
 /**
  * @brief Dynamic extent class.
  *
  * @tparam SizeType Size type
+ * @tparam Kind Extent kind
  */
-template <typename SizeType>
-struct extent<SizeType, dynamic_extent> {
+template <typename SizeType, extent_kind Kind>
+struct extent<SizeType, dynamic_extent, Kind> {
+  static_assert(std::is_integral_v<SizeType>, "SizeType must be an integer type");
+
   using value_type = SizeType;  ///< Extent value type
 
   /**
@@ -97,6 +117,22 @@ struct extent<SizeType, dynamic_extent> {
     return extent<value_type>{Value * value_};
   }
 
+  /**
+   * @brief Optimized modulo operator for `lhs % *this`.
+   *
+   * @param lhs Left hand side operand
+   *
+   * @return Resulting remainder
+   */
+  [[nodiscard]] constexpr value_type mod(value_type lhs) const noexcept
+  {
+    if constexpr (Kind == extent_kind::POW2) {
+      return lhs & (value_ - 1);
+    } else {
+      return lhs % value_;  // unoptimized code path
+    }
+  }
+
  private:
   value_type value_;  ///< Extent value
 };
@@ -114,34 +150,70 @@ struct extent<SizeType, dynamic_extent> {
  * @tparam WindowSize Number of elements handled per Window
  * @tparam SizeType Size type
  * @tparam N Extent
+ * @tparam Kind Extent kind
  *
  * @throw If the input extent is invalid
  *
  * @return Resulting valid extent
  */
-template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
-[[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
+template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N, extent_kind Kind>
+[[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N, Kind> ext)
 {
-  auto constexpr max_prime = cuco::detail::primes.back();
-  auto constexpr max_value =
-    (static_cast<uint64_t>(std::numeric_limits<SizeType>::max()) < max_prime)
-      ? std::numeric_limits<SizeType>::max()
-      : static_cast<SizeType>(max_prime);
-  auto const size = SDIV(ext, CGSize * WindowSize);
-  if (size <= 0 or size > max_value) { CUCO_FAIL("Invalid input extent"); }
+  if (ext <= 0) { CUCO_FAIL("Extent must be greater than 0"); }
 
-  if constexpr (N == dynamic_extent) {
-    return extent<SizeType>{static_cast<SizeType>(
-      *cuco::detail::lower_bound(
-        cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
-      CGSize)};
+  auto const div = SDIV(static_cast<SizeType>(ext), WindowSize * CGSize);
+
+  if constexpr (Kind == extent_kind::PLAIN) {
+    if constexpr (N == dynamic_extent) {
+      return extent<SizeType, dynamic_extent, Kind>{div * CGSize};
+    } else {
+      return extent<SizeType, div * CGSize, Kind>{};
+    }
   }
-  if constexpr (N != dynamic_extent) {
-    return extent<SizeType,
-                  static_cast<std::size_t>(*cuco::detail::lower_bound(cuco::detail::primes.begin(),
-                                                                      cuco::detail::primes.end(),
-                                                                      static_cast<uint64_t>(size)) *
-                                           CGSize)>{};
+
+  if constexpr (Kind == extent_kind::POW2) {
+    auto next_pow2 = [](SizeType v) constexpr->SizeType
+    {
+      auto constexpr max_pow2 = 1ULL << (sizeof(SizeType) * CHAR_BIT - 1);
+      static_assert(sizeof(SizeType) == 4 or sizeof(SizeType) == 8, "Invalid SizeType");
+      if (v > max_pow2) { CUCO_FAIL("Extent out of range for SizeType"); }
+      v--;
+      v |= v >> 1;
+      v |= v >> 2;
+      v |= v >> 4;
+      v |= v >> 8;
+      v |= v >> 16;
+      if constexpr (sizeof(SizeType) == 8) { v |= v >> 32; }
+      v++;
+      return v;
+    };
+
+    if constexpr (N == dynamic_extent) {
+      return extent<SizeType, dynamic_extent, Kind>{next_pow2(div) * CGSize};
+    } else {
+      return extent<SizeType, next_pow2(div) * CGSize, Kind>{};
+    }
+  }
+
+  if constexpr (Kind == extent_kind::PRIME) {
+    auto next_prime = [](SizeType v) constexpr->SizeType
+    {
+      auto constexpr max_prime = cuco::detail::primes.back();
+      auto constexpr max_value =
+        (static_cast<uint64_t>(std::numeric_limits<SizeType>::max()) < max_prime)
+          ? std::numeric_limits<SizeType>::max()
+          : static_cast<SizeType>(max_prime);
+      if (v > max_value) { CUCO_FAIL("Extent out of range for SizeType"); }
+
+      return *cuco::detail::lower_bound(
+        cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(v));
+    };
+
+    if constexpr (N == dynamic_extent) {
+      return extent<SizeType, dynamic_extent, Kind>{next_prime(div) * CGSize};
+    } else {
+      return extent<SizeType, next_prime(div) * CGSize, Kind>{};
+    }
   }
 }
 
