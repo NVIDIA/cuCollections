@@ -53,9 +53,8 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
 
     REQUIRE(map.get_size() == num_keys);
 
-    auto const size = map.erase(d_keys.begin(), d_keys.end());
+    map.erase(d_keys.begin(), d_keys.end());
 
-    REQUIRE(size == num_keys);
     REQUIRE(map.get_size() == 0);
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());

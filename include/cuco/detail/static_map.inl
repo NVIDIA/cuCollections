@@ -15,10 +15,7 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
-#include <cuco/detail/common_kernels.cuh>
 #include <cuco/detail/error.hpp>
-#include <cuco/detail/storage/counter_storage.cuh>
-#include <cuco/detail/tuning.cuh>
 #include <cuco/detail/utils.cuh>
 #include <cuco/detail/utils.hpp>
 
@@ -92,11 +89,11 @@ static_map<Key, Value, Scope, Allocator>::~static_map()
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
-std::size_t static_map<Key, Value, Scope, Allocator>::insert(
+void static_map<Key, Value, Scope, Allocator>::insert(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
   auto const num_keys = cuco::detail::distance(first, last);
-  if (num_keys == 0) { return 0; }
+  if (num_keys == 0) { return; }
 
   auto const block_size = 128;
   auto const stride     = 1;
@@ -116,7 +113,7 @@ std::size_t static_map<Key, Value, Scope, Allocator>::insert(
 
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
 
-  return h_num_successes;
+  size_ += h_num_successes;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -125,16 +122,16 @@ template <typename InputIt,
           typename Predicate,
           typename Hash,
           typename KeyEqual>
-std::size_t static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
-                                                                InputIt last,
-                                                                StencilIt stencil,
-                                                                Predicate pred,
-                                                                Hash hash,
-                                                                KeyEqual key_equal,
-                                                                cudaStream_t stream)
+void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
+                                                         InputIt last,
+                                                         StencilIt stencil,
+                                                         Predicate pred,
+                                                         Hash hash,
+                                                         KeyEqual key_equal,
+                                                         cudaStream_t stream)
 {
   auto const num_keys = cuco::detail::distance(first, last);
-  if (num_keys == 0) { return 0; }
+  if (num_keys == 0) { return; }
 
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
@@ -153,12 +150,12 @@ std::size_t static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
     &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
-  return h_num_successes;
+  size_ += h_num_successes;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename InputIt, typename Hash, typename KeyEqual>
-std::size_t static_map<Key, Value, Scope, Allocator>::erase(
+void static_map<Key, Value, Scope, Allocator>::erase(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
   CUCO_EXPECTS(get_empty_key_sentinel() != get_erased_key_sentinel(),
@@ -166,7 +163,7 @@ std::size_t static_map<Key, Value, Scope, Allocator>::erase(
                std::runtime_error);
 
   auto const num_keys = cuco::detail::distance(first, last);
-  if (num_keys == 0) { return 0; }
+  if (num_keys == 0) { return; }
 
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
@@ -186,7 +183,7 @@ std::size_t static_map<Key, Value, Scope, Allocator>::erase(
 
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
 
-  return h_num_successes;
+  size_ -= h_num_successes;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -282,34 +279,6 @@ void static_map<Key, Value, Scope, Allocator>::contains(InputIt first,
 
   detail::contains<block_size, tile_size>
     <<<grid_size, block_size, 0, stream>>>(first, num_keys, output_begin, view, hash, key_equal);
-}
-
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-std::size_t static_map<Key, Value, Scope, Allocator>::get_size(cudaStream_t stream) const noexcept
-{
-  auto view = get_device_view();
-  auto counter =
-    experimental::detail::counter_storage<std::size_t, Scope, Allocator>{slot_allocator_};
-  counter.reset(stream);
-
-  auto const grid_size =
-    (this->get_capacity() +
-     experimental::detail::CUCO_DEFAULT_STRIDE * experimental::detail::CUCO_DEFAULT_BLOCK_SIZE -
-     1) /
-    (experimental::detail::CUCO_DEFAULT_STRIDE * experimental::detail::CUCO_DEFAULT_BLOCK_SIZE);
-
-  // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
-  // v2.1.0
-  detail::size<experimental::detail::CUCO_DEFAULT_BLOCK_SIZE>
-    <<<grid_size, experimental::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(view, counter.data());
-
-  return counter.load_to_host(stream);
-}
-
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-float static_map<Key, Value, Scope, Allocator>::get_load_factor(cudaStream_t stream) const noexcept
-{
-  return static_cast<float>(this->get_size(stream)) / capacity_;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
