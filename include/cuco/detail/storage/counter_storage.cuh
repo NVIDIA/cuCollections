@@ -44,7 +44,8 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
   using value_type     = cuda::atomic<size_type, Scope>;  ///< Type of the counter
   using allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
     value_type>;  ///< Type of the allocator to (de)allocate counter
-  using counter_deleter_type = custom_deleter<allocator_type>;  ///< Type of counter deleter
+  using counter_deleter_type =
+    custom_deleter<size_type, allocator_type>;  ///< Type of counter deleter
 
   /**
    * @brief Constructor of counter storage.

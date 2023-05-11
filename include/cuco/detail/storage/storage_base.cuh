@@ -24,9 +24,10 @@ namespace detail {
 /**
  * @brief Custom deleter for unique pointer.
  *
+ * @tparam SizeType Type of device storage size
  * @tparam Allocator Type of allocator used for device storage
  */
-template <typename Allocator>
+template <typename SizeType, typename Allocator>
 struct custom_deleter {
   using pointer = typename Allocator::value_type*;  ///< Value pointer type
 
@@ -36,7 +37,7 @@ struct custom_deleter {
    * @param size Number of values to deallocate
    * @param allocator Allocator used for deallocating device storage
    */
-  explicit constexpr custom_deleter(std::size_t size, Allocator& allocator)
+  explicit constexpr custom_deleter(SizeType size, Allocator& allocator)
     : size_{size}, allocator_{allocator}
   {
   }
@@ -48,7 +49,7 @@ struct custom_deleter {
    */
   void operator()(pointer ptr) { allocator_.deallocate(ptr, size_); }
 
-  std::size_t size_;      ///< Number of values to delete
+  SizeType size_;         ///< Number of values to delete
   Allocator& allocator_;  ///< Allocator used deallocating values
 };
 
