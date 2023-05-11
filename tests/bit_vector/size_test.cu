@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,6 @@
 
 #include <cuco/bit_vector.cuh>
 
-#include <thrust/host_vector.h>
-
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("Size computation", "")
@@ -26,19 +24,11 @@ TEST_CASE("Size computation", "")
 
   cuco::experimental::bit_vector bv;
 
-  thrust::host_vector<bool> d_keys(num_elements);
   for (size_t i = 0; i < num_elements; i++) {
-    bv.add(i % 7 == 0);
+    bv.add(i % 2 == 0); // Alternate 0s and 1s pattern
   }
   bv.build();
 
   auto const size = bv.size();
   REQUIRE(size == num_elements);
-
-  std::size_t num_set = 0;
-  for (size_t i = 0; i < num_elements; i++) {
-    num_set += bv.host_get(i);
-  }
-
-  REQUIRE(num_set == (num_elements / 7 + 1));
 }

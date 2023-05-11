@@ -99,4 +99,5 @@ ConfigureTest(STATIC_MULTIMAP_TEST
 ###################################################################################################
 # - bit_vector tests ------------------------------------------------------------------------------
 ConfigureTest(BIT_VECTOR_TEST
+    bit_vector/get_test.cu
     bit_vector/size_test.cu)
