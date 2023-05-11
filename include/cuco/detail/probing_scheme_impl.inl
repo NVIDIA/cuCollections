@@ -124,8 +124,9 @@ template <typename ProbeKey, typename Extent>
 __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
 {
+  // TODO make step size an odd number in case extent_kind::POW2
   static_assert(Extent::kind != extent_kind::PLAIN,
-                "Double hashing cannot be used with extent_kind::PLAIN");
+                "Double hashing cannot be used with extent_kind::PLAIN or extent_kind::POW2");
 
   return detail::probing_iterator<Extent>{
     upper_bound.mod(hash1_(probe_key)),
@@ -141,8 +142,9 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
   ProbeKey const& probe_key,
   Extent upper_bound) const noexcept
 {
+  // TODO make step size an odd number in case extent_kind::POW2
   static_assert(Extent::kind != extent_kind::PLAIN,
-                "Double hashing cannot be used with extent_kind::PLAIN");
+                "Double hashing cannot be used with extent_kind::PLAIN or extent_kind::POW2");
 
   return detail::probing_iterator<Extent>{
     upper_bound.mod(hash1_(probe_key) + g.thread_rank()),
