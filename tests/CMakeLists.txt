@@ -105,3 +105,8 @@ ConfigureTest(DYNAMIC_BITSET_TEST
     dynamic_bitset/rank_test.cu
     dynamic_bitset/select_test.cu
     dynamic_bitset/size_test.cu)
+
+###################################################################################################
+# - trie tests ------------------------------------------------------------------------------
+ConfigureTest(TRIE_TEST
+    trie/lookup_test.cu)

@@ -51,6 +51,12 @@ struct contains_tag {
 struct find_tag {
 } inline constexpr find;
 
+/**
+ * @brief `trie_lookup` operator tag
+ */
+struct trie_lookup_tag {
+} inline constexpr trie_lookup;
+
 }  // namespace op
 }  // namespace experimental
 }  // namespace cuco
