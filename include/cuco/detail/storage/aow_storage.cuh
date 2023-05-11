@@ -272,7 +272,8 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
     typename std::allocator_traits<Allocator>::rebind_alloc<window_type>;  ///< Type of the
                                                                            ///< allocator to
                                                                            ///< (de)allocate windows
-  using window_deleter_type = custom_deleter<allocator_type>;  ///< Type of window deleter
+  using window_deleter_type =
+    custom_deleter<size_type, allocator_type>;  ///< Type of window deleter
   using ref_type = aow_storage_ref<window_size, value_type, extent_type>;  ///< Storage ref type
 
   /**
