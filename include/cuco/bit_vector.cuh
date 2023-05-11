@@ -108,6 +108,7 @@ class bit_vector {
     }
   }
 
+  // rank returns the number of 1-bits in the range [0, i)
   __device__ uint64_t rank(uint64_t i) const {
     uint64_t word_id = i / 64;
     uint64_t bit_id = i % 64;
