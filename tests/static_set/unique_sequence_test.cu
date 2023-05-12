@@ -29,8 +29,10 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+using size_type = int32_t;
+
 template <typename Set>
-__inline__ void test_unique_sequence(Set& set, std::size_t num_keys)
+__inline__ void test_unique_sequence(Set& set, size_type num_keys)
 {
   using Key = typename Set::key_type;
 
@@ -125,9 +127,9 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  constexpr std::size_t num_keys{400};
-  auto constexpr gold_capacity = CGSize == 1 ? 422  // 211 x 1 x 2
-                                             : 412  // 103 x 2 x 2
+  constexpr size_type num_keys{400};
+  constexpr size_type gold_capacity = CGSize == 1 ? 422  // 211 x 1 x 2
+                                                  : 412  // 103 x 2 x 2
     ;
 
   using probe =
@@ -138,7 +140,7 @@ TEMPLATE_TEST_CASE_SIG(
                                                           cuco::murmurhash3_32<Key>>>;
 
   auto set = cuco::experimental::static_set<Key,
-                                            cuco::experimental::extent<std::size_t>,
+                                            cuco::experimental::extent<size_type>,
                                             cuda::thread_scope_device,
                                             thrust::equal_to<Key>,
                                             probe,

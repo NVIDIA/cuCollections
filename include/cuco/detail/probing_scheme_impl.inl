@@ -96,7 +96,8 @@ template <typename ProbeKey, typename Extent>
 __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
 {
-  return detail::probing_iterator<Extent>{hash_(probe_key) % upper_bound,
+  using size_type = typename Extent::value_type;
+  return detail::probing_iterator<Extent>{static_cast<size_type>(hash_(probe_key) % upper_bound),
                                           1,  // step size is 1
                                           upper_bound};
 }
@@ -108,8 +109,11 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
   ProbeKey const& probe_key,
   Extent upper_bound) const noexcept
 {
+  using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
-    (hash_(probe_key) + g.thread_rank()) % upper_bound, cg_size, upper_bound};
+    static_cast<size_type>((hash_(probe_key) + g.thread_rank()) % upper_bound),
+    cg_size,
+    upper_bound};
 }
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
@@ -124,9 +128,11 @@ template <typename ProbeKey, typename Extent>
 __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
 {
+  using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
-    hash1_(probe_key) % upper_bound,
-    hash2_(probe_key) % (upper_bound - 1) + 1,  // step size in range [1, prime - 1]
+    static_cast<size_type>(hash1_(probe_key) % upper_bound),
+    static_cast<size_type>(hash2_(probe_key) % (upper_bound - 1) +
+                           1),  // step size in range [1, prime - 1]
     upper_bound};
 }
 
@@ -137,9 +143,10 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
   ProbeKey const& probe_key,
   Extent upper_bound) const noexcept
 {
+  using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
-    (hash1_(probe_key) + g.thread_rank()) % upper_bound,
-    (hash2_(probe_key) % (upper_bound / cg_size - 1) + 1) * cg_size,
+    static_cast<size_type>((hash1_(probe_key) + g.thread_rank()) % upper_bound),
+    static_cast<size_type>((hash2_(probe_key) % (upper_bound / cg_size - 1) + 1) * cg_size),
     upper_bound};
 }
 }  // namespace experimental
