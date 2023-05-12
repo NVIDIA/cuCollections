@@ -22,6 +22,13 @@
 namespace cuco {
 namespace experimental {
 
+template <typename T>
+T* move_vector_to_device(std::vector<T>& host_vector, thrust::device_vector<T>& device_vector) {
+  device_vector = host_vector;
+  host_vector.clear();
+  return thrust::raw_pointer_cast(device_vector.data());
+}
+
 class bit_vector {
  public:
   bit_vector() : words(), ranks(), selects(), n_bits(0) {}
@@ -106,6 +113,9 @@ class bit_vector {
     } else {
       words[i / 64] &= ~(1UL << (i % 64));
     }
+  }
+  void set_last(uint64_t bit) {
+    set(n_bits - 1, bit);
   }
 
   // rank returns the number of 1-bits in the range [0, i)
@@ -207,13 +217,12 @@ class bit_vector {
     return n_bits;
   }
 
-  size_t memory_consumption() const {
+  size_t memory_footprint() const {
     return sizeof(uint64_t) * words.size() + sizeof(Rank) * (ranks.size() + ranks0.size()) +
            sizeof(uint32_t) * (selects.size() + selects0.size());
   }
 
-  private:
-    struct Rank {
+  struct Rank {
     uint32_t abs_hi;
     uint8_t abs_lo;
     uint8_t rels[3];
@@ -225,13 +234,7 @@ class bit_vector {
     }
   };
 
-  template <typename T>
-  T* move_vector_to_device(std::vector<T>& host_vector, thrust::device_vector<T>& device_vector) {
-    device_vector = host_vector;
-    host_vector.clear();
-    return thrust::raw_pointer_cast(device_vector.data());
-  }
-
+  private:
   void move_to_device() {
     d_words_ptr = move_vector_to_device(words, d_words);
     d_ranks_ptr = move_vector_to_device(ranks, d_ranks);
