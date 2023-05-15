@@ -50,7 +50,7 @@ This will take care of downloading `cuCollections` from GitHub and making the he
 <a name="link-footnote">1</a>: `cuCollections` is header-only and therefore there is no binary component to "link" against. The linking terminology comes from CMake's `target_link_libraries` which is still used even for header-only library targets.
 
 ## Requirements
-- `nvcc 11.6+`
+- `nvcc 11.5+`
 - C++17
 - Volta+
     - Pascal is partially supported. Any data structures that require blocking algorithms are not supported. See [libcu++](https://nvidia.github.io/libcudacxx/setup/requirements.html#device-architectures) documentation for more details.
