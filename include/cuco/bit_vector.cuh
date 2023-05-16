@@ -22,205 +22,35 @@
 namespace cuco {
 namespace experimental {
 
-template <typename T>
-T* move_vector_to_device(std::vector<T>& host_vector, thrust::device_vector<T>& device_vector) {
-  device_vector = host_vector;
-  host_vector.clear();
-  return thrust::raw_pointer_cast(device_vector.data());
-}
-
 class bit_vector {
  public:
-  bit_vector() : words(), ranks(), selects(), n_bits(0) {}
+  bit_vector();
 
-  void add(uint64_t bit) {
-    if (n_bits % 256 == 0) {
-      words.resize((n_bits + 256) / 64);
-    }
-    set(n_bits, bit);
-    ++n_bits;
-  }
+  using Key = uint64_t;
+
+  void add(Key bit);
 
   // builds indexes for rank and select.
-  void build() {
-    uint64_t n_blocks = words.size() / 4;
-    uint64_t n_ones = 0, n_zeroes = 0;
-    ranks.resize(n_blocks + 1);
-    ranks0.resize(n_blocks + 1);
-    for (uint64_t block_id = 0; block_id < n_blocks; ++block_id) {
-      ranks[block_id].set_abs(n_ones);
-      ranks0[block_id].set_abs(n_zeroes);
-      for (uint64_t j = 0; j < 4; ++j) {
-        if (j != 0) {
-          uint64_t rel1 = n_ones - ranks[block_id].abs();
-          ranks[block_id].rels[j - 1] = rel1;
+  void build();
 
-          uint64_t rel0 = n_zeroes - ranks0[block_id].abs();
-          ranks0[block_id].rels[j - 1] = rel0;
-        }
+  __device__ uint64_t get(Key i) const;
+  void set(Key i, bool bit);
+  void set_last(bool bit);
 
-        uint64_t word_id = (block_id * 4) + j;
-        {
-          uint64_t word = words[word_id];
-          uint64_t n_pops = Popcnt(word);
-          uint64_t new_n_ones = n_ones + n_pops;
-          if (((n_ones + 255) / 256) != ((new_n_ones + 255) / 256)) {
-            uint64_t count = n_ones;
-            while (word != 0) {
-              uint64_t pos = Ctz(word);
-              if (count % 256 == 0) {
-                selects.push_back(((word_id * 64) + pos) / 256);
-                break;
-              }
-              word ^= 1UL << pos;
-              ++count;
-            }
-          }
-          n_ones = new_n_ones;
-        }
-        {
-          uint64_t word = ~words[word_id];
-          uint64_t n_pops = Popcnt(word);
-          uint64_t new_n_zeroes = n_zeroes + n_pops;
-          if (((n_zeroes + 255) / 256) != ((new_n_zeroes + 255) / 256)) {
-            uint64_t count = n_zeroes;
-            while (word != 0) {
-              uint64_t pos = Ctz(word);
-              if (count % 256 == 0) {
-                selects0.push_back(((word_id * 64) + pos) / 256);
-                break;
-              }
-              word ^= 1UL << pos;
-              ++count;
-            }
-          }
-          n_zeroes = new_n_zeroes;
-        }
-      }
-    }
-    ranks.back().set_abs(n_ones);
-    ranks0.back().set_abs(n_zeroes);
-    selects.push_back(words.size() * 64 / 256);
-    selects0.push_back(words.size() * 64 / 256);
+  // returns the number of 1-bits in the range [0, i)
+  __device__ uint64_t rank(Key i) const;
 
-    move_to_device();
-  }
+  // returns the position of the (i+1)-th 1-bit.
+  __device__ uint64_t select(Key i) const;
 
-  __device__ uint64_t get(uint64_t i) const { return (d_words_ptr[i / 64] >> (i % 64)) & 1UL; }
-  void set(uint64_t i, uint64_t bit) {
-    if (bit) {
-      words[i / 64] |= (1UL << (i % 64));
-    } else {
-      words[i / 64] &= ~(1UL << (i % 64));
-    }
-  }
-  void set_last(uint64_t bit) {
-    set(n_bits - 1, bit);
-  }
+  // returns the position of the (i+1)-th 0-bit.
+  __device__ uint64_t select0(Key i) const;
 
-  // rank returns the number of 1-bits in the range [0, i)
-  __device__ uint64_t rank(uint64_t i) const {
-    uint64_t word_id = i / 64;
-    uint64_t bit_id = i % 64;
-    uint64_t rank_id = word_id / 4;
-    uint64_t rel_id = word_id % 4;
-    uint64_t n = d_ranks_ptr[rank_id].abs();
-    if (rel_id != 0) {
-      n += d_ranks_ptr[rank_id].rels[rel_id - 1];
-    }
-    n += __popcll(d_words_ptr[word_id] & ((1UL << bit_id) - 1));
-    return n;
-  }
+  __device__ uint64_t find_next_set(Key i) const;
 
-  // select returns the position of the (i+1)-th 1-bit.
-  __device__ uint64_t select(uint64_t i) const {
-    const uint64_t block_id = i / 256;
-    uint64_t begin = d_selects_ptr[block_id];
-    uint64_t end = d_selects_ptr[block_id + 1] + 1UL;
-    if (begin + 10 >= end) {
-      while (i >= d_ranks_ptr[begin + 1].abs()) {
-        ++begin;
-      }
-    } else {
-      while (begin + 1 < end) {
-        const uint64_t middle = (begin + end) / 2;
-        if (i < d_ranks_ptr[middle].abs()) {
-          end = middle;
-        } else {
-          begin = middle;
-        }
-      }
-    }
-    const uint64_t rank_id = begin;
-    const auto& rank = d_ranks_ptr[rank_id];
-    i -= rank.abs();
+  size_t size() const;
 
-    uint64_t word_id = rank_id * 4;
-    bool a0 = i >= rank.rels[0];
-    bool a1 = i >= rank.rels[1];
-    bool a2 = i >= rank.rels[2];
-
-    uint32_t inc = a0 + a1 + a2;
-    word_id += inc;
-    i -= (inc > 0) * rank.rels[inc - (inc > 0)];
-
-    return (word_id * 64) + ith_set_pos(i, d_words_ptr[word_id]);
-  }
-
-  // select returns the position of the (i+1)-th 0-bit.
-  __device__ uint64_t select0(uint64_t i) const {
-    const uint64_t block_id = i / 256;
-    uint64_t begin = d_selects0_ptr[block_id];
-    uint64_t end = d_selects0_ptr[block_id + 1] + 1UL;
-    if (begin + 10 >= end) {
-      while (i >= d_ranks0_ptr[begin + 1].abs()) {
-        ++begin;
-      }
-    } else {
-      while (begin + 1 < end) {
-        const uint64_t middle = (begin + end) / 2;
-        if (i < d_ranks0_ptr[middle].abs()) {
-          end = middle;
-        } else {
-          begin = middle;
-        }
-      }
-    }
-    const uint64_t rank_id = begin;
-    const auto& rank = d_ranks0_ptr[rank_id];
-    i -= rank.abs();
-
-    uint64_t word_id = rank_id * 4;
-    bool a0 = i >= rank.rels[0];
-    bool a1 = i >= rank.rels[1];
-    bool a2 = i >= rank.rels[2];
-
-    uint32_t inc = a0 + a1 + a2;
-    word_id += inc;
-    i -= (inc > 0) * rank.rels[inc - (inc > 0)];
-
-    return (word_id * 64) + ith_set_pos(i, ~d_words_ptr[word_id]);
-  }
-
-  __device__ uint64_t find_next_set(uint64_t i) const {
-    uint64_t word_id = i / 64;
-    uint64_t bit_id = i % 64;
-    uint64_t word = d_words_ptr[word_id];
-    word &= ~(0lu) << bit_id;
-    while (word == 0) {
-      word = d_words_ptr[++word_id];
-    }
-    return (word_id * 64) + __builtin_ffsll(word) - 1;
-  }
-
-  size_t size() const {
-    return n_bits;
-  }
-
-  size_t memory_footprint() const {
-    return sizeof(uint64_t) * words.size() + sizeof(Rank) * (ranks.size() + ranks0.size()) +
-           sizeof(uint32_t) * (selects.size() + selects0.size());
-  }
+  size_t memory_footprint() const;
 
   struct Rank {
     uint32_t abs_hi;
@@ -234,28 +64,7 @@ class bit_vector {
     }
   };
 
-  private:
-  void move_to_device() {
-    d_words_ptr = move_vector_to_device(words, d_words);
-    d_ranks_ptr = move_vector_to_device(ranks, d_ranks);
-    d_ranks0_ptr = move_vector_to_device(ranks, d_ranks);
-
-    num_selects = selects.size();
-    d_selects_ptr = move_vector_to_device(selects, d_selects);
-    num_selects0 = selects0.size();
-    d_selects0_ptr = move_vector_to_device(selects0, d_selects0);
-  }
-
-  inline uint64_t Popcnt(uint64_t x) { return __builtin_popcountll(x); }
-  inline uint64_t Ctz(uint64_t x) { return __builtin_ctzll(x); }
-
-  __device__ uint64_t ith_set_pos(uint32_t i, uint64_t val) const {
-    for (uint32_t pos = 0; pos < i; pos++) {
-      val &= val - 1;
-    }
-    return __builtin_ffsll(val & -val) - 1;
-  }
-
+ private:
   std::vector<uint64_t> words;
   std::vector<Rank> ranks, ranks0;
   std::vector<uint32_t> selects, selects0;
@@ -270,7 +79,20 @@ class bit_vector {
   uint32_t num_selects, num_selects0;
 
   uint64_t n_bits;
+
+  void move_to_device();
+
+  uint64_t Popcnt(uint64_t x) { return __builtin_popcountll(x); }
+  uint64_t Ctz(uint64_t x) { return __builtin_ctzll(x); }
+  __device__ uint64_t ith_set_pos(uint32_t i, uint64_t word) const {
+    for (uint32_t pos = 0; pos < i; pos++) {
+      word &= word - 1;
+    }
+    return __builtin_ffsll(word & -word) - 1;
+  }
 };
 
 }  // namespace experimental
 }  // namespace cuco
+
+#include <cuco/detail/bit_vector/bit_vector.inl>
