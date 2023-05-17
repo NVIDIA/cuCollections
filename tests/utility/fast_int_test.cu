@@ -33,25 +33,9 @@ TEMPLATE_TEST_CASE(
 
   cuco::utility::fast_int fast_value{value};
 
-  SECTION("Should be implicitly convertible to the underlying integer type.")
+  SECTION("Should be explicitly convertible to the underlying integer type.")
   {
-    REQUIRE(fast_value == value);
-  }
-
-  SECTION("Should be assignable from the underlying integer type.")
-  {
-    cuco::utility::fast_int another_fast_value{TestType(42)};
-    another_fast_value = value;
-    REQUIRE(another_fast_value == value);
-    STATIC_REQUIRE(std::is_same_v<decltype(another_fast_value), decltype(fast_value)>);
-  }
-
-  SECTION("Should be assignable from another fast_int.")
-  {
-    cuco::utility::fast_int another_fast_value{TestType(42)};
-    another_fast_value = fast_value;
-    REQUIRE(another_fast_value == value);
-    STATIC_REQUIRE(std::is_same_v<decltype(another_fast_value), decltype(fast_value)>);
+    REQUIRE(static_cast<TestType>(fast_value) == value);
   }
 
   SECTION("Fast div/mod should produce correct result.")

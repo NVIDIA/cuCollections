@@ -46,17 +46,17 @@ struct fast_int {
    *
    * @param value Integer value
    */
-  __host__ __device__ constexpr fast_int(T value) noexcept : value_{value}
+  __host__ __device__ explicit constexpr fast_int(T value) noexcept : value_{value}
   {
     evaluate_magic_numbers();
   }
 
   /**
-   * @brief Implicit conversion operator to the underlying value type.
+   * @brief Explicit conversion operator to the underlying value type.
    *
    * @return Underlying value
    */
-  __host__ __device__ constexpr operator value_type() const noexcept { return value_; }
+  __host__ __device__ explicit constexpr operator value_type() const noexcept { return value_; }
 
  private:
   using intermediate_type =
@@ -152,7 +152,7 @@ struct fast_int {
   friend __host__ __device__ constexpr value_type operator%(value_type lhs,
                                                             fast_int const& rhs) noexcept
   {
-    return lhs - (lhs / rhs) * rhs;
+    return lhs - (lhs / rhs) * rhs.value_;
   }
 };
 }  // namespace cuco::utility
