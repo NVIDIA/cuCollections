@@ -37,7 +37,7 @@ struct fast_int {
                   or cuda::std::is_same_v<T, std::int64_t> or cuda::std::is_same_v<T, std::uint64_t>
 #endif
                 ,
-                "Unsupported type");
+                "Unsupported integer type");
 
   using value_type = T;  ///< Underlying integer type
 
@@ -100,15 +100,7 @@ struct fast_int {
    */
   __host__ __device__ constexpr value_type log2(value_type v) const noexcept
   {
-#if defined(__CUDA_ARCH__)
-    if constexpr (sizeof(value_type) == 4) {
-      return 31 - __clz(signed_value_type(v));
-    } else {
-      return 63 - __clzll(signed_value_type(v));
-    }
-#else
     return cuda::std::bit_width(unsigned_value_type(v)) - 1;
-#endif
   }
 
   /**
@@ -117,7 +109,7 @@ struct fast_int {
   __host__ __device__ constexpr void evaluate_magic_numbers() noexcept
   {
     // TODO assert(value_ > 0);
-    auto const val_log2 = log2(value_);
+    auto const val_log2 = this->log2(value_);
 
     // if value_ is a power of 2, we can use a simple shift
     if (cuda::std::has_single_bit(unsigned_value_type(value_))) {
