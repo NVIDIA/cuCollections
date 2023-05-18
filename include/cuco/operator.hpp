@@ -45,6 +45,30 @@ struct contains_tag {
 struct find_tag {
 } inline constexpr find;
 
+/**
+ * @brief `get` operator tag
+ */
+struct get_tag {
+} inline constexpr get;
+
+/**
+ * @brief `rank` operator tag
+ */
+struct rank_tag {
+} inline constexpr rank;
+
+/**
+ * @brief `select` operator tag
+ */
+struct select_tag {
+} inline constexpr select;
+
+/**
+ * @brief `find_next_set` operator tag
+ */
+struct find_next_set_tag {
+} inline constexpr find_next_set;
+
 }  // namespace op
 }  // namespace experimental
 }  // namespace cuco

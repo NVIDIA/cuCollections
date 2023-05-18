@@ -23,11 +23,12 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-__global__ void bitvector_get_kernel(cuco::experimental::bit_vector* bv, size_t n, uint32_t* output) {
+template <class BitVectorRef>
+__global__ void get_kernel(BitVectorRef ref, size_t n, uint32_t* output) {
   size_t index = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
   while (index < n) {
-    output[index] = bv->get(index);
+    output[index] = ref.get(index);
     index += stride;
   }
 }
@@ -38,7 +39,8 @@ TEST_CASE("Get test", "")
 {
   constexpr std::size_t num_elements{400};
 
-  cuco::experimental::bit_vector bv;
+  using Key = uint64_t;
+  cuco::experimental::bit_vector bv{cuco::experimental::extent<std::size_t>{400}};
 
   uint32_t num_set_ref = 0;
   for (size_t i = 0; i < num_elements; i++) {
@@ -47,15 +49,9 @@ TEST_CASE("Get test", "")
   }
   bv.build();
 
-  cuco::experimental::bit_vector* bv_device_copy;
-  CUCO_CUDA_TRY(cudaMalloc(&bv_device_copy, sizeof(cuco::experimental::bit_vector)));
-  CUCO_CUDA_TRY(cudaMemcpy(bv_device_copy, &bv, sizeof(cuco::experimental::bit_vector), cudaMemcpyHostToDevice));
-
+  auto ref                = bv.ref(cuco::experimental::get);
   thrust::device_vector<uint32_t> get_result(num_elements);
-
-  bitvector_get_kernel<<<1, 1024>>>(bv_device_copy, num_elements, thrust::raw_pointer_cast(get_result.data()));
-
-  CUCO_CUDA_TRY(cudaFree(bv_device_copy));
+  get_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(get_result.data()));
 
   size_t num_set = thrust::reduce(thrust::device, get_result.begin(), get_result.end(), 0);
   REQUIRE(num_set == num_set_ref);

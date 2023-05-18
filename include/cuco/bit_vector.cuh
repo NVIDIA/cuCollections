@@ -17,52 +17,70 @@
 
 #pragma once
 
+#include <cuco/bit_vector_ref.cuh>
+#include <cuco/extent.cuh>
+#include <cuco/storage.cuh>
+#include <cuco/utility/allocator.hpp>
+
 #include <thrust/device_vector.h>
+
+#include <cuda/atomic>
 
 namespace cuco {
 namespace experimental {
 
+struct Rank {
+  uint32_t abs_hi;
+  uint8_t abs_lo;
+  uint8_t rels[3];
+
+  __host__ __device__ uint64_t abs() const { return ((uint64_t)abs_hi << 8) | abs_lo; }
+  void set_abs(uint64_t abs) {
+    abs_hi = (uint32_t)(abs >> 8);
+    abs_lo = (uint8_t)abs;
+  }
+};
+
+template <class Key                = uint64_t,
+          class Extent             = cuco::experimental::extent<std::size_t>,
+          cuda::thread_scope Scope = cuda::thread_scope_device,
+          class Allocator          = cuco::cuda_allocator<std::byte>,
+          class Storage            = cuco::experimental::aow_storage<1>>
 class bit_vector {
  public:
-  bit_vector();
+  bit_vector(Extent capacity);
 
-  using Key = uint64_t;
+  void add(bool bit); // adds a new bit at the end
+  void build(); // builds indexes for rank and select.
 
-  void add(Key bit);
-
-  // builds indexes for rank and select.
-  void build();
-
-  __device__ uint64_t get(Key i) const;
   void set(Key i, bool bit);
   void set_last(bool bit);
 
-  // returns the number of 1-bits in the range [0, i)
-  __device__ uint64_t rank(Key i) const;
+  static constexpr auto cg_size      = 1;
+  static constexpr auto window_size  = 1;
+  static constexpr auto thread_scope = Scope;
 
-  // returns the position of the (i+1)-th 1-bit.
-  __device__ uint64_t select(Key i) const;
+  using key_type   = Key;  ///< Key type
+  using value_type = Key;  ///< Key type
+  using extent_type    = decltype(make_valid_extent<cg_size, window_size>(std::declval<Extent>()));
+  using size_type      = typename extent_type::value_type;  ///< Size type
+  using allocator_type = Allocator;                         ///< Allocator type
+  using storage_type =
+    detail::storage<Storage, value_type, extent_type, allocator_type>;  ///< Storage type
 
-  // returns the position of the (i+1)-th 0-bit.
-  __device__ uint64_t select0(Key i) const;
+  using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
+  template <typename... Operators>
+  using ref_type =
+    cuco::experimental::bit_vector_ref<
+                                       storage_ref_type,
+                                       Operators...>;  ///< Non-owning container ref type
 
-  __device__ uint64_t find_next_set(Key i) const;
+  template <typename... Operators>
+  [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
-  size_t size() const;
-
+  size_t size() const { return n_bits; }
+  size_t constexpr capacity() const { return storage_.capacity(); }
   size_t memory_footprint() const;
-
-  struct Rank {
-    uint32_t abs_hi;
-    uint8_t abs_lo;
-    uint8_t rels[3];
-
-    __host__ __device__ uint64_t abs() const { return ((uint64_t)abs_hi << 8) | abs_lo; }
-    void set_abs(uint64_t abs) {
-      abs_hi = (uint32_t)(abs >> 8);
-      abs_lo = (uint8_t)abs;
-    }
-  };
 
  private:
   std::vector<uint64_t> words;
@@ -82,14 +100,8 @@ class bit_vector {
 
   void move_to_device();
 
-  uint64_t Popcnt(uint64_t x) { return __builtin_popcountll(x); }
-  uint64_t Ctz(uint64_t x) { return __builtin_ctzll(x); }
-  __device__ uint64_t ith_set_pos(uint32_t i, uint64_t word) const {
-    for (uint32_t pos = 0; pos < i; pos++) {
-      word &= word - 1;
-    }
-    return __builtin_ffsll(word & -word) - 1;
-  }
+  allocator_type allocator_;            ///< Allocator used to (de)allocate temporary storage
+  storage_type storage_;                ///< Slot window storage
 };
 
 }  // namespace experimental

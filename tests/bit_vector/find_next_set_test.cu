@@ -25,44 +25,49 @@
 #include <catch2/catch_test_macros.hpp>
 
 template <class BitVectorRef>
-__global__ void select_kernel(BitVectorRef ref, size_t n, uint32_t* output) {
+__global__ void find_next_set_kernel(BitVectorRef ref, size_t n, uint32_t* output) {
   size_t index = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
   while (index < n) {
-    output[index] = ref.select(index);
+    output[index] = ref.find_next_set(index);
     index += stride;
   }
 }
 
 extern bool modulo_bitgen(uint32_t i);
 
-TEST_CASE("Select test", "")
+TEST_CASE("Find next set test", "")
 {
   constexpr std::size_t num_elements{400};
 
   using Key = uint64_t;
   cuco::experimental::bit_vector bv{cuco::experimental::extent<std::size_t>{400}};
 
-  uint32_t num_set = 0;
   for (size_t i = 0; i < num_elements; i++) {
     bv.add(modulo_bitgen(i));
-    num_set += modulo_bitgen(i);
   }
   bv.build();
 
-  thrust::device_vector<uint32_t> select_result_device(num_set);
-  auto ref                = bv.ref(cuco::experimental::select);
-  select_kernel<<<1, 1024>>>(ref, num_set, thrust::raw_pointer_cast(select_result_device.data()));
+  thrust::device_vector<uint32_t> device_result(num_elements);
+  auto ref                = bv.ref(cuco::experimental::find_next_set);
+  find_next_set_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(device_result.data()));
 
-  thrust::host_vector<uint32_t> select_result = select_result_device;
+  thrust::host_vector<uint32_t> host_result = device_result;
   uint32_t num_matches = 0;
-  uint32_t cur_set_pos = -1u;
-  for (size_t i = 0; i < num_set; i++) {
-    do {
-      cur_set_pos++;
-    } while (cur_set_pos < num_elements and !modulo_bitgen(cur_set_pos));
 
-    num_matches += cur_set_pos == select_result[i];
+  uint32_t next_set_pos = -1u;
+  do {
+    next_set_pos++;
+  } while (next_set_pos < num_elements and !modulo_bitgen(next_set_pos));
+
+  for (size_t key = 0; key < num_elements; key++) {
+    num_matches += host_result[key] == next_set_pos;
+
+    if (key == next_set_pos) {
+      do {
+        next_set_pos++;
+      } while (next_set_pos < num_elements and !modulo_bitgen(next_set_pos));
+    }
   }
-  REQUIRE(num_matches == num_set);
+  REQUIRE(num_matches == num_elements);
 }
