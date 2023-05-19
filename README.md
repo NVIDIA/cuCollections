@@ -5,13 +5,13 @@
 <th><b><a href="">Doxygen Documentation (TODO)</a></b></th>
 </tr></table>
 
-`cuCollections` (`cuco`) is an open-source, header-only library of GPU-accelerated, concurrent data structures. 
+`cuCollections` (`cuco`) is an open-source, header-only library of GPU-accelerated, concurrent data structures.
 
-Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://github.com/thrust/cub) provide STL-like, GPU accelerated algorithms and primitives, `cuCollections` provides STL-like concurrent data structures. `cuCollections` is not a one-to-one, drop-in replacement for STL data structures like `std::unordered_map`. Instead, it provides functionally similar data structures tailored for efficient use with GPUs. 
+Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://github.com/thrust/cub) provide STL-like, GPU accelerated algorithms and primitives, `cuCollections` provides STL-like concurrent data structures. `cuCollections` is not a one-to-one, drop-in replacement for STL data structures like `std::unordered_map`. Instead, it provides functionally similar data structures tailored for efficient use with GPUs.
 
 ## Development Status
 
-`cuCollections` is still under heavy development. Users should expect breaking changes and refactoring to be common. 
+`cuCollections` is still under heavy development. Users should expect breaking changes and refactoring to be common.
 
 ## Getting cuCollections
 
@@ -21,7 +21,7 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 
 `cuCollections` is designed to make it easy to include within another CMake project.
  The `CMakeLists.txt` exports a `cuco` target that can be linked<sup>[1](#link-footnote)</sup>
- into a target to setup include directories, dependencies, and compile flags necessary to use `cuCollections` in your project. 
+ into a target to setup include directories, dependencies, and compile flags necessary to use `cuCollections` in your project.
 
 
 We recommend using [CMake Package Manager (CPM)](https://github.com/TheLartians/CPM.cmake) to fetch `cuCollections` into your project.
@@ -47,12 +47,12 @@ target_link_libraries(my_library cuco)
 
 This will take care of downloading `cuCollections` from GitHub and making the headers available in a location that can be found by CMake. Linking against the `cuco` target will provide everything needed for `cuco` to be used by the `my_library` target.
 
-<a name="link-footnote">1</a>: `cuCollections` is header-only and therefore there is no binary component to "link" against. The linking terminology comes from CMake's `target_link_libraries` which is still used even for header-only library targets. 
+<a name="link-footnote">1</a>: `cuCollections` is header-only and therefore there is no binary component to "link" against. The linking terminology comes from CMake's `target_link_libraries` which is still used even for header-only library targets.
 
 ## Requirements
-- `nvcc 11+`
+- `nvcc 11.5+`
 - C++17
-- Volta+ 
+- Volta+
     - Pascal is partially supported. Any data structures that require blocking algorithms are not supported. See [libcu++](https://nvidia.github.io/libcudacxx/setup/requirements.html#device-architectures) documentation for more details.
 
 ## Dependencies
@@ -67,7 +67,7 @@ No action is required from the user to satisfy these dependencies. `cuCollection
 
 ## Building cuCollections
 
-Since `cuCollections` is header-only, there is nothing to build to use it. 
+Since `cuCollections` is header-only, there is nothing to build to use it.
 
 To build the tests, benchmarks, and examples:
 
@@ -75,7 +75,7 @@ To build the tests, benchmarks, and examples:
 cd $CUCO_ROOT
 mkdir -p build
 cd build
-cmake .. 
+cmake ..
 make
 ```
 Binaries will be built into:
@@ -179,7 +179,7 @@ class example_class {
 
 ## Data Structures
 
-We plan to add many GPU-accelerated, concurrent data structures to `cuCollections`. As of now, the two flagships are variants of hash tables. 
+We plan to add many GPU-accelerated, concurrent data structures to `cuCollections`. As of now, the two flagships are variants of hash tables.
 
 ### `static_set`
 

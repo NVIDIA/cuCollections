@@ -50,6 +50,7 @@ endfunction(ConfigureBench)
 # - static_set benchmarks -------------------------------------------------------------------------
 ConfigureBench(STATIC_SET_BENCH
   hash_table/static_set/contains_bench.cu
+  hash_table/static_set/find_bench.cu
   hash_table/static_set/insert_bench.cu
   hash_table/static_set/retrieve_all_bench.cu
   hash_table/static_set/size_bench.cu)

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/extent.cuh>
@@ -43,7 +44,8 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
   using value_type     = cuda::atomic<size_type, Scope>;  ///< Type of the counter
   using allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
     value_type>;  ///< Type of the allocator to (de)allocate counter
-  using counter_deleter_type = custom_deleter<allocator_type>;  ///< Type of counter deleter
+  using counter_deleter_type =
+    custom_deleter<size_type, allocator_type>;  ///< Type of counter deleter
 
   /**
    * @brief Constructor of counter storage.
@@ -64,7 +66,7 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
    *
    * @param stream CUDA stream used to reset
    */
-  void reset(cudaStream_t stream)
+  void reset(cuda_stream_ref stream)
   {
     static_assert(sizeof(size_type) == sizeof(value_type));
     CUCO_CUDA_TRY(cudaMemsetAsync(this->data(), 0, sizeof(value_type), stream));
@@ -92,12 +94,12 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
    * @param stream CUDA stream used to copy device value to the host
    * @return Value of the atomic counter
    */
-  [[nodiscard]] constexpr size_type load_to_host(cudaStream_t stream) const
+  [[nodiscard]] constexpr size_type load_to_host(cuda_stream_ref stream) const
   {
     size_type h_count;
     CUCO_CUDA_TRY(
       cudaMemcpyAsync(&h_count, this->data(), sizeof(size_type), cudaMemcpyDeviceToHost, stream));
-    CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+    stream.synchronize();
     return h_count;
   }
 

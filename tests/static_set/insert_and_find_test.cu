@@ -18,47 +18,68 @@
 
 #include <cuco/static_set.cuh>
 
-#include <thrust/device_vector.h>
-#include <thrust/distance.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
-#include <thrust/sequence.h>
-#include <thrust/sort.h>
+#include <thrust/iterator/transform_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
 template <typename Set>
-__inline__ void test_unique_sequence(Set& set, std::size_t num_keys)
+__inline__ void test_insert_and_find(Set& set, std::size_t num_keys)
 {
-  using Key = typename Set::key_type;
+  using Key                     = typename Set::key_type;
+  static auto constexpr cg_size = Set::cg_size;
 
-  thrust::device_vector<Key> d_keys(num_keys);
-  thrust::sequence(d_keys.begin(), d_keys.end());
-  auto keys_begin = d_keys.begin();
+  auto const keys_begin = [&]() {
+    if constexpr (cg_size == 1) {
+      return thrust::counting_iterator<Key>(0);
+    } else {
+      return thrust::make_transform_iterator(thrust::counting_iterator<Key>(0),
+                                             [] __device__(auto i) { return i / cg_size; });
+    }
+  }();
+  auto const keys_end = [&]() {
+    if constexpr (cg_size == 1) {
+      return keys_begin + num_keys;
+    } else {
+      return keys_begin + num_keys * cg_size;
+    }
+  }();
 
-  SECTION("Non-inserted keys should not be contained.")
+  auto ref = set.ref(cuco::experimental::op::insert_and_find);
+
+  REQUIRE(cuco::test::all_of(keys_begin, keys_end, [ref] __device__(Key key) mutable {
+    auto [iter, inserted] = [&]() {
+      if constexpr (cg_size == 1) {
+        return ref.insert_and_find(key);
+      } else {
+        auto const tile =
+          cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
+        return ref.insert_and_find(tile, key);
+      }
+    }();
+    return inserted == true;
+  }));
+
+  SECTION("Inserting elements for the second time will always fail.")
   {
-    REQUIRE(set.size() == 0);
-
-    auto keys_end = set.retrieve_all(keys_begin);
-    REQUIRE(std::distance(keys_begin, keys_end) == 0);
-  }
-
-  set.insert(keys_begin, keys_begin + num_keys);
-  REQUIRE(set.size() == num_keys);
-
-  SECTION("All inserted key/value pairs should be contained.")
-  {
-    thrust::device_vector<Key> d_res(num_keys);
-    auto d_res_end = set.retrieve_all(d_res.begin());
-    thrust::sort(d_res.begin(), d_res_end);
-    REQUIRE(cuco::test::equal(
-      d_res.begin(), d_res_end, thrust::counting_iterator<Key>(0), thrust::equal_to<Key>{}));
+    REQUIRE(cuco::test::all_of(keys_begin, keys_end, [ref] __device__(Key key) mutable {
+      auto [iter, inserted] = [&]() {
+        if constexpr (cg_size == 1) {
+          return ref.insert_and_find(key);
+        } else {
+          auto const tile =
+            cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
+          return ref.insert_and_find(tile, key);
+        }
+      }();
+      return inserted == false and key == *iter;
+    }));
   }
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Retrieve all",
+  "Insert and find",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
@@ -71,9 +92,6 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
   constexpr std::size_t num_keys{400};
-  auto constexpr gold_capacity = CGSize == 1 ? 409  // 409 x 1 x 1
-                                             : 422  // 211 x 2 x 1
-    ;
 
   using probe =
     std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
@@ -88,10 +106,7 @@ TEMPLATE_TEST_CASE_SIG(
                                             thrust::equal_to<Key>,
                                             probe,
                                             cuco::cuda_allocator<std::byte>,
-                                            cuco::experimental::aow_storage<1>>{
+                                            cuco::experimental::aow_storage<2>>{
     num_keys, cuco::empty_key<Key>{-1}};
-
-  REQUIRE(set.capacity() == gold_capacity);
-
-  test_unique_sequence(set, num_keys);
+  test_insert_and_find(set, num_keys);
 }

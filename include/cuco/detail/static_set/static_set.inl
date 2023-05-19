@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/static_set/functors.cuh>
@@ -50,7 +51,7 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   KeyEqual pred,
   ProbingScheme const& probing_scheme,
   Allocator const& alloc,
-  cudaStream_t stream)
+  cuda_stream_ref stream)
   : empty_key_sentinel_{empty_key_sentinel},
     predicate_{pred},
     probing_scheme_{probing_scheme},
@@ -70,7 +71,7 @@ template <class Key,
 template <typename InputIt>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
-  InputIt first, InputIt last, cudaStream_t stream)
+  InputIt first, InputIt last, cuda_stream_ref stream)
 {
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return 0; }
@@ -99,7 +100,7 @@ template <class Key,
           class Storage>
 template <typename InputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_async(
-  InputIt first, InputIt last, cudaStream_t stream)
+  InputIt first, InputIt last, cuda_stream_ref stream) noexcept
 {
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
@@ -124,7 +125,7 @@ template <class Key,
 template <typename InputIt, typename StencilIt, typename Predicate>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
-  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream)
+  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream)
 {
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return 0; }
@@ -152,7 +153,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if_async(
-  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cudaStream_t stream)
+  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream) noexcept
 {
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
@@ -175,10 +176,10 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream) const
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
   contains_async(first, last, output_begin, stream);
-  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+  stream.synchronize();
 }
 
 template <class Key,
@@ -190,7 +191,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_async(
-  InputIt first, InputIt last, OutputIt output_begin, cudaStream_t stream) const
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const noexcept
 {
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
@@ -199,15 +200,96 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
     (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
     (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  if constexpr (cg_size == 1) {
-    detail::contains<detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-        first, num_keys, output_begin, ref(op::contains));
-  } else {
-    detail::contains<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-        first, num_keys, output_begin, ref(op::contains));
-  }
+  auto const always_true = thrust::constant_iterator<bool>{true};
+  detail::contains_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      first, num_keys, always_true, thrust::identity{}, output_begin, ref(op::contains));
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_if(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  Predicate pred,
+  OutputIt output_begin,
+  cuda_stream_ref stream) const
+{
+  contains_if_async(first, last, stencil, pred, output_begin, stream);
+  stream.synchronize();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_if_async(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  Predicate pred,
+  OutputIt output_begin,
+  cuda_stream_ref stream) const noexcept
+{
+  auto const num_keys = cuco::detail::distance(first, last);
+  if (num_keys == 0) { return; }
+
+  auto const grid_size =
+    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+  detail::contains_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      first, num_keys, stencil, pred, output_begin, ref(op::contains));
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename OutputIt>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find(
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+{
+  find_async(first, last, output_begin, stream);
+  stream.synchronize();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename OutputIt>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+{
+  auto const num_keys = cuco::detail::distance(first, last);
+  if (num_keys == 0) { return; }
+
+  auto const grid_size =
+    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+  detail::find<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      first, num_keys, output_begin, ref(op::find));
 }
 
 template <class Key,
@@ -219,7 +301,7 @@ template <class Key,
           class Storage>
 template <typename OutputIt>
 OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
-  OutputIt output_begin, cudaStream_t stream) const
+  OutputIt output_begin, cuda_stream_ref stream) const
 {
   auto begin  = thrust::make_transform_iterator(thrust::counting_iterator<size_type>(0),
                                                detail::get_slot<storage_ref_type>(storage_.ref()));
@@ -248,7 +330,7 @@ OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   size_type h_num_out;
   CUCO_CUDA_TRY(
     cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
-  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+  stream.synchronize();
   std::allocator_traits<temp_allocator_type>::deallocate(
     temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(size_type));
   temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
@@ -265,7 +347,7 @@ template <class Key,
           class Storage>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
-  cudaStream_t stream) const
+  cuda_stream_ref stream) const noexcept
 {
   auto counter = detail::counter_storage<size_type, thread_scope, allocator_type>{allocator_};
   counter.reset(stream);

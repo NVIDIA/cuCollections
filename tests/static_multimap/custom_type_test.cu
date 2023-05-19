@@ -39,7 +39,10 @@ struct key_pair {
 };
 
 struct hash_key_pair {
-  __device__ uint32_t operator()(key_pair k) const { return k.a; };
+  __host__ __device__ hash_key_pair() : hash_key_pair{0} {}
+  __host__ __device__ hash_key_pair(uint32_t offset) : offset_(offset) {}
+  __device__ uint32_t operator()(key_pair k) const { return k.a + offset_; };
+  uint32_t offset_;
 };
 
 struct key_pair_equals {
@@ -228,18 +231,11 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   constexpr std::size_t num_pairs = 100;
   constexpr std::size_t capacity  = num_pairs * 2;
 
-  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
-    cuco::static_multimap<Key,
-                          Value,
-                          cuda::thread_scope_device,
-                          cuco::cuda_allocator<char>,
-                          cuco::linear_probing<1, hash_key_pair>>
-      map{capacity, cuco::empty_key{sentinel_key}, cuco::empty_value{sentinel_value}};
-    test_custom_key_value_type(map, num_pairs);
-  }
-  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{
-      capacity, cuco::empty_key{sentinel_key}, cuco::empty_value{sentinel_value}};
-    test_custom_key_value_type(map, num_pairs);
-  }
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<1, hash_key_pair>,
+                                   cuco::double_hashing<8, hash_key_pair, hash_key_pair>>;
+
+  cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
+    map{capacity, cuco::empty_key{sentinel_key}, cuco::empty_value{sentinel_value}};
+  test_custom_key_value_type(map, num_pairs);
 }
