@@ -69,16 +69,4 @@ using xxhash_32 = detail::XXHash_32<Key>;
 template <typename Key>
 using xxhash_64 = detail::XXHash_64<Key>;
 
-/**
- * @brief Helper type that dispatches the fastest hash function implementation based of the size of
- * the key type.
- *
- * @tparam The type of the values to hash
- */
-template <typename Key>
-using default_hash_function = cuda::std::conditional_t<
-  sizeof(Key) == 4,
-  fmix_32<Key>,
-  cuda::std::conditional_t<sizeof(Key) == 8, fmix_64<Key>, xxhash_32<Key>>>;
-
 }  // namespace cuco
