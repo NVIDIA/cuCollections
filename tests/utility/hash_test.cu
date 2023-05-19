@@ -16,6 +16,7 @@
 
 #include <utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/hash_functions.cuh>
 
 #include <catch2/catch_test_macros.hpp>
@@ -78,11 +79,12 @@ TEST_CASE("Test cuco::xxhash_64", "")
     cuco::xxhash_64<int64_t> h8(s8);  // hasher
     CHECK(h8(k8) == 14662639848940634189ULL);
 
-    // TODO check if __int128 is available
+#if defined(CUCO_HAS_INT128)
     __int128 k9 = 123456789;           // key
     uint64_t s9 = 0;                   // seed
     cuco::xxhash_64<__int128> h9(s9);  // hasher
     CHECK(h9(k9) == 7986913354431084250ULL);
+#endif
 
     // 32*4=128-byte key to test the pipelined outermost hashing loop
     large_key<32> k10(123456789);             // key
@@ -139,11 +141,12 @@ TEST_CASE("Test cuco::xxhash_32", "")
     cuco::xxhash_32<int64_t> h8(s8);  // hasher
     CHECK(h8(k8) == 1561711919);
 
-    // TODO check if __int128 is available
+#if defined(CUCO_HAS_INT128)
     __int128 k9 = 123456789;           // key
     uint32_t s9 = 0;                   // seed
     cuco::xxhash_32<__int128> h9(s9);  // hasher
     CHECK(h9(k9) == 1846633701);
+#endif
 
     // 32*4=128-byte key to test the pipelined outermost hashing loop
     large_key<32> k10(123456789);             // key
@@ -151,6 +154,4 @@ TEST_CASE("Test cuco::xxhash_32", "")
     cuco::xxhash_32<large_key<32>> h10(s10);  // hasher
     CHECK(h10(k10) == 3715432378);
   }
-
-  // TODO SECTION("Check if device-generated hash values match the reference implementation.")
 }
