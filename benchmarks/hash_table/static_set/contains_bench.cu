@@ -79,4 +79,4 @@ NVBENCH_BENCH_TYPES(static_set_contains,
                                       nvbench::type_list<distribution::unique>))
   .set_name("static_set_constains_unique_capacity")
   .set_type_axes_names({"Key", "Distribution"})
-  .add_int64_axis("NumInputs", defaults::N_RANGE);
+  .add_int64_axis("NumInputs", defaults::N_RANGE_CACHE);
