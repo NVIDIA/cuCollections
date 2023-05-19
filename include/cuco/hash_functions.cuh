@@ -19,7 +19,6 @@
 #include <cuco/detail/hash_functions/murmurhash3.cuh>
 #include <cuco/detail/hash_functions/xxhash.cuh>
 
-
 namespace cuco {
 
 /**
