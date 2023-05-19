@@ -208,7 +208,7 @@ class dynamic_map {
    * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
-            typename Hash     = cuco::xxhash_32<key_type>,
+            typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void insert(InputIt first,
               InputIt last,
@@ -247,7 +247,7 @@ class dynamic_map {
    * provided at construction
    */
   template <typename InputIt,
-            typename Hash     = cuco::xxhash_32<key_type>,
+            typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void erase(InputIt first,
              InputIt last,
@@ -277,7 +277,7 @@ class dynamic_map {
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash     = cuco::xxhash_32<key_type>,
+            typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void find(InputIt first,
             InputIt last,
@@ -307,7 +307,7 @@ class dynamic_map {
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash     = cuco::xxhash_32<key_type>,
+            typename Hash     = cuco::murmurhash3_32<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,
