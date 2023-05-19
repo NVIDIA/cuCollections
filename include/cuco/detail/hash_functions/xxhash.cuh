@@ -75,7 +75,7 @@ struct XXHash_32 {
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr XXHash_32(uint32_t seed = 0) : seed_(seed) {}
+  __host__ __device__ constexpr XXHash_32(uint32_t seed = 0) : seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
@@ -225,7 +225,7 @@ struct XXHash_64 {
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr XXHash_64(uint64_t seed = 0) : seed_(seed) {}
+  __host__ __device__ constexpr XXHash_64(uint64_t seed = 0) : seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.

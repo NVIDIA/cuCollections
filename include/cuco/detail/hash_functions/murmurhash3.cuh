@@ -39,7 +39,7 @@ struct MurmurHash3_fmix32 {
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr MurmurHash3_fmix32(uint32_t seed = 0) : seed_(seed) {}
+  __host__ __device__ constexpr MurmurHash3_fmix32(uint32_t seed = 0) : seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
@@ -81,7 +81,7 @@ struct MurmurHash3_fmix64 {
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr MurmurHash3_fmix64(uint64_t seed = 0) : seed_(seed) {}
+  __host__ __device__ constexpr MurmurHash3_fmix64(uint64_t seed = 0) : seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
@@ -129,7 +129,7 @@ struct MurmurHash3_32 {
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr MurmurHash3_32(uint32_t seed = 0) : fmix32_(0), seed_(seed) {}
+  __host__ __device__ constexpr MurmurHash3_32(uint32_t seed = 0) : fmix32_{0}, seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
