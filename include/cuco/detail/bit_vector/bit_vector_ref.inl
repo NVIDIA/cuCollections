@@ -5,10 +5,10 @@ namespace experimental {
 
 template <typename StorageRef,
           typename... Operators>
-__host__ __device__ constexpr bit_vector_ref<StorageRef, Operators...>::bit_vector_ref(uint64_t* words, Rank* ranks, uint32_t* selects, uint32_t num_selects) noexcept
-  : words_{words}, ranks_{ranks}, selects_{selects}, num_selects_{num_selects}
-{
-}
+__host__ __device__ constexpr bit_vector_ref<StorageRef, Operators...>::bit_vector_ref(StorageRef words_ref, StorageRef ranks_ref, StorageRef selects_ref, StorageRef ranks0_ref, StorageRef selects0_ref) noexcept
+  : words_ref_{words_ref}, ranks_ref_{ranks_ref}, selects_ref_{selects_ref}, ranks0_ref_{ranks0_ref},
+    selects0_ref_{selects0_ref}
+{}
 
 namespace detail {
 
@@ -22,7 +22,7 @@ class operator_impl<op::get_tag,
   [[nodiscard]] __device__ bool get(uint64_t key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return (ref_.words_[key / 64] >> (key % 64)) & 1UL;
+    return (ref_.words_ref_[key / 64][0] >> (key % 64)) & 1UL;
   }
 };
 
@@ -41,11 +41,12 @@ class operator_impl<op::rank_tag,
     uint64_t bit_id = key % 64;
     uint64_t rank_id = word_id / 4;
     uint64_t rel_id = word_id % 4;
-    uint64_t n = ref_.ranks_[rank_id].abs();
+    auto rank = RankUnion{ref_.ranks_ref_[rank_id][0]}.rank;
+    uint64_t n = rank.abs();
     if (rel_id != 0) {
-      n += ref_.ranks_[rank_id].rels[rel_id - 1];
+      n += rank.rels[rel_id - 1];
     }
-    n += __builtin_popcountll(ref_.words_[word_id] & ((1UL << bit_id) - 1));
+    n += __builtin_popcountll(ref_.words_ref_[word_id][0] & ((1UL << bit_id) - 1));
     return n;
   }
 };
@@ -60,46 +61,69 @@ class operator_impl<op::select_tag,
   [[nodiscard]] __device__ uint64_t select(uint64_t key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    const uint64_t block_id = key / 256;
-    uint64_t begin = ref_.selects_[block_id];
-    uint64_t end = ref_.selects_[block_id + 1] + 1UL;
+
+    const uint64_t rank_id = binary_search_selects_array(key, ref_.selects_ref_, ref_.ranks_ref_);
+    uint64_t word_id = subtract_offset(key, rank_id, ref_.ranks_ref_);
+
+    return (word_id * 64) + ith_set_pos(key, ref_.words_ref_[word_id][0]);
+  }
+
+  [[nodiscard]] __device__ uint64_t select0(uint64_t key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+
+    const uint64_t rank_id = binary_search_selects_array(key, ref_.selects0_ref_, ref_.ranks0_ref_);
+    uint64_t word_id = subtract_offset(key, rank_id, ref_.ranks0_ref_);
+
+    return (word_id * 64) + ith_set_pos(key, ~ref_.words_ref_[word_id][0]);
+  }
+
+ private:
+  [[nodiscard]] __device__ uint64_t binary_search_selects_array(uint64_t key, const StorageRef& selects_ref, const StorageRef& ranks_ref) const noexcept {
+    uint64_t block_id = key / 256;
+    uint64_t begin = selects_ref[block_id][0];
+    uint64_t end = selects_ref[block_id + 1][0] + 1UL;
     if (begin + 10 >= end) {
-      while (key >= ref_.ranks_[begin + 1].abs()) {
+      while (key >= RankUnion{ranks_ref[begin + 1][0]}.rank.abs()) {
         ++begin;
       }
     } else {
       while (begin + 1 < end) {
         const uint64_t middle = (begin + end) / 2;
-        if (key < ref_.ranks_[middle].abs()) {
+        if (key < RankUnion{ranks_ref[middle][0]}.rank.abs()) {
           end = middle;
         } else {
-        begin = middle;
+          begin = middle;
+        }
       }
     }
-  }
-  const uint64_t rank_id = begin;
-  const auto& rank = ref_.ranks_[rank_id];
-  key -= rank.abs();
-
-  uint64_t word_id = rank_id * 4;
-  bool a0 = key >= rank.rels[0];
-  bool a1 = key >= rank.rels[1];
-  bool a2 = key >= rank.rels[2];
-
-  uint32_t inc = a0 + a1 + a2;
-  word_id += inc;
-  key -= (inc > 0) * rank.rels[inc - (inc > 0)];
-
-  return (word_id * 64) + ith_set_pos(key, ref_.words_[word_id]);
+    return begin;
   }
 
- private:
-__device__ uint64_t ith_set_pos(uint32_t i, uint64_t word) const {
-  for (uint32_t pos = 0; pos < i; pos++) {
-    word &= word - 1;
+  [[nodiscard]] __device__ uint64_t subtract_offset(uint64_t& key, uint64_t rank_id, const StorageRef& ranks_ref) const noexcept
+  {
+    const auto& rank = RankUnion{ranks_ref[rank_id][0]}.rank;
+    key -= rank.abs();
+
+    uint64_t word_id = rank_id * 4;
+    bool a0 = key >= rank.rels[0];
+    bool a1 = key >= rank.rels[1];
+    bool a2 = key >= rank.rels[2];
+
+    uint64_t inc = a0 + a1 + a2;
+    word_id += inc;
+    key -= (inc > 0) * rank.rels[inc - (inc > 0)];
+
+    return word_id;
   }
-  return __builtin_ffsll(word & -word) - 1;
-}
+
+  [[nodiscard]] __device__ uint64_t ith_set_pos(uint32_t i, uint64_t word) const noexcept
+  {
+    for (uint32_t pos = 0; pos < i; pos++) {
+      word &= word - 1;
+    }
+    return __builtin_ffsll(word & -word) - 1;
+  }
 };
 
 template <typename StorageRef,
@@ -114,10 +138,10 @@ class operator_impl<op::find_next_set_tag,
     auto const& ref_ = static_cast<ref_type const&>(*this);
     uint64_t word_id = key / 64;
     uint64_t bit_id = key % 64;
-    uint64_t word = ref_.words_[word_id];
+    uint64_t word = ref_.words_ref_[word_id][0];
     word &= ~(0lu) << bit_id;
     while (word == 0) {
-      word = ref_.words_[++word_id];
+      word = ref_.words_ref_[++word_id][0];
     }
     return (word_id * 64) + __builtin_ffsll(word) - 1;
   }

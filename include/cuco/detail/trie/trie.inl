@@ -134,11 +134,11 @@ __global__ __launch_bounds__(256, 1) void trie_lookup_kernel(const trie<T>* t, c
   }
 
   const auto& level = t->d_levels_ptr_[length];
-  if (!level.outs.get(node_id)) {
+  if (!level.outs.ref(cuco::experimental::get).get(node_id)) {
     ids[key_id] = -1lu;
     return;
   }
-  ids[key_id] = level.offset + level.outs.rank(node_id);
+  ids[key_id] = level.offset + level.outs.ref(cuco::experimental::rank).rank(node_id);
 }
 
 template <typename T>
@@ -156,7 +156,7 @@ template <typename T>
 __device__ uint32_t init_node_pos(const trie<T>* t, uint32_t& node_id, uint32_t cur_depth) {
   uint32_t node_pos = 0;
   if (node_id != 0) {
-    node_pos = t->d_levels_ptr_[cur_depth].louds.select(node_id - 1) + 1;
+    node_pos = t->d_levels_ptr_[cur_depth].louds.ref(cuco::experimental::select).select(node_id - 1) + 1;
     node_id = node_pos - node_id;
   }
   return node_pos;
@@ -168,7 +168,7 @@ __device__ bool binary_search_labels_array(const trie<T>* t, T target, uint32_t&
 
   uint32_t node_pos = init_node_pos(t, node_id, level_id);
   uint32_t begin = node_id;
-  uint32_t pos_end = level.louds.find_next_set(node_pos);
+  uint32_t pos_end = level.louds.ref(cuco::experimental::find_next_set).find_next_set(node_pos);
   uint32_t end = node_id + (pos_end - node_pos);
 
   while (begin < end) {

@@ -43,14 +43,14 @@ class trie {
 
  private:
   struct Level {
-    bit_vector louds;
-    bit_vector outs;
+    bit_vector<> louds;
+    bit_vector<> outs;
     std::vector<T> labels;
     thrust::device_vector<T> d_labels;
     T* d_labels_ptr;
     uint64_t offset;
 
-    Level() : louds(), outs(), labels(), offset(0) {}
+    Level() : louds(cuco::experimental::extent<std::size_t>{0}), outs(cuco::experimental::extent<std::size_t>{0}), labels(), offset(0) {}
     uint64_t memory_footprint() const { return louds.size() + outs.size() + sizeof(T) * labels.size(); }
   };
 

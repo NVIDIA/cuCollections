@@ -14,26 +14,18 @@ class bit_vector_ref
       Operators,
       bit_vector_ref<StorageRef, Operators...>>... {
  public:
+  using storage_ref_type    = StorageRef;                              ///< Type of storage ref
   /**
    * @brief Constructs bit_vector_ref.
    *
    * @param storage_ref Non-owning ref of slot storage
    */
-  __host__ __device__ explicit constexpr bit_vector_ref(
-    uint64_t* words, Rank* ranks, uint32_t* selects, uint32_t num_selects) noexcept;
-
-  /**
-   * @brief Gets the maximum number of elements the container can hold.
-   *
-   * @return The maximum number of elements the container can hold
-   */
-  [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept;
+  __host__ __device__ explicit constexpr bit_vector_ref(storage_ref_type words_ref,
+          storage_ref_type ranks_ref, storage_ref_type selects_ref, storage_ref_type ranks0_ref,
+          storage_ref_type selects0_ref) noexcept;
 
  private:
-  uint64_t* words_;
-  Rank* ranks_;
-  uint32_t* selects_;
-  uint32_t num_selects_;
+  storage_ref_type words_ref_, ranks_ref_, selects_ref_, ranks0_ref_, selects0_ref_;
 
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>
@@ -43,4 +35,4 @@ class bit_vector_ref
 }  // namespace experimental
 }  // namespace cuco
 
-#include <cuco/detail/bit_vector/bit_vector_ref.inl>
+//#include <cuco/detail/bit_vector/bit_vector_ref.inl>

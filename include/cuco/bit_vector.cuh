@@ -30,6 +30,7 @@ namespace cuco {
 namespace experimental {
 
 struct Rank {
+  // Basically a uint64_t split into 1 uin32_t and 2 uint8_t
   uint32_t abs_hi;
   uint8_t abs_lo;
   uint8_t rels[3];
@@ -39,6 +40,12 @@ struct Rank {
     abs_hi = (uint32_t)(abs >> 8);
     abs_lo = (uint8_t)abs;
   }
+};
+
+// Need this union to use uint64_t for all aow_storage structures
+union RankUnion {
+  uint64_t word;
+  Rank rank;
 };
 
 template <class Key                = uint64_t,
@@ -79,32 +86,25 @@ class bit_vector {
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
   size_t size() const { return n_bits; }
-  size_t constexpr capacity() const { return storage_.capacity(); }
   size_t memory_footprint() const;
 
  private:
-  std::vector<uint64_t> words;
-  std::vector<Rank> ranks, ranks0;
-  std::vector<uint32_t> selects, selects0;
-
-  thrust::device_vector<uint64_t> d_words;
-  thrust::device_vector<Rank> d_ranks, d_ranks0;
-  thrust::device_vector<uint32_t> d_selects, d_selects0;
-
-  uint64_t* d_words_ptr;
-  Rank *d_ranks_ptr, *d_ranks0_ptr;
-  uint32_t *d_selects_ptr, *d_selects0_ptr;
-  uint32_t num_selects, num_selects0;
-
   uint64_t n_bits;
 
-  void move_to_device();
+  // Host structures
+  std::vector<uint64_t> words;
+  std::vector<Rank> ranks, ranks0;
+  std::vector<uint64_t> selects, selects0;
 
+  // Device structures
   allocator_type allocator_;            ///< Allocator used to (de)allocate temporary storage
-  storage_type storage_;                ///< Slot window storage
+  storage_type aow_words, aow_ranks, aow_selects, aow_ranks0, aow_selects0;
+
+  void move_to_device();
 };
 
 }  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/bit_vector/bit_vector.inl>
+#include <cuco/detail/bit_vector/bit_vector_ref.inl>

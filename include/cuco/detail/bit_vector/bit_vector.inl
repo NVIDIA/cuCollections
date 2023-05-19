@@ -31,7 +31,13 @@ template <class Key,
           class Allocator,
           class Storage>
 bit_vector<Key, Extent, Scope, Allocator, Storage>::bit_vector(Extent capacity)
-    : words(), ranks(), selects(), n_bits(0), storage_{make_valid_extent<cg_size, window_size>(capacity), allocator_} {
+    : words(), ranks(), selects(), n_bits(0),
+    aow_words{make_valid_extent<cg_size, window_size>(capacity), allocator_},
+    aow_ranks{make_valid_extent<cg_size, window_size>(capacity), allocator_},
+    aow_selects{make_valid_extent<cg_size, window_size>(capacity), allocator_},
+    aow_ranks0{make_valid_extent<cg_size, window_size>(capacity), allocator_},
+    aow_selects0{make_valid_extent<cg_size, window_size>(capacity), allocator_}
+{
 }
 
 template <class Key,
@@ -145,7 +151,32 @@ template <class Key,
           class Storage>
 size_t bit_vector<Key, Extent, Scope, Allocator, Storage>::memory_footprint() const {
   return sizeof(uint64_t) * words.size() + sizeof(Rank) * (ranks.size() + ranks0.size()) +
-         sizeof(uint32_t) * (selects.size() + selects0.size());
+         sizeof(uint64_t) * (selects.size() + selects0.size());
+}
+
+template <typename WindowT, class T>
+__global__ void copy_to_window(WindowT* windows,
+                     cuco::detail::index_type n,
+                     T* values)
+{
+  cuco::detail::index_type const loop_stride = gridDim.x * blockDim.x;
+  cuco::detail::index_type idx               = blockDim.x * blockIdx.x + threadIdx.x;
+
+  while (idx < n) {
+    auto& window_slots = *(windows + idx);
+    window_slots[0] = values[idx];
+    idx += loop_stride;
+  }
+}
+
+template <class Storage, class T>
+void initialize_aow(Storage& storage, T* ptr, uint64_t num_elements) {
+  auto constexpr stride = 4;
+  auto const grid_size  = (num_elements + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+                          (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+  copy_to_window<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
+    storage.data(), num_elements, ptr);
 }
 
 template <class Key,
@@ -154,14 +185,23 @@ template <class Key,
           class Allocator,
           class Storage>
 void bit_vector<Key, Extent, Scope, Allocator, Storage>::move_to_device() {
-  d_words_ptr = move_vector_to_device(words, d_words);
-  d_ranks_ptr = move_vector_to_device(ranks, d_ranks);
-  d_ranks0_ptr = move_vector_to_device(ranks, d_ranks);
+  uint32_t num_ranks = ranks.size(), num_ranks0 = ranks0.size();
+  uint32_t num_selects = selects.size(), num_selects0 = selects0.size();
 
-  num_selects = selects.size();
-  d_selects_ptr = move_vector_to_device(selects, d_selects);
-  num_selects0 = selects0.size();
-  d_selects0_ptr = move_vector_to_device(selects0, d_selects0);
+  thrust::device_vector<uint64_t> d_words, d_selects, d_selects0;
+  thrust::device_vector<Rank> d_ranks, d_ranks0;
+
+  auto d_words_ptr = move_vector_to_device(words, d_words);
+  auto d_ranks_ptr = move_vector_to_device(ranks, d_ranks);
+  auto d_ranks0_ptr = move_vector_to_device(ranks0, d_ranks0);
+  auto d_selects_ptr = move_vector_to_device(selects, d_selects);
+  auto d_selects0_ptr = move_vector_to_device(selects0, d_selects0);
+
+  initialize_aow(aow_words, d_words_ptr, d_words.size());
+  initialize_aow(aow_ranks, (uint64_t*)d_ranks_ptr, num_ranks);
+  initialize_aow(aow_selects, d_selects_ptr, num_selects);
+  initialize_aow(aow_ranks0, (uint64_t*)d_ranks0_ptr, num_ranks0);
+  initialize_aow(aow_selects0, d_selects0_ptr, num_selects0);
 }
 
 template <class Key,
@@ -174,7 +214,8 @@ auto bit_vector<Key, Extent, Scope, Allocator, Storage>::ref(
   Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
-  return ref_type<Operators...>{d_words_ptr, d_ranks_ptr, d_selects_ptr, num_selects};
+  return ref_type<Operators...>{aow_words.ref(), aow_ranks.ref(), aow_selects.ref(),
+      aow_ranks0.ref(), aow_selects0.ref()};
 }
 
 }  // namespace experimental
