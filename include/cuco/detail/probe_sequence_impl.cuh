@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <cuco/detail/hash_functions.cuh>
 #include <cuco/detail/pair.cuh>
 
 #include <cuda/std/atomic>
