@@ -73,3 +73,10 @@ NVBENCH_BENCH_TYPES(static_set_contains,
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE);
+
+NVBENCH_BENCH_TYPES(static_set_contains,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      nvbench::type_list<distribution::unique>))
+  .set_name("static_set_constains_unique_capacity")
+  .set_type_axes_names({"Key", "Distribution"})
+  .add_int64_axis("NumInputs", defaults::N_RANGE);
