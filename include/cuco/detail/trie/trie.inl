@@ -91,6 +91,13 @@ void trie<T>::add(const std::vector<T>& key) {
 }
 
 template <typename T>
+T* move_vector_to_device(std::vector<T>& host_vector, thrust::device_vector<T>& device_vector) {
+  device_vector = host_vector;
+  host_vector.clear();
+  return thrust::raw_pointer_cast(device_vector.data());
+}
+
+template <typename T>
 void trie<T>::build() {
   uint64_t offset = 0;
   for (uint64_t i = 0; i < levels_.size(); ++i) {

@@ -18,13 +18,6 @@
 namespace cuco {
 namespace experimental {
 
-template <typename T>
-T* move_vector_to_device(std::vector<T>& host_vector, thrust::device_vector<T>& device_vector) {
-  device_vector = host_vector;
-  host_vector.clear();
-  return thrust::raw_pointer_cast(device_vector.data());
-}
-
 template <class Key,
           class Extent,
           cuda::thread_scope Scope,
@@ -60,28 +53,25 @@ template <class Key,
           class Storage>
 void bit_vector<Key, Extent, Scope, Allocator, Storage>::build() {
   uint64_t n_blocks = words.size() / 4;
-  uint64_t n_ones = 0, n_zeroes = 0;
   ranks.resize(n_blocks + 1);
   ranks0.resize(n_blocks + 1);
+
+  uint64_t n_ones = 0, n_zeroes = 0;
   for (uint64_t block_id = 0; block_id < n_blocks; ++block_id) {
     ranks[block_id].set_abs(n_ones);
     ranks0[block_id].set_abs(n_zeroes);
-    for (uint64_t j = 0; j < 4; ++j) {
-      if (j != 0) {
-        uint64_t rel1 = n_ones - ranks[block_id].abs();
-        ranks[block_id].rels[j - 1] = rel1;
 
-        uint64_t rel0 = n_zeroes - ranks0[block_id].abs();
-        ranks0[block_id].rels[j - 1] = rel0;
+    for (uint64_t block_offset = 0; block_offset < 4; ++block_offset) {
+      if (block_offset != 0) {
+        ranks[block_id].rels[block_offset - 1] = n_ones - ranks[block_id].abs();
+        ranks0[block_id].rels[block_offset - 1] = n_zeroes - ranks0[block_id].abs();
       }
 
-      uint64_t word_id = (block_id * 4) + j;
-      {
-        uint64_t word = words[word_id];
+      auto update_selects = [] (uint64_t word_id, uint64_t word, uint64_t& gcount, std::vector<uint64_t>& selects) {
         uint64_t n_pops = __builtin_popcountll(word);
-        uint64_t new_n_ones = n_ones + n_pops;
-        if (((n_ones + 255) / 256) != ((new_n_ones + 255) / 256)) {
-          uint64_t count = n_ones;
+        uint64_t new_gcount = gcount + n_pops;
+        if (((gcount + 255) / 256) != ((new_gcount + 255) / 256)) {
+          uint64_t count = gcount;
           while (word != 0) {
             uint64_t pos = __builtin_ctzll(word);
             if (count % 256 == 0) {
@@ -92,28 +82,15 @@ void bit_vector<Key, Extent, Scope, Allocator, Storage>::build() {
             ++count;
           }
         }
-        n_ones = new_n_ones;
-      }
-      {
-        uint64_t word = ~words[word_id];
-        uint64_t n_pops = __builtin_popcountll(word);
-        uint64_t new_n_zeroes = n_zeroes + n_pops;
-        if (((n_zeroes + 255) / 256) != ((new_n_zeroes + 255) / 256)) {
-          uint64_t count = n_zeroes;
-          while (word != 0) {
-            uint64_t pos = __builtin_ctzll(word);
-            if (count % 256 == 0) {
-              selects0.push_back(((word_id * 64) + pos) / 256);
-              break;
-            }
-            word ^= 1UL << pos;
-            ++count;
-          }
-        }
-        n_zeroes = new_n_zeroes;
-      }
+        gcount = new_gcount;
+      };
+
+      uint64_t word_id = (block_id * 4) + block_offset;
+      update_selects(word_id, words[word_id], n_ones, selects);
+      update_selects(word_id, ~words[word_id], n_zeroes, selects0);
     }
   }
+
   ranks.back().set_abs(n_ones);
   ranks0.back().set_abs(n_zeroes);
   selects.push_back(words.size() * 64 / 256);
@@ -184,24 +161,28 @@ template <class Key,
           cuda::thread_scope Scope,
           class Allocator,
           class Storage>
+template <class T>
+void bit_vector<Key, Extent, Scope, Allocator, Storage>::copy_host_array_to_aow(storage_type& aow, std::vector<T>& host_array) {
+  thrust::device_vector<T> device_array = host_array;
+  auto device_ptr = (uint64_t*)thrust::raw_pointer_cast(device_array.data());
+
+  uint64_t num_elements = host_array.size();
+  host_array.clear();
+
+  initialize_aow(aow, device_ptr, num_elements);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class Allocator,
+          class Storage>
 void bit_vector<Key, Extent, Scope, Allocator, Storage>::move_to_device() {
-  uint32_t num_ranks = ranks.size(), num_ranks0 = ranks0.size();
-  uint32_t num_selects = selects.size(), num_selects0 = selects0.size();
-
-  thrust::device_vector<uint64_t> d_words, d_selects, d_selects0;
-  thrust::device_vector<Rank> d_ranks, d_ranks0;
-
-  auto d_words_ptr = move_vector_to_device(words, d_words);
-  auto d_ranks_ptr = move_vector_to_device(ranks, d_ranks);
-  auto d_ranks0_ptr = move_vector_to_device(ranks0, d_ranks0);
-  auto d_selects_ptr = move_vector_to_device(selects, d_selects);
-  auto d_selects0_ptr = move_vector_to_device(selects0, d_selects0);
-
-  initialize_aow(aow_words, d_words_ptr, d_words.size());
-  initialize_aow(aow_ranks, (uint64_t*)d_ranks_ptr, num_ranks);
-  initialize_aow(aow_selects, d_selects_ptr, num_selects);
-  initialize_aow(aow_ranks0, (uint64_t*)d_ranks0_ptr, num_ranks0);
-  initialize_aow(aow_selects0, d_selects0_ptr, num_selects0);
+  copy_host_array_to_aow(aow_words, words);
+  copy_host_array_to_aow(aow_ranks, ranks);
+  copy_host_array_to_aow(aow_selects, selects);
+  copy_host_array_to_aow(aow_ranks0, ranks0);
+  copy_host_array_to_aow(aow_selects0, selects0);
 }
 
 template <class Key,

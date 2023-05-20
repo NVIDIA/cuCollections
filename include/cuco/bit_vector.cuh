@@ -101,6 +101,9 @@ class bit_vector {
   storage_type aow_words, aow_ranks, aow_selects, aow_ranks0, aow_selects0;
 
   void move_to_device();
+
+  template <class T>
+  void copy_host_array_to_aow(storage_type& aow, std::vector<T>& host_array);
 };
 
 }  // namespace experimental
