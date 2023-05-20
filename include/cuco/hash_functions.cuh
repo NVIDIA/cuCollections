@@ -30,7 +30,7 @@ namespace cuco {
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
-using fmix_32 = detail::MurmurHash3_fmix32<Key>;
+using murmurhash3_fmix_32 = detail::MurmurHash3_fmix32<Key>;
 
 /**
  * @brief The 64-bit integer finalizer function of `MurmurHash3` to hash the given argument on host
@@ -41,7 +41,7 @@ using fmix_32 = detail::MurmurHash3_fmix32<Key>;
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
-using fmix_64 = detail::MurmurHash3_fmix64<Key>;
+using murmurhash3_fmix_64 = detail::MurmurHash3_fmix64<Key>;
 
 /**
  * @brief A `murmurhash3_32` hash function to hash the given argument on host and device.

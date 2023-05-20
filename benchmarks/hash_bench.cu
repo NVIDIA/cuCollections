@@ -98,8 +98,8 @@ NVBENCH_BENCH_TYPES(
                                        cuco::xxhash_64<nvbench::int32_t>,
                                        cuco::xxhash_64<nvbench::int64_t>,
                                        cuco::xxhash_64<large_key<32>>,
-                                       cuco::fmix_32<nvbench::int32_t>,
-                                       cuco::fmix_64<nvbench::int64_t>>))
+                                       cuco::murmurhash3_fmix_32<nvbench::int32_t>,
+                                       cuco::murmurhash3_fmix_64<nvbench::int64_t>>))
   .set_name("hash_function_eval")
   .set_type_axes_names({"Hash"})
   .set_max_noise(defaults::MAX_NOISE);
