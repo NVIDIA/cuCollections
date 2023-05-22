@@ -103,7 +103,7 @@ struct XXHash_32 {
 
       do {
         // pipeline 4*4byte computations
-        auto const pipeline_offset = offset >> 2;  // optimized division by 4
+        auto const pipeline_offset = offset / 4;
         v1 += blocks[pipeline_offset] * prime2;
         v1 = rotl(v1, 13);
         v1 *= prime1;
@@ -129,7 +129,7 @@ struct XXHash_32 {
     // remaining data can be processed in 4-byte chunks
     if constexpr ((nbytes % 16) >= 4) {
       for (; offset <= nbytes - 4; offset += 4) {
-        h32 += blocks[offset >> 2] * prime3;  // optimized division by 4
+        h32 += blocks[offset / 4] * prime3;
         h32 = rotl(h32, 17) * prime4;
       }
     }
@@ -254,7 +254,7 @@ struct XXHash_64 {
 
       do {
         // pipeline 4*8byte computations
-        auto const pipeline_offset = offset >> 3;  // optimized division by 8
+        auto const pipeline_offset = offset / 8;
         v1 += blocks8[pipeline_offset] * prime2;
         v1 = rotl(v1, 31);
         v1 *= prime1;
@@ -304,7 +304,7 @@ struct XXHash_64 {
     // remaining data can be processed in 8-byte chunks
     if constexpr ((nbytes % 32) >= 8) {
       for (; offset <= nbytes - 8; offset += 8) {
-        uint64_t k1 = blocks8[offset >> 3] * prime2;
+        uint64_t k1 = blocks8[offset / 8] * prime2;
         k1          = rotl(k1, 31) * prime1;
         h64 ^= k1;
         h64 = rotl(h64, 27) * prime1 + prime4;
@@ -314,7 +314,7 @@ struct XXHash_64 {
     // remaining data can be processed in 4-byte chunks
     if constexpr (((nbytes % 32) % 8) >= 4) {
       for (; offset <= nbytes - 4; offset += 4) {
-        h64 ^= (blocks4[offset >> 2] & 0xFFFFFFFFULL) * prime1;
+        h64 ^= (blocks4[offset / 4] & 0xFFFFFFFFULL) * prime1;
         h64 = rotl(h64, 23) * prime2 + prime3;
       }
     }
