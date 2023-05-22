@@ -104,8 +104,3 @@ ConfigureTest(BIT_VECTOR_TEST
     bit_vector/rank_test.cu
     bit_vector/select_test.cu
     bit_vector/size_test.cu)
-
-###################################################################################################
-# - trie tests ------------------------------------------------------------------------------
-#ConfigureTest(TRIE_TEST
-#    trie/lookup_test.cu)
