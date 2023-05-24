@@ -25,7 +25,7 @@ TEST_CASE("Size computation", "")
   cuco::experimental::bit_vector bv{cuco::experimental::extent<std::size_t>{400}};
 
   for (size_t i = 0; i < num_elements; i++) {
-    bv.add(i % 2 == 0); // Alternate 0s and 1s pattern
+    bv.add(i % 2 == 0);  // Alternate 0s and 1s pattern
   }
   bv.build();
 

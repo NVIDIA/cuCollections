@@ -25,8 +25,9 @@
 #include <catch2/catch_test_macros.hpp>
 
 template <class BitVectorRef>
-__global__ void find_next_set_kernel(BitVectorRef ref, size_t n, uint32_t* output) {
-  size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void find_next_set_kernel(BitVectorRef ref, size_t n, uint32_t* output)
+{
+  size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
   while (index < n) {
     output[index] = ref.find_next_set(index);
@@ -49,11 +50,12 @@ TEST_CASE("Find next set test", "")
   bv.build();
 
   thrust::device_vector<uint32_t> device_result(num_elements);
-  auto ref                = bv.ref(cuco::experimental::find_next_set);
-  find_next_set_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(device_result.data()));
+  auto ref = bv.ref(cuco::experimental::find_next_set);
+  find_next_set_kernel<<<1, 1024>>>(
+    ref, num_elements, thrust::raw_pointer_cast(device_result.data()));
 
   thrust::host_vector<uint32_t> host_result = device_result;
-  uint32_t num_matches = 0;
+  uint32_t num_matches                      = 0;
 
   uint32_t next_set_pos = -1u;
   do {

@@ -25,8 +25,9 @@
 #include <catch2/catch_test_macros.hpp>
 
 template <class BitVectorRef>
-__global__ void rank_kernel(BitVectorRef ref, size_t n, uint32_t* output) {
-  size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void rank_kernel(BitVectorRef ref, size_t n, uint32_t* output)
+{
+  size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
   while (index < n) {
     output[index] = ref.rank(index);
@@ -49,17 +50,15 @@ TEST_CASE("Rank test", "")
   bv.build();
 
   thrust::device_vector<uint32_t> rank_result_device(num_elements);
-  auto ref                = bv.ref(cuco::experimental::rank);
+  auto ref = bv.ref(cuco::experimental::rank);
   rank_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(rank_result_device.data()));
 
   thrust::host_vector<uint32_t> rank_result = rank_result_device;
-  uint32_t cur_rank = 0;
-  uint32_t num_matches = 0;
+  uint32_t cur_rank                         = 0;
+  uint32_t num_matches                      = 0;
   for (size_t i = 0; i < num_elements; i++) {
     num_matches += cur_rank == rank_result[i];
-    if (modulo_bitgen(i)) {
-      cur_rank++;
-    }
+    if (modulo_bitgen(i)) { cur_rank++; }
   }
   REQUIRE(num_matches == num_elements);
 }

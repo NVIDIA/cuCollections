@@ -36,7 +36,8 @@ struct Rank {
   uint8_t rels[3];
 
   __host__ __device__ uint64_t abs() const { return ((uint64_t)abs_hi << 8) | abs_lo; }
-  void set_abs(uint64_t abs) {
+  void set_abs(uint64_t abs)
+  {
     abs_hi = (uint32_t)(abs >> 8);
     abs_lo = (uint8_t)abs;
   }
@@ -57,8 +58,8 @@ class bit_vector {
  public:
   bit_vector(Extent capacity);
 
-  void add(bool bit); // adds a new bit at the end
-  void build(); // builds indexes for rank and select.
+  void add(bool bit);  // adds a new bit at the end
+  void build();        // builds indexes for rank and select.
 
   void set(Key i, bool bit);
   void set_last(bool bit);
@@ -67,8 +68,8 @@ class bit_vector {
   static constexpr auto window_size  = 1;
   static constexpr auto thread_scope = Scope;
 
-  using key_type   = Key;  ///< Key type
-  using value_type = Key;  ///< Key type
+  using key_type       = Key;  ///< Key type
+  using value_type     = Key;  ///< Key type
   using extent_type    = decltype(make_valid_extent<cg_size, window_size>(std::declval<Extent>()));
   using size_type      = typename extent_type::value_type;  ///< Size type
   using allocator_type = Allocator;                         ///< Allocator type
@@ -78,8 +79,7 @@ class bit_vector {
   using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
   template <typename... Operators>
   using ref_type =
-    cuco::experimental::bit_vector_ref<
-                                       storage_ref_type,
+    cuco::experimental::bit_vector_ref<storage_ref_type,
                                        Operators...>;  ///< Non-owning container ref type
 
   template <typename... Operators>
@@ -97,7 +97,7 @@ class bit_vector {
   std::vector<uint64_t> selects, selects0;
 
   // Device structures
-  allocator_type allocator_;            ///< Allocator used to (de)allocate temporary storage
+  allocator_type allocator_;  ///< Allocator used to (de)allocate temporary storage
   storage_type aow_words, aow_ranks, aow_selects, aow_ranks0, aow_selects0;
 
   void move_to_device();

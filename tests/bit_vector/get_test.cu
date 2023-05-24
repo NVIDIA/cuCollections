@@ -24,8 +24,9 @@
 #include <catch2/catch_test_macros.hpp>
 
 template <class BitVectorRef>
-__global__ void get_kernel(BitVectorRef ref, size_t n, uint32_t* output) {
-  size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+__global__ void get_kernel(BitVectorRef ref, size_t n, uint32_t* output)
+{
+  size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
   while (index < n) {
     output[index] = ref.get(index);
@@ -49,7 +50,7 @@ TEST_CASE("Get test", "")
   }
   bv.build();
 
-  auto ref                = bv.ref(cuco::experimental::get);
+  auto ref = bv.ref(cuco::experimental::get);
   thrust::device_vector<uint32_t> get_result(num_elements);
   get_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(get_result.data()));
 
