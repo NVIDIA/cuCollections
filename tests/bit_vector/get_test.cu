@@ -50,7 +50,7 @@ TEST_CASE("Get test", "")
   }
   bv.build();
 
-  auto ref = bv.ref(cuco::experimental::get);
+  auto ref = bv.ref(cuco::experimental::bv_read);
   thrust::device_vector<uint32_t> get_result(num_elements);
   get_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(get_result.data()));
 

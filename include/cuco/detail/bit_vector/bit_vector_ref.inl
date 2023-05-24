@@ -21,7 +21,7 @@ __host__ __device__ constexpr bit_vector_ref<StorageRef, Operators...>::bit_vect
 namespace detail {
 
 template <typename StorageRef, typename... Operators>
-class operator_impl<op::get_tag, bit_vector_ref<StorageRef, Operators...>> {
+class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
   using ref_type = bit_vector_ref<StorageRef, Operators...>;
 
  public:
@@ -30,13 +30,20 @@ class operator_impl<op::get_tag, bit_vector_ref<StorageRef, Operators...>> {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return (ref_.words_ref_[key / 64][0] >> (key % 64)) & 1UL;
   }
-};
 
-template <typename StorageRef, typename... Operators>
-class operator_impl<op::rank_tag, bit_vector_ref<StorageRef, Operators...>> {
-  using ref_type = bit_vector_ref<StorageRef, Operators...>;
+  [[nodiscard]] __device__ uint64_t find_next_set(uint64_t key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    uint64_t word_id = key / 64;
+    uint64_t bit_id  = key % 64;
+    uint64_t word    = ref_.words_ref_[word_id][0];
+    word &= ~(0lu) << bit_id;
+    while (word == 0) {
+      word = ref_.words_ref_[++word_id][0];
+    }
+    return (word_id * 64) + __builtin_ffsll(word) - 1;
+  }
 
- public:
   [[nodiscard]] __device__ uint64_t rank(uint64_t key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
@@ -51,13 +58,7 @@ class operator_impl<op::rank_tag, bit_vector_ref<StorageRef, Operators...>> {
     n += __builtin_popcountll(ref_.words_ref_[word_id][0] & ((1UL << bit_id) - 1));
     return n;
   }
-};
 
-template <typename StorageRef, typename... Operators>
-class operator_impl<op::select_tag, bit_vector_ref<StorageRef, Operators...>> {
-  using ref_type = bit_vector_ref<StorageRef, Operators...>;
-
- public:
   [[nodiscard]] __device__ uint64_t select(uint64_t key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
@@ -127,25 +128,6 @@ class operator_impl<op::select_tag, bit_vector_ref<StorageRef, Operators...>> {
       word &= word - 1;
     }
     return __builtin_ffsll(word & -word) - 1;
-  }
-};
-
-template <typename StorageRef, typename... Operators>
-class operator_impl<op::find_next_set_tag, bit_vector_ref<StorageRef, Operators...>> {
-  using ref_type = bit_vector_ref<StorageRef, Operators...>;
-
- public:
-  [[nodiscard]] __device__ uint64_t find_next_set(uint64_t key) const noexcept
-  {
-    auto const& ref_ = static_cast<ref_type const&>(*this);
-    uint64_t word_id = key / 64;
-    uint64_t bit_id  = key % 64;
-    uint64_t word    = ref_.words_ref_[word_id][0];
-    word &= ~(0lu) << bit_id;
-    while (word == 0) {
-      word = ref_.words_ref_[++word_id][0];
-    }
-    return (word_id * 64) + __builtin_ffsll(word) - 1;
   }
 };
 

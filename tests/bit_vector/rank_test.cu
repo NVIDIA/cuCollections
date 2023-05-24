@@ -50,7 +50,7 @@ TEST_CASE("Rank test", "")
   bv.build();
 
   thrust::device_vector<uint32_t> rank_result_device(num_elements);
-  auto ref = bv.ref(cuco::experimental::rank);
+  auto ref = bv.ref(cuco::experimental::bv_read);
   rank_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(rank_result_device.data()));
 
   thrust::host_vector<uint32_t> rank_result = rank_result_device;
