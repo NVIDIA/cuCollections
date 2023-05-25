@@ -52,6 +52,7 @@ endfunction(ConfigureTest)
 ConfigureTest(UTILITY_TEST
     utility/extent_test.cu
     utility/storage_test.cu
+    utility/fast_int_test.cu
     utility/hash_test.cu)
 
 ###################################################################################################
