@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,93 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace cuco::detail {
+
+/**
+ * @brief The 32bit integer finalizer hash function of `MurmurHash3`.
+ *
+ * @throw Key type must be 4 bytes in size
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+struct MurmurHash3_fmix32 {
+  static_assert(sizeof(Key) == 4, "Key type must be 4 bytes in size.");
+
+  using argument_type = Key;       ///< The type of the values taken as argument
+  using result_type   = uint32_t;  ///< The type of the hash values produced
+
+  /**
+   * @brief Constructs a MurmurHash3_fmix32 hash function with the given `seed`.
+   *
+   * @param seed A custom number to randomize the resulting hash value
+   */
+  __host__ __device__ constexpr MurmurHash3_fmix32(uint32_t seed = 0) : seed_{seed} {}
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @param key The input argument to hash
+   * @return A resulting hash value for `key`
+   */
+  constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
+  {
+    uint32_t h = static_cast<uint32_t>(key) ^ seed_;
+    h ^= h >> 16;
+    h *= 0x85ebca6b;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35;
+    h ^= h >> 16;
+    return h;
+  }
+
+ private:
+  uint32_t seed_;
+};
+
+/**
+ * @brief The 64bit integer finalizer hash function of `MurmurHash3`.
+ *
+ * @throw Key type must be 8 bytes in size
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+struct MurmurHash3_fmix64 {
+  static_assert(sizeof(Key) == 8, "Key type must be 8 bytes in size.");
+
+  using argument_type = Key;       ///< The type of the values taken as argument
+  using result_type   = uint64_t;  ///< The type of the hash values produced
+
+  /**
+   * @brief Constructs a MurmurHash3_fmix64 hash function with the given `seed`.
+   *
+   * @param seed A custom number to randomize the resulting hash value
+   */
+  __host__ __device__ constexpr MurmurHash3_fmix64(uint64_t seed = 0) : seed_{seed} {}
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @param key The input argument to hash
+   * @return A resulting hash value for `key`
+   */
+  constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
+  {
+    uint64_t h = static_cast<uint64_t>(key) ^ seed_;
+    h ^= h >> 33;
+    h *= 0xff51afd7ed558ccd;
+    h ^= h >> 33;
+    h *= 0xc4ceb9fe1a85ec53;
+    h ^= h >> 33;
+    return h;
+  }
+
+ private:
+  uint64_t seed_;
+};
 
 /**
  * @brief A `MurmurHash3_32` hash function to hash the given argument on host and device.
@@ -38,15 +124,12 @@ struct MurmurHash3_32 {
   using argument_type = Key;       ///< The type of the values taken as argument
   using result_type   = uint32_t;  ///< The type of the hash values produced
 
-  /// Default constructor
-  __host__ __device__ constexpr MurmurHash3_32() : MurmurHash3_32{0} {}
-
   /**
    * @brief Constructs a MurmurHash3_32 hash function with the given `seed`.
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr MurmurHash3_32(uint32_t seed) : m_seed(seed) {}
+  __host__ __device__ constexpr MurmurHash3_32(uint32_t seed = 0) : fmix32_{0}, seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
@@ -60,7 +143,7 @@ struct MurmurHash3_32 {
     const uint8_t* const data = (const uint8_t*)&key;
     constexpr int nblocks     = len / 4;
 
-    uint32_t h1           = m_seed;
+    uint32_t h1           = seed_;
     constexpr uint32_t c1 = 0xcc9e2d51;
     constexpr uint32_t c2 = 0x1b873593;
     //----------
@@ -92,7 +175,7 @@ struct MurmurHash3_32 {
     //----------
     // finalization
     h1 ^= len;
-    h1 = fmix32(h1);
+    h1 = fmix32_(h1);
     return h1;
   }
 
@@ -102,16 +185,8 @@ struct MurmurHash3_32 {
     return (x << r) | (x >> (32 - r));
   }
 
-  constexpr __host__ __device__ uint32_t fmix32(uint32_t h) const noexcept
-  {
-    h ^= h >> 16;
-    h *= 0x85ebca6b;
-    h ^= h >> 13;
-    h *= 0xc2b2ae35;
-    h ^= h >> 16;
-    return h;
-  }
-  uint32_t m_seed;
+  MurmurHash3_fmix32<uint32_t> fmix32_;
+  uint32_t seed_;
 };
 
-}  // namespace cuco::detail
+}  //  namespace cuco::detail

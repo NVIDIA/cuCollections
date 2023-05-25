@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,9 +16,32 @@
 
 #pragma once
 
-#include <cuco/detail/probe_sequence_impl.cuh>
+#include <cuco/detail/hash_functions/murmurhash3.cuh>
+#include <cuco/detail/hash_functions/xxhash.cuh>
 
 namespace cuco {
+
+/**
+ * @brief The 32-bit integer finalizer function of `MurmurHash3` to hash the given argument on host
+ * and device.
+ *
+ * @throw Key type must be 4 bytes in size
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using murmurhash3_fmix_32 = detail::MurmurHash3_fmix32<Key>;
+
+/**
+ * @brief The 64-bit integer finalizer function of `MurmurHash3` to hash the given argument on host
+ * and device.
+ *
+ * @throw Key type must be 8 bytes in size
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using murmurhash3_fmix_64 = detail::MurmurHash3_fmix64<Key>;
 
 /**
  * @brief A `murmurhash3_32` hash function to hash the given argument on host and device.
@@ -27,5 +50,21 @@ namespace cuco {
  */
 template <typename Key>
 using murmurhash3_32 = detail::MurmurHash3_32<Key>;
+
+/**
+ * @brief A `XXH32` hash function to hash the given argument on host and device.
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using xxhash_32 = detail::XXHash_32<Key>;
+
+/**
+ * @brief A `XXH64` hash function to hash the given argument on host and device.
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using xxhash_64 = detail::XXHash_64<Key>;
 
 }  // namespace cuco
