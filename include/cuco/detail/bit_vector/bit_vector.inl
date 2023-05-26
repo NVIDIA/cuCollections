@@ -19,17 +19,27 @@ namespace cuco {
 namespace experimental {
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-bit_vector<Key, Extent, Scope, Allocator, Storage>::bit_vector(Extent capacity)
+bit_vector<Key, Extent, Scope, Allocator, Storage>::bit_vector()
   : words_(),
     ranks_(),
     selects_(),
     n_bits_(0),
-    aow_words_{make_valid_extent<cg_size, window_size>(capacity), allocator_},
-    aow_ranks_{make_valid_extent<cg_size, window_size>(capacity), allocator_},
-    aow_selects_{make_valid_extent<cg_size, window_size>(capacity), allocator_},
-    aow_ranks0_{make_valid_extent<cg_size, window_size>(capacity), allocator_},
-    aow_selects0_{make_valid_extent<cg_size, window_size>(capacity), allocator_}
+    aow_words_(nullptr),
+    aow_ranks_(nullptr),
+    aow_selects_(nullptr),
+    aow_ranks0_(nullptr),
+    aow_selects0_(nullptr)
 {
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
+bit_vector<Key, Extent, Scope, Allocator, Storage>::~bit_vector()
+{
+  delete aow_words_;
+  delete aow_ranks_;
+  delete aow_selects_;
+  delete aow_ranks0_;
+  delete aow_selects0_;
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
@@ -128,19 +138,20 @@ __global__ void copy_to_window(WindowT* windows, cuco::detail::index_type n, T* 
 }
 
 template <class Storage, class T>
-void initialize_aow(Storage& storage, T* ptr, uint64_t num_elements)
+void initialize_aow(Storage* storage, T* ptr, uint64_t num_elements)
 {
   auto constexpr stride = 4;
   auto const grid_size  = (num_elements + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
                          (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  copy_to_window<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(storage.data(), num_elements, ptr);
+  copy_to_window<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
+    storage->data(), num_elements, ptr);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
 template <class T>
 void bit_vector<Key, Extent, Scope, Allocator, Storage>::copy_host_array_to_aow(
-  storage_type& aow, std::vector<T>& host_array)
+  storage_type** aow, std::vector<T>& host_array)
 {
   thrust::device_vector<T> device_array = host_array;
   auto device_ptr                       = (uint64_t*)thrust::raw_pointer_cast(device_array.data());
@@ -148,17 +159,19 @@ void bit_vector<Key, Extent, Scope, Allocator, Storage>::copy_host_array_to_aow(
   uint64_t num_elements = host_array.size();
   host_array.clear();
 
-  initialize_aow(aow, device_ptr, num_elements);
+  *aow = new storage_type(make_valid_extent<cg_size, window_size>(extent<size_t>{num_elements}),
+                          allocator_);
+  initialize_aow(*aow, device_ptr, num_elements);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
 void bit_vector<Key, Extent, Scope, Allocator, Storage>::move_to_device()
 {
-  copy_host_array_to_aow(aow_words_, words_);
-  copy_host_array_to_aow(aow_ranks_, ranks_);
-  copy_host_array_to_aow(aow_selects_, selects_);
-  copy_host_array_to_aow(aow_ranks0_, ranks0_);
-  copy_host_array_to_aow(aow_selects0_, selects0_);
+  copy_host_array_to_aow(&aow_words_, words_);
+  copy_host_array_to_aow(&aow_ranks_, ranks_);
+  copy_host_array_to_aow(&aow_selects_, selects_);
+  copy_host_array_to_aow(&aow_ranks0_, ranks0_);
+  copy_host_array_to_aow(&aow_selects0_, selects0_);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
@@ -166,8 +179,11 @@ template <typename... Operators>
 auto bit_vector<Key, Extent, Scope, Allocator, Storage>::ref(Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
-  return ref_type<Operators...>{
-    aow_words_.ref(), aow_ranks_.ref(), aow_selects_.ref(), aow_ranks0_.ref(), aow_selects0_.ref()};
+  return ref_type<Operators...>{aow_words_->ref(),
+                                aow_ranks_->ref(),
+                                aow_selects_->ref(),
+                                aow_ranks0_->ref(),
+                                aow_selects0_->ref()};
 }
 
 }  // namespace experimental

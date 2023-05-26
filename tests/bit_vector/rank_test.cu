@@ -42,7 +42,7 @@ TEST_CASE("Rank test", "")
   constexpr std::size_t num_elements{400};
 
   using Key = uint64_t;
-  cuco::experimental::bit_vector bv{cuco::experimental::extent<std::size_t>{400}};
+  cuco::experimental::bit_vector bv;
 
   for (size_t i = 0; i < num_elements; i++) {
     bv.add(modulo_bitgen(i));

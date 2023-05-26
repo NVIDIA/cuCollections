@@ -53,7 +53,7 @@ TEST_CASE("Select test", "")
   constexpr std::size_t num_elements{400};
 
   using Key = uint64_t;
-  cuco::experimental::bit_vector bv{cuco::experimental::extent<std::size_t>{400}};
+  cuco::experimental::bit_vector bv;
 
   uint32_t num_set = 0;
   for (size_t i = 0; i < num_elements; i++) {

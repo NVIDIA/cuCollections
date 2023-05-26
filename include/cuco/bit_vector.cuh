@@ -56,7 +56,8 @@ template <class Key                = uint64_t,
           class Storage            = cuco::experimental::aow_storage<1>>
 class bit_vector {
  public:
-  bit_vector(Extent capacity);
+  bit_vector();
+  ~bit_vector();
 
   void add(bool bit);  // adds a new bit at the end
   void build();        // builds indexes for rank and select.
@@ -98,10 +99,10 @@ class bit_vector {
 
   // Device structures
   allocator_type allocator_;  ///< Allocator used to (de)allocate temporary storage
-  storage_type aow_words_, aow_ranks_, aow_selects_, aow_ranks0_, aow_selects0_;
+  storage_type *aow_words_, *aow_ranks_, *aow_selects_, *aow_ranks0_, *aow_selects0_;
 
   template <class T>
-  void copy_host_array_to_aow(storage_type& aow, std::vector<T>& host_array);
+  void copy_host_array_to_aow(storage_type** aow, std::vector<T>& host_array);
 
   void move_to_device();
 };
