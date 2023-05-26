@@ -52,9 +52,9 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
     uint64_t bit_id  = key % 64;
     uint64_t rank_id = word_id / 4;
     uint64_t rel_id  = word_id % 4;
-    auto rank        = RankUnion{ref_.ranks_ref_[rank_id][0]}.rank;
+    auto rank        = rank_union{ref_.ranks_ref_[rank_id][0]}.rank_;
     uint64_t n       = rank.abs();
-    if (rel_id != 0) { n += rank.rels[rel_id - 1]; }
+    if (rel_id != 0) { n += rank.rels_[rel_id - 1]; }
     n += __builtin_popcountll(ref_.words_ref_[word_id][0] & ((1UL << bit_id) - 1));
     return n;
   }
@@ -87,13 +87,13 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
     uint64_t begin    = selects_ref[block_id][0];
     uint64_t end      = selects_ref[block_id + 1][0] + 1UL;
     if (begin + 10 >= end) {
-      while (key >= RankUnion{ranks_ref[begin + 1][0]}.rank.abs()) {
+      while (key >= rank_union{ranks_ref[begin + 1][0]}.rank_.abs()) {
         ++begin;
       }
     } else {
       while (begin + 1 < end) {
         const uint64_t middle = (begin + end) / 2;
-        if (key < RankUnion{ranks_ref[middle][0]}.rank.abs()) {
+        if (key < rank_union{ranks_ref[middle][0]}.rank_.abs()) {
           end = middle;
         } else {
           begin = middle;
@@ -107,17 +107,17 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
                                                     uint64_t rank_id,
                                                     const StorageRef& ranks_ref) const noexcept
   {
-    const auto& rank = RankUnion{ranks_ref[rank_id][0]}.rank;
+    const auto& rank = rank_union{ranks_ref[rank_id][0]}.rank_;
     key -= rank.abs();
 
     uint64_t word_id = rank_id * 4;
-    bool a0          = key >= rank.rels[0];
-    bool a1          = key >= rank.rels[1];
-    bool a2          = key >= rank.rels[2];
+    bool a0          = key >= rank.rels_[0];
+    bool a1          = key >= rank.rels_[1];
+    bool a2          = key >= rank.rels_[2];
 
     uint64_t inc = a0 + a1 + a2;
     word_id += inc;
-    key -= (inc > 0) * rank.rels[inc - (inc > 0)];
+    key -= (inc > 0) * rank.rels_[inc - (inc > 0)];
 
     return word_id;
   }

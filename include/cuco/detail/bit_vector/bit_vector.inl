@@ -20,42 +20,42 @@ namespace experimental {
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
 bit_vector<Key, Extent, Scope, Allocator, Storage>::bit_vector(Extent capacity)
-  : words(),
-    ranks(),
-    selects(),
-    n_bits(0),
-    aow_words{make_valid_extent<cg_size, window_size>(capacity), allocator_},
-    aow_ranks{make_valid_extent<cg_size, window_size>(capacity), allocator_},
-    aow_selects{make_valid_extent<cg_size, window_size>(capacity), allocator_},
-    aow_ranks0{make_valid_extent<cg_size, window_size>(capacity), allocator_},
-    aow_selects0{make_valid_extent<cg_size, window_size>(capacity), allocator_}
+  : words_(),
+    ranks_(),
+    selects_(),
+    n_bits_(0),
+    aow_words_{make_valid_extent<cg_size, window_size>(capacity), allocator_},
+    aow_ranks_{make_valid_extent<cg_size, window_size>(capacity), allocator_},
+    aow_selects_{make_valid_extent<cg_size, window_size>(capacity), allocator_},
+    aow_ranks0_{make_valid_extent<cg_size, window_size>(capacity), allocator_},
+    aow_selects0_{make_valid_extent<cg_size, window_size>(capacity), allocator_}
 {
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
 void bit_vector<Key, Extent, Scope, Allocator, Storage>::add(bool bit)
 {
-  if (n_bits % 256 == 0) { words.resize((n_bits + 256) / 64); }
-  set(n_bits, bit);
-  ++n_bits;
+  if (n_bits_ % 256 == 0) { words_.resize((n_bits_ + 256) / 64); }
+  set(n_bits_, bit);
+  ++n_bits_;
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
 void bit_vector<Key, Extent, Scope, Allocator, Storage>::build()
 {
-  uint64_t n_blocks = words.size() / 4;
-  ranks.resize(n_blocks + 1);
-  ranks0.resize(n_blocks + 1);
+  uint64_t n_blocks = words_.size() / 4;
+  ranks_.resize(n_blocks + 1);
+  ranks0_.resize(n_blocks + 1);
 
   uint64_t n_ones = 0, n_zeroes = 0;
   for (uint64_t block_id = 0; block_id < n_blocks; ++block_id) {
-    ranks[block_id].set_abs(n_ones);
-    ranks0[block_id].set_abs(n_zeroes);
+    ranks_[block_id].set_abs(n_ones);
+    ranks0_[block_id].set_abs(n_zeroes);
 
     for (uint64_t block_offset = 0; block_offset < 4; ++block_offset) {
       if (block_offset != 0) {
-        ranks[block_id].rels[block_offset - 1]  = n_ones - ranks[block_id].abs();
-        ranks0[block_id].rels[block_offset - 1] = n_zeroes - ranks0[block_id].abs();
+        ranks_[block_id].rels_[block_offset - 1]  = n_ones - ranks_[block_id].abs();
+        ranks0_[block_id].rels_[block_offset - 1] = n_zeroes - ranks0_[block_id].abs();
       }
 
       auto update_selects =
@@ -78,40 +78,40 @@ void bit_vector<Key, Extent, Scope, Allocator, Storage>::build()
         };
 
       uint64_t word_id = (block_id * 4) + block_offset;
-      update_selects(word_id, words[word_id], n_ones, selects);
-      update_selects(word_id, ~words[word_id], n_zeroes, selects0);
+      update_selects(word_id, words_[word_id], n_ones, selects_);
+      update_selects(word_id, ~words_[word_id], n_zeroes, selects0_);
     }
   }
 
-  ranks.back().set_abs(n_ones);
-  ranks0.back().set_abs(n_zeroes);
-  selects.push_back(words.size() * 64 / 256);
-  selects0.push_back(words.size() * 64 / 256);
+  ranks_.back().set_abs(n_ones);
+  ranks0_.back().set_abs(n_zeroes);
+  selects_.push_back(words_.size() * 64 / 256);
+  selects0_.push_back(words_.size() * 64 / 256);
 
   move_to_device();
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-void bit_vector<Key, Extent, Scope, Allocator, Storage>::set(Key i, bool bit)
+void bit_vector<Key, Extent, Scope, Allocator, Storage>::set(Key key, bool bit)
 {
   if (bit) {
-    words[i / 64] |= (1UL << (i % 64));
+    words_[key / 64] |= (1UL << (key % 64));
   } else {
-    words[i / 64] &= ~(1UL << (i % 64));
+    words_[key / 64] &= ~(1UL << (key % 64));
   }
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
 void bit_vector<Key, Extent, Scope, Allocator, Storage>::set_last(bool bit)
 {
-  set(n_bits - 1, bit);
+  set(n_bits_ - 1, bit);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
 size_t bit_vector<Key, Extent, Scope, Allocator, Storage>::memory_footprint() const
 {
-  return sizeof(uint64_t) * words.size() + sizeof(Rank) * (ranks.size() + ranks0.size()) +
-         sizeof(uint64_t) * (selects.size() + selects0.size());
+  return sizeof(uint64_t) * words_.size() + sizeof(rank) * (ranks_.size() + ranks0_.size()) +
+         sizeof(uint64_t) * (selects_.size() + selects0_.size());
 }
 
 template <typename WindowT, class T>
@@ -154,11 +154,11 @@ void bit_vector<Key, Extent, Scope, Allocator, Storage>::copy_host_array_to_aow(
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
 void bit_vector<Key, Extent, Scope, Allocator, Storage>::move_to_device()
 {
-  copy_host_array_to_aow(aow_words, words);
-  copy_host_array_to_aow(aow_ranks, ranks);
-  copy_host_array_to_aow(aow_selects, selects);
-  copy_host_array_to_aow(aow_ranks0, ranks0);
-  copy_host_array_to_aow(aow_selects0, selects0);
+  copy_host_array_to_aow(aow_words_, words_);
+  copy_host_array_to_aow(aow_ranks_, ranks_);
+  copy_host_array_to_aow(aow_selects_, selects_);
+  copy_host_array_to_aow(aow_ranks0_, ranks0_);
+  copy_host_array_to_aow(aow_selects0_, selects0_);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
@@ -167,7 +167,7 @@ auto bit_vector<Key, Extent, Scope, Allocator, Storage>::ref(Operators...) const
 {
   static_assert(sizeof...(Operators), "No operators specified");
   return ref_type<Operators...>{
-    aow_words.ref(), aow_ranks.ref(), aow_selects.ref(), aow_ranks0.ref(), aow_selects0.ref()};
+    aow_words_.ref(), aow_ranks_.ref(), aow_selects_.ref(), aow_ranks0_.ref(), aow_selects0_.ref()};
 }
 
 }  // namespace experimental

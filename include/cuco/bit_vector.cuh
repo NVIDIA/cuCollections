@@ -29,24 +29,24 @@
 namespace cuco {
 namespace experimental {
 
-struct Rank {
+struct rank {
   // Basically a uint64_t split into 1 uin32_t and 2 uint8_t
-  uint32_t abs_hi;
-  uint8_t abs_lo;
-  uint8_t rels[3];
+  uint32_t abs_hi_;
+  uint8_t abs_lo_;
+  uint8_t rels_[3];
 
-  __host__ __device__ uint64_t abs() const { return ((uint64_t)abs_hi << 8) | abs_lo; }
+  __host__ __device__ uint64_t abs() const { return ((uint64_t)abs_hi_ << 8) | abs_lo_; }
   void set_abs(uint64_t abs)
   {
-    abs_hi = (uint32_t)(abs >> 8);
-    abs_lo = (uint8_t)abs;
+    abs_hi_ = (uint32_t)(abs >> 8);
+    abs_lo_ = (uint8_t)abs;
   }
 };
 
 // Need this union to use uint64_t for all aow_storage structures
-union RankUnion {
-  uint64_t word;
-  Rank rank;
+union rank_union {
+  uint64_t word_;
+  rank rank_;
 };
 
 template <class Key                = uint64_t,
@@ -61,7 +61,7 @@ class bit_vector {
   void add(bool bit);  // adds a new bit at the end
   void build();        // builds indexes for rank and select.
 
-  void set(Key i, bool bit);
+  void set(Key key, bool bit);
   void set_last(bool bit);
 
   static constexpr auto cg_size      = 1;
@@ -85,25 +85,25 @@ class bit_vector {
   template <typename... Operators>
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
-  size_t size() const { return n_bits; }
+  size_t size() const { return n_bits_; }
   size_t memory_footprint() const;
 
  private:
-  uint64_t n_bits;
+  uint64_t n_bits_;
 
   // Host structures
-  std::vector<uint64_t> words;
-  std::vector<Rank> ranks, ranks0;
-  std::vector<uint64_t> selects, selects0;
+  std::vector<uint64_t> words_;
+  std::vector<rank> ranks_, ranks0_;
+  std::vector<uint64_t> selects_, selects0_;
 
   // Device structures
   allocator_type allocator_;  ///< Allocator used to (de)allocate temporary storage
-  storage_type aow_words, aow_ranks, aow_selects, aow_ranks0, aow_selects0;
-
-  void move_to_device();
+  storage_type aow_words_, aow_ranks_, aow_selects_, aow_ranks0_, aow_selects0_;
 
   template <class T>
   void copy_host_array_to_aow(storage_type& aow, std::vector<T>& host_array);
+
+  void move_to_device();
 };
 
 }  // namespace experimental
