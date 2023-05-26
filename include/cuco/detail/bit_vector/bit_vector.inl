@@ -159,7 +159,7 @@ void bit_vector<Key, Extent, Scope, Allocator, Storage>::copy_host_array_to_aow(
   uint64_t num_elements = host_array.size();
   host_array.clear();
 
-  *aow = new storage_type(make_valid_extent<cg_size, window_size>(extent<size_t>{num_elements}),
+  *aow = new storage_type(make_valid_extent<cg_size, window_size>(extent<size_t>{num_elements + 1}),
                           allocator_);
   initialize_aow(*aow, device_ptr, num_elements);
 }
