@@ -153,15 +153,18 @@ template <class T>
 void bit_vector<Key, Extent, Scope, Allocator, Storage>::copy_host_array_to_aow(
   storage_type** aow, std::vector<T>& host_array)
 {
-  thrust::device_vector<T> device_array = host_array;
-  auto device_ptr                       = (uint64_t*)thrust::raw_pointer_cast(device_array.data());
-
   uint64_t num_elements = host_array.size();
-  host_array.clear();
-
   *aow = new storage_type(make_valid_extent<cg_size, window_size>(extent<size_t>{num_elements + 1}),
                           allocator_);
-  initialize_aow(*aow, device_ptr, num_elements);
+
+  if (num_elements > 0) {
+    thrust::device_vector<T> device_array = host_array;
+    auto device_ptr = (uint64_t*)thrust::raw_pointer_cast(device_array.data());
+
+    host_array.clear();
+
+    initialize_aow(*aow, device_ptr, num_elements);
+  }
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
