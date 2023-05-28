@@ -1,5 +1,5 @@
 #!/bin/bash
-# Copyright (c) 2018-2022, NVIDIA CORPORATION.
+# Copyright (c) 2018-2023, NVIDIA CORPORATION.
 ##############################
 # cuCollections Style Tester #
 ##############################
@@ -19,7 +19,7 @@ CLANG_FORMAT=`pre-commit run clang-format --all-files 2>&1`
 CLANG_FORMAT_RETVAL=$?
 
 # Run doxygen check
-DOXYGEN_CHECK=`ci/checks/doxygen.sh`
+DOXYGEN_CHECK=`.github/ci/pre-commit/doxygen.sh`
 DOXYGEN_CHECK_RETVAL=$?
 
 echo -e "$DOXYGEN_CHECK"
