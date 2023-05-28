@@ -117,13 +117,6 @@ void bit_vector<Key, Extent, Scope, Allocator, Storage>::set_last(bool bit)
   set(n_bits_ - 1, bit);
 }
 
-template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-size_t bit_vector<Key, Extent, Scope, Allocator, Storage>::memory_footprint() const
-{
-  return sizeof(uint64_t) * words_.size() + sizeof(rank) * (ranks_.size() + ranks0_.size()) +
-         sizeof(uint64_t) * (selects_.size() + selects0_.size());
-}
-
 template <typename WindowT, class T>
 __global__ void copy_to_window(WindowT* windows, cuco::detail::index_type n, T* values)
 {

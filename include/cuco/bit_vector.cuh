@@ -87,7 +87,6 @@ class bit_vector {
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
   size_t size() const { return n_bits_; }
-  size_t memory_footprint() const;
 
  private:
   uint64_t n_bits_;
