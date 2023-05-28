@@ -1,0 +1,5 @@
+gpus:
+  - 'v100'
+
+pull-request:
+- {cuda: '12.1', os: 'ubuntu22.04', cpu: 'amd64', compiler: {name: 'gcc', version: '12', exe: 'g++'}, gpu_build_archs: '70,80', std: [17]}
