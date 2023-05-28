@@ -1,3 +1,3 @@
-!/bin/bash
+#!/bin/bash
 
- echo "build cuco"
+echo "build cuco"
