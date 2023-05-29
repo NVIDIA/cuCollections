@@ -63,7 +63,7 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
 
-    const uint64_t rank_id = binary_search_selects_array(key, ref_.selects_ref_, ref_.ranks_ref_);
+    const uint64_t rank_id = binary_search_ranks_array(key, ref_.selects_ref_, ref_.ranks_ref_);
     uint64_t word_id       = subtract_offset(key, rank_id, ref_.ranks_ref_);
 
     return (word_id * 64) + ith_set_pos(key, ref_.words_ref_[word_id][0]);
@@ -73,14 +73,14 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
 
-    const uint64_t rank_id = binary_search_selects_array(key, ref_.selects0_ref_, ref_.ranks0_ref_);
+    const uint64_t rank_id = binary_search_ranks_array(key, ref_.selects0_ref_, ref_.ranks0_ref_);
     uint64_t word_id       = subtract_offset(key, rank_id, ref_.ranks0_ref_);
 
     return (word_id * 64) + ith_set_pos(key, ~ref_.words_ref_[word_id][0]);
   }
 
  private:
-  [[nodiscard]] __device__ uint64_t binary_search_selects_array(
+  [[nodiscard]] __device__ uint64_t binary_search_ranks_array(
     uint64_t key, const StorageRef& selects_ref, const StorageRef& ranks_ref) const noexcept
   {
     uint64_t block_id = key / 256;

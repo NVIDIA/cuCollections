@@ -7,15 +7,27 @@ namespace experimental {
 
 struct Rank;
 
+/**
+ * @brief Device non-owning "ref" type that can be used in device code to perform arbitrary
+ * operations defined in `include/cuco/operator.hpp`
+ *
+ * @tparam StorageRef Storage ref type
+ * @tparam Operators Device operator options defined in `include/cuco/operator.hpp`
+ */
 template <typename StorageRef, typename... Operators>
 class bit_vector_ref
   : public detail::operator_impl<Operators, bit_vector_ref<StorageRef, Operators...>>... {
  public:
   using storage_ref_type = StorageRef;  ///< Type of storage ref
+
   /**
    * @brief Constructs bit_vector_ref.
    *
-   * @param storage_ref Non-owning ref of slot storage
+   * @param words_ref Non-owning ref of words slot storage
+   * @param ranks_ref Non-owning ref of ranks slot storage
+   * @param selects_ref Non-owning ref of selects slot storage
+   * @param ranks0_ref Non-owning ref of ranks0 slot storage
+   * @param selects0_ref Non-owning ref of selects0 slot storage
    */
   __host__ __device__ explicit constexpr bit_vector_ref(storage_ref_type words_ref,
                                                         storage_ref_type ranks_ref,
@@ -33,5 +45,3 @@ class bit_vector_ref
 
 }  // namespace experimental
 }  // namespace cuco
-
-//#include <cuco/detail/bit_vector/bit_vector_ref.inl>
