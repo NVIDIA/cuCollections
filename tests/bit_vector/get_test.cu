@@ -44,7 +44,7 @@ TEST_CASE("Get test", "")
 
   size_t num_set_ref = 0;
   for (size_t i = 0; i < num_elements; i++) {
-    bv.add(modulo_bitgen(i));
+    bv.append(modulo_bitgen(i));
     num_set_ref += modulo_bitgen(i);
   }
   bv.build();

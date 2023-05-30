@@ -43,7 +43,7 @@ bit_vector<Key, Extent, Scope, Allocator, Storage>::~bit_vector()
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-void bit_vector<Key, Extent, Scope, Allocator, Storage>::add(bool bit)
+void bit_vector<Key, Extent, Scope, Allocator, Storage>::append(bool bit)
 {
   if (n_bits_ % 256 == 0) { words_.resize((n_bits_ + 256) / 64); }
   set(n_bits_, bit);

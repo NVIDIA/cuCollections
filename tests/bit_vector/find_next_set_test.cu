@@ -44,7 +44,7 @@ TEST_CASE("Find next set test", "")
   cuco::experimental::bit_vector bv;
 
   for (size_t i = 0; i < num_elements; i++) {
-    bv.add(modulo_bitgen(i));
+    bv.append(modulo_bitgen(i));
   }
   bv.build();
 

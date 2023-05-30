@@ -97,9 +97,11 @@ class bit_vector {
   /**
    * @brief adds a new bit at the end
    *
+   * Grows internal storage if needed
+   *
    * @param bit Boolean value of new bit to be added
    */
-  void add(bool bit);
+  void append(bool bit);
 
   /**
    * @brief Builds indexes for rank and select

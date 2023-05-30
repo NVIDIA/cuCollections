@@ -56,7 +56,7 @@ TEST_CASE("Select test", "")
 
   uint64_t num_set = 0;
   for (size_t i = 0; i < num_elements; i++) {
-    bv.add(modulo_bitgen(i));
+    bv.append(modulo_bitgen(i));
     num_set += modulo_bitgen(i);
   }
   bv.build();
