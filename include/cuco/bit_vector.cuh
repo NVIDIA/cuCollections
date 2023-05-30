@@ -42,7 +42,10 @@ struct rank {
    *
    * @return The base rank
    */
-  __host__ __device__ uint64_t abs() const { return ((uint64_t)abs_hi_ << 8) | abs_lo_; }
+  __host__ __device__ uint64_t abs() const
+  {
+    return (static_cast<uint64_t>(abs_hi_) << 8) | abs_lo_;
+  }
 
   /**
    * @brief Sets base rank of current 256-bit interval
@@ -51,8 +54,8 @@ struct rank {
    */
   void set_abs(uint64_t abs)
   {
-    abs_hi_ = (uint32_t)(abs >> 8);
-    abs_lo_ = (uint8_t)abs;
+    abs_hi_ = static_cast<uint32_t>(abs >> 8);
+    abs_lo_ = static_cast<uint8_t>(abs);
   }
 };
 /**

@@ -131,14 +131,15 @@ __global__ void copy_to_window(WindowT* windows, cuco::detail::index_type n, T* 
 }
 
 template <class Storage, class T>
-void initialize_aow(Storage* storage, T* ptr, uint64_t num_elements)
+void initialize_aow(Storage* storage, thrust::device_vector<T>& device_array, uint64_t num_elements)
 {
   auto constexpr stride = 4;
   auto const grid_size  = (num_elements + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
                          (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
+  auto device_ptr = reinterpret_cast<uint64_t*>(thrust::raw_pointer_cast(device_array.data()));
   copy_to_window<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
-    storage->data(), num_elements, ptr);
+    storage->data(), num_elements, device_ptr);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
@@ -152,11 +153,8 @@ void bit_vector<Key, Extent, Scope, Allocator, Storage>::copy_host_array_to_aow(
 
   if (num_elements > 0) {
     thrust::device_vector<T> device_array = host_array;
-    auto device_ptr = (uint64_t*)thrust::raw_pointer_cast(device_array.data());
-
     host_array.clear();
-
-    initialize_aow(*aow, device_ptr, num_elements);
+    initialize_aow(*aow, device_array, num_elements);
   }
 }
 
