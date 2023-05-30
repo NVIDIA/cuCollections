@@ -77,15 +77,13 @@ union rank_union {
  * Bitvector construction happens on host, after which the structures are moved to device.
  * All subsequent read-only operations access device structures only.
  *
- * @tparam Key Type of the index that specifies which bit to access/modify
  * @tparam Extent Data structure size type
  * @tparam Scope The scope in which operations will be performed by individual threads.
  * @tparam Allocator Type of allocator used for device storage
  * @tparam Storage Slot window storage type
  */
 
-template <class Key                = uint64_t,
-          class Extent             = cuco::experimental::extent<std::size_t>,
+template <class Extent             = cuco::experimental::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class Allocator          = cuco::cuda_allocator<std::byte>,
           class Storage            = cuco::experimental::aow_storage<1>>
@@ -110,13 +108,14 @@ class bit_vector {
    */
   void build();
 
+  using size_type = typename Extent::value_type;  ///< size type to specify bit index
   /**
    * @brief Modifies a single bit
    *
-   * @param key position of bit to be modified
+   * @param index position of bit to be modified
    * @param bit new value of bit
    */
-  void set(Key key, bool bit);
+  void set(size_type index, bool bit);
 
   /**
    * @brief Sets last bit to specified value
@@ -133,7 +132,7 @@ class bit_vector {
     decltype(make_valid_extent<cg_size, window_size>(std::declval<Extent>()));  ///< Extent type
   using allocator_type = Allocator;                                             ///< Allocator type
   using storage_type =
-    detail::storage<Storage, Key, extent_type, allocator_type>;  ///< Storage type
+    detail::storage<Storage, size_type, extent_type, allocator_type>;  ///< Storage type
 
   using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
   template <typename... Operators>
