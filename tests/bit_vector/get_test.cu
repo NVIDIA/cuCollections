@@ -24,7 +24,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 template <class BitVectorRef>
-__global__ void get_kernel(BitVectorRef ref, size_t n, uint32_t* output)
+__global__ void get_kernel(BitVectorRef ref, size_t n, uint64_t* output)
 {
   size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
@@ -34,16 +34,15 @@ __global__ void get_kernel(BitVectorRef ref, size_t n, uint32_t* output)
   }
 }
 
-bool modulo_bitgen(uint32_t i) { return i % 7 == 0; }
+bool modulo_bitgen(uint64_t i) { return i % 7 == 0; }
 
 TEST_CASE("Get test", "")
 {
   constexpr std::size_t num_elements{400};
 
-  using Key = uint64_t;
   cuco::experimental::bit_vector bv;
 
-  uint32_t num_set_ref = 0;
+  size_t num_set_ref = 0;
   for (size_t i = 0; i < num_elements; i++) {
     bv.add(modulo_bitgen(i));
     num_set_ref += modulo_bitgen(i);
@@ -51,7 +50,7 @@ TEST_CASE("Get test", "")
   bv.build();
 
   auto ref = bv.ref(cuco::experimental::bv_read);
-  thrust::device_vector<uint32_t> get_result(num_elements);
+  thrust::device_vector<uint64_t> get_result(num_elements);
   get_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(get_result.data()));
 
   size_t num_set = thrust::reduce(thrust::device, get_result.begin(), get_result.end(), 0);
