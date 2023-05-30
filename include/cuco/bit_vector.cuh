@@ -124,8 +124,8 @@ class bit_vector {
    */
   void set_last(bool bit);
 
-  static constexpr auto cg_size      = 1;      ///< CG size used to for probing
-  static constexpr auto window_size  = 1;      ///< Window size used to for probing
+  static constexpr auto cg_size      = 1;      ///< CG size used for probing
+  static constexpr auto window_size  = 1;      ///< Window size used for probing
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
   using extent_type =
