@@ -60,11 +60,11 @@ namespace cuco::detail {
 template <typename Key>
 struct XXHash_32 {
  private:
-  static constexpr std::uint32_t prime1 = 0x9E3779B1u;
-  static constexpr std::uint32_t prime2 = 0x85EBCA77u;
-  static constexpr std::uint32_t prime3 = 0xC2B2AE3Du;
-  static constexpr std::uint32_t prime4 = 0x27D4EB2Fu;
-  static constexpr std::uint32_t prime5 = 0x165667B1u;
+  static constexpr std::uint32_t prime1 = 0x9e3779b1u;
+  static constexpr std::uint32_t prime2 = 0x85ebca77u;
+  static constexpr std::uint32_t prime3 = 0xc2b2ae3du;
+  static constexpr std::uint32_t prime4 = 0x27d4eb2fu;
+  static constexpr std::uint32_t prime5 = 0x165667b1u;
 
  public:
   using argument_type = Key;            ///< The type of the values taken as argument
@@ -314,7 +314,7 @@ struct XXHash_64 {
     // remaining data can be processed in 4-byte chunks
     if constexpr (((nbytes % 32) % 8) >= 4) {
       for (; offset <= nbytes - 4; offset += 4) {
-        h64 ^= (blocks4[offset / 4] & 0xFFFFFFFFull) * prime1;
+        h64 ^= (blocks4[offset / 4] & 0xffffffffull) * prime1;
         h64 = rotl(h64, 23) * prime2 + prime3;
       }
     }
@@ -323,7 +323,7 @@ struct XXHash_64 {
     // block size
     if constexpr (nbytes % 4) {
       while (offset < nbytes) {
-        h64 += (bytes[offset] & 0xFF) * prime5;
+        h64 += (bytes[offset] & 0xff) * prime5;
         h64 = rotl(h64, 11) * prime1;
         ++offset;
       }
