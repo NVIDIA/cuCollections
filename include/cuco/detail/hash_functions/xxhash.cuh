@@ -90,7 +90,7 @@ struct XXHash_32 {
     auto const bytes      = reinterpret_cast<char const*>(&key);           ///< per-byte access
     auto const blocks     = reinterpret_cast<std::uint32_t const*>(&key);  ///< 4-byte word access
 
-    std::uint32_t offset = 0;
+    std::size_t offset = 0;
     std::uint32_t h32;
 
     // data can be processed in 16-byte chunks
@@ -241,7 +241,7 @@ struct XXHash_64 {
     auto const blocks4    = reinterpret_cast<std::uint32_t const*>(&key);  ///< 4-byte word access
     auto const blocks8    = reinterpret_cast<std::uint64_t const*>(&key);  ///< 8-byte word access
 
-    std::uint64_t offset = 0;
+    std::size_t offset = 0;
     std::uint64_t h64;
 
     // data can be processed in 32-byte chunks
