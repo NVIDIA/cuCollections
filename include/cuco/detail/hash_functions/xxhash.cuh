@@ -60,11 +60,11 @@ namespace cuco::detail {
 template <typename Key>
 struct XXHash_32 {
  private:
-  static constexpr std::uint32_t prime1 = 0x9E3779B1U;
-  static constexpr std::uint32_t prime2 = 0x85EBCA77U;
-  static constexpr std::uint32_t prime3 = 0xC2B2AE3DU;
-  static constexpr std::uint32_t prime4 = 0x27D4EB2FU;
-  static constexpr std::uint32_t prime5 = 0x165667B1U;
+  static constexpr std::uint32_t prime1 = 0x9E3779B1u;
+  static constexpr std::uint32_t prime2 = 0x85EBCA77u;
+  static constexpr std::uint32_t prime3 = 0xC2B2AE3Du;
+  static constexpr std::uint32_t prime4 = 0x27D4EB2Fu;
+  static constexpr std::uint32_t prime5 = 0x165667B1u;
 
  public:
   using argument_type = Key;            ///< The type of the values taken as argument
@@ -211,11 +211,11 @@ struct XXHash_32 {
 template <typename Key>
 struct XXHash_64 {
  private:
-  static constexpr std::uint64_t prime1 = 11400714785074694791ULL;
-  static constexpr std::uint64_t prime2 = 14029467366897019727ULL;
-  static constexpr std::uint64_t prime3 = 1609587929392839161ULL;
-  static constexpr std::uint64_t prime4 = 9650029242287828579ULL;
-  static constexpr std::uint64_t prime5 = 2870177450012600261ULL;
+  static constexpr std::uint64_t prime1 = 11400714785074694791ull;
+  static constexpr std::uint64_t prime2 = 14029467366897019727ull;
+  static constexpr std::uint64_t prime3 = 1609587929392839161ull;
+  static constexpr std::uint64_t prime4 = 9650029242287828579ull;
+  static constexpr std::uint64_t prime5 = 2870177450012600261ull;
 
  public:
   using argument_type = Key;            ///< The type of the values taken as argument
@@ -317,7 +317,7 @@ struct XXHash_64 {
     // remaining data can be processed in 4-byte chunks
     if constexpr (((nbytes % 32) % 8) >= 4) {
       for (; offset <= nbytes - 4; offset += 4) {
-        h64 ^= (blocks4[offset / 4] & 0xFFFFFFFFULL) * prime1;
+        h64 ^= (blocks4[offset / 4] & 0xFFFFFFFFull) * prime1;
         h64 = rotl(h64, 23) * prime2 + prime3;
       }
     }
