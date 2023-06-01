@@ -19,6 +19,8 @@
 #include <cuco/detail/__config>
 #include <cuco/hash_functions.cuh>
 
+#include <thrust/device_vector.h>
+
 #include <catch2/catch_test_macros.hpp>
 
 template <int32_t Words>
@@ -34,66 +36,86 @@ struct large_key {
   int32_t data_[Words];
 };
 
+template <typename Hash>
+__host__ __device__ bool check_hash_result(typename Hash::argument_type const& key,
+                                           typename Hash::result_type seed,
+                                           typename Hash::result_type expected) noexcept
+{
+  Hash h(seed);
+  return (h(key) == expected);
+}
+
+template <typename OutputIter>
+__global__ void check_hash_result_kernel_64(OutputIter result)
+{
+  result[0] = check_hash_result<cuco::xxhash_64<int32_t>>(0, 0, 4246796580750024372);
+  result[1] = check_hash_result<cuco::xxhash_64<int32_t>>(0, 42, 3614696996920510707);
+  result[2] = check_hash_result<cuco::xxhash_64<int32_t>>(42, 0, 15516826743637085169);
+  result[3] = check_hash_result<cuco::xxhash_64<int32_t>>(123456789, 0, 9462334144942111946);
+
+  result[4] = check_hash_result<cuco::xxhash_64<int64_t>>(0, 0, 3803688792395291579);
+  result[5] = check_hash_result<cuco::xxhash_64<int64_t>>(0, 42, 13194218611613725804);
+  result[6] = check_hash_result<cuco::xxhash_64<int64_t>>(42, 0, 13066772586158965587);
+  result[7] = check_hash_result<cuco::xxhash_64<int64_t>>(123456789, 0, 14662639848940634189);
+
+#if defined(CUCO_HAS_INT128)
+  result[8] = check_hash_result<cuco::xxhash_64<__int128>>(123456789, 0, 7986913354431084250);
+#endif
+
+  result[9] = check_hash_result<cuco::xxhash_64<large_key<32>>>(123456789, 0, 2031761887105658523);
+}
+
 TEST_CASE("Test cuco::xxhash_64", "")
 {
   // Reference hash values were computed using https://github.com/Cyan4973/xxHash
   SECTION("Check if host-generated hash values match the reference implementation.")
   {
-    int32_t k1  = 0;                  // key
-    uint64_t s1 = 0;                  // seed
-    cuco::xxhash_64<int32_t> h1(s1);  // hasher
-    CHECK(h1(k1) == 4246796580750024372ULL);
+    CHECK(check_hash_result<cuco::xxhash_64<int32_t>>(0, 0, 4246796580750024372));
+    CHECK(check_hash_result<cuco::xxhash_64<int32_t>>(0, 42, 3614696996920510707));
+    CHECK(check_hash_result<cuco::xxhash_64<int32_t>>(42, 0, 15516826743637085169));
+    CHECK(check_hash_result<cuco::xxhash_64<int32_t>>(123456789, 0, 9462334144942111946));
 
-    int32_t k2  = 0;                  // key
-    uint64_t s2 = 42;                 // seed
-    cuco::xxhash_64<int32_t> h2(s2);  // hasher
-    CHECK(h2(k2) == 3614696996920510707ULL);
-
-    int32_t k3  = 42;                 // key
-    uint64_t s3 = 0;                  // seed
-    cuco::xxhash_64<int32_t> h3(s3);  // hasher
-    CHECK(h3(k3) == 15516826743637085169ULL);
-
-    int32_t k4  = 123456789;          // key
-    uint64_t s4 = 0;                  // seed
-    cuco::xxhash_64<int32_t> h4(s4);  // hasher
-    CHECK(h4(k4) == 9462334144942111946ULL);
-
-    int64_t k5  = 0;                  // key
-    uint64_t s5 = 0;                  // seed
-    cuco::xxhash_64<int64_t> h5(s5);  // hasher
-    CHECK(h5(k5) == 3803688792395291579ULL);
-
-    int64_t k6  = 0;                  // key
-    uint64_t s6 = 42;                 // seed
-    cuco::xxhash_64<int64_t> h6(s6);  // hasher
-    CHECK(h6(k6) == 13194218611613725804ULL);
-
-    int64_t k7  = 42;                 // key
-    uint64_t s7 = 0;                  // seed
-    cuco::xxhash_64<int64_t> h7(s7);  // hasher
-    CHECK(h7(k7) == 13066772586158965587ULL);
-
-    int64_t k8  = 123456789;          // key
-    uint64_t s8 = 0;                  // seed
-    cuco::xxhash_64<int64_t> h8(s8);  // hasher
-    CHECK(h8(k8) == 14662639848940634189ULL);
+    CHECK(check_hash_result<cuco::xxhash_64<int64_t>>(0, 0, 3803688792395291579));
+    CHECK(check_hash_result<cuco::xxhash_64<int64_t>>(0, 42, 13194218611613725804));
+    CHECK(check_hash_result<cuco::xxhash_64<int64_t>>(42, 0, 13066772586158965587));
+    CHECK(check_hash_result<cuco::xxhash_64<int64_t>>(123456789, 0, 14662639848940634189));
 
 #if defined(CUCO_HAS_INT128)
-    __int128 k9 = 123456789;           // key
-    uint64_t s9 = 0;                   // seed
-    cuco::xxhash_64<__int128> h9(s9);  // hasher
-    CHECK(h9(k9) == 7986913354431084250ULL);
+    CHECK(check_hash_result<cuco::xxhash_64<__int128>>(123456789, 0, 7986913354431084250));
 #endif
 
     // 32*4=128-byte key to test the pipelined outermost hashing loop
-    large_key<32> k10(123456789);             // key
-    uint64_t s10 = 0;                         // seed
-    cuco::xxhash_64<large_key<32>> h10(s10);  // hasher
-    CHECK(h10(k10) == 2031761887105658523ULL);
+    CHECK(check_hash_result<cuco::xxhash_64<large_key<32>>>(123456789, 0, 2031761887105658523));
   }
 
-  // TODO SECTION("Check if device-generated hash values match the reference implementation.")
+  SECTION("Check if device-generated hash values match the reference implementation.")
+  {
+    thrust::device_vector<bool> result(10);
+
+    check_hash_result_kernel_64<<<1, 1>>>(result.begin());
+
+    CHECK(cuco::test::all_of(result.begin(), result.end(), [] __device__(bool v) { return v; }));
+  }
+}
+
+template <typename OutputIter>
+__global__ void check_hash_result_kernel_32(OutputIter result)
+{
+  result[0] = check_hash_result<cuco::xxhash_32<int32_t>>(0, 0, 148298089);
+  result[1] = check_hash_result<cuco::xxhash_32<int32_t>>(0, 42, 2132181312);
+  result[2] = check_hash_result<cuco::xxhash_32<int32_t>>(42, 0, 1161967057);
+  result[3] = check_hash_result<cuco::xxhash_32<int32_t>>(123456789, 0, 2987034094);
+
+  result[4] = check_hash_result<cuco::xxhash_32<int64_t>>(0, 0, 3736311059);
+  result[5] = check_hash_result<cuco::xxhash_32<int64_t>>(0, 42, 1076387279);
+  result[6] = check_hash_result<cuco::xxhash_32<int64_t>>(42, 0, 2332451213);
+  result[7] = check_hash_result<cuco::xxhash_32<int64_t>>(123456789, 0, 1561711919);
+
+#if defined(CUCO_HAS_INT128)
+  result[8] = check_hash_result<cuco::xxhash_32<__int128>>(123456789, 0, 1846633701);
+#endif
+
+  result[9] = check_hash_result<cuco::xxhash_32<large_key<32>>>(123456789, 0, 3715432378);
 }
 
 TEST_CASE("Test cuco::xxhash_32", "")
@@ -101,57 +123,30 @@ TEST_CASE("Test cuco::xxhash_32", "")
   // Reference hash values were computed using https://github.com/Cyan4973/xxHash
   SECTION("Check if host-generated hash values match the reference implementation.")
   {
-    int32_t k1  = 0;                  // key
-    uint32_t s1 = 0;                  // seed
-    cuco::xxhash_32<int32_t> h1(s1);  // hasher
-    CHECK(h1(k1) == 148298089);
+    CHECK(check_hash_result<cuco::xxhash_32<int32_t>>(0, 0, 148298089));
+    CHECK(check_hash_result<cuco::xxhash_32<int32_t>>(0, 42, 2132181312));
+    CHECK(check_hash_result<cuco::xxhash_32<int32_t>>(42, 0, 1161967057));
+    CHECK(check_hash_result<cuco::xxhash_32<int32_t>>(123456789, 0, 2987034094));
 
-    int32_t k2  = 0;                  // key
-    uint32_t s2 = 42;                 // seed
-    cuco::xxhash_32<int32_t> h2(s2);  // hasher
-    CHECK(h2(k2) == 2132181312);
-
-    int32_t k3  = 42;                 // key
-    uint32_t s3 = 0;                  // seed
-    cuco::xxhash_32<int32_t> h3(s3);  // hasher
-    CHECK(h3(k3) == 1161967057);
-
-    int32_t k4  = 123456789;          // key
-    uint32_t s4 = 0;                  // seed
-    cuco::xxhash_32<int32_t> h4(s4);  // hasher
-    CHECK(h4(k4) == 2987034094);
-
-    int64_t k5  = 0;                  // key
-    uint32_t s5 = 0;                  // seed
-    cuco::xxhash_32<int64_t> h5(s5);  // hasher
-    CHECK(h5(k5) == 3736311059);
-
-    int64_t k6  = 0;                  // key
-    uint32_t s6 = 42;                 // seed
-    cuco::xxhash_32<int64_t> h6(s6);  // hasher
-    CHECK(h6(k6) == 1076387279);
-
-    int64_t k7  = 42;                 // key
-    uint32_t s7 = 0;                  // seed
-    cuco::xxhash_32<int64_t> h7(s7);  // hasher
-    CHECK(h7(k7) == 2332451213);
-
-    int64_t k8  = 123456789;          // key
-    uint32_t s8 = 0;                  // seed
-    cuco::xxhash_32<int64_t> h8(s8);  // hasher
-    CHECK(h8(k8) == 1561711919);
+    CHECK(check_hash_result<cuco::xxhash_32<int64_t>>(0, 0, 3736311059));
+    CHECK(check_hash_result<cuco::xxhash_32<int64_t>>(0, 42, 1076387279));
+    CHECK(check_hash_result<cuco::xxhash_32<int64_t>>(42, 0, 2332451213));
+    CHECK(check_hash_result<cuco::xxhash_32<int64_t>>(123456789, 0, 1561711919));
 
 #if defined(CUCO_HAS_INT128)
-    __int128 k9 = 123456789;           // key
-    uint32_t s9 = 0;                   // seed
-    cuco::xxhash_32<__int128> h9(s9);  // hasher
-    CHECK(h9(k9) == 1846633701);
+    CHECK(check_hash_result<cuco::xxhash_32<__int128>>(123456789, 0, 1846633701));
 #endif
 
     // 32*4=128-byte key to test the pipelined outermost hashing loop
-    large_key<32> k10(123456789);             // key
-    uint64_t s10 = 0;                         // seed
-    cuco::xxhash_32<large_key<32>> h10(s10);  // hasher
-    CHECK(h10(k10) == 3715432378);
+    CHECK(check_hash_result<cuco::xxhash_32<large_key<32>>>(123456789, 0, 3715432378));
+  }
+
+  SECTION("Check if device-generated hash values match the reference implementation.")
+  {
+    thrust::device_vector<bool> result(10);
+
+    check_hash_result_kernel_32<<<1, 1>>>(result.begin());
+
+    CHECK(cuco::test::all_of(result.begin(), result.end(), [] __device__(bool v) { return v; }));
   }
 }
