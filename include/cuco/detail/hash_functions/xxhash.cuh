@@ -134,7 +134,7 @@ struct XXHash_32 {
       }
     }
 
-    // the following loop is only needed if the size of the key is no multiple of the block size
+    // the following loop is only needed if the size of the key is not a multiple of the block size
     if constexpr (nbytes % 4) {
       while (offset < nbytes) {
         h32 += (bytes[offset] & 255) * prime5;
@@ -319,8 +319,8 @@ struct XXHash_64 {
       }
     }
 
-    // the following loop is only needed if the size of the key is no multiple of a previous block
-    // size
+    // the following loop is only needed if the size of the key is not a multiple of a previous
+    // block size
     if constexpr (nbytes % 4) {
       while (offset < nbytes) {
         h64 += (bytes[offset] & 0xFF) * prime5;
