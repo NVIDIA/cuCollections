@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/open_addressing_base.cuh>
+#include <cuco/detail/open_addressing_impl.cuh>
 
 #include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/prime.hpp>
@@ -91,26 +91,24 @@ template <class Key,
                                                              cuco::murmurhash3_32<Key>>,
           class Allocator          = cuco::cuda_allocator<std::byte>,
           class Storage            = cuco::experimental::aow_storage<1>>
-class static_set
-  : public detail::
-      open_addressing_base<Key, Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage> {
-  using base_type = detail::
-    open_addressing_base<Key, Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>;
+class static_set {
+  using impl_type = detail::
+    open_addressing_impl<Key, Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>;
 
  public:
-  static constexpr auto cg_size      = base_type::cg_size;       ///< CG size used for probing
-  static constexpr auto window_size  = base_type::window_size;   ///< Window size used for probing
-  static constexpr auto thread_scope = base_type::thread_scope;  ///< CUDA thread scope
+  static constexpr auto cg_size      = impl_type::cg_size;       ///< CG size used for probing
+  static constexpr auto window_size  = impl_type::window_size;   ///< Window size used for probing
+  static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
 
-  using key_type       = typename base_type::key_type;        ///< Key type
-  using value_type     = typename base_type::value_type;      ///< Key type
-  using extent_type    = typename base_type::extent_type;     ///< Extent type
-  using size_type      = typename base_type::size_type;       ///< Size type
-  using key_equal      = typename base_type::key_equal;       ///< Key equality comparator type
-  using allocator_type = typename base_type::allocator_type;  ///< Allocator type
+  using key_type       = typename impl_type::key_type;        ///< Key type
+  using value_type     = typename impl_type::value_type;      ///< Key type
+  using extent_type    = typename impl_type::extent_type;     ///< Extent type
+  using size_type      = typename impl_type::size_type;       ///< Size type
+  using key_equal      = typename impl_type::key_equal;       ///< Key equality comparator type
+  using allocator_type = typename impl_type::allocator_type;  ///< Allocator type
   /// Non-owning window storage ref type
-  using storage_ref_type    = typename base_type::storage_ref_type;
-  using probing_scheme_type = typename base_type::probing_scheme_type;  ///< Probing scheme type
+  using storage_ref_type    = typename impl_type::storage_ref_type;
+  using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
 
   template <typename... Operators>
   using ref_type =
@@ -120,6 +118,19 @@ class static_set
                                        probing_scheme_type,
                                        storage_ref_type,
                                        Operators...>;  ///< Non-owning container ref type
+
+  static_set(static_set const&) = delete;
+  static_set& operator=(static_set const&) = delete;
+
+  static_set(static_set&&) = default;  ///< Move constructor
+
+  /**
+   * @brief Replaces the contents of the container with another container.
+   *
+   * @return Reference of the current map object
+   */
+  static_set& operator=(static_set&&) = default;
+  ~static_set()                       = default;
 
   /**
    * @brief Constructs a statically-sized set with the specified initial capacity, sentinel values
@@ -399,6 +410,30 @@ class static_set
   [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream = {}) const;
 
   /**
+   * @brief Gets the number of elements in the container.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @param stream CUDA stream used to get the number of inserted elements
+   * @return The number of elements in the container
+   */
+  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief Gets the maximum number of elements the hash map can hold.
+   *
+   * @return The maximum number of elements the hash map can hold
+   */
+  [[nodiscard]] constexpr auto capacity() const noexcept;
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty key slot.
+   *
+   * @return The sentinel value used to represent an empty key slot
+   */
+  [[nodiscard]] constexpr key_type empty_key_sentinel() const noexcept;
+
+  /**
    * @brief Get device ref with operators.
    *
    * @tparam Operators Set of `cuco::op` to be provided by the ref
@@ -409,8 +444,10 @@ class static_set
    */
   template <typename... Operators>
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
-};
 
+ private:
+  std::unique_ptr<impl_type const> static_set_impl_;
+};
 }  // namespace experimental
 }  // namespace cuco
 

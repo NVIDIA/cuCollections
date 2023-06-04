@@ -31,7 +31,7 @@ namespace cuco {
 namespace experimental {
 namespace detail {
 /**
- * @brief An open addressing base class.
+ * @brief An open addressing impl class.
  *
  * @note This class should NOT be used directly.
  *
@@ -58,7 +58,7 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-class open_addressing_base {
+class open_addressing_impl {
   static_assert(sizeof(Value) <= 8, "Container does not support slot types larger than 8 bytes.");
 
   static_assert(
@@ -89,19 +89,6 @@ class open_addressing_base {
   using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
   using probing_scheme_type = ProbingScheme;                 ///< Probe scheme type
 
-  open_addressing_base(open_addressing_base const&) = delete;
-  open_addressing_base& operator=(open_addressing_base const&) = delete;
-
-  open_addressing_base(open_addressing_base&&) = default;  ///< Move constructor
-
-  /**
-   * @brief Replaces the contents of the container with another container.
-   *
-   * @return Reference of the current map object
-   */
-  open_addressing_base& operator=(open_addressing_base&&) = default;
-  ~open_addressing_base()                                 = default;
-
   /**
    * @brief Constructs a statically-sized open addressing data structure with the specified initial
    * capacity, sentinel values and CUDA stream.
@@ -122,7 +109,7 @@ class open_addressing_base {
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the data structure
    */
-  constexpr open_addressing_base(Extent capacity,
+  constexpr open_addressing_impl(Extent capacity,
                                  key_type empty_key_sentinel,
                                  value_type empty_slot_sentinel,
                                  KeyEqual pred                       = {},
@@ -181,6 +168,37 @@ class open_addressing_base {
   {
     return empty_key_sentinel_;
   }
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty key slot.
+   *
+   * @return The sentinel value used to represent an empty key slot
+   */
+  [[nodiscard]] constexpr key_equal predicate() const noexcept { return predicate_; }
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty key slot.
+   *
+   * @return The sentinel value used to represent an empty key slot
+   */
+  [[nodiscard]] constexpr probing_scheme_type probing_scheme() const noexcept
+  {
+    return probing_scheme_;
+  }
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty key slot.
+   *
+   * @return The sentinel value used to represent an empty key slot
+   */
+  [[nodiscard]] constexpr allocator_type allocator() const noexcept { return allocator_; }
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty key slot.
+   *
+   * @return The sentinel value used to represent an empty key slot
+   */
+  [[nodiscard]] constexpr storage_ref_type storage_ref() const noexcept { return storage_.ref(); }
 
  protected:
   key_type empty_key_sentinel_;         ///< Key value that represents an empty slot
