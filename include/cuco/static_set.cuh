@@ -16,8 +16,9 @@
 
 #pragma once
 
+#include <cuco/detail/open_addressing_base.cuh>
+
 #include <cuco/cuda_stream_ref.hpp>
-#include <cuco/detail/__config>
 #include <cuco/detail/prime.hpp>
 #include <cuco/extent.cuh>
 #include <cuco/hash_functions.cuh>
@@ -90,36 +91,27 @@ template <class Key,
                                                              cuco::murmurhash3_32<Key>>,
           class Allocator          = cuco::cuda_allocator<std::byte>,
           class Storage            = cuco::experimental::aow_storage<1>>
-class static_set {
-  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
-
-  static_assert(
-    cuco::is_bitwise_comparable_v<Key>,
-    "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
-
-  static_assert(
-    std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
-                      ProbingScheme>,
-    "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+class static_set
+  : public detail::
+      open_addressing_base<Key, Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage> {
+  using base_type = detail::
+    open_addressing_base<Key, Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>;
 
  public:
-  static constexpr auto cg_size      = ProbingScheme::cg_size;  ///< CG size used to for probing
-  static constexpr auto window_size  = Storage::window_size;    ///< Window size used to for probing
-  static constexpr auto thread_scope = Scope;                   ///< CUDA thread scope
+  static constexpr auto cg_size      = base_type::cg_size;       ///< CG size used for probing
+  static constexpr auto window_size  = base_type::window_size;   ///< Window size used for probing
+  static constexpr auto thread_scope = base_type::thread_scope;  ///< CUDA thread scope
 
-  using key_type   = Key;  ///< Key type
-  using value_type = Key;  ///< Key type
-  /// Extent type
-  using extent_type    = decltype(make_valid_extent<cg_size, window_size>(std::declval<Extent>()));
-  using size_type      = typename extent_type::value_type;  ///< Size type
-  using key_equal      = KeyEqual;                          ///< Key equality comparator type
-  using allocator_type = Allocator;                         ///< Allocator type
-  using storage_type =
-    detail::storage<Storage, value_type, extent_type, allocator_type>;  ///< Storage type
+  using key_type       = typename base_type::key_type;        ///< Key type
+  using value_type     = typename base_type::value_type;      ///< Key type
+  using extent_type    = typename base_type::extent_type;     ///< Extent type
+  using size_type      = typename base_type::size_type;       ///< Size type
+  using key_equal      = typename base_type::key_equal;       ///< Key equality comparator type
+  using allocator_type = typename base_type::allocator_type;  ///< Allocator type
+  /// Non-owning window storage ref type
+  using storage_ref_type    = typename base_type::storage_ref_type;
+  using probing_scheme_type = typename base_type::probing_scheme_type;  ///< Probing scheme type
 
-  using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
-  using probing_scheme_type = ProbingScheme;                 ///< Probe scheme type
   template <typename... Operators>
   using ref_type =
     cuco::experimental::static_set_ref<key_type,
@@ -128,19 +120,6 @@ class static_set {
                                        probing_scheme_type,
                                        storage_ref_type,
                                        Operators...>;  ///< Non-owning container ref type
-
-  static_set(static_set const&) = delete;
-  static_set& operator=(static_set const&) = delete;
-
-  static_set(static_set&&) = default;  ///< Move constructor
-
-  /**
-   * @brief Replaces the contents of the container with another container.
-   *
-   * @return Reference of the current map object
-   */
-  static_set& operator=(static_set&&) = default;
-  ~static_set()                       = default;
 
   /**
    * @brief Constructs a statically-sized set with the specified initial capacity, sentinel values
@@ -159,7 +138,7 @@ class static_set {
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
    * @param alloc Allocator used for allocating device storage
-   * @param stream CUDA stream used to initialize the map
+   * @param stream CUDA stream used to initialize the set
    */
   constexpr static_set(Extent capacity,
                        empty_key<Key> empty_key_sentinel,
@@ -420,30 +399,6 @@ class static_set {
   [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief Gets the number of elements in the container.
-   *
-   * @note This function synchronizes the given stream.
-   *
-   * @param stream CUDA stream used to get the number of inserted elements
-   * @return The number of elements in the container
-   */
-  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const noexcept;
-
-  /**
-   * @brief Gets the maximum number of elements the hash map can hold.
-   *
-   * @return The maximum number of elements the hash map can hold
-   */
-  [[nodiscard]] constexpr auto capacity() const noexcept;
-
-  /**
-   * @brief Gets the sentinel value used to represent an empty key slot.
-   *
-   * @return The sentinel value used to represent an empty key slot
-   */
-  [[nodiscard]] constexpr key_type empty_key_sentinel() const noexcept;
-
-  /**
    * @brief Get device ref with operators.
    *
    * @tparam Operators Set of `cuco::op` to be provided by the ref
@@ -454,13 +409,6 @@ class static_set {
    */
   template <typename... Operators>
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
-
- private:
-  key_type empty_key_sentinel_;         ///< Key value that represents an empty slot
-  key_equal predicate_;                 ///< Key equality binary predicate
-  probing_scheme_type probing_scheme_;  ///< Probing scheme
-  allocator_type allocator_;            ///< Allocator used to (de)allocate temporary storage
-  storage_type storage_;                ///< Slot window storage
 };
 
 }  // namespace experimental

@@ -52,13 +52,8 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   ProbingScheme const& probing_scheme,
   Allocator const& alloc,
   cuda_stream_ref stream)
-  : empty_key_sentinel_{empty_key_sentinel},
-    predicate_{pred},
-    probing_scheme_{probing_scheme},
-    allocator_{alloc},
-    storage_{make_valid_extent<cg_size, window_size>(capacity), allocator_}
+  : base_type{capacity, empty_key_sentinel, empty_key_sentinel, pred, probing_scheme, alloc, stream}
 {
-  storage_.initialize(empty_key_sentinel_, stream);
 }
 
 template <class Key,
@@ -76,7 +71,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ins
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return 0; }
 
-  auto counter = detail::counter_storage<size_type, thread_scope, allocator_type>{allocator_};
+  auto counter = detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator_};
   counter.reset(stream);
 
   auto const grid_size =
@@ -130,7 +125,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ins
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return 0; }
 
-  auto counter = detail::counter_storage<size_type, thread_scope, allocator_type>{allocator_};
+  auto counter = detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator_};
   counter.reset(stream);
 
   auto const grid_size =
@@ -303,17 +298,18 @@ template <typename OutputIt>
 OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   OutputIt output_begin, cuda_stream_ref stream) const
 {
-  auto begin  = thrust::make_transform_iterator(thrust::counting_iterator<size_type>(0),
-                                               detail::get_slot<storage_ref_type>(storage_.ref()));
-  auto filled = detail::slot_is_filled<key_type>(empty_key_sentinel_);
+  auto begin =
+    thrust::make_transform_iterator(thrust::counting_iterator<size_type>(0),
+                                    detail::get_slot<storage_ref_type>(this->storage_.ref()));
+  auto filled = detail::slot_is_filled<key_type>(this->empty_key_sentinel());
 
   std::size_t temp_storage_bytes = 0;
   using temp_allocator_type = typename std::allocator_traits<allocator_type>::rebind_alloc<char>;
-  auto temp_allocator       = temp_allocator_type{allocator_};
+  auto temp_allocator       = temp_allocator_type{this->allocator_};
   auto d_num_out            = reinterpret_cast<size_type*>(
     std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
   CUCO_CUDA_TRY(cub::DeviceSelect::If(
-    nullptr, temp_storage_bytes, begin, output_begin, d_num_out, capacity(), filled, stream));
+    nullptr, temp_storage_bytes, begin, output_begin, d_num_out, this->capacity(), filled, stream));
 
   // Allocate temporary storage
   auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
@@ -323,7 +319,7 @@ OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
                                       begin,
                                       output_begin,
                                       d_num_out,
-                                      capacity(),
+                                      this->capacity(),
                                       filled,
                                       stream));
 
@@ -345,68 +341,15 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
-  cuda_stream_ref stream) const noexcept
-{
-  auto counter = detail::counter_storage<size_type, thread_scope, allocator_type>{allocator_};
-  counter.reset(stream);
-
-  auto const grid_size =
-    (storage_.num_windows() + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
-
-  // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
-  // v2.1.0
-  detail::size<detail::CUCO_DEFAULT_BLOCK_SIZE>
-    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      storage_.ref(), this->empty_key_sentinel(), counter.data());
-
-  return counter.load_to_host(stream);
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-constexpr auto
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::capacity()
-  const noexcept
-{
-  return storage_.capacity();
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_type
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::empty_key_sentinel()
-  const noexcept
-{
-  return empty_key_sentinel_;
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
 template <typename... Operators>
 auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref(
   Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
-  return ref_type<Operators...>{
-    cuco::empty_key<key_type>(empty_key_sentinel_), predicate_, probing_scheme_, storage_.ref()};
+  return ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel_),
+                                this->predicate_,
+                                this->probing_scheme_,
+                                this->storage_.ref()};
 }
 }  // namespace experimental
 }  // namespace cuco
