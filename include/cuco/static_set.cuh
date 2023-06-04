@@ -153,7 +153,7 @@ class static_set {
    */
   constexpr static_set(Extent capacity,
                        empty_key<Key> empty_key_sentinel,
-                       KeyEqual pred                       = {},
+                       KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
