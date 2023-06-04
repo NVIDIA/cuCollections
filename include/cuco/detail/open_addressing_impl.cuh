@@ -49,7 +49,6 @@ namespace detail {
  * @tparam Allocator Type of allocator used for device storage
  * @tparam Storage Slot window storage type
  */
-
 template <class Key,
           class Value,
           class Extent,
