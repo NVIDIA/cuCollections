@@ -168,12 +168,12 @@ class operator_impl<op::insert_tag,
     using insert_result = typename ref_type::insert_result;
 
     ref_type& ref_    = static_cast<ref_type&>(*this);
-    auto probing_iter = ref_.probing_scheme_(value, ref_.storage_ref_.num_windows());
+    auto probing_iter = ref_.probing_scheme_(value, ref_.storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = ref_.storage_ref_[*probing_iter];
 
-      // TODO: perf gain with #pragma unroll since num_windows is build time constant
+      // TODO: perf gain with #pragma unroll since window_extent is build time constant
       for (auto& slot_content : window_slots) {
         auto const eq_res = ref_.predicate_(slot_content, value);
 
@@ -206,7 +206,7 @@ class operator_impl<op::insert_tag,
     using insert_result = typename ref_type::insert_result;
 
     auto& ref_        = static_cast<ref_type&>(*this);
-    auto probing_iter = ref_.probing_scheme_(group, value, ref_.storage_ref_.num_windows());
+    auto probing_iter = ref_.probing_scheme_(group, value, ref_.storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = ref_.storage_ref_[*probing_iter];
@@ -284,7 +284,7 @@ class operator_impl<op::insert_and_find_tag,
     using insert_result = typename ref_type::insert_result;
 
     ref_type& ref_    = static_cast<ref_type&>(*this);
-    auto probing_iter = ref_.probing_scheme_(value, ref_.storage_ref_.num_windows());
+    auto probing_iter = ref_.probing_scheme_(value, ref_.storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = ref_.storage_ref_[*probing_iter];
@@ -330,7 +330,7 @@ class operator_impl<op::insert_and_find_tag,
     using insert_result = typename ref_type::insert_result;
 
     ref_type& ref_    = static_cast<ref_type&>(*this);
-    auto probing_iter = ref_.probing_scheme_(group, value, ref_.storage_ref_.num_windows());
+    auto probing_iter = ref_.probing_scheme_(group, value, ref_.storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = ref_.storage_ref_[*probing_iter];
@@ -414,7 +414,7 @@ class operator_impl<op::contains_tag,
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
 
-    auto probing_iter = ref_.probing_scheme_(key, ref_.storage_ref_.num_windows());
+    auto probing_iter = ref_.probing_scheme_(key, ref_.storage_ref_.window_extent());
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
@@ -449,7 +449,7 @@ class operator_impl<op::contains_tag,
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
 
-    auto probing_iter = ref_.probing_scheme_(group, key, ref_.storage_ref_.num_windows());
+    auto probing_iter = ref_.probing_scheme_(group, key, ref_.storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = ref_.storage_ref_[*probing_iter];
@@ -536,7 +536,7 @@ class operator_impl<op::find_tag,
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
 
-    auto probing_iter = ref_.probing_scheme_(key, ref_.storage_ref_.num_windows());
+    auto probing_iter = ref_.probing_scheme_(key, ref_.storage_ref_.window_extent());
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
@@ -576,7 +576,7 @@ class operator_impl<op::find_tag,
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
 
-    auto probing_iter = ref_.probing_scheme_(group, key, ref_.storage_ref_.num_windows());
+    auto probing_iter = ref_.probing_scheme_(group, key, ref_.storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = ref_.storage_ref_[*probing_iter];

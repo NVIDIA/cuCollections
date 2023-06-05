@@ -71,20 +71,30 @@ class storage_base {
    *
    * @param size Number of elements to (de)allocate
    */
-  explicit constexpr storage_base(Extent size) : capacity_{size} {}
+  explicit constexpr storage_base(Extent size) : extent_{size} {}
 
   /**
    * @brief Gets the total number of elements in the current storage.
    *
    * @return The total number of elements
    */
-  [[nodiscard]] __host__ __device__ constexpr extent_type capacity() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr size_type capacity() const noexcept
   {
-    return capacity_;
+    return static_cast<size_type>(extent_);
+  }
+
+  /**
+   * @brief Gets the extent of the current storage.
+   *
+   * @return The extent.
+   */
+  [[nodiscard]] __host__ __device__ constexpr extent_type extent() const noexcept
+  {
+    return extent_;
   }
 
  protected:
-  extent_type capacity_;  ///< Total number of elements
+  extent_type extent_;  ///< Total number of elements
 };
 
 }  // namespace detail

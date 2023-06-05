@@ -67,7 +67,7 @@ class aow_storage_base : public storage_base<Extent> {
    *
    * @return The total number of slot windows
    */
-  [[nodiscard]] __host__ __device__ constexpr extent_type num_windows() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr size_type num_windows() const noexcept
   {
     return storage_base<Extent>::capacity();
   }
@@ -77,9 +77,19 @@ class aow_storage_base : public storage_base<Extent> {
    *
    * @return The total number of slots
    */
-  [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr size_type capacity() const noexcept
   {
-    return storage_base<Extent>::capacity().template multiply<window_size>();
+    return storage_base<Extent>::capacity() * window_size;
+  }
+
+  /**
+   * @brief Gets the window extent of the current storage.
+   *
+   * @return The window extent.
+   */
+  [[nodiscard]] __host__ __device__ constexpr extent_type window_extent() const noexcept
+  {
+    return storage_base<Extent>::extent();
   }
 };
 
@@ -320,7 +330,7 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
    */
   [[nodiscard]] constexpr ref_type ref() const noexcept
   {
-    return ref_type{this->num_windows(), this->data()};
+    return ref_type{this->window_extent(), this->data()};
   }
 
   /**

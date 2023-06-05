@@ -71,6 +71,8 @@ class static_set_ref
                       ProbingScheme>,
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
+  // TODO static_assert that StorageRef::extent_type is valid_extent
+
  public:
   using key_type            = Key;                                     ///< Key Type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme

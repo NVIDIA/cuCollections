@@ -38,7 +38,7 @@ namespace detail {
 template <typename SizeType, cuda::thread_scope Scope, typename Allocator>
 class counter_storage : public storage_base<cuco::experimental::extent<SizeType, 1>> {
  public:
-  using storage_base<cuco::experimental::extent<SizeType, 1>>::capacity_;  ///< Storage size
+  using storage_base<cuco::experimental::extent<SizeType, 1>>::capacity;  ///< Storage size
 
   using size_type      = SizeType;                        ///< Size type
   using value_type     = cuda::atomic<size_type, Scope>;  ///< Type of the counter
@@ -56,8 +56,8 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
     : storage_base<cuco::experimental::extent<SizeType, 1>>{cuco::experimental::extent<size_type,
                                                                                        1>{}},
       allocator_{allocator},
-      counter_deleter_{capacity_, allocator_},
-      counter_{allocator_.allocate(capacity_), counter_deleter_}
+      counter_deleter_{this->capacity(), allocator_},
+      counter_{allocator_.allocate(this->capacity()), counter_deleter_}
   {
   }
 

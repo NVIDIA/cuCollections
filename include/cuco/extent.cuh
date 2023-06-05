@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <cuco/detail/prime.hpp>
-
 #include <cstddef>
 #include <cstdint>
 
@@ -46,19 +44,6 @@ struct extent {
    * @return Extent size
    */
   __host__ __device__ constexpr operator value_type() const noexcept { return N; }
-
-  /**
-   * @brief Multiplies the current extent with the given `Value`.
-   *
-   * @tparam Value The input value to multiply with
-   *
-   * @return Resulting static extent
-   */
-  template <int32_t Value>
-  __host__ __device__ constexpr auto multiply() const noexcept
-  {
-    return extent<value_type, N * Value>{};
-  }
 };
 
 /**
@@ -84,22 +69,22 @@ struct extent<SizeType, dynamic_extent> {
    */
   __host__ __device__ constexpr operator value_type() const noexcept { return value_; }
 
-  /**
-   * @brief Multiplies the current extent with the given `Value`.
-   *
-   * @tparam Value The input value to multiply with
-   *
-   * @return Resulting extent
-   */
-  template <int32_t Value>
-  __host__ __device__ constexpr auto multiply() const noexcept
-  {
-    return extent<value_type>{Value * value_};
-  }
-
  private:
   value_type value_;  ///< Extent value
 };
+
+/**
+ * @brief Valid extent strong type.
+ *
+ * @note This type is used internally and can only be constructed using the `make_valid_extent'
+ * factory method.
+ *
+ * @tparam SizeType Size type
+ * @tparam N Extent
+ *
+ */
+template <typename SizeType, std::size_t N>
+struct valid_extent;
 
 /**
  * @brief Computes valid extent based on given parameters.
@@ -120,30 +105,9 @@ struct extent<SizeType, dynamic_extent> {
  * @return Resulting valid extent
  */
 template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
-[[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
-{
-  auto constexpr max_prime = cuco::detail::primes.back();
-  auto constexpr max_value =
-    (static_cast<uint64_t>(std::numeric_limits<SizeType>::max()) < max_prime)
-      ? std::numeric_limits<SizeType>::max()
-      : static_cast<SizeType>(max_prime);
-  auto const size = SDIV(ext, CGSize * WindowSize);
-  if (size <= 0 or size > max_value) { CUCO_FAIL("Invalid input extent"); }
-
-  if constexpr (N == dynamic_extent) {
-    return extent<SizeType>{static_cast<SizeType>(
-      *cuco::detail::lower_bound(
-        cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
-      CGSize)};
-  }
-  if constexpr (N != dynamic_extent) {
-    return extent<SizeType,
-                  static_cast<std::size_t>(*cuco::detail::lower_bound(cuco::detail::primes.begin(),
-                                                                      cuco::detail::primes.end(),
-                                                                      static_cast<uint64_t>(size)) *
-                                           CGSize)>{};
-  }
-}
+[[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext);
 
 }  // namespace experimental
 }  // namespace cuco
+
+#include <cuco/detail/extent/extent.inl>
