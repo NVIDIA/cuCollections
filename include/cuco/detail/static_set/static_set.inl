@@ -69,23 +69,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cuda_stream_ref stream)
 {
-  auto const num_keys = cuco::detail::distance(first, last);
-  if (num_keys == 0) { return 0; }
-
-  auto counter =
-    detail::counter_storage<size_type, thread_scope, allocator_type>{static_set_impl_->allocator()};
-  counter.reset(stream);
-
-  auto const grid_size =
-    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
-
-  auto const always_true = thrust::constant_iterator<bool>{true};
-  detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, num_keys, always_true, thrust::identity{}, counter.data(), ref(op::insert));
-
-  return counter.load_to_host(stream);
+  return static_set_impl_->insert(first, last, ref(op::insert), stream);
 }
 
 template <class Key,
@@ -99,17 +83,7 @@ template <typename InputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_async(
   InputIt first, InputIt last, cuda_stream_ref stream) noexcept
 {
-  auto const num_keys = cuco::detail::distance(first, last);
-  if (num_keys == 0) { return; }
-
-  auto const grid_size =
-    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
-
-  auto const always_true = thrust::constant_iterator<bool>{true};
-  detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, num_keys, always_true, thrust::identity{}, ref(op::insert));
+  static_set_impl_->insert_async(first, last, ref(op::insert), stream);
 }
 
 template <class Key,
@@ -124,22 +98,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream)
 {
-  auto const num_keys = cuco::detail::distance(first, last);
-  if (num_keys == 0) { return 0; }
-
-  auto counter =
-    detail::counter_storage<size_type, thread_scope, allocator_type>{static_set_impl_->allocator()};
-  counter.reset(stream);
-
-  auto const grid_size =
-    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
-
-  detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, num_keys, stencil, pred, counter.data(), ref(op::insert));
-
-  return counter.load_to_host(stream);
+  return static_set_impl_->insert_if(first, last, stencil, pred, ref(op::insert), stream);
 }
 
 template <class Key,
@@ -153,16 +112,7 @@ template <typename InputIt, typename StencilIt, typename Predicate>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if_async(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream) noexcept
 {
-  auto const num_keys = cuco::detail::distance(first, last);
-  if (num_keys == 0) { return; }
-
-  auto const grid_size =
-    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
-
-  detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-      first, num_keys, stencil, pred, ref(op::insert));
+  static_set_impl_->insert_if_async(first, last, stencil, pred, ref(op::insert), stream);
 }
 
 template <class Key,

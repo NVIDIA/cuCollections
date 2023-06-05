@@ -26,6 +26,7 @@
 #include <cuco/storage.cuh>
 #include <cuco/utility/traits.hpp>
 
+#include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
@@ -100,8 +101,8 @@ class open_addressing_impl {
    *
    * The actual capacity depends on the given `capacity`, the probing scheme, CG size, and the
    * window size and it's computed via `make_valid_extent` factory. Insert operations will not
-   * automatically grow the set. Attempting to insert more unique keys than the capacity of the map
-   * results in undefined behavior.
+   * automatically grow the container. Attempting to insert more unique keys than the capacity of
+   * the map results in undefined behavior.
    *
    * The `empty_key_sentinel` is reserved and behavior is undefined when attempting to insert
    * this sentinel value.
@@ -129,6 +130,162 @@ class open_addressing_impl {
       storage_{make_valid_extent<cg_size, window_size>(capacity), allocator_}
   {
     storage_.initialize(this->empty_slot_sentinel_, stream);
+  }
+
+  /**
+   * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
+   * insertions.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `insert_async`.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * open_addressing_impl::value_type></tt> is `true`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream CUDA stream used for insert
+   *
+   * @return Number of successfully inserted keys
+   */
+  template <typename InputIt, typename Ref>
+  size_type insert(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream)
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return 0; }
+
+    auto counter =
+      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
+    counter.reset(stream);
+
+    auto const grid_size =
+      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+    auto const always_true = thrust::constant_iterator<bool>{true};
+    detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+        first, num_keys, always_true, thrust::identity{}, counter.data(), container_ref);
+
+    return counter.load_to_host(stream);
+  }
+
+  /**
+   * @brief Asynchonously inserts all keys in the range `[first, last)`.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * open_addressing_impl::value_type></tt> is `true`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt, typename Ref>
+  void insert_async(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream) noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size =
+      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+    auto const always_true = thrust::constant_iterator<bool>{true};
+    detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+        first, num_keys, always_true, thrust::identity{}, container_ref);
+  }
+
+  /**
+   * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
+   * true.
+   *
+   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   * @note This function synchronizes the given stream and returns the number of successful
+   * insertions. For asynchronous execution use `insert_if_async`.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for the operation
+   *
+   * @return Number of successfully inserted keys
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename Ref>
+  size_type insert_if(InputIt first,
+                      InputIt last,
+                      StencilIt stencil,
+                      Predicate pred,
+                      Ref container_ref,
+                      cuda_stream_ref stream)
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return 0; }
+
+    auto counter =
+      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
+    counter.reset(stream);
+
+    auto const grid_size =
+      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+    detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+        first, num_keys, stencil, pred, counter.data(), container_ref);
+
+    return counter.load_to_host(stream);
+  }
+
+  /**
+   * @brief Asynchonously inserts keys in the range `[first, last)` if `pred` of the corresponding
+   * stencil returns true.
+   *
+   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for the operation
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename Ref>
+  void insert_if_async(InputIt first,
+                       InputIt last,
+                       StencilIt stencil,
+                       Predicate pred,
+                       Ref container_ref,
+                       cuda_stream_ref stream) noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size =
+      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+    detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+        first, num_keys, stencil, pred, container_ref);
   }
 
   /**

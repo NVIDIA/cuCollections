@@ -22,9 +22,132 @@
 
 #include <cuda/atomic>
 
+#include <cooperative_groups.h>
+
 namespace cuco {
 namespace experimental {
 namespace detail {
+
+/**
+ * @brief Inserts all elements in the range `[first, first + n)` and returns the number of
+ * successful insertions if `pred` of the corresponding stencil returns true.
+ *
+ * @note If multiple elements in `[first, first + n)` compare equal, it is unspecified which element
+ * is inserted.
+ * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+ *
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIterator Device accessible input iterator whose `value_type` is
+ * convertible to the `value_type` of the data structure
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+ * @tparam AtomicT Atomic counter type
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+ * @param num_successes Number of successful inserted elements
+ * @param ref Non-owning set device ref used to access the slot storage
+ */
+template <int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIterator,
+          typename StencilIt,
+          typename Predicate,
+          typename AtomicT,
+          typename Ref>
+__global__ void insert_if_n(InputIterator first,
+                            cuco::detail::index_type n,
+                            StencilIt stencil,
+                            Predicate pred,
+                            AtomicT* num_successes,
+                            Ref ref)
+{
+  using BlockReduce = cub::BlockReduce<typename Ref::size_type, BlockSize>;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  typename Ref::size_type thread_num_successes = 0;
+
+  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
+  cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
+
+  while (idx < n) {
+    if (pred(*(stencil + idx))) {
+      typename Ref::value_type const insert_pair{*(first + idx)};
+      if constexpr (CGSize == 1) {
+        if (ref.insert(insert_pair)) { thread_num_successes++; };
+      } else {
+        auto const tile =
+          cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        if (ref.insert(tile, insert_pair) && tile.thread_rank() == 0) { thread_num_successes++; };
+      }
+    }
+    idx += loop_stride;
+  }
+
+  // compute number of successfully inserted elements for each block
+  // and atomically add to the grand total
+  typename Ref::size_type block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
+  if (threadIdx.x == 0) {
+    num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
+  }
+}
+
+/**
+ * @brief Inserts all elements in the range `[first, first + n)` if `pred` of the corresponding
+ * stencil returns true.
+ *
+ * @note If multiple elements in `[first, first + n)` compare equal, it is unspecified which element
+ * is inserted.
+ * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+ *
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIterator Device accessible input iterator whose `value_type` is
+ * convertible to the `value_type` of the data structure
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+ * @param ref Non-owning set device ref used to access the slot storage
+ */
+template <int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIterator,
+          typename StencilIt,
+          typename Predicate,
+          typename Ref>
+__global__ void insert_if_n(
+  InputIterator first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
+{
+  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
+  cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
+
+  while (idx < n) {
+    if (pred(*(stencil + idx))) {
+      typename Ref::value_type const insert_pair{*(first + idx)};
+      if constexpr (CGSize == 1) {
+        ref.insert(insert_pair);
+      } else {
+        auto const tile =
+          cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        ref.insert(tile, insert_pair);
+      }
+    }
+    idx += loop_stride;
+  }
+}
+
 /**
  * @brief Calculates the number of filled slots for the given window storage.
  *
