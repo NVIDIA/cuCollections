@@ -22,36 +22,6 @@ namespace experimental {
 namespace detail {
 
 /**
- * @brief Device functor returning the content of the slot indexed by `idx`.
- *
- * @tparam StorageRef Storage ref type
- */
-template <typename StorageRef>
-struct get_slot {
-  StorageRef storage_;  ///< Storage ref
-
-  /**
-   * @brief Constructs `get_slot` functor with the given storage ref.
-   *
-   * @param s Input storage ref
-   */
-  get_slot(StorageRef s) : storage_{s} {}
-
-  /**
-   * @brief Accesses the slot content with the given index.
-   *
-   * @param idx The slot index
-   * @return The slot content
-   */
-  __device__ typename StorageRef::value_type operator()(typename StorageRef::size_type idx) const
-  {
-    auto const window_idx = idx / StorageRef::window_size;
-    auto const intra_idx  = idx % StorageRef::window_size;
-    return storage_[window_idx][intra_idx];
-  }
-};
-
-/**
  * @brief Device functor returning whether the input slot indexed by `idx` is filled.
  *
  * @tparam T The slot content type

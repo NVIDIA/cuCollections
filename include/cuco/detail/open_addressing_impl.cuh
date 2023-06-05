@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/detail/__config>
+#include <cuco/detail/common_functors.cuh>
 #include <cuco/detail/common_kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/tuning.cuh>
@@ -24,6 +25,11 @@
 #include <cuco/probing_scheme.cuh>
 #include <cuco/storage.cuh>
 #include <cuco/utility/traits.hpp>
+
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
+
+#include <cub/device/device_select.cuh>
 
 #include <cuda/atomic>
 
@@ -123,6 +129,71 @@ class open_addressing_impl {
       storage_{make_valid_extent<cg_size, window_size>(capacity), allocator_}
   {
     storage_.initialize(this->empty_slot_sentinel_, stream);
+  }
+
+  /**
+   * @brief Retrieves all keys contained in the set.
+   *
+   * @note This API synchronizes the given stream.
+   * @note The order in which keys are returned is implementation defined and not guaranteed to be
+   * consistent between subsequent calls to `retrieve_all`.
+   * @note Behavior is undefined if the range beginning at `keys_out` is smaller than the return
+   * value of `size()`.
+   *
+   * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
+   * convertible from the container's `key_type`
+   * @tparam IsFilled Type of predicate indicating if the given slot is filled
+   *
+   * @param output_begin Beginning output iterator for keys
+   * @param is_filled Predicate indicating if the given slot is filled
+   * @param stream CUDA stream used for this operation
+   *
+   * @return Iterator indicating the end of the output
+   */
+  template <typename OutputIt, typename IsFilled>
+  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin,
+                                      IsFilled const& is_filled,
+                                      cuda_stream_ref stream) const
+  {
+    auto begin =
+      thrust::make_transform_iterator(thrust::counting_iterator<size_type>(0),
+                                      detail::get_slot<storage_ref_type>(this->storage_ref()));
+
+    std::size_t temp_storage_bytes = 0;
+    using temp_allocator_type = typename std::allocator_traits<allocator_type>::rebind_alloc<char>;
+    auto temp_allocator       = temp_allocator_type{this->allocator()};
+    auto d_num_out            = reinterpret_cast<size_type*>(
+      std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
+    CUCO_CUDA_TRY(cub::DeviceSelect::If(nullptr,
+                                        temp_storage_bytes,
+                                        begin,
+                                        output_begin,
+                                        d_num_out,
+                                        this->capacity(),
+                                        is_filled,
+                                        stream));
+
+    // Allocate temporary storage
+    auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
+
+    CUCO_CUDA_TRY(cub::DeviceSelect::If(d_temp_storage,
+                                        temp_storage_bytes,
+                                        begin,
+                                        output_begin,
+                                        d_num_out,
+                                        this->capacity(),
+                                        is_filled,
+                                        stream));
+
+    size_type h_num_out;
+    CUCO_CUDA_TRY(
+      cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
+    stream.synchronize();
+    std::allocator_traits<temp_allocator_type>::deallocate(
+      temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(size_type));
+    temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
+
+    return output_begin + h_num_out;
   }
 
   /**

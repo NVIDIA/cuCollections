@@ -322,40 +322,8 @@ OutputIt
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   OutputIt output_begin, cuda_stream_ref stream) const
 {
-  auto begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>(0),
-    detail::get_slot<storage_ref_type>(static_map_impl_->storage_ref()));
-  auto filled = detail::slot_is_filled<key_type>(this->empty_key_sentinel());
-
-  std::size_t temp_storage_bytes = 0;
-  using temp_allocator_type = typename std::allocator_traits<allocator_type>::rebind_alloc<char>;
-  auto temp_allocator       = temp_allocator_type{static_map_impl_->allocator()};
-  auto d_num_out            = reinterpret_cast<size_type*>(
-    std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
-  CUCO_CUDA_TRY(cub::DeviceSelect::If(
-    nullptr, temp_storage_bytes, begin, output_begin, d_num_out, this->capacity(), filled, stream));
-
-  // Allocate temporary storage
-  auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
-
-  CUCO_CUDA_TRY(cub::DeviceSelect::If(d_temp_storage,
-                                      temp_storage_bytes,
-                                      begin,
-                                      output_begin,
-                                      d_num_out,
-                                      this->capacity(),
-                                      filled,
-                                      stream));
-
-  size_type h_num_out;
-  CUCO_CUDA_TRY(
-    cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
-  stream.synchronize();
-  std::allocator_traits<temp_allocator_type>::deallocate(
-    temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(size_type));
-  temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
-
-  return output_begin + h_num_out;
+  auto const is_filled = detail::slot_is_filled<key_type>(this->empty_key_sentinel());
+  return static_map_impl_->retrieve_all(output_begin, is_filled, stream);
 }
 
 template <class Key,
