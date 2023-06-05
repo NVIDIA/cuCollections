@@ -118,10 +118,10 @@ class open_addressing_impl {
   constexpr open_addressing_impl(Extent capacity,
                                  key_type empty_key_sentinel,
                                  value_type empty_slot_sentinel,
-                                 KeyEqual pred                       = {},
-                                 ProbingScheme const& probing_scheme = {},
-                                 Allocator const& alloc              = {},
-                                 cuda_stream_ref stream              = {})
+                                 KeyEqual pred,
+                                 ProbingScheme const& probing_scheme,
+                                 Allocator const& alloc,
+                                 cuda_stream_ref stream)
     : empty_key_sentinel_{empty_key_sentinel},
       empty_slot_sentinel_{empty_slot_sentinel},
       predicate_{pred},
@@ -297,6 +297,90 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * the container.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt, typename Ref>
+  void contains_async(InputIt first,
+                      InputIt last,
+                      OutputIt output_begin,
+                      Ref container_ref,
+                      cuda_stream_ref stream) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size =
+      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+    auto const always_true = thrust::constant_iterator<bool>{true};
+    detail::contains_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+        first, num_keys, always_true, thrust::identity{}, output_begin, container_ref);
+  }
+
+  /**
+   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * the container if `pred` of the corresponding stencil returns true.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
+   * indicating if the key `*(first + i)` is present int the container. If `pred( *(stencil + i) )`
+   * is false, stores false to `(output_begin + i)`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt,
+            typename StencilIt,
+            typename Predicate,
+            typename OutputIt,
+            typename Ref>
+  void contains_if_async(InputIt first,
+                         InputIt last,
+                         StencilIt stencil,
+                         Predicate pred,
+                         OutputIt output_begin,
+                         Ref container_ref,
+                         cuda_stream_ref stream) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size =
+      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+    detail::contains_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+        first, num_keys, stencil, pred, output_begin, container_ref);
+  }
+
+  /**
    * @brief Retrieves all keys contained in the container.
    *
    * @note This API synchronizes the given stream.
@@ -369,7 +453,7 @@ class open_addressing_impl {
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const noexcept
+  [[nodiscard]] size_type size(cuda_stream_ref stream) const noexcept
   {
     auto counter = detail::counter_storage<size_type, thread_scope, allocator_type>{allocator_};
     counter.reset(stream);
