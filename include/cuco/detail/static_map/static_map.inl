@@ -18,7 +18,6 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/static_map/functors.cuh>
-#include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/tuning.cuh>
 #include <cuco/detail/utils.hpp>
