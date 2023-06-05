@@ -142,9 +142,11 @@ class open_addressing_impl {
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
    * open_addressing_impl::value_type></tt> is `true`
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
+   * @param container_ref Non-owning device container ref used to access the slot storage
    * @param stream CUDA stream used for insert
    *
    * @return Number of successfully inserted keys
@@ -177,9 +179,11 @@ class open_addressing_impl {
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
    * open_addressing_impl::value_type></tt> is `true`
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
+   * @param container_ref Non-owning device container ref used to access the slot storage
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt, typename Ref>
@@ -212,12 +216,14 @@ class open_addressing_impl {
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
    * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
    *
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
    * @param stencil Beginning of the stencil sequence
    * @param pred Predicate to test on every element in the range `[stencil, stencil +
    * std::distance(first, last))`
+   * @param container_ref Non-owning device container ref used to access the slot storage
    * @param stream CUDA stream used for the operation
    *
    * @return Number of successfully inserted keys
@@ -260,12 +266,14 @@ class open_addressing_impl {
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
    * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
    *
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
    * @param stencil Beginning of the stencil sequence
    * @param pred Predicate to test on every element in the range `[stencil, stencil +
    * std::distance(first, last))`
+   * @param container_ref Non-owning device container ref used to access the slot storage
    * @param stream CUDA stream used for the operation
    */
   template <typename InputIt, typename StencilIt, typename Predicate, typename Ref>
@@ -299,7 +307,7 @@ class open_addressing_impl {
    *
    * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
    * convertible from the container's `key_type`
-   * @tparam IsFilled Type of predicate indicating if the given slot is filled
+   * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
    * @param output_begin Beginning output iterator for keys
    * @param is_filled Predicate indicating if the given slot is filled
@@ -307,9 +315,9 @@ class open_addressing_impl {
    *
    * @return Iterator indicating the end of the output
    */
-  template <typename OutputIt, typename IsFilled>
+  template <typename OutputIt, typename Predicate>
   [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin,
-                                      IsFilled const& is_filled,
+                                      Predicate const& is_filled,
                                       cuda_stream_ref stream) const
   {
     auto begin =

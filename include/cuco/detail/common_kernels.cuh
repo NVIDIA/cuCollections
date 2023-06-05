@@ -45,7 +45,7 @@ namespace detail {
  * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
  * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
  * @tparam AtomicT Atomic counter type
- * @tparam Ref Type of non-owning device ref allowing access to storage
+ * @tparam Ref Type of non-owning device container ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
