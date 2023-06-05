@@ -41,13 +41,8 @@ struct valid_extent {
 
 template <typename SizeType>
 struct valid_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeType> {
-  using value_type = SizeType;  ///< Extent value type
-
-  __host__ __device__ constexpr value_type value() const noexcept
-  {
-    return static_cast<value_type>(*this);
-  }
-  __host__ __device__ explicit constexpr operator value_type() const noexcept { return value(); }
+  using value_type =
+    typename cuco::utility::fast_int<SizeType>::fast_int::value_type;  ///< Extent value type
 
  private:
   using cuco::utility::fast_int<SizeType>::fast_int;
