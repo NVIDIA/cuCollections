@@ -60,7 +60,8 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
                                                  pred,
                                                  probing_scheme,
                                                  alloc,
-                                                 stream)}
+                                                 stream)},
+    empty_value_sentinel_{empty_value_sentinel}
 {
 }
 
@@ -400,6 +401,22 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   const noexcept
 {
   return static_map_impl_->empty_key_sentinel();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  mapped_type
+  static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+    empty_value_sentinel() const noexcept
+{
+  return this->empty_value_sentinel_;
 }
 
 template <class Key,
