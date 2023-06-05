@@ -132,12 +132,12 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Retrieves all keys contained in the set.
+   * @brief Retrieves all keys contained in the container.
    *
    * @note This API synchronizes the given stream.
    * @note The order in which keys are returned is implementation defined and not guaranteed to be
    * consistent between subsequent calls to `retrieve_all`.
-   * @note Behavior is undefined if the range beginning at `keys_out` is smaller than the return
+   * @note Behavior is undefined if the range beginning at `output_begin` is smaller than the return
    * value of `size()`.
    *
    * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
