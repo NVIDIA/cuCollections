@@ -16,20 +16,11 @@
 
 #pragma once
 
-#include <cuco/detail/equal_wrapper.cuh>
-#include <cuco/detail/pair.cuh>
 #include <cuco/operator.hpp>
-#include <cuco/sentinel.cuh>
 
-#include <thrust/distance.h>
-#include <thrust/pair.h>
-
-#include <cuda/std/atomic>
+#include <cuda/atomic>
 
 #include <cooperative_groups.h>
-
-#include <cstdint>
-#include <type_traits>
 
 namespace cuco {
 namespace experimental {
@@ -53,11 +44,11 @@ __host__ __device__ constexpr static_map_ref<
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
                                 StorageRef storage_ref) noexcept
-  : empty_key_sentinel_{empty_key_sentinel},
+  : static_map_ref_impl_{cuco::pair{empty_key_sentinel, empty_value_sentinel},
+                         probing_scheme,
+                         storage_ref},
     empty_value_sentinel_{empty_value_sentinel},
-    predicate_{empty_key_sentinel, predicate},
-    probing_scheme_{probing_scheme},
-    storage_ref_{storage_ref}
+    predicate_{empty_key_sentinel, predicate}
 {
 }
 
@@ -72,7 +63,7 @@ __host__ __device__ constexpr auto
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
   const noexcept
 {
-  return storage_ref_.capacity();
+  return static_map_ref_impl_.capacity();
 }
 
 template <typename Key,
@@ -86,7 +77,7 @@ __host__ __device__ constexpr Key
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
   empty_key_sentinel() const noexcept
 {
-  return empty_key_sentinel_;
+  return predicate_.empty_sentinel_;
 }
 
 template <typename Key,
@@ -96,54 +87,72 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
-__device__
-  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::insert_result
-  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::attempt_insert(
-    value_type* slot, value_type const& value)
+__host__ __device__ constexpr T
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  empty_value_sentinel() const noexcept
 {
-  // temporary workaround due to performance regression
-  // https://github.com/NVIDIA/libcudacxx/issues/366
-  value_type const old = [&]() {
-    value_type expected = this->empty_key_sentinel();
-    value_type val      = value;
-    if constexpr (sizeof(value_type) == sizeof(unsigned int)) {
-      auto* expected_ptr = reinterpret_cast<unsigned int*>(&expected);
-      auto* value_ptr    = reinterpret_cast<unsigned int*>(&val);
-      if constexpr (Scope == cuda::thread_scope_system) {
-        return atomicCAS_system(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-      } else if constexpr (Scope == cuda::thread_scope_device) {
-        return atomicCAS(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-      } else if constexpr (Scope == cuda::thread_scope_block) {
-        return atomicCAS_block(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-      } else {
-        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-      }
-    }
-    if constexpr (sizeof(value_type) == sizeof(unsigned long long int)) {
-      auto* expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
-      auto* value_ptr    = reinterpret_cast<unsigned long long int*>(&val);
-      if constexpr (Scope == cuda::thread_scope_system) {
-        return atomicCAS_system(
-          reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-      } else if constexpr (Scope == cuda::thread_scope_device) {
-        return atomicCAS(
-          reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-      } else if constexpr (Scope == cuda::thread_scope_block) {
-        return atomicCAS_block(
-          reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-      } else {
-        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-      }
-    }
-  }();
-  if (*slot == old) {
-    // Shouldn't use `predicate_` operator directly since it includes a redundant bitwise compare
-    return predicate_.equal_to(old, value) == detail::equal_result::EQUAL ? insert_result::DUPLICATE
-                                                                          : insert_result::CONTINUE;
-  } else {
-    return insert_result::SUCCESS;
-  }
+  return empty_value_sentinel_;
 }
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+struct static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  predicate_wrapper {
+  detail::equal_wrapper<key_type, key_equal> predicate_;
+
+  /**
+   * @brief Map predicate wrapper ctor.
+   *
+   * @param sentinel Sentinel value
+   * @param equal Equality binary callable
+   */
+  __host__ __device__ constexpr predicate_wrapper(key_type empty_key_sentinel,
+                                                  key_equal const& equal)
+    : predicate_{empty_key_sentinel, equal}
+  {
+  }
+
+  /**
+   * @brief Equality check with the given equality callable.
+   *
+   * @tparam U Right-hand side Element type
+   *
+   * @param lhs Left-hand side element to check equality
+   * @param rhs Right-hand side element to check equality
+   *
+   * @return Three way equality comparison result
+   */
+  template <typename U>
+  __device__ constexpr detail::equal_result equal_to(value_type const& lhs,
+                                                     U const& rhs) const noexcept
+  {
+    return predicate_.equal_to(lhs.first, rhs);
+  }
+
+  /**
+   * @brief Order-sensitive equality operator.
+   *
+   * @note Container keys MUST be always on the left-hand side.
+   *
+   * @tparam U Right-hand side Element type
+   *
+   * @param lhs Left-hand side element to check equality
+   * @param rhs Right-hand side element to check equality
+   *
+   * @return Three way equality comparison result
+   */
+  template <typename U>
+  __device__ constexpr detail::equal_result operator()(value_type const& lhs,
+                                                       U const& rhs) const noexcept
+  {
+    return predicate_(lhs.first, rhs);
+  }
+};
 
 namespace detail {
 
@@ -174,32 +183,8 @@ class operator_impl<
    */
   __device__ bool insert(value_type const& value) noexcept
   {
-    using insert_result = typename ref_type::insert_result;
-
-    ref_type& ref_    = static_cast<ref_type&>(*this);
-    auto probing_iter = ref_.probing_scheme_(value, ref_.storage_ref_.num_windows());
-
-    while (true) {
-      auto const window_slots = ref_.storage_ref_[*probing_iter];
-
-      // TODO: perf gain with #pragma unroll since num_windows is build time constant
-      for (auto& slot_content : window_slots) {
-        auto const eq_res = ref_.predicate_(slot_content, value);
-
-        // If the key is already in the container, return false
-        if (eq_res == detail::equal_result::EQUAL) { return false; }
-        if (eq_res == detail::equal_result::EMPTY) {
-          auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          switch (ref_.attempt_insert(
-            (ref_.storage_ref_.data() + *probing_iter)->data() + intra_window_index, value)) {
-            case insert_result::CONTINUE: continue;
-            case insert_result::SUCCESS: return true;
-            case insert_result::DUPLICATE: return false;
-          }
-        }
-      }
-      ++probing_iter;
-    }
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.static_map_ref_impl_.insert(value, ref_.predicate_);
   }
 
   /**
@@ -212,48 +197,8 @@ class operator_impl<
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> group,
                          value_type const& value) noexcept
   {
-    using insert_result = typename ref_type::insert_result;
-
-    auto& ref_        = static_cast<ref_type&>(*this);
-    auto probing_iter = ref_.probing_scheme_(group, value, ref_.storage_ref_.num_windows());
-
-    while (true) {
-      auto const window_slots = ref_.storage_ref_[*probing_iter];
-
-      auto const [state, intra_window_index] = [&]() {
-        for (auto i = 0; i < window_size; ++i) {
-          switch (ref_.predicate_(window_slots[i], value)) {
-            case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
-            default: continue;
-          }
-        }
-        // returns dummy index `-1` for UNEQUAL
-        return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
-      }();
-
-      // If the key is already in the container, return false
-      if (group.any(state == detail::equal_result::EQUAL)) { return false; }
-
-      auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
-
-      if (group_contains_empty) {
-        auto const src_lane = __ffs(group_contains_empty) - 1;
-        auto const status =
-          (group.thread_rank() == src_lane)
-            ? ref_.attempt_insert(
-                (ref_.storage_ref_.data() + *probing_iter)->data() + intra_window_index, value)
-            : insert_result::CONTINUE;
-
-        switch (group.shfl(status, src_lane)) {
-          case insert_result::SUCCESS: return true;
-          case insert_result::DUPLICATE: return false;
-          default: continue;
-        }
-      } else {
-        ++probing_iter;
-      }
-    }
+    auto& ref_ = static_cast<ref_type&>(*this);
+    return ref_.static_map_ref_impl_.insert(group, value, ref_.predicate_);
   }
 };
 
@@ -292,34 +237,8 @@ class operator_impl<
    */
   __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
   {
-    using insert_result = typename ref_type::insert_result;
-
-    ref_type& ref_    = static_cast<ref_type&>(*this);
-    auto probing_iter = ref_.probing_scheme_(value, ref_.storage_ref_.num_windows());
-
-    while (true) {
-      auto const window_slots = ref_.storage_ref_[*probing_iter];
-
-      for (auto i = 0; i < window_size; ++i) {
-        auto const eq_res = ref_.predicate_(window_slots[i], value);
-        auto* window_ptr  = (ref_.storage_ref_.data() + *probing_iter)->data();
-
-        // If the key is already in the container, return false
-        if (eq_res == detail::equal_result::EQUAL) { return {iterator{&window_ptr[i]}, false}; }
-        if (eq_res == detail::equal_result::EMPTY) {
-          switch (ref_.attempt_insert(window_ptr + i, value)) {
-            case insert_result::SUCCESS: {
-              return {iterator{&window_ptr[i]}, true};
-            }
-            case insert_result::DUPLICATE: {
-              return {iterator{&window_ptr[i]}, false};
-            }
-            default: continue;
-          }
-        }
-      }
-      ++probing_iter;
-    };
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.static_map_ref_impl_.insert_and_find(value, ref_.predicate_);
   }
 
   /**
@@ -338,56 +257,8 @@ class operator_impl<
   __device__ thrust::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
   {
-    using insert_result = typename ref_type::insert_result;
-
-    ref_type& ref_    = static_cast<ref_type&>(*this);
-    auto probing_iter = ref_.probing_scheme_(group, value, ref_.storage_ref_.num_windows());
-
-    while (true) {
-      auto const window_slots = ref_.storage_ref_[*probing_iter];
-
-      auto const [state, intra_window_index] = [&]() {
-        for (auto i = 0; i < window_size; ++i) {
-          switch (ref_.predicate_(window_slots[i], value)) {
-            case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
-            default: continue;
-          }
-        }
-        // returns dummy index `-1` for UNEQUAL
-        return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
-      }();
-
-      auto* slot_ptr = (ref_.storage_ref_.data() + *probing_iter)->data() + intra_window_index;
-
-      // If the key is already in the container, return false
-      auto const group_finds_equal = group.ballot(state == detail::equal_result::EQUAL);
-      if (group_finds_equal) {
-        auto const src_lane = __ffs(group_finds_equal) - 1;
-        auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
-        return {iterator{reinterpret_cast<value_type*>(res)}, false};
-      }
-
-      auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
-      if (group_contains_empty) {
-        auto const src_lane = __ffs(group_contains_empty) - 1;
-        auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
-        auto const status = (group.thread_rank() == src_lane) ? ref_.attempt_insert(slot_ptr, value)
-                                                              : insert_result::CONTINUE;
-
-        switch (group.shfl(status, src_lane)) {
-          case insert_result::SUCCESS: {
-            return {iterator{reinterpret_cast<value_type*>(res)}, true};
-          }
-          case insert_result::DUPLICATE: {
-            return {iterator{reinterpret_cast<value_type*>(res)}, false};
-          }
-          default: continue;
-        }
-      } else {
-        ++probing_iter;
-      }
-    }
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.static_map_ref_impl_.insert_and_find(group, value, ref_.predicate_);
   }
 };
 
@@ -426,22 +297,7 @@ class operator_impl<
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-
-    auto probing_iter = ref_.probing_scheme_(key, ref_.storage_ref_.num_windows());
-
-    while (true) {
-      // TODO atomic_ref::load if insert operator is present
-      auto const window_slots = ref_.storage_ref_[*probing_iter];
-
-      for (auto& slot_content : window_slots) {
-        switch (ref_.predicate_(slot_content, key)) {
-          case detail::equal_result::UNEQUAL: continue;
-          case detail::equal_result::EMPTY: return false;
-          case detail::equal_result::EQUAL: return true;
-        }
-      }
-      ++probing_iter;
-    }
+    return ref_.static_map_ref_impl_.contains(key, ref_.predicate_);
   }
 
   /**
@@ -461,28 +317,7 @@ class operator_impl<
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-
-    auto probing_iter = ref_.probing_scheme_(group, key, ref_.storage_ref_.num_windows());
-
-    while (true) {
-      auto const window_slots = ref_.storage_ref_[*probing_iter];
-
-      auto const state = [&]() {
-        for (auto& slot : window_slots) {
-          switch (ref_.predicate_(slot, key)) {
-            case detail::equal_result::EMPTY: return detail::equal_result::EMPTY;
-            case detail::equal_result::EQUAL: return detail::equal_result::EQUAL;
-            default: continue;
-          }
-        }
-        return detail::equal_result::UNEQUAL;
-      }();
-
-      if (group.any(state == detail::equal_result::EQUAL)) { return true; }
-      if (group.any(state == detail::equal_result::EMPTY)) { return false; }
-
-      ++probing_iter;
-    }
+    return ref_.static_map_ref_impl_.contains(group, key, ref_.predicate_);
   }
 };
 
@@ -517,7 +352,7 @@ class operator_impl<
   [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.storage_ref_.end();
+    return ref_.static_map_ref_impl_.end();
   }
 
   /**
@@ -530,7 +365,7 @@ class operator_impl<
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.storage_ref_.end();
+    return ref_.static_map_ref_impl_.end();
   }
 
   /**
@@ -550,26 +385,7 @@ class operator_impl<
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-
-    auto probing_iter = ref_.probing_scheme_(key, ref_.storage_ref_.num_windows());
-
-    while (true) {
-      // TODO atomic_ref::load if insert operator is present
-      auto const window_slots = ref_.storage_ref_[*probing_iter];
-
-      for (auto i = 0; i < window_size; ++i) {
-        switch (ref_.predicate_(window_slots[i], key)) {
-          case detail::equal_result::EMPTY: {
-            return this->end();
-          }
-          case detail::equal_result::EQUAL: {
-            return const_iterator{&(*(ref_.storage_ref_.data() + *probing_iter))[i]};
-          }
-          default: continue;
-        }
-      }
-      ++probing_iter;
-    }
+    return ref_.static_map_ref_impl_.find(key, ref_.predicate_);
   }
 
   /**
@@ -590,40 +406,7 @@ class operator_impl<
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-
-    auto probing_iter = ref_.probing_scheme_(group, key, ref_.storage_ref_.num_windows());
-
-    while (true) {
-      auto const window_slots = ref_.storage_ref_[*probing_iter];
-
-      auto const [state, intra_window_index] = [&]() {
-        for (auto i = 0; i < window_size; ++i) {
-          switch (ref_.predicate_(window_slots[i], key)) {
-            case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
-            default: continue;
-          }
-        }
-        // returns dummy index `-1` for UNEQUAL
-        return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
-      }();
-
-      // Find a match for the probe key, thus return an iterator to the entry
-      auto const group_finds_match = group.ballot(state == detail::equal_result::EQUAL);
-      if (group_finds_match) {
-        auto const src_lane = __ffs(group_finds_match) - 1;
-        auto const res =
-          group.shfl(reinterpret_cast<intptr_t>(
-                       &(*(ref_.storage_ref_.data() + *probing_iter))[intra_window_index]),
-                     src_lane);
-        return const_iterator{reinterpret_cast<value_type*>(res)};
-      }
-
-      // Find an empty slot, meaning that the probe key isn't present in the set
-      if (group.any(state == detail::equal_result::EMPTY)) { return this->end(); }
-
-      ++probing_iter;
-    }
+    return ref_.static_map_ref_impl_.find(group, key, ref_.predicate_);
   }
 };
 

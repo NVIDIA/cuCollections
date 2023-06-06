@@ -112,7 +112,7 @@ class static_set_ref
 
  private:
   impl_type static_set_ref_impl_;
-  detail::equal_wrapper<value_type, key_equal> predicate_;  ///< Key equality binary callable
+  detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
 
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>

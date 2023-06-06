@@ -16,7 +16,9 @@
 
 #pragma once
 
-#include <cuco/detail/equal_wrapper.cuh>
+// TODO: reorder once its working
+#include <cuco/detail/open_addressing_ref_impl.cuh>
+
 #include <cuco/operator.hpp>
 #include <cuco/sentinel.cuh>
 
@@ -61,22 +63,7 @@ class static_map_ref
   : public detail::operator_impl<
       Operators,
       static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
-  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
-
-  static_assert(
-    cuco::is_bitwise_comparable_v<Key>,
-    "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
-
-  static_assert(cuco::is_bitwise_comparable_v<T>,
-                "Mapped type must have unique object representations or have been explicitly "
-                "declared as safe for bitwise comparison via specialization of "
-                "cuco::is_bitwise_comparable_v<T>.");
-
-  static_assert(
-    std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
-                      ProbingScheme>,
-    "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+  using impl_type = detail::open_addressing_ref_impl<Key, Scope, ProbingScheme, StorageRef>;
 
  public:
   using key_type            = Key;                                     ///< Key type
@@ -125,28 +112,19 @@ class static_map_ref
    */
   [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept;
 
- private:
-  // TODO: this should be a common enum for all data structures
-  enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
-
   /**
-   * @brief Attempts to insert an element into a slot.
+   * @brief Gets the sentinel value used to represent an empty key slot.
    *
-   * @note Dispatches the correct implementation depending on the container
-   * type and presence of other operator mixins.
-   *
-   * @param slot Pointer to the slot in memory
-   * @param value Element to insert
-   *
-   * @return Result of this operation, i.e., success/continue/duplicate
+   * @return The sentinel value used to represent an empty key slot
    */
-  [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot, value_type const& value);
+  [[nodiscard]] __host__ __device__ constexpr mapped_type empty_value_sentinel() const noexcept;
 
-  cuco::empty_key<key_type> empty_key_sentinel_;            ///< Empty key sentinel
-  cuco::empty_value<mapped_type> empty_value_sentinel_;     ///< Empty value sentinel
-  detail::equal_wrapper<value_type, key_equal> predicate_;  ///< Key equality binary callable
-  probing_scheme_type probing_scheme_;                      ///< Probing scheme
-  storage_ref_type storage_ref_;                            ///< Slot storage ref
+ private:
+  struct predicate_wrapper;
+
+  std::unique_ptr<impl_type> static_map_ref_impl_;  ///< Static map ref implementation
+  predicate_wrapper predicate_;                     ///< Key equality binary callable
+  mapped_type empty_value_sentinel_;                ///< Empty value sentinel
 
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>
