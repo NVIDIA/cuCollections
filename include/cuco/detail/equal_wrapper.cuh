@@ -55,15 +55,14 @@ struct equal_wrapper {
   /**
    * @brief Equality check with the given equality callable.
    *
-   * @tparam LHS Left-hand side Element type
-   * @tparam RHS Right-hand side Element type
+   * @tparam U Right-hand side Element type
    *
    * @param lhs Left-hand side element to check equality
    * @param rhs Right-hand side element to check equality
    * @return Three way equality comparison result
    */
-  template <typename LHS, typename RHS>
-  __device__ constexpr equal_result equal_to(LHS const& lhs, RHS const& rhs) const noexcept
+  template <typename U>
+  __device__ constexpr equal_result equal_to(T const& lhs, U const& rhs) const noexcept
   {
     return equal_(lhs, rhs) ? equal_result::EQUAL : equal_result::UNEQUAL;
   }
