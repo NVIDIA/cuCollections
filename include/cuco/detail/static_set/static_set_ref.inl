@@ -69,7 +69,7 @@ __host__ __device__ constexpr Key
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::empty_key_sentinel()
   const noexcept
 {
-  return static_set_ref_impl_.empty_key_sentinel();
+  return predicate_.empty_sentinel_;
 }
 
 namespace detail {

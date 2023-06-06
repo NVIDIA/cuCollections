@@ -50,7 +50,6 @@ class open_addressing_ref_impl {
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
  public:
-  using key_type            = Key;                                     ///< Key Type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
   using storage_ref_type    = StorageRef;                              ///< Type of storage ref
   using window_type         = typename storage_ref_type::window_type;  ///< Window type
@@ -67,16 +66,16 @@ class open_addressing_ref_impl {
   /**
    * @brief Constructs open_addressing_ref_impl.
    *
-   * @param empty_key_sentinel Sentinel indicating empty key
-   * @param predicate Key equality binary callable
+   * @param empty_slot_sentinel Sentinel indicating an empty slot
+   * @param predicate Slot equality binary callable
    * @param probing_scheme Probing scheme
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr open_addressing_ref_impl(
-    key_type empty_key_sentinel,
+    value_type empty_slot_sentinel,
     probing_scheme_type const& probing_scheme,
     storage_ref_type storage_ref) noexcept
-    : empty_key_sentinel_{empty_key_sentinel},
+    : empty_slot_sentinel_{empty_slot_sentinel},
       probing_scheme_{probing_scheme},
       storage_ref_{storage_ref}
   {
@@ -90,26 +89,6 @@ class open_addressing_ref_impl {
   [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept
   {
     return storage_ref_.capacity();
-  }
-
-  /**
-   * @brief Gets the sentinel value used to represent an empty key slot.
-   *
-   * @return The sentinel value used to represent an empty key slot
-   */
-  [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept
-  {
-    return empty_key_sentinel_;
-  }
-
-  [[nodiscard]] __host__ __device__ constexpr probing_scheme_type probing_scheme() const noexcept
-  {
-    return probing_scheme_;
-  }
-
-  [[nodiscard]] __host__ __device__ constexpr storage_ref_type storage_ref() const noexcept
-  {
-    return storage_ref_;
   }
 
   /**
@@ -542,7 +521,7 @@ class open_addressing_ref_impl {
     // temporary workaround due to performance regression
     // https://github.com/NVIDIA/libcudacxx/issues/366
     value_type const old = [&]() {
-      value_type expected = this->empty_key_sentinel();
+      value_type expected = this->empty_slot_sentinel_;
       value_type val      = value;
       if constexpr (sizeof(value_type) == sizeof(unsigned int)) {
         auto* expected_ptr = reinterpret_cast<unsigned int*>(&expected);
@@ -584,7 +563,7 @@ class open_addressing_ref_impl {
     }
   }
 
-  key_type empty_key_sentinel_;         ///< Empty key sentinel
+  value_type empty_slot_sentinel_;      ///< Sentinel value indicating an empty slot
   probing_scheme_type probing_scheme_;  ///< Probing scheme
   storage_ref_type storage_ref_;        ///< Slot storage ref
 };

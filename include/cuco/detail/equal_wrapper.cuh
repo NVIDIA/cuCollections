@@ -38,8 +38,8 @@ enum class equal_result : int32_t { UNEQUAL = 0, EMPTY = 1, EQUAL = 2 };
  */
 template <typename T, typename Equal>
 struct equal_wrapper {
-  T sentinel_;   ///< Sentinel value
-  Equal equal_;  ///< Custom equality callable
+  T empty_sentinel_;  ///< Sentinel value
+  Equal equal_;       ///< Custom equality callable
 
   /**
    * @brief Equality wrapper ctor.
@@ -48,7 +48,7 @@ struct equal_wrapper {
    * @param equal Equality binary callable
    */
   __host__ __device__ constexpr equal_wrapper(T sentinel, Equal const& equal)
-    : sentinel_{sentinel}, equal_{equal}
+    : empty_sentinel_{sentinel}, equal_{equal}
   {
   }
 
@@ -70,7 +70,7 @@ struct equal_wrapper {
   /**
    * @brief Order-sensitive equality operator.
    *
-   * This function always compares the left-hand side element against `sentinel_` value first
+   * This function always compares the left-hand side element against `empty_sentinel_` value first
    * then perform a equality check with the given `equal_` callable, i.e., `equal_(lhs, rhs)`.
    *
    * @note Container (like set or map) keys MUST be always on the left-hand side.
@@ -84,8 +84,8 @@ struct equal_wrapper {
   template <typename U>
   __device__ constexpr equal_result operator()(T const& lhs, U const& rhs) const noexcept
   {
-    return cuco::detail::bitwise_compare(lhs, sentinel_) ? equal_result::EMPTY
-                                                         : this->equal_to(lhs, rhs);
+    return cuco::detail::bitwise_compare(lhs, empty_sentinel_) ? equal_result::EMPTY
+                                                               : this->equal_to(lhs, rhs);
   }
 };
 
