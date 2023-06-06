@@ -111,22 +111,6 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept;
 
  private:
-  // TODO: this should be a common enum for all data structures
-  enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
-
-  /**
-   * @brief Attempts to insert an element into a slot.
-   *
-   * @note Dispatches the correct implementation depending on the container
-   * type and presence of other operator mixins.
-   *
-   * @param slot Pointer to the slot in memory
-   * @param value Element to insert
-   *
-   * @return Result of this operation, i.e., success/continue/duplicate
-   */
-  [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot, value_type const& value);
-
   impl_type static_set_ref_impl_;
   detail::equal_wrapper<value_type, key_equal> predicate_;  ///< Key equality binary callable
 

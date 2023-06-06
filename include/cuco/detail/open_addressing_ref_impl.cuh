@@ -19,9 +19,15 @@
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/detail/pair.cuh>
 
+#include <thrust/distance.h>
+#include <thrust/pair.h>
+
 #include <cuda/atomic>
 
 #include <cooperative_groups.h>
+
+#include <cstdint>
+#include <type_traits>
 
 namespace cuco {
 namespace experimental {
@@ -37,6 +43,11 @@ class open_addressing_ref_impl {
     cuco::is_bitwise_comparable_v<Key>,
     "Key type must have unique object representations or have been explicitly declared as safe for "
     "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
+
+  static_assert(
+    std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
+                      ProbingScheme>,
+    "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
  public:
   using key_type            = Key;                                     ///< Key Type
@@ -117,6 +128,220 @@ class open_addressing_ref_impl {
    * @return An iterator to one past the last slot
    */
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept { return storage_ref_.end(); }
+
+  /**
+   * @brief Inserts an element.
+   *
+   * @tparam Predicate Predicate type
+   *
+   * @param value The element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return True if the given element is successfully inserted
+   */
+  template <typename Predicate>
+  __device__ bool insert(value_type const& value, Predicate const& predicate) noexcept
+  {
+    auto probing_iter = probing_scheme_(value, storage_ref_.num_windows());
+
+    while (true) {
+      auto const window_slots = storage_ref_[*probing_iter];
+
+      // TODO: perf gain with #pragma unroll since num_windows is build time constant
+      for (auto& slot_content : window_slots) {
+        auto const eq_res = predicate(slot_content, value);
+
+        // If the key is already in the container, return false
+        if (eq_res == detail::equal_result::EQUAL) { return false; }
+        if (eq_res == detail::equal_result::EMPTY) {
+          auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+          switch (attempt_insert(
+            (storage_ref_.data() + *probing_iter)->data() + intra_window_index, value, predicate)) {
+            case insert_result::CONTINUE: continue;
+            case insert_result::SUCCESS: return true;
+            case insert_result::DUPLICATE: return false;
+          }
+        }
+      }
+      ++probing_iter;
+    }
+  }
+
+  /**
+   * @brief Inserts an element.
+   *
+   * @tparam Predicate Predicate type
+   *
+   * @param group The Cooperative Group used to perform group insert
+   * @param value The element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return True if the given element is successfully inserted
+   */
+  template <typename Predicate>
+  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> group,
+                         value_type const& value,
+                         Predicate const& predicate) noexcept
+  {
+    auto probing_iter = probing_scheme_(group, value, storage_ref_.num_windows());
+
+    while (true) {
+      auto const window_slots = storage_ref_[*probing_iter];
+
+      auto const [state, intra_window_index] = [&]() {
+        for (auto i = 0; i < window_size; ++i) {
+          switch (predicate(window_slots[i], value)) {
+            case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
+            default: continue;
+          }
+        }
+        // returns dummy index `-1` for UNEQUAL
+        return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
+      }();
+
+      // If the key is already in the container, return false
+      if (group.any(state == detail::equal_result::EQUAL)) { return false; }
+
+      auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
+
+      if (group_contains_empty) {
+        auto const src_lane = __ffs(group_contains_empty) - 1;
+        auto const status =
+          (group.thread_rank() == src_lane)
+            ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+                             value,
+                             predicate)
+            : insert_result::CONTINUE;
+
+        switch (group.shfl(status, src_lane)) {
+          case insert_result::SUCCESS: return true;
+          case insert_result::DUPLICATE: return false;
+          default: continue;
+        }
+      } else {
+        ++probing_iter;
+      }
+    }
+  }
+
+  /**
+   * @brief Inserts the given element into the set.
+   *
+   * @note This API returns a pair consisting of an iterator to the inserted element (or to the
+   * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
+   * not.
+   *
+   * @tparam Predicate Predicate type
+   *
+   * @param value The element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return a pair consisting of an iterator to the element and a bool indicating whether the
+   * insertion is successful or not.
+   */
+  template <typename Predicate>
+  __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value,
+                                                          Predicate const& predicate) noexcept
+  {
+    auto probing_iter = probing_scheme_(value, storage_ref_.num_windows());
+
+    while (true) {
+      auto const window_slots = storage_ref_[*probing_iter];
+
+      for (auto i = 0; i < window_size; ++i) {
+        auto const eq_res = predicate(window_slots[i], value);
+        auto* window_ptr  = (storage_ref_.data() + *probing_iter)->data();
+
+        // If the key is already in the container, return false
+        if (eq_res == detail::equal_result::EQUAL) { return {iterator{&window_ptr[i]}, false}; }
+        if (eq_res == detail::equal_result::EMPTY) {
+          switch (attempt_insert(window_ptr + i, value, predicate)) {
+            case insert_result::SUCCESS: {
+              return {iterator{&window_ptr[i]}, true};
+            }
+            case insert_result::DUPLICATE: {
+              return {iterator{&window_ptr[i]}, false};
+            }
+            default: continue;
+          }
+        }
+      }
+      ++probing_iter;
+    };
+  }
+
+  /**
+   * @brief Inserts the given element into the set.
+   *
+   * @note This API returns a pair consisting of an iterator to the inserted element (or to the
+   * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
+   * not.
+   *
+   * @tparam Predicate Predicate type
+   *
+   * @param group The Cooperative Group used to perform group insert_and_find
+   * @param value The element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return a pair consisting of an iterator to the element and a bool indicating whether the
+   * insertion is successful or not.
+   */
+  template <typename Predicate>
+  __device__ thrust::pair<iterator, bool> insert_and_find(
+    cooperative_groups::thread_block_tile<cg_size> const& group,
+    value_type const& value,
+    Predicate const& predicate) noexcept
+  {
+    auto probing_iter = probing_scheme_(group, value, storage_ref_.num_windows());
+
+    while (true) {
+      auto const window_slots = storage_ref_[*probing_iter];
+
+      auto const [state, intra_window_index] = [&]() {
+        for (auto i = 0; i < window_size; ++i) {
+          switch (predicate(window_slots[i], value)) {
+            case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
+            default: continue;
+          }
+        }
+        // returns dummy index `-1` for UNEQUAL
+        return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
+      }();
+
+      auto* slot_ptr = (storage_ref_.data() + *probing_iter)->data() + intra_window_index;
+
+      // If the key is already in the container, return false
+      auto const group_finds_equal = group.ballot(state == detail::equal_result::EQUAL);
+      if (group_finds_equal) {
+        auto const src_lane = __ffs(group_finds_equal) - 1;
+        auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
+        return {iterator{reinterpret_cast<value_type*>(res)}, false};
+      }
+
+      auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
+      if (group_contains_empty) {
+        auto const src_lane = __ffs(group_contains_empty) - 1;
+        auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
+        auto const status   = (group.thread_rank() == src_lane)
+                                ? attempt_insert(slot_ptr, value, predicate)
+                                : insert_result::CONTINUE;
+
+        switch (group.shfl(status, src_lane)) {
+          case insert_result::SUCCESS: {
+            return {iterator{reinterpret_cast<value_type*>(res)}, true};
+          }
+          case insert_result::DUPLICATE: {
+            return {iterator{reinterpret_cast<value_type*>(res)}, false};
+          }
+          default: continue;
+        }
+      } else {
+        ++probing_iter;
+      }
+    }
+  }
 
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
@@ -292,6 +517,73 @@ class open_addressing_ref_impl {
   }
 
  private:
+  // TODO: this should be a common enum for all data structures
+  enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
+
+  /**
+   * @brief Attempts to insert an element into a slot.
+   *
+   * @note Dispatches the correct implementation depending on the container
+   * type and presence of other operator mixins.
+   *
+   * @tparam Predicate Predicate type
+   *
+   * @param slot Pointer to the slot in memory
+   * @param value Element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return Result of this operation, i.e., success/continue/duplicate
+   */
+  template <typename Predicate>
+  [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot,
+                                                        value_type const& value,
+                                                        Predicate const& predicate)
+  {
+    // temporary workaround due to performance regression
+    // https://github.com/NVIDIA/libcudacxx/issues/366
+    value_type const old = [&]() {
+      value_type expected = this->empty_key_sentinel();
+      value_type val      = value;
+      if constexpr (sizeof(value_type) == sizeof(unsigned int)) {
+        auto* expected_ptr = reinterpret_cast<unsigned int*>(&expected);
+        auto* value_ptr    = reinterpret_cast<unsigned int*>(&val);
+        if constexpr (Scope == cuda::thread_scope_system) {
+          return atomicCAS_system(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
+        } else if constexpr (Scope == cuda::thread_scope_device) {
+          return atomicCAS(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
+        } else if constexpr (Scope == cuda::thread_scope_block) {
+          return atomicCAS_block(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
+        } else {
+          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+        }
+      }
+      if constexpr (sizeof(value_type) == sizeof(unsigned long long int)) {
+        auto* expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
+        auto* value_ptr    = reinterpret_cast<unsigned long long int*>(&val);
+        if constexpr (Scope == cuda::thread_scope_system) {
+          return atomicCAS_system(
+            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
+        } else if constexpr (Scope == cuda::thread_scope_device) {
+          return atomicCAS(
+            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
+        } else if constexpr (Scope == cuda::thread_scope_block) {
+          return atomicCAS_block(
+            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
+        } else {
+          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+        }
+      }
+    }();
+    if (*slot == old) {
+      // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
+      return predicate.equal_to(old, value) == detail::equal_result::EQUAL
+               ? insert_result::DUPLICATE
+               : insert_result::CONTINUE;
+    } else {
+      return insert_result::SUCCESS;
+    }
+  }
+
   key_type empty_key_sentinel_;         ///< Empty key sentinel
   probing_scheme_type probing_scheme_;  ///< Probing scheme
   storage_ref_type storage_ref_;        ///< Slot storage ref
