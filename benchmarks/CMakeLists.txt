@@ -79,5 +79,7 @@ ConfigureBench(DYNAMIC_MAP_BENCH
   hash_table/dynamic_map/contains_bench.cu
   hash_table/dynamic_map/erase_bench.cu)
 
+###################################################################################################
+# - hash function benchmarks ----------------------------------------------------------------------
 ConfigureBench(HASH_BENCH
   hash_bench.cu)
