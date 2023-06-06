@@ -224,7 +224,7 @@ class operator_impl<
 
  public:
   /**
-   * @brief Inserts the given element into the set.
+   * @brief Inserts the given element into the map.
    *
    * @note This API returns a pair consisting of an iterator to the inserted element (or to the
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
@@ -242,7 +242,7 @@ class operator_impl<
   }
 
   /**
-   * @brief Inserts the given element into the set.
+   * @brief Inserts the given element into the map.
    *
    * @note This API returns a pair consisting of an iterator to the inserted element (or to the
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
@@ -369,7 +369,7 @@ class operator_impl<
   }
 
   /**
-   * @brief Finds an element in the set with key equivalent to the probe key.
+   * @brief Finds an element in the map with key equivalent to the probe key.
    *
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
@@ -389,7 +389,7 @@ class operator_impl<
   }
 
   /**
-   * @brief Finds an element in the set with key equivalent to the probe key.
+   * @brief Finds an element in the map with key equivalent to the probe key.
    *
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
