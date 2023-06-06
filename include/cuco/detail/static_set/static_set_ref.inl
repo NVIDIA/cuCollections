@@ -17,7 +17,6 @@
 #pragma once
 
 #include <cuco/detail/equal_wrapper.cuh>
-#include <cuco/detail/pair.cuh>
 #include <cuco/operator.hpp>
 #include <cuco/sentinel.cuh>
 
@@ -418,25 +417,8 @@ class operator_impl<op::contains_tag,
   template <typename ProbeKey>
   [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
   {
-    // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-
-    auto probing_iter = ref_.static_set_ref_impl_.probing_scheme()(
-      key, ref_.static_set_ref_impl_.storage_ref().num_windows());
-
-    while (true) {
-      // TODO atomic_ref::load if insert operator is present
-      auto const window_slots = ref_.static_set_ref_impl_.storage_ref()[*probing_iter];
-
-      for (auto& slot_content : window_slots) {
-        switch (ref_.predicate_(slot_content, key)) {
-          case detail::equal_result::UNEQUAL: continue;
-          case detail::equal_result::EMPTY: return false;
-          case detail::equal_result::EQUAL: return true;
-        }
-      }
-      ++probing_iter;
-    }
+    return ref_.static_set_ref_impl_.contains(key, ref_.predicate_);
   }
 
   /**
@@ -456,29 +438,7 @@ class operator_impl<op::contains_tag,
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-
-    auto probing_iter = ref_.static_set_ref_impl_.probing_scheme()(
-      group, key, ref_.static_set_ref_impl_.storage_ref().num_windows());
-
-    while (true) {
-      auto const window_slots = ref_.static_set_ref_impl_.storage_ref()[*probing_iter];
-
-      auto const state = [&]() {
-        for (auto& slot : window_slots) {
-          switch (ref_.predicate_(slot, key)) {
-            case detail::equal_result::EMPTY: return detail::equal_result::EMPTY;
-            case detail::equal_result::EQUAL: return detail::equal_result::EQUAL;
-            default: continue;
-          }
-        }
-        return detail::equal_result::UNEQUAL;
-      }();
-
-      if (group.any(state == detail::equal_result::EQUAL)) { return true; }
-      if (group.any(state == detail::equal_result::EMPTY)) { return false; }
-
-      ++probing_iter;
-    }
+    return ref_.static_set_ref_impl_.contains(group, key, ref_.predicate_);
   }
 };
 
@@ -511,7 +471,7 @@ class operator_impl<op::find_tag,
   [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.static_set_ref_impl_.storage_ref().end();
+    return ref_.static_set_ref_impl_.end();
   }
 
   /**
@@ -524,7 +484,7 @@ class operator_impl<op::find_tag,
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.static_set_ref_impl_.storage_ref().end();
+    return ref_.static_set_ref_impl_.end();
   }
 
   /**
@@ -544,28 +504,7 @@ class operator_impl<op::find_tag,
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-
-    auto probing_iter = ref_.static_set_ref_impl_.probing_scheme()(
-      key, ref_.static_set_ref_impl_.storage_ref().num_windows());
-
-    while (true) {
-      // TODO atomic_ref::load if insert operator is present
-      auto const window_slots = ref_.static_set_ref_impl_.storage_ref()[*probing_iter];
-
-      for (auto i = 0; i < window_size; ++i) {
-        switch (ref_.predicate_(window_slots[i], key)) {
-          case detail::equal_result::EMPTY: {
-            return this->end();
-          }
-          case detail::equal_result::EQUAL: {
-            return const_iterator{
-              &(*(ref_.static_set_ref_impl_.storage_ref().data() + *probing_iter))[i]};
-          }
-          default: continue;
-        }
-      }
-      ++probing_iter;
-    }
+    return ref_.static_set_ref_impl_.find(key, ref_.predicate_);
   }
 
   /**
@@ -586,41 +525,7 @@ class operator_impl<op::find_tag,
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-
-    auto probing_iter = ref_.static_set_ref_impl_.probing_scheme()(
-      group, key, ref_.static_set_ref_impl_.storage_ref().num_windows());
-
-    while (true) {
-      auto const window_slots = ref_.static_set_ref_impl_.storage_ref()[*probing_iter];
-
-      auto const [state, intra_window_index] = [&]() {
-        for (auto i = 0; i < window_size; ++i) {
-          switch (ref_.predicate_(window_slots[i], key)) {
-            case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
-            default: continue;
-          }
-        }
-        // returns dummy index `-1` for UNEQUAL
-        return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
-      }();
-
-      // Find a match for the probe key, thus return an iterator to the entry
-      auto const group_finds_match = group.ballot(state == detail::equal_result::EQUAL);
-      if (group_finds_match) {
-        auto const src_lane = __ffs(group_finds_match) - 1;
-        auto const res =
-          group.shfl(reinterpret_cast<intptr_t>(&(*(ref_.static_set_ref_impl_.storage_ref().data() +
-                                                    *probing_iter))[intra_window_index]),
-                     src_lane);
-        return const_iterator{reinterpret_cast<value_type*>(res)};
-      }
-
-      // Find an empty slot, meaning that the probe key isn't present in the set
-      if (group.any(state == detail::equal_result::EMPTY)) { return this->end(); }
-
-      ++probing_iter;
-    }
+    return ref_.static_set_ref_impl_.find(group, key, ref_.predicate_);
   }
 };
 
