@@ -272,4 +272,24 @@ __host__ __device__ pair_type<F, S> make_pair(F&& f, S&& s) noexcept
   return pair_type<F, S>{std::forward<F>(f), std::forward<S>(s)};
 }
 
+/**
+ * @brief Tests if both elements of lhs and rhs are equal
+ *
+ * @tparam T1 Type of the first element of the left-hand side pair
+ * @tparam T2 Type of the second element of the left-hand side pair
+ * @tparam U1 Type of the first element of the right-hand side pair
+ * @tparam U2 Type of the second element of the left-hand side pair
+ *
+ * @param lhs Left-hand side pair
+ * @param rhs Right-hand side pair
+ *
+ * @return True if two pairs are equal. False otherwise
+ */
+template <class T1, class T2, class U1, class U2>
+__host__ __device__ constexpr bool operator==(cuco::pair<T1, T2> const& lhs,
+                                              cuco::pair<U1, U2> const& rhs) noexcept
+{
+  return lhs.first == rhs.first and lhs.second == rhs.second;
+}
+
 }  // namespace cuco
