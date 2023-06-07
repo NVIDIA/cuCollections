@@ -278,7 +278,7 @@ __host__ __device__ pair_type<F, S> make_pair(F&& f, S&& s) noexcept
  * @tparam T1 Type of the first element of the left-hand side pair
  * @tparam T2 Type of the second element of the left-hand side pair
  * @tparam U1 Type of the first element of the right-hand side pair
- * @tparam U2 Type of the second element of the left-hand side pair
+ * @tparam U2 Type of the second element of the right-hand side pair
  *
  * @param lhs Left-hand side pair
  * @param rhs Right-hand side pair
