@@ -100,7 +100,7 @@ class operator_impl<op::insert_tag,
   __device__ bool insert(value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.static_set_ref_impl_.insert(value, ref_.predicate_);
+    return ref_.static_set_ref_impl_.insert(value, value, ref_.predicate_);
   }
 
   /**
@@ -114,7 +114,7 @@ class operator_impl<op::insert_tag,
                          value_type const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    return ref_.static_set_ref_impl_.insert(group, value, ref_.predicate_);
+    return ref_.static_set_ref_impl_.insert(group, value, value, ref_.predicate_);
   }
 };
 
@@ -152,7 +152,7 @@ class operator_impl<op::insert_and_find_tag,
   __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.static_set_ref_impl_.insert_and_find(value, ref_.predicate_);
+    return ref_.static_set_ref_impl_.insert_and_find(value, value, ref_.predicate_);
   }
 
   /**
@@ -172,7 +172,7 @@ class operator_impl<op::insert_and_find_tag,
     cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.static_set_ref_impl_.insert_and_find(group, value, ref_.predicate_);
+    return ref_.static_set_ref_impl_.insert_and_find(group, value, value, ref_.predicate_);
   }
 };
 

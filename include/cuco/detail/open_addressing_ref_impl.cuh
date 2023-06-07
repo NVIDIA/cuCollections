@@ -50,6 +50,7 @@ class open_addressing_ref_impl {
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
  public:
+  using key_type            = Key;
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
   using storage_ref_type    = StorageRef;                              ///< Type of storage ref
   using window_type         = typename storage_ref_type::window_type;  ///< Window type
@@ -113,22 +114,25 @@ class open_addressing_ref_impl {
    *
    * @tparam Predicate Predicate type
    *
+   * @param key Key of the element to insert
    * @param value The element to insert
    * @param predicate Predicate used to compare slot content against `key`
    *
    * @return True if the given element is successfully inserted
    */
   template <typename Predicate>
-  __device__ bool insert(value_type const& value, Predicate const& predicate) noexcept
+  __device__ bool insert(key_type const& key,
+                         value_type const& value,
+                         Predicate const& predicate) noexcept
   {
-    auto probing_iter = probing_scheme_(value, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
 
       // TODO: perf gain with #pragma unroll since num_windows is build time constant
       for (auto& slot_content : window_slots) {
-        auto const eq_res = predicate(slot_content, value);
+        auto const eq_res = predicate(slot_content, key);
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) { return false; }
@@ -152,6 +156,7 @@ class open_addressing_ref_impl {
    * @tparam Predicate Predicate type
    *
    * @param group The Cooperative Group used to perform group insert
+   * @param key Key of the element to insert
    * @param value The element to insert
    * @param predicate Predicate used to compare slot content against `key`
    *
@@ -159,17 +164,18 @@ class open_addressing_ref_impl {
    */
   template <typename Predicate>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> group,
+                         key_type const& key,
                          value_type const& value,
                          Predicate const& predicate) noexcept
   {
-    auto probing_iter = probing_scheme_(group, value, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.num_windows());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
 
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
-          switch (predicate(window_slots[i], value)) {
+          switch (predicate(window_slots[i], key)) {
             case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
             default: continue;
@@ -213,6 +219,7 @@ class open_addressing_ref_impl {
    *
    * @tparam Predicate Predicate type
    *
+   * @param key Key of the element to insert
    * @param value The element to insert
    * @param predicate Predicate used to compare slot content against `key`
    *
@@ -220,16 +227,17 @@ class open_addressing_ref_impl {
    * insertion is successful or not.
    */
   template <typename Predicate>
-  __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value,
+  __device__ thrust::pair<iterator, bool> insert_and_find(key_type const& key,
+                                                          value_type const& value,
                                                           Predicate const& predicate) noexcept
   {
-    auto probing_iter = probing_scheme_(value, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
 
       for (auto i = 0; i < window_size; ++i) {
-        auto const eq_res = predicate(window_slots[i], value);
+        auto const eq_res = predicate(window_slots[i], key);
         auto* window_ptr  = (storage_ref_.data() + *probing_iter)->data();
 
         // If the key is already in the container, return false
@@ -260,6 +268,7 @@ class open_addressing_ref_impl {
    * @tparam Predicate Predicate type
    *
    * @param group The Cooperative Group used to perform group insert_and_find
+   * @param key Key of the element to insert
    * @param value The element to insert
    * @param predicate Predicate used to compare slot content against `key`
    *
@@ -269,17 +278,18 @@ class open_addressing_ref_impl {
   template <typename Predicate>
   __device__ thrust::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group,
+    key_type const& key,
     value_type const& value,
     Predicate const& predicate) noexcept
   {
-    auto probing_iter = probing_scheme_(group, value, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.num_windows());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
 
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
-          switch (predicate(window_slots[i], value)) {
+          switch (predicate(window_slots[i], key)) {
             case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
             default: continue;
@@ -520,7 +530,7 @@ class open_addressing_ref_impl {
   {
     // temporary workaround due to performance regression
     // https://github.com/NVIDIA/libcudacxx/issues/366
-    value_type const old = [&]() {
+    auto old = [&]() {
       value_type expected = this->empty_slot_sentinel_;
       value_type val      = value;
       if constexpr (sizeof(value_type) == sizeof(unsigned int)) {
@@ -553,9 +563,10 @@ class open_addressing_ref_impl {
         }
       }
     }();
-    if (*slot == old) {
+    auto* old_ptr = reinterpret_cast<value_type*>(&old);
+    if (*slot == *old_ptr) {
       // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-      return predicate.equal_to(old, value) == detail::equal_result::EQUAL
+      return predicate.equal_to(*old_ptr, value) == detail::equal_result::EQUAL
                ? insert_result::DUPLICATE
                : insert_result::CONTINUE;
     } else {

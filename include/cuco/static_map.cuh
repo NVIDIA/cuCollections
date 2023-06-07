@@ -471,8 +471,8 @@ class static_map {
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
  private:
-  std::unique_ptr<impl_type const> static_map_impl_;  ///< Static map implementation
-  mapped_type empty_value_sentinel_;  ///< Sentinel value that indicates an empty payload
+  std::unique_ptr<impl_type> static_map_impl_;  ///< Static map implementation
+  mapped_type empty_value_sentinel_;            ///< Sentinel value that indicates an empty payload
 };
 }  // namespace experimental
 

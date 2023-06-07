@@ -18,6 +18,7 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>
 #include <cuco/detail/static_map/functors.cuh>
+#include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/tuning.cuh>
 #include <cuco/detail/utils.hpp>
@@ -53,13 +54,14 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
              ProbingScheme const& probing_scheme,
              Allocator const& alloc,
              cuda_stream_ref stream)
-  : static_map_impl_{std::make_unique<impl_type>(capacity,
-                                                 empty_key_sentinel,
-                                                 {empty_key_sentinel, empty_value_sentinel},
-                                                 pred,
-                                                 probing_scheme,
-                                                 alloc,
-                                                 stream)},
+  : static_map_impl_{std::make_unique<impl_type>(
+      capacity,
+      empty_key_sentinel,
+      cuco::pair{empty_key_sentinel, empty_value_sentinel},
+      pred,
+      probing_scheme,
+      alloc,
+      stream)},
     empty_value_sentinel_{empty_value_sentinel}
 {
 }
@@ -228,7 +230,16 @@ template <typename InputIt, typename OutputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
-  static_map_impl_->find_async(first, last, output_begin, ref(op::find), stream);
+  auto const num_keys = cuco::detail::distance(first, last);
+  if (num_keys == 0) { return; }
+
+  auto const grid_size =
+    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+  detail::find<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+      first, num_keys, output_begin, ref(op::find));
 }
 
 template <class Key,
@@ -322,7 +333,8 @@ auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
-  return ref_type<Operators...>{cuco::empty_key<key_type>(static_map_impl_->empty_key_sentinel()),
+  return ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
+                                cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
                                 static_map_impl_->predicate(),
                                 static_map_impl_->probing_scheme(),
                                 static_map_impl_->storage_ref()};

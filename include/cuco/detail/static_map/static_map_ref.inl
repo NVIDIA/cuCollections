@@ -134,6 +134,12 @@ struct static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operat
     return predicate_.equal_to(lhs.first, rhs);
   }
 
+  __device__ constexpr detail::equal_result equal_to(value_type const& lhs,
+                                                     value_type const& rhs) const noexcept
+  {
+    return predicate_.equal_to(lhs.first, rhs.first);
+  }
+
   /**
    * @brief Order-sensitive equality operator.
    *
@@ -184,7 +190,7 @@ class operator_impl<
   __device__ bool insert(value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.static_map_ref_impl_.insert(value, ref_.predicate_);
+    return ref_.static_map_ref_impl_.insert(value.first, value, ref_.predicate_);
   }
 
   /**
@@ -198,7 +204,7 @@ class operator_impl<
                          value_type const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    return ref_.static_map_ref_impl_.insert(group, value, ref_.predicate_);
+    return ref_.static_map_ref_impl_.insert(group, value.first, value, ref_.predicate_);
   }
 };
 
@@ -238,7 +244,7 @@ class operator_impl<
   __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.static_map_ref_impl_.insert_and_find(value, ref_.predicate_);
+    return ref_.static_map_ref_impl_.insert_and_find(value.first, value, ref_.predicate_);
   }
 
   /**
@@ -258,7 +264,7 @@ class operator_impl<
     cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.static_map_ref_impl_.insert_and_find(group, value, ref_.predicate_);
+    return ref_.static_map_ref_impl_.insert_and_find(group, value.first, value, ref_.predicate_);
   }
 };
 
