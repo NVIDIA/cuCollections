@@ -190,35 +190,6 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <typename InputIt, typename OutputIt>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find(
-  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
-{
-  find_async(first, last, output_begin, stream);
-  stream.synchronize();
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-template <typename InputIt, typename OutputIt>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
-  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
-{
-  static_set_impl_->find_async(first, last, output_begin, ref(op::find), stream);
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
 template <typename OutputIt>
 OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   OutputIt output_begin, cuda_stream_ref stream) const
@@ -281,7 +252,7 @@ auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
-  return ref_type<Operators...>{cuco::empty_key<key_type>(static_set_impl_->empty_key_sentinel()),
+  return ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
                                 static_set_impl_->predicate(),
                                 static_set_impl_->probing_scheme(),
                                 static_set_impl_->storage_ref()};
