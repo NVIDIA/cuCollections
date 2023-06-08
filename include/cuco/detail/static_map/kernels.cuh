@@ -47,7 +47,7 @@ namespace detail {
  * @param first Beginning of the sequence of keys
  * @param n Number of keys to query
  * @param output_begin Beginning of the sequence of matched payloads retrieved for each key
- * @param ref Non-owning container device ref used to access the slot storage
+ * @param ref Non-owning map device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
 __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)

@@ -54,6 +54,17 @@ __inline__ void test_unique_sequence(Set& set, size_type num_keys)
     REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
 
+  SECTION("Non-inserted keys have no matches")
+  {
+    thrust::device_vector<Key> d_results(num_keys);
+
+    set.find(keys_begin, keys_begin + num_keys, d_results.begin());
+    auto zip = thrust::make_zip_iterator(thrust::make_tuple(
+      d_results.begin(), thrust::constant_iterator<Key>{set.empty_key_sentinel()}));
+
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+  }
+
   SECTION("All conditionally inserted keys should be contained")
   {
     auto const inserted = set.insert_if(
@@ -89,6 +100,16 @@ __inline__ void test_unique_sequence(Set& set, size_type num_keys)
     auto gold_iter =
       thrust::make_transform_iterator(thrust::counting_iterator<std::size_t>(0), is_even);
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_contained.begin(), gold_iter));
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+  }
+
+  SECTION("All inserted keys should be correctly recovered during find")
+  {
+    thrust::device_vector<Key> d_results(num_keys);
+
+    set.find(keys_begin, keys_begin + num_keys, d_results.begin());
+    auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), keys_begin));
+
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 }
