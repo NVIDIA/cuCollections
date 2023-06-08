@@ -574,6 +574,7 @@ class open_addressing_ref_impl {
     }
   }
 
+ private:
   value_type empty_slot_sentinel_;      ///< Sentinel value indicating an empty slot
   probing_scheme_type probing_scheme_;  ///< Probing scheme
   storage_ref_type storage_ref_;        ///< Slot storage ref

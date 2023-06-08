@@ -128,7 +128,7 @@ class open_addressing_impl {
       allocator_{alloc},
       storage_{make_valid_extent<cg_size, window_size>(capacity), allocator_}
   {
-    storage_.initialize(this->empty_slot_sentinel, stream);
+    storage_.initialize(empty_slot_sentinel, stream);
   }
 
   /**
