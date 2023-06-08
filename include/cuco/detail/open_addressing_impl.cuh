@@ -123,13 +123,12 @@ class open_addressing_impl {
                                  Allocator const& alloc,
                                  cuda_stream_ref stream)
     : empty_key_sentinel_{empty_key_sentinel},
-      empty_slot_sentinel_{empty_slot_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
       allocator_{alloc},
       storage_{make_valid_extent<cg_size, window_size>(capacity), allocator_}
   {
-    storage_.initialize(this->empty_slot_sentinel_, stream);
+    storage_.initialize(this->empty_slot_sentinel, stream);
   }
 
   /**
@@ -530,9 +529,6 @@ class open_addressing_impl {
   probing_scheme_type probing_scheme_;  ///< Probing scheme
   allocator_type allocator_;            ///< Allocator used to (de)allocate temporary storage
   storage_type storage_;                ///< Slot window storage
-
- private:
-  value_type empty_slot_sentinel_;  ///< Value that represents an empty slot
 };
 
 }  // namespace detail
