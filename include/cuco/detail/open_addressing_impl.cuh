@@ -450,10 +450,15 @@ class open_addressing_impl {
    *
    * @note This function synchronizes the given stream.
    *
+   * @tparam Predicate Type of predicate indicating if the given slot is filled
+   *
+   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used to get the number of inserted elements
+   *
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cuda_stream_ref stream) const noexcept
+  template <typename Predicate>
+  [[nodiscard]] size_type size(Predicate const& is_filled, cuda_stream_ref stream) const noexcept
   {
     auto counter = detail::counter_storage<size_type, thread_scope, allocator_type>{allocator_};
     counter.reset(stream);
@@ -466,7 +471,7 @@ class open_addressing_impl {
     // v2.1.0
     detail::size<detail::CUCO_DEFAULT_BLOCK_SIZE>
       <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-        storage_.ref(), this->empty_slot_sentinel_, counter.data());
+        storage_.ref(), is_filled, counter.data());
 
     return counter.load_to_host(stream);
   }

@@ -35,7 +35,7 @@ struct slot_is_filled {
    *
    * @param s Sentinel indicating empty slot
    */
-  slot_is_filled(T s) : empty_sentinel_{s} {}
+  slot_is_filled(T const& s) : empty_sentinel_{s} {}
 
   /**
    * @brief Indicates if the target slot `slot` is filled.
@@ -45,7 +45,7 @@ struct slot_is_filled {
    * @param slot The slot
    * @return `true` if slot is filled
    */
-  __device__ bool operator()(T slot) const
+  __device__ constexpr bool operator()(T const& slot) const
   {
     return not cuco::detail::bitwise_compare(empty_sentinel_, slot);
   }

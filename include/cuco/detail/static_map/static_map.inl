@@ -271,7 +271,8 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cuda_stream_ref stream) const noexcept
 {
-  return static_map_impl_->size(stream);
+  auto const is_filled = detail::slot_is_filled<key_type>(this->empty_key_sentinel());
+  return static_map_impl_->size(is_filled, stream);
 }
 
 template <class Key,

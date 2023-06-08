@@ -15,7 +15,6 @@
  */
 #pragma once
 
-#include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/utils.hpp>
 
 #include <cub/block/block_reduce.cuh>
@@ -228,16 +227,15 @@ __global__ void contains_if_n(InputIt first,
  *
  * @tparam BlockSize Number of threads in each block
  * @tparam StorageRef Type of non-owning ref allowing access to storage
+ * @tparam Predicate Type of predicate indicating if the given slot is filled
  * @tparam AtomicT Atomic counter type
  *
  * @param storage Non-owning device ref used to access the slot storage
- * @param empty_sentinel Sentinel indicating empty slots
+ * @param is_filled Predicate indicating if the given slot is filled
  * @param count Number of filled slots
  */
-template <int32_t BlockSize, typename StorageRef, typename AtomicT>
-__global__ void size(StorageRef storage,
-                     typename StorageRef::value_type empty_sentinel,
-                     AtomicT* count)
+template <int32_t BlockSize, typename StorageRef, typename Predicate, typename AtomicT>
+__global__ void size(StorageRef storage, Predicate is_filled, AtomicT* count)
 {
   using size_type = typename StorageRef::size_type;
 
@@ -251,7 +249,7 @@ __global__ void size(StorageRef storage,
     auto const window = storage[idx];
 #pragma unroll
     for (auto const& it : window) {
-      thread_count += static_cast<size_type>(not cuco::detail::bitwise_compare(it, empty_sentinel));
+      thread_count += static_cast<size_type>(is_filled(it));
     }
     idx += loop_stride;
   }
