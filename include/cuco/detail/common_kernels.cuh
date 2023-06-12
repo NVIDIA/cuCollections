@@ -90,7 +90,7 @@ __global__ void insert_if_n(InputIterator first,
 
   // compute number of successfully inserted elements for each block
   // and atomically add to the grand total
-  typename Ref::size_type block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
+  auto const block_num_successes = BlockReduce(temp_storage).Sum(thread_num_successes);
   if (threadIdx.x == 0) {
     num_successes->fetch_add(block_num_successes, cuda::std::memory_order_relaxed);
   }
@@ -256,7 +256,7 @@ __global__ void size(StorageRef storage, Predicate is_filled, AtomicT* count)
 
   using BlockReduce = cub::BlockReduce<size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
-  size_type const block_count = BlockReduce(temp_storage).Sum(thread_count);
+  auto const block_count = BlockReduce(temp_storage).Sum(thread_count);
   if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
 }
 
