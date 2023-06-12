@@ -29,7 +29,7 @@ namespace detail {
 enum class equal_result : int32_t { UNEQUAL = 0, EMPTY = 1, EQUAL = 2 };
 
 /**
- * @brief Equality wrapper.
+ * @brief Key equality wrapper.
  *
  * User-provided equality binary callable cannot be used to compare against sentinel value.
  *
@@ -47,7 +47,7 @@ struct equal_wrapper {
    * @param sentinel Sentinel value
    * @param equal Equality binary callable
    */
-  __host__ __device__ constexpr equal_wrapper(T sentinel, Equal const& equal)
+  __host__ __device__ constexpr equal_wrapper(T sentinel, Equal const& equal) noexcept
     : empty_sentinel_{sentinel}, equal_{equal}
   {
   }
@@ -59,7 +59,8 @@ struct equal_wrapper {
    *
    * @param lhs Left-hand side element to check equality
    * @param rhs Right-hand side element to check equality
-   * @return Three way equality comparison result
+   *
+   * @return `EQUAL` if `lhs` and `rhs` are equivalent. `UNEQUAL` otherwise.
    */
   template <typename U>
   __device__ constexpr equal_result equal_to(T const& lhs, U const& rhs) const noexcept
@@ -70,15 +71,15 @@ struct equal_wrapper {
   /**
    * @brief Order-sensitive equality operator.
    *
-   * This function always compares the left-hand side element against `empty_sentinel_` value first
-   * then perform a equality check with the given `equal_` callable, i.e., `equal_(lhs, rhs)`.
-   *
+   * @note This function always compares the left-hand side element against `empty_sentinel_` value
+   * first then perform a equality check with the given `equal_` callable, i.e., `equal_(lhs, rhs)`.
    * @note Container (like set or map) keys MUST be always on the left-hand side.
    *
    * @tparam U Right-hand side Element type
    *
    * @param lhs Left-hand side element to check equality
    * @param rhs Right-hand side element to check equality
+   *
    * @return Three way equality comparison result
    */
   template <typename U>
