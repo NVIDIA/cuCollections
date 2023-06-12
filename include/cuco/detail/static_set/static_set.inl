@@ -233,7 +233,7 @@ template <typename OutputIt>
 OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   OutputIt output_begin, cuda_stream_ref stream) const
 {
-  auto const is_filled = detail::slot_is_filled<key_type>(this->empty_key_sentinel());
+  auto const is_filled = detail::slot_is_filled(this->empty_key_sentinel());
   return static_set_impl_->retrieve_all(output_begin, is_filled, stream);
 }
 
@@ -248,7 +248,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cuda_stream_ref stream) const noexcept
 {
-  auto const is_filled = detail::slot_is_filled<key_type>(this->empty_key_sentinel());
+  auto const is_filled = detail::slot_is_filled(this->empty_key_sentinel());
   return static_set_impl_->size(is_filled, stream);
 }
 

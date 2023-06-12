@@ -42,7 +42,6 @@ namespace detail {
  * @tparam OutputIt Device accessible output iterator assignable from the set's `key_type`
  * @tparam Ref Type of non-owning device ref allowing access to storage
  *
- *
  * @param first Beginning of the sequence of keys
  * @param n Number of keys to query
  * @param output_begin Beginning of the sequence of matched elements retrieved for each key

@@ -95,6 +95,7 @@ class operator_impl<op::insert_tag,
    * @brief Inserts an element.
    *
    * @param value The element to insert
+   *
    * @return True if the given element is successfully inserted
    */
   __device__ bool insert(value_type const& value) noexcept
@@ -108,6 +109,7 @@ class operator_impl<op::insert_tag,
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
+   *
    * @return True if the given element is successfully inserted
    */
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> group,
@@ -137,6 +139,32 @@ class operator_impl<op::insert_and_find_tag,
   static constexpr auto window_size = base_type::window_size;
 
  public:
+  /**
+   * @brief Returns a const_iterator to one past the last slot.
+   *
+   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
+   *
+   * @return A const_iterator to one past the last slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.static_set_ref_impl_.end();
+  }
+
+  /**
+   * @brief Returns an iterator to one past the last slot.
+   *
+   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
+   *
+   * @return An iterator to one past the last slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.static_set_ref_impl_.end();
+  }
+
   /**
    * @brief Inserts the given element into the set.
    *
@@ -196,12 +224,13 @@ class operator_impl<op::contains_tag,
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
-   * If the probe key `key` was inserted into the container, returns
-   * true. Otherwise, returns false.
+   * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
+   * false.
    *
    * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
+   *
    * @return A boolean indicating whether the probe key is present
    */
   template <typename ProbeKey>
@@ -214,13 +243,14 @@ class operator_impl<op::contains_tag,
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
-   * If the probe key `key` was inserted into the container, returns
-   * true. Otherwise, returns false.
+   * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
+   * false.
    *
    * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
+   *
    * @return A boolean indicating whether the probe key is present
    */
   template <typename ProbeKey>
@@ -254,7 +284,7 @@ class operator_impl<op::find_tag,
   /**
    * @brief Returns a const_iterator to one past the last slot.
    *
-   * @note This API is available only when `find_tag` is present.
+   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
    *
    * @return A const_iterator to one past the last slot
    */
@@ -267,7 +297,7 @@ class operator_impl<op::find_tag,
   /**
    * @brief Returns an iterator to one past the last slot.
    *
-   * @note This API is available only when `find_tag` is present.
+   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
    *
    * @return An iterator to one past the last slot
    */
