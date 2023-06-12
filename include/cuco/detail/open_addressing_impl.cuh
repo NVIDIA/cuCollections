@@ -85,12 +85,12 @@ class open_addressing_impl {
   using key_type   = Key;    ///< Key type
   using value_type = Value;  ///< The storage value type, NOT payload type
   /// Extent type
-  using extent_type    = decltype(make_valid_extent<cg_size, window_size>(std::declval<Extent>()));
-  using size_type      = typename extent_type::value_type;  ///< Size type
-  using key_equal      = KeyEqual;                          ///< Key equality comparator type
-  using allocator_type = Allocator;                         ///< Allocator type
+  using extent_type = decltype(make_valid_extent<cg_size, window_size>(std::declval<Extent>()));
+  using size_type   = typename extent_type::value_type;  ///< Size type
+  using key_equal   = KeyEqual;                          ///< Key equality comparator type
   using storage_type =
-    detail::storage<Storage, value_type, extent_type, allocator_type>;  ///< Storage type
+    detail::storage<Storage, value_type, extent_type, Allocator>;  ///< Storage type
+  using allocator_type = typename storage_type::allocator_type;    ///< Allocator type
 
   using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
   using probing_scheme_type = ProbingScheme;                 ///< Probe scheme type
@@ -124,8 +124,7 @@ class open_addressing_impl {
     : empty_key_sentinel_{empty_key_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      allocator_{alloc},
-      storage_{make_valid_extent<cg_size, window_size>(capacity), allocator_}
+      storage_{make_valid_extent<cg_size, window_size>(capacity), alloc}
   {
     storage_.initialize(empty_slot_sentinel, stream);
   }
@@ -458,7 +457,8 @@ class open_addressing_impl {
   template <typename Predicate>
   [[nodiscard]] size_type size(Predicate const& is_filled, cuda_stream_ref stream) const noexcept
   {
-    auto counter = detail::counter_storage<size_type, thread_scope, allocator_type>{allocator_};
+    auto counter =
+      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
     auto const grid_size =
@@ -513,7 +513,7 @@ class open_addressing_impl {
    *
    * @return The container allocator
    */
-  [[nodiscard]] constexpr allocator_type allocator() const noexcept { return allocator_; }
+  [[nodiscard]] constexpr allocator_type allocator() const noexcept { return storage_.allocator(); }
 
   /**
    * @brief Gets the non-owning storage ref.
@@ -526,7 +526,6 @@ class open_addressing_impl {
   key_type empty_key_sentinel_;         ///< Key value that represents an empty slot
   key_equal predicate_;                 ///< Key equality binary predicate
   probing_scheme_type probing_scheme_;  ///< Probing scheme
-  allocator_type allocator_;            ///< Allocator used to (de)allocate temporary storage
   storage_type storage_;                ///< Slot window storage
 };
 
