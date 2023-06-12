@@ -31,18 +31,17 @@ namespace detail {
 /**
  * @brief Finds the equivalent map elements of all keys in the range `[first, last)`.
  *
- * If the key `*(first + i)` has a match in the container, copies the payload of its matched element
- * to
- * `(output_begin + i)`. Else, copies the empty value sentinel. Uses the CUDA Cooperative Groups API
- * to leverage groups of multiple threads to find each key. This provides a significant boost in
- * throughput compared to the non Cooperative Group `find` at moderate to high load factors.
+ * @note If the key `*(first + i)` has a match in the container, copies the payload of its matched
+ * element to `(output_begin + i)`. Else, copies the empty value sentinel. Uses the CUDA Cooperative
+ * Groups API to leverage groups of multiple threads to find each key. This provides a significant
+ * boost in throughput compared to the non Cooperative Group `find` at moderate to high load
+ * factors.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize The size of the thread block
  * @tparam InputIt Device accessible input iterator
  * @tparam OutputIt Device accessible output iterator assignable from the map's `mapped_type`
  * @tparam Ref Type of non-owning device ref allowing access to storage
- *
  *
  * @param first Beginning of the sequence of keys
  * @param n Number of keys to query

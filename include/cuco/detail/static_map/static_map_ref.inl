@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -112,7 +112,7 @@ struct static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operat
    * @param equal Equality binary callable
    */
   __host__ __device__ constexpr predicate_wrapper(key_type empty_key_sentinel,
-                                                  key_equal const& equal)
+                                                  key_equal const& equal) noexcept
     : predicate_{empty_key_sentinel, equal}
   {
   }
@@ -125,7 +125,7 @@ struct static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operat
    * @param lhs Left-hand side element to check equality
    * @param rhs Right-hand side element to check equality
    *
-   * @return Three way equality comparison result
+   * @return `EQUAL` if `lhs` and `rhs` are equivalent. `UNEQUAL` otherwise.
    */
   template <typename U>
   __device__ constexpr detail::equal_result equal_to(value_type const& lhs,
@@ -134,6 +134,14 @@ struct static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operat
     return predicate_.equal_to(lhs.first, rhs);
   }
 
+  /**
+   * @brief Equality check with the given equality callable.
+   *
+   * @param lhs Left-hand side element to check equality
+   * @param rhs Right-hand side element to check equality
+   *
+   * @return `EQUAL` if `lhs` and `rhs` are equivalent. `UNEQUAL` otherwise.
+   */
   __device__ constexpr detail::equal_result equal_to(value_type const& lhs,
                                                      value_type const& rhs) const noexcept
   {
@@ -230,6 +238,32 @@ class operator_impl<
 
  public:
   /**
+   * @brief Returns a const_iterator to one past the last slot.
+   *
+   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
+   *
+   * @return A const_iterator to one past the last slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.static_map_ref_impl_.end();
+  }
+
+  /**
+   * @brief Returns an iterator to one past the last slot.
+   *
+   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
+   *
+   * @return An iterator to one past the last slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.static_map_ref_impl_.end();
+  }
+
+  /**
    * @brief Inserts the given element into the map.
    *
    * @note This API returns a pair consisting of an iterator to the inserted element (or to the
@@ -290,12 +324,13 @@ class operator_impl<
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
-   * If the probe key `key` was inserted into the container, returns
+   * @note If the probe key `key` was inserted into the container, returns
    * true. Otherwise, returns false.
    *
    * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
+   *
    * @return A boolean indicating whether the probe key is present
    */
   template <typename ProbeKey>
@@ -309,13 +344,14 @@ class operator_impl<
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
-   * If the probe key `key` was inserted into the container, returns
+   * @note If the probe key `key` was inserted into the container, returns
    * true. Otherwise, returns false.
    *
    * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
+   *
    * @return A boolean indicating whether the probe key is present
    */
   template <typename ProbeKey>
@@ -351,7 +387,7 @@ class operator_impl<
   /**
    * @brief Returns a const_iterator to one past the last slot.
    *
-   * @note This API is available only when `find_tag` is present.
+   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
    *
    * @return A const_iterator to one past the last slot
    */
@@ -364,7 +400,7 @@ class operator_impl<
   /**
    * @brief Returns an iterator to one past the last slot.
    *
-   * @note This API is available only when `find_tag` is present.
+   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
    *
    * @return An iterator to one past the last slot
    */
