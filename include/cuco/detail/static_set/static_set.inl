@@ -293,7 +293,7 @@ auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 {
   static_assert(sizeof...(Operators), "No operators specified");
   return ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
-                                static_set_impl_->predicate(),
+                                static_set_impl_->key_eq(),
                                 static_set_impl_->probing_scheme(),
                                 static_set_impl_->storage_ref()};
 }

@@ -336,7 +336,7 @@ auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   static_assert(sizeof...(Operators), "No operators specified");
   return ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
                                 cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
-                                static_map_impl_->predicate(),
+                                static_map_impl_->key_eq(),
                                 static_map_impl_->probing_scheme(),
                                 static_map_impl_->storage_ref()};
 }

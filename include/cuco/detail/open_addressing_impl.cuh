@@ -496,7 +496,7 @@ class open_addressing_impl {
    *
    * @return The comparator used to compare keys
    */
-  [[nodiscard]] constexpr key_equal predicate() const noexcept { return predicate_; }
+  [[nodiscard]] constexpr key_equal key_eq() const noexcept { return predicate_; }
 
   /**
    * @brief Gets the probing scheme.
