@@ -33,7 +33,7 @@ struct get_slot {
    *
    * @param s Input storage ref
    */
-  get_slot(StorageRef s) : storage_{s} {}
+  constexpr get_slot(StorageRef s) noexcept : storage_{s} {}
 
   /**
    * @brief Accesses the slot content with the given index.
@@ -41,7 +41,8 @@ struct get_slot {
    * @param idx The slot index
    * @return The slot content
    */
-  __device__ typename StorageRef::value_type operator()(typename StorageRef::size_type idx) const
+  __device__ constexpr typename StorageRef::value_type operator()(
+    typename StorageRef::size_type idx) const noexcept
   {
     auto const window_idx = idx / StorageRef::window_size;
     auto const intra_idx  = idx % StorageRef::window_size;
