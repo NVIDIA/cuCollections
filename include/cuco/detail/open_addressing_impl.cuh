@@ -42,7 +42,7 @@ namespace detail {
  *
  * @note This class should NOT be used directly.
  *
- * @throw If the size of the given key type is larger than 8 bytes
+ * @throw If the size of the given slot type is larger than 8 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::bitwise_comparable_v<Key> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
@@ -99,12 +99,11 @@ class open_addressing_impl {
    * @brief Constructs a statically-sized open addressing data structure with the specified initial
    * capacity, sentinel values and CUDA stream.
    *
-   * The actual capacity depends on the given `capacity`, the probing scheme, CG size, and the
+   * @note The actual capacity depends on the given `capacity`, the probing scheme, CG size, and the
    * window size and it's computed via `make_valid_extent` factory. Insert operations will not
    * automatically grow the container. Attempting to insert more unique keys than the capacity of
-   * the map results in undefined behavior.
-   *
-   * The `empty_key_sentinel` is reserved and behavior is undefined when attempting to insert
+   * the container results in undefined behavior.
+   * @note The `empty_key_sentinel` is reserved and behavior is undefined when attempting to insert
    * this sentinel value.
    *
    * @param capacity The requested lower-bound size
@@ -118,10 +117,10 @@ class open_addressing_impl {
   constexpr open_addressing_impl(Extent capacity,
                                  key_type empty_key_sentinel,
                                  value_type empty_slot_sentinel,
-                                 KeyEqual pred,
+                                 KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
-                                 cuda_stream_ref stream)
+                                 cuda_stream_ref stream) noexcept
     : empty_key_sentinel_{empty_key_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
@@ -476,9 +475,9 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Gets the maximum number of elements the hash map can hold.
+   * @brief Gets the maximum number of elements the container can hold.
    *
-   * @return The maximum number of elements the hash map can hold
+   * @return The maximum number of elements the container can hold
    */
   [[nodiscard]] constexpr auto capacity() const noexcept { return storage_.capacity(); }
 
@@ -493,16 +492,16 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Gets the sentinel value used to represent an empty key slot.
+   * @brief Gets the key comparator.
    *
-   * @return The sentinel value used to represent an empty key slot
+   * @return The comparator used to compare keys
    */
   [[nodiscard]] constexpr key_equal predicate() const noexcept { return predicate_; }
 
   /**
-   * @brief Gets the sentinel value used to represent an empty key slot.
+   * @brief Gets the probing scheme.
    *
-   * @return The sentinel value used to represent an empty key slot
+   * @return The probing scheme used for the container
    */
   [[nodiscard]] constexpr probing_scheme_type probing_scheme() const noexcept
   {
@@ -510,16 +509,16 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Gets the sentinel value used to represent an empty key slot.
+   * @brief Gets the container allocator.
    *
-   * @return The sentinel value used to represent an empty key slot
+   * @return The container allocator
    */
   [[nodiscard]] constexpr allocator_type allocator() const noexcept { return allocator_; }
 
   /**
-   * @brief Gets the sentinel value used to represent an empty key slot.
+   * @brief Gets the non-owning storage ref.
    *
-   * @return The sentinel value used to represent an empty key slot
+   * @return The non-owning storage ref of the container
    */
   [[nodiscard]] constexpr storage_ref_type storage_ref() const noexcept { return storage_.ref(); }
 

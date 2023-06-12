@@ -39,7 +39,7 @@ namespace experimental {
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
- * @throw If the size of the given key type is larger than 8 bytes
+ * @throw If the size of the given slot type is larger than 8 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::bitwise_comparable_v<Key> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
@@ -64,6 +64,8 @@ class static_map_ref
       Operators,
       static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
   using impl_type = detail::open_addressing_ref_impl<Key, Scope, ProbingScheme, StorageRef>;
+  static_assert(sizeof(cuco::pair<Key, T>) <= 8,
+                "Container does not support slot types larger than 8 bytes.");
 
  public:
   using key_type            = Key;                                     ///< Key type

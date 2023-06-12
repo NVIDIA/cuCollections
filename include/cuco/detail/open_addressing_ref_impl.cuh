@@ -34,6 +34,19 @@ namespace experimental {
 namespace detail {
 
 /**
+ * @brief Common device non-owning "ref" implementation class.
+ *
+ * @note This class should NOT be used directly.
+ *
+ * @throw If the size of the given key type is larger than 8 bytes
+ * @throw If the given key type doesn't have unique object representations, i.e.,
+ * `cuco::bitwise_comparable_v<Key> == false`
+ * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
+ *
+ * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>` returning true
+ * @tparam Scope The scope in which operations will be performed by individual threads.
+ * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
+ * @tparam StorageRef Storage ref type
  */
 template <typename Key, cuda::thread_scope Scope, typename ProbingScheme, typename StorageRef>
 class open_addressing_ref_impl {
@@ -50,7 +63,7 @@ class open_addressing_ref_impl {
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
  public:
-  using key_type            = Key;
+  using key_type            = Key;                                     ///< Key type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
   using storage_ref_type    = StorageRef;                              ///< Type of storage ref
   using window_type         = typename storage_ref_type::window_type;  ///< Window type
@@ -68,7 +81,6 @@ class open_addressing_ref_impl {
    * @brief Constructs open_addressing_ref_impl.
    *
    * @param empty_slot_sentinel Sentinel indicating an empty slot
-   * @param predicate Slot equality binary callable
    * @param probing_scheme Probing scheme
    * @param storage_ref Non-owning ref of slot storage
    */
@@ -176,13 +188,13 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (predicate(window_slots[i], key)) {
-            case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
+            case detail::equal_result::EMPTY: return window_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL: return window_results{detail::equal_result::EQUAL, i};
             default: continue;
           }
         }
         // returns dummy index `-1` for UNEQUAL
-        return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
+        return window_results{detail::equal_result::UNEQUAL, -1};
       }();
 
       // If the key is already in the container, return false
@@ -211,7 +223,7 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Inserts the given element into the set.
+   * @brief Inserts the given element into the container.
    *
    * @note This API returns a pair consisting of an iterator to the inserted element (or to the
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
@@ -259,7 +271,7 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Inserts the given element into the set.
+   * @brief Inserts the given element into the container.
    *
    * @note This API returns a pair consisting of an iterator to the inserted element (or to the
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
@@ -290,13 +302,13 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (predicate(window_slots[i], key)) {
-            case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
+            case detail::equal_result::EMPTY: return window_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL: return window_results{detail::equal_result::EQUAL, i};
             default: continue;
           }
         }
         // returns dummy index `-1` for UNEQUAL
-        return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
+        return window_results{detail::equal_result::UNEQUAL, -1};
       }();
 
       auto* slot_ptr = (storage_ref_.data() + *probing_iter)->data() + intra_window_index;
@@ -335,8 +347,8 @@ class open_addressing_ref_impl {
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
-   * If the probe key `key` was inserted into the container, returns
-   * true. Otherwise, returns false.
+   * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
+   * false.
    *
    * @tparam ProbeKey Probe key type
    * @tparam Predicate Predicate type
@@ -370,8 +382,8 @@ class open_addressing_ref_impl {
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
-   * If the probe key `key` was inserted into the container, returns
-   * true. Otherwise, returns false.
+   * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
+   * false.
    *
    * @tparam ProbeKey Probe key type
    * @tparam Predicate Predicate type
@@ -479,13 +491,13 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (predicate(window_slots[i], key)) {
-            case detail::equal_result::EMPTY: return cuco::pair{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL: return cuco::pair{detail::equal_result::EQUAL, i};
+            case detail::equal_result::EMPTY: return window_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL: return window_results{detail::equal_result::EQUAL, i};
             default: continue;
           }
         }
         // returns dummy index `-1` for UNEQUAL
-        return cuco::pair<detail::equal_result, int32_t>{detail::equal_result::UNEQUAL, -1};
+        return window_results{detail::equal_result::UNEQUAL, -1};
       }();
 
       // Find a match for the probe key, thus return an iterator to the entry
@@ -506,8 +518,27 @@ class open_addressing_ref_impl {
   }
 
  private:
-  // TODO: this should be a common enum for all data structures
+  /// Three-way insert result enum
   enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
+
+  /**
+   * @brief Helper struct to store intermediate window probing results.
+   */
+  struct window_results {
+    detail::equal_result state_;  ///< Equal result
+    int32_t intra_window_index_;  ///< Intra-window index
+
+    /**
+     * @brief Constructs window_results.
+     *
+     * @param state The three way equality result
+     *@param Intra-window index
+     */
+    __device__ explicit constexpr window_results(detail::equal_result state, int32_t index) noexcept
+      : state_{state}, intra_window_index_{index}
+    {
+    }
+  };
 
   /**
    * @brief Attempts to insert an element into a slot.
@@ -574,7 +605,6 @@ class open_addressing_ref_impl {
     }
   }
 
- private:
   value_type empty_slot_sentinel_;      ///< Sentinel value indicating an empty slot
   probing_scheme_type probing_scheme_;  ///< Probing scheme
   storage_ref_type storage_ref_;        ///< Slot storage ref
