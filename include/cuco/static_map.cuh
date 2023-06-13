@@ -191,7 +191,7 @@ class static_map {
    * @param last End of the sequence of keys
    * @param stream CUDA stream used for insert
    *
-   * @return Number of successfully inserted keys
+   * @return Number of successful insertions
    */
   template <typename InputIt>
   size_type insert(InputIt first, InputIt last, cuda_stream_ref stream = {});
@@ -232,7 +232,7 @@ class static_map {
    * std::distance(first, last))`
    * @param stream CUDA stream used for the operation
    *
-   * @return Number of successfully inserted keys
+   * @return Number of successful insertions
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
   size_type insert_if(
