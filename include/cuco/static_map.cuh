@@ -92,7 +92,7 @@ template <class Key,
           class ProbingScheme      = cuco::experimental::double_hashing<4,  // CG size
                                                                    cuco::murmurhash3_32<Key>,
                                                                    cuco::murmurhash3_32<Key>>,
-          class Allocator          = cuco::cuda_allocator<std::byte>,
+          class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
           class Storage            = cuco::experimental::aow_storage<1>>
 class static_map {
   static_assert(cuco::is_bitwise_comparable_v<T>,

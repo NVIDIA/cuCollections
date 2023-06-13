@@ -88,7 +88,7 @@ template <class Key,
           class ProbingScheme      = experimental::double_hashing<4,  // CG size
                                                              cuco::murmurhash3_32<Key>,
                                                              cuco::murmurhash3_32<Key>>,
-          class Allocator          = cuco::cuda_allocator<std::byte>,
+          class Allocator          = cuco::cuda_allocator<Key>,
           class Storage            = cuco::experimental::aow_storage<1>>
 class static_set {
   using impl_type = detail::
