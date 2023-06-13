@@ -41,7 +41,7 @@ __host__ __device__ constexpr static_set_ref<
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
                                 StorageRef storage_ref) noexcept
-  : static_set_ref_impl_{empty_key_sentinel, probing_scheme, storage_ref},
+  : impl_{empty_key_sentinel, probing_scheme, storage_ref},
     predicate_{empty_key_sentinel, predicate}
 {
 }
@@ -56,7 +56,7 @@ __host__ __device__ constexpr auto
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
   const noexcept
 {
-  return static_set_ref_impl_.capacity();
+  return impl_.capacity();
 }
 
 template <typename Key,
@@ -101,7 +101,7 @@ class operator_impl<op::insert_tag,
   __device__ bool insert(value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.static_set_ref_impl_.insert(value, value, ref_.predicate_);
+    return ref_.impl_.insert(value, value, ref_.predicate_);
   }
 
   /**
@@ -116,7 +116,7 @@ class operator_impl<op::insert_tag,
                          value_type const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    return ref_.static_set_ref_impl_.insert(group, value, value, ref_.predicate_);
+    return ref_.impl_.insert(group, value, value, ref_.predicate_);
   }
 };
 
@@ -149,7 +149,7 @@ class operator_impl<op::insert_and_find_tag,
   [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.static_set_ref_impl_.end();
+    return ref_.impl_.end();
   }
 
   /**
@@ -162,7 +162,7 @@ class operator_impl<op::insert_and_find_tag,
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.static_set_ref_impl_.end();
+    return ref_.impl_.end();
   }
 
   /**
@@ -180,7 +180,7 @@ class operator_impl<op::insert_and_find_tag,
   __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.static_set_ref_impl_.insert_and_find(value, value, ref_.predicate_);
+    return ref_.impl_.insert_and_find(value, value, ref_.predicate_);
   }
 
   /**
@@ -200,7 +200,7 @@ class operator_impl<op::insert_and_find_tag,
     cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.static_set_ref_impl_.insert_and_find(group, value, value, ref_.predicate_);
+    return ref_.impl_.insert_and_find(group, value, value, ref_.predicate_);
   }
 };
 
@@ -237,7 +237,7 @@ class operator_impl<op::contains_tag,
   [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.static_set_ref_impl_.contains(key, ref_.predicate_);
+    return ref_.impl_.contains(key, ref_.predicate_);
   }
 
   /**
@@ -258,7 +258,7 @@ class operator_impl<op::contains_tag,
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.static_set_ref_impl_.contains(group, key, ref_.predicate_);
+    return ref_.impl_.contains(group, key, ref_.predicate_);
   }
 };
 
@@ -291,7 +291,7 @@ class operator_impl<op::find_tag,
   [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.static_set_ref_impl_.end();
+    return ref_.impl_.end();
   }
 
   /**
@@ -304,7 +304,7 @@ class operator_impl<op::find_tag,
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.static_set_ref_impl_.end();
+    return ref_.impl_.end();
   }
 
   /**
@@ -324,7 +324,7 @@ class operator_impl<op::find_tag,
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.static_set_ref_impl_.find(key, ref_.predicate_);
+    return ref_.impl_.find(key, ref_.predicate_);
   }
 
   /**
@@ -345,7 +345,7 @@ class operator_impl<op::find_tag,
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.static_set_ref_impl_.find(group, key, ref_.predicate_);
+    return ref_.impl_.find(group, key, ref_.predicate_);
   }
 };
 

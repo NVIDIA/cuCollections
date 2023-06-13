@@ -111,7 +111,7 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept;
 
  private:
-  impl_type static_set_ref_impl_;
+  impl_type impl_;
   detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
 
   // Mixins need to be friends with this class in order to access private members

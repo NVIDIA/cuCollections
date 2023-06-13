@@ -445,7 +445,7 @@ class static_set {
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
  private:
-  std::unique_ptr<impl_type> static_set_impl_;
+  std::unique_ptr<impl_type> impl_;
 };
 }  // namespace experimental
 }  // namespace cuco

@@ -124,7 +124,7 @@ class static_map_ref
  private:
   struct predicate_wrapper;
 
-  impl_type static_map_ref_impl_;     ///< Static map ref implementation
+  impl_type impl_;                    ///< Static map ref implementation
   predicate_wrapper predicate_;       ///< Key equality binary callable
   mapped_type empty_value_sentinel_;  ///< Empty value sentinel
 

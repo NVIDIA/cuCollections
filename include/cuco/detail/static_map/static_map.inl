@@ -54,14 +54,13 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
              ProbingScheme const& probing_scheme,
              Allocator const& alloc,
              cuda_stream_ref stream)
-  : static_map_impl_{std::make_unique<impl_type>(
-      capacity,
-      empty_key_sentinel,
-      cuco::pair{empty_key_sentinel, empty_value_sentinel},
-      pred,
-      probing_scheme,
-      alloc,
-      stream)},
+  : impl_{std::make_unique<impl_type>(capacity,
+                                      empty_key_sentinel,
+                                      cuco::pair{empty_key_sentinel, empty_value_sentinel},
+                                      pred,
+                                      probing_scheme,
+                                      alloc,
+                                      stream)},
     empty_value_sentinel_{empty_value_sentinel}
 {
 }
@@ -79,7 +78,7 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cuda_stream_ref stream)
 {
-  return static_map_impl_->insert(first, last, ref(op::insert), stream);
+  return impl_->insert(first, last, ref(op::insert), stream);
 }
 
 template <class Key,
@@ -94,7 +93,7 @@ template <typename InputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_async(
   InputIt first, InputIt last, cuda_stream_ref stream) noexcept
 {
-  static_map_impl_->insert_async(first, last, ref(op::insert), stream);
+  impl_->insert_async(first, last, ref(op::insert), stream);
 }
 
 template <class Key,
@@ -110,7 +109,7 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream)
 {
-  return static_map_impl_->insert_if(first, last, stencil, pred, ref(op::insert), stream);
+  return impl_->insert_if(first, last, stencil, pred, ref(op::insert), stream);
 }
 
 template <class Key,
@@ -126,7 +125,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   insert_if_async(
     InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream) noexcept
 {
-  static_map_impl_->insert_if_async(first, last, stencil, pred, ref(op::insert), stream);
+  impl_->insert_if_async(first, last, stencil, pred, ref(op::insert), stream);
 }
 
 template <class Key,
@@ -157,7 +156,7 @@ template <typename InputIt, typename OutputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const noexcept
 {
-  static_map_impl_->contains_async(first, last, output_begin, ref(op::contains), stream);
+  impl_->contains_async(first, last, output_begin, ref(op::contains), stream);
 }
 
 template <class Key,
@@ -198,8 +197,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
                     OutputIt output_begin,
                     cuda_stream_ref stream) const noexcept
 {
-  static_map_impl_->contains_if_async(
-    first, last, stencil, pred, output_begin, ref(op::contains), stream);
+  impl_->contains_if_async(first, last, stencil, pred, output_begin, ref(op::contains), stream);
 }
 
 template <class Key,
@@ -272,7 +270,7 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   cuda_stream_ref stream) const noexcept
 {
   auto const is_filled = detail::slot_is_filled(this->empty_key_sentinel());
-  return static_map_impl_->size(is_filled, stream);
+  return impl_->size(is_filled, stream);
 }
 
 template <class Key,
@@ -287,7 +285,7 @@ constexpr auto
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::capacity()
   const noexcept
 {
-  return static_map_impl_->capacity();
+  return impl_->capacity();
 }
 
 template <class Key,
@@ -302,7 +300,7 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::empty_key_sentinel()
   const noexcept
 {
-  return static_map_impl_->empty_key_sentinel();
+  return impl_->empty_key_sentinel();
 }
 
 template <class Key,
@@ -336,9 +334,9 @@ auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   static_assert(sizeof...(Operators), "No operators specified");
   return ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
                                 cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
-                                static_map_impl_->key_eq(),
-                                static_map_impl_->probing_scheme(),
-                                static_map_impl_->storage_ref()};
+                                impl_->key_eq(),
+                                impl_->probing_scheme(),
+                                impl_->storage_ref()};
 }
 }  // namespace experimental
 }  // namespace cuco
