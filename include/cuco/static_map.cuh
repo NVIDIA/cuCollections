@@ -90,8 +90,8 @@ template <class Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme      = cuco::experimental::double_hashing<4,  // CG size
-                                                             cuco::murmurhash3_32<Key>,
-                                                             cuco::murmurhash3_32<Key>>,
+                                                                   cuco::murmurhash3_32<Key>,
+                                                                   cuco::murmurhash3_32<Key>>,
           class Allocator          = cuco::cuda_allocator<std::byte>,
           class Storage            = cuco::experimental::aow_storage<1>>
 class static_map {
