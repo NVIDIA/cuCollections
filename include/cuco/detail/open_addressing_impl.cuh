@@ -503,7 +503,7 @@ class open_addressing_impl {
    *
    * @return The probing scheme used for the container
    */
-  [[nodiscard]] constexpr probing_scheme_type probing_scheme() const noexcept
+  [[nodiscard]] constexpr probing_scheme_type const& probing_scheme() const noexcept
   {
     return probing_scheme_;
   }

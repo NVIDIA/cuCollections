@@ -256,7 +256,7 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   OutputIt output_begin, cuda_stream_ref stream) const
 {
   auto const is_filled = detail::slot_is_filled(this->empty_key_sentinel());
-  return static_map_impl_->retrieve_all(output_begin, is_filled, stream);
+  return impl_->retrieve_all(output_begin, is_filled, stream);
 }
 
 template <class Key,
