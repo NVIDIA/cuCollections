@@ -132,17 +132,19 @@ struct fast_int {
   value_type magic_;  ///< Magic number for fast division
   value_type shift_;  ///< Shift for fast division
 
-  friend __host__ __device__ constexpr value_type operator/(value_type lhs,
-                                                            fast_int const& rhs) noexcept
+  template <typename Lhs>
+  friend __host__ __device__ constexpr value_type operator/(Lhs lhs, fast_int const& rhs) noexcept
   {
+    static_assert(cuda::std::is_same_v<Lhs, value_type>,
+                  "Left-hand side operand must be of type value_type.");
     if (rhs.value_ == 1) { return lhs; }                // edge case for value_ == 1
     if (rhs.magic_ == 0) { return lhs >> rhs.shift_; }  // edge case for value_ == pow2
     auto const mul = (lhs == cuda::std::numeric_limits<T>::max()) ? lhs : lhs + 1;
     return rhs.mulhi(rhs.magic_, mul) >> rhs.shift_;
   }
 
-  friend __host__ __device__ constexpr value_type operator%(value_type lhs,
-                                                            fast_int const& rhs) noexcept
+  template <typename Lhs>
+  friend __host__ __device__ constexpr value_type operator%(Lhs lhs, fast_int const& rhs) noexcept
   {
     return lhs - (lhs / rhs) * rhs.value_;
   }
