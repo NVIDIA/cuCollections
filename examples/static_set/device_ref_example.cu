@@ -51,8 +51,11 @@ __global__ void custom_contains(SetRef set, InputIterator keys, std::size_t n, O
   int64_t const loop_stride = gridDim.x * blockDim.x;
   int64_t idx               = blockDim.x * blockIdx.x + threadIdx.x;
 
+  auto const tile =
+    cooperative_groups::tiled_partition<SetRef::cg_size>(cooperative_groups::this_thread_block());
+
   while (idx < n) {
-    found[idx] = set.contains(*(keys + idx));
+    found[idx] = set.contains(tile, *(keys + idx));
     idx += loop_stride;
   }
 }
