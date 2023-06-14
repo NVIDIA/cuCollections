@@ -16,9 +16,7 @@
 
 #pragma once
 
-// TODO: reorder once its working
 #include <cuco/detail/open_addressing_ref_impl.cuh>
-
 #include <cuco/operator.hpp>
 #include <cuco/sentinel.cuh>
 

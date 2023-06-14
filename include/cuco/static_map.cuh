@@ -16,9 +16,8 @@
 
 #pragma once
 
-#include <cuco/detail/open_addressing_impl.cuh>
-
 #include <cuco/detail/__config>
+#include <cuco/detail/open_addressing_impl.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/hash_functions.cuh>
