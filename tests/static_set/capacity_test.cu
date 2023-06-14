@@ -22,7 +22,7 @@ TEST_CASE("Static set capacity", "")
 {
   constexpr std::size_t num_keys{400};
   using Key        = int32_t;
-  using ProbeT     = cuco::experimental::double_hashing<1, cuco::murmurhash3_32<Key>>;
+  using ProbeT     = cuco::experimental::double_hashing<1, cuco::default_hash_function<Key>>;
   using Equal      = thrust::equal_to<Key>;
   using AllocatorT = cuco::cuda_allocator<std::byte>;
   using StorageT   = cuco::experimental::aow_storage<2>;
@@ -64,7 +64,7 @@ TEST_CASE("Static set capacity", "")
     auto constexpr gold_capacity = 412;  // 103 x 2 x 2
 
     using extent_type = cuco::experimental::extent<std::size_t, num_keys>;
-    using probe       = cuco::experimental::linear_probing<2, cuco::murmurhash3_32<Key>>;
+    using probe       = cuco::experimental::linear_probing<2, cuco::default_hash_function<Key>>;
     auto set          = cuco::experimental::
       static_set<Key, extent_type, cuda::thread_scope_device, Equal, probe, AllocatorT, StorageT>{
         extent_type{}, cuco::empty_key<Key>{-1}};
@@ -83,7 +83,7 @@ TEST_CASE("Static set capacity", "")
   {
     auto constexpr gold_capacity = 412;  // 103 x 2 x 2
 
-    using probe = cuco::experimental::linear_probing<2, cuco::murmurhash3_32<Key>>;
+    using probe = cuco::experimental::linear_probing<2, cuco::default_hash_function<Key>>;
     auto set    = cuco::experimental::static_set<Key,
                                               cuco::experimental::extent<std::size_t>,
                                               cuda::thread_scope_device,

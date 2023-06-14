@@ -68,8 +68,8 @@ TEMPLATE_TEST_CASE_SIG(
                     });
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
-                                   cuco::linear_probing<1, cuco::murmurhash3_32<Key>>,
-                                   cuco::double_hashing<8, cuco::murmurhash3_32<Key>>>;
+                                   cuco::linear_probing<1, cuco::default_hash_function<Key>>,
+                                   cuco::double_hashing<8, cuco::default_hash_function<Key>>>;
 
   cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
     map{num_keys * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
