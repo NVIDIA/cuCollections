@@ -176,7 +176,7 @@ class open_addressing_ref_impl {
    * @return True if the given element is successfully inserted
    */
   template <typename Predicate>
-  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> group,
+  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
                          key_type const& key,
                          value_type const& value,
                          Predicate const& predicate) noexcept

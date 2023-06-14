@@ -206,7 +206,7 @@ class operator_impl<
    * @param value The element to insert
    * @return True if the given element is successfully inserted
    */
-  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> group,
+  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
                          value_type const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
