@@ -67,16 +67,12 @@ TEMPLATE_TEST_CASE_SIG(
   constexpr std::size_t num_keys{1'200'000'000};
 
   using extent_type = cuco::experimental::extent<std::size_t>;
-  using probe       = cuco::experimental::
-    double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>;
+  using probe       = cuco::experimental::double_hashing<CGSize, cuco::murmurhash3_32<Key>>;
 
   try {
     auto set = cuco::experimental::
       static_set<Key, extent_type, cuda::thread_scope_device, thrust::equal_to<Key>, probe>{
-        num_keys * 2,
-        cuco::empty_key<Key>{-1},
-        thrust::equal_to<Key>{},
-        probe{cuco::murmurhash3_32<Key>{}, cuco::murmurhash3_32<Key>{}}};
+        num_keys * 2, cuco::empty_key<Key>{-1}};
 
     thrust::device_vector<bool> d_contained(num_keys);
     test_unique_sequence(set, d_contained.data().get(), num_keys);
