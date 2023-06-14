@@ -137,7 +137,7 @@ class open_addressing_ref_impl {
                          value_type const& value,
                          Predicate const& predicate) noexcept
   {
-    static_assert(cg_size == 1, "Non-CG operation is exclusive for probing scheme CGSize == 1");
+    static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
 
     while (true) {
@@ -244,7 +244,7 @@ class open_addressing_ref_impl {
                                                           value_type const& value,
                                                           Predicate const& predicate) noexcept
   {
-    static_assert(cg_size == 1, "Non-CG operation is exclusive for probing scheme CGSize == 1");
+    static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
 
     while (true) {
@@ -364,7 +364,7 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ bool contains(ProbeKey const& key,
                                          Predicate const& predicate) const noexcept
   {
-    static_assert(cg_size == 1, "Non-CG operation is exclusive for probing scheme CGSize == 1");
+    static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
 
     while (true) {
@@ -444,7 +444,7 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ const_iterator find(ProbeKey const& key,
                                                Predicate const& predicate) const noexcept
   {
-    static_assert(cg_size == 1, "Non-CG operation is exclusive for probing scheme CGSize == 1");
+    static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
 
     while (true) {
