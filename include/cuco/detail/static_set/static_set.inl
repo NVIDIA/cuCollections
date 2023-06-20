@@ -15,23 +15,12 @@
  */
 
 #include <cuco/cuda_stream_ref.hpp>
-#include <cuco/detail/error.hpp>
-#include <cuco/detail/prime.hpp>
 #include <cuco/detail/static_set/functors.cuh>
 #include <cuco/detail/static_set/kernels.cuh>
-#include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/tuning.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/operator.hpp>
 #include <cuco/static_set_ref.cuh>
-
-#include <thrust/functional.h>
-#include <thrust/iterator/constant_iterator.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
-
-#include <cub/device/device_reduce.cuh>
-#include <cub/device/device_select.cuh>
 
 #include <cstddef>
 
