@@ -98,7 +98,7 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
     auto count = map.count(key_begin, key_begin + num_pairs, stream, key_pair_equals{});
     REQUIRE(count == num_pairs);
 
-    thrust::device_vector<cuco::pair_type<Key, Value>> found_pairs(num_pairs);
+    thrust::device_vector<cuco::pair<Key, Value>> found_pairs(num_pairs);
     auto output_end = map.retrieve(
       key_begin, key_begin + num_pairs, found_pairs.begin(), stream, key_pair_equals{});
     std::size_t const size = std::distance(found_pairs.begin(), output_end);
@@ -110,16 +110,17 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
       thrust::device,
       found_pairs.begin(),
       found_pairs.end(),
-      [] __device__(const cuco::pair_type<Key, Value>& lhs,
-                    const cuco::pair_type<Key, Value>& rhs) { return lhs.first.a < rhs.first.a; });
+      [] __device__(const cuco::pair<Key, Value>& lhs, const cuco::pair<Key, Value>& rhs) {
+        return lhs.first.a < rhs.first.a;
+      });
 
-    REQUIRE(cuco::test::equal(
-      pair_begin,
-      pair_begin + num_pairs,
-      found_pairs.begin(),
-      [] __device__(cuco::pair_type<Key, Value> lhs, cuco::pair_type<Key, Value> rhs) {
-        return lhs.first.a == rhs.first.a;
-      }));
+    REQUIRE(
+      cuco::test::equal(pair_begin,
+                        pair_begin + num_pairs,
+                        found_pairs.begin(),
+                        [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
+                          return lhs.first.a == rhs.first.a;
+                        }));
   }
 
   SECTION("Non-matches are not included in the output")
@@ -141,7 +142,7 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
     auto count = map.count(query_key_begin, query_key_begin + num, stream, key_pair_equals{});
     REQUIRE(count == num_pairs);
 
-    thrust::device_vector<cuco::pair_type<Key, Value>> found_pairs(num_pairs);
+    thrust::device_vector<cuco::pair<Key, Value>> found_pairs(num_pairs);
     auto output_end = map.retrieve(
       query_key_begin, query_key_begin + num, found_pairs.begin(), stream, key_pair_equals{});
     std::size_t const size = std::distance(found_pairs.begin(), output_end);
@@ -153,15 +154,16 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
       thrust::device,
       found_pairs.begin(),
       found_pairs.end(),
-      [] __device__(const cuco::pair_type<Key, Value>& lhs,
-                    const cuco::pair_type<Key, Value>& rhs) { return lhs.first.a < rhs.first.a; });
-    REQUIRE(cuco::test::equal(
-      pair_begin,
-      pair_begin + num_pairs,
-      found_pairs.begin(),
-      [] __device__(cuco::pair_type<Key, Value> lhs, cuco::pair_type<Key, Value> rhs) {
-        return lhs.first.a == rhs.first.a;
-      }));
+      [] __device__(const cuco::pair<Key, Value>& lhs, const cuco::pair<Key, Value>& rhs) {
+        return lhs.first.a < rhs.first.a;
+      });
+    REQUIRE(
+      cuco::test::equal(pair_begin,
+                        pair_begin + num_pairs,
+                        found_pairs.begin(),
+                        [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
+                          return lhs.first.a == rhs.first.a;
+                        }));
   }
 
   SECTION("Outer functions include non-matches in the output")
@@ -183,7 +185,7 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
       map.count_outer(query_key_begin, query_key_begin + num, stream, key_pair_equals{});
     REQUIRE(count_outer == num);
 
-    thrust::device_vector<cuco::pair_type<Key, Value>> found_pairs(num);
+    thrust::device_vector<cuco::pair<Key, Value>> found_pairs(num);
     auto output_end = map.retrieve_outer(
       query_key_begin, query_key_begin + num, found_pairs.begin(), stream, key_pair_equals{});
     std::size_t const size_outer = std::distance(found_pairs.begin(), output_end);

@@ -32,8 +32,8 @@
 // Custom pair equal
 template <typename Key, typename Value>
 struct pair_equal {
-  __device__ bool operator()(const cuco::pair_type<Key, Value>& lhs,
-                             const cuco::pair_type<Key, Value>& rhs) const
+  __device__ bool operator()(const cuco::pair<Key, Value>& lhs,
+                             const cuco::pair<Key, Value>& rhs) const
   {
     return lhs.first == rhs.first;
   }
@@ -54,7 +54,7 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
                     thrust::counting_iterator<int>(num_pairs),
                     pair_begin,
                     [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i, i};
+                      return cuco::pair<Key, Value>{i, i};
                     });
 
   SECTION("pair_contains returns true for all inserted pairs and false for non-inserted ones.")
@@ -121,7 +121,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int64_t, cuco::test::probe_sequence::double_hashing))
 {
   constexpr std::size_t num_pairs{4};
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_pairs);
+  thrust::device_vector<cuco::pair<Key, Value>> d_pairs(num_pairs);
 
   // pair multiplicity = 2
   thrust::transform(thrust::device,
@@ -129,7 +129,7 @@ TEMPLATE_TEST_CASE_SIG(
                     thrust::counting_iterator<int>(num_pairs),
                     d_pairs.begin(),
                     [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i / 2, i};
+                      return cuco::pair<Key, Value>{i / 2, i};
                     });
 
   using probe = std::conditional_t<

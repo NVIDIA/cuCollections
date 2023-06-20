@@ -36,7 +36,7 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
   using Value = typename Map::mapped_type;
 
   thrust::device_vector<Key> d_keys(num_items / 2);
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_items);
+  thrust::device_vector<cuco::pair<Key, Value>> d_pairs(num_items);
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   // multiplicity = 2
@@ -45,10 +45,10 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
                     thrust::counting_iterator<int>(num_items),
                     d_pairs.begin(),
                     [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i / 2, i};
+                      return cuco::pair<Key, Value>{i / 2, i};
                     });
 
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num_items);
+  thrust::device_vector<cuco::pair<Key, Value>> d_results(num_items);
 
   auto key_begin    = d_keys.begin();
   auto pair_begin   = d_pairs.begin();
@@ -91,22 +91,22 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
     REQUIRE(size == num_items);
 
     // sort before compare
-    thrust::sort(thrust::device,
-                 d_results.begin(),
-                 d_results.end(),
-                 [] __device__(const cuco::pair_type<Key, Value>& lhs,
-                               const cuco::pair_type<Key, Value>& rhs) {
-                   if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
-                   return lhs.second < rhs.second;
-                 });
+    thrust::sort(
+      thrust::device,
+      d_results.begin(),
+      d_results.end(),
+      [] __device__(const cuco::pair<Key, Value>& lhs, const cuco::pair<Key, Value>& rhs) {
+        if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
+        return lhs.second < rhs.second;
+      });
 
-    REQUIRE(cuco::test::equal(
-      pair_begin,
-      pair_begin + num_items,
-      output_begin,
-      [] __device__(cuco::pair_type<Key, Value> lhs, cuco::pair_type<Key, Value> rhs) {
-        return lhs.first == rhs.first and lhs.second == rhs.second;
-      }));
+    REQUIRE(
+      cuco::test::equal(pair_begin,
+                        pair_begin + num_items,
+                        output_begin,
+                        [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
+                          return lhs.first == rhs.first and lhs.second == rhs.second;
+                        }));
   }
 
   SECTION("count and count_outer should return the same value.")
@@ -129,22 +129,22 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
     REQUIRE(size == size_outer);
 
     // sort before compare
-    thrust::sort(thrust::device,
-                 d_results.begin(),
-                 d_results.end(),
-                 [] __device__(const cuco::pair_type<Key, Value>& lhs,
-                               const cuco::pair_type<Key, Value>& rhs) {
-                   if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
-                   return lhs.second < rhs.second;
-                 });
+    thrust::sort(
+      thrust::device,
+      d_results.begin(),
+      d_results.end(),
+      [] __device__(const cuco::pair<Key, Value>& lhs, const cuco::pair<Key, Value>& rhs) {
+        if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
+        return lhs.second < rhs.second;
+      });
 
-    REQUIRE(cuco::test::equal(
-      pair_begin,
-      pair_begin + num_items,
-      output_begin,
-      [] __device__(cuco::pair_type<Key, Value> lhs, cuco::pair_type<Key, Value> rhs) {
-        return lhs.first == rhs.first and lhs.second == rhs.second;
-      }));
+    REQUIRE(
+      cuco::test::equal(pair_begin,
+                        pair_begin + num_items,
+                        output_begin,
+                        [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
+                          return lhs.first == rhs.first and lhs.second == rhs.second;
+                        }));
   }
 }
 
