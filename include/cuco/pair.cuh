@@ -19,6 +19,10 @@
 #include <cuco/detail/traits.hpp>
 #include <cuco/detail/utils.cuh>
 
+#include <thrust/device_reference.h>
+#include <thrust/tuple.h>
+
+#include <tuple>
 #include <type_traits>
 
 namespace cuco {

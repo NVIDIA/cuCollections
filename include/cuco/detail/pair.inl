@@ -16,16 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/traits.hpp>
-
-#include <thrust/device_reference.h>
-#include <thrust/memory.h>
-#include <thrust/pair.h>
-#include <thrust/tuple.h>
-
-#include <algorithm>
-#include <tuple>
-#include <type_traits>
+#include <utility>
 
 namespace cuco {
 
