@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <type_traits>
 #include <utility>
 
 namespace cuco {
@@ -34,9 +35,10 @@ __host__ __device__ constexpr pair<First, Second>::pair(pair<F, S> const& p)
 }
 
 template <typename F, typename S>
-__host__ __device__ constexpr pair<F, S> make_pair(F&& f, S&& s) noexcept
+__host__ __device__ constexpr pair<std::decay_t<F>, std::decay_t<S>> make_pair(F&& f,
+                                                                               S&& s) noexcept
 {
-  return pair<F, S>{std::forward<F>(f), std::forward<S>(s)};
+  return pair<std::decay_t<F>, std::decay_t<S>>(std::forward<F>(f), std::forward<S>(s));
 }
 
 template <class T1, class T2, class U1, class U2>

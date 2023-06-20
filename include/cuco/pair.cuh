@@ -121,7 +121,8 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
  * @return A pair with first element `f` and second element `s`.
  */
 template <typename F, typename S>
-__host__ __device__ constexpr pair<F, S> make_pair(F&& f, S&& s) noexcept;
+__host__ __device__ constexpr pair<std::decay_t<F>, std::decay_t<S>> make_pair(F&& f,
+                                                                               S&& s) noexcept;
 
 /**
  * @brief Tests if both elements of lhs and rhs are equal
