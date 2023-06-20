@@ -30,7 +30,7 @@ namespace cuco {
 /**
  * @brief Custom pair type
  *
- * This is necessary because `thrust::pair` is under aligned.
+ * @note This is necessary because `thrust::pair` is under aligned.
  *
  * @tparam First Type of the first value in the pair
  * @tparam Second Type of the second value in the pair
