@@ -80,7 +80,8 @@ class static_map_ref
 
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr auto window_size =
-    storage_ref_type::window_size;  ///< Number of elements handled per window
+    storage_ref_type::window_size;             ///< Number of elements handled per window
+  static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
   /**
    * @brief Constructs static_map_ref.

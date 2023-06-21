@@ -29,6 +29,53 @@ namespace experimental {
 namespace detail {
 
 /**
+ * @brief Inserts keys in the range `[first, last) if the key does not exist. If a key `k` already
+ * exists in the container, assigns the payload of `k` to the mapped_type corresponding to the
+ * existing key.
+ *
+ * @note If multiple elements in `[first, first + n)` compare equal, it is unspecified which element
+ * is inserted.
+ *
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIterator Device accessible input iterator whose `value_type` is
+ * convertible to the `value_type` of the data structure
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
+template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Ref>
+__global__ void insert_or_assign(InputIterator first, cuco::detail::index_type n, Ref ref)
+{
+  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
+  cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
+
+  using mapped_type = typename Ref::mapped_type;
+
+  while (idx < n) {
+    typename Ref::value_type const insert_pair{*(first + idx)};
+    if constexpr (CGSize == 1) {
+      auto [iter, inserted] = ref.insert_and_find(insert_pair);
+      if (!inserted) {
+        cuda::atomic_ref<mapped_type, Ref::thread_scope> ref(iter->second);
+        ref.store(insert_pair.second, cuda::std::memory_order_relaxed);
+      }
+    } else {
+      auto const tile =
+        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+      auto [iter, inserted] = ref.insert_and_find(tile, insert_pair);
+      if (!inserted and tile.thread_rank() == 0) {
+        cuda::atomic_ref<mapped_type, Ref::thread_scope> ref(iter->second);
+        ref.store(insert_pair.second, cuda::std::memory_order_relaxed);
+      }
+    }
+    idx += loop_stride;
+  }
+}
+
+/**
  * @brief Finds the equivalent map elements of all keys in the range `[first, last)`.
  *
  * @note If the key `*(first + i)` has a match in the container, copies the payload of its matched

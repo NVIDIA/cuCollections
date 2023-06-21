@@ -265,6 +265,24 @@ class static_map {
                        cuda_stream_ref stream = {}) noexcept;
 
   /**
+   * @brief Asynchonously inserts keys in the range `[first, last) if the key does not exist. If a
+   * key `k` already exists in the container, assigns the payload of `k` to the mapped_type
+   * corresponding to the existing key.
+   *
+   * @note If multiple elements in `[first, last)` compare equal, it is unspecified which element is
+   * inserted.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stream CUDA stream used for the operation
+   */
+  template <typename InputIt>
+  void insert_or_assign_async(InputIt first, InputIt last, cuda_stream_ref stream = {}) noexcept;
+
+  /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
