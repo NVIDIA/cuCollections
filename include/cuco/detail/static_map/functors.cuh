@@ -35,7 +35,7 @@ struct slot_is_filled {
    *
    * @param s Sentinel indicating empty slot
    */
-  constexpr slot_is_filled(T const& s) noexcept : empty_sentinel_{s} {}
+  explicit constexpr slot_is_filled(T const& s) noexcept : empty_sentinel_{s} {}
 
   /**
    * @brief Indicates if the target slot `slot` is filled.
