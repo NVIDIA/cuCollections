@@ -143,7 +143,6 @@ class open_addressing_ref_impl {
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
 
-      // TODO: perf gain with #pragma unroll since num_windows is build time constant
       for (auto& slot_content : window_slots) {
         auto const eq_res = predicate(slot_content, key);
 
