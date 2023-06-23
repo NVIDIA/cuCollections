@@ -201,12 +201,12 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
   auto* old_payload_ptr = reinterpret_cast<mapped_type*>(&old_payload);
 
   // if key success
-  if (not *old_key_ptr == slot->first) {
-    while (*old_payload_ptr == slot->second) {
-      auto old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
+  if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
+    while (not cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
+      old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
     }
     return insert_result::SUCCESS;
-  } else if (not *old_payload_ptr == slot->second) {
+  } else if (cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
     auto const desired = this->get_empty_value_sentinel();
     if constexpr (sizeof(mapped_type) == sizeof(unsigned int)) {
       if constexpr (Scope == cuda::thread_scope_system) {

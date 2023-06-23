@@ -607,13 +607,13 @@ class open_addressing_ref_impl {
   {
     auto old      = compare_and_swap(slot, this->empty_slot_sentinel_, value);
     auto* old_ptr = reinterpret_cast<value_type*>(&old);
-    if (*slot == *old_ptr) {
+    if (cuco::detail::bitwise_compare(*old_ptr, this->empty_slot_sentinel_)) {
+      return insert_result::SUCCESS;
+    } else {
       // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
       return predicate.equal_to(*old_ptr, value) == detail::equal_result::EQUAL
                ? insert_result::DUPLICATE
                : insert_result::CONTINUE;
-    } else {
-      return insert_result::SUCCESS;
     }
   }
 
@@ -636,8 +636,7 @@ class open_addressing_ref_impl {
                                                         value_type const& value,
                                                         Predicate const& predicate) noexcept
   {
-    // One single CAS operation if `value_type` is 8 bytes
-    if constexpr (sizeof(value_type) == 8) { return packed_cas(slot, value, predicate); }
+    return packed_cas(slot, value, predicate);
   }
 
   value_type empty_slot_sentinel_;      ///< Sentinel value indicating an empty slot
