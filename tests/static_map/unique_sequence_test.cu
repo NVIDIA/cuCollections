@@ -159,10 +159,17 @@ __inline__ void test_unique_sequence(Map& map, size_type num_keys)
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
 
+<<<<<<< HEAD
   auto keys_begin = d_keys.begin();
   auto pairs_begin =
     thrust::make_transform_iterator(thrust::make_counting_iterator<size_type>(0),
                                     [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
+=======
+  auto keys_begin  = d_keys.begin();
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<size_type>(0),
+    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
+>>>>>>> upstream/dev
   thrust::device_vector<bool> d_contained(num_keys);
 
   auto zip_equal = [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); };

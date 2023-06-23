@@ -38,7 +38,6 @@ namespace detail {
  *
  * @note This class should NOT be used directly.
  *
- * @throw If the size of the given key type is larger than 8 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::bitwise_comparable_v<Key> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
@@ -50,8 +49,6 @@ namespace detail {
  */
 template <typename Key, cuda::thread_scope Scope, typename ProbingScheme, typename StorageRef>
 class open_addressing_ref_impl {
-  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
-
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
     "Key type must have unique object representations or have been explicitly declared as safe for "
@@ -143,7 +140,6 @@ class open_addressing_ref_impl {
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
 
-      // TODO: perf gain with #pragma unroll since num_windows is build time constant
       for (auto& slot_content : window_slots) {
         auto const eq_res = predicate(slot_content, key);
 
