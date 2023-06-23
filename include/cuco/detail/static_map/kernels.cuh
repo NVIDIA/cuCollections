@@ -29,23 +29,24 @@ namespace experimental {
 namespace detail {
 
 /**
- * @brief Finds the equivalent set elements of all keys in the range `[first, last)`.
+ * @brief Finds the equivalent map elements of all keys in the range `[first, last)`.
  *
- * If the key `*(first + i)` has a match in the set, copies its matched element to `(output_begin +
- * i)`. Else, copies the empty key sentinel. Uses the CUDA Cooperative Groups API to leverage groups
- * of multiple threads to find each key. This provides a significant boost in throughput compared to
- * the non Cooperative Group `find` at moderate to high load factors.
+ * @note If the key `*(first + i)` has a match in the container, copies the payload of its matched
+ * element to `(output_begin + i)`. Else, copies the empty value sentinel. Uses the CUDA Cooperative
+ * Groups API to leverage groups of multiple threads to find each key. This provides a significant
+ * boost in throughput compared to the non Cooperative Group `find` at moderate to high load
+ * factors.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize The size of the thread block
  * @tparam InputIt Device accessible input iterator
- * @tparam OutputIt Device accessible output iterator assignable from the set's `key_type`
+ * @tparam OutputIt Device accessible output iterator assignable from the map's `mapped_type`
  * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of keys
  * @param n Number of keys to query
- * @param output_begin Beginning of the sequence of matched elements retrieved for each key
- * @param ref Non-owning set device ref used to access the slot storage
+ * @param output_begin Beginning of the sequence of matched payloads retrieved for each key
+ * @param ref Non-owning map device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
 __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
@@ -57,7 +58,7 @@ __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_
 
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
   cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
-  __shared__ typename Ref::key_type output_buffer[BlockSize / CGSize];
+  __shared__ typename Ref::mapped_type output_buffer[BlockSize / CGSize];
 
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
     if (idx < n) {
@@ -70,7 +71,8 @@ __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_
          * synchronizing before writing back to global, we no longer rely on L1, preventing the
          * increase in sector stores from L2 to global and improving performance.
          */
-        output_buffer[thread_idx] = found == ref.end() ? ref.empty_key_sentinel() : *found;
+        output_buffer[thread_idx] =
+          found == ref.end() ? ref.empty_value_sentinel() : (*found).second;
         block.sync();
         *(output_begin + idx) = output_buffer[thread_idx];
       } else {
@@ -78,7 +80,7 @@ __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_
         auto const found = ref.find(tile, key);
 
         if (tile.thread_rank() == 0) {
-          *(output_begin + idx) = found == ref.end() ? ref.empty_key_sentinel() : *found;
+          *(output_begin + idx) = found == ref.end() ? ref.empty_value_sentinel() : (*found).second;
         }
       }
     }

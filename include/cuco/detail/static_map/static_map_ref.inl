@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,65 +26,161 @@ namespace cuco {
 namespace experimental {
 
 template <typename Key,
+          typename T,
           cuda::thread_scope Scope,
           typename KeyEqual,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
-__host__ __device__ constexpr static_set_ref<
+__host__ __device__ constexpr static_map_ref<
   Key,
+  T,
   Scope,
   KeyEqual,
   ProbingScheme,
   StorageRef,
-  Operators...>::static_set_ref(cuco::empty_key<Key> empty_key_sentinel,
+  Operators...>::static_map_ref(cuco::empty_key<Key> empty_key_sentinel,
+                                cuco::empty_value<T> empty_value_sentinel,
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
                                 StorageRef storage_ref) noexcept
-  : impl_{empty_key_sentinel, probing_scheme, storage_ref},
+  : impl_{cuco::pair{empty_key_sentinel, empty_value_sentinel}, probing_scheme, storage_ref},
+    empty_value_sentinel_{empty_value_sentinel},
     predicate_{empty_key_sentinel, predicate}
 {
 }
 
 template <typename Key,
+          typename T,
           cuda::thread_scope Scope,
           typename KeyEqual,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
 __host__ __device__ constexpr auto
-static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
   const noexcept
 {
   return impl_.capacity();
 }
 
 template <typename Key,
+          typename T,
           cuda::thread_scope Scope,
           typename KeyEqual,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
 __host__ __device__ constexpr Key
-static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::empty_key_sentinel()
-  const noexcept
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  empty_key_sentinel() const noexcept
 {
   return predicate_.empty_sentinel_;
 }
 
-namespace detail {
-
 template <typename Key,
+          typename T,
           cuda::thread_scope Scope,
           typename KeyEqual,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
-class operator_impl<op::insert_tag,
-                    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
-  using base_type  = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
-  using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
-  using key_type   = typename base_type::key_type;
+__host__ __device__ constexpr T
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  empty_value_sentinel() const noexcept
+{
+  return empty_value_sentinel_;
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+struct static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  predicate_wrapper {
+  detail::equal_wrapper<key_type, key_equal> predicate_;
+
+  /**
+   * @brief Map predicate wrapper ctor.
+   *
+   * @param sentinel Sentinel value
+   * @param equal Equality binary callable
+   */
+  __host__ __device__ constexpr predicate_wrapper(key_type empty_key_sentinel,
+                                                  key_equal const& equal) noexcept
+    : predicate_{empty_key_sentinel, equal}
+  {
+  }
+
+  /**
+   * @brief Equality check with the given equality callable.
+   *
+   * @tparam U Right-hand side Element type
+   *
+   * @param lhs Left-hand side element to check equality
+   * @param rhs Right-hand side element to check equality
+   *
+   * @return `EQUAL` if `lhs` and `rhs` are equivalent. `UNEQUAL` otherwise.
+   */
+  template <typename U>
+  __device__ constexpr detail::equal_result equal_to(value_type const& lhs,
+                                                     U const& rhs) const noexcept
+  {
+    return predicate_.equal_to(lhs.first, rhs);
+  }
+
+  /**
+   * @brief Equality check with the given equality callable.
+   *
+   * @param lhs Left-hand side element to check equality
+   * @param rhs Right-hand side element to check equality
+   *
+   * @return `EQUAL` if `lhs` and `rhs` are equivalent. `UNEQUAL` otherwise.
+   */
+  __device__ constexpr detail::equal_result equal_to(value_type const& lhs,
+                                                     value_type const& rhs) const noexcept
+  {
+    return predicate_.equal_to(lhs.first, rhs.first);
+  }
+
+  /**
+   * @brief Order-sensitive equality operator.
+   *
+   * @note Container keys MUST be always on the left-hand side.
+   *
+   * @tparam U Right-hand side Element type
+   *
+   * @param lhs Left-hand side element to check equality
+   * @param rhs Right-hand side element to check equality
+   *
+   * @return Three way equality comparison result
+   */
+  template <typename U>
+  __device__ constexpr detail::equal_result operator()(value_type const& lhs,
+                                                       U const& rhs) const noexcept
+  {
+    return predicate_(lhs.first, rhs);
+  }
+};
+
+namespace detail {
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::insert_tag,
+  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type = typename base_type::key_type;
   using value_type = typename base_type::value_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
@@ -95,13 +191,12 @@ class operator_impl<op::insert_tag,
    * @brief Inserts an element.
    *
    * @param value The element to insert
-   *
    * @return True if the given element is successfully inserted
    */
   __device__ bool insert(value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert(value, value, ref_.predicate_);
+    return ref_.impl_.insert(value.first, value, ref_.predicate_);
   }
 
   /**
@@ -109,30 +204,31 @@ class operator_impl<op::insert_tag,
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
-   *
    * @return True if the given element is successfully inserted
    */
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
                          value_type const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert(group, value, value, ref_.predicate_);
+    return ref_.impl_.insert(group, value.first, value, ref_.predicate_);
   }
 };
 
 template <typename Key,
+          typename T,
           cuda::thread_scope Scope,
           typename KeyEqual,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
-class operator_impl<op::insert_and_find_tag,
-                    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
-  using base_type  = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
-  using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
-  using key_type   = typename base_type::key_type;
-  using value_type = typename base_type::value_type;
-  using iterator   = typename base_type::iterator;
+class operator_impl<
+  op::insert_and_find_tag,
+  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type = typename base_type::key_type;
+  using value_type     = typename base_type::value_type;
+  using iterator       = typename base_type::iterator;
   using const_iterator = typename base_type::const_iterator;
 
   static constexpr auto cg_size     = base_type::cg_size;
@@ -166,7 +262,7 @@ class operator_impl<op::insert_and_find_tag,
   }
 
   /**
-   * @brief Inserts the given element into the set.
+   * @brief Inserts the given element into the map.
    *
    * @note This API returns a pair consisting of an iterator to the inserted element (or to the
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
@@ -180,11 +276,11 @@ class operator_impl<op::insert_and_find_tag,
   __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert_and_find(value, value, ref_.predicate_);
+    return ref_.impl_.insert_and_find(value.first, value, ref_.predicate_);
   }
 
   /**
-   * @brief Inserts the given element into the set.
+   * @brief Inserts the given element into the map.
    *
    * @note This API returns a pair consisting of an iterator to the inserted element (or to the
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
@@ -200,21 +296,23 @@ class operator_impl<op::insert_and_find_tag,
     cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert_and_find(group, value, value, ref_.predicate_);
+    return ref_.impl_.insert_and_find(group, value.first, value, ref_.predicate_);
   }
 };
 
 template <typename Key,
+          typename T,
           cuda::thread_scope Scope,
           typename KeyEqual,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
-class operator_impl<op::contains_tag,
-                    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
-  using base_type  = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
-  using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
-  using key_type   = typename base_type::key_type;
+class operator_impl<
+  op::contains_tag,
+  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type = typename base_type::key_type;
   using value_type = typename base_type::value_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
@@ -224,8 +322,8 @@ class operator_impl<op::contains_tag,
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
-   * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
-   * false.
+   * @note If the probe key `key` was inserted into the container, returns
+   * true. Otherwise, returns false.
    *
    * @tparam ProbeKey Probe key type
    *
@@ -236,6 +334,7 @@ class operator_impl<op::contains_tag,
   template <typename ProbeKey>
   [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
   {
+    // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.contains(key, ref_.predicate_);
   }
@@ -243,8 +342,8 @@ class operator_impl<op::contains_tag,
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
-   * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
-   * false.
+   * @note If the probe key `key` was inserted into the container, returns
+   * true. Otherwise, returns false.
    *
    * @tparam ProbeKey Probe key type
    *
@@ -263,18 +362,20 @@ class operator_impl<op::contains_tag,
 };
 
 template <typename Key,
+          typename T,
           cuda::thread_scope Scope,
           typename KeyEqual,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
-class operator_impl<op::find_tag,
-                    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
-  using base_type  = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
-  using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
-  using key_type   = typename base_type::key_type;
-  using value_type = typename base_type::value_type;
-  using iterator   = typename base_type::iterator;
+class operator_impl<
+  op::find_tag,
+  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type = typename base_type::key_type;
+  using value_type     = typename base_type::value_type;
+  using iterator       = typename base_type::iterator;
   using const_iterator = typename base_type::const_iterator;
 
   static constexpr auto cg_size     = base_type::cg_size;
@@ -308,7 +409,7 @@ class operator_impl<op::find_tag,
   }
 
   /**
-   * @brief Finds an element in the set with key equivalent to the probe key.
+   * @brief Finds an element in the map with key equivalent to the probe key.
    *
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
@@ -328,7 +429,7 @@ class operator_impl<op::find_tag,
   }
 
   /**
-   * @brief Finds an element in the set with key equivalent to the probe key.
+   * @brief Finds an element in the map with key equivalent to the probe key.
    *
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.

@@ -17,10 +17,12 @@
 #pragma once
 
 #include <cuco/detail/__config>
+#include <cuco/detail/open_addressing_impl.cuh>
 #include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/sentinel.cuh>
+#include <cuco/static_map_ref.cuh>
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/traits.hpp>
 
@@ -37,6 +39,446 @@
 #include <utility>
 
 namespace cuco {
+namespace experimental {
+/**
+ * @brief A GPU-accelerated, unordered, associative container of key-value pairs with unique keys.
+ *
+ * The `static_map` supports two types of operations:
+ * - Host-side "bulk" operations
+ * - Device-side "singular" operations
+ *
+ * The host-side bulk operations include `insert`, `contains`, etc. These APIs should be used when
+ * there are a large number of keys to modify or lookup. For example, given a range of keys
+ * specified by device-accessible iterators, the bulk `insert` function will insert all keys into
+ * the map.
+ *
+ * The singular device-side operations allow individual threads (or cooperative groups) to perform
+ * independent modify or lookup operations from device code. These operations are accessed through
+ * non-owning, trivially copyable reference types (or "ref"). User can combine any arbitrary
+ * operators (see options in `include/cuco/operator.hpp`) when creating the ref. Concurrent modify
+ * and lookup will be supported if both kinds of operators are specified during the ref
+ * construction.
+ *
+ * @note Allows constant time concurrent modify or lookup operations from threads in device code.
+ * @note cuCollections data stuctures always place the slot keys on the left-hand side when invoking
+ * the key comparison predicate, i.e., `pred(slot_key, query_key)`. Order-sensitive `KeyEqual`
+ * should be used with caution.
+ * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
+ * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
+ *
+ * @throw If the size of the given key type is larger than 4 bytes
+ * @throw If the size of the given slot type is larger than 8 bytes
+ * @throw If the given key type doesn't have unique object representations, i.e.,
+ * `cuco::bitwise_comparable_v<Key> == false`
+ * @throw If the given mapped type doesn't have unique object representations, i.e.,
+ * `cuco::bitwise_comparable_v<T> == false`
+ * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
+ *
+ * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
+ * @tparam T Type of the mapped values
+ * @tparam Extent Data structure size type
+ * @tparam Scope The scope in which operations will be performed by individual threads.
+ * @tparam KeyEqual Binary callable type used to compare two keys for equality
+ * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for choices)
+ * @tparam Allocator Type of allocator used for device storage
+ * @tparam Storage Slot window storage type
+ */
+
+template <class Key,
+          class T,
+          class Extent             = cuco::experimental::extent<std::size_t>,
+          cuda::thread_scope Scope = cuda::thread_scope_device,
+          class KeyEqual           = thrust::equal_to<Key>,
+          class ProbingScheme      = cuco::experimental::double_hashing<4,  // CG size
+                                                                   cuco::murmurhash3_32<Key>,
+                                                                   cuco::murmurhash3_32<Key>>,
+          class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
+          class Storage            = cuco::experimental::aow_storage<1>>
+class static_map {
+  static_assert(sizeof(Key) <= 4, "Container does not support key types larger than 4 bytes.");
+
+  static_assert(cuco::is_bitwise_comparable_v<T>,
+                "Mapped type must have unique object representations or have been explicitly "
+                "declared as safe for bitwise comparison via specialization of "
+                "cuco::is_bitwise_comparable_v<T>.");
+
+  using impl_type = detail::open_addressing_impl<Key,
+                                                 cuco::pair<Key, T>,
+                                                 Extent,
+                                                 Scope,
+                                                 KeyEqual,
+                                                 ProbingScheme,
+                                                 Allocator,
+                                                 Storage>;
+
+ public:
+  static constexpr auto cg_size      = impl_type::cg_size;       ///< CG size used for probing
+  static constexpr auto window_size  = impl_type::window_size;   ///< Window size used for probing
+  static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
+
+  using key_type       = typename impl_type::key_type;        ///< Key type
+  using value_type     = typename impl_type::value_type;      ///< Key-value pair type
+  using extent_type    = typename impl_type::extent_type;     ///< Extent type
+  using size_type      = typename impl_type::size_type;       ///< Size type
+  using key_equal      = typename impl_type::key_equal;       ///< Key equality comparator type
+  using allocator_type = typename impl_type::allocator_type;  ///< Allocator type
+  /// Non-owning window storage ref type
+  using storage_ref_type    = typename impl_type::storage_ref_type;
+  using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
+
+  using mapped_type = T;  ///< Payload type
+  template <typename... Operators>
+  using ref_type =
+    cuco::experimental::static_map_ref<key_type,
+                                       mapped_type,
+                                       thread_scope,
+                                       key_equal,
+                                       probing_scheme_type,
+                                       storage_ref_type,
+                                       Operators...>;  ///< Non-owning container ref type
+
+  static_map(static_map const&) = delete;
+  static_map& operator=(static_map const&) = delete;
+
+  static_map(static_map&&) = default;  ///< Move constructor
+
+  /**
+   * @brief Replaces the contents of the container with another container.
+   *
+   * @return Reference of the current map object
+   */
+  static_map& operator=(static_map&&) = default;
+  ~static_map()                       = default;
+
+  /**
+   * @brief Constructs a statically-sized map with the specified initial capacity, sentinel values
+   * and CUDA stream.
+   *
+   * The actual map capacity depends on the given `capacity`, the probing scheme, CG size, and the
+   * window size and it's computed via `make_valid_extent` factory. Insert operations will not
+   * automatically grow the map. Attempting to insert more unique keys than the capacity of the map
+   * results in undefined behavior.
+   *
+   * The `empty_key_sentinel` is reserved and behavior is undefined when attempting to insert
+   * this sentinel value.
+   *
+   * @param capacity The requested lower-bound map size
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param pred Key equality binary predicate
+   * @param probing_scheme Probing scheme
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the map
+   */
+  constexpr static_map(Extent capacity,
+                       empty_key<Key> empty_key_sentinel,
+                       empty_value<T> empty_value_sentinel,
+                       KeyEqual const& pred                = {},
+                       ProbingScheme const& probing_scheme = {},
+                       Allocator const& alloc              = {},
+                       cuda_stream_ref stream              = {});
+
+  /**
+   * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
+   * insertions.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `insert_async`.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_map<K, V>::value_type></tt> is `true`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream CUDA stream used for insert
+   *
+   * @return Number of successful insertions
+   */
+  template <typename InputIt>
+  size_type insert(InputIt first, InputIt last, cuda_stream_ref stream = {});
+
+  /**
+   * @brief Asynchonously inserts all keys in the range `[first, last)`.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_map<K, V>::value_type></tt> is `true`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt>
+  void insert_async(InputIt first, InputIt last, cuda_stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
+   * true.
+   *
+   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   * @note This function synchronizes the given stream and returns the number of successful
+   * insertions. For asynchronous execution use `insert_if_async`.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for the operation
+   *
+   * @return Number of successful insertions
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  size_type insert_if(
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream = {});
+
+  /**
+   * @brief Asynchonously inserts keys in the range `[first, last)` if `pred` of the corresponding
+   * stencil returns true.
+   *
+   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for the operation
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  void insert_if_async(InputIt first,
+                       InputIt last,
+                       StencilIt stencil,
+                       Predicate pred,
+                       cuda_stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `contains_async`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void contains(InputIt first,
+                InputIt last,
+                OutputIt output_begin,
+                cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * the map.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void contains_async(InputIt first,
+                      InputIt last,
+                      OutputIt output_begin,
+                      cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the map if
+   * `pred` of the corresponding stencil returns true.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
+   * indicating if the key `*(first + i)` is present in the map. If `pred( *(stencil + i) )` is
+   * false, stores false to `(output_begin + i)`.
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `contains_if_async`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+  void contains_if(InputIt first,
+                   InputIt last,
+                   StencilIt stencil,
+                   Predicate pred,
+                   OutputIt output_begin,
+                   cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * the map if `pred` of the corresponding stencil returns true.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
+   * indicating if the key `*(first + i)` is present in the map. If `pred( *(stencil + i) )` is
+   * false, stores false to `(output_begin + i)`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+  void contains_if_async(InputIt first,
+                         InputIt last,
+                         StencilIt stencil,
+                         Predicate pred,
+                         OutputIt output_begin,
+                         cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief For all keys in the range `[first, last)`, finds a payload with its key equivalent to
+   * the query key.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use `find_async`.
+   * @note If the key `*(first + i)` has a matched `element` in the map, copies the payload of
+   * `element` to
+   * `(output_begin + i)`. Else, copies the empty value sentinel.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from the map's `mapped_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of payloads retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void find(InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief For all keys in the range `[first, last)`, asynchonously finds a payload with its key
+   * equivalent to the query key.
+   *
+   * @note If the key `*(first + i)` has a matched `element` in the map, copies the payload of
+   * `element` to
+   * `(output_begin + i)`. Else, copies the empty value sentinel.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from the map's `mapped_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of payloads retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void find_async(InputIt first,
+                  InputIt last,
+                  OutputIt output_begin,
+                  cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief Retrieves all keys contained in the map.
+   *
+   * @note This API synchronizes the given stream.
+   * @note The order in which keys are returned is implementation defined and not guaranteed to be
+   * consistent between subsequent calls to `retrieve_all`.
+   * @note Behavior is undefined if the range beginning at `output_begin` is smaller than the return
+   * value of `size()`.
+   *
+   * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
+   * convertible from the container's `key_type`.
+   *
+   * @param output_begin Beginning output iterator for keys
+   * @param stream CUDA stream used for this operation
+   *
+   * @return Iterator indicating the end of the output
+   */
+  template <typename OutputIt>
+  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief Gets the number of elements in the container.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @param stream CUDA stream used to get the number of inserted elements
+   * @return The number of elements in the container
+   */
+  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief Gets the maximum number of elements the hash map can hold.
+   *
+   * @return The maximum number of elements the hash map can hold
+   */
+  [[nodiscard]] constexpr auto capacity() const noexcept;
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty key slot.
+   *
+   * @return The sentinel value used to represent an empty key slot
+   */
+  [[nodiscard]] constexpr key_type empty_key_sentinel() const noexcept;
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty value slot.
+   *
+   * @return The sentinel value used to represent an empty value slot
+   */
+  [[nodiscard]] constexpr mapped_type empty_value_sentinel() const noexcept;
+
+  /**
+   * @brief Get device ref with operators.
+   *
+   * @tparam Operators Set of `cuco::op` to be provided by the ref
+   *
+   * @param ops List of operators, e.g., `cuco::insert`
+   *
+   * @return Device ref of the current `static_map` object
+   */
+  template <typename... Operators>
+  [[nodiscard]] auto ref(Operators... ops) const noexcept;
+
+ private:
+  std::unique_ptr<impl_type> impl_;   ///< Static map implementation
+  mapped_type empty_value_sentinel_;  ///< Sentinel value that indicates an empty payload
+};
+}  // namespace experimental
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;
@@ -1424,3 +1866,4 @@ class static_map {
 }  // namespace cuco
 
 #include <cuco/detail/static_map.inl>
+#include <cuco/detail/static_map/static_map.inl>
