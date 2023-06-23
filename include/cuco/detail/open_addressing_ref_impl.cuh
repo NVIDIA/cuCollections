@@ -590,6 +590,92 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Inserts the specified element with one single CAS operation.
+   *
+   * @tparam Predicate Predicate type
+   *
+   * @param slot Pointer to the slot in memory
+   * @param value Element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return Result of this operation, i.e., success/continue/duplicate
+   */
+  template <typename Predicate>
+  __device__ constexpr insert_result packed_cas(value_type* slot,
+                                                value_type const& value,
+                                                Predicate const& predicate) noexcept
+  {
+    auto old      = compare_and_swap(slot, this->empty_slot_sentinel_, value);
+    auto* old_ptr = reinterpret_cast<value_type*>(&old);
+    if (*slot == *old_ptr) {
+      // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
+      return predicate.equal_to(*old_ptr, value) == detail::equal_result::EQUAL
+               ? insert_result::DUPLICATE
+               : insert_result::CONTINUE;
+    } else {
+      return insert_result::SUCCESS;
+    }
+  }
+
+  /**
+   * @brief Inserts the specified element with two back-to-back CAS operations.
+   *
+   * @tparam Predicate Predicate type
+   *
+   * @param slot Pointer to the slot in memory
+   * @param value Element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return Result of this operation, i.e., success/continue/duplicate
+   */
+  __device__ constexpr insert_resullt back_to_back_cas(value_type* slot,
+                                                       value_type const& value,
+                                                       Predicate const& predicate) noexcept
+  {
+    auto expected_key     = this->get_empty_key_sentinel();
+    auto expected_payload = this->get_empty_value_sentinel();
+
+    auto old_key     = compare_and_swap(&slot->first, expected_key, value.first);
+    auto old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
+
+    auto* old_key_ptr     = reinterpret_cast<key_type*>(&old_key);
+    auto* old_payload_ptr = reinterpret_cast<mapped_type*>(&old_payload);
+
+    // if key success
+    if (not *old_key_ptr == slot->first) {
+      while (*old_payload_ptr == slot->second) {
+        auto old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
+      }
+      return insert_result::SUCCESS;
+    } else if (not *old_payload_ptr == slot->second) {
+      auto const desired = this->get_empty_value_sentinel();
+      if constexpr (sizeof(T) == sizeof(unsigned int)) {
+        if constexpr (Scope == cuda::thread_scope_system) {
+          atomicExch_system(reinterpret_cast<unsigned int*>(&slot->second), desired);
+        } else if constexpr (Scope == cuda::thread_scope_device) {
+          atomicExch(reinterpret_cast<unsigned int*>(&slot->second), desired);
+        } else if constexpr (Scope == cuda::thread_scope_block) {
+          atomicExch_block(reinterpret_cast<unsigned int*>(&slot->second), desired);
+        } else {
+          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+        }
+      } else if constexpr (sizeof(T) == sizeof(unsigned long long int)) {
+        if constexpr (Scope == cuda::thread_scope_system) {
+          atomicExch_system(reinterpret_cast<unsigned long long int*>(&slot->second), desired);
+        } else if constexpr (Scope == cuda::thread_scope_device) {
+          atomicExch(reinterpret_cast<unsigned long long int*>(&slot->second), desired);
+        } else if constexpr (Scope == cuda::thread_scope_block) {
+          atomicExch_block(reinterpret_cast<unsigned long long int*>(&slot->second), desired);
+        } else {
+          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+        }
+      }
+    }
+
+    return insert_result::CONTINUE;
+  }
+
+  /**
    * @brief Attempts to insert an element into a slot.
    *
    * @note Dispatches the correct implementation depending on the container
@@ -606,18 +692,11 @@ class open_addressing_ref_impl {
   template <typename Predicate>
   [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot,
                                                         value_type const& value,
-                                                        Predicate const& predicate)
+                                                        Predicate const& predicate) noexcept
   {
-    auto old      = compare_and_swap(slot, this->empty_slot_sentinel_, value);
-    auto* old_ptr = reinterpret_cast<value_type*>(&old);
-    if (*slot == *old_ptr) {
-      // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-      return predicate.equal_to(*old_ptr, value) == detail::equal_result::EQUAL
-               ? insert_result::DUPLICATE
-               : insert_result::CONTINUE;
-    } else {
-      return insert_result::SUCCESS;
-    }
+    // One single CAS operation if `value_type` is 8 bytes
+    if constexpr (sizeof(value_type) == 8) { return packed_cas(slot, value, predicate); }
+    return back_to_back_cas(slot, value, predicate);
   }
 
   value_type empty_slot_sentinel_;      ///< Sentinel value indicating an empty slot
