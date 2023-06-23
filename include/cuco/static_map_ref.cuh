@@ -93,6 +93,9 @@ class static_map_ref
   static constexpr auto window_size =
     storage_ref_type::window_size;  ///< Number of elements handled per window
 
+  /// Three-way insert result enum
+  using insert_result = typename impl_type::insert_result;
+
   /**
    * @brief Constructs static_map_ref.
    *
@@ -132,6 +135,18 @@ class static_map_ref
 
  private:
   struct predicate_wrapper;
+
+  /**
+   * @brief Inserts the specified element with two back-to-back CAS operations.
+   *
+   * @param slot Pointer to the slot in memory
+   * @param value Element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return Result of this operation, i.e., success/continue/duplicate
+   */
+  [[nodiscard]] __device__ constexpr auto back_to_back_cas(value_type* slot,
+                                                           value_type const& value) noexcept;
 
   impl_type impl_;                    ///< Static map ref implementation
   predicate_wrapper predicate_;       ///< Key equality binary callable
