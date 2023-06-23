@@ -233,7 +233,9 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
 
   // Our key was already present in the slot, so our key is a duplicate
   // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-  if (predicate_.equal_to(*old_key_ptr, value.first)) { return insert_result::DUPLICATE; }
+  if (predicate_.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL) {
+    return insert_result::DUPLICATE;
+  }
 
   return insert_result::CONTINUE;
 }
