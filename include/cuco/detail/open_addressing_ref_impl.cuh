@@ -256,7 +256,13 @@ class open_addressing_ref_impl {
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) { return {iterator{&window_ptr[i]}, false}; }
         if (eq_res == detail::equal_result::EMPTY) {
-          switch (attempt_insert(window_ptr + i, value, predicate)) {
+          switch ([&]() {
+            if constexpr (sizeof(value_type) <= 8) {
+              return packed_cas(window_ptr + i, value, predicate);
+            } else {
+              return cas_dependent_write(window_ptr + i, value, predicate);
+            }
+          }()) {
             case insert_result::SUCCESS: {
               return {iterator{&window_ptr[i]}, true};
             }
@@ -327,7 +333,12 @@ class open_addressing_ref_impl {
         auto const src_lane = __ffs(group_contains_empty) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
         auto const status   = (group.thread_rank() == src_lane)
-                                ? attempt_insert(slot_ptr, value, predicate)
+                                ? [&]{
+    if constexpr (sizeof(value_type) <= 8) {
+    return packed_cas(slot_ptr, value, predicate);
+    }
+    else {return cas_dependent_write(slot_ptr, value, predicate);
+          }}()
                                 : insert_result::CONTINUE;
 
         switch (group.shfl(status, src_lane)) {
@@ -593,6 +604,40 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Atomically stores `value` at the given `address`.
+   *
+   * @tparam T Address content type
+   *
+   * @param address The target address
+   * @param value The value to store
+   */
+  template <typename T>
+  __device__ constexpr void atomic_store(T* address, T value)
+  {
+    if constexpr (sizeof(T) == sizeof(unsigned int)) {
+      if constexpr (Scope == cuda::thread_scope_system) {
+        atomicExch_system(reinterpret_cast<unsigned int*>(address), value);
+      } else if constexpr (Scope == cuda::thread_scope_device) {
+        atomicExch(reinterpret_cast<unsigned int*>(address), value);
+      } else if constexpr (Scope == cuda::thread_scope_block) {
+        atomicExch_block(reinterpret_cast<unsigned int*>(address), value);
+      } else {
+        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+      }
+    } else if constexpr (sizeof(T) == sizeof(unsigned long long int)) {
+      if constexpr (Scope == cuda::thread_scope_system) {
+        atomicExch_system(reinterpret_cast<unsigned long long int*>(address), value);
+      } else if constexpr (Scope == cuda::thread_scope_device) {
+        atomicExch(reinterpret_cast<unsigned long long int*>(address), value);
+      } else if constexpr (Scope == cuda::thread_scope_block) {
+        atomicExch_block(reinterpret_cast<unsigned long long int*>(address), value);
+      } else {
+        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+      }
+    }
+  }
+
+  /**
    * @brief Inserts the specified element with one single CAS operation.
    *
    * @tparam Predicate Predicate type
@@ -653,29 +698,43 @@ class open_addressing_ref_impl {
       }
       return insert_result::SUCCESS;
     } else if (cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
-      if constexpr (sizeof(mapped_type) == sizeof(unsigned int)) {
-        if constexpr (Scope == cuda::thread_scope_system) {
-          atomicExch_system(reinterpret_cast<unsigned int*>(&slot->second), expected_payload);
-        } else if constexpr (Scope == cuda::thread_scope_device) {
-          atomicExch(reinterpret_cast<unsigned int*>(&slot->second), expected_payload);
-        } else if constexpr (Scope == cuda::thread_scope_block) {
-          atomicExch_block(reinterpret_cast<unsigned int*>(&slot->second), expected_payload);
-        } else {
-          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-        }
-      } else if constexpr (sizeof(mapped_type) == sizeof(unsigned long long int)) {
-        if constexpr (Scope == cuda::thread_scope_system) {
-          atomicExch_system(reinterpret_cast<unsigned long long int*>(&slot->second),
-                            expected_payload);
-        } else if constexpr (Scope == cuda::thread_scope_device) {
-          atomicExch(reinterpret_cast<unsigned long long int*>(&slot->second), expected_payload);
-        } else if constexpr (Scope == cuda::thread_scope_block) {
-          atomicExch_block(reinterpret_cast<unsigned long long int*>(&slot->second),
-                           expected_payload);
-        } else {
-          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-        }
-      }
+      atomic_store(&slot->second, expected_payload);
+    }
+
+    // Our key was already present in the slot, so our key is a duplicate
+    // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
+    if (predicate.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL) {
+      return insert_result::DUPLICATE;
+    }
+
+    return insert_result::CONTINUE;
+  }
+
+  /**
+   * @brief Inserts the specified element with CAS-dependent write operations.
+   *
+   * @tparam Predicate Predicate type
+   *
+   * @param slot Pointer to the slot in memory
+   * @param value Element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return Result of this operation, i.e., success/continue/duplicate
+   */
+  template <typename Predicate>
+  [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(
+    value_type* slot, value_type const& value, Predicate const& predicate) noexcept
+  {
+    auto const expected_key = this->empty_slot_sentinel_.first;
+
+    auto old_key = compare_and_swap(&slot->first, expected_key, value.first);
+
+    auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
+
+    // if key success
+    if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
+      atomic_store(&slot->second, value.second);
+      return insert_result::SUCCESS;
     }
 
     // Our key was already present in the slot, so our key is a duplicate
@@ -709,7 +768,11 @@ class open_addressing_ref_impl {
     if constexpr (sizeof(value_type) <= 8) {
       return packed_cas(slot, value, predicate);
     } else {
+#if (_CUDA_ARCH__ < 700)
+      return cas_dependent_write(slot, value, predicate);
+#else
       return back_to_back_cas(slot, value, predicate);
+#endif
     }
   }
 
