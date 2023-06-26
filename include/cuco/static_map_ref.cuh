@@ -37,8 +37,8 @@ namespace experimental {
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
- * @throw If the size of the given key type is larger than 4 bytes
- * @throw If the size of the given slot type is larger than 8 bytes
+ * @throw If the size of the given key type is larger than 8 bytes
+ * @throw If the size of the given slot type is larger than 16 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::bitwise_comparable_v<Key> == false`
  * @throw If the given payload type doesn't have unique object representations, i.e.,
@@ -66,10 +66,8 @@ class static_map_ref
       static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
   using impl_type = detail::open_addressing_ref_impl<Key, Scope, ProbingScheme, StorageRef>;
 
-  static_assert(sizeof(Key) <= 4, "Container does not support key types larger than 4 bytes.");
-
-  static_assert(sizeof(cuco::pair<Key, T>) <= 8,
-                "Container does not support slot types larger than 8 bytes.");
+  static_assert(sizeof(cuco::pair<Key, T>) <= 16,
+                "Container does not support slot types larger than 16 bytes.");
 
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
@@ -92,9 +90,6 @@ class static_map_ref
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr auto window_size =
     storage_ref_type::window_size;  ///< Number of elements handled per window
-
-  /// Three-way insert result enum
-  using insert_result = typename impl_type::insert_result;
 
   /**
    * @brief Constructs static_map_ref.
@@ -135,18 +130,6 @@ class static_map_ref
 
  private:
   struct predicate_wrapper;
-
-  /**
-   * @brief Inserts the specified element with two back-to-back CAS operations.
-   *
-   * @param slot Pointer to the slot in memory
-   * @param value Element to insert
-   * @param predicate Predicate used to compare slot content against `key`
-   *
-   * @return Result of this operation, i.e., success/continue/duplicate
-   */
-  [[nodiscard]] __device__ constexpr auto back_to_back_cas(value_type* slot,
-                                                           value_type const& value) noexcept;
 
   impl_type impl_;                    ///< Static map ref implementation
   predicate_wrapper predicate_;       ///< Key equality binary callable

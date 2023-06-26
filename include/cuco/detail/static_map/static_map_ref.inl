@@ -180,66 +180,6 @@ struct static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operat
   }
 };
 
-template <typename Key,
-          typename T,
-          cuda::thread_scope Scope,
-          typename KeyEqual,
-          typename ProbingScheme,
-          typename StorageRef,
-          typename... Operators>
-__device__ constexpr auto
-static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::back_to_back_cas(
-  value_type* slot, value_type const& value) noexcept
-{
-  auto expected_key     = this->get_empty_key_sentinel();
-  auto expected_payload = this->get_empty_value_sentinel();
-
-  auto old_key     = compare_and_swap(&slot->first, expected_key, value.first);
-  auto old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
-
-  auto* old_key_ptr     = reinterpret_cast<key_type*>(&old_key);
-  auto* old_payload_ptr = reinterpret_cast<mapped_type*>(&old_payload);
-
-  // if key success
-  if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
-    while (not cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
-      old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
-    }
-    return insert_result::SUCCESS;
-  } else if (cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
-    auto const desired = this->get_empty_value_sentinel();
-    if constexpr (sizeof(mapped_type) == sizeof(unsigned int)) {
-      if constexpr (Scope == cuda::thread_scope_system) {
-        atomicExch_system(reinterpret_cast<unsigned int*>(&slot->second), desired);
-      } else if constexpr (Scope == cuda::thread_scope_device) {
-        atomicExch(reinterpret_cast<unsigned int*>(&slot->second), desired);
-      } else if constexpr (Scope == cuda::thread_scope_block) {
-        atomicExch_block(reinterpret_cast<unsigned int*>(&slot->second), desired);
-      } else {
-        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-      }
-    } else if constexpr (sizeof(mapped_type) == sizeof(unsigned long long int)) {
-      if constexpr (Scope == cuda::thread_scope_system) {
-        atomicExch_system(reinterpret_cast<unsigned long long int*>(&slot->second), desired);
-      } else if constexpr (Scope == cuda::thread_scope_device) {
-        atomicExch(reinterpret_cast<unsigned long long int*>(&slot->second), desired);
-      } else if constexpr (Scope == cuda::thread_scope_block) {
-        atomicExch_block(reinterpret_cast<unsigned long long int*>(&slot->second), desired);
-      } else {
-        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-      }
-    }
-  }
-
-  // Our key was already present in the slot, so our key is a duplicate
-  // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-  if (predicate_.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL) {
-    return insert_result::DUPLICATE;
-  }
-
-  return insert_result::CONTINUE;
-}
-
 namespace detail {
 
 template <typename Key,

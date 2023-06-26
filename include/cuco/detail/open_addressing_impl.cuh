@@ -42,7 +42,8 @@ namespace detail {
  *
  * @note This class should NOT be used directly.
  *
- * @throw If the size of the given slot type is larger than 8 bytes
+ * @throw If the size of the given key type is larger than 8 bytes
+ * @throw If the size of the given slot type is larger than 16 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::bitwise_comparable_v<Key> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
@@ -65,7 +66,9 @@ template <class Key,
           class Allocator,
           class Storage>
 class open_addressing_impl {
-  static_assert(sizeof(Value) <= 8, "Container does not support slot types larger than 8 bytes.");
+  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
+
+  static_assert(sizeof(Value) <= 16, "Container does not support slot types larger than 16 bytes.");
 
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,

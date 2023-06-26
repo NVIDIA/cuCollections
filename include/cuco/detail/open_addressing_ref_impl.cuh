@@ -38,6 +38,7 @@ namespace detail {
  *
  * @note This class should NOT be used directly.
  *
+ * @throw If the size of the given key type is larger than 8 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::bitwise_comparable_v<Key> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
@@ -49,6 +50,8 @@ namespace detail {
  */
 template <typename Key, cuda::thread_scope Scope, typename ProbingScheme, typename StorageRef>
 class open_addressing_ref_impl {
+  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
+
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
     "Key type must have unique object representations or have been explicitly declared as safe for "
@@ -73,9 +76,6 @@ class open_addressing_ref_impl {
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr auto window_size =
     storage_ref_type::window_size;  ///< Number of elements handled per window
-
-  /// Three-way insert result enum
-  enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
 
   /**
    * @brief Constructs open_addressing_ref_impl.
@@ -521,6 +521,9 @@ class open_addressing_ref_impl {
   }
 
  private:
+  /// Three-way insert result enum
+  enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
+
   /**
    * @brief Helper struct to store intermediate window probing results.
    */
@@ -618,6 +621,73 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Inserts the specified element with two back-to-back CAS operations.
+   *
+   * @tparam Predicate Predicate type
+   *
+   * @param slot Pointer to the slot in memory
+   * @param value Element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return Result of this operation, i.e., success/continue/duplicate
+   */
+  template <typename Predicate>
+  [[nodiscard]] __device__ constexpr insert_result back_to_back_cas(
+    value_type* slot, value_type const& value, Predicate const& predicate) noexcept
+  {
+    auto const expected_key     = this->empty_slot_sentinel_.first;
+    auto const expected_payload = this->empty_slot_sentinel_.second;
+
+    auto old_key     = compare_and_swap(&slot->first, expected_key, value.first);
+    auto old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
+
+    using mapped_type = decltype(expected_payload);
+
+    auto* old_key_ptr     = reinterpret_cast<key_type*>(&old_key);
+    auto* old_payload_ptr = reinterpret_cast<mapped_type*>(&old_payload);
+
+    // if key success
+    if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
+      while (not cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
+        old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
+      }
+      return insert_result::SUCCESS;
+    } else if (cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
+      if constexpr (sizeof(mapped_type) == sizeof(unsigned int)) {
+        if constexpr (Scope == cuda::thread_scope_system) {
+          atomicExch_system(reinterpret_cast<unsigned int*>(&slot->second), expected_payload);
+        } else if constexpr (Scope == cuda::thread_scope_device) {
+          atomicExch(reinterpret_cast<unsigned int*>(&slot->second), expected_payload);
+        } else if constexpr (Scope == cuda::thread_scope_block) {
+          atomicExch_block(reinterpret_cast<unsigned int*>(&slot->second), expected_payload);
+        } else {
+          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+        }
+      } else if constexpr (sizeof(mapped_type) == sizeof(unsigned long long int)) {
+        if constexpr (Scope == cuda::thread_scope_system) {
+          atomicExch_system(reinterpret_cast<unsigned long long int*>(&slot->second),
+                            expected_payload);
+        } else if constexpr (Scope == cuda::thread_scope_device) {
+          atomicExch(reinterpret_cast<unsigned long long int*>(&slot->second), expected_payload);
+        } else if constexpr (Scope == cuda::thread_scope_block) {
+          atomicExch_block(reinterpret_cast<unsigned long long int*>(&slot->second),
+                           expected_payload);
+        } else {
+          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+        }
+      }
+    }
+
+    // Our key was already present in the slot, so our key is a duplicate
+    // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
+    if (predicate.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL) {
+      return insert_result::DUPLICATE;
+    }
+
+    return insert_result::CONTINUE;
+  }
+
+  /**
    * @brief Attempts to insert an element into a slot.
    *
    * @note Dispatches the correct implementation depending on the container
@@ -636,7 +706,11 @@ class open_addressing_ref_impl {
                                                         value_type const& value,
                                                         Predicate const& predicate) noexcept
   {
-    return packed_cas(slot, value, predicate);
+    if constexpr (sizeof(value_type) <= 8) {
+      return packed_cas(slot, value, predicate);
+    } else {
+      return back_to_back_cas(slot, value, predicate);
+    }
   }
 
   value_type empty_slot_sentinel_;      ///< Sentinel value indicating an empty slot

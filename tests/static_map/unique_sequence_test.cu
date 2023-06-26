@@ -242,17 +242,31 @@ __inline__ void test_unique_sequence(Map& map, size_type num_keys)
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Unique sequence",
-                       "",
-                       ((cuco::test::probe_sequence Probe, int CGSize), Probe, CGSize),
-                       (cuco::test::probe_sequence::double_hashing, 1),
-                       (cuco::test::probe_sequence::double_hashing, 2),
-                       (cuco::test::probe_sequence::linear_probing, 1),
-                       (cuco::test::probe_sequence::linear_probing, 2))
+TEMPLATE_TEST_CASE_SIG(
+  "Unique sequence",
+  "",
+  ((typename Key, typename Value, cuco::test::probe_sequence Probe, int CGSize),
+   Key,
+   Value,
+   Probe,
+   CGSize),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  using Key   = int32_t;
-  using Value = int32_t;
-
   constexpr size_type num_keys{400};
   constexpr size_type gold_capacity = CGSize == 1 ? 422   // 211 x 1 x 2
                                                   : 412;  // 103 x 2 x 2
@@ -272,7 +286,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence",
                                             probe,
                                             cuco::cuda_allocator<std::byte>,
                                             cuco::experimental::aow_storage<2>>{
-    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value{-1}};
+    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   REQUIRE(map.capacity() == gold_capacity);
 

@@ -64,8 +64,6 @@ class static_set_ref
       static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
   using impl_type = detail::open_addressing_ref_impl<Key, Scope, ProbingScheme, StorageRef>;
 
-  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
-
  public:
   using key_type            = Key;                                     ///< Key Type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
