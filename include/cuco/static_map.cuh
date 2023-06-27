@@ -412,7 +412,7 @@ class static_map {
                   cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief Retrieves all keys contained in the map.
+   * @brief Retrieves all of the keys and their associated values.
    *
    * @note This API synchronizes the given stream.
    * @note The order in which keys are returned is implementation defined and not guaranteed to be
@@ -421,9 +421,9 @@ class static_map {
    * value of `size()`.
    *
    * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
-   * convertible from the container's `key_type`.
+   * convertible from the container's `value_type`.
    *
-   * @param output_begin Beginning output iterator for keys
+   * @param output_begin Beginning output iterator for key-value pairs
    * @param stream CUDA stream used for this operation
    *
    * @return Iterator indicating the end of the output
