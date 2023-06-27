@@ -332,14 +332,14 @@ class open_addressing_ref_impl {
       if (group_contains_empty) {
         auto const src_lane = __ffs(group_contains_empty) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
-        auto const status   = (group.thread_rank() == src_lane)
-                                ? [&]{
-    if constexpr (sizeof(value_type) <= 8) {
-    return packed_cas(slot_ptr, value, predicate);
-    }
-    else {return cas_dependent_write(slot_ptr, value, predicate);
-          }}()
-                                : insert_result::CONTINUE;
+        auto const status   = []() {
+          if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
+          if constexpr (sizeof(value_type) <= 8) {
+            return packed_cas(slot_ptr, value, predicate);
+          } else {
+            return cas_dependent_write(slot_ptr, value, predicate);
+          }
+        }();
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: {
