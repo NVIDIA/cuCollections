@@ -89,11 +89,11 @@ template <class Key,
           class Extent             = cuco::experimental::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
-          class ProbingScheme      = cuco::experimental::double_hashing<4,  // CG size
-                                                                   cuco::murmurhash3_32<Key>,
-                                                                   cuco::murmurhash3_32<Key>>,
-          class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
-          class Storage            = cuco::experimental::aow_storage<1>>
+          class ProbingScheme =
+            cuco::experimental::double_hashing<4,  // CG size
+                                               cuco::default_hash_function<Key>>,
+          class Allocator = cuco::cuda_allocator<cuco::pair<Key, T>>,
+          class Storage   = cuco::experimental::aow_storage<1>>
 class static_map {
   static_assert(sizeof(Key) <= 4, "Container does not support key types larger than 4 bytes.");
 
