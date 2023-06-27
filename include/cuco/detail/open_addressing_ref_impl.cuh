@@ -332,7 +332,7 @@ class open_addressing_ref_impl {
       if (group_contains_empty) {
         auto const src_lane = __ffs(group_contains_empty) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
-        auto const status   = []() {
+        auto const status   = [&]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
           if constexpr (sizeof(value_type) <= 8) {
             return packed_cas(slot_ptr, value, predicate);
