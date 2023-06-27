@@ -224,7 +224,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
     (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
     (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  detail::find<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+  static_map_ns::detail::find<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
       first, num_keys, output_begin, ref(op::find));
 }
@@ -242,7 +242,7 @@ OutputIt
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   OutputIt output_begin, cuda_stream_ref stream) const
 {
-  auto const is_filled = detail::slot_is_filled(this->empty_key_sentinel());
+  auto const is_filled = static_map_ns::detail::slot_is_filled(this->empty_key_sentinel());
   return impl_->retrieve_all(output_begin, is_filled, stream);
 }
 
@@ -258,7 +258,7 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cuda_stream_ref stream) const noexcept
 {
-  auto const is_filled = detail::slot_is_filled(this->empty_key_sentinel());
+  auto const is_filled = static_map_ns::detail::slot_is_filled(this->empty_key_sentinel());
   return impl_->size(is_filled, stream);
 }
 

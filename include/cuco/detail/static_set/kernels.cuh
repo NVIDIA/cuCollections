@@ -26,6 +26,7 @@
 
 namespace cuco {
 namespace experimental {
+namespace static_set_ns {
 namespace detail {
 
 /**
@@ -87,5 +88,6 @@ __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_
 }
 
 }  // namespace detail
+}  // namespace static_set_ns
 }  // namespace experimental
 }  // namespace cuco
