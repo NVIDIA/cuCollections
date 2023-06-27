@@ -38,7 +38,7 @@ namespace experimental {
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
  * @throw If the size of the given key type is larger than 8 bytes
- * @throw If the size of the given slot type is larger than 16 bytes
+ * @throw If the size of the given payload type is larger than 8 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::bitwise_comparable_v<Key> == false`
  * @throw If the given payload type doesn't have unique object representations, i.e.,
@@ -66,8 +66,7 @@ class static_map_ref
       static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
   using impl_type = detail::open_addressing_ref_impl<Key, Scope, ProbingScheme, StorageRef>;
 
-  static_assert(sizeof(cuco::pair<Key, T>) <= 16,
-                "Container does not support slot types larger than 16 bytes.");
+  static_assert(sizeof(T) <= 8, "Container does not support payload types larger than 8 bytes.");
 
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,

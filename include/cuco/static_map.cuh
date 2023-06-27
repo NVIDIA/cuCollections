@@ -67,6 +67,7 @@ namespace experimental {
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
  * @throw If the size of the given key type is larger than 8 bytes
+ * @throw If the size of the given payload type is larger than 8 bytes
  * @throw If the size of the given slot type is larger than 16 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::bitwise_comparable_v<Key> == false`
@@ -96,6 +97,8 @@ template <class Key,
           class Storage            = cuco::experimental::aow_storage<1>>
 class static_map {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
+
+  static_assert(sizeof(T) <= 8, "Container does not support payload types larger than 8 bytes.");
 
   static_assert(cuco::is_bitwise_comparable_v<T>,
                 "Mapped type must have unique object representations or have been explicitly "
