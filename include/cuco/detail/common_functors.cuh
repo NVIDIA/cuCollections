@@ -15,40 +15,37 @@
 
 #pragma once
 
-#include <cuco/detail/bitwise_compare.cuh>
-
 namespace cuco {
 namespace experimental {
 namespace detail {
 
 /**
- * @brief Device functor returning whether the input slot indexed by `idx` is filled.
+ * @brief Device functor returning the content of the slot indexed by `idx`.
  *
- * @tparam T The slot content type
+ * @tparam StorageRef Storage ref type
  */
-template <typename T>
-struct slot_is_filled {
-  T empty_sentinel_;  ///< The value of the empty key sentinel
+template <typename StorageRef>
+struct get_slot {
+  StorageRef storage_;  ///< Storage ref
 
   /**
-   * @brief Constructs `slot_is_filled` functor with the given empty sentinel.
+   * @brief Constructs `get_slot` functor with the given storage ref.
    *
-   * @param s Sentinel indicating empty slot
+   * @param s Input storage ref
    */
-  explicit constexpr slot_is_filled(T const& s) noexcept : empty_sentinel_{s} {}
+  explicit constexpr get_slot(StorageRef s) noexcept : storage_{s} {}
 
   /**
-   * @brief Indicates if the target slot `slot` is filled.
+   * @brief Accesses the slot content with the given index.
    *
-   * @tparam T Slot content type
-   *
-   * @param slot The slot
-   *
-   * @return `true` if slot is filled
+   * @param idx The slot index
+   * @return The slot content
    */
-  __device__ constexpr bool operator()(T const& slot) const noexcept
+  __device__ constexpr auto operator()(typename StorageRef::size_type idx) const noexcept
   {
-    return not cuco::detail::bitwise_compare(empty_sentinel_, slot);
+    auto const window_idx = idx / StorageRef::window_size;
+    auto const intra_idx  = idx % StorageRef::window_size;
+    return storage_[window_idx][intra_idx];
   }
 };
 
