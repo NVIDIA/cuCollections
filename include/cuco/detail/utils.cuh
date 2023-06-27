@@ -19,6 +19,8 @@
 
 #include <thrust/tuple.h>
 
+#include <cuda/std/bit>
+
 namespace cuco {
 namespace detail {
 
@@ -103,23 +105,6 @@ struct strong_type {
 };
 
 /**
- * @brief Rounds `v` to the nearest power of 2 greater than or equal to `v`.
- *
- * @param v
- * @return The nearest power of 2 greater than or equal to `v`.
- */
-constexpr std::size_t next_pow2(std::size_t v) noexcept
-{
-  --v;
-  v |= v >> 1;
-  v |= v >> 2;
-  v |= v >> 4;
-  v |= v >> 8;
-  v |= v >> 16;
-  return ++v;
-}
-
-/**
  * @brief Gives value to use as alignment for a pair type that is at least the
  * size of the sum of the size of the first type and second type, or 16,
  * whichever is smaller.
@@ -127,7 +112,7 @@ constexpr std::size_t next_pow2(std::size_t v) noexcept
 template <typename First, typename Second>
 constexpr std::size_t pair_alignment()
 {
-  return std::min(std::size_t{16}, next_pow2(sizeof(First) + sizeof(Second)));
+  return std::min(std::size_t{16}, cuda::std::bit_ceil(sizeof(First) + sizeof(Second)));
 }
 
 /**
