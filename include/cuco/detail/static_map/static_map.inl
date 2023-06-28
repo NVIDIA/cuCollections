@@ -224,7 +224,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
     (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
     (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  detail::find<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+  static_map_ns::detail::find<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
       first, num_keys, output_begin, ref(op::find));
 }
@@ -246,7 +246,6 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   auto const begin = thrust::make_transform_iterator(
     thrust::counting_iterator<size_type>(0),
     static_map_ns::detail::get_slot<storage_ref_type>(impl_->storage_ref()));
-
   auto const is_filled  = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel());
   auto zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
   auto const zipped_out_end = impl_->retrieve_all(begin, zipped_out_begin, is_filled, stream);
