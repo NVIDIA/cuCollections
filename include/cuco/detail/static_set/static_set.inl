@@ -221,8 +221,13 @@ template <typename OutputIt>
 OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   OutputIt output_begin, cuda_stream_ref stream) const
 {
+  // XXX: thrust counting iterator doesn't work if size_type is larger than 32-bit
+  auto const begin =
+    thrust::make_transform_iterator(thrust::counting_iterator<size_type>(0),
+                                    detail::get_slot<storage_ref_type>(impl_->storage_ref()));
+
   auto const is_filled = detail::slot_is_filled(this->empty_key_sentinel());
-  return impl_->retrieve_all(output_begin, is_filled, stream);
+  return impl_->retrieve_all(begin, output_begin, is_filled, stream);
 }
 
 template <class Key,

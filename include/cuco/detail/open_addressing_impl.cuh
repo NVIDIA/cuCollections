@@ -396,15 +396,12 @@ class open_addressing_impl {
    *
    * @return Iterator indicating the end of the output
    */
-  template <typename OutputIt, typename Predicate>
-  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin,
+  template <typename InputIt, typename OutputIt, typename Predicate>
+  [[nodiscard]] OutputIt retrieve_all(InputIt begin,
+                                      OutputIt output_begin,
                                       Predicate const& is_filled,
                                       cuda_stream_ref stream) const
   {
-    auto begin =
-      thrust::make_transform_iterator(thrust::counting_iterator<size_type>(0),
-                                      detail::get_slot<storage_ref_type>(this->storage_ref()));
-
     std::size_t temp_storage_bytes = 0;
     using temp_allocator_type = typename std::allocator_traits<allocator_type>::rebind_alloc<char>;
     auto temp_allocator       = temp_allocator_type{this->allocator()};
