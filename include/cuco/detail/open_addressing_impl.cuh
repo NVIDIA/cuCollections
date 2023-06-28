@@ -386,10 +386,12 @@ class open_addressing_impl {
    * @note Behavior is undefined if the range beginning at `output_begin` is smaller than the return
    * value of `size()`.
    *
+   * @tparam InputIt Device accessible container slot iterator
    * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
-   * convertible from the container's `key_type`
+   * convertible from the container's `value_type`
    * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
+   * @param begin Beginning of the container slot iterator
    * @param output_begin Beginning output iterator for keys
    * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
