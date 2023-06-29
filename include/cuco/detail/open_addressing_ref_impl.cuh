@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/detail/equal_wrapper.cuh>
+#include <cuco/extent.cuh>
 #include <cuco/pair.cuh>
 
 #include <thrust/distance.h>
@@ -58,6 +59,9 @@ class open_addressing_ref_impl {
     std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
                       ProbingScheme>,
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+
+  static_assert(is_valid_extent_v<typename StorageRef::extent_type>,
+                "Extent must be of type cuco::valid_extent");
 
  public:
   using key_type            = Key;                                     ///< Key type

@@ -21,6 +21,8 @@
 #include <cuco/detail/utils.hpp>
 #include <cuco/utility/fast_int.cuh>
 
+#include <type_traits>
+
 namespace cuco {
 namespace experimental {
 
@@ -77,6 +79,21 @@ template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
                           CGSize)>{};
   }
 }
+
+namespace detail {
+
+template <typename...>
+struct is_valid_extent : std::false_type {
+};
+
+template <typename SizeType, std::size_t N>
+struct is_valid_extent<valid_extent<SizeType, N>> : std::true_type {
+};
+
+template <typename T>
+inline constexpr bool is_valid_extent_v = is_valid_extent<T>::value;
+
+}  // namespace detail
 
 }  // namespace experimental
 }  // namespace cuco
