@@ -55,7 +55,7 @@ TEMPLATE_TEST_CASE_SIG(
   constexpr std::size_t num_keys{1'000};
 
   thrust::device_vector<Key> d_keys(num_keys);
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_keys);
+  thrust::device_vector<cuco::pair<Key, Value>> d_pairs(num_keys);
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   // multiplicity = 1
@@ -64,7 +64,7 @@ TEMPLATE_TEST_CASE_SIG(
                     thrust::counting_iterator<int>(num_keys),
                     d_pairs.begin(),
                     [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i, i};
+                      return cuco::pair<Key, Value>{i, i};
                     });
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,

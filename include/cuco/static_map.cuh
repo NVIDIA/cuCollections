@@ -18,9 +18,9 @@
 
 #include <cuco/detail/__config>
 #include <cuco/detail/open_addressing_impl.cuh>
-#include <cuco/detail/pair.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/hash_functions.cuh>
+#include <cuco/pair.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/static_map_ref.cuh>
 #include <cuco/utility/allocator.hpp>
@@ -412,7 +412,7 @@ class static_map {
                   cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief Retrieves all keys contained in the map.
+   * @brief Retrieves all of the keys and their associated values.
    *
    * @note This API synchronizes the given stream.
    * @note The order in which keys are returned is implementation defined and not guaranteed to be
@@ -421,9 +421,9 @@ class static_map {
    * value of `size()`.
    *
    * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
-   * convertible from the container's `key_type`.
+   * convertible from the container's `value_type`.
    *
-   * @param output_begin Beginning output iterator for keys
+   * @param output_begin Beginning output iterator for key-value pairs
    * @param stream CUDA stream used for this operation
    *
    * @return Iterator indicating the end of the output
@@ -577,14 +577,14 @@ class static_map {
   friend class dynamic_map<Key, Value, Scope, Allocator>;  ///< Dynamic map as friend class
 
  public:
-  using value_type         = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
+  using value_type         = cuco::pair<Key, Value>;            ///< Type of key/value pairs
   using key_type           = Key;                               ///< Key type
   using mapped_type        = Value;                             ///< Type of mapped values
   using atomic_key_type    = cuda::atomic<key_type, Scope>;     ///< Type of atomic keys
   using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;  ///< Type of atomic mapped values
   using pair_atomic_type =
-    cuco::pair_type<atomic_key_type,
-                    atomic_mapped_type>;  ///< Pair type of atomic key and atomic mapped value
+    cuco::pair<atomic_key_type,
+               atomic_mapped_type>;  ///< Pair type of atomic key and atomic mapped value
   using slot_type           = pair_atomic_type;                  ///< Type of hash map slots
   using atomic_ctr_type     = cuda::atomic<std::size_t, Scope>;  ///< Atomic counter type
   using allocator_type      = Allocator;                         ///< Allocator type
