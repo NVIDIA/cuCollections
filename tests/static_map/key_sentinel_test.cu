@@ -62,15 +62,17 @@ TEMPLATE_TEST_CASE_SIG(
                                pairs_begin + num_keys,
                                [m_view] __device__(cuco::pair<Key, Value> const& pair) mutable {
                                  return m_view.insert(
-                                   pair, cuco::murmurhash3_32<Key>{}, custom_equals<Key>{});
+                                   pair, cuco::default_hash_function<Key>{}, custom_equals<Key>{});
                                }));
   }
 
   SECTION(
     "Tests of CG insert: The custom `key_equal` can never be used to compare against sentinel")
   {
-    map.insert(
-      pairs_begin, pairs_begin + num_keys, cuco::murmurhash3_32<Key>{}, custom_equals<Key>{});
+    map.insert(pairs_begin,
+               pairs_begin + num_keys,
+               cuco::default_hash_function<Key>{},
+               custom_equals<Key>{});
     // All keys inserted via custom `key_equal` should be found
     REQUIRE(cuco::test::all_of(
       pairs_begin, pairs_begin + num_keys, [view] __device__(cuco::pair<Key, Value> const& pair) {
