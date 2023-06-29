@@ -48,9 +48,9 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   thrust::sequence(thrust::device, d_values.begin(), d_values.end());
 
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<int>(0),
-    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
+  auto pairs_begin =
+    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
+                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
 
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);

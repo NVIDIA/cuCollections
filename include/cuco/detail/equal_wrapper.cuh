@@ -29,7 +29,7 @@ namespace detail {
 enum class equal_result : int32_t { UNEQUAL = 0, EMPTY = 1, EQUAL = 2 };
 
 /**
- * @brief Equality wrapper.
+ * @brief Key equality wrapper.
  *
  * User-provided equality binary callable cannot be used to compare against sentinel value.
  *
@@ -38,8 +38,8 @@ enum class equal_result : int32_t { UNEQUAL = 0, EMPTY = 1, EQUAL = 2 };
  */
 template <typename T, typename Equal>
 struct equal_wrapper {
-  T sentinel_;   ///< Sentinel value
-  Equal equal_;  ///< Custom equality callable
+  T empty_sentinel_;  ///< Sentinel value
+  Equal equal_;       ///< Custom equality callable
 
   /**
    * @brief Equality wrapper ctor.
@@ -47,23 +47,23 @@ struct equal_wrapper {
    * @param sentinel Sentinel value
    * @param equal Equality binary callable
    */
-  __host__ __device__ constexpr equal_wrapper(T sentinel, Equal const& equal)
-    : sentinel_{sentinel}, equal_{equal}
+  __host__ __device__ constexpr equal_wrapper(T sentinel, Equal const& equal) noexcept
+    : empty_sentinel_{sentinel}, equal_{equal}
   {
   }
 
   /**
    * @brief Equality check with the given equality callable.
    *
-   * @tparam LHS Left-hand side Element type
-   * @tparam RHS Right-hand side Element type
+   * @tparam U Right-hand side Element type
    *
    * @param lhs Left-hand side element to check equality
    * @param rhs Right-hand side element to check equality
-   * @return Three way equality comparison result
+   *
+   * @return `EQUAL` if `lhs` and `rhs` are equivalent. `UNEQUAL` otherwise.
    */
-  template <typename LHS, typename RHS>
-  __device__ constexpr equal_result equal_to(LHS const& lhs, RHS const& rhs) const noexcept
+  template <typename U>
+  __device__ constexpr equal_result equal_to(T const& lhs, U const& rhs) const noexcept
   {
     return equal_(lhs, rhs) ? equal_result::EQUAL : equal_result::UNEQUAL;
   }
@@ -71,22 +71,22 @@ struct equal_wrapper {
   /**
    * @brief Order-sensitive equality operator.
    *
-   * This function always compares the left-hand side element against `sentinel_` value first
-   * then perform a equality check with the given `equal_` callable, i.e., `equal_(lhs, rhs)`.
-   *
+   * @note This function always compares the left-hand side element against `empty_sentinel_` value
+   * first then perform a equality check with the given `equal_` callable, i.e., `equal_(lhs, rhs)`.
    * @note Container (like set or map) keys MUST be always on the left-hand side.
    *
    * @tparam U Right-hand side Element type
    *
    * @param lhs Left-hand side element to check equality
    * @param rhs Right-hand side element to check equality
+   *
    * @return Three way equality comparison result
    */
   template <typename U>
   __device__ constexpr equal_result operator()(T const& lhs, U const& rhs) const noexcept
   {
-    return cuco::detail::bitwise_compare(lhs, sentinel_) ? equal_result::EMPTY
-                                                         : this->equal_to(lhs, rhs);
+    return cuco::detail::bitwise_compare(lhs, empty_sentinel_) ? equal_result::EMPTY
+                                                               : this->equal_to(lhs, rhs);
   }
 };
 

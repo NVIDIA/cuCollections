@@ -278,10 +278,8 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
   using base_type::capacity;
   using base_type::num_windows;
 
-  using allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<window_type>;  ///< Type of the
-                                                                           ///< allocator to
-                                                                           ///< (de)allocate windows
+  /// Type of the allocator to (de)allocate windows
+  using allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<window_type>;
   using window_deleter_type =
     custom_deleter<size_type, allocator_type>;  ///< Type of window deleter
   using ref_type = aow_storage_ref<window_size, value_type, extent_type>;  ///< Storage ref type
@@ -322,6 +320,13 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
    * @return Pointer to the first window
    */
   [[nodiscard]] constexpr window_type* data() const noexcept { return windows_.get(); }
+
+  /**
+   * @brief Gets the storage allocator.
+   *
+   * @return The storage allocator
+   */
+  [[nodiscard]] constexpr allocator_type allocator() const noexcept { return allocator_; }
 
   /**
    * @brief Gets window storage reference.

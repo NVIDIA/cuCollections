@@ -35,7 +35,7 @@ template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_find(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
 {
-  using pair_type = cuco::pair_type<Key, Value>;
+  using pair_type = cuco::pair<Key, Value>;
 
   auto const num_keys      = state.get_int64_or_default("NumInputs", defaults::N);
   auto const initial_size  = state.get_int64_or_default("InitSize", defaults::INITIAL_SIZE);

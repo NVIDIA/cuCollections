@@ -49,7 +49,7 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
 
   auto pairs_begin = thrust::make_transform_iterator(
     thrust::make_counting_iterator<int>(0),
-    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i / 2, i / 2); });
+    [] __device__(auto i) { return cuco::pair<Key, Value>(i / 2, i / 2); });
 
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);

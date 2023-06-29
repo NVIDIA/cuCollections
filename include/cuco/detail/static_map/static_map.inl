@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,12 @@
  */
 
 #include <cuco/cuda_stream_ref.hpp>
-#include <cuco/detail/static_set/functors.cuh>
-#include <cuco/detail/static_set/kernels.cuh>
+#include <cuco/detail/static_map/functors.cuh>
+#include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/tuning.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/operator.hpp>
-#include <cuco/static_set_ref.cuh>
+#include <cuco/static_map_ref.cuh>
 
 #include <cstddef>
 
@@ -28,25 +28,34 @@ namespace cuco {
 namespace experimental {
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
-constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::static_set(
-  Extent capacity,
-  empty_key<Key> empty_key_sentinel,
-  KeyEqual const& pred,
-  ProbingScheme const& probing_scheme,
-  Allocator const& alloc,
-  cuda_stream_ref stream)
-  : impl_{std::make_unique<impl_type>(
-      capacity, empty_key_sentinel, empty_key_sentinel, pred, probing_scheme, alloc, stream)}
+constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  static_map(Extent capacity,
+             empty_key<Key> empty_key_sentinel,
+             empty_value<T> empty_value_sentinel,
+             KeyEqual const& pred,
+             ProbingScheme const& probing_scheme,
+             Allocator const& alloc,
+             cuda_stream_ref stream)
+  : impl_{std::make_unique<impl_type>(capacity,
+                                      empty_key_sentinel,
+                                      cuco::pair{empty_key_sentinel, empty_value_sentinel},
+                                      pred,
+                                      probing_scheme,
+                                      alloc,
+                                      stream)},
+    empty_value_sentinel_{empty_value_sentinel}
 {
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -54,14 +63,15 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt>
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cuda_stream_ref stream)
 {
   return impl_->insert(first, last, ref(op::insert), stream);
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -69,13 +79,14 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_async(
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_async(
   InputIt first, InputIt last, cuda_stream_ref stream) noexcept
 {
   impl_->insert_async(first, last, ref(op::insert), stream);
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -83,14 +94,15 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream)
 {
   return impl_->insert_if(first, last, stencil, pred, ref(op::insert), stream);
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -98,13 +110,15 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if_async(
-  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream) noexcept
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_if_async(
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream) noexcept
 {
   impl_->insert_if_async(first, last, stencil, pred, ref(op::insert), stream);
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -112,7 +126,7 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename OutputIt>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
   contains_async(first, last, output_begin, stream);
@@ -120,6 +134,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -127,13 +142,14 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename OutputIt>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_async(
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const noexcept
 {
   impl_->contains_async(first, last, output_begin, ref(op::contains), stream);
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -141,7 +157,7 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_if(
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_if(
   InputIt first,
   InputIt last,
   StencilIt stencil,
@@ -154,6 +170,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -161,18 +178,19 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_if_async(
-  InputIt first,
-  InputIt last,
-  StencilIt stencil,
-  Predicate pred,
-  OutputIt output_begin,
-  cuda_stream_ref stream) const noexcept
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  contains_if_async(InputIt first,
+                    InputIt last,
+                    StencilIt stencil,
+                    Predicate pred,
+                    OutputIt output_begin,
+                    cuda_stream_ref stream) const noexcept
 {
   impl_->contains_if_async(first, last, stencil, pred, output_begin, ref(op::contains), stream);
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -180,7 +198,7 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename OutputIt>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find(
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find(
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
   find_async(first, last, output_begin, stream);
@@ -188,6 +206,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -195,7 +214,7 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename OutputIt>
-void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
   auto const num_keys = cuco::detail::distance(first, last);
@@ -205,12 +224,13 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
     (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
     (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  static_set_ns::detail::find<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+  static_map_ns::detail::find<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
       first, num_keys, output_begin, ref(op::find));
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -218,29 +238,32 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename OutputIt>
-OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
+OutputIt
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   OutputIt output_begin, cuda_stream_ref stream) const
 {
-  auto const is_filled = static_set_ns::detail::slot_is_filled(this->empty_key_sentinel());
+  auto const is_filled = static_map_ns::detail::slot_is_filled(this->empty_key_sentinel());
   return impl_->retrieve_all(output_begin, is_filled, stream);
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cuda_stream_ref stream) const noexcept
 {
-  auto const is_filled = static_set_ns::detail::slot_is_filled(this->empty_key_sentinel());
+  auto const is_filled = static_map_ns::detail::slot_is_filled(this->empty_key_sentinel());
   return impl_->size(is_filled, stream);
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -248,27 +271,45 @@ template <class Key,
           class Allocator,
           class Storage>
 constexpr auto
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::capacity()
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::capacity()
   const noexcept
 {
   return impl_->capacity();
 }
 
 template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
           class ProbingScheme,
           class Allocator,
           class Storage>
-constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_type
-static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::empty_key_sentinel()
+constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_type
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::empty_key_sentinel()
   const noexcept
 {
   return impl_->empty_key_sentinel();
 }
 
 template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  mapped_type
+  static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+    empty_value_sentinel() const noexcept
+{
+  return this->empty_value_sentinel_;
+}
+
+template <class Key,
+          class T,
           class Extent,
           cuda::thread_scope Scope,
           class KeyEqual,
@@ -276,11 +317,12 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename... Operators>
-auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref(
+auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref(
   Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
   return ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
+                                cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
                                 impl_->key_eq(),
                                 impl_->probing_scheme(),
                                 impl_->storage_ref()};
