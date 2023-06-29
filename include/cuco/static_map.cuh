@@ -420,19 +420,24 @@ class static_map {
    * @note This API synchronizes the given stream.
    * @note The order in which keys are returned is implementation defined and not guaranteed to be
    * consistent between subsequent calls to `retrieve_all`.
-   * @note Behavior is undefined if the range beginning at `output_begin` is smaller than the return
-   * value of `size()`.
+   * @note Behavior is undefined if the range beginning at `keys_out` or `values_out` is smaller
+   * than the return value of `size()`.
    *
-   * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
-   * convertible from the container's `value_type`.
+   * @tparam KeyOut Device accessible random access output iterator whose `value_type` is
+   * convertible from `key_type`.
+   * @tparam ValueOut Device accesible random access output iterator whose `value_type` is
+   * convertible from `mapped_type`.
    *
-   * @param output_begin Beginning output iterator for key-value pairs
+   * @param keys_out Beginning output iterator for keys
+   * @param values_out Beginning output iterator for associated values
    * @param stream CUDA stream used for this operation
    *
-   * @return Iterator indicating the end of the output
+   * @return Pair of iterators indicating the last elements in the output
    */
-  template <typename OutputIt>
-  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream = {}) const;
+  template <typename KeyOut, typename ValueOut>
+  [[nodiscard]] std::pair<KeyOut, ValueOut> retrieve_all(KeyOut keys_out,
+                                                         ValueOut values_out,
+                                                         cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Gets the number of elements in the container.

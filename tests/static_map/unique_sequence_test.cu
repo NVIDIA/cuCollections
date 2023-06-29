@@ -26,6 +26,7 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sequence.h>
+#include <thrust/sort.h>
 #include <thrust/tuple.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -233,6 +234,21 @@ __inline__ void test_unique_sequence(Map& map, size_type num_keys)
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), keys_begin));
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+  }
+
+  SECTION("All inserted key-values should be properly retrieved")
+  {
+    thrust::device_vector<Value> d_values(num_keys);
+
+    auto const [keys_end, values_end] = map.retrieve_all(keys_begin, d_values.begin());
+    REQUIRE(std::distance(keys_begin, keys_end) == num_keys);
+    REQUIRE(std::distance(d_values.begin(), values_end) == num_keys);
+
+    thrust::sort(thrust::device, d_values.begin(), values_end);
+    REQUIRE(cuco::test::equal(d_values.begin(),
+                              values_end,
+                              thrust::make_counting_iterator<Value>(0),
+                              thrust::equal_to<Value>{}));
   }
 }
 
