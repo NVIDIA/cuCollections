@@ -19,6 +19,7 @@
 
 namespace cuco {
 namespace experimental {
+namespace static_map_ns {
 namespace detail {
 
 /**
@@ -53,5 +54,6 @@ struct slot_is_filled {
 };
 
 }  // namespace detail
+}  // namespace static_map_ns
 }  // namespace experimental
 }  // namespace cuco

@@ -101,7 +101,7 @@ class dynamic_map {
   static_assert(std::is_arithmetic<Key>::value, "Unsupported, non-arithmetic key type.");
 
  public:
-  using value_type      = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
+  using value_type      = cuco::pair<Key, Value>;            ///< Type of key/value pairs
   using key_type        = Key;                               ///< Key type
   using mapped_type     = Value;                             ///< Type of mapped values
   using atomic_ctr_type = cuda::atomic<std::size_t, Scope>;  ///< Atomic counter type
@@ -208,7 +208,7 @@ class dynamic_map {
    * @param stream Stream used for executing the kernels
    */
   template <typename InputIt,
-            typename Hash     = cuco::murmurhash3_32<key_type>,
+            typename Hash     = cuco::default_hash_function<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void insert(InputIt first,
               InputIt last,
@@ -247,7 +247,7 @@ class dynamic_map {
    * provided at construction
    */
   template <typename InputIt,
-            typename Hash     = cuco::murmurhash3_32<key_type>,
+            typename Hash     = cuco::default_hash_function<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void erase(InputIt first,
              InputIt last,
@@ -277,7 +277,7 @@ class dynamic_map {
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash     = cuco::murmurhash3_32<key_type>,
+            typename Hash     = cuco::default_hash_function<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void find(InputIt first,
             InputIt last,
@@ -307,7 +307,7 @@ class dynamic_map {
    */
   template <typename InputIt,
             typename OutputIt,
-            typename Hash     = cuco::murmurhash3_32<key_type>,
+            typename Hash     = cuco::default_hash_function<key_type>,
             typename KeyEqual = thrust::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,

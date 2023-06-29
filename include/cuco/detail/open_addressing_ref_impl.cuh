@@ -17,7 +17,7 @@
 #pragma once
 
 #include <cuco/detail/equal_wrapper.cuh>
-#include <cuco/detail/pair.cuh>
+#include <cuco/pair.cuh>
 
 #include <thrust/distance.h>
 #include <thrust/pair.h>

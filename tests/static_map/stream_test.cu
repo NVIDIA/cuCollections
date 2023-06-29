@@ -53,11 +53,11 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   thrust::sequence(thrust::device, d_values.begin(), d_values.end());
 
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<int>(0),
-    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
+  auto pairs_begin =
+    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
+                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
 
-  auto hash_fn  = cuco::murmurhash3_32<Key>{};
+  auto hash_fn  = cuco::default_hash_function<Key>{};
   auto equal_fn = thrust::equal_to<Value>{};
 
   // bulk function test cases
