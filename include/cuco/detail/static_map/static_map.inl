@@ -242,9 +242,8 @@ std::pair<KeyOut, ValueOut>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   KeyOut keys_out, ValueOut values_out, cuda_stream_ref stream) const
 {
-  // XXX: thrust counting iterator doesn't work if size_type is larger than 32-bit
   auto const begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>(0),
+    thrust::counting_iterator<size_type>{0},
     static_map_ns::detail::get_slot<storage_ref_type>(impl_->storage_ref()));
   auto const is_filled  = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel());
   auto zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
