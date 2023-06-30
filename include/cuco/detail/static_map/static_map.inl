@@ -237,13 +237,20 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <typename OutputIt>
-OutputIt
+template <typename KeyOut, typename ValueOut>
+std::pair<KeyOut, ValueOut>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
-  OutputIt output_begin, cuda_stream_ref stream) const
+  KeyOut keys_out, ValueOut values_out, cuda_stream_ref stream) const
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled(this->empty_key_sentinel());
-  return impl_->retrieve_all(output_begin, is_filled, stream);
+  auto const begin = thrust::make_transform_iterator(
+    thrust::counting_iterator<size_type>{0},
+    static_map_ns::detail::get_slot<storage_ref_type>(impl_->storage_ref()));
+  auto const is_filled  = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel());
+  auto zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
+  auto const zipped_out_end = impl_->retrieve_all(begin, zipped_out_begin, is_filled, stream);
+  auto const num            = std::distance(zipped_out_begin, zipped_out_end);
+
+  return std::make_pair(keys_out + num, values_out + num);
 }
 
 template <class Key,
@@ -258,7 +265,7 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cuda_stream_ref stream) const noexcept
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled(this->empty_key_sentinel());
+  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel());
   return impl_->size(is_filled, stream);
 }
 
