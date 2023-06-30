@@ -326,7 +326,7 @@ struct XXHash_64 {
     // block size
     if constexpr (nbytes % 4) {
       while (offset < nbytes) {
-        h64 += (bytes[offset] & 0xff) * prime5;
+        h64 ^= (bytes[offset] & 0xff) * prime5;
         h64 = rotl(h64, 11) * prime1;
         ++offset;
       }
