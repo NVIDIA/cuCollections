@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cuco/extent.cuh>
+
 #include <cstdint>
 
 namespace cuco::detail {
@@ -85,8 +87,23 @@ struct XXHash_32 {
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
+    return (*this)(key, cuco::experimental::extent<std::size_t, sizeof(Key)>{});
+  }
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @tparam Extent The extent type
+   *
+   * @param key The input argument to hash
+   * @param size The extent of the key in bytes
+   * @return A resulting hash value for `key`
+   */
+  template <typename Extent>
+  constexpr result_type __host__ __device__ operator()(Key const& key, Extent size) const noexcept
+  {
     // TODO do we need to add checks/hints for alignment?
-    constexpr auto nbytes             = sizeof(Key);
+    auto const nbytes                 = size;
     [[maybe_unused]] auto const bytes = reinterpret_cast<char const*>(&key);  ///< per-byte access
     [[maybe_unused]] auto const blocks =
       reinterpret_cast<std::uint32_t const*>(&key);  ///< 4-byte word access
@@ -95,12 +112,12 @@ struct XXHash_32 {
     std::uint32_t h32;
 
     // data can be processed in 16-byte chunks
-    if constexpr (nbytes >= 16) {
-      constexpr auto limit = nbytes - 16;
-      std::uint32_t v1     = seed_ + prime1 + prime2;
-      std::uint32_t v2     = seed_ + prime2;
-      std::uint32_t v3     = seed_;
-      std::uint32_t v4     = seed_ - prime1;
+    if (nbytes >= 16) {
+      auto const limit = nbytes - 16;
+      std::uint32_t v1 = seed_ + prime1 + prime2;
+      std::uint32_t v2 = seed_ + prime2;
+      std::uint32_t v3 = seed_;
+      std::uint32_t v4 = seed_ - prime1;
 
       do {
         // pipeline 4*4byte computations
@@ -128,7 +145,7 @@ struct XXHash_32 {
     h32 += nbytes;
 
     // remaining data can be processed in 4-byte chunks
-    if constexpr ((nbytes % 16) >= 4) {
+    if ((nbytes % 16) >= 4) {
       for (; offset <= nbytes - 4; offset += 4) {
         h32 += blocks[offset / 4] * prime3;
         h32 = rotl(h32, 17) * prime4;
@@ -136,7 +153,7 @@ struct XXHash_32 {
     }
 
     // the following loop is only needed if the size of the key is not a multiple of the block size
-    if constexpr (nbytes % 4) {
+    if (nbytes % 4) {
       while (offset < nbytes) {
         h32 += (bytes[offset] & 255) * prime5;
         h32 = rotl(h32, 11) * prime1;
@@ -236,8 +253,23 @@ struct XXHash_64 {
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
+    return (*this)(key, cuco::experimental::extent<std::size_t, sizeof(Key)>{});
+  }
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @tparam Extent The extent type
+   *
+   * @param key The input argument to hash
+   * @param size The extent of the key in bytes
+   * @return A resulting hash value for `key`
+   */
+  template <typename Extent>
+  constexpr result_type __host__ __device__ operator()(Key const& key, Extent size) const noexcept
+  {
     // TODO do we need to add checks/hints for alignment?
-    constexpr auto nbytes             = sizeof(Key);
+    auto const nbytes                 = static_cast<std::size_t>(size);
     [[maybe_unused]] auto const bytes = reinterpret_cast<char const*>(&key);  ///< per-byte access
     [[maybe_unused]] auto const blocks4 =
       reinterpret_cast<std::uint32_t const*>(&key);  ///< 4-byte word access
@@ -248,12 +280,12 @@ struct XXHash_64 {
     std::uint64_t h64;
 
     // data can be processed in 32-byte chunks
-    if constexpr (nbytes >= 32) {
-      constexpr auto limit = nbytes - 32;
-      std::uint64_t v1     = seed_ + prime1 + prime2;
-      std::uint64_t v2     = seed_ + prime2;
-      std::uint64_t v3     = seed_;
-      std::uint64_t v4     = seed_ - prime1;
+    if (nbytes >= 32) {
+      auto const limit = nbytes - 32;
+      std::uint64_t v1 = seed_ + prime1 + prime2;
+      std::uint64_t v2 = seed_ + prime2;
+      std::uint64_t v3 = seed_;
+      std::uint64_t v4 = seed_ - prime1;
 
       do {
         // pipeline 4*8byte computations
@@ -305,7 +337,7 @@ struct XXHash_64 {
     h64 += nbytes;
 
     // remaining data can be processed in 8-byte chunks
-    if constexpr ((nbytes % 32) >= 8) {
+    if ((nbytes % 32) >= 8) {
       for (; offset <= nbytes - 8; offset += 8) {
         std::uint64_t k1 = blocks8[offset / 8] * prime2;
         k1               = rotl(k1, 31) * prime1;
@@ -315,7 +347,7 @@ struct XXHash_64 {
     }
 
     // remaining data can be processed in 4-byte chunks
-    if constexpr (((nbytes % 32) % 8) >= 4) {
+    if (((nbytes % 32) % 8) >= 4) {
       for (; offset <= nbytes - 4; offset += 4) {
         h64 ^= (blocks4[offset / 4] & 0xffffffffull) * prime1;
         h64 = rotl(h64, 23) * prime2 + prime3;
@@ -324,7 +356,7 @@ struct XXHash_64 {
 
     // the following loop is only needed if the size of the key is not a multiple of a previous
     // block size
-    if constexpr (nbytes % 4) {
+    if (nbytes % 4) {
       while (offset < nbytes) {
         h64 += (bytes[offset] & 0xff) * prime5;
         h64 = rotl(h64, 11) * prime1;
