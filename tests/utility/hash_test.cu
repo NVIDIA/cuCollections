@@ -21,6 +21,7 @@
 
 #include <thrust/device_vector.h>
 
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 template <int32_t Words>
@@ -148,5 +149,26 @@ TEST_CASE("Test cuco::xxhash_32", "")
     check_hash_result_kernel_32<<<1, 1>>>(result.begin());
 
     CHECK(cuco::test::all_of(result.begin(), result.end(), [] __device__(bool v) { return v; }));
+  }
+}
+
+TEMPLATE_TEST_CASE_SIG("Static vs. dynamic key hash test",
+                       "",
+                       ((typename Hash), Hash),
+                       (cuco::xxhash_32<char>),
+                       (cuco::xxhash_32<int32_t>),
+                       (cuco::xxhash_64<char>),
+                       (cuco::xxhash_64<int32_t>))
+{
+  using key_type = typename Hash::argument_type;
+
+  // this makes sure the compiler isn't abl to optimize away the key_size variable
+  volatile size_t key_size = sizeof(key_type);
+
+  Hash hash;
+
+  SECTION("Identical keys with static and dynamic key size should have the same hash value.")
+  {
+    CHECK(hash(42) == hash(42, key_size));
   }
 }
