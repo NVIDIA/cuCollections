@@ -155,6 +155,8 @@ TEST_CASE("Test cuco::xxhash_32", "")
 TEMPLATE_TEST_CASE_SIG("Static vs. dynamic key hash test",
                        "",
                        ((typename Hash), Hash),
+                       (cuco::murmurhash3_32<char>),
+                       (cuco::murmurhash3_32<int32_t>),
                        (cuco::xxhash_32<char>),
                        (cuco::xxhash_32<int32_t>),
                        (cuco::xxhash_64<char>),

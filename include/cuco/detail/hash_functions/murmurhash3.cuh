@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cuco/extent.cuh>
+
 #include <cstdint>
 
 namespace cuco::detail {
@@ -139,9 +141,24 @@ struct MurmurHash3_32 {
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
-    constexpr int len         = sizeof(argument_type);
+    return (*this)(key, cuco::experimental::extent<std::size_t, sizeof(Key)>{});
+  }
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @tparam Extent The extent type
+   *
+   * @param key The input argument to hash
+   * @param size The extent of the key in bytes
+   * @return A resulting hash value for `key`
+   */
+  template <typename Extent>
+  constexpr result_type __host__ __device__ operator()(Key const& key, Extent size) const noexcept
+  {
+    int const len             = size;  // TODO remove intermediate variable
     const uint8_t* const data = (const uint8_t*)&key;
-    constexpr int nblocks     = len / 4;
+    int const nblocks         = len / 4;
 
     uint32_t h1           = seed_;
     constexpr uint32_t c1 = 0xcc9e2d51;
