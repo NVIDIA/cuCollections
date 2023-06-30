@@ -103,10 +103,9 @@ struct XXHash_32 {
   constexpr result_type __host__ __device__ operator()(Key const& key, Extent size) const noexcept
   {
     // TODO do we need to add checks/hints for alignment?
-    auto const nbytes                 = size;
-    [[maybe_unused]] auto const bytes = reinterpret_cast<char const*>(&key);  ///< per-byte access
-    [[maybe_unused]] auto const blocks =
-      reinterpret_cast<std::uint32_t const*>(&key);  ///< 4-byte word access
+    auto const nbytes = size;
+    auto const bytes  = reinterpret_cast<char const*>(&key);           ///< per-byte access
+    auto const blocks = reinterpret_cast<std::uint32_t const*>(&key);  ///< 4-byte word access
 
     std::size_t offset = 0;
     std::uint32_t h32;
@@ -269,12 +268,10 @@ struct XXHash_64 {
   constexpr result_type __host__ __device__ operator()(Key const& key, Extent size) const noexcept
   {
     // TODO do we need to add checks/hints for alignment?
-    auto const nbytes                 = static_cast<std::size_t>(size);
-    [[maybe_unused]] auto const bytes = reinterpret_cast<char const*>(&key);  ///< per-byte access
-    [[maybe_unused]] auto const blocks4 =
-      reinterpret_cast<std::uint32_t const*>(&key);  ///< 4-byte word access
-    [[maybe_unused]] auto const blocks8 =
-      reinterpret_cast<std::uint64_t const*>(&key);  ///< 8-byte word access
+    auto const nbytes  = static_cast<std::size_t>(size);
+    auto const bytes   = reinterpret_cast<char const*>(&key);           ///< per-byte access
+    auto const blocks4 = reinterpret_cast<std::uint32_t const*>(&key);  ///< 4-byte word access
+    auto const blocks8 = reinterpret_cast<std::uint64_t const*>(&key);  ///< 8-byte word access
 
     std::size_t offset = 0;
     std::uint64_t h64;
