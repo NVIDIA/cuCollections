@@ -179,9 +179,9 @@ struct MurmurHash3_32 {
     // tail
     const uint8_t* tail = (const uint8_t*)(data + nblocks * 4);
     uint32_t k1         = 0;
-    switch (len & 3) {  // TODO fix implicit fallthrough warning
-      case 3: k1 ^= tail[2] << 16;
-      case 2: k1 ^= tail[1] << 8;
+    switch (len & 3) {
+      case 3: k1 ^= tail[2] << 16; [[fallthrough]];
+      case 2: k1 ^= tail[1] << 8; [[fallthrough]];
       case 1:
         k1 ^= tail[0];
         k1 *= c1;
