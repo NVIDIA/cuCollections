@@ -156,16 +156,16 @@ struct MurmurHash3_32 {
   template <typename Extent>
   constexpr result_type __host__ __device__ operator()(Key const& key, Extent size) const noexcept
   {
-    int const len             = size;  // TODO remove intermediate variable
-    const uint8_t* const data = (const uint8_t*)&key;
-    int const nblocks         = len / 4;
+    int const len     = size;  // TODO remove intermediate variable
+    auto const data   = reinterpret_cast<uint8_t const*>(&key);
+    int const nblocks = len / 4;
 
     uint32_t h1           = seed_;
     constexpr uint32_t c1 = 0xcc9e2d51;
     constexpr uint32_t c2 = 0x1b873593;
     //----------
     // body
-    const uint32_t* const blocks = (const uint32_t*)(data + nblocks * 4);
+    auto const blocks = reinterpret_cast<uint32_t const*>(data + nblocks * 4);
     for (int i = -nblocks; i; i++) {
       uint32_t k1 = blocks[i];  // getblock32(blocks,i);
       k1 *= c1;
@@ -177,8 +177,8 @@ struct MurmurHash3_32 {
     }
     //----------
     // tail
-    const uint8_t* tail = (const uint8_t*)(data + nblocks * 4);
-    uint32_t k1         = 0;
+    auto const tail = reinterpret_cast<uint8_t const*>(data + nblocks * 4);
+    uint32_t k1     = 0;
     switch (len & 3) {
       case 3: k1 ^= tail[2] << 16; [[fallthrough]];
       case 2: k1 ^= tail[1] << 8; [[fallthrough]];
