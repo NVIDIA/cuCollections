@@ -103,16 +103,14 @@ struct XXHash_32 {
   template <typename Extent>
   constexpr result_type __host__ __device__ operator()(Key const& key, Extent size) const noexcept
   {
-    // TODO do we need to add checks/hints for alignment?
-    auto const nbytes = size;
-    auto const bytes  = reinterpret_cast<char const*>(&key);  ///< per-byte access
+    auto const data = reinterpret_cast<std::uint8_t const*>(&key);  ///< per-byte access
 
     std::size_t offset = 0;
     std::uint32_t h32;
 
     // data can be processed in 16-byte chunks
-    if (nbytes >= 16) {
-      auto const limit = nbytes - 16;
+    if (size >= 16) {
+      auto const limit = size - 16;
       std::uint32_t v1 = seed_ + prime1 + prime2;
       std::uint32_t v2 = seed_ + prime2;
       std::uint32_t v3 = seed_;
@@ -121,16 +119,16 @@ struct XXHash_32 {
       do {
         // pipeline 4*4byte computations
         auto const pipeline_offset = offset / 4;
-        v1 += load_chunk<std::uint32_t>(bytes, pipeline_offset + 0) * prime2;
+        v1 += load_chunk<std::uint32_t>(data, pipeline_offset + 0) * prime2;
         v1 = rotl(v1, 13);
         v1 *= prime1;
-        v2 += load_chunk<std::uint32_t>(bytes, pipeline_offset + 1) * prime2;
+        v2 += load_chunk<std::uint32_t>(data, pipeline_offset + 1) * prime2;
         v2 = rotl(v2, 13);
         v2 *= prime1;
-        v3 += load_chunk<std::uint32_t>(bytes, pipeline_offset + 2) * prime2;
+        v3 += load_chunk<std::uint32_t>(data, pipeline_offset + 2) * prime2;
         v3 = rotl(v3, 13);
         v3 *= prime1;
-        v4 += load_chunk<std::uint32_t>(bytes, pipeline_offset + 3) * prime2;
+        v4 += load_chunk<std::uint32_t>(data, pipeline_offset + 3) * prime2;
         v4 = rotl(v4, 13);
         v4 *= prime1;
         offset += 16;
@@ -141,20 +139,20 @@ struct XXHash_32 {
       h32 = seed_ + prime5;
     }
 
-    h32 += nbytes;
+    h32 += size;
 
     // remaining data can be processed in 4-byte chunks
-    if ((nbytes % 16) >= 4) {
-      for (; offset <= nbytes - 4; offset += 4) {
-        h32 += load_chunk<std::uint32_t>(bytes, offset / 4) * prime3;
+    if ((size % 16) >= 4) {
+      for (; offset <= size - 4; offset += 4) {
+        h32 += load_chunk<std::uint32_t>(data, offset / 4) * prime3;
         h32 = rotl(h32, 17) * prime4;
       }
     }
 
     // the following loop is only needed if the size of the key is not a multiple of the block size
-    if (nbytes % 4) {
-      while (offset < nbytes) {
-        h32 += (bytes[offset] & 255) * prime5;
+    if (size % 4) {
+      while (offset < size) {
+        h32 += (data[offset] & 255) * prime5;
         h32 = rotl(h32, 11) * prime1;
         ++offset;
       }
@@ -267,16 +265,14 @@ struct XXHash_64 {
   template <typename Extent>
   constexpr result_type __host__ __device__ operator()(Key const& key, Extent size) const noexcept
   {
-    // TODO do we need to add checks/hints for alignment?
-    auto const nbytes = static_cast<std::size_t>(size);
-    auto const bytes  = reinterpret_cast<char const*>(&key);  ///< per-byte access
+    auto const data = reinterpret_cast<std::uint8_t const*>(&key);  ///< per-byte access
 
     std::size_t offset = 0;
     std::uint64_t h64;
 
     // data can be processed in 32-byte chunks
-    if (nbytes >= 32) {
-      auto const limit = nbytes - 32;
+    if (size >= 32) {
+      auto const limit = size - 32;
       std::uint64_t v1 = seed_ + prime1 + prime2;
       std::uint64_t v2 = seed_ + prime2;
       std::uint64_t v3 = seed_;
@@ -285,16 +281,16 @@ struct XXHash_64 {
       do {
         // pipeline 4*8byte computations
         auto const pipeline_offset = offset / 8;
-        v1 += load_chunk<std::uint64_t>(bytes, pipeline_offset + 0) * prime2;
+        v1 += load_chunk<std::uint64_t>(data, pipeline_offset + 0) * prime2;
         v1 = rotl(v1, 31);
         v1 *= prime1;
-        v2 += load_chunk<std::uint64_t>(bytes, pipeline_offset + 1) * prime2;
+        v2 += load_chunk<std::uint64_t>(data, pipeline_offset + 1) * prime2;
         v2 = rotl(v2, 31);
         v2 *= prime1;
-        v3 += load_chunk<std::uint64_t>(bytes, pipeline_offset + 2) * prime2;
+        v3 += load_chunk<std::uint64_t>(data, pipeline_offset + 2) * prime2;
         v3 = rotl(v3, 31);
         v3 *= prime1;
-        v4 += load_chunk<std::uint64_t>(bytes, pipeline_offset + 3) * prime2;
+        v4 += load_chunk<std::uint64_t>(data, pipeline_offset + 3) * prime2;
         v4 = rotl(v4, 31);
         v4 *= prime1;
         offset += 32;
@@ -329,12 +325,12 @@ struct XXHash_64 {
       h64 = seed_ + prime5;
     }
 
-    h64 += nbytes;
+    h64 += size;
 
     // remaining data can be processed in 8-byte chunks
-    if ((nbytes % 32) >= 8) {
-      for (; offset <= nbytes - 8; offset += 8) {
-        std::uint64_t k1 = load_chunk<std::uint64_t>(bytes, offset / 8) * prime2;
+    if ((size % 32) >= 8) {
+      for (; offset <= size - 8; offset += 8) {
+        std::uint64_t k1 = load_chunk<std::uint64_t>(data, offset / 8) * prime2;
         k1               = rotl(k1, 31) * prime1;
         h64 ^= k1;
         h64 = rotl(h64, 27) * prime1 + prime4;
@@ -342,18 +338,18 @@ struct XXHash_64 {
     }
 
     // remaining data can be processed in 4-byte chunks
-    if (((nbytes % 32) % 8) >= 4) {
-      for (; offset <= nbytes - 4; offset += 4) {
-        h64 ^= (load_chunk<std::uint32_t>(bytes, offset / 4) & 0xffffffffull) * prime1;
+    if (((size % 32) % 8) >= 4) {
+      for (; offset <= size - 4; offset += 4) {
+        h64 ^= (load_chunk<std::uint32_t>(data, offset / 4) & 0xffffffffull) * prime1;
         h64 = rotl(h64, 23) * prime2 + prime3;
       }
     }
 
     // the following loop is only needed if the size of the key is not a multiple of a previous
     // block size
-    if (nbytes % 4) {
-      while (offset < nbytes) {
-        h64 += (bytes[offset] & 0xff) * prime5;
+    if (size % 4) {
+      while (offset < size) {
+        h64 += (data[offset] & 0xff) * prime5;
         h64 = rotl(h64, 11) * prime1;
         ++offset;
       }
