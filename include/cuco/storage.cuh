@@ -20,7 +20,21 @@
 
 namespace cuco {
 namespace experimental {
+
 /**
+ * @brief Window data structure type
+ *
+ * @tparam Key The type of the window elements
+ * @tparam WindowSize Number of elements per window
+ */
+template <typename T, int32_t WindowSize>
+struct window : public cuda::std::array<Key, WindowSize> {
+ public:
+  static int32_t constexpr window_size = WindowSize;  ///< Number of elements per window
+};
+
+/**
+
  * @brief Public Array of slot Windows storage class.
  *
  * The window size defines the workload granularity for each CUDA thread, i.e., how many slots a

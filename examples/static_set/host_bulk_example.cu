@@ -47,6 +47,10 @@ int main(void)
   auto constexpr load_factor = 0.5;
   std::size_t const capacity = std::ceil(num_keys / load_factor);
 
+  std::cout << cuco::experimental::make_valid_extent<4, 1>(
+                 cuco::experimental::extent<std::size_t>{1000})
+            << "\n";
+
   // Constructs a set with at least `capacity` slots using -1 as the empty keys sentinel.
   cuco::experimental::static_set<Key> set{capacity, cuco::empty_key{empty_key_sentinel}};
 
