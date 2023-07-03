@@ -164,7 +164,7 @@ TEMPLATE_TEST_CASE_SIG("Static vs. dynamic key hash test",
 {
   using key_type = typename Hash::argument_type;
 
-  // this makes sure the compiler isn't abl to optimize away the key_size variable
+  // this makes sure the compiler isn't able to optimize away the key_size variable
   volatile size_t key_size = sizeof(key_type);
 
   Hash hash;
