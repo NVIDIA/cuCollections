@@ -16,9 +16,11 @@
 
 #pragma once
 
+#include <cuco/detail/hash_functions/utils.cuh>
 #include <cuco/extent.cuh>
 
 #include <cstdint>
+#include <type_traits>
 
 namespace cuco::detail {
 
@@ -156,18 +158,16 @@ struct MurmurHash3_32 {
   template <typename Extent>
   constexpr result_type __host__ __device__ operator()(Key const& key, Extent size) const noexcept
   {
-    int const len     = size;  // TODO remove intermediate variable
-    auto const data   = reinterpret_cast<uint8_t const*>(&key);
-    int const nblocks = len / 4;
+    auto const data    = reinterpret_cast<uint8_t const*>(&key);
+    auto const nblocks = size / 4;
 
     uint32_t h1           = seed_;
     constexpr uint32_t c1 = 0xcc9e2d51;
     constexpr uint32_t c2 = 0x1b873593;
     //----------
     // body
-    auto const blocks = reinterpret_cast<uint32_t const*>(data + nblocks * 4);
-    for (int i = -nblocks; i; i++) {
-      uint32_t k1 = blocks[i];  // getblock32(blocks,i);
+    for (std::remove_const_t<decltype(nblocks)> i = 0; size >= 4 && i < nblocks; i++) {
+      uint32_t k1 = load_chunk<uint32_t>(data, i);
       k1 *= c1;
       k1 = rotl32(k1, 15);
       k1 *= c2;
@@ -177,13 +177,12 @@ struct MurmurHash3_32 {
     }
     //----------
     // tail
-    auto const tail = reinterpret_cast<uint8_t const*>(data + nblocks * 4);
-    uint32_t k1     = 0;
-    switch (len & 3) {
-      case 3: k1 ^= tail[2] << 16; [[fallthrough]];
-      case 2: k1 ^= tail[1] << 8; [[fallthrough]];
+    uint32_t k1 = 0;
+    switch (size & 3) {
+      case 3: k1 ^= data[nblocks * 4 + 2] << 16; [[fallthrough]];
+      case 2: k1 ^= data[nblocks * 4 + 1] << 8; [[fallthrough]];
       case 1:
-        k1 ^= tail[0];
+        k1 ^= data[nblocks * 4 + 0];
         k1 *= c1;
         k1 = rotl32(k1, 15);
         k1 *= c2;
@@ -191,7 +190,7 @@ struct MurmurHash3_32 {
     };
     //----------
     // finalization
-    h1 ^= len;
+    h1 ^= size;
     h1 = fmix32_(h1);
     return h1;
   }
@@ -205,5 +204,4 @@ struct MurmurHash3_32 {
   MurmurHash3_fmix32<uint32_t> fmix32_;
   uint32_t seed_;
 };
-
 }  //  namespace cuco::detail
