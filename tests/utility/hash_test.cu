@@ -49,21 +49,28 @@ __host__ __device__ bool check_hash_result(typename Hash::argument_type const& k
 template <typename OutputIter>
 __global__ void check_hash_result_kernel_64(OutputIter result)
 {
-  result[0] = check_hash_result<cuco::xxhash_64<int32_t>>(0, 0, 4246796580750024372);
-  result[1] = check_hash_result<cuco::xxhash_64<int32_t>>(0, 42, 3614696996920510707);
-  result[2] = check_hash_result<cuco::xxhash_64<int32_t>>(42, 0, 15516826743637085169);
-  result[3] = check_hash_result<cuco::xxhash_64<int32_t>>(123456789, 0, 9462334144942111946);
+  int i = 0;
 
-  result[4] = check_hash_result<cuco::xxhash_64<int64_t>>(0, 0, 3803688792395291579);
-  result[5] = check_hash_result<cuco::xxhash_64<int64_t>>(0, 42, 13194218611613725804);
-  result[6] = check_hash_result<cuco::xxhash_64<int64_t>>(42, 0, 13066772586158965587);
-  result[7] = check_hash_result<cuco::xxhash_64<int64_t>>(123456789, 0, 14662639848940634189);
+  result[i++] = check_hash_result<cuco::xxhash_64<char>>(0, 0, 16804241149081757544);
+  result[i++] = check_hash_result<cuco::xxhash_64<char>>(42, 0, 765293966243412708);
+  result[i++] = check_hash_result<cuco::xxhash_64<char>>(0, 42, 9486749600008296231);
+
+  result[i++] = check_hash_result<cuco::xxhash_64<int32_t>>(0, 0, 4246796580750024372);
+  result[i++] = check_hash_result<cuco::xxhash_64<int32_t>>(0, 42, 3614696996920510707);
+  result[i++] = check_hash_result<cuco::xxhash_64<int32_t>>(42, 0, 15516826743637085169);
+  result[i++] = check_hash_result<cuco::xxhash_64<int32_t>>(123456789, 0, 9462334144942111946);
+
+  result[i++] = check_hash_result<cuco::xxhash_64<int64_t>>(0, 0, 3803688792395291579);
+  result[i++] = check_hash_result<cuco::xxhash_64<int64_t>>(0, 42, 13194218611613725804);
+  result[i++] = check_hash_result<cuco::xxhash_64<int64_t>>(42, 0, 13066772586158965587);
+  result[i++] = check_hash_result<cuco::xxhash_64<int64_t>>(123456789, 0, 14662639848940634189);
 
 #if defined(CUCO_HAS_INT128)
-  result[8] = check_hash_result<cuco::xxhash_64<__int128>>(123456789, 0, 7986913354431084250);
+  result[i++] = check_hash_result<cuco::xxhash_64<__int128>>(123456789, 0, 7986913354431084250);
 #endif
 
-  result[9] = check_hash_result<cuco::xxhash_64<large_key<32>>>(123456789, 0, 2031761887105658523);
+  result[i++] =
+    check_hash_result<cuco::xxhash_64<large_key<32>>>(123456789, 0, 2031761887105658523);
 }
 
 TEST_CASE("Test cuco::xxhash_64", "")
@@ -71,6 +78,10 @@ TEST_CASE("Test cuco::xxhash_64", "")
   // Reference hash values were computed using https://github.com/Cyan4973/xxHash
   SECTION("Check if host-generated hash values match the reference implementation.")
   {
+    CHECK(check_hash_result<cuco::xxhash_64<char>>(0, 0, 16804241149081757544));
+    CHECK(check_hash_result<cuco::xxhash_64<char>>(42, 0, 765293966243412708));
+    CHECK(check_hash_result<cuco::xxhash_64<char>>(0, 42, 9486749600008296231));
+
     CHECK(check_hash_result<cuco::xxhash_64<int32_t>>(0, 0, 4246796580750024372));
     CHECK(check_hash_result<cuco::xxhash_64<int32_t>>(0, 42, 3614696996920510707));
     CHECK(check_hash_result<cuco::xxhash_64<int32_t>>(42, 0, 15516826743637085169));
@@ -102,21 +113,27 @@ TEST_CASE("Test cuco::xxhash_64", "")
 template <typename OutputIter>
 __global__ void check_hash_result_kernel_32(OutputIter result)
 {
-  result[0] = check_hash_result<cuco::xxhash_32<int32_t>>(0, 0, 148298089);
-  result[1] = check_hash_result<cuco::xxhash_32<int32_t>>(0, 42, 2132181312);
-  result[2] = check_hash_result<cuco::xxhash_32<int32_t>>(42, 0, 1161967057);
-  result[3] = check_hash_result<cuco::xxhash_32<int32_t>>(123456789, 0, 2987034094);
+  int i = 0;
 
-  result[4] = check_hash_result<cuco::xxhash_32<int64_t>>(0, 0, 3736311059);
-  result[5] = check_hash_result<cuco::xxhash_32<int64_t>>(0, 42, 1076387279);
-  result[6] = check_hash_result<cuco::xxhash_32<int64_t>>(42, 0, 2332451213);
-  result[7] = check_hash_result<cuco::xxhash_32<int64_t>>(123456789, 0, 1561711919);
+  result[i++] = check_hash_result<cuco::xxhash_32<char>>(0, 0, 3479547966);
+  result[i++] = check_hash_result<cuco::xxhash_32<char>>(42, 0, 3774771295);
+  result[i++] = check_hash_result<cuco::xxhash_32<char>>(0, 42, 2099223482);
+
+  result[i++] = check_hash_result<cuco::xxhash_32<int32_t>>(0, 0, 148298089);
+  result[i++] = check_hash_result<cuco::xxhash_32<int32_t>>(0, 42, 2132181312);
+  result[i++] = check_hash_result<cuco::xxhash_32<int32_t>>(42, 0, 1161967057);
+  result[i++] = check_hash_result<cuco::xxhash_32<int32_t>>(123456789, 0, 2987034094);
+
+  result[i++] = check_hash_result<cuco::xxhash_32<int64_t>>(0, 0, 3736311059);
+  result[i++] = check_hash_result<cuco::xxhash_32<int64_t>>(0, 42, 1076387279);
+  result[i++] = check_hash_result<cuco::xxhash_32<int64_t>>(42, 0, 2332451213);
+  result[i++] = check_hash_result<cuco::xxhash_32<int64_t>>(123456789, 0, 1561711919);
 
 #if defined(CUCO_HAS_INT128)
-  result[8] = check_hash_result<cuco::xxhash_32<__int128>>(123456789, 0, 1846633701);
+  result[i++] = check_hash_result<cuco::xxhash_32<__int128>>(123456789, 0, 1846633701);
 #endif
 
-  result[9] = check_hash_result<cuco::xxhash_32<large_key<32>>>(123456789, 0, 3715432378);
+  result[i++] = check_hash_result<cuco::xxhash_32<large_key<32>>>(123456789, 0, 3715432378);
 }
 
 TEST_CASE("Test cuco::xxhash_32", "")
@@ -124,6 +141,10 @@ TEST_CASE("Test cuco::xxhash_32", "")
   // Reference hash values were computed using https://github.com/Cyan4973/xxHash
   SECTION("Check if host-generated hash values match the reference implementation.")
   {
+    CHECK(check_hash_result<cuco::xxhash_32<char>>(0, 0, 3479547966));
+    CHECK(check_hash_result<cuco::xxhash_32<char>>(42, 0, 3774771295));
+    CHECK(check_hash_result<cuco::xxhash_32<char>>(0, 42, 2099223482));
+
     CHECK(check_hash_result<cuco::xxhash_32<int32_t>>(0, 0, 148298089));
     CHECK(check_hash_result<cuco::xxhash_32<int32_t>>(0, 42, 2132181312));
     CHECK(check_hash_result<cuco::xxhash_32<int32_t>>(42, 0, 1161967057));
@@ -144,7 +165,7 @@ TEST_CASE("Test cuco::xxhash_32", "")
 
   SECTION("Check if device-generated hash values match the reference implementation.")
   {
-    thrust::device_vector<bool> result(10);
+    thrust::device_vector<bool> result(20, true);
 
     check_hash_result_kernel_32<<<1, 1>>>(result.begin());
 
