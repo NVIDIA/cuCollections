@@ -147,6 +147,20 @@ struct static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operat
   }
 
   /**
+   * @brief Equality check with the given equality callable.
+   *
+   * @param lhs Left-hand side key to check equality
+   * @param rhs Right-hand side key to check equality
+   *
+   * @return `EQUAL` if `lhs` and `rhs` are equivalent. `UNEQUAL` otherwise.
+   */
+  __device__ constexpr detail::equal_result equal_to(key_type const& lhs,
+                                                     key_type const& rhs) const noexcept
+  {
+    return predicate_.equal_to(lhs, rhs);
+  }
+
+  /**
    * @brief Order-sensitive equality operator.
    *
    * @note Container keys MUST be always on the left-hand side.
