@@ -288,7 +288,7 @@ class aow_storage : public aow_storage_base<WindowSize, T, Extent> {
    * @brief Constructor of AoW storage.
    *
    * @note The input `size` should be exclusively determined by the return value of
-   * `make_valid_extent` since it depends on the requested low-bound value, the probing scheme, and
+   * `make_window_extent` since it depends on the requested low-bound value, the probing scheme, and
    * the storage.
    *
    * @param size Number of windows to (de)allocate

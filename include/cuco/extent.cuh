@@ -74,9 +74,9 @@ struct extent<SizeType, dynamic_extent> {
 };
 
 /**
- * @brief Valid extent strong type.
+ * @brief Window extent strong type.
  *
- * @note This type is used internally and can only be constructed using the `make_valid_extent'
+ * @note This type is used internally and can only be constructed using the `make_window_extent'
  * factory method.
  *
  * @tparam SizeType Size type
@@ -84,10 +84,10 @@ struct extent<SizeType, dynamic_extent> {
  *
  */
 template <typename SizeType, std::size_t N>
-struct valid_extent;
+struct window_extent;
 
 /**
- * @brief Computes valid extent based on given parameters.
+ * @brief Computes a valid window extent based on given parameters.
  *
  * @note The actual capacity of a container (map/set) should be exclusively determined by the return
  * value of this utility since the output depends on the requested low-bound size, the probing
@@ -102,10 +102,10 @@ struct valid_extent;
  *
  * @throw If the input extent is invalid
  *
- * @return Resulting valid extent
+ * @return Resulting valid window extent
  */
 template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
-[[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext);
+[[nodiscard]] auto constexpr make_window_extent(extent<SizeType, N> ext);
 
 }  // namespace experimental
 }  // namespace cuco

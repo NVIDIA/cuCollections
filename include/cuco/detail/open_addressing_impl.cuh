@@ -85,7 +85,7 @@ class open_addressing_impl {
   using key_type   = Key;    ///< Key type
   using value_type = Value;  ///< The storage value type, NOT payload type
   /// Extent type
-  using extent_type = decltype(make_valid_extent<cg_size, window_size>(std::declval<Extent>()));
+  using extent_type = decltype(make_window_extent<cg_size, window_size>(std::declval<Extent>()));
   using size_type   = typename extent_type::value_type;  ///< Size type
   using key_equal   = KeyEqual;                          ///< Key equality comparator type
   using storage_type =
@@ -100,7 +100,7 @@ class open_addressing_impl {
    * capacity, sentinel values and CUDA stream.
    *
    * @note The actual capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * window size and it's computed via `make_valid_extent` factory. Insert operations will not
+   * window size and it is computed via the `make_window_extent` factory. Insert operations will not
    * automatically grow the container. Attempting to insert more unique keys than the capacity of
    * the container results in undefined behavior.
    * @note The `empty_key_sentinel` is reserved and behavior is undefined when attempting to insert
@@ -124,7 +124,7 @@ class open_addressing_impl {
     : empty_key_sentinel_{empty_key_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      storage_{make_valid_extent<cg_size, window_size>(capacity), alloc}
+      storage_{make_window_extent<cg_size, window_size>(capacity), alloc}
   {
     storage_.initialize(empty_slot_sentinel, stream);
   }

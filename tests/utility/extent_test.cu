@@ -43,14 +43,14 @@ TEMPLATE_TEST_CASE_SIG(
   SECTION("Compute static valid extent at compile time.")
   {
     auto constexpr size = cuco::experimental::extent<SizeType, num>{};
-    auto constexpr res  = cuco::experimental::make_valid_extent<cg_size, window_size>(size);
+    auto constexpr res  = cuco::experimental::make_window_extent<cg_size, window_size>(size);
     STATIC_REQUIRE(gold_reference == res.value());
   }
 
   SECTION("Compute dynamic valid extent at run time.")
   {
     auto const size = cuco::experimental::extent<SizeType>{num};
-    auto const res  = cuco::experimental::make_valid_extent<cg_size, window_size>(size);
+    auto const res  = cuco::experimental::make_window_extent<cg_size, window_size>(size);
     REQUIRE(gold_reference == res.value());
   }
 }

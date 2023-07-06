@@ -60,8 +60,8 @@ class open_addressing_ref_impl {
                       ProbingScheme>,
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
-  static_assert(is_valid_extent_v<typename StorageRef::extent_type>,
-                "Extent must be of type cuco::valid_extent");
+  static_assert(is_window_extent_v<typename StorageRef::extent_type>,
+                "Extent must be of type cuco::window_extent");
 
  public:
   using key_type            = Key;                                     ///< Key type
