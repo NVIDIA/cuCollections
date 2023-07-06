@@ -18,7 +18,6 @@
 #include <thrust/device_reference.h>
 #include <thrust/tuple.h>
 
-#include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 
 #include <tuple>
