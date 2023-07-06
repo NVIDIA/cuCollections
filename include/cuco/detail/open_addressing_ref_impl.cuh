@@ -572,31 +572,28 @@ class open_addressing_ref_impl {
     // temporary workaround due to performance regression
     // https://github.com/NVIDIA/libcudacxx/issues/366
     if constexpr (sizeof(T) == sizeof(unsigned int)) {
-      auto* expected_ptr = reinterpret_cast<unsigned int*>(&expected);
-      auto* desired_ptr  = reinterpret_cast<unsigned int*>(&desired);
+      auto* const slot_ptr           = reinterpret_cast<unsigned int*>(address);
+      auto const* const expected_ptr = reinterpret_cast<unsigned int*>(&expected);
+      auto const* const desired_ptr  = reinterpret_cast<unsigned int*>(&desired);
       if constexpr (Scope == cuda::thread_scope_system) {
-        return atomicCAS_system(
-          reinterpret_cast<unsigned int*>(address), *expected_ptr, *desired_ptr);
+        return atomicCAS_system(slot_ptr, *expected_ptr, *desired_ptr);
       } else if constexpr (Scope == cuda::thread_scope_device) {
-        return atomicCAS(reinterpret_cast<unsigned int*>(address), *expected_ptr, *desired_ptr);
+        return atomicCAS(slot_ptr, *expected_ptr, *desired_ptr);
       } else if constexpr (Scope == cuda::thread_scope_block) {
-        return atomicCAS_block(
-          reinterpret_cast<unsigned int*>(address), *expected_ptr, *desired_ptr);
+        return atomicCAS_block(slot_ptr, *expected_ptr, *desired_ptr);
       } else {
         static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
       }
     } else if constexpr (sizeof(T) == sizeof(unsigned long long int)) {
-      auto* expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
-      auto* desired_ptr  = reinterpret_cast<unsigned long long int*>(&desired);
+      auto* const slot_ptr           = reinterpret_cast<unsigned long long int*>(address);
+      auto const* const expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
+      auto const* const desired_ptr  = reinterpret_cast<unsigned long long int*>(&desired);
       if constexpr (Scope == cuda::thread_scope_system) {
-        return atomicCAS_system(
-          reinterpret_cast<unsigned long long int*>(address), *expected_ptr, *desired_ptr);
+        return atomicCAS_system(slot_ptr, *expected_ptr, *desired_ptr);
       } else if constexpr (Scope == cuda::thread_scope_device) {
-        return atomicCAS(
-          reinterpret_cast<unsigned long long int*>(address), *expected_ptr, *desired_ptr);
+        return atomicCAS(slot_ptr, *expected_ptr, *desired_ptr);
       } else if constexpr (Scope == cuda::thread_scope_block) {
-        return atomicCAS_block(
-          reinterpret_cast<unsigned long long int*>(address), *expected_ptr, *desired_ptr);
+        return atomicCAS_block(slot_ptr, *expected_ptr, *desired_ptr);
       } else {
         static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
       }
@@ -615,24 +612,26 @@ class open_addressing_ref_impl {
   __device__ constexpr void atomic_store(T* address, T value)
   {
     if constexpr (sizeof(T) == sizeof(unsigned int)) {
-      auto* value_ptr = reinterpret_cast<unsigned int*>(&value);
+      auto* const slot_ptr        = reinterpret_cast<unsigned int*>(address);
+      auto const* const value_ptr = reinterpret_cast<unsigned int*>(&value);
       if constexpr (Scope == cuda::thread_scope_system) {
-        atomicExch_system(reinterpret_cast<unsigned int*>(address), *value_ptr);
+        atomicExch_system(slot_ptr, *value_ptr);
       } else if constexpr (Scope == cuda::thread_scope_device) {
-        atomicExch(reinterpret_cast<unsigned int*>(address), *value_ptr);
+        atomicExch(slot_ptr, *value_ptr);
       } else if constexpr (Scope == cuda::thread_scope_block) {
-        atomicExch_block(reinterpret_cast<unsigned int*>(address), *value_ptr);
+        atomicExch_block(slot_ptr, *value_ptr);
       } else {
         static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
       }
     } else if constexpr (sizeof(T) == sizeof(unsigned long long int)) {
-      auto* value_ptr = reinterpret_cast<unsigned long long int*>(&value);
+      auto* const slot_ptr        = reinterpret_cast<unsigned long long int*>(address);
+      auto const* const value_ptr = reinterpret_cast<unsigned long long int*>(&value);
       if constexpr (Scope == cuda::thread_scope_system) {
-        atomicExch_system(reinterpret_cast<unsigned long long int*>(address), *value_ptr);
+        atomicExch_system(slot_ptr, *value_ptr);
       } else if constexpr (Scope == cuda::thread_scope_device) {
-        atomicExch(reinterpret_cast<unsigned long long int*>(address), *value_ptr);
+        atomicExch(slot_ptr, *value_ptr);
       } else if constexpr (Scope == cuda::thread_scope_block) {
-        atomicExch_block(reinterpret_cast<unsigned long long int*>(address), *value_ptr);
+        atomicExch_block(slot_ptr, *value_ptr);
       } else {
         static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
       }
