@@ -87,7 +87,49 @@ template <typename SizeType, std::size_t N>
 struct window_extent;
 
 /**
- * @brief Computes a valid window extent based on given parameters.
+ * @brief Computes a valid window extent/capacity for a given container type.
+ *
+ * @note The actual capacity of a container (map/set) should be exclusively determined by the return
+ * value of this utility since the output depends on the requested low-bound size, the probing
+ * scheme, and the storage. This utility is used internally during container constructions while for
+ * container ref constructions, it would be users' responsibility to use this function to determine
+ * the capacity ctor argument for the container.
+ *
+ * @tparam Container Container type to compute the extent for
+ * @tparam SizeType Size type
+ * @tparam N Extent
+ *
+ * @param ext The input extent
+ *
+ * @throw If the input extent is invalid
+ *
+ * @return Resulting valid `window extent`
+ */
+template <typename Container, typename SizeType, std::size_t N>
+[[nodiscard]] auto constexpr make_window_extent(extent<SizeType, N> ext);
+
+/**
+ * @brief Computes a valid capacity for a given container type.
+ *
+ * @note The actual capacity of a container (map/set) should be exclusively determined by the return
+ * value of this utility since the output depends on the requested low-bound size, the probing
+ * scheme, and the storage. This utility is used internally during container constructions while for
+ * container ref constructions, it would be users' responsibility to use this function to determine
+ * the capacity ctor argument for the container.
+ *
+ * @tparam Container Container type to compute the extent for
+ *
+ * @param size The input size
+ *
+ * @throw If the input size is invalid
+ *
+ * @return Resulting valid extent as `std::size_t`
+ */
+template <typename Container>
+[[nodiscard]] std::size_t constexpr make_window_extent(std::size_t size);
+
+/**
+ * @brief Computes valid window extent based on given parameters.
  *
  * @note The actual capacity of a container (map/set) should be exclusively determined by the return
  * value of this utility since the output depends on the requested low-bound size, the probing
@@ -100,12 +142,35 @@ struct window_extent;
  * @tparam SizeType Size type
  * @tparam N Extent
  *
+ * @param ext The input extent
+ *
  * @throw If the input extent is invalid
  *
- * @return Resulting valid window extent
+ * @return Resulting valid extent
  */
 template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_window_extent(extent<SizeType, N> ext);
+
+/**
+ * @brief Computes valid window extent/capacity based on given parameters.
+ *
+ * @note The actual capacity of a container (map/set) should be exclusively determined by the return
+ * value of this utility since the output depends on the requested low-bound size, the probing
+ * scheme, and the storage. This utility is used internally during container constructions while for
+ * container ref constructions, it would be users' responsibility to use this function to determine
+ * the capacity ctor argument for the container.
+ *
+ * @tparam CGSize Number of elements handled per CG
+ * @tparam WindowSize Number of elements handled per Window
+ *
+ * @param size The input size
+ *
+ * @throw If the input size is invalid
+ *
+ * @return Resulting valid extent as `std::size_t`
+ */
+template <int32_t CGSize, int32_t WindowSize>
+[[nodiscard]] std::size_t constexpr make_window_extent(std::size_t size);
 
 }  // namespace experimental
 }  // namespace cuco

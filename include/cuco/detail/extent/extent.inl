@@ -53,6 +53,18 @@ struct window_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeTyp
   friend auto constexpr make_window_extent(extent<SizeType_, N_> ext);
 };
 
+template <typename Container, typename SizeType, std::size_t N>
+[[nodiscard]] auto constexpr make_window_extent(extent<SizeType, N> ext)
+{
+  return make_window_extent<Container::cg_size, Container::window_size>(ext);
+}
+
+template <typename Container>
+[[nodiscard]] std::size_t constexpr make_window_extent(std::size_t size)
+{
+  return make_window_extent<Container::cg_size, Container::window_size>(size);
+}
+
 template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_window_extent(extent<SizeType, N> ext)
 {
@@ -78,6 +90,12 @@ template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
                                                       static_cast<uint64_t>(size)) *
                            CGSize)>{};
   }
+}
+
+template <int32_t CGSize, int32_t WindowSize>
+[[nodiscard]] std::size_t constexpr make_window_extent(std::size_t size)
+{
+  return static_cast<std::size_t>(make_window_extent<CGSize, WindowSize>(extent{size}));
 }
 
 namespace detail {

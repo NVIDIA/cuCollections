@@ -85,7 +85,7 @@ class open_addressing_impl {
   using key_type   = Key;    ///< Key type
   using value_type = Value;  ///< The storage value type, NOT payload type
   /// Extent type
-  using extent_type = decltype(make_window_extent<cg_size, window_size>(std::declval<Extent>()));
+  using extent_type = decltype(make_window_extent<open_addressing_impl>(std::declval<Extent>()));
   using size_type   = typename extent_type::value_type;  ///< Size type
   using key_equal   = KeyEqual;                          ///< Key equality comparator type
   using storage_type =
@@ -124,7 +124,7 @@ class open_addressing_impl {
     : empty_key_sentinel_{empty_key_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      storage_{make_window_extent<cg_size, window_size>(capacity), alloc}
+      storage_{make_window_extent<open_addressing_impl>(capacity), alloc}
   {
     storage_.initialize(empty_slot_sentinel, stream);
   }
