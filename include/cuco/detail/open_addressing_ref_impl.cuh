@@ -61,7 +61,11 @@ class open_addressing_ref_impl {
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
   static_assert(is_window_extent_v<typename StorageRef::extent_type>,
-                "Extent must be of type cuco::window_extent");
+                "Extent is not a valid cuco::window_extent");
+  static_assert(ProbingScheme::cg_size == StorageRef::extent_type::cg_size,
+                "Extent has incompatible CG size");
+  static_assert(StorageRef::window_size == StorageRef::extent_type::window_size,
+                "Extent has incompatible window size");
 
  public:
   using key_type            = Key;                                     ///< Key type

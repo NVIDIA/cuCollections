@@ -83,7 +83,7 @@ struct extent<SizeType, dynamic_extent> {
  * @tparam N Extent
  *
  */
-template <typename SizeType, std::size_t N>
+template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
 struct window_extent;
 
 /**
