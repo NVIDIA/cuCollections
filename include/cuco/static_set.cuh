@@ -158,14 +158,16 @@ class static_set {
                        cuda_stream_ref stream              = {});
 
   /**
-   * @brief Clears the container and removes all stored elements.
+   * @brief Erases all elements from the container. After this call, `size()` returns zero.
+   * Invalidates any references, pointers, or iterators referring to contained elements.
    *
    * @param stream CUDA stream this operation is executed in
    */
   void clear(cuda_stream_ref stream = {}) noexcept;
 
   /**
-   * @brief Asynchronously clears the container and removes all stored elements.
+   * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
+   * zero. Invalidates any references, pointers, or iterators referring to contained elements.
    *
    * @param stream CUDA stream this operation is executed in
    */
