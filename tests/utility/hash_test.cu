@@ -24,6 +24,8 @@
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <cstddef>
+
 template <int32_t Words>
 struct large_key {
   constexpr __host__ __device__ large_key(int32_t value) noexcept
@@ -185,13 +187,12 @@ TEMPLATE_TEST_CASE_SIG("Static vs. dynamic key hash test",
 {
   using key_type = typename Hash::argument_type;
 
-  // this makes sure the compiler isn't able to optimize away the key_size variable
-  volatile size_t key_size = sizeof(key_type);
-
   Hash hash;
+  key_type key = 42;
 
   SECTION("Identical keys with static and dynamic key size should have the same hash value.")
   {
-    CHECK(hash(42) == hash(42, key_size));
+    CHECK(hash(key) ==
+          hash.compute_hash(reinterpret_cast<std::byte const*>(&key), sizeof(key_type)));
   }
 }

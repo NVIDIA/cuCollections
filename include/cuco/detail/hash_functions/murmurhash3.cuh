@@ -19,6 +19,7 @@
 #include <cuco/detail/hash_functions/utils.cuh>
 #include <cuco/extent.cuh>
 
+#include <cstddef>
 #include <cstdint>
 #include <type_traits>
 
@@ -139,11 +140,12 @@ struct MurmurHash3_32 {
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
    *
    * @param key The input argument to hash
-   * @return A resulting hash value for `key`
+   * @return The resulting hash value for `key`
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
-    return (*this)(key, cuco::experimental::extent<std::size_t, sizeof(Key)>{});
+    return compute_hash(reinterpret_cast<std::byte const*>(&key),
+                        cuco::experimental::extent<std::size_t, sizeof(Key)>{});
   }
 
   /**
@@ -151,14 +153,14 @@ struct MurmurHash3_32 {
    *
    * @tparam Extent The extent type
    *
-   * @param key The input argument to hash
-   * @param size The extent of the key in bytes
-   * @return A resulting hash value for `key`
+   * @param bytes The input argument to hash
+   * @param size The extent of the data in bytes
+   * @return The resulting hash value
    */
   template <typename Extent>
-  constexpr result_type __host__ __device__ operator()(Key const& key, Extent size) const noexcept
+  constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
+                                                         Extent size) const noexcept
   {
-    auto const data    = reinterpret_cast<std::uint8_t const*>(&key);
     auto const nblocks = size / 4;
 
     std::uint32_t h1           = seed_;
@@ -167,7 +169,7 @@ struct MurmurHash3_32 {
     //----------
     // body
     for (std::remove_const_t<decltype(nblocks)> i = 0; size >= 4 && i < nblocks; i++) {
-      std::uint32_t k1 = load_chunk<std::uint32_t>(data, i);
+      std::uint32_t k1 = load_chunk<std::uint32_t>(bytes, i);
       k1 *= c1;
       k1 = rotl32(k1, 15);
       k1 *= c2;
@@ -179,10 +181,10 @@ struct MurmurHash3_32 {
     // tail
     std::uint32_t k1 = 0;
     switch (size & 3) {
-      case 3: k1 ^= data[nblocks * 4 + 2] << 16; [[fallthrough]];
-      case 2: k1 ^= data[nblocks * 4 + 1] << 8; [[fallthrough]];
+      case 3: k1 ^= std::to_integer<std::uint32_t>(bytes[nblocks * 4 + 2]) << 16; [[fallthrough]];
+      case 2: k1 ^= std::to_integer<std::uint32_t>(bytes[nblocks * 4 + 1]) << 8; [[fallthrough]];
       case 1:
-        k1 ^= data[nblocks * 4 + 0];
+        k1 ^= std::to_integer<std::uint32_t>(bytes[nblocks * 4 + 0]);
         k1 *= c1;
         k1 = rotl32(k1, 15);
         k1 *= c2;
