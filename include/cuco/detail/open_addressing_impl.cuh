@@ -130,7 +130,7 @@ class open_addressing_impl {
       probing_scheme_{probing_scheme},
       storage_{make_valid_extent<cg_size, window_size>(capacity), alloc}
   {
-    clear(stream);
+    this->clear(stream);
   }
 
   /**
@@ -138,7 +138,21 @@ class open_addressing_impl {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuda_stream_ref stream) noexcept { storage_.initialize(empty_slot_sentinel_, stream); }
+  void clear(cuda_stream_ref stream) noexcept
+  {
+    this->clear_async(stream);
+    stream.synchronize();
+  }
+
+  /**
+   * @brief Asynchronously clears the container and removes all stored elements.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  void clear_async(cuda_stream_ref stream) noexcept
+  {
+    storage_.initialize(empty_slot_sentinel_, stream);
+  }
 
   /**
    * @brief Inserts all keys in the range `[first, last)` and returns the number of successful

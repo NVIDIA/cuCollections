@@ -65,7 +65,21 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear(
   cuda_stream_ref stream) noexcept
 {
-  return impl_->clear(stream);
+  impl_->clear(stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear_async(
+  cuda_stream_ref stream) noexcept
+{
+  impl_->clear_async(stream);
 }
 
 template <class Key,
