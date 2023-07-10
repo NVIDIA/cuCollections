@@ -182,6 +182,13 @@ class static_map {
                        cuda_stream_ref stream              = {});
 
   /**
+   * @brief Clears the container and removes all stored elements.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  void clear(cuda_stream_ref stream = {}) noexcept;
+
+  /**
    * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
    * insertions.
    *
