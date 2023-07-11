@@ -106,8 +106,10 @@ class open_addressing_impl {
    * window size and it's computed via `make_valid_extent` factory. Insert operations will not
    * automatically grow the container. Attempting to insert more unique keys than the capacity of
    * the container results in undefined behavior.
-   * @note The `empty_key_sentinel` is reserved and behavior is undefined when attempting to insert
+   * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
    * this sentinel value.
+   * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
+   * stream before the object is first used.
    *
    * @param capacity The requested lower-bound size
    * @param empty_key_sentinel The reserved key value for empty slots
@@ -125,11 +127,35 @@ class open_addressing_impl {
                                  Allocator const& alloc,
                                  cuda_stream_ref stream) noexcept
     : empty_key_sentinel_{empty_key_sentinel},
+      empty_slot_sentinel_{empty_slot_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
       storage_{make_valid_extent<cg_size, window_size>(capacity), alloc}
   {
-    storage_.initialize(empty_slot_sentinel, stream);
+    this->clear_async(stream);
+  }
+
+  /**
+   * @brief Erases all elements from the container. After this call, `size()` returns zero.
+   * Invalidates any references, pointers, or iterators referring to contained elements.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  void clear(cuda_stream_ref stream) noexcept
+  {
+    this->clear_async(stream);
+    stream.synchronize();
+  }
+
+  /**
+   * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
+   * zero. Invalidates any references, pointers, or iterators referring to contained elements.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  void clear_async(cuda_stream_ref stream) noexcept
+  {
+    storage_.initialize(empty_slot_sentinel_, stream);
   }
 
   /**
@@ -526,6 +552,7 @@ class open_addressing_impl {
 
  protected:
   key_type empty_key_sentinel_;         ///< Key value that represents an empty slot
+  value_type empty_slot_sentinel_;      ///< Slot value that represents an empty slot
   key_equal predicate_;                 ///< Key equality binary predicate
   probing_scheme_type probing_scheme_;  ///< Probing scheme
   storage_type storage_;                ///< Slot window storage
