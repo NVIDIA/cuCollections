@@ -16,17 +16,13 @@
 
 #pragma once
 
-#include <cstddef>
-
 namespace cuco::detail {
 
 template <typename T, typename U, typename Extent>
 constexpr __host__ __device__ T load_chunk(U const* const data, Extent index) noexcept
 {
-  auto const bytes = reinterpret_cast<std::byte const*>(data);
-  T chunk;
-  memcpy(&chunk, __builtin_assume_aligned(bytes + index * sizeof(T), sizeof(T)), sizeof(T));
-  return chunk;
+  auto const chunks = reinterpret_cast<T const*>(data);
+  return chunks[index];
 }
 
 };  // namespace cuco::detail
