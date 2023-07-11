@@ -138,8 +138,10 @@ class static_set {
    * automatically grow the set. Attempting to insert more unique keys than the capacity of the map
    * results in undefined behavior.
    *
-   * The `empty_key_sentinel` is reserved and behavior is undefined when attempting to insert
+   * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
    * this sentinel value.
+   * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
+   * stream before the object is first used.
    *
    * @param capacity The requested lower-bound set size
    * @param empty_key_sentinel The reserved key value for empty slots
@@ -154,6 +156,22 @@ class static_set {
                        ProbingScheme const& probing_scheme = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
+
+  /**
+   * @brief Erases all elements from the container. After this call, `size()` returns zero.
+   * Invalidates any references, pointers, or iterators referring to contained elements.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  void clear(cuda_stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
+   * zero. Invalidates any references, pointers, or iterators referring to contained elements.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  void clear_async(cuda_stream_ref stream = {}) noexcept;
 
   /**
    * @brief Inserts all keys in the range `[first, last)` and returns the number of successful

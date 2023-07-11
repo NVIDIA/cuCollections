@@ -35,8 +35,10 @@ TEST_CASE("Size computation", "")
 
   auto const num_successes = set.insert(d_keys.begin(), d_keys.end());
 
-  auto const size = set.size();
-
-  REQUIRE(size == num_keys);
+  REQUIRE(set.size() == num_keys);
   REQUIRE(num_successes == num_keys);
+
+  set.clear();
+
+  REQUIRE(set.size() == 0);
 }
