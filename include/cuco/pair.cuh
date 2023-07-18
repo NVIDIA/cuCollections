@@ -148,7 +148,8 @@ __host__ __device__ constexpr bool operator==(cuco::pair<T1, T2> const& lhs,
 template <typename First, typename Second>
 struct is_bitwise_comparable<pair<First, Second>>
   : std::integral_constant<bool,
-                           is_bitwise_comparable_v<First> && is_bitwise_comparable_v<Second>> {
+                           is_bitwise_comparable_v<First> && is_bitwise_comparable_v<Second> &&
+                             sizeof(pair<First, Second>) == sizeof(First) + sizeof(Second)> {
 };
 
 }  // namespace cuco
