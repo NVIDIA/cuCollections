@@ -339,7 +339,7 @@ struct XXHash_64 {
     }
 
     // remaining data can be processed in 4-byte chunks
-    if (((size % 32) % 8) >= 4) {
+    if ((size % 8) >= 4) {
       for (; offset <= size - 4; offset += 4) {
         h64 ^= (load_chunk<std::uint32_t>(bytes, offset / 4) & 0xffffffffull) * prime1;
         h64 = rotl(h64, 23) * prime2 + prime3;
