@@ -25,6 +25,15 @@
 namespace cuco::detail {
 
 template <typename T, typename = void>
+struct is_bitwise_comparable_impl : std::false_type {
+};
+
+template <typename T>
+struct is_bitwise_comparable_impl<T, std::enable_if_t<std::has_unique_object_representations_v<T>>>
+  : std::true_type {
+};
+
+template <typename T, typename = void>
 struct is_std_pair_like : cuda::std::false_type {
 };
 

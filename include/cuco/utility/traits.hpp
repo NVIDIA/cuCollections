@@ -16,8 +16,7 @@
 
 #pragma once
 
-#include <thrust/device_reference.h>
-#include <thrust/tuple.h>
+#include <cuco/detail/traits.hpp>
 
 #include <type_traits>
 
@@ -36,15 +35,10 @@ namespace cuco {
  * if a `NaN` bit pattern were used as the empty sentinel value, it may not compare bitwise equal to
  * other `NaN` bit patterns.
  *
+ * @note By default, only types with unique object representations are allowed
  */
-template <typename T, typename = void>
-struct is_bitwise_comparable : std::false_type {
-};
-
-/// By default, only types with unique object representations are allowed
 template <typename T>
-struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_representations_v<T>>>
-  : std::true_type {
+struct is_bitwise_comparable : detail::is_bitwise_comparable_impl<T> {
 };
 
 template <typename T>

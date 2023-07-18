@@ -18,6 +18,7 @@
 
 #include <cuco/detail/traits.hpp>
 #include <cuco/detail/utils.cuh>
+#include <cuco/utility/traits.hpp>
 
 #include <thrust/device_reference.h>
 #include <thrust/tuple.h>
@@ -140,6 +141,15 @@ __host__ __device__ constexpr pair<std::decay_t<F>, std::decay_t<S>> make_pair(F
 template <class T1, class T2, class U1, class U2>
 __host__ __device__ constexpr bool operator==(cuco::pair<T1, T2> const& lhs,
                                               cuco::pair<U1, U2> const& rhs) noexcept;
+
+/**
+ * @brief A pair of bitwise comparable types is also bitwise comparable
+ */
+template <typename First, typename Second>
+struct is_bitwise_comparable<pair<First, Second>>
+  : std::integral_constant<bool,
+                           is_bitwise_comparable_v<First> && is_bitwise_comparable_v<Second>> {
+};
 
 }  // namespace cuco
 
