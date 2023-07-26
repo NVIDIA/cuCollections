@@ -416,6 +416,7 @@ __global__ void retrieve(InputIt first,
     idx += loop_stride;
   }
 
+  flushing_cg.sync();
   // Final flush of output buffer
   if (flushing_cg_counter[flushing_cg_id] > 0) {
     view.flush_output_buffer(flushing_cg,
@@ -532,6 +533,7 @@ __global__ void pair_retrieve(InputIt first,
     idx += loop_stride;
   }
 
+  flushing_cg.sync();
   // Final flush of output buffer
   if (flushing_cg_counter[flushing_cg_id] > 0) {
     view.flush_output_buffer(flushing_cg,
