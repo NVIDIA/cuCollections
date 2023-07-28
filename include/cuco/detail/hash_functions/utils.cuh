@@ -21,8 +21,9 @@ namespace cuco::detail {
 template <typename T, typename U, typename Extent>
 constexpr __host__ __device__ T load_chunk(U const* const data, Extent index) noexcept
 {
-  auto const chunks = reinterpret_cast<T const*>(data);
-  return chunks[index];
+  T chunk;
+  memcpy(&chunk, data + index, sizeof(T));
+  return chunk;
 }
 
 };  // namespace cuco::detail
