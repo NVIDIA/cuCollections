@@ -226,6 +226,8 @@ class static_map {
              Allocator const& alloc = Allocator{},
              cudaStream_t stream    = 0);
 
+  void clear(cudaStream_t stream    = 0);
+
   /**
    * @brief Destroys the map and frees its contents.
    *
