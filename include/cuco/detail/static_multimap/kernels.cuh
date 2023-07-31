@@ -387,6 +387,8 @@ __global__ void retrieve(InputIt first,
 
   if (flushing_cg.thread_rank() == 0) { flushing_cg_counter[flushing_cg_id] = 0; }
 
+  flushing_cg.sync();
+
   while (flushing_cg.any(idx < n)) {
     bool active_flag        = idx < n;
     auto active_flushing_cg = cg::binary_partition<flushing_cg_size>(flushing_cg, active_flag);
@@ -499,6 +501,8 @@ __global__ void pair_retrieve(InputIt first,
   __shared__ uint32_t flushing_cg_counter[num_flushing_cgs];
 
   if (flushing_cg.thread_rank() == 0) { flushing_cg_counter[flushing_cg_id] = 0; }
+
+  flushing_cg.sync();
 
   while (flushing_cg.any(idx < n)) {
     bool active_flag        = idx < n;
