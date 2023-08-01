@@ -65,7 +65,7 @@ struct slot_to_tuple {
  */
 template <typename Key>
 struct slot_is_filled {
-  Key empty_key_sentinel_;  ///< The value of the empty key sentinel
+  alignas(sizeof(Key)) Key empty_key_sentinel_;  ///< The value of the empty key sentinel
 
   /**
    * @brief Indicates if the target slot `s` is filled.
@@ -78,7 +78,8 @@ struct slot_is_filled {
   template <typename S>
   __device__ bool operator()(S const& s)
   {
-    return not cuco::detail::bitwise_compare(thrust::get<0>(s), empty_key_sentinel_);
+    alignas(sizeof(Key)) Key slot_key{thrust::get<0>(s)};
+    return not cuco::detail::bitwise_compare(slot_key, empty_key_sentinel_);
   }
 };
 

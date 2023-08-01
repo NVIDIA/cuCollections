@@ -63,7 +63,7 @@ struct get_slot {
  */
 template <typename T, typename U>
 struct slot_is_filled {
-  T empty_sentinel_;  ///< The value of the empty key sentinel
+  alignas(sizeof(T)) T empty_sentinel_;  ///< The value of the empty key sentinel
 
   /**
    * @brief Constructs `slot_is_filled` functor with the given empty sentinel.
@@ -84,7 +84,8 @@ struct slot_is_filled {
   template <typename Slot>
   __device__ constexpr bool operator()(Slot const& slot) const noexcept
   {
-    return not cuco::detail::bitwise_compare(empty_sentinel_, thrust::get<0>(slot));
+    alignas(sizeof(T)) T slot_key{thrust::get<0>(slot)};
+    return not cuco::detail::bitwise_compare(empty_sentinel_, slot_key);
   }
 
   /**

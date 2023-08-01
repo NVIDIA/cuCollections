@@ -29,7 +29,7 @@ namespace detail {
  */
 template <typename T>
 struct slot_is_filled {
-  T empty_sentinel_;  ///< The value of the empty key sentinel
+  alignas(sizeof(T)) T empty_sentinel_;  ///< The value of the empty key sentinel
 
   /**
    * @brief Constructs `slot_is_filled` functor with the given empty sentinel.
@@ -49,7 +49,8 @@ struct slot_is_filled {
    */
   __device__ constexpr bool operator()(T const& slot) const noexcept
   {
-    return not cuco::detail::bitwise_compare(empty_sentinel_, slot);
+    alignas(sizeof(T)) T slot_key{slot};
+    return not cuco::detail::bitwise_compare(empty_sentinel_, slot_key);
   }
 };
 
