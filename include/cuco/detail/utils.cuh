@@ -20,6 +20,8 @@
 #include <thrust/tuple.h>
 
 #include <cuda/std/bit>
+#include <cuda/std/cmath>
+#include <cuda/std/type_traits>
 
 namespace cuco {
 namespace detail {
@@ -103,6 +105,24 @@ struct strong_type {
 
   T value;  ///< Underlying value
 };
+
+/**
+ * @brief Converts a given hash value into a valid (positive) size type.
+ *
+ * @tparam SizeType The target type
+ * @tparam HashType The input type
+ *
+ * @return Converted hash value
+ */
+template <typename SizeType, typename HashType>
+__host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
+{
+  if constexpr (cuda::std::is_signed_v<SizeType>) {
+    return cuda::std::abs(static_cast<SizeType>(hash));
+  } else {
+    return static_cast<SizeType>(hash);
+  }
+}
 
 /**
  * @brief Gives value to use as alignment for a pair type that is at least the

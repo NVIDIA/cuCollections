@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/detail/equal_wrapper.cuh>
+#include <cuco/extent.cuh>
 #include <cuco/pair.cuh>
 
 #include <thrust/distance.h>
@@ -61,6 +62,13 @@ class open_addressing_ref_impl {
     std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
                       ProbingScheme>,
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+
+  static_assert(is_window_extent_v<typename StorageRef::extent_type>,
+                "Extent is not a valid cuco::window_extent");
+  static_assert(ProbingScheme::cg_size == StorageRef::extent_type::cg_size,
+                "Extent has incompatible CG size");
+  static_assert(StorageRef::window_size == StorageRef::extent_type::window_size,
+                "Extent has incompatible window size");
 
  public:
   using key_type            = Key;                                     ///< Key type
@@ -138,7 +146,7 @@ class open_addressing_ref_impl {
                          Predicate const& predicate) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
@@ -180,7 +188,7 @@ class open_addressing_ref_impl {
                          value_type const& value,
                          Predicate const& predicate) noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
@@ -244,7 +252,7 @@ class open_addressing_ref_impl {
                                                           Predicate const& predicate) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
@@ -301,7 +309,7 @@ class open_addressing_ref_impl {
     value_type const& value,
     Predicate const& predicate) noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
@@ -375,7 +383,7 @@ class open_addressing_ref_impl {
                                          Predicate const& predicate) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
@@ -413,7 +421,7 @@ class open_addressing_ref_impl {
     ProbeKey const& key,
     Predicate const& predicate) const noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
@@ -455,7 +463,7 @@ class open_addressing_ref_impl {
                                                Predicate const& predicate) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
@@ -497,7 +505,7 @@ class open_addressing_ref_impl {
        ProbeKey const& key,
        Predicate const& predicate) const noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];

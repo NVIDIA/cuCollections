@@ -134,7 +134,7 @@ class static_set {
    * and CUDA stream.
    *
    * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * window size and it's computed via `make_valid_extent` factory. Insert operations will not
+   * window size and it is computed via the `make_window_extent` factory. Insert operations will not
    * automatically grow the set. Attempting to insert more unique keys than the capacity of the map
    * results in undefined behavior.
    *
