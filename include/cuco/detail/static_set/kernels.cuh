@@ -15,7 +15,6 @@
  */
 #pragma once
 
-#include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/utils.hpp>
 
 #include <cub/block/block_reduce.cuh>
