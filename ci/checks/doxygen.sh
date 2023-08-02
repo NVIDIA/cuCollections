@@ -16,9 +16,9 @@ function version { echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4
 # Doxygen supported version 1.8.20 to 1.9.1
 DOXYGEN_VERSION=$(doxygen --version)
 if [ $(version "$DOXYGEN_VERSION") -lt $(version "1.8.20") ] ||  [ $(version $DOXYGEN_VERSION) -gt $(version "1.9.1") ]; then
-￼  echo -e "Warning: Unsupported Doxygen version $DOXYGEN_VERSION"
-￼  echo -e "Expecting Doxygen version from 1.8.20 to 1.9.1"
-￼  exit 0
+  echo -e "Warning: Unsupported Doxygen version $DOXYGEN_VERSION"
+  echo -e "Expecting Doxygen version from 1.8.20 to 1.9.1"
+  exit 0
 fi
 
 # Run doxygen, ignore missing tag files error
