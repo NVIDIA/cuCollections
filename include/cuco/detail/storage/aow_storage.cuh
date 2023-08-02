@@ -175,6 +175,13 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
     __device__ constexpr reference operator*() const { return *current_; }
 
     /**
+     * @brief Access operator
+     *
+     * @return Pointer to the current slot
+     */
+    __device__ constexpr value_type* operator->() const { return current_; }
+
+    /**
      * Equality operator
      *
      * @return True if two iterators are identical
