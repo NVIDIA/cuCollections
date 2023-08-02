@@ -662,7 +662,8 @@ class open_addressing_ref_impl {
                                                               value_type const& value,
                                                               Predicate const& predicate) noexcept
   {
-    auto old      = compare_and_swap(slot, this->empty_slot_sentinel_, value);
+    alignas(sizeof(value_type)) auto old =
+      compare_and_swap(slot, this->empty_slot_sentinel_, value);
     auto* old_ptr = reinterpret_cast<value_type*>(&old);
     if (cuco::detail::bitwise_compare(*old_ptr, this->empty_slot_sentinel_)) {
       return insert_result::SUCCESS;
@@ -689,13 +690,15 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ constexpr insert_result back_to_back_cas(
     value_type* slot, value_type const& value, Predicate const& predicate) noexcept
   {
-    auto const expected_key     = this->empty_slot_sentinel_.first;
-    auto const expected_payload = this->empty_slot_sentinel_.second;
+    using mapped_type = decltype(this->empty_slot_sentinel_.second);
 
-    auto old_key     = compare_and_swap(&slot->first, expected_key, value.first);
-    auto old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
+    alignas(sizeof(key_type)) auto const expected_key        = this->empty_slot_sentinel_.first;
+    alignas(sizeof(mapped_type)) auto const expected_payload = this->empty_slot_sentinel_.second;
 
-    using mapped_type = decltype(expected_payload);
+    alignas(sizeof(key_type)) auto old_key =
+      compare_and_swap(&slot->first, expected_key, value.first);
+    alignas(sizeof(mapped_type)) auto old_payload =
+      compare_and_swap(&slot->second, expected_payload, value.second);
 
     auto* old_key_ptr     = reinterpret_cast<key_type*>(&old_key);
     auto* old_payload_ptr = reinterpret_cast<mapped_type*>(&old_payload);
@@ -734,10 +737,10 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(
     value_type* slot, value_type const& value, Predicate const& predicate) noexcept
   {
-    auto const expected_key = this->empty_slot_sentinel_.first;
+    alignas(sizeof(key_type)) auto const expected_key = this->empty_slot_sentinel_.first;
 
-    auto old_key = compare_and_swap(&slot->first, expected_key, value.first);
-
+    alignas(sizeof(key_type)) auto old_key =
+      compare_and_swap(&slot->first, expected_key, value.first);
     auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
 
     // if key success
@@ -785,7 +788,8 @@ class open_addressing_ref_impl {
     }
   }
 
-  value_type empty_slot_sentinel_;      ///< Sentinel value indicating an empty slot
+  alignas(sizeof(value_type))
+    value_type empty_slot_sentinel_;    ///< Sentinel value indicating an empty slot
   probing_scheme_type probing_scheme_;  ///< Probing scheme
   storage_ref_type storage_ref_;        ///< Slot storage ref
 };
