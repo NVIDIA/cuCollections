@@ -36,7 +36,7 @@ struct extent {
   constexpr extent() = default;
 
   /// Constructs from `SizeType`
-  __host__ __device__ constexpr explicit extent(SizeType) noexcept {}
+  __host__ __device__ constexpr extent(SizeType) noexcept {}
 
   /**
    * @brief Conversion to value_type.
