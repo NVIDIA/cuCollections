@@ -191,7 +191,7 @@ class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
      */
     friend __device__ constexpr bool operator!=(iterator const& lhs, iterator const& rhs) noexcept
     {
-      return not lhs == rhs;
+      return not(lhs == rhs);
     }
 
    private:
