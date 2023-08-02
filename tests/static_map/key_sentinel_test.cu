@@ -22,6 +22,8 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
+#include <cuda/functional>
+
 #include <catch2/catch_template_test_macros.hpp>
 
 #define SIZE 10
@@ -51,19 +53,21 @@ TEMPLATE_TEST_CASE_SIG(
   }
   CUCO_CUDA_TRY(cudaMemcpyToSymbol(A, h_A, SIZE * sizeof(int)));
 
-  auto pairs_begin =
-    thrust::make_transform_iterator(thrust::make_counting_iterator<T>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<T>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); }));
 
   SECTION(
     "Tests of non-CG insert: The custom `key_equal` can never be used to compare against sentinel")
   {
-    REQUIRE(cuco::test::all_of(pairs_begin,
-                               pairs_begin + num_keys,
-                               [m_view] __device__(cuco::pair<Key, Value> const& pair) mutable {
-                                 return m_view.insert(
-                                   pair, cuco::default_hash_function<Key>{}, custom_equals<Key>{});
-                               }));
+    REQUIRE(cuco::test::all_of(
+      pairs_begin,
+      pairs_begin + num_keys,
+      cuda::proclaim_return_type<bool>(
+        [m_view] __device__(cuco::pair<Key, Value> const& pair) mutable {
+          return m_view.insert(pair, cuco::default_hash_function<Key>{}, custom_equals<Key>{});
+        })));
   }
 
   SECTION(
@@ -75,10 +79,12 @@ TEMPLATE_TEST_CASE_SIG(
                custom_equals<Key>{});
     // All keys inserted via custom `key_equal` should be found
     REQUIRE(cuco::test::all_of(
-      pairs_begin, pairs_begin + num_keys, [view] __device__(cuco::pair<Key, Value> const& pair) {
+      pairs_begin,
+      pairs_begin + num_keys,
+      cuda::proclaim_return_type<bool>([view] __device__(cuco::pair<Key, Value> const& pair) {
         auto const found = view.find(pair.first);
         return (found != view.end()) and
                (found->first.load() == pair.first and found->second.load() == pair.second);
-      }));
+      })));
   }
 }

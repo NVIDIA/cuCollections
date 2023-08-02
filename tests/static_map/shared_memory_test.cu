@@ -25,6 +25,8 @@
 #include <thrust/sequence.h>
 #include <thrust/tuple.h>
 
+#include <cuda/functional>
+
 #include <catch2/catch_template_test_macros.hpp>
 
 #include <limits>
@@ -127,9 +129,11 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
     auto zip = thrust::make_zip_iterator(
       thrust::make_tuple(d_keys_exist.begin(), d_keys_and_values_correct.begin()));
 
-    REQUIRE(cuco::test::all_of(zip, zip + d_keys_exist.size(), [] __device__(auto const& z) {
-      return thrust::get<0>(z) and thrust::get<1>(z);
-    }));
+    REQUIRE(cuco::test::all_of(zip,
+                               zip + d_keys_exist.size(),
+                               cuda::proclaim_return_type<bool>([] __device__(auto const& z) {
+                                 return thrust::get<0>(z) and thrust::get<1>(z);
+                               })));
   }
 
   SECTION("No key is found before insertion.")
@@ -148,9 +152,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
                                d_keys_exist.data().get(),
                                d_keys_and_values_correct.data().get());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
-                                d_keys_exist.end(),
-                                [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
   }
 }
 

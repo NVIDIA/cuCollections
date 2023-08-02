@@ -29,6 +29,8 @@
 #include <thrust/sort.h>
 #include <thrust/tuple.h>
 
+#include <cuda/functional>
+
 #include <catch2/catch_template_test_macros.hpp>
 
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
@@ -52,9 +54,10 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   thrust::sequence(thrust::device, d_values.begin(), d_values.end());
 
-  auto pairs_begin =
-    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<int>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); }));
 
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);
@@ -66,9 +69,10 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), d_values.begin()));
 
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, [] __device__(auto const& p) {
-      return thrust::get<0>(p) == thrust::get<1>(p);
-    }));
+    REQUIRE(cuco::test::all_of(
+      zip, zip + num_keys, cuda::proclaim_return_type<bool>([] __device__(auto const& p) {
+        return thrust::get<0>(p) == thrust::get<1>(p);
+      })));
   }
 
   SECTION("All inserted keys-value pairs should be contained")
@@ -90,9 +94,10 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   {
     REQUIRE(cuco::test::all_of(pairs_begin,
                                pairs_begin + num_keys,
-                               [m_view] __device__(cuco::pair<Key, Value> const& pair) mutable {
-                                 return m_view.insert(pair);
-                               }));
+                               cuda::proclaim_return_type<bool>(
+                                 [m_view] __device__(cuco::pair<Key, Value> const& pair) mutable {
+                                   return m_view.insert(pair);
+                                 })));
   }
 
   SECTION("Cannot find any key in an empty hash map with non-const view")
@@ -101,16 +106,19 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
     {
       REQUIRE(cuco::test::all_of(pairs_begin,
                                  pairs_begin + num_keys,
-                                 [view] __device__(cuco::pair<Key, Value> const& pair) mutable {
-                                   return view.find(pair.first) == view.end();
-                                 }));
+                                 cuda::proclaim_return_type<bool>(
+                                   [view] __device__(cuco::pair<Key, Value> const& pair) mutable {
+                                     return view.find(pair.first) == view.end();
+                                   })));
     }
     SECTION("const view")
     {
       REQUIRE(cuco::test::all_of(
-        pairs_begin, pairs_begin + num_keys, [view] __device__(cuco::pair<Key, Value> const& pair) {
+        pairs_begin,
+        pairs_begin + num_keys,
+        cuda::proclaim_return_type<bool>([view] __device__(cuco::pair<Key, Value> const& pair) {
           return view.find(pair.first) == view.end();
-        }));
+        })));
     }
   }
 
@@ -121,29 +129,33 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
       thrust::device,
       pairs_begin,
       pairs_begin + num_keys,
-      [m_view] __device__(cuco::pair<Key, Value> const& pair) mutable { m_view.insert(pair); });
+      cuda::proclaim_return_type<void>(
+        [m_view] __device__(cuco::pair<Key, Value> const& pair) mutable { m_view.insert(pair); }));
 
     SECTION("non-const view")
     {
       // All keys should be found
       REQUIRE(cuco::test::all_of(pairs_begin,
                                  pairs_begin + num_keys,
-                                 [view] __device__(cuco::pair<Key, Value> const& pair) mutable {
-                                   auto const found = view.find(pair.first);
-                                   return (found != view.end()) and
-                                          (found->first.load() == pair.first and
-                                           found->second.load() == pair.second);
-                                 }));
+                                 cuda::proclaim_return_type<bool>(
+                                   [view] __device__(cuco::pair<Key, Value> const& pair) mutable {
+                                     auto const found = view.find(pair.first);
+                                     return (found != view.end()) and
+                                            (found->first.load() == pair.first and
+                                             found->second.load() == pair.second);
+                                   })));
     }
     SECTION("const view")
     {
       // All keys should be found
       REQUIRE(cuco::test::all_of(
-        pairs_begin, pairs_begin + num_keys, [view] __device__(cuco::pair<Key, Value> const& pair) {
+        pairs_begin,
+        pairs_begin + num_keys,
+        cuda::proclaim_return_type<bool>([view] __device__(cuco::pair<Key, Value> const& pair) {
           auto const found = view.find(pair.first);
           return (found != view.end()) and
                  (found->first.load() == pair.first and found->second.load() == pair.second);
-        }));
+        })));
     }
   }
 }
@@ -160,14 +172,17 @@ __inline__ void test_unique_sequence(Map& map, size_type num_keys)
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
 
-  auto keys_begin = d_keys.begin();
-  auto pairs_begin =
-    thrust::make_transform_iterator(thrust::make_counting_iterator<size_type>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
+  auto keys_begin  = d_keys.begin();
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<size_type>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); }));
   thrust::device_vector<bool> d_contained(num_keys);
 
-  auto zip_equal = [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); };
-  auto is_even   = [] __device__(auto const& i) { return i % 2 == 0; };
+  auto zip_equal = cuda::proclaim_return_type<bool>(
+    [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); });
+  auto is_even =
+    cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
 
   SECTION("Non-inserted keys should not be contained.")
   {
@@ -196,12 +211,13 @@ __inline__ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(map.size() == num_keys / 2);
 
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::equal(d_contained.begin(),
-                              d_contained.end(),
-                              thrust::counting_iterator<std::size_t>(0),
-                              [] __device__(auto const& idx_contained, auto const& idx) {
-                                return ((idx % 2) == 0) == idx_contained;
-                              }));
+    REQUIRE(cuco::test::equal(
+      d_contained.begin(),
+      d_contained.end(),
+      thrust::counting_iterator<std::size_t>(0),
+      cuda::proclaim_return_type<bool>([] __device__(auto const& idx_contained, auto const& idx) {
+        return ((idx % 2) == 0) == idx_contained;
+      })));
   }
 
   map.insert(pairs_begin, pairs_begin + num_keys);
