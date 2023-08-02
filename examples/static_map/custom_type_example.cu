@@ -22,6 +22,8 @@
 #include <thrust/logical.h>
 #include <thrust/transform.h>
 
+#include <cuda/functional>
+
 // User-defined key type
 #if !defined(CUCO_HAS_INDEPENDENT_THREADS)
 struct custom_key_type {
@@ -88,7 +90,8 @@ int main(void)
   // Create an iterator of input key/value pairs
   auto pairs_begin = thrust::make_transform_iterator(
     thrust::make_counting_iterator<int32_t>(0),
-    [] __device__(auto i) { return cuco::make_pair(custom_key_type{i}, custom_value_type{i}); });
+    cuda::proclaim_return_type<cuco::pair<custom_key_type, custom_value_type>>(
+      [] __device__(auto i) { return cuco::make_pair(custom_key_type{i}, custom_value_type{i}); }));
 
   // Construct a map with 100,000 slots using the given empty key/value sentinels. Note the
   // capacity is chosen knowing we will insert 80,000 keys, for an load factor of 80%.
@@ -101,7 +104,8 @@ int main(void)
   // Reproduce inserted keys
   auto insert_keys =
     thrust::make_transform_iterator(thrust::make_counting_iterator<int32_t>(0),
-                                    [] __device__(auto i) { return custom_key_type{i}; });
+                                    cuda::proclaim_return_type<custom_key_type>(
+                                      [] __device__(auto i) { return custom_key_type{i}; }));
 
   thrust::device_vector<bool> contained(num_pairs);
 
@@ -114,7 +118,9 @@ int main(void)
 
   // All inserted keys are contained
   assert(
-    thrust::all_of(contained.begin(), contained.end(), [] __device__(auto const& b) { return b; }));
+    thrust::all_of(contained.begin(),
+                   contained.end(),
+                   cuda::proclaim_return_type<bool>([] __device__(auto const& b) { return b; })));
 
   return 0;
 }
