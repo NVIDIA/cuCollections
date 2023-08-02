@@ -15,8 +15,11 @@
 #=============================================================================
 cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
+set(rapids-cmake-repo bdice/rapids-cmake)
+set(rapids-cmake-branch cccl-update-2.1.0)
+
 if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
-    file(DOWNLOAD https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-23.06/RAPIDS.cmake
+    file(DOWNLOAD https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-23.10/RAPIDS.cmake
          ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
 endif()
 include(${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
