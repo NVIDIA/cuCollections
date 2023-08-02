@@ -25,6 +25,8 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/transform.h>
 
+#include <cuda/functional>
+
 #include <catch2/catch_template_test_macros.hpp>
 
 #include <tuple>
@@ -98,10 +100,12 @@ TEMPLATE_TEST_CASE_SIG(
                                                probe_type>{
     capacity, cuco::empty_key<Key>{sentinel_key}, custom_key_equal{}, probe};
 
-  auto insert_pairs = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
-                                                      [] __device__(auto i) { return Key{i}; });
-  auto probe_keys   = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
-                                                    [] __device__(auto i) { return ProbeKey(i); });
+  auto insert_pairs = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0),
+    cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i}; }));
+  auto probe_keys = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0),
+    cuda::proclaim_return_type<ProbeKey>([] __device__(auto i) { return ProbeKey(i); }));
 
   SECTION("All inserted keys should be contained")
   {
