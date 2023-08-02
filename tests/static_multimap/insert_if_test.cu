@@ -24,13 +24,15 @@
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 
+#include <cuda/functional>
+
 #include <catch2/catch_template_test_macros.hpp>
 
 template <typename Key, typename Map, typename PairIt, typename KeyIt>
 __inline__ void test_insert_if(Map& map, PairIt pair_begin, KeyIt key_begin, std::size_t size)
 {
   // 50% insertion
-  auto pred_lambda = [] __device__(Key k) { return k % 2 == 0; };
+  auto pred_lambda = cuda::proclaim_return_type<bool>([] __device__(Key k) { return k % 2 == 0; });
 
   map.insert_if(pair_begin, pair_begin + size, key_begin, pred_lambda);
 
@@ -63,9 +65,9 @@ TEMPLATE_TEST_CASE_SIG(
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_keys),
                     d_pairs.begin(),
-                    [] __device__(auto i) {
+                    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
                       return cuco::pair<Key, Value>{i, i};
-                    });
+                    }));
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                                    cuco::linear_probing<1, cuco::default_hash_function<Key>>,

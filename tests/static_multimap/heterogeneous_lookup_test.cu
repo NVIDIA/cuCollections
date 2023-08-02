@@ -25,6 +25,8 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/transform.h>
 
+#include <cuda/functional>
+
 #include <catch2/catch_template_test_macros.hpp>
 
 #include <tuple>
@@ -103,11 +105,13 @@ TEMPLATE_TEST_CASE("Heterogeneous lookup",
                         cuco::linear_probing<1, custom_hasher>>
     map{capacity, cuco::empty_key<Key>{sentinel_key}, cuco::empty_value<Value>{sentinel_value}};
 
-  auto insert_pairs =
-    thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
-  auto probe_keys = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
-                                                    [] __device__(auto i) { return ProbeKey(i); });
+  auto insert_pairs = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); }));
+  auto probe_keys = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0),
+    cuda::proclaim_return_type<ProbeKey>([] __device__(auto i) { return ProbeKey(i); }));
 
   SECTION("All inserted keys-value pairs should be contained")
   {

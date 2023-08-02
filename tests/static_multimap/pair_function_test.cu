@@ -27,6 +27,8 @@
 #include <thrust/transform.h>
 #include <thrust/tuple.h>
 
+#include <cuda/functional>
+
 #include <catch2/catch_template_test_macros.hpp>
 
 // Custom pair equal
@@ -53,9 +55,9 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_pairs),
                     pair_begin,
-                    [] __device__(auto i) {
+                    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
                       return cuco::pair<Key, Value>{i, i};
-                    });
+                    }));
 
   SECTION("pair_contains returns true for all inserted pairs and false for non-inserted ones.")
   {
@@ -128,9 +130,9 @@ TEMPLATE_TEST_CASE_SIG(
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_pairs),
                     d_pairs.begin(),
-                    [] __device__(auto i) {
+                    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
                       return cuco::pair<Key, Value>{i / 2, i};
-                    });
+                    }));
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                                    cuco::linear_probing<1, cuco::default_hash_function<Key>>,

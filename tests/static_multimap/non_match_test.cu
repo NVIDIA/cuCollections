@@ -26,6 +26,8 @@
 #include <thrust/sort.h>
 #include <thrust/transform.h>
 
+#include <cuda/functional>
+
 #include <catch2/catch_template_test_macros.hpp>
 
 template <typename Key, typename Value, typename Map, typename PairIt, typename KeyIt>
@@ -50,22 +52,23 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
     REQUIRE(size == num_keys);
 
     // sort before compare
-    thrust::sort(
-      thrust::device,
-      output_begin,
-      output_end,
-      [] __device__(const cuco::pair<Key, Value>& lhs, const cuco::pair<Key, Value>& rhs) {
-        if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
-        return lhs.second < rhs.second;
-      });
+    thrust::sort(thrust::device,
+                 output_begin,
+                 output_end,
+                 cuda::proclaim_return_type<bool>([] __device__(const cuco::pair<Key, Value>& lhs,
+                                                                const cuco::pair<Key, Value>& rhs) {
+                   if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
+                   return lhs.second < rhs.second;
+                 }));
 
     REQUIRE(
       cuco::test::equal(pair_begin,
                         pair_begin + num_keys,
                         output_begin,
-                        [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
-                          return lhs.first == rhs.first and lhs.second == rhs.second;
-                        }));
+                        cuda::proclaim_return_type<bool>(
+                          [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
+                            return lhs.first == rhs.first and lhs.second == rhs.second;
+                          })));
   }
 
   SECTION("Output of count_outer and retrieve_outer should be coherent.")
@@ -82,34 +85,36 @@ __inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, s
     REQUIRE(size == (num_keys + num_keys / 2));
 
     // sort before compare
-    thrust::sort(
-      thrust::device,
-      output_begin,
-      output_end,
-      [] __device__(const cuco::pair<Key, Value>& lhs, const cuco::pair<Key, Value>& rhs) {
-        if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
-        return lhs.second < rhs.second;
-      });
+    thrust::sort(thrust::device,
+                 output_begin,
+                 output_end,
+                 cuda::proclaim_return_type<bool>([] __device__(const cuco::pair<Key, Value>& lhs,
+                                                                const cuco::pair<Key, Value>& rhs) {
+                   if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
+                   return lhs.second < rhs.second;
+                 }));
 
     // create gold reference
     thrust::device_vector<cuco::pair<Key, Value>> gold(size);
     auto gold_begin = gold.begin();
-    thrust::transform(thrust::device,
-                      thrust::counting_iterator<int>(0),
-                      thrust::counting_iterator<int>(size),
-                      gold_begin,
-                      [num_keys] __device__(auto i) {
-                        if (i < num_keys) { return cuco::pair<Key, Value>{i / 2, i}; }
-                        return cuco::pair<Key, Value>{i - num_keys / 2, -1};
-                      });
+    thrust::transform(
+      thrust::device,
+      thrust::counting_iterator<int>(0),
+      thrust::counting_iterator<int>(size),
+      gold_begin,
+      cuda::proclaim_return_type<cuco::pair<Key, Value>>([num_keys] __device__(auto i) {
+        if (i < num_keys) { return cuco::pair<Key, Value>{i / 2, i}; }
+        return cuco::pair<Key, Value>{i - num_keys / 2, -1};
+      }));
 
     REQUIRE(
       cuco::test::equal(gold_begin,
                         gold_begin + size,
                         output_begin,
-                        [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
-                          return lhs.first == rhs.first and lhs.second == rhs.second;
-                        }));
+                        cuda::proclaim_return_type<bool>(
+                          [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
+                            return lhs.first == rhs.first and lhs.second == rhs.second;
+                          })));
   }
 }
 
@@ -135,9 +140,9 @@ TEMPLATE_TEST_CASE_SIG(
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_keys),
                     d_pairs.begin(),
-                    [] __device__(auto i) {
+                    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
                       return cuco::pair<Key, Value>{i / 2, i};
-                    });
+                    }));
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                                    cuco::linear_probing<1, cuco::default_hash_function<Key>>,
