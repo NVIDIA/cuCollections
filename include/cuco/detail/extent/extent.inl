@@ -80,8 +80,8 @@ template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
     (static_cast<uint64_t>(std::numeric_limits<SizeType>::max()) < max_prime)
       ? std::numeric_limits<SizeType>::max()
       : static_cast<SizeType>(max_prime);
-  auto const size = SDIV(ext, CGSize * WindowSize);
-  if (size < 0 or size > max_value) { CUCO_FAIL("Invalid input extent"); }
+  auto const size = SDIV(std::max(ext, 1), CGSize * WindowSize);
+  if (size > max_value) { CUCO_FAIL("Invalid input extent"); }
 
   if constexpr (N == dynamic_extent) {
     return window_extent<CGSize, WindowSize, SizeType>{static_cast<SizeType>(
