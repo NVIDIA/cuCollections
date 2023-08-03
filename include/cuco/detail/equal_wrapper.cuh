@@ -38,8 +38,8 @@ enum class equal_result : int32_t { UNEQUAL = 0, EMPTY = 1, EQUAL = 2 };
  */
 template <typename T, typename Equal>
 struct equal_wrapper {
-  alignas(sizeof(T)) T empty_sentinel_;  ///< Sentinel value
-  Equal equal_;                          ///< Custom equality callable
+  T empty_sentinel_;  ///< Sentinel value
+  Equal equal_;       ///< Custom equality callable
 
   /**
    * @brief Equality wrapper ctor.
