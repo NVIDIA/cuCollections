@@ -109,45 +109,5 @@ int main()
   kernel<cg_size>
     <<<1, 128>>>(d_set_storage.data().get(), d_sizes.data().get(), d_offsets.data().get());
 
-  /*
-// Number of keys to be inserted
-std::size_t constexpr num_keys = 50'000;
-
-// Compute capacity based on a 50% load factor
-auto constexpr load_factor = 0.5;
-std::size_t const capacity = std::ceil(num_keys / load_factor);
-
-using set_type = cuco::experimental::static_set<Key>;
-
-// Constructs a hash set with at least "capacity" slots using -1 as the empty key sentinel.
-set_type set{capacity, cuco::empty_key{empty_key_sentinel}};
-
-// Create a sequence of keys {0, 1, 2, .., i}
-thrust::device_vector<Key> keys(num_keys);
-thrust::sequence(keys.begin(), keys.end(), 0);
-
-// Insert the first half of the keys into the set
-set.insert(keys.begin(), keys.begin() + num_keys / 2);
-
-// Insert the second half of keys using a custom CUDA kernel.
-custom_cooperative_insert<<<128, 128>>>(
-  set.ref(cuco::experimental::insert), keys.begin() + num_keys / 2, num_keys / 2);
-
-// Storage for result
-thrust::device_vector<bool> found(num_keys);
-
-// Check if all keys are now contained in the set. Note that we pass a reference that already has
-// the `contains` operator.
-// In general, using two or more reference objects to the same container but with
-// a different set of operators concurrently is undefined behavior.
-// This does not apply here since the two kernels do not overlap.
-custom_contains<<<128, 128>>>(
-  set.ref(cuco::experimental::contains), keys.begin(), num_keys, found.begin());
-
-// Verify that all keys have been found
-bool const all_keys_found = thrust::all_of(found.begin(), found.end(), thrust::identity<bool>());
-
-if (all_keys_found) { std::cout << "Success! Found all keys.\n"; }
-*/
   return 0;
 }
