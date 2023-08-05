@@ -91,8 +91,7 @@ int main()
 
   auto valid_sizes = std::vector<std::size_t>(num);
   std::generate(valid_sizes.begin(), valid_sizes.end(), [&, n = 0]() mutable {
-    return cuco::experimental::make_valid_extent<cg_size, window_size>(
-      cuco::experimental::extent{subset_sizes[n++]});
+    return cuco::experimental::make_window_extent<cg_size, window_size>(subset_sizes[n++]);
   });
 
   auto const d_sizes = thrust::device_vector<std::size_t>{valid_sizes};
