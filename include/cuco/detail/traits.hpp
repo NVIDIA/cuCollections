@@ -18,8 +18,9 @@
 #include <thrust/device_reference.h>
 #include <thrust/tuple.h>
 
-#include <cuda/std/tuple>
 #include <cuda/std/type_traits>
+
+#include <tuple>
 
 namespace cuco::detail {
 
@@ -29,11 +30,10 @@ struct is_std_pair_like : cuda::std::false_type {
 
 template <typename T>
 struct is_std_pair_like<T,
-                        cuda::std::void_t<decltype(cuda::std::get<0>(cuda::std::declval<T>())),
-                                          decltype(cuda::std::get<1>(cuda::std::declval<T>()))>>
-  : cuda::std::conditional_t<cuda::std::tuple_size<T>::value == 2,
-                             cuda::std::true_type,
-                             cuda::std::false_type> {
+                        cuda::std::void_t<decltype(std::get<0>(cuda::std::declval<T>())),
+                                          decltype(std::get<1>(cuda::std::declval<T>()))>>
+  : cuda::std::
+      conditional_t<std::tuple_size<T>::value == 2, cuda::std::true_type, cuda::std::false_type> {
 };
 
 template <typename T, typename = void>

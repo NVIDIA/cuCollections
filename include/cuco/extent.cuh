@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <cuco/detail/prime.hpp>
-
 #include <cstddef>
 #include <cstdint>
 
@@ -46,19 +44,6 @@ struct extent {
    * @return Extent size
    */
   __host__ __device__ constexpr operator value_type() const noexcept { return N; }
-
-  /**
-   * @brief Multiplies the current extent with the given `Value`.
-   *
-   * @tparam Value The input value to multiply with
-   *
-   * @return Resulting static extent
-   */
-  template <int32_t Value>
-  __host__ __device__ constexpr auto multiply() const noexcept
-  {
-    return extent<value_type, N * Value>{};
-  }
 };
 
 /**
@@ -84,25 +69,67 @@ struct extent<SizeType, dynamic_extent> {
    */
   __host__ __device__ constexpr operator value_type() const noexcept { return value_; }
 
-  /**
-   * @brief Multiplies the current extent with the given `Value`.
-   *
-   * @tparam Value The input value to multiply with
-   *
-   * @return Resulting extent
-   */
-  template <int32_t Value>
-  __host__ __device__ constexpr auto multiply() const noexcept
-  {
-    return extent<value_type>{Value * value_};
-  }
-
  private:
   value_type value_;  ///< Extent value
 };
 
 /**
- * @brief Computes valid extent based on given parameters.
+ * @brief Window extent strong type.
+ *
+ * @note This type is used internally and can only be constructed using the `make_window_extent'
+ * factory method.
+ *
+ * @tparam SizeType Size type
+ * @tparam N Extent
+ *
+ */
+template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
+struct window_extent;
+
+/**
+ * @brief Computes a valid window extent/capacity for a given container type.
+ *
+ * @note The actual capacity of a container (map/set) should be exclusively determined by the return
+ * value of this utility since the output depends on the requested low-bound size, the probing
+ * scheme, and the storage. This utility is used internally during container constructions while for
+ * container ref constructions, it would be users' responsibility to use this function to determine
+ * the capacity ctor argument for the container.
+ *
+ * @tparam Container Container type to compute the extent for
+ * @tparam SizeType Size type
+ * @tparam N Extent
+ *
+ * @param ext The input extent
+ *
+ * @throw If the input extent is invalid
+ *
+ * @return Resulting valid `window extent`
+ */
+template <typename Container, typename SizeType, std::size_t N>
+[[nodiscard]] auto constexpr make_window_extent(extent<SizeType, N> ext);
+
+/**
+ * @brief Computes a valid capacity for a given container type.
+ *
+ * @note The actual capacity of a container (map/set) should be exclusively determined by the return
+ * value of this utility since the output depends on the requested low-bound size, the probing
+ * scheme, and the storage. This utility is used internally during container constructions while for
+ * container ref constructions, it would be users' responsibility to use this function to determine
+ * the capacity ctor argument for the container.
+ *
+ * @tparam Container Container type to compute the extent for
+ *
+ * @param size The input size
+ *
+ * @throw If the input size is invalid
+ *
+ * @return Resulting valid extent as `std::size_t`
+ */
+template <typename Container>
+[[nodiscard]] std::size_t constexpr make_window_extent(std::size_t size);
+
+/**
+ * @brief Computes valid window extent based on given parameters.
  *
  * @note The actual capacity of a container (map/set) should be exclusively determined by the return
  * value of this utility since the output depends on the requested low-bound size, the probing
@@ -115,35 +142,37 @@ struct extent<SizeType, dynamic_extent> {
  * @tparam SizeType Size type
  * @tparam N Extent
  *
+ * @param ext The input extent
+ *
  * @throw If the input extent is invalid
  *
  * @return Resulting valid extent
  */
 template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
-[[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
-{
-  auto constexpr max_prime = cuco::detail::primes.back();
-  auto constexpr max_value =
-    (static_cast<uint64_t>(std::numeric_limits<SizeType>::max()) < max_prime)
-      ? std::numeric_limits<SizeType>::max()
-      : static_cast<SizeType>(max_prime);
-  auto const size = SDIV(ext, CGSize * WindowSize);
-  if (size <= 0 or size > max_value) { CUCO_FAIL("Invalid input extent"); }
+[[nodiscard]] auto constexpr make_window_extent(extent<SizeType, N> ext);
 
-  if constexpr (N == dynamic_extent) {
-    return extent<SizeType>{static_cast<SizeType>(
-      *cuco::detail::lower_bound(
-        cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
-      CGSize)};
-  }
-  if constexpr (N != dynamic_extent) {
-    return extent<SizeType,
-                  static_cast<std::size_t>(*cuco::detail::lower_bound(cuco::detail::primes.begin(),
-                                                                      cuco::detail::primes.end(),
-                                                                      static_cast<uint64_t>(size)) *
-                                           CGSize)>{};
-  }
-}
+/**
+ * @brief Computes valid window extent/capacity based on given parameters.
+ *
+ * @note The actual capacity of a container (map/set) should be exclusively determined by the return
+ * value of this utility since the output depends on the requested low-bound size, the probing
+ * scheme, and the storage. This utility is used internally during container constructions while for
+ * container ref constructions, it would be users' responsibility to use this function to determine
+ * the capacity ctor argument for the container.
+ *
+ * @tparam CGSize Number of elements handled per CG
+ * @tparam WindowSize Number of elements handled per Window
+ *
+ * @param size The input size
+ *
+ * @throw If the input size is invalid
+ *
+ * @return Resulting valid extent as `std::size_t`
+ */
+template <int32_t CGSize, int32_t WindowSize>
+[[nodiscard]] std::size_t constexpr make_window_extent(std::size_t size);
 
 }  // namespace experimental
 }  // namespace cuco
+
+#include <cuco/detail/extent/extent.inl>

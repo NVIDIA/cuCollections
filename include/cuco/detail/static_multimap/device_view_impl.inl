@@ -1000,8 +1000,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       if (*flushing_cg_counter + flushing_cg.size() * vector_width() > buffer_size) {
         flush_output_buffer(
           flushing_cg, *flushing_cg_counter, output_buffer, num_matches, output_begin);
+        // Everyone in the group reads the counter when flushing, so
+        // sync before writing.
+        flushing_cg.sync();
         // First lane reset warp-level counter
         if (flushing_cg.thread_rank() == 0) { *flushing_cg_counter = 0; }
+        flushing_cg.sync();
       }
 
       current_slot = next_slot(current_slot);
@@ -1092,8 +1096,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       // Flush if the next iteration won't fit into buffer
       if ((*cg_counter + g.size()) > buffer_size) {
         flush_output_buffer(g, *cg_counter, output_buffer, num_matches, output_begin);
+        // Everyone in the group reads the counter when flushing, so
+        // sync before writing.
+        g.sync();
         // First lane reset CG-level counter
         if (lane_id == 0) { *cg_counter = 0; }
+        g.sync();
       }
       current_slot = next_slot(current_slot);
     }  // while running
@@ -1428,8 +1436,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
                             num_matches,
                             probe_output_begin,
                             contained_output_begin);
+        // Everyone in the group reads the counter when flushing, so
+        // sync before writing.
+        flushing_cg.sync();
         // First lane reset warp-level counter
         if (flushing_cg.thread_rank() == 0) { *flushing_cg_counter = 0; }
+        flushing_cg.sync();
       }
 
       current_slot = next_slot(current_slot);
@@ -1539,8 +1551,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
                             num_matches,
                             probe_output_begin,
                             contained_output_begin);
+        // Everyone in the group reads the counter when flushing, so
+        // sync before writing.
+        g.sync();
         // First lane reset CG-level counter
         if (lane_id == 0) { *cg_counter = 0; }
+        g.sync();
       }
       current_slot = next_slot(current_slot);
     }  // while running

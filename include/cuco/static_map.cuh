@@ -66,8 +66,9 @@ namespace experimental {
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
- * @throw If the size of the given key type is larger than 4 bytes
- * @throw If the size of the given slot type is larger than 8 bytes
+ * @throw If the size of the given key type is larger than 8 bytes
+ * @throw If the size of the given payload type is larger than 8 bytes
+ * @throw If the size of the given slot type is larger than 16 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::bitwise_comparable_v<Key> == false`
  * @throw If the given mapped type doesn't have unique object representations, i.e.,
@@ -95,7 +96,9 @@ template <class Key,
           class Allocator = cuco::cuda_allocator<cuco::pair<Key, T>>,
           class Storage   = cuco::experimental::aow_storage<1>>
 class static_map {
-  static_assert(sizeof(Key) <= 4, "Container does not support key types larger than 4 bytes.");
+  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
+
+  static_assert(sizeof(T) <= 8, "Container does not support payload types larger than 8 bytes.");
 
   static_assert(cuco::is_bitwise_comparable_v<T>,
                 "Mapped type must have unique object representations or have been explicitly "
@@ -155,12 +158,14 @@ class static_map {
    * and CUDA stream.
    *
    * The actual map capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * window size and it's computed via `make_valid_extent` factory. Insert operations will not
+   * window size and it is computed via the `make_window_extent` factory. Insert operations will not
    * automatically grow the map. Attempting to insert more unique keys than the capacity of the map
    * results in undefined behavior.
    *
-   * The `empty_key_sentinel` is reserved and behavior is undefined when attempting to insert
+   * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
    * this sentinel value.
+   * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
+   * stream before the object is first used.
    *
    * @param capacity The requested lower-bound map size
    * @param empty_key_sentinel The reserved key value for empty slots
@@ -177,6 +182,22 @@ class static_map {
                        ProbingScheme const& probing_scheme = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
+
+  /**
+   * @brief Erases all elements from the container. After this call, `size()` returns zero.
+   * Invalidates any references, pointers, or iterators referring to contained elements.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  void clear(cuda_stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
+   * zero. Invalidates any references, pointers, or iterators referring to contained elements.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  void clear_async(cuda_stream_ref stream = {}) noexcept;
 
   /**
    * @brief Inserts all keys in the range `[first, last)` and returns the number of successful

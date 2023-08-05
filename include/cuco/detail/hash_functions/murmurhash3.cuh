@@ -16,7 +16,12 @@
 
 #pragma once
 
+#include <cuco/detail/hash_functions/utils.cuh>
+#include <cuco/extent.cuh>
+
+#include <cstddef>
 #include <cstdint>
+#include <type_traits>
 
 namespace cuco::detail {
 
@@ -31,15 +36,15 @@ template <typename Key>
 struct MurmurHash3_fmix32 {
   static_assert(sizeof(Key) == 4, "Key type must be 4 bytes in size.");
 
-  using argument_type = Key;       ///< The type of the values taken as argument
-  using result_type   = uint32_t;  ///< The type of the hash values produced
+  using argument_type = Key;            ///< The type of the values taken as argument
+  using result_type   = std::uint32_t;  ///< The type of the hash values produced
 
   /**
    * @brief Constructs a MurmurHash3_fmix32 hash function with the given `seed`.
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr MurmurHash3_fmix32(uint32_t seed = 0) : seed_{seed} {}
+  __host__ __device__ constexpr MurmurHash3_fmix32(std::uint32_t seed = 0) : seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
@@ -49,7 +54,7 @@ struct MurmurHash3_fmix32 {
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
-    uint32_t h = static_cast<uint32_t>(key) ^ seed_;
+    std::uint32_t h = static_cast<std::uint32_t>(key) ^ seed_;
     h ^= h >> 16;
     h *= 0x85ebca6b;
     h ^= h >> 13;
@@ -59,7 +64,7 @@ struct MurmurHash3_fmix32 {
   }
 
  private:
-  uint32_t seed_;
+  std::uint32_t seed_;
 };
 
 /**
@@ -73,15 +78,15 @@ template <typename Key>
 struct MurmurHash3_fmix64 {
   static_assert(sizeof(Key) == 8, "Key type must be 8 bytes in size.");
 
-  using argument_type = Key;       ///< The type of the values taken as argument
-  using result_type   = uint64_t;  ///< The type of the hash values produced
+  using argument_type = Key;            ///< The type of the values taken as argument
+  using result_type   = std::uint64_t;  ///< The type of the hash values produced
 
   /**
    * @brief Constructs a MurmurHash3_fmix64 hash function with the given `seed`.
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr MurmurHash3_fmix64(uint64_t seed = 0) : seed_{seed} {}
+  __host__ __device__ constexpr MurmurHash3_fmix64(std::uint64_t seed = 0) : seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
@@ -91,7 +96,7 @@ struct MurmurHash3_fmix64 {
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
-    uint64_t h = static_cast<uint64_t>(key) ^ seed_;
+    std::uint64_t h = static_cast<std::uint64_t>(key) ^ seed_;
     h ^= h >> 33;
     h *= 0xff51afd7ed558ccd;
     h ^= h >> 33;
@@ -101,7 +106,7 @@ struct MurmurHash3_fmix64 {
   }
 
  private:
-  uint64_t seed_;
+  std::uint64_t seed_;
 };
 
 /**
@@ -121,36 +126,50 @@ struct MurmurHash3_fmix64 {
  */
 template <typename Key>
 struct MurmurHash3_32 {
-  using argument_type = Key;       ///< The type of the values taken as argument
-  using result_type   = uint32_t;  ///< The type of the hash values produced
+  using argument_type = Key;            ///< The type of the values taken as argument
+  using result_type   = std::uint32_t;  ///< The type of the hash values produced
 
   /**
    * @brief Constructs a MurmurHash3_32 hash function with the given `seed`.
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr MurmurHash3_32(uint32_t seed = 0) : fmix32_{0}, seed_{seed} {}
+  __host__ __device__ constexpr MurmurHash3_32(std::uint32_t seed = 0) : fmix32_{0}, seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
    *
    * @param key The input argument to hash
-   * @return A resulting hash value for `key`
+   * @return The resulting hash value for `key`
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
-    constexpr int len         = sizeof(argument_type);
-    const uint8_t* const data = (const uint8_t*)&key;
-    constexpr int nblocks     = len / 4;
+    return compute_hash(reinterpret_cast<std::byte const*>(&key),
+                        cuco::experimental::extent<std::size_t, sizeof(Key)>{});
+  }
 
-    uint32_t h1           = seed_;
-    constexpr uint32_t c1 = 0xcc9e2d51;
-    constexpr uint32_t c2 = 0x1b873593;
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @tparam Extent The extent type
+   *
+   * @param bytes The input argument to hash
+   * @param size The extent of the data in bytes
+   * @return The resulting hash value
+   */
+  template <typename Extent>
+  constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
+                                                         Extent size) const noexcept
+  {
+    auto const nblocks = size / 4;
+
+    std::uint32_t h1           = seed_;
+    constexpr std::uint32_t c1 = 0xcc9e2d51;
+    constexpr std::uint32_t c2 = 0x1b873593;
     //----------
     // body
-    const uint32_t* const blocks = (const uint32_t*)(data + nblocks * 4);
-    for (int i = -nblocks; i; i++) {
-      uint32_t k1 = blocks[i];  // getblock32(blocks,i);
+    for (std::remove_const_t<decltype(nblocks)> i = 0; size >= 4 && i < nblocks; i++) {
+      std::uint32_t k1 = load_chunk<std::uint32_t>(bytes, i);
       k1 *= c1;
       k1 = rotl32(k1, 15);
       k1 *= c2;
@@ -160,13 +179,12 @@ struct MurmurHash3_32 {
     }
     //----------
     // tail
-    const uint8_t* tail = (const uint8_t*)(data + nblocks * 4);
-    uint32_t k1         = 0;
-    switch (len & 3) {
-      case 3: k1 ^= tail[2] << 16;
-      case 2: k1 ^= tail[1] << 8;
+    std::uint32_t k1 = 0;
+    switch (size & 3) {
+      case 3: k1 ^= std::to_integer<std::uint32_t>(bytes[nblocks * 4 + 2]) << 16; [[fallthrough]];
+      case 2: k1 ^= std::to_integer<std::uint32_t>(bytes[nblocks * 4 + 1]) << 8; [[fallthrough]];
       case 1:
-        k1 ^= tail[0];
+        k1 ^= std::to_integer<std::uint32_t>(bytes[nblocks * 4 + 0]);
         k1 *= c1;
         k1 = rotl32(k1, 15);
         k1 *= c2;
@@ -174,19 +192,18 @@ struct MurmurHash3_32 {
     };
     //----------
     // finalization
-    h1 ^= len;
+    h1 ^= size;
     h1 = fmix32_(h1);
     return h1;
   }
 
  private:
-  constexpr __host__ __device__ uint32_t rotl32(uint32_t x, int8_t r) const noexcept
+  constexpr __host__ __device__ std::uint32_t rotl32(std::uint32_t x, std::int8_t r) const noexcept
   {
     return (x << r) | (x >> (32 - r));
   }
 
-  MurmurHash3_fmix32<uint32_t> fmix32_;
-  uint32_t seed_;
+  MurmurHash3_fmix32<std::uint32_t> fmix32_;
+  std::uint32_t seed_;
 };
-
 }  //  namespace cuco::detail

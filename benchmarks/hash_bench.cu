@@ -77,7 +77,7 @@ void hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
 
   state.add_element_count(num_keys);
 
-  state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
+  state.exec([&](nvbench::launch& launch) {
     hash_bench_kernel<block_size><<<grid_size, block_size, 0, launch.get_stream()>>>(
       Hash{}, num_keys, hash_values.begin(), materialize_result);
   });

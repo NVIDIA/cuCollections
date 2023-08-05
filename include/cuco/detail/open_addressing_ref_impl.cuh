@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/detail/equal_wrapper.cuh>
+#include <cuco/extent.cuh>
 #include <cuco/pair.cuh>
 
 #include <thrust/distance.h>
@@ -38,6 +39,7 @@ namespace detail {
  *
  * @note This class should NOT be used directly.
  *
+ * @throw If the size of the given key type is larger than 8 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::bitwise_comparable_v<Key> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
@@ -49,6 +51,8 @@ namespace detail {
  */
 template <typename Key, cuda::thread_scope Scope, typename ProbingScheme, typename StorageRef>
 class open_addressing_ref_impl {
+  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
+
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
     "Key type must have unique object representations or have been explicitly declared as safe for "
@@ -58,6 +62,13 @@ class open_addressing_ref_impl {
     std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
                       ProbingScheme>,
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+
+  static_assert(is_window_extent_v<typename StorageRef::extent_type>,
+                "Extent is not a valid cuco::window_extent");
+  static_assert(ProbingScheme::cg_size == StorageRef::extent_type::cg_size,
+                "Extent has incompatible CG size");
+  static_assert(StorageRef::window_size == StorageRef::extent_type::window_size,
+                "Extent has incompatible window size");
 
  public:
   using key_type            = Key;                                     ///< Key type
@@ -135,7 +146,7 @@ class open_addressing_ref_impl {
                          Predicate const& predicate) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
@@ -177,7 +188,7 @@ class open_addressing_ref_impl {
                          value_type const& value,
                          Predicate const& predicate) noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
@@ -241,7 +252,7 @@ class open_addressing_ref_impl {
                                                           Predicate const& predicate) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
@@ -253,7 +264,13 @@ class open_addressing_ref_impl {
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) { return {iterator{&window_ptr[i]}, false}; }
         if (eq_res == detail::equal_result::EMPTY) {
-          switch (attempt_insert(window_ptr + i, value, predicate)) {
+          switch ([&]() {
+            if constexpr (sizeof(value_type) <= 8) {
+              return packed_cas(window_ptr + i, value, predicate);
+            } else {
+              return cas_dependent_write(window_ptr + i, value, predicate);
+            }
+          }()) {
             case insert_result::SUCCESS: {
               return {iterator{&window_ptr[i]}, true};
             }
@@ -292,7 +309,7 @@ class open_addressing_ref_impl {
     value_type const& value,
     Predicate const& predicate) noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
@@ -323,9 +340,14 @@ class open_addressing_ref_impl {
       if (group_contains_empty) {
         auto const src_lane = __ffs(group_contains_empty) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
-        auto const status   = (group.thread_rank() == src_lane)
-                                ? attempt_insert(slot_ptr, value, predicate)
-                                : insert_result::CONTINUE;
+        auto const status   = [&]() {
+          if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
+          if constexpr (sizeof(value_type) <= 8) {
+            return packed_cas(slot_ptr, value, predicate);
+          } else {
+            return cas_dependent_write(slot_ptr, value, predicate);
+          }
+        }();
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: {
@@ -361,7 +383,7 @@ class open_addressing_ref_impl {
                                          Predicate const& predicate) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
@@ -399,7 +421,7 @@ class open_addressing_ref_impl {
     ProbeKey const& key,
     Predicate const& predicate) const noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
@@ -441,7 +463,7 @@ class open_addressing_ref_impl {
                                                Predicate const& predicate) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter = probing_scheme_(key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
@@ -483,7 +505,7 @@ class open_addressing_ref_impl {
        ProbeKey const& key,
        Predicate const& predicate) const noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.num_windows());
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
@@ -541,6 +563,199 @@ class open_addressing_ref_impl {
   };
 
   /**
+   * @brief Compares the content of the address `address` (old value) with the `expected` value and,
+   * only if they are the same, sets the content of `address` to `desired`.
+   *
+   * @tparam T Address content type
+   *
+   * @param address The target address
+   * @param expected The value expected to be found at the target address
+   * @param desired The value to store at the target address if it is as expected
+   *
+   * @return The old value located at address `address`
+   */
+  template <typename T>
+  __device__ constexpr auto compare_and_swap(T* address, T expected, T desired)
+  {
+    // temporary workaround due to performance regression
+    // https://github.com/NVIDIA/libcudacxx/issues/366
+    if constexpr (sizeof(T) == sizeof(unsigned int)) {
+      auto* const slot_ptr           = reinterpret_cast<unsigned int*>(address);
+      auto const* const expected_ptr = reinterpret_cast<unsigned int*>(&expected);
+      auto const* const desired_ptr  = reinterpret_cast<unsigned int*>(&desired);
+      if constexpr (Scope == cuda::thread_scope_system) {
+        return atomicCAS_system(slot_ptr, *expected_ptr, *desired_ptr);
+      } else if constexpr (Scope == cuda::thread_scope_device) {
+        return atomicCAS(slot_ptr, *expected_ptr, *desired_ptr);
+      } else if constexpr (Scope == cuda::thread_scope_block) {
+        return atomicCAS_block(slot_ptr, *expected_ptr, *desired_ptr);
+      } else {
+        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+      }
+    } else if constexpr (sizeof(T) == sizeof(unsigned long long int)) {
+      auto* const slot_ptr           = reinterpret_cast<unsigned long long int*>(address);
+      auto const* const expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
+      auto const* const desired_ptr  = reinterpret_cast<unsigned long long int*>(&desired);
+      if constexpr (Scope == cuda::thread_scope_system) {
+        return atomicCAS_system(slot_ptr, *expected_ptr, *desired_ptr);
+      } else if constexpr (Scope == cuda::thread_scope_device) {
+        return atomicCAS(slot_ptr, *expected_ptr, *desired_ptr);
+      } else if constexpr (Scope == cuda::thread_scope_block) {
+        return atomicCAS_block(slot_ptr, *expected_ptr, *desired_ptr);
+      } else {
+        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+      }
+    }
+  }
+
+  /**
+   * @brief Atomically stores `value` at the given `address`.
+   *
+   * @tparam T Address content type
+   *
+   * @param address The target address
+   * @param value The value to store
+   */
+  template <typename T>
+  __device__ constexpr void atomic_store(T* address, T value)
+  {
+    if constexpr (sizeof(T) == sizeof(unsigned int)) {
+      auto* const slot_ptr        = reinterpret_cast<unsigned int*>(address);
+      auto const* const value_ptr = reinterpret_cast<unsigned int*>(&value);
+      if constexpr (Scope == cuda::thread_scope_system) {
+        atomicExch_system(slot_ptr, *value_ptr);
+      } else if constexpr (Scope == cuda::thread_scope_device) {
+        atomicExch(slot_ptr, *value_ptr);
+      } else if constexpr (Scope == cuda::thread_scope_block) {
+        atomicExch_block(slot_ptr, *value_ptr);
+      } else {
+        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+      }
+    } else if constexpr (sizeof(T) == sizeof(unsigned long long int)) {
+      auto* const slot_ptr        = reinterpret_cast<unsigned long long int*>(address);
+      auto const* const value_ptr = reinterpret_cast<unsigned long long int*>(&value);
+      if constexpr (Scope == cuda::thread_scope_system) {
+        atomicExch_system(slot_ptr, *value_ptr);
+      } else if constexpr (Scope == cuda::thread_scope_device) {
+        atomicExch(slot_ptr, *value_ptr);
+      } else if constexpr (Scope == cuda::thread_scope_block) {
+        atomicExch_block(slot_ptr, *value_ptr);
+      } else {
+        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+      }
+    }
+  }
+
+  /**
+   * @brief Inserts the specified element with one single CAS operation.
+   *
+   * @tparam Predicate Predicate type
+   *
+   * @param slot Pointer to the slot in memory
+   * @param value Element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return Result of this operation, i.e., success/continue/duplicate
+   */
+  template <typename Predicate>
+  [[nodiscard]] __device__ constexpr insert_result packed_cas(value_type* slot,
+                                                              value_type const& value,
+                                                              Predicate const& predicate) noexcept
+  {
+    auto old      = compare_and_swap(slot, this->empty_slot_sentinel_, value);
+    auto* old_ptr = reinterpret_cast<value_type*>(&old);
+    if (cuco::detail::bitwise_compare(*old_ptr, this->empty_slot_sentinel_)) {
+      return insert_result::SUCCESS;
+    } else {
+      // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
+      return predicate.equal_to(*old_ptr, value) == detail::equal_result::EQUAL
+               ? insert_result::DUPLICATE
+               : insert_result::CONTINUE;
+    }
+  }
+
+  /**
+   * @brief Inserts the specified element with two back-to-back CAS operations.
+   *
+   * @tparam Predicate Predicate type
+   *
+   * @param slot Pointer to the slot in memory
+   * @param value Element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return Result of this operation, i.e., success/continue/duplicate
+   */
+  template <typename Predicate>
+  [[nodiscard]] __device__ constexpr insert_result back_to_back_cas(
+    value_type* slot, value_type const& value, Predicate const& predicate) noexcept
+  {
+    auto const expected_key     = this->empty_slot_sentinel_.first;
+    auto const expected_payload = this->empty_slot_sentinel_.second;
+
+    auto old_key     = compare_and_swap(&slot->first, expected_key, value.first);
+    auto old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
+
+    using mapped_type = decltype(expected_payload);
+
+    auto* old_key_ptr     = reinterpret_cast<key_type*>(&old_key);
+    auto* old_payload_ptr = reinterpret_cast<mapped_type*>(&old_payload);
+
+    // if key success
+    if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
+      while (not cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
+        old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
+      }
+      return insert_result::SUCCESS;
+    } else if (cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
+      atomic_store(&slot->second, expected_payload);
+    }
+
+    // Our key was already present in the slot, so our key is a duplicate
+    // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
+    if (predicate.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL) {
+      return insert_result::DUPLICATE;
+    }
+
+    return insert_result::CONTINUE;
+  }
+
+  /**
+   * @brief Inserts the specified element with CAS-dependent write operations.
+   *
+   * @tparam Predicate Predicate type
+   *
+   * @param slot Pointer to the slot in memory
+   * @param value Element to insert
+   * @param predicate Predicate used to compare slot content against `key`
+   *
+   * @return Result of this operation, i.e., success/continue/duplicate
+   */
+  template <typename Predicate>
+  [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(
+    value_type* slot, value_type const& value, Predicate const& predicate) noexcept
+  {
+    auto const expected_key = this->empty_slot_sentinel_.first;
+
+    auto old_key = compare_and_swap(&slot->first, expected_key, value.first);
+
+    auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
+
+    // if key success
+    if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
+      atomic_store(&slot->second, value.second);
+      return insert_result::SUCCESS;
+    }
+
+    // Our key was already present in the slot, so our key is a duplicate
+    // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
+    if (predicate.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL) {
+      return insert_result::DUPLICATE;
+    }
+
+    return insert_result::CONTINUE;
+  }
+
+  /**
    * @brief Attempts to insert an element into a slot.
    *
    * @note Dispatches the correct implementation depending on the container
@@ -557,51 +772,16 @@ class open_addressing_ref_impl {
   template <typename Predicate>
   [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot,
                                                         value_type const& value,
-                                                        Predicate const& predicate)
+                                                        Predicate const& predicate) noexcept
   {
-    // temporary workaround due to performance regression
-    // https://github.com/NVIDIA/libcudacxx/issues/366
-    auto old = [&]() {
-      value_type expected = this->empty_slot_sentinel_;
-      value_type val      = value;
-      if constexpr (sizeof(value_type) == sizeof(unsigned int)) {
-        auto* expected_ptr = reinterpret_cast<unsigned int*>(&expected);
-        auto* value_ptr    = reinterpret_cast<unsigned int*>(&val);
-        if constexpr (Scope == cuda::thread_scope_system) {
-          return atomicCAS_system(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-        } else if constexpr (Scope == cuda::thread_scope_device) {
-          return atomicCAS(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-        } else if constexpr (Scope == cuda::thread_scope_block) {
-          return atomicCAS_block(reinterpret_cast<unsigned int*>(slot), *expected_ptr, *value_ptr);
-        } else {
-          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-        }
-      }
-      if constexpr (sizeof(value_type) == sizeof(unsigned long long int)) {
-        auto* expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
-        auto* value_ptr    = reinterpret_cast<unsigned long long int*>(&val);
-        if constexpr (Scope == cuda::thread_scope_system) {
-          return atomicCAS_system(
-            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-        } else if constexpr (Scope == cuda::thread_scope_device) {
-          return atomicCAS(
-            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-        } else if constexpr (Scope == cuda::thread_scope_block) {
-          return atomicCAS_block(
-            reinterpret_cast<unsigned long long int*>(slot), *expected_ptr, *value_ptr);
-        } else {
-          static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-        }
-      }
-    }();
-    auto* old_ptr = reinterpret_cast<value_type*>(&old);
-    if (*slot == *old_ptr) {
-      // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-      return predicate.equal_to(*old_ptr, value) == detail::equal_result::EQUAL
-               ? insert_result::DUPLICATE
-               : insert_result::CONTINUE;
+    if constexpr (sizeof(value_type) <= 8) {
+      return packed_cas(slot, value, predicate);
     } else {
-      return insert_result::SUCCESS;
+#if (_CUDA_ARCH__ < 700)
+      return cas_dependent_write(slot, value, predicate);
+#else
+      return back_to_back_cas(slot, value, predicate);
+#endif
     }
   }
 
