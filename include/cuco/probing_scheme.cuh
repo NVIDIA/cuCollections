@@ -109,7 +109,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @param hash1 First hasher
    * @param hash2 Second hasher
    */
-  __host__ __device__ constexpr double_hashing(Hash1 const& hash1 = {}, Hash2 const& hash2 = {});
+  __host__ __device__ constexpr double_hashing(Hash1 const& hash1 = {}, Hash2 const& hash2 = {1});
 
   /**
    * @brief Operator to return a probing iterator
