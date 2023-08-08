@@ -100,7 +100,7 @@ class aow_storage_base : public storage_base<Extent> {
  * @tparam T Storage element type
  * @tparam Extent Type of extent denoting storage capacity
  */
-template <int32_t WindowSize, typename T, typename Extent>
+template <int32_t WindowSize, typename T, typename Extent = cuco::experimental::extent<std::size_t>>
 class aow_storage_ref : public aow_storage_base<WindowSize, T, Extent> {
  public:
   using base_type = aow_storage_base<WindowSize, T, Extent>;  ///< AoW base class type
