@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include <cuco/static_set.cuh>
+#include <cuco/static_set_ref.cuh>
+#include <cuco/storage.cuh>
 
 #include <thrust/device_vector.h>
 #include <thrust/reduce.h>
@@ -27,6 +28,21 @@
 #include <algorithm>
 #include <cstddef>
 #include <iostream>
+
+auto constexpr cg_size     = 8;  // A CUDA Cooperative Group of 8 threads to handle each subset
+auto constexpr window_size = 1;  // TODO: how to explain window size (vector length) to users
+
+using key_type = int;
+using probing_scheme_type =
+  cuco::experimental::linear_probing<cg_size, cuco::default_hash_function<key_type>>;
+using storage_ref_type = cuco::experimental::detail::aow_storage_ref<window_size, key_type>;
+template <typename Operator>
+using ref_type = cuco::experimental::static_set_ref<key_type,
+                                                    cuda::thread_scope_device,
+                                                    thrust::equal_to<key_type>,
+                                                    probing_scheme_type,
+                                                    storage_ref_type,
+                                                    Operator>;
 
 template <typename WindowT>
 __global__ void initialize(WindowT* windows, std::size_t n, typename WindowT::value_type value)
@@ -47,25 +63,20 @@ __global__ void initialize(WindowT* windows, std::size_t n, typename WindowT::va
 }
 
 // insert a set of keys into a hash set using one cooperative group for each task
-template <int CGSize, typename Window, typename Size, typename Offset>
+template <typename Window, typename Size, typename Offset>
 __global__ void kernel(Window* windows, Size* sizes, Offset* offsets)
 {
   namespace cg = cooperative_groups;
 
-  using Key = typename Window::value_type;
+  auto const tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
+  auto const idx  = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
-  auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
-  auto const idx  = (blockDim.x * blockIdx.x + threadIdx.x) / CGSize;
-
-  auto const probing_scheme =
-    cuco::experimental::linear_probing<CGSize, cuco::default_hash_function<Key>>{};
-
-  cuco::experimental::detail::aow_storage_ref<1, Key, cuco::experimental::extent<std::size_t>>{
-    cuco::experimental::extent{sizes[idx]}, windows + offsets[idx]};
+  auto set_ref = ref_type<cuco::experimental::insert_tag>{
+    cuco::empty_key<key_type>{-1}, {}, {}, storage_ref_type{sizes[idx], windows + offsets[idx]}};
 }
 
 /**
- * @file device_reference_example.cu
+ * @file device_subsets_example.cu
  * @brief Demonstrates usage of the static_set device-side APIs.
  *
  * static_set provides a non-owning reference which can be used to interact with
@@ -74,20 +85,15 @@ __global__ void kernel(Window* windows, Size* sizes, Offset* offsets)
  */
 int main()
 {
-  using Key = int;
-
   // Empty slots are represented by reserved "sentinel" values. These values should be selected such
   // that they never occur in your input data.
-  Key constexpr empty_key_sentinel = -1;
+  key_type constexpr empty_key_sentinel = -1;
 
   // Number of subsets
   auto constexpr num = 16;
   // Sizes of the 16 subsets to be created on the device
   auto constexpr subset_sizes =
     std::array<std::size_t, num>{20, 20, 20, 20, 30, 30, 30, 30, 40, 40, 40, 40, 50, 50, 50, 50};
-  // A CUDA Cooperative Group of 8 threads to handle each subset
-  auto constexpr cg_size     = 8;
-  auto constexpr window_size = 1;  // TODO: how to explain window size (vector length) to users
 
   auto valid_sizes = std::vector<std::size_t>(num);
   std::generate(valid_sizes.begin(), valid_sizes.end(), [&, n = 0]() mutable {
@@ -101,13 +107,12 @@ int main()
   auto const num_windows = thrust::reduce(valid_sizes.begin(), valid_sizes.end());
 
   auto d_set_storage =
-    thrust::device_vector<cuco::experimental::window<Key, window_size>>(num_windows);
+    thrust::device_vector<cuco::experimental::window<key_type, window_size>>(num_windows);
 
   // Sets all slot contents to the sentinel value
   initialize<<<128, 128>>>(d_set_storage.data().get(), num_windows, empty_key_sentinel);
 
-  kernel<cg_size>
-    <<<1, 128>>>(d_set_storage.data().get(), d_sizes.data().get(), d_offsets.data().get());
+  kernel<<<1, 128>>>(d_set_storage.data().get(), d_sizes.data().get(), d_offsets.data().get());
 
   return 0;
 }
