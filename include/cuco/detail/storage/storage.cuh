@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/storage/aow_storage.cuh>
+#include <cuco/aow_storage.cuh>
 
 namespace cuco {
 namespace experimental {
