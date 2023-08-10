@@ -32,10 +32,10 @@ namespace detail {
 ￼ * @tparam T Window slot type
 ￼ * @tparam WindowSize Number of elements per window
 ￼ */
-￼template<typename T, int32_t WindowSize> ￼struct window : public cuda::std::array<T, WindowSize>
-{
-  ￼ public : ￼ static int32_t constexpr window_size = WindowSize;  ///< Number of slots per window
-  ￼
+template <typename T, int32_t WindowSize>
+struct window : public cuda::std::array<T, WindowSize> {
+ public:
+  static int32_t constexpr window_size = WindowSize;  ///< Number of slots per window
 };
 
 /**
