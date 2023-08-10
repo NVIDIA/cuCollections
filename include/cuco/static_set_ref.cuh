@@ -18,11 +18,11 @@
 
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/detail/open_addressing_ref_impl.cuh>
-#include <cuco/detail/storage/aow_storage.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/operator.hpp>
 #include <cuco/probing_scheme.cuh>
 #include <cuco/sentinel.cuh>
+#include <cuco/storage.cuh>
 
 #include <cuda/std/atomic>
 
