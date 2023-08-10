@@ -24,7 +24,7 @@ TEST_CASE("Static set capacity", "")
   using ProbeT     = cuco::experimental::double_hashing<1, cuco::default_hash_function<Key>>;
   using Equal      = thrust::equal_to<Key>;
   using AllocatorT = cuco::cuda_allocator<std::byte>;
-  using StorageT   = cuco::experimental::aow_storage<2>;
+  using StorageT   = cuco::experimental::storage<2>;
 
   SECTION("zero capacity is allowed.")
   {

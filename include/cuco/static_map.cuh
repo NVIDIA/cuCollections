@@ -94,7 +94,7 @@ template <class Key,
             cuco::experimental::double_hashing<4,  // CG size
                                                cuco::default_hash_function<Key>>,
           class Allocator = cuco::cuda_allocator<cuco::pair<Key, T>>,
-          class Storage   = cuco::experimental::aow_storage<1>>
+          class Storage   = cuco::experimental::storage<1>>
 class static_map {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
 
