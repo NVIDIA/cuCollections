@@ -27,6 +27,18 @@ namespace cuco {
 namespace experimental {
 namespace detail {
 /**
+￼ * @brief Window data structure type
+￼ *
+￼ * @tparam T Window slot type
+￼ * @tparam WindowSize Number of elements per window
+￼ */
+￼template<typename T, int32_t WindowSize> ￼struct window : public cuda::std::array<T, WindowSize>
+{
+  ￼ public : ￼ static int32_t constexpr window_size = WindowSize;  ///< Number of slots per window
+  ￼
+};
+
+/**
  * @brief Base class of array of slot windows open addressing storage.
  *
  * @note This should NOT be used directly.
@@ -46,8 +58,8 @@ class aow_storage_base : public storage_base<Extent> {
   using extent_type = typename storage_base<Extent>::extent_type;  ///< Storage extent type
   using size_type   = typename storage_base<Extent>::size_type;    ///< Storage size type
 
-  using value_type  = T;                                          ///< Slot type
-  using window_type = cuda::std::array<value_type, window_size>;  ///< Slot window type
+  using value_type  = T;                                ///< Slot type
+  using window_type = window<value_type, window_size>;  ///< Slot window type
 
   /**
    * @brief Constructor of AoW base storage.

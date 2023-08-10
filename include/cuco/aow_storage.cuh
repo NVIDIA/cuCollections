@@ -31,6 +31,11 @@
 namespace cuco {
 namespace experimental {
 
+/// Window type alias
+template <typename T, int32_t WindowSize>
+using window = detail::window<T, WindowSize>;
+
+/// forward declaration
 template <typename T, int32_t WindowSize, typename Extent>
 class aow_storage_ref;
 
