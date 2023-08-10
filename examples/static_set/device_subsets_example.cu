@@ -35,7 +35,7 @@ auto constexpr window_size = 1;  // TODO: how to explain window size (vector len
 using key_type = int;
 using probing_scheme_type =
   cuco::experimental::linear_probing<cg_size, cuco::default_hash_function<key_type>>;
-using storage_ref_type = cuco::experimental::detail::aow_storage_ref<window_size, key_type>;
+using storage_ref_type = cuco::experimental::aow_storage_ref<key_type, window_size>;
 template <typename Operator>
 using ref_type = cuco::experimental::static_set_ref<key_type,
                                                     cuda::thread_scope_device,
