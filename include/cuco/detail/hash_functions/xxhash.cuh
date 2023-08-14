@@ -16,6 +16,10 @@
 
 #pragma once
 
+#include <cuco/detail/hash_functions/utils.cuh>
+#include <cuco/extent.cuh>
+
+#include <cstddef>
 #include <cstdint>
 
 namespace cuco::detail {
@@ -60,60 +64,72 @@ namespace cuco::detail {
 template <typename Key>
 struct XXHash_32 {
  private:
-  static constexpr uint32_t prime1 = 0x9E3779B1U;
-  static constexpr uint32_t prime2 = 0x85EBCA77U;
-  static constexpr uint32_t prime3 = 0xC2B2AE3DU;
-  static constexpr uint32_t prime4 = 0x27D4EB2FU;
-  static constexpr uint32_t prime5 = 0x165667B1U;
+  static constexpr std::uint32_t prime1 = 0x9e3779b1u;
+  static constexpr std::uint32_t prime2 = 0x85ebca77u;
+  static constexpr std::uint32_t prime3 = 0xc2b2ae3du;
+  static constexpr std::uint32_t prime4 = 0x27d4eb2fu;
+  static constexpr std::uint32_t prime5 = 0x165667b1u;
 
  public:
-  using argument_type = Key;       ///< The type of the values taken as argument
-  using result_type   = uint32_t;  ///< The type of the hash values produced
+  using argument_type = Key;            ///< The type of the values taken as argument
+  using result_type   = std::uint32_t;  ///< The type of the hash values produced
 
   /**
    * @brief Constructs a XXH32 hash function with the given `seed`.
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr XXHash_32(uint32_t seed = 0) : seed_{seed} {}
+  __host__ __device__ constexpr XXHash_32(std::uint32_t seed = 0) : seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
    *
    * @param key The input argument to hash
-   * @return A resulting hash value for `key`
+   * @return The resulting hash value for `key`
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
-    // TODO do we need to add checks/hints for alignment?
-    constexpr auto nbytes        = sizeof(Key);
-    char const* const bytes      = (char const*)&key;      ///< per-byte access
-    uint32_t const* const blocks = (uint32_t const*)&key;  ///< 4-byte word access
+    return compute_hash(reinterpret_cast<std::byte const*>(&key),
+                        cuco::experimental::extent<std::size_t, sizeof(Key)>{});
+  }
 
-    uint32_t offset = 0;
-    uint32_t h32;
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @tparam Extent The extent type
+   *
+   * @param bytes The input argument to hash
+   * @param size The extent of the data in bytes
+   * @return The resulting hash value
+   */
+  template <typename Extent>
+  constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
+                                                         Extent size) const noexcept
+  {
+    std::size_t offset = 0;
+    std::uint32_t h32;
 
     // data can be processed in 16-byte chunks
-    if constexpr (nbytes >= 16) {
-      constexpr auto limit = nbytes - 16;
-      uint32_t v1          = seed_ + prime1 + prime2;
-      uint32_t v2          = seed_ + prime2;
-      uint32_t v3          = seed_;
-      uint32_t v4          = seed_ - prime1;
+    if (size >= 16) {
+      auto const limit = size - 16;
+      std::uint32_t v1 = seed_ + prime1 + prime2;
+      std::uint32_t v2 = seed_ + prime2;
+      std::uint32_t v3 = seed_;
+      std::uint32_t v4 = seed_ - prime1;
 
       do {
         // pipeline 4*4byte computations
         auto const pipeline_offset = offset / 4;
-        v1 += blocks[pipeline_offset] * prime2;
+        v1 += load_chunk<std::uint32_t>(bytes, pipeline_offset + 0) * prime2;
         v1 = rotl(v1, 13);
         v1 *= prime1;
-        v2 += blocks[pipeline_offset + 1] * prime2;
+        v2 += load_chunk<std::uint32_t>(bytes, pipeline_offset + 1) * prime2;
         v2 = rotl(v2, 13);
         v2 *= prime1;
-        v3 += blocks[pipeline_offset + 2] * prime2;
+        v3 += load_chunk<std::uint32_t>(bytes, pipeline_offset + 2) * prime2;
         v3 = rotl(v3, 13);
         v3 *= prime1;
-        v4 += blocks[pipeline_offset + 3] * prime2;
+        v4 += load_chunk<std::uint32_t>(bytes, pipeline_offset + 3) * prime2;
         v4 = rotl(v4, 13);
         v4 *= prime1;
         offset += 16;
@@ -124,20 +140,20 @@ struct XXHash_32 {
       h32 = seed_ + prime5;
     }
 
-    h32 += nbytes;
+    h32 += size;
 
     // remaining data can be processed in 4-byte chunks
-    if constexpr ((nbytes % 16) >= 4) {
-      for (; offset <= nbytes - 4; offset += 4) {
-        h32 += blocks[offset / 4] * prime3;
+    if ((size % 16) >= 4) {
+      for (; offset <= size - 4; offset += 4) {
+        h32 += load_chunk<std::uint32_t>(bytes, offset / 4) * prime3;
         h32 = rotl(h32, 17) * prime4;
       }
     }
 
-    // the following loop is only needed if the size of the key is no multiple of the block size
-    if constexpr (nbytes % 4) {
-      while (offset < nbytes) {
-        h32 += (bytes[offset] & 255) * prime5;
+    // the following loop is only needed if the size of the key is not a multiple of the block size
+    if (size % 4) {
+      while (offset < size) {
+        h32 += (std::to_integer<std::uint32_t>(bytes[offset]) & 255) * prime5;
         h32 = rotl(h32, 11) * prime1;
         ++offset;
       }
@@ -147,13 +163,13 @@ struct XXHash_32 {
   }
 
  private:
-  constexpr __host__ __device__ uint32_t rotl(uint32_t h, int8_t r) const noexcept
+  constexpr __host__ __device__ std::uint32_t rotl(std::uint32_t h, std::int8_t r) const noexcept
   {
     return ((h << r) | (h >> (32 - r)));
   }
 
   // avalanche helper
-  constexpr __host__ __device__ uint32_t finalize(uint32_t h) const noexcept
+  constexpr __host__ __device__ std::uint32_t finalize(std::uint32_t h) const noexcept
   {
     h ^= h >> 15;
     h *= prime2;
@@ -163,7 +179,7 @@ struct XXHash_32 {
     return h;
   }
 
-  uint32_t seed_;
+  std::uint32_t seed_;
 };
 
 /**
@@ -210,61 +226,72 @@ struct XXHash_32 {
 template <typename Key>
 struct XXHash_64 {
  private:
-  static constexpr uint64_t prime1 = 11400714785074694791ULL;
-  static constexpr uint64_t prime2 = 14029467366897019727ULL;
-  static constexpr uint64_t prime3 = 1609587929392839161ULL;
-  static constexpr uint64_t prime4 = 9650029242287828579ULL;
-  static constexpr uint64_t prime5 = 2870177450012600261ULL;
+  static constexpr std::uint64_t prime1 = 11400714785074694791ull;
+  static constexpr std::uint64_t prime2 = 14029467366897019727ull;
+  static constexpr std::uint64_t prime3 = 1609587929392839161ull;
+  static constexpr std::uint64_t prime4 = 9650029242287828579ull;
+  static constexpr std::uint64_t prime5 = 2870177450012600261ull;
 
  public:
-  using argument_type = Key;       ///< The type of the values taken as argument
-  using result_type   = uint64_t;  ///< The type of the hash values produced
+  using argument_type = Key;            ///< The type of the values taken as argument
+  using result_type   = std::uint64_t;  ///< The type of the hash values produced
 
   /**
    * @brief Constructs a XXH64 hash function with the given `seed`.
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr XXHash_64(uint64_t seed = 0) : seed_{seed} {}
+  __host__ __device__ constexpr XXHash_64(std::uint64_t seed = 0) : seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
    *
    * @param key The input argument to hash
-   * @return A resulting hash value for `key`
+   * @return The resulting hash value for `key`
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
-    // TODO do we need to add checks/hints for alignment?
-    constexpr auto nbytes         = sizeof(Key);
-    char const* const bytes       = (char const*)&key;      ///< per-byte access
-    uint32_t const* const blocks4 = (uint32_t const*)&key;  ///< 4-byte word access
-    uint64_t const* const blocks8 = (uint64_t const*)&key;  ///< 8-byte word access
+    return compute_hash(reinterpret_cast<std::byte const*>(&key),
+                        cuco::experimental::extent<std::size_t, sizeof(Key)>{});
+  }
 
-    uint64_t offset = 0;
-    uint64_t h64;
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @tparam Extent The extent type
+   *
+   * @param bytes The input argument to hash
+   * @param size The extent of the data in bytes
+   * @return The resulting hash value
+   */
+  template <typename Extent>
+  constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
+                                                         Extent size) const noexcept
+  {
+    std::size_t offset = 0;
+    std::uint64_t h64;
 
     // data can be processed in 32-byte chunks
-    if constexpr (nbytes >= 32) {
-      constexpr auto limit = nbytes - 32;
-      uint64_t v1          = seed_ + prime1 + prime2;
-      uint64_t v2          = seed_ + prime2;
-      uint64_t v3          = seed_;
-      uint64_t v4          = seed_ - prime1;
+    if (size >= 32) {
+      auto const limit = size - 32;
+      std::uint64_t v1 = seed_ + prime1 + prime2;
+      std::uint64_t v2 = seed_ + prime2;
+      std::uint64_t v3 = seed_;
+      std::uint64_t v4 = seed_ - prime1;
 
       do {
         // pipeline 4*8byte computations
         auto const pipeline_offset = offset / 8;
-        v1 += blocks8[pipeline_offset] * prime2;
+        v1 += load_chunk<std::uint64_t>(bytes, pipeline_offset + 0) * prime2;
         v1 = rotl(v1, 31);
         v1 *= prime1;
-        v2 += blocks8[pipeline_offset + 1] * prime2;
+        v2 += load_chunk<std::uint64_t>(bytes, pipeline_offset + 1) * prime2;
         v2 = rotl(v2, 31);
         v2 *= prime1;
-        v3 += blocks8[pipeline_offset + 2] * prime2;
+        v3 += load_chunk<std::uint64_t>(bytes, pipeline_offset + 2) * prime2;
         v3 = rotl(v3, 31);
         v3 *= prime1;
-        v4 += blocks8[pipeline_offset + 3] * prime2;
+        v4 += load_chunk<std::uint64_t>(bytes, pipeline_offset + 3) * prime2;
         v4 = rotl(v4, 31);
         v4 *= prime1;
         offset += 32;
@@ -299,31 +326,31 @@ struct XXHash_64 {
       h64 = seed_ + prime5;
     }
 
-    h64 += nbytes;
+    h64 += size;
 
     // remaining data can be processed in 8-byte chunks
-    if constexpr ((nbytes % 32) >= 8) {
-      for (; offset <= nbytes - 8; offset += 8) {
-        uint64_t k1 = blocks8[offset / 8] * prime2;
-        k1          = rotl(k1, 31) * prime1;
+    if ((size % 32) >= 8) {
+      for (; offset <= size - 8; offset += 8) {
+        std::uint64_t k1 = load_chunk<std::uint64_t>(bytes, offset / 8) * prime2;
+        k1               = rotl(k1, 31) * prime1;
         h64 ^= k1;
         h64 = rotl(h64, 27) * prime1 + prime4;
       }
     }
 
     // remaining data can be processed in 4-byte chunks
-    if constexpr (((nbytes % 32) % 8) >= 4) {
-      for (; offset <= nbytes - 4; offset += 4) {
-        h64 ^= (blocks4[offset / 4] & 0xFFFFFFFFULL) * prime1;
+    if ((size % 8) >= 4) {
+      for (; offset <= size - 4; offset += 4) {
+        h64 ^= (load_chunk<std::uint32_t>(bytes, offset / 4) & 0xffffffffull) * prime1;
         h64 = rotl(h64, 23) * prime2 + prime3;
       }
     }
 
-    // the following loop is only needed if the size of the key is no multiple of a previous block
-    // size
-    if constexpr (nbytes % 4) {
-      while (offset < nbytes) {
-        h64 += (bytes[offset] & 0xFF) * prime5;
+    // the following loop is only needed if the size of the key is not a multiple of a previous
+    // block size
+    if (size % 4) {
+      while (offset < size) {
+        h64 ^= (std::to_integer<std::uint32_t>(bytes[offset]) & 0xff) * prime5;
         h64 = rotl(h64, 11) * prime1;
         ++offset;
       }
@@ -332,13 +359,13 @@ struct XXHash_64 {
   }
 
  private:
-  constexpr __host__ __device__ uint64_t rotl(uint64_t h, int8_t r) const noexcept
+  constexpr __host__ __device__ std::uint64_t rotl(std::uint64_t h, std::int8_t r) const noexcept
   {
     return ((h << r) | (h >> (64 - r)));
   }
 
   // avalanche helper
-  constexpr __host__ __device__ uint64_t finalize(uint64_t h) const noexcept
+  constexpr __host__ __device__ std::uint64_t finalize(std::uint64_t h) const noexcept
   {
     h ^= h >> 33;
     h *= prime2;
@@ -348,7 +375,7 @@ struct XXHash_64 {
     return h;
   }
 
-  uint64_t seed_;
+  std::uint64_t seed_;
 };
 
 }  // namespace cuco::detail

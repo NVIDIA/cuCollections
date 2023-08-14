@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/storage/aow_storage.cuh>
+#include <cuco/aow_storage.cuh>
 
 namespace cuco {
 namespace experimental {
@@ -33,13 +33,15 @@ template <class StorageImpl, class T, class Extent, class Allocator>
 class storage : StorageImpl::template impl<T, Extent, Allocator> {
  public:
   /// Storage implementation type
-  using impl_type  = typename StorageImpl::template impl<T, Extent, Allocator>;
-  using ref_type   = typename impl_type::ref_type;    ///< Storage ref type
-  using value_type = typename impl_type::value_type;  ///< Storage value type
+  using impl_type      = typename StorageImpl::template impl<T, Extent, Allocator>;
+  using ref_type       = typename impl_type::ref_type;        ///< Storage ref type
+  using value_type     = typename impl_type::value_type;      ///< Storage value type
+  using allocator_type = typename impl_type::allocator_type;  ///< Storage value type
 
   /// Number of elements per window
   static constexpr int window_size = impl_type::window_size;
 
+  using impl_type::allocator;
   using impl_type::capacity;
   using impl_type::data;
   using impl_type::initialize;

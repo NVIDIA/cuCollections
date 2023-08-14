@@ -132,12 +132,10 @@ TEMPLATE_TEST_CASE_SIG(
                                                   : 412  // 103 x 2 x 2
     ;
 
-  using probe =
-    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
-                       cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-                       cuco::experimental::double_hashing<CGSize,
-                                                          cuco::murmurhash3_32<Key>,
-                                                          cuco::murmurhash3_32<Key>>>;
+  using probe = std::conditional_t<
+    Probe == cuco::test::probe_sequence::linear_probing,
+    cuco::experimental::linear_probing<CGSize, cuco::default_hash_function<Key>>,
+    cuco::experimental::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
   auto set = cuco::experimental::static_set<Key,
                                             cuco::experimental::extent<size_type>,
@@ -145,7 +143,7 @@ TEMPLATE_TEST_CASE_SIG(
                                             thrust::equal_to<Key>,
                                             probe,
                                             cuco::cuda_allocator<std::byte>,
-                                            cuco::experimental::aow_storage<2>>{
+                                            cuco::experimental::storage<2>>{
     num_keys, cuco::empty_key<Key>{-1}};
 
   REQUIRE(set.capacity() == gold_capacity);

@@ -20,46 +20,20 @@
 
 TEST_CASE("Static set capacity", "")
 {
-  constexpr std::size_t num_keys{400};
-  using Key = int32_t;
-  using ProbeT =
-    cuco::experimental::double_hashing<1, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>;
+  using Key        = int32_t;
+  using ProbeT     = cuco::experimental::double_hashing<1, cuco::default_hash_function<Key>>;
   using Equal      = thrust::equal_to<Key>;
   using AllocatorT = cuco::cuda_allocator<std::byte>;
-  using StorageT   = cuco::experimental::aow_storage<2>;
+  using StorageT   = cuco::experimental::storage<2>;
 
-  SECTION("Static extent must be evaluated at compile time.")
+  SECTION("zero capacity is allowed.")
   {
-    auto constexpr gold_capacity = 422;  // 211 x 2
+    auto constexpr gold_capacity = 4;
 
-    using extent_type = cuco::experimental::extent<std::size_t, num_keys>;
+    using extent_type = cuco::experimental::extent<std::size_t, 0>;
     cuco::experimental::
       static_set<Key, extent_type, cuda::thread_scope_device, Equal, ProbeT, AllocatorT, StorageT>
-        set{extent_type{},
-            cuco::empty_key<Key>{-1},
-            {},
-            ProbeT{cuco::murmurhash3_32<Key>{}, cuco::murmurhash3_32<Key>{}},
-            {}};
-    auto const capacity = set.capacity();
-    STATIC_REQUIRE(capacity == gold_capacity);
-
-    auto ref                = set.ref(cuco::experimental::insert);
-    auto const ref_capacity = ref.capacity();
-    STATIC_REQUIRE(ref_capacity == gold_capacity);
-  }
-
-  SECTION("Dynamic extent is evaluated at run time.")
-  {
-    auto constexpr gold_capacity = 422;  // 211 x 2
-
-    using extent_type = cuco::experimental::extent<std::size_t>;
-    cuco::experimental::
-      static_set<Key, extent_type, cuda::thread_scope_device, Equal, ProbeT, AllocatorT, StorageT>
-        set{num_keys,
-            cuco::empty_key<Key>{-1},
-            {},
-            ProbeT{cuco::murmurhash3_32<Key>{}, cuco::murmurhash3_32<Key>{}},
-            {}};
+        set{extent_type{}, cuco::empty_key<Key>{-1}};
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);
 
@@ -68,39 +42,52 @@ TEST_CASE("Static set capacity", "")
     REQUIRE(ref_capacity == gold_capacity);
   }
 
-  SECTION("Static extent must be evaluated at compile time.")
+  SECTION("negative capacity (ikr -_-||) is also allowed.")
   {
-    auto constexpr gold_capacity = 412;  // 103 x 2 x 2
+    auto constexpr gold_capacity = 4;
 
-    using extent_type = cuco::experimental::extent<std::size_t, num_keys>;
-    using probe       = cuco::experimental::linear_probing<2, cuco::murmurhash3_32<Key>>;
-    auto set          = cuco::experimental::
-      static_set<Key, extent_type, cuda::thread_scope_device, Equal, probe, AllocatorT, StorageT>{
-        extent_type{}, cuco::empty_key<Key>{-1}, {}, probe{cuco::murmurhash3_32<Key>{}}, {}};
-
-    REQUIRE(set.capacity() == gold_capacity);
-
+    using extent_type = cuco::experimental::extent<int32_t>;
+    cuco::experimental::
+      static_set<Key, extent_type, cuda::thread_scope_device, Equal, ProbeT, AllocatorT, StorageT>
+        set{extent_type{-10}, cuco::empty_key<Key>{-1}};
     auto const capacity = set.capacity();
-    STATIC_REQUIRE(capacity == gold_capacity);
+    REQUIRE(capacity == gold_capacity);
 
     auto ref                = set.ref(cuco::experimental::insert);
     auto const ref_capacity = ref.capacity();
-    STATIC_REQUIRE(ref_capacity == gold_capacity);
+    REQUIRE(ref_capacity == gold_capacity);
+  }
+
+  constexpr std::size_t num_keys{400};
+
+  SECTION("Dynamic extent is evaluated at run time.")
+  {
+    auto constexpr gold_capacity = 422;  // 211 x 2
+
+    using extent_type = cuco::experimental::extent<std::size_t>;
+    cuco::experimental::
+      static_set<Key, extent_type, cuda::thread_scope_device, Equal, ProbeT, AllocatorT, StorageT>
+        set{num_keys, cuco::empty_key<Key>{-1}};
+    auto const capacity = set.capacity();
+    REQUIRE(capacity == gold_capacity);
+
+    auto ref                = set.ref(cuco::experimental::insert);
+    auto const ref_capacity = ref.capacity();
+    REQUIRE(ref_capacity == gold_capacity);
   }
 
   SECTION("Dynamic extent is evaluated at run time.")
   {
     auto constexpr gold_capacity = 412;  // 103 x 2 x 2
 
-    using probe = cuco::experimental::linear_probing<2, cuco::murmurhash3_32<Key>>;
+    using probe = cuco::experimental::linear_probing<2, cuco::default_hash_function<Key>>;
     auto set    = cuco::experimental::static_set<Key,
                                               cuco::experimental::extent<std::size_t>,
                                               cuda::thread_scope_device,
                                               Equal,
                                               probe,
                                               AllocatorT,
-                                              StorageT>{
-      num_keys, cuco::empty_key<Key>{-1}, {}, probe{cuco::murmurhash3_32<Key>{}}, {}};
+                                              StorageT>{num_keys, cuco::empty_key<Key>{-1}};
 
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);

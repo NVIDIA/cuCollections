@@ -17,8 +17,7 @@
 #pragma once
 
 #include <cuco/cuda_stream_ref.hpp>
-#include <cuco/detail/__config>
-#include <cuco/detail/prime.hpp>
+#include <cuco/detail/open_addressing_impl.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/probing_scheme.cuh>
@@ -86,40 +85,28 @@ template <class Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme      = experimental::double_hashing<4,  // CG size
-                                                             cuco::murmurhash3_32<Key>,
-                                                             cuco::murmurhash3_32<Key>>,
-          class Allocator          = cuco::cuda_allocator<std::byte>,
-          class Storage            = cuco::experimental::aow_storage<1>>
+                                                             cuco::default_hash_function<Key>>,
+          class Allocator          = cuco::cuda_allocator<Key>,
+          class Storage            = cuco::experimental::storage<1>>
 class static_set {
-  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
-
-  static_assert(
-    cuco::is_bitwise_comparable_v<Key>,
-    "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
-
-  static_assert(
-    std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
-                      ProbingScheme>,
-    "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+  using impl_type = detail::
+    open_addressing_impl<Key, Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>;
 
  public:
-  static constexpr auto cg_size      = ProbingScheme::cg_size;  ///< CG size used to for probing
-  static constexpr auto window_size  = Storage::window_size;    ///< Window size used to for probing
-  static constexpr auto thread_scope = Scope;                   ///< CUDA thread scope
+  static constexpr auto cg_size      = impl_type::cg_size;       ///< CG size used for probing
+  static constexpr auto window_size  = impl_type::window_size;   ///< Window size used for probing
+  static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
 
-  using key_type   = Key;  ///< Key type
-  using value_type = Key;  ///< Key type
-  /// Extent type
-  using extent_type    = decltype(make_valid_extent<cg_size, window_size>(std::declval<Extent>()));
-  using size_type      = typename extent_type::value_type;  ///< Size type
-  using key_equal      = KeyEqual;                          ///< Key equality comparator type
-  using allocator_type = Allocator;                         ///< Allocator type
-  using storage_type =
-    detail::storage<Storage, value_type, extent_type, allocator_type>;  ///< Storage type
+  using key_type       = typename impl_type::key_type;        ///< Key type
+  using value_type     = typename impl_type::value_type;      ///< Key type
+  using extent_type    = typename impl_type::extent_type;     ///< Extent type
+  using size_type      = typename impl_type::size_type;       ///< Size type
+  using key_equal      = typename impl_type::key_equal;       ///< Key equality comparator type
+  using allocator_type = typename impl_type::allocator_type;  ///< Allocator type
+  /// Non-owning window storage ref type
+  using storage_ref_type    = typename impl_type::storage_ref_type;
+  using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
 
-  using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
-  using probing_scheme_type = ProbingScheme;                 ///< Probe scheme type
   template <typename... Operators>
   using ref_type =
     cuco::experimental::static_set_ref<key_type,
@@ -147,26 +134,44 @@ class static_set {
    * and CUDA stream.
    *
    * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * window size and it's computed via `make_valid_extent` factory. Insert operations will not
+   * window size and it is computed via the `make_window_extent` factory. Insert operations will not
    * automatically grow the set. Attempting to insert more unique keys than the capacity of the map
    * results in undefined behavior.
    *
-   * The `empty_key_sentinel` is reserved and behavior is undefined when attempting to insert
+   * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
    * this sentinel value.
+   * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
+   * stream before the object is first used.
    *
    * @param capacity The requested lower-bound set size
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
    * @param alloc Allocator used for allocating device storage
-   * @param stream CUDA stream used to initialize the map
+   * @param stream CUDA stream used to initialize the set
    */
   constexpr static_set(Extent capacity,
                        empty_key<Key> empty_key_sentinel,
-                       KeyEqual pred                       = {},
+                       KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
+
+  /**
+   * @brief Erases all elements from the container. After this call, `size()` returns zero.
+   * Invalidates any references, pointers, or iterators referring to contained elements.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  void clear(cuda_stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
+   * zero. Invalidates any references, pointers, or iterators referring to contained elements.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  void clear_async(cuda_stream_ref stream = {}) noexcept;
 
   /**
    * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
@@ -368,7 +373,7 @@ class static_set {
    * `(output_begin + i)`. Else, copies the empty key sentinel.
    *
    * @tparam InputIt Device accessible input iterator
-   * @tparam OutputIt Device accessible output iterator assignable from the set's `value_type`
+   * @tparam OutputIt Device accessible output iterator assignable from the set's `key_type`
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
@@ -386,7 +391,7 @@ class static_set {
    * `(output_begin + i)`. Else, copies the empty key sentinel.
    *
    * @tparam InputIt Device accessible input iterator
-   * @tparam OutputIt Device accessible output iterator assignable from the set's `value_type`
+   * @tparam OutputIt Device accessible output iterator assignable from the set's `key_type`
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
@@ -405,7 +410,7 @@ class static_set {
    * @note This API synchronizes the given stream.
    * @note The order in which keys are returned is implementation defined and not guaranteed to be
    * consistent between subsequent calls to `retrieve_all`.
-   * @note Behavior is undefined if the range beginning at `keys_out` is smaller than the return
+   * @note Behavior is undefined if the range beginning at `output_begin` is smaller than the return
    * value of `size()`.
    *
    * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
@@ -456,13 +461,8 @@ class static_set {
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
  private:
-  key_type empty_key_sentinel_;         ///< Key value that represents an empty slot
-  key_equal predicate_;                 ///< Key equality binary predicate
-  probing_scheme_type probing_scheme_;  ///< Probing scheme
-  allocator_type allocator_;            ///< Allocator used to (de)allocate temporary storage
-  storage_type storage_;                ///< Slot window storage
+  std::unique_ptr<impl_type> impl_;
 };
-
 }  // namespace experimental
 }  // namespace cuco
 

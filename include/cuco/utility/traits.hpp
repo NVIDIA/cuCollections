@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <thrust/device_reference.h>
+#include <thrust/tuple.h>
+
 #include <type_traits>
 
 namespace cuco {

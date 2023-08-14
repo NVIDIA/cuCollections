@@ -99,9 +99,9 @@ TEMPLATE_TEST_CASE("Heterogeneous lookup",
   cuco::static_map<Key, Value> map{
     capacity, cuco::empty_key<Key>{sentinel_key}, cuco::empty_value<Value>{sentinel_value}};
 
-  auto insert_pairs = thrust::make_transform_iterator(
-    thrust::counting_iterator<int>(0),
-    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
+  auto insert_pairs =
+    thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
+                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
   auto probe_keys = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
                                                     [] __device__(auto i) { return ProbeKey(i); });
 

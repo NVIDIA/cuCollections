@@ -60,7 +60,7 @@ int main(void)
   // The `_outer` suffix indicates that the occurrence of a non-match is 1.
   auto const output_size = map.count_outer(keys_to_find.begin(), keys_to_find.end());
 
-  thrust::device_vector<cuco::pair_type<key_type, value_type>> d_results(output_size);
+  thrust::device_vector<cuco::pair<key_type, value_type>> d_results(output_size);
 
   // Finds all keys {0, 1, 2, ...} and stores associated key/value pairs into `d_results`
   // If a key `keys_to_find[i]` doesn't exist, `d_results[i].second == empty_value_sentinel`

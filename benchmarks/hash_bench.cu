@@ -15,7 +15,6 @@
  */
 
 #include <defaults.hpp>
-#include <utils.hpp>
 
 #include <cuco/detail/utils.hpp>
 #include <cuco/hash_functions.cuh>
@@ -25,9 +24,6 @@
 #include <thrust/device_vector.h>
 
 #include <cstdint>
-
-using namespace cuco::benchmark;
-using namespace cuco::utility;
 
 template <int32_t Words>
 struct large_key {
@@ -73,15 +69,15 @@ void hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
 {
   bool const materialize_result = false;
   constexpr auto block_size     = 128;
-  auto const num_keys           = state.get_int64_or_default("NumInputs", defaults::N * 10);
-  auto const grid_size          = SDIV(num_keys, block_size * 16);
+  auto const num_keys  = state.get_int64_or_default("NumInputs", cuco::benchmark::defaults::N * 10);
+  auto const grid_size = SDIV(num_keys, block_size * 16);
 
   thrust::device_vector<typename Hash::result_type> hash_values((materialize_result) ? num_keys
                                                                                      : 1);
 
   state.add_element_count(num_keys);
 
-  state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
+  state.exec([&](nvbench::launch& launch) {
     hash_bench_kernel<block_size><<<grid_size, block_size, 0, launch.get_stream()>>>(
       Hash{}, num_keys, hash_values.begin(), materialize_result);
   });
@@ -102,4 +98,4 @@ NVBENCH_BENCH_TYPES(
                                        cuco::murmurhash3_fmix_64<nvbench::int64_t>>))
   .set_name("hash_function_eval")
   .set_type_axes_names({"Hash"})
-  .set_max_noise(defaults::MAX_NOISE);
+  .set_max_noise(cuco::benchmark::defaults::MAX_NOISE);

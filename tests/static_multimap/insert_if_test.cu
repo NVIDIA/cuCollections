@@ -55,7 +55,7 @@ TEMPLATE_TEST_CASE_SIG(
   constexpr std::size_t num_keys{1'000};
 
   thrust::device_vector<Key> d_keys(num_keys);
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_keys);
+  thrust::device_vector<cuco::pair<Key, Value>> d_pairs(num_keys);
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   // multiplicity = 1
@@ -64,13 +64,12 @@ TEMPLATE_TEST_CASE_SIG(
                     thrust::counting_iterator<int>(num_keys),
                     d_pairs.begin(),
                     [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i, i};
+                      return cuco::pair<Key, Value>{i, i};
                     });
 
-  using probe = std::conditional_t<
-    Probe == cuco::test::probe_sequence::linear_probing,
-    cuco::linear_probing<1, cuco::murmurhash3_32<Key>>,
-    cuco::double_hashing<8, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<1, cuco::default_hash_function<Key>>,
+                                   cuco::double_hashing<8, cuco::default_hash_function<Key>>>;
 
   cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
     map{num_keys * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};

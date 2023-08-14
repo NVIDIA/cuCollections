@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
  */
 #pragma once
 
-#include <cuco/detail/pair.cuh>
+#include <cuco/pair.cuh>
 
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
@@ -387,6 +387,8 @@ __global__ void retrieve(InputIt first,
 
   if (flushing_cg.thread_rank() == 0) { flushing_cg_counter[flushing_cg_id] = 0; }
 
+  flushing_cg.sync();
+
   while (flushing_cg.any(idx < n)) {
     bool active_flag        = idx < n;
     auto active_flushing_cg = cg::binary_partition<flushing_cg_size>(flushing_cg, active_flag);
@@ -416,6 +418,7 @@ __global__ void retrieve(InputIt first,
     idx += loop_stride;
   }
 
+  flushing_cg.sync();
   // Final flush of output buffer
   if (flushing_cg_counter[flushing_cg_id] > 0) {
     view.flush_output_buffer(flushing_cg,
@@ -499,6 +502,8 @@ __global__ void pair_retrieve(InputIt first,
 
   if (flushing_cg.thread_rank() == 0) { flushing_cg_counter[flushing_cg_id] = 0; }
 
+  flushing_cg.sync();
+
   while (flushing_cg.any(idx < n)) {
     bool active_flag        = idx < n;
     auto active_flushing_cg = cg::binary_partition<flushing_cg_size>(flushing_cg, active_flag);
@@ -532,6 +537,7 @@ __global__ void pair_retrieve(InputIt first,
     idx += loop_stride;
   }
 
+  flushing_cg.sync();
   // Final flush of output buffer
   if (flushing_cg_counter[flushing_cg_id] > 0) {
     view.flush_output_buffer(flushing_cg,

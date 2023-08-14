@@ -146,7 +146,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(
       auto const n         = std::min(capacity_remaining, num_to_insert);
       auto const grid_size = (tile_size * n + stride * block_size - 1) / (stride * block_size);
 
-      detail::insert<block_size, tile_size, cuco::pair_type<key_type, mapped_type>>
+      detail::insert<block_size, tile_size, cuco::pair<key_type, mapped_type>>
         <<<grid_size, block_size, 0, stream>>>(first,
                                                first + n,
                                                submap_views_.data().get(),
