@@ -104,9 +104,9 @@ __global__ void find(Window* windows, Size* sizes, Offset* offsets)
   __syncthreads();
 
   for (int i = 0; i < N; i++) {
-    auto const res = set_ref.find(tile, data[i]);
+    auto const found = set_ref.find(tile, data[i]);
     // Record if the inserted data has been found
-    atomicOr(&result, *res != data[i]);
+    atomicOr(&result, *found != data[i]);
   }
   __syncthreads();
 
