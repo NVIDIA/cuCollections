@@ -141,11 +141,7 @@ class open_addressing_impl {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuda_stream_ref stream) noexcept
-  {
-    this->clear_async(stream);
-    stream.synchronize();
-  }
+  void clear(cuda_stream_ref stream) noexcept { storage_.initialize(empty_slot_sentinel_, stream); }
 
   /**
    * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
@@ -155,7 +151,7 @@ class open_addressing_impl {
    */
   void clear_async(cuda_stream_ref stream) noexcept
   {
-    storage_.initialize(empty_slot_sentinel_, stream);
+    storage_.initialize_async(empty_slot_sentinel_, stream);
   }
 
   /**

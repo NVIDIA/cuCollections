@@ -106,13 +106,10 @@ int main()
 
   auto const num_windows = thrust::reduce(valid_sizes.begin(), valid_sizes.end());
 
-  auto d_set_storage =
-    thrust::device_vector<cuco::experimental::window<key_type, window_size>>(num_windows);
+  auto d_set_storage = cuco::experimental::aow_storage<key_type, window_size>{num_windows};
+  d_set_storage.initialize(empty_key_sentinel);
 
-  // Sets all slot contents to the sentinel value
-  initialize<<<128, 128>>>(d_set_storage.data().get(), num_windows, empty_key_sentinel);
-
-  kernel<<<1, 128>>>(d_set_storage.data().get(), d_sizes.data().get(), d_offsets.data().get());
+  kernel<<<1, 128>>>(d_set_storage.data(), d_sizes.data().get(), d_offsets.data().get());
 
   return 0;
 }

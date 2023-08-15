@@ -45,6 +45,7 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
   using impl_type::capacity;
   using impl_type::data;
   using impl_type::initialize;
+  using impl_type::initialize_async;
   using impl_type::num_windows;
   using impl_type::ref;
 
