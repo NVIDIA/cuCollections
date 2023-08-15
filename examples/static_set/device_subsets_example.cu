@@ -29,8 +29,9 @@
 #include <cstddef>
 #include <iostream>
 
-auto constexpr cg_size     = 8;  // A CUDA Cooperative Group of 8 threads to handle each subset
-auto constexpr window_size = 1;  // TODO: how to explain window size (vector length) to users
+auto constexpr cg_size     = 8;   ///< A CUDA Cooperative Group of 8 threads to handle each subset
+auto constexpr window_size = 1;   ///< TODO: how to explain window size (vector length) to users
+auto constexpr N           = 10;  ///< Number of elements to insert and query
 
 using key_type = int;
 using probing_scheme_type =
@@ -43,6 +44,12 @@ using ref_type = cuco::experimental::static_set_ref<key_type,
                                                     probing_scheme_type,
                                                     storage_ref_type,
                                                     Operator>;
+
+/// data to insert/query
+__device__ constexpr std::array<key_type, N> data = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19};
+/// Empty slots are represented by reserved "sentinel" values. These values should be selected such
+/// that they never occur in your input data.
+key_type constexpr empty_key_sentinel = -1;
 
 template <typename WindowT>
 __global__ void initialize(WindowT* windows, std::size_t n, typename WindowT::value_type value)
@@ -64,7 +71,7 @@ __global__ void initialize(WindowT* windows, std::size_t n, typename WindowT::va
 
 // insert a set of keys into a hash set using one cooperative group for each task
 template <typename Window, typename Size, typename Offset>
-__global__ void kernel(Window* windows, Size* sizes, Offset* offsets)
+__global__ void insert(Window* windows, Size* sizes, Offset* offsets)
 {
   namespace cg = cooperative_groups;
 
@@ -73,6 +80,39 @@ __global__ void kernel(Window* windows, Size* sizes, Offset* offsets)
 
   auto set_ref = ref_type<cuco::experimental::insert_tag>{
     cuco::empty_key<key_type>{-1}, {}, {}, storage_ref_type{sizes[idx], windows + offsets[idx]}};
+
+  // Each cooperative_groups inserts all elements in `data` into its own subset
+  for (int i = 0; i < N; i++) {
+    set_ref.insert(tile, data[i]);
+  }
+}
+
+// insert a set of keys into a hash set using one cooperative group for each task
+template <typename Window, typename Size, typename Offset>
+__global__ void find(Window* windows, Size* sizes, Offset* offsets)
+{
+  namespace cg = cooperative_groups;
+
+  auto const tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
+  auto const idx  = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
+
+  auto set_ref = ref_type<cuco::experimental::find_tag>{
+    cuco::empty_key<key_type>{-1}, {}, {}, storage_ref_type{sizes[idx], windows + offsets[idx]}};
+
+  __shared__ int result;
+  if (threadIdx.x == 0) { result = 0; }
+  __syncthreads();
+
+  for (int i = 0; i < N; i++) {
+    auto const res = set_ref.find(tile, data[i]);
+    // Record if the inserted data has been found
+    atomicOr(&result, *res != data[i]);
+  }
+  __syncthreads();
+
+  if (threadIdx.x == 0) {
+    if (result == 0) { printf("Success! Found all inserted elements.\n"); }
+  }
 }
 
 /**
@@ -81,14 +121,9 @@ __global__ void kernel(Window* windows, Size* sizes, Offset* offsets)
  *
  * static_set provides a non-owning reference which can be used to interact with
  * the container from within device code.
- *
  */
 int main()
 {
-  // Empty slots are represented by reserved "sentinel" values. These values should be selected such
-  // that they never occur in your input data.
-  key_type constexpr empty_key_sentinel = -1;
-
   // Number of subsets
   auto constexpr num = 16;
   // Sizes of the 16 subsets to be created on the device
@@ -106,10 +141,13 @@ int main()
 
   auto const num_windows = thrust::reduce(valid_sizes.begin(), valid_sizes.end());
 
+  // One allocation for all subsets
   auto d_set_storage = cuco::experimental::aow_storage<key_type, window_size>{num_windows};
+  // Initializes the storage with the given sentinel
   d_set_storage.initialize(empty_key_sentinel);
 
-  kernel<<<1, 128>>>(d_set_storage.data(), d_sizes.data().get(), d_offsets.data().get());
+  insert<<<1, 128>>>(d_set_storage.data(), d_sizes.data().get(), d_offsets.data().get());
+  find<<<1, 128>>>(d_set_storage.data(), d_sizes.data().get(), d_offsets.data().get());
 
   return 0;
 }
