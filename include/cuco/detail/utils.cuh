@@ -144,6 +144,7 @@ template <std::size_t N>
 struct packed {
   using type = void;  ///< `void` type by default
 };
+
 /**
  * @brief Denotes the packed type when the size of the object is 8.
  */
@@ -151,6 +152,7 @@ template <>
 struct packed<sizeof(uint64_t)> {
   using type = uint64_t;  ///< Packed type as `uint64_t` if the size of the object is 8
 };
+
 /**
  * @brief Denotes the packed type when the size of the object is 4.
  */
@@ -158,6 +160,7 @@ template <>
 struct packed<sizeof(uint32_t)> {
   using type = uint32_t;  ///< Packed type as `uint32_t` if the size of the object is 4
 };
+
 template <typename Pair>
 using packed_t = typename packed<sizeof(Pair)>::type;
 
@@ -182,6 +185,7 @@ constexpr bool is_packable()
 {
   return not std::is_void<packed_t<Pair>>::value and std::has_unique_object_representations_v<Pair>;
 }
+
 /**
  * @brief Allows viewing a pair in a packed representation.
  *
