@@ -13,14 +13,17 @@ cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )";
 # by replacing the `image:` field with the appropriate image name
 base_devcontainer_file="./devcontainer.json"
 
-# Define image root
-IMAGE_ROOT="rapidsai/devcontainers:23.06-cpp-"
 
 # Read matrix.yaml and convert it to json
-matrix_json=$(yq -o json ../ci/matrix.yaml)
+matrix_json=$(yq -o json ../ci/matrix.yml)
+
+
+# Get the devcontainer image version and define image tag root
+DEVCONTAINER_VERSION=$(echo "$matrix_json" | jq -r '.devcontainer_version')
+IMAGE_ROOT="rapidsai/devcontainers:${DEVCONTAINER_VERSION}-cpp-"
 
 # Get unique combinations of cuda version, compiler name/version, and Ubuntu version
-combinations=$(echo "$matrix_json" | jq -c '[."pull-request"[] | {cuda: .cuda, compiler_name: .compiler.name, compiler_version: .compiler.version, os: .os}] | unique | .[]')
+combinations=$(echo "$matrix_json" | jq -c '[.pull_request.nvcc[] | {cuda: .cuda, compiler_name: .compiler.name, compiler_version: .compiler.version, os: .os}] | unique | .[]')
 
 # For each unique combination
 for combination in $combinations; do
@@ -36,7 +39,8 @@ for combination in $combinations; do
 
     # Use the base_devcontainer.json as a template, plug in the CUDA, compiler names, versions, and Ubuntu version,
     # and write the output to the new devcontainer.json file
-    jq --arg image "$image"  --arg name "$name" '. + {image: $image, name: $name}' $base_devcontainer_file > "$devcontainer_file"
+    #jq --arg image "$image"  --arg name "$name" '. + {image: $image, name: $name}' $base_devcontainer_file > "$devcontainer_file"
+    jq --arg image "$image" --arg name "$name" '.image = $image | .name = $name | .containerEnv.DEVCONTAINER_NAME = $name' $base_devcontainer_file > "$devcontainer_file"
 
     echo "Created $devcontainer_file"
 done

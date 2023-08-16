@@ -1,5 +1,29 @@
+
+cuda_oldest: &cuda_oldest '11.8'
+cuda_newest: &cuda_newest '12.2'
+
+# The GPUs to test on
+# Note: This assumes that the appropriate gpu_build_archs are set to include building for the GPUs listed here
 gpus:
   - 'v100'
 
-pull-request:
-- {cuda: '12.1', os: 'ubuntu22.04', cpu: 'amd64', compiler: {name: 'gcc', version: '12', exe: 'g++'}, gpu_build_archs: '70,80', std: [17]}
+# The version of the devcontainer images to use from https://hub.docker.com/r/rapidsai/devcontainers
+devcontainer_version: '23.08'
+
+# Each environment below will generate a unique build/test job
+# See the "compute-matrix" job in the workflow for how this is parsed and used
+# cuda: The CUDA Toolkit version
+# os: The operating system used
+# cpu: The CPU architecture
+# compiler: The compiler to use
+#   name: The compiler name
+#   version: The compiler version
+#   exe: The unverionsed compiler binary name
+# gpu_build_archs: The GPU architectures to build for using the syntax of CMAKE_CUDA_ARCHITECTURES (semi-colon separated list)
+# std: The C++ standards to build for
+#    This field is unique as it will generate an independent build/test job for each value
+
+# Configurations that will run for every PR
+pull_request:
+  nvcc:
+    - {cuda: *cuda_newest, os: 'ubuntu22.04', cpu: 'amd64', compiler: {name: 'gcc', version: '12', exe: 'g++'}, gpu_build_archs: '70', std: [17, 20], jobs: ['build', 'test']}

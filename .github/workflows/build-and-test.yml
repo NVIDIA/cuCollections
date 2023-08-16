@@ -16,7 +16,8 @@ on:
       cpu: {type: string, required: true}
       os: {type: string, required: true}
       build_script: {type: string, required: false}
-      test_script: {type: string, required: false }
+      test_script: {type: string, required: false}
+      run_tests: {type: boolean, required: false, default: true}
       build_image: {type: string, required: false}
       test_image: {type: string, required: false}
 
