@@ -36,7 +36,8 @@ auto constexpr N           = 10;  ///< Number of elements to insert and query
 using key_type = int;
 using probing_scheme_type =
   cuco::experimental::linear_probing<cg_size, cuco::default_hash_function<key_type>>;
-using storage_ref_type = cuco::experimental::aow_storage_ref<key_type, window_size>;
+using storage_type     = cuco::experimental::aow_storage<key_type, window_size>;
+using storage_ref_type = typename storage_type::ref_type;
 template <typename Operator>
 using ref_type = cuco::experimental::static_set_ref<key_type,
                                                     cuda::thread_scope_device,
@@ -142,7 +143,7 @@ int main()
   auto const num_windows = thrust::reduce(valid_sizes.begin(), valid_sizes.end());
 
   // One allocation for all subsets
-  auto d_set_storage = cuco::experimental::aow_storage<key_type, window_size>{num_windows};
+  auto d_set_storage = storage_type{num_windows};
   // Initializes the storage with the given sentinel
   d_set_storage.initialize(empty_key_sentinel);
 
