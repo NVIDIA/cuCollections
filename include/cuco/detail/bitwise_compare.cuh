@@ -18,6 +18,8 @@
 
 #include <cuco/utility/traits.hpp>
 
+#include <cuda/std/bit>
+
 #include <cstdint>
 #include <type_traits>
 
@@ -61,6 +63,16 @@ struct bitwise_compare_impl<8> {
 };
 
 /**
+ * @brief Gives value to use as alignment for a type that is at least the
+ * size of type, or 16, whichever is smaller.
+ */
+template <typename T>
+constexpr std::size_t alignment()
+{
+  return std::min(std::size_t{16}, cuda::std::bit_ceil(sizeof(T)));
+}
+
+/**
  * @brief Performs a bitwise equality comparison between the two specified objects
  *
  * @tparam T Type with unique object representations
@@ -76,8 +88,8 @@ __host__ __device__ constexpr bool bitwise_compare(T const& lhs, T const& rhs)
     "Bitwise compared objects must have unique object representations or be explicitly declared as "
     "safe for bitwise comparison via specialization of cuco::is_bitwise_comparable_v.");
 
-  alignas(sizeof(T)) T __lhs{lhs};
-  alignas(sizeof(T)) T __rhs{rhs};
+  alignas(detail::alignment<T>()) T __lhs{lhs};
+  alignas(detail::alignment<T>()) T __rhs{rhs};
   return detail::bitwise_compare_impl<sizeof(T)>::compare(reinterpret_cast<char const*>(&__lhs),
                                                           reinterpret_cast<char const*>(&__rhs));
 }
