@@ -16,7 +16,7 @@
 
 #include <utils.hpp>
 
-#include <cuco/bit_vector.cuh>
+#include <cuco/detail/trie/bit_vector/bit_vector.cuh>
 
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>

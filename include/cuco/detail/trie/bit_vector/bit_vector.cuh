@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include <cuco/bit_vector_ref.cuh>
+#include <cuco/detail/trie/bit_vector/bit_vector_ref.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/storage.cuh>
 #include <cuco/utility/allocator.hpp>
@@ -33,9 +33,9 @@ namespace experimental {
  * @brief Struct to store ranks of bits at 256-bit intervals
  */
 struct rank {
-  uint32_t abs_hi_;  ///< Upper 32 bits of base
-  uint8_t abs_lo_;   ///< Lower 8 bits of base
-  uint8_t rels_[3];  ///< Four offsets for 64-bit sub-intervals
+  uint32_t abs_hi_;              ///< Upper 32 bits of base
+  uint8_t abs_lo_;               ///< Lower 8 bits of base
+  std::array<uint8_t, 3> rels_;  ///< Offsets for 64-bit sub-intervals
 
   /**
    * @brief Gets base rank of current 256-bit interval
@@ -58,6 +58,7 @@ struct rank {
     abs_lo_ = static_cast<uint8_t>(abs);
   }
 };
+
 /**
  * @brief Union of 64-bit word with rank
  *
@@ -86,7 +87,7 @@ union rank_union {
 template <class Extent             = cuco::experimental::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class Allocator          = cuco::cuda_allocator<std::byte>,
-          class Storage            = cuco::experimental::aow_storage<1>>
+          class Storage            = cuco::experimental::storage<1>>
 class bit_vector {
  public:
   bit_vector();
@@ -129,8 +130,8 @@ class bit_vector {
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
   using extent_type =
-    decltype(make_valid_extent<cg_size, window_size>(std::declval<Extent>()));  ///< Extent type
-  using allocator_type = Allocator;                                             ///< Allocator type
+    decltype(make_window_extent<cg_size, window_size>(std::declval<Extent>()));  ///< Extent type
+  using allocator_type = Allocator;                                              ///< Allocator type
   using storage_type =
     detail::storage<Storage, size_type, extent_type, allocator_type>;  ///< Storage type
 
@@ -195,5 +196,5 @@ class bit_vector {
 }  // namespace experimental
 }  // namespace cuco
 
-#include <cuco/detail/bit_vector/bit_vector.inl>
-#include <cuco/detail/bit_vector/bit_vector_ref.inl>
+#include <cuco/detail/trie/bit_vector/bit_vector.inl>
+#include <cuco/detail/trie/bit_vector/bit_vector_ref.inl>

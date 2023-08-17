@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <cuco/bit_vector.cuh>
+#include <cuco/detail/trie/bit_vector/bit_vector.cuh>
 
 #include <catch2/catch_test_macros.hpp>
 
