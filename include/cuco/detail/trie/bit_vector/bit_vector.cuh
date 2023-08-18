@@ -78,16 +78,10 @@ union rank_union {
  * Bitvector construction happens on host, after which the structures are moved to device.
  * All subsequent read-only operations access device structures only.
  *
- * @tparam Extent Data structure size type
- * @tparam Scope The scope in which operations will be performed by individual threads.
  * @tparam Allocator Type of allocator used for device storage
- * @tparam Storage Slot window storage type
  */
 
-template <class Extent             = cuco::experimental::extent<std::size_t>,
-          cuda::thread_scope Scope = cuda::thread_scope_device,
-          class Allocator          = cuco::cuda_allocator<std::byte>,
-          class Storage            = cuco::experimental::storage<1>>
+template <class Allocator = cuco::cuda_allocator<std::byte>>
 class bit_vector {
  public:
   bit_vector();
@@ -109,7 +103,7 @@ class bit_vector {
    */
   void build() noexcept;
 
-  using size_type = typename Extent::value_type;  ///< size type to specify bit index
+  using size_type = std::size_t;  ///< size type to specify bit index
   /**
    * @brief Modifies a single bit
    *
@@ -125,21 +119,15 @@ class bit_vector {
    */
   void set_last(bool bit) noexcept;
 
-  static constexpr auto cg_size      = 1;      ///< CG size used for probing
-  static constexpr auto window_size  = 1;      ///< Window size used for probing
-  static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
-
-  using extent_type =
-    decltype(make_window_extent<cg_size, window_size>(std::declval<Extent>()));  ///< Extent type
-  using allocator_type = Allocator;                                              ///< Allocator type
+  using allocator_type = Allocator;  ///< Allocator type
+  using slot_type      = uint64_t;   ///< Slot type
   using storage_type =
-    detail::storage<Storage, size_type, extent_type, allocator_type>;  ///< Storage type
+    aow_storage<slot_type, 1, extent<size_type>, allocator_type>;  ///< Storage type
 
   using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
   template <typename... Operators>
   using ref_type =
-    cuco::experimental::bit_vector_ref<storage_ref_type,
-                                       Operators...>;  ///< Non-owning container ref type
+    bit_vector_ref<storage_ref_type, Operators...>;  ///< Non-owning container ref type
 
   /**
    * @brief Get device ref with operators.

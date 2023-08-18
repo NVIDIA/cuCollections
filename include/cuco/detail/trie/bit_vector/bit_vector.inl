@@ -18,8 +18,8 @@
 namespace cuco {
 namespace experimental {
 
-template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-bit_vector<Extent, Scope, Allocator, Storage>::bit_vector()
+template <class Allocator>
+bit_vector<Allocator>::bit_vector()
   : words_(),
     ranks_(),
     selects_(),
@@ -32,8 +32,8 @@ bit_vector<Extent, Scope, Allocator, Storage>::bit_vector()
 {
 }
 
-template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-bit_vector<Extent, Scope, Allocator, Storage>::~bit_vector()
+template <class Allocator>
+bit_vector<Allocator>::~bit_vector()
 {
   delete aow_words_;
   delete aow_ranks_;
@@ -42,8 +42,8 @@ bit_vector<Extent, Scope, Allocator, Storage>::~bit_vector()
   delete aow_selects0_;
 }
 
-template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-void bit_vector<Extent, Scope, Allocator, Storage>::append(bool bit) noexcept
+template <class Allocator>
+void bit_vector<Allocator>::append(bool bit) noexcept
 {
   if (n_bits_ % 256 == 0) { words_.resize((n_bits_ + 256) / 64); }  // Extend by four 64-bit words
   set(n_bits_, bit);
@@ -99,8 +99,8 @@ inline void build_ranks_and_selects(const std::vector<uint64_t>& words,
   selects.push_back(words.size() * 64 / 256);
 }
 
-template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-void bit_vector<Extent, Scope, Allocator, Storage>::build() noexcept
+template <class Allocator>
+void bit_vector<Allocator>::build() noexcept
 {
   build_ranks_and_selects(words_, ranks_, selects_, false);   // 1-bits
   build_ranks_and_selects(words_, ranks0_, selects0_, true);  // 0-bits
@@ -108,8 +108,8 @@ void bit_vector<Extent, Scope, Allocator, Storage>::build() noexcept
   move_to_device();
 }
 
-template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-void bit_vector<Extent, Scope, Allocator, Storage>::set(size_type index, bool bit) noexcept
+template <class Allocator>
+void bit_vector<Allocator>::set(size_type index, bool bit) noexcept
 {
   if (bit) {
     words_[index / 64] |= (1UL << (index % 64));
@@ -118,8 +118,8 @@ void bit_vector<Extent, Scope, Allocator, Storage>::set(size_type index, bool bi
   }
 }
 
-template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-void bit_vector<Extent, Scope, Allocator, Storage>::set_last(bool bit) noexcept
+template <class Allocator>
+void bit_vector<Allocator>::set_last(bool bit) noexcept
 {
   set(n_bits_ - 1, bit);
 }
@@ -150,14 +150,13 @@ void initialize_aow(Storage* storage, thrust::device_vector<T>& device_array, ui
     storage->data(), num_elements, device_ptr);
 }
 
-template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
+template <class Allocator>
 template <class T>
-void bit_vector<Extent, Scope, Allocator, Storage>::copy_host_array_to_aow(
-  storage_type** aow, std::vector<T>& host_array) noexcept
+void bit_vector<Allocator>::copy_host_array_to_aow(storage_type** aow,
+                                                   std::vector<T>& host_array) noexcept
 {
   uint64_t num_elements = host_array.size();
-  *aow                  = new storage_type(
-    make_window_extent<cg_size, window_size>(extent<size_t>{num_elements + 1}), allocator_);
+  *aow                  = new storage_type(extent<size_type>{num_elements + 1}, allocator_);
 
   if (num_elements > 0) {
     // Move host array to device memory
@@ -169,8 +168,8 @@ void bit_vector<Extent, Scope, Allocator, Storage>::copy_host_array_to_aow(
   }
 }
 
-template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-void bit_vector<Extent, Scope, Allocator, Storage>::move_to_device() noexcept
+template <class Allocator>
+void bit_vector<Allocator>::move_to_device() noexcept
 {
   copy_host_array_to_aow(&aow_words_, words_);
   copy_host_array_to_aow(&aow_ranks_, ranks_);
@@ -179,9 +178,9 @@ void bit_vector<Extent, Scope, Allocator, Storage>::move_to_device() noexcept
   copy_host_array_to_aow(&aow_selects0_, selects0_);
 }
 
-template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
+template <class Allocator>
 template <typename... Operators>
-auto bit_vector<Extent, Scope, Allocator, Storage>::ref(Operators...) const noexcept
+auto bit_vector<Allocator>::ref(Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
   return ref_type<Operators...>{aow_words_->ref(),
