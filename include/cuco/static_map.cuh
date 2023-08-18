@@ -296,6 +296,8 @@ class static_map {
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `insert_or_assign_async`.
+   * @note If multiple pairs in `[first, last)` compare equal, it is unspecified which pair is
+   * inserted or assigned.
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -312,6 +314,9 @@ class static_map {
    * @brief For any key-value pair `{k, v}` in the range `[first, last)`, if a key equivalent to `k`
    * already exists in the container, assigns `v` to the mapped_type corresponding to the key `k`.
    * If the key does not exist, inserts the pair as if by insert.
+   *
+   * @note If multiple pairs in `[first, last)` compare equal, it is unspecified which pair is
+   * inserted or assigned.
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,

@@ -35,6 +35,28 @@ namespace cuco {
 namespace experimental {
 namespace detail {
 
+/// Three-way insert result enum
+enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
+
+/**
+ * @brief Helper struct to store intermediate window probing results.
+ */
+struct window_results {
+  detail::equal_result state_;  ///< Equal result
+  int32_t intra_window_index_;  ///< Intra-window index
+
+  /**
+   * @brief Constructs window_results.
+   *
+   * @param state The three way equality result
+   * @param index Intra-window index
+   */
+  __device__ explicit constexpr window_results(detail::equal_result state, int32_t index) noexcept
+    : state_{state}, intra_window_index_{index}
+  {
+  }
+};
+
 /**
  * @brief Common device non-owning "ref" implementation class.
  *
@@ -546,28 +568,6 @@ class open_addressing_ref_impl {
   }
 
  private:
-  /// Three-way insert result enum
-  enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
-
-  /**
-   * @brief Helper struct to store intermediate window probing results.
-   */
-  struct window_results {
-    detail::equal_result state_;  ///< Equal result
-    int32_t intra_window_index_;  ///< Intra-window index
-
-    /**
-     * @brief Constructs window_results.
-     *
-     * @param state The three way equality result
-     *@param Intra-window index
-     */
-    __device__ explicit constexpr window_results(detail::equal_result state, int32_t index) noexcept
-      : state_{state}, intra_window_index_{index}
-    {
-    }
-  };
-
   /**
    * @brief Compares the content of the address `address` (old value) with the `expected` value and,
    * only if they are the same, sets the content of `address` to `desired`.

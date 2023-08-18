@@ -238,6 +238,138 @@ template <typename Key,
           typename StorageRef,
           typename... Operators>
 class operator_impl<
+  op::insert_or_assign_tag,
+  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+  static_assert(sizeof(T) == 4 or sizeof(T) == 8,
+                "sizeof(mapped_type) must be either 4 bytes or 8 bytes.");
+
+ public:
+  /**
+   * @brief Inserts an element.
+   *
+   * @param value The element to insert
+   * @return True if the given element is successfully inserted
+   */
+  __device__ void insert_or_assign(value_type const& value) noexcept
+  {
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    auto const key = value.first;
+
+    static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+    auto probing_iter = ref_.impl_.probing_scheme_(key, ref_.impl_.storage_ref_.window_extent());
+
+    while (true) {
+      auto const window_slots = ref_._impl_.storage_ref_[*probing_iter];
+
+      for (auto& slot_content : window_slots) {
+        auto const eq_res = ref_.predicate_(slot_content, key);
+
+        // If the key is already in the container, return false
+        if (eq_res == detail::equal_result::EMPTY) {
+          auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+          if (attempt_insert_or_assign(
+                (ref_.impl_.storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+                value,
+                ref_.predicate_)) {
+            return;
+          }
+        }
+      }
+      ++probing_iter;
+    }
+  }
+
+  /**
+   * @brief Inserts an element.
+   *
+   * @param group The Cooperative Group used to perform group insert
+   * @param value The element to insert
+   * @return True if the given element is successfully inserted
+   */
+  __device__ void insert_or_assign(cooperative_groups::thread_block_tile<cg_size> const& group,
+                                   value_type const& value) noexcept
+  {
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    auto const key = value.first;
+
+    auto probing_iter =
+      ref_.impl_.probing_scheme_(group, key, ref_.impl_.storage_ref_.window_extent());
+
+    while (true) {
+      auto const window_slots = ref_.impl_.storage_ref_[*probing_iter];
+
+      auto const [state, intra_window_index] = [&]() {
+        for (auto i = 0; i < window_size; ++i) {
+          switch (ref_.predicate_(window_slots[i], key)) {
+            case detail::equal_result::EMPTY:
+              return detail::window_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL:
+              return detail::window_results{detail::equal_result::EQUAL, i};
+            default: continue;
+          }
+        }
+        // returns dummy index `-1` for UNEQUAL
+        return detail::window_results{detail::equal_result::UNEQUAL, -1};
+      }();
+
+      // If the key is already in the container, return false
+      if (group.any(state == detail::equal_result::EQUAL)) { return; }
+
+      auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
+
+      if (group_contains_empty) {
+        auto const src_lane = __ffs(group_contains_empty) - 1;
+        auto const status =
+          (group.thread_rank() == src_lane)
+            ? attempt_insert_or_assign(
+                (ref_.impl_.storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+                value)
+            : false;
+
+        if (group.shfl(status, src_lane)) { return; }
+      } else {
+        ++probing_iter;
+      }
+    }
+  }
+
+ private:
+  __device__ constexpr bool attempt_insert_or_assign(value_type* slot,
+                                                     value_type const& value) noexcept
+  {
+    ref_type& ref_          = static_cast<ref_type&>(*this);
+    auto const expected_key = ref_.impl_.empty_slot_sentinel_.first;
+
+    auto old_key      = ref_.impl_.compare_and_swap(&slot->first, expected_key, value.first);
+    auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
+
+    // if key success or key was alreay present in the map
+    if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key) or
+        (ref_.predicate_.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL)) {
+      // Update payload
+      ref_.impl_.atomic_store(&slot->second, value.second);
+      return true;
+    }
+    return false;
+  }
+};
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
   op::insert_and_find_tag,
   static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
   using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
