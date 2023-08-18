@@ -55,7 +55,7 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
     while (word == 0) {
       word = ref_.words_ref_[++word_id][0];
     }
-    return (word_id * 64) + __builtin_ffsll(word) - 1;
+    return (word_id * 64) + __ffsll(word) - 1;
   }
 
   /**
@@ -76,7 +76,7 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
     auto rank        = rank_union{ref_.ranks_ref_[rank_id][0]}.rank_;
     uint64_t n       = rank.abs();
     if (rel_id != 0) { n += rank.rels_[rel_id - 1]; }
-    n += __builtin_popcountll(ref_.words_ref_[word_id][0] & ((1UL << bit_id) - 1));
+    n += __popcll(ref_.words_ref_[word_id][0] & ((1UL << bit_id) - 1));
     return n;
   }
 
@@ -188,7 +188,7 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
     for (uint32_t pos = 0; pos < N; pos++) {
       word &= word - 1;
     }
-    return __builtin_ffsll(word & -word) - 1;
+    return __ffsll(word & -word) - 1;
   }
 };
 
