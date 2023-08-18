@@ -84,7 +84,7 @@ union rank_union {
 template <class Allocator = cuco::cuda_allocator<std::byte>>
 class bit_vector {
  public:
-  bit_vector();
+  bit_vector(Allocator const& allocator = Allocator{});
   ~bit_vector();
 
   /**

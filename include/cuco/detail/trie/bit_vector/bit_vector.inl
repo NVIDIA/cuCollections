@@ -19,11 +19,12 @@ namespace cuco {
 namespace experimental {
 
 template <class Allocator>
-bit_vector<Allocator>::bit_vector()
+bit_vector<Allocator>::bit_vector(Allocator const& allocator)
   : words_(),
     ranks_(),
     selects_(),
     n_bits_(0),
+    allocator_(allocator),
     aow_words_(nullptr),
     aow_ranks_(nullptr),
     aow_selects_(nullptr),
