@@ -26,6 +26,9 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
   using size_type = typename StorageRef::size_type;
   using slot_type = typename StorageRef::value_type;
 
+  const size_type bits_per_word   = sizeof(slot_type) * 8;
+  const size_type words_per_block = 4;
+
  public:
   /**
    * @brief Access value of a single bit
@@ -37,7 +40,7 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
   [[nodiscard]] __device__ bool get(size_type key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return (ref_.words_ref_[key / 64][0] >> (key % 64)) & 1UL;
+    return (ref_.words_ref_[key / bits_per_word][0] >> (key % bits_per_word)) & 1UL;
   }
 
   /**
@@ -50,14 +53,14 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
   [[nodiscard]] __device__ size_type find_next_set(size_type key) const noexcept
   {
     auto const& ref_  = static_cast<ref_type const&>(*this);
-    size_type word_id = key / 64;
-    size_type bit_id  = key % 64;
+    size_type word_id = key / bits_per_word;
+    size_type bit_id  = key % bits_per_word;
     slot_type word    = ref_.words_ref_[word_id][0];
     word &= ~(0lu) << bit_id;
     while (word == 0) {
       word = ref_.words_ref_[++word_id][0];
     }
-    return (word_id * 64) + __ffsll(word) - 1;
+    return word_id * bits_per_word + __ffsll(word) - 1;
   }
 
   /**
@@ -71,10 +74,10 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
 
-    size_type word_id = key / 64;
-    size_type bit_id  = key % 64;
-    size_type rank_id = word_id / 4;
-    size_type rel_id  = word_id % 4;
+    size_type word_id = key / bits_per_word;
+    size_type bit_id  = key % bits_per_word;
+    size_type rank_id = word_id / words_per_block;
+    size_type rel_id  = word_id % words_per_block;
 
     auto rank   = rank_union{ref_.ranks_ref_[rank_id][0]}.rank_;
     size_type n = rank.abs();
@@ -100,10 +103,10 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
     size_type rank_id = get_initial_rank_estimate(count, ref_.selects_ref_, ref_.ranks_ref_);
     auto rank         = rank_union{ref_.ranks_ref_[rank_id][0]}.rank_;
 
-    size_type word_id = rank_id * 4;
+    size_type word_id = rank_id * words_per_block;
     word_id += subtract_rank_from_count(count, rank);
 
-    return (word_id * 64) + select_bit_in_word(count, ref_.words_ref_[word_id][0]);
+    return word_id * bits_per_word + select_bit_in_word(count, ref_.words_ref_[word_id][0]);
   }
 
   /**
@@ -120,10 +123,10 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
     size_type rank_id = get_initial_rank_estimate(count, ref_.selects0_ref_, ref_.ranks0_ref_);
     auto rank         = rank_union{ref_.ranks0_ref_[rank_id][0]}.rank_;
 
-    size_type word_id = rank_id * 4;
+    size_type word_id = rank_id * words_per_block;
     word_id += subtract_rank_from_count(count, rank);
 
-    return (word_id * 64) + select_bit_in_word(count, ~ref_.words_ref_[word_id][0]);
+    return word_id * bits_per_word + select_bit_in_word(count, ~ref_.words_ref_[word_id][0]);
   }
 
  private:
@@ -139,7 +142,7 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
   [[nodiscard]] __device__ size_type get_initial_rank_estimate(
     size_type count, const StorageRef& selects, const StorageRef& ranks) const noexcept
   {
-    size_type block_id = count / 256;
+    size_type block_id = count / (bits_per_word * words_per_block);
     size_type begin    = selects[block_id][0];
     size_type end      = selects[block_id + 1][0] + 1UL;
 

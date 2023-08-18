@@ -151,6 +151,10 @@ class bit_vector {
  private:
   size_type n_bits_;  ///< Number of bits added to bit_vector
 
+  const size_type bits_per_word   = sizeof(slot_type) * 8;
+  const size_type words_per_block = 4;
+  const size_type bits_per_block  = words_per_block * bits_per_word;
+
   // Host-side structures
   std::vector<slot_type> words_;     ///< Words vector that represents all bits
   std::vector<rank> ranks_;          ///< Holds the rank values for every 256-th bit (4-th word)
@@ -179,6 +183,16 @@ class bit_vector {
    * Effectively takes a snapshot of the bitvector and creates a device-side copy
    */
   void move_to_device() noexcept;
+
+  void update_selects(size_type word_id,
+                      slot_type word,
+                      size_type& gcount,
+                      std::vector<size_type>& selects) noexcept;
+
+  void build_ranks_and_selects(const std::vector<slot_type>& words,
+                               std::vector<rank>& ranks,
+                               std::vector<size_type>& selects,
+                               bool flip_bits) noexcept;
 };
 
 }  // namespace experimental

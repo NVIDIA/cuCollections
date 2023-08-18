@@ -46,25 +46,31 @@ bit_vector<Allocator>::~bit_vector()
 template <class Allocator>
 void bit_vector<Allocator>::append(bool bit) noexcept
 {
-  if (n_bits_ % 256 == 0) { words_.resize((n_bits_ + 256) / 64); }  // Extend by four 64-bit words
+  if (n_bits_ % bits_per_block == 0) {
+    size_type new_n_bits  = n_bits_ + bits_per_block;  // Extend storage by one block
+    size_type new_n_words = new_n_bits / words_per_block;
+
+    words_.resize(new_n_words);
+  }
   set(n_bits_, bit);
   ++n_bits_;
 }
 
-template <typename slot_type, typename size_type>
-inline void update_selects(size_type word_id,
-                           slot_type word,
-                           size_type& gcount,
-                           std::vector<size_type>& selects) noexcept
+template <class Allocator>
+void bit_vector<Allocator>::update_selects(size_type word_id,
+                                           slot_type word,
+                                           size_type& gcount,
+                                           std::vector<size_type>& selects) noexcept
 {
-  uint64_t n_pops     = __builtin_popcountll(word);
-  uint64_t new_gcount = gcount + n_pops;
-  if (((gcount + 255) / 256) != ((new_gcount + 255) / 256)) {
-    uint64_t count = gcount;
+  size_type n_pops     = __builtin_popcountll(word);
+  size_type new_gcount = gcount + n_pops;
+
+  if ((gcount - 1) / bits_per_block != (new_gcount - 1) / bits_per_block) {
+    size_type count = gcount;
     while (word != 0) {
-      uint64_t pos = __builtin_ctzll(word);
-      if (count % 256 == 0) {
-        selects.push_back(((word_id * 64) + pos) / 256);
+      size_type pos = __builtin_ctzll(word);
+      if (count % bits_per_block == 0) {
+        selects.push_back(((word_id * bits_per_word) + pos) / bits_per_block);
         break;
       }
       word ^= 1UL << pos;
@@ -74,14 +80,13 @@ inline void update_selects(size_type word_id,
   gcount = new_gcount;
 }
 
-template <typename slot_type, typename size_type>
-inline void build_ranks_and_selects(const std::vector<slot_type>& words,
-                                    std::vector<rank>& ranks,
-                                    std::vector<size_type>& selects,
-                                    bool flip_bits) noexcept
+template <class Allocator>
+void bit_vector<Allocator>::build_ranks_and_selects(const std::vector<slot_type>& words,
+                                                    std::vector<rank>& ranks,
+                                                    std::vector<size_type>& selects,
+                                                    bool flip_bits) noexcept
 {
-  constexpr size_type words_per_block = 4;
-  size_type n_blocks                  = words.size() / words_per_block;
+  size_type n_blocks = words.size() / words_per_block;
   ranks.resize(n_blocks + 1);
 
   size_type count = 0;
@@ -115,10 +120,13 @@ void bit_vector<Allocator>::build() noexcept
 template <class Allocator>
 void bit_vector<Allocator>::set(size_type index, bool bit) noexcept
 {
+  size_type word_id = index / bits_per_word;
+  size_type bit_id  = index % bits_per_word;
+
   if (bit) {
-    words_[index / 64] |= (1UL << (index % 64));
+    words_[word_id] |= 1UL << bit_id;
   } else {
-    words_[index / 64] &= ~(1UL << (index % 64));
+    words_[word_id] &= ~(1UL << bit_id);
   }
 }
 
