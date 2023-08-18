@@ -320,11 +320,7 @@ class operator_impl<
         return detail::window_results{detail::equal_result::UNEQUAL, -1};
       }();
 
-      // If the key is already in the container, return false
-      if (group.any(state == detail::equal_result::EQUAL)) { return; }
-
       auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
-
       if (group_contains_empty) {
         auto const src_lane = __ffs(group_contains_empty) - 1;
         auto const status =
@@ -334,6 +330,7 @@ class operator_impl<
                 value)
             : false;
 
+        // Exit if inserted or assigned
         if (group.shfl(status, src_lane)) { return; }
       } else {
         ++probing_iter;
