@@ -73,10 +73,14 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
     uint64_t bit_id  = key % 64;
     uint64_t rank_id = word_id / 4;
     uint64_t rel_id  = word_id % 4;
-    auto rank        = rank_union{ref_.ranks_ref_[rank_id][0]}.rank_;
-    uint64_t n       = rank.abs();
+
+    auto rank  = rank_union{ref_.ranks_ref_[rank_id][0]}.rank_;
+    uint64_t n = rank.abs();
+
     if (rel_id != 0) { n += rank.rels_[rel_id - 1]; }
+
     n += __popcll(ref_.words_ref_[word_id][0] & ((1UL << bit_id) - 1));
+
     return n;
   }
 
@@ -136,6 +140,7 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
     uint64_t block_id = count / 256;
     uint64_t begin    = selects[block_id][0];
     uint64_t end      = selects[block_id + 1][0] + 1UL;
+
     if (begin + 10 >= end) {  // Linear search
       while (count >= rank_union{ranks[begin + 1][0]}.rank_.abs()) {
         ++begin;
@@ -143,6 +148,7 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
     } else {  // Binary search
       while (begin + 1 < end) {
         const uint64_t middle = (begin + end) / 2;
+
         if (count < rank_union{ranks[middle][0]}.rank_.abs()) {
           end = middle;
         } else {
