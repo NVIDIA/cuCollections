@@ -22,12 +22,12 @@ namespace detail {
 
 template <typename StorageRef, typename... Operators>
 class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
-  using ref_type  = bit_vector_ref<StorageRef, Operators...>;
-  using size_type = typename StorageRef::size_type;
-  using slot_type = typename StorageRef::value_type;
+  using ref_type  = bit_vector_ref<StorageRef, Operators...>;  ///< Bitvector ref type
+  using size_type = typename StorageRef::size_type;            ///< Size type
+  using slot_type = typename StorageRef::value_type;           ///< Slot type
 
   const size_type bits_per_word   = sizeof(slot_type) * 8;
-  const size_type words_per_block = 4;
+  const size_type words_per_block = 4;  //< This should match the defintion in bit_vector
 
  public:
   /**

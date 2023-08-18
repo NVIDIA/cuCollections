@@ -149,10 +149,10 @@ class bit_vector {
   size_type constexpr size() const noexcept { return n_bits_; }
 
  private:
-  size_type n_bits_;  ///< Number of bits added to bit_vector
+  size_type n_bits_;  ///< Number of bits bit_vector currently holds
 
-  const size_type bits_per_word   = sizeof(slot_type) * 8;
-  const size_type words_per_block = 4;
+  const size_type bits_per_word   = sizeof(slot_type) * 8;  ///< Bits in a word
+  const size_type words_per_block = 4;  ///< Provides tradeoff between space efficiency and perf.
   const size_type bits_per_block  = words_per_block * bits_per_word;
 
   // Host-side structures
@@ -180,19 +180,40 @@ class bit_vector {
   /**
    * @brief Constructs device-side structures and clears host-side structures
    *
-   * Effectively takes a snapshot of the bitvector and creates a device-side copy
+   * Takes a snapshot of bitvector and creates a device-side copy
    */
   void move_to_device() noexcept;
 
-  void update_selects(size_type word_id,
-                      slot_type word,
-                      size_type& gcount,
-                      std::vector<size_type>& selects) noexcept;
-
+  /**
+   * @brief Populates rank and select indexes on host
+   *
+   * @param words Aarray of words with all bits
+   * @param ranks Output array of ranks
+   * @param selects Output array of selects
+   * @param flip_bits If true, negate bits to construct indexes for `0` bits
+   */
   void build_ranks_and_selects(const std::vector<slot_type>& words,
                                std::vector<rank>& ranks,
                                std::vector<size_type>& selects,
                                bool flip_bits) noexcept;
+
+  /**
+   * @brief Add an entry to selects index that points to bits in a given word
+   *
+   * Entry will be added only when bitcount in current word pushes total bitcount beyond a
+   * 'bits_per_block' boundary
+   *
+   * @param word_id Index of current word
+   * @param word Current word
+   * @param count_in Running count of set bits in all previous words
+   * @param selects Selects index
+   *
+   * @return Running count after including set bits in current word
+   */
+  size_type add_selects_entry(size_type word_id,
+                              slot_type word,
+                              size_type count_in,
+                              std::vector<size_type>& selects) noexcept;
 };
 
 }  // namespace experimental
