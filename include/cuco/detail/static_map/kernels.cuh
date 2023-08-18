@@ -30,8 +30,7 @@ namespace static_map_ns {
 namespace detail {
 
 /**
- * @brief Inserts all elements in the range `[first, first + n)` if `pred` of the corresponding
- * stencil returns true.
+ * @brief TODO
  *
  * @note If multiple elements in `[first, first + n)` compare equal, it is unspecified which element
  * is inserted.
