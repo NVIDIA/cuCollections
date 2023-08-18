@@ -146,17 +146,17 @@ class bit_vector {
    *
    * @return Number of bits bit_vector holds
    */
-  size_t constexpr size() const noexcept { return n_bits_; }
+  size_type constexpr size() const noexcept { return n_bits_; }
 
  private:
-  uint64_t n_bits_;  ///< Number of bits added to bit_vector
+  size_type n_bits_;  ///< Number of bits added to bit_vector
 
   // Host-side structures
-  std::vector<uint64_t> words_;     ///< Words vector that represents all bits
-  std::vector<rank> ranks_;         ///< Holds the rank values for every 256-th bit (4-th word)
-  std::vector<rank> ranks0_;        ///< Same as ranks_ but for `0` bits
-  std::vector<uint64_t> selects_;   ///< Holds pointers to (0, 256, 512...)th `1` bit in ranks_
-  std::vector<uint64_t> selects0_;  ///< Same as selects_, but for `0` bits
+  std::vector<slot_type> words_;     ///< Words vector that represents all bits
+  std::vector<rank> ranks_;          ///< Holds the rank values for every 256-th bit (4-th word)
+  std::vector<rank> ranks0_;         ///< Same as ranks_ but for `0` bits
+  std::vector<size_type> selects_;   ///< Holds indices of (0, 256, 512...)th `1` bit in ranks_
+  std::vector<size_type> selects0_;  ///< Same as selects_, but for `0` bits
 
   // Device-side structures
   allocator_type allocator_;  ///< Allocator used to (de)allocate temporary storage

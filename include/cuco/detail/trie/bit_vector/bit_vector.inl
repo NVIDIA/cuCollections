@@ -51,10 +51,11 @@ void bit_vector<Allocator>::append(bool bit) noexcept
   ++n_bits_;
 }
 
-inline void update_selects(uint64_t word_id,
-                           uint64_t word,
-                           uint64_t& gcount,
-                           std::vector<uint64_t>& selects) noexcept
+template <typename slot_type, typename size_type>
+inline void update_selects(size_type word_id,
+                           slot_type word,
+                           size_type& gcount,
+                           std::vector<size_type>& selects) noexcept
 {
   uint64_t n_pops     = __builtin_popcountll(word);
   uint64_t new_gcount = gcount + n_pops;
@@ -73,31 +74,33 @@ inline void update_selects(uint64_t word_id,
   gcount = new_gcount;
 }
 
-inline void build_ranks_and_selects(const std::vector<uint64_t>& words,
+template <typename slot_type, typename size_type>
+inline void build_ranks_and_selects(const std::vector<slot_type>& words,
                                     std::vector<rank>& ranks,
-                                    std::vector<uint64_t>& selects,
+                                    std::vector<size_type>& selects,
                                     bool flip_bits) noexcept
 {
-  uint64_t n_blocks = words.size() / 4;  // Each block has four 64-bit words
+  constexpr size_type words_per_block = 4;
+  size_type n_blocks                  = words.size() / words_per_block;
   ranks.resize(n_blocks + 1);
 
-  uint64_t count = 0;
-  for (uint64_t block_id = 0; block_id < n_blocks; ++block_id) {
+  size_type count = 0;
+  for (size_type block_id = 0; block_id < n_blocks; ++block_id) {
     ranks[block_id].set_abs(count);
 
-    for (uint64_t block_offset = 0; block_offset < 4; ++block_offset) {
-      if (block_offset != 0) {  // Compute the deltas
+    for (size_type block_offset = 0; block_offset < words_per_block; ++block_offset) {
+      if (block_offset != 0) {  // Compute deltas
         ranks[block_id].rels_[block_offset - 1] = count - ranks[block_id].abs();
       }
 
-      uint64_t word_id = (block_id * 4) + block_offset;
-      auto word        = flip_bits ? ~words[word_id] : words[word_id];
+      size_type word_id = (block_id * words_per_block) + block_offset;
+      slot_type word    = flip_bits ? ~words[word_id] : words[word_id];
       update_selects(word_id, word, count, selects);  // Will update count
     }
   }
 
   ranks.back().set_abs(count);
-  selects.push_back(words.size() * 64 / 256);
+  selects.push_back(n_blocks);
 }
 
 template <class Allocator>
