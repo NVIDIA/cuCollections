@@ -57,24 +57,40 @@ void bit_vector<Allocator>::append(bool bit) noexcept
 }
 
 template <class Allocator>
-bit_vector<Allocator>::size_type bit_vector<Allocator>::add_selects_entry(
-  size_type word_id, slot_type word, size_type count_in, std::vector<size_type>& selects) noexcept
+void bit_vector<Allocator>::set(size_type index, bool bit) noexcept
 {
-  size_type count_out = count_in + __builtin_popcountll(word);
+  size_type word_id = index / bits_per_word;
+  size_type bit_id  = index % bits_per_word;
 
-  if ((count_in - 1) / bits_per_block != (count_out - 1) / bits_per_block) {
-    size_type count = count_in;
-    while (word != 0) {
-      size_type pos = __builtin_ctzll(word);
-      if (count % bits_per_block == 0) {
-        selects.push_back((word_id * bits_per_word + pos) / bits_per_block);
-        break;
-      }
-      word ^= 1UL << pos;
-      ++count;
-    }
+  if (bit) {
+    words_[word_id] |= 1UL << bit_id;
+  } else {
+    words_[word_id] &= ~(1UL << bit_id);
   }
-  return count_out;
+}
+
+template <class Allocator>
+void bit_vector<Allocator>::set_last(bool bit) noexcept
+{
+  set(n_bits_ - 1, bit);
+}
+
+template <class Allocator>
+void bit_vector<Allocator>::build() noexcept
+{
+  build_ranks_and_selects(words_, ranks_, selects_, false);   // 1-bits
+  build_ranks_and_selects(words_, ranks0_, selects0_, true);  // 0-bits
+  move_to_device();
+}
+
+template <class Allocator>
+void bit_vector<Allocator>::move_to_device() noexcept
+{
+  copy_host_array_to_aow(&aow_words_, words_);
+  copy_host_array_to_aow(&aow_ranks_, ranks_);
+  copy_host_array_to_aow(&aow_selects_, selects_);
+  copy_host_array_to_aow(&aow_ranks0_, ranks0_);
+  copy_host_array_to_aow(&aow_selects0_, selects0_);
 }
 
 template <class Allocator>
@@ -106,31 +122,42 @@ void bit_vector<Allocator>::build_ranks_and_selects(const std::vector<slot_type>
 }
 
 template <class Allocator>
-void bit_vector<Allocator>::build() noexcept
+bit_vector<Allocator>::size_type bit_vector<Allocator>::add_selects_entry(
+  size_type word_id, slot_type word, size_type count_in, std::vector<size_type>& selects) noexcept
 {
-  build_ranks_and_selects(words_, ranks_, selects_, false);   // 1-bits
-  build_ranks_and_selects(words_, ranks0_, selects0_, true);  // 0-bits
+  size_type count_out = count_in + __builtin_popcountll(word);
 
-  move_to_device();
-}
-
-template <class Allocator>
-void bit_vector<Allocator>::set(size_type index, bool bit) noexcept
-{
-  size_type word_id = index / bits_per_word;
-  size_type bit_id  = index % bits_per_word;
-
-  if (bit) {
-    words_[word_id] |= 1UL << bit_id;
-  } else {
-    words_[word_id] &= ~(1UL << bit_id);
+  if ((count_in - 1) / bits_per_block != (count_out - 1) / bits_per_block) {
+    size_type count = count_in;
+    while (word != 0) {
+      size_type pos = __builtin_ctzll(word);
+      if (count % bits_per_block == 0) {
+        selects.push_back((word_id * bits_per_word + pos) / bits_per_block);
+        break;
+      }
+      word ^= 1UL << pos;
+      ++count;
+    }
   }
+  return count_out;
 }
 
 template <class Allocator>
-void bit_vector<Allocator>::set_last(bool bit) noexcept
+template <class T>
+void bit_vector<Allocator>::copy_host_array_to_aow(storage_type** aow,
+                                                   std::vector<T>& host_array) noexcept
 {
-  set(n_bits_ - 1, bit);
+  uint64_t num_elements = host_array.size();
+  *aow                  = new storage_type(extent<size_type>{num_elements + 1}, allocator_);
+
+  if (num_elements > 0) {
+    // Move host array to device memory
+    thrust::device_vector<T> device_array = host_array;
+    host_array.clear();
+
+    // Copy device array to window structure
+    initialize_aow(*aow, device_array, num_elements);
+  }
 }
 
 // Copies device array to window structure
@@ -157,34 +184,6 @@ void initialize_aow(Storage* storage, thrust::device_vector<T>& device_array, ui
   auto device_ptr = reinterpret_cast<uint64_t*>(thrust::raw_pointer_cast(device_array.data()));
   copy_to_window<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
     storage->data(), num_elements, device_ptr);
-}
-
-template <class Allocator>
-template <class T>
-void bit_vector<Allocator>::copy_host_array_to_aow(storage_type** aow,
-                                                   std::vector<T>& host_array) noexcept
-{
-  uint64_t num_elements = host_array.size();
-  *aow                  = new storage_type(extent<size_type>{num_elements + 1}, allocator_);
-
-  if (num_elements > 0) {
-    // Move host array to device memory
-    thrust::device_vector<T> device_array = host_array;
-    host_array.clear();
-
-    // Copy device array to window structure
-    initialize_aow(*aow, device_array, num_elements);
-  }
-}
-
-template <class Allocator>
-void bit_vector<Allocator>::move_to_device() noexcept
-{
-  copy_host_array_to_aow(&aow_words_, words_);
-  copy_host_array_to_aow(&aow_ranks_, ranks_);
-  copy_host_array_to_aow(&aow_selects_, selects_);
-  copy_host_array_to_aow(&aow_ranks0_, ranks0_);
-  copy_host_array_to_aow(&aow_selects0_, selects0_);
 }
 
 template <class Allocator>

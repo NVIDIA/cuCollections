@@ -96,13 +96,6 @@ class bit_vector {
    */
   void append(bool bit) noexcept;
 
-  /**
-   * @brief Builds indexes for rank and select
-   *
-   * Also creates device-side snapshot
-   */
-  void build() noexcept;
-
   using size_type = std::size_t;  ///< size type to specify bit index
   /**
    * @brief Modifies a single bit
@@ -118,6 +111,13 @@ class bit_vector {
    * @param bit new value of last bit
    */
   void set_last(bool bit) noexcept;
+
+  /**
+   * @brief Builds indexes for rank and select
+   *
+   * Also creates device-side snapshot
+   */
+  void build() noexcept;
 
   using allocator_type = Allocator;  ///< Allocator type
   using slot_type      = uint64_t;   ///< Slot type
@@ -167,6 +167,13 @@ class bit_vector {
   storage_type *aow_words_, *aow_ranks_, *aow_selects_, *aow_ranks0_, *aow_selects0_;
 
   /**
+   * @brief Constructs device-side structures and clears host-side structures
+   *
+   * Takes a snapshot of bitvector and creates a device-side copy
+   */
+  void move_to_device() noexcept;
+
+  /**
    * @brief Creates a new window structure on device and intitializes it with contents of host array
    *
    * @tparam T Type of host array elements
@@ -176,13 +183,6 @@ class bit_vector {
    */
   template <class T>
   void copy_host_array_to_aow(storage_type** aow, std::vector<T>& host_array) noexcept;
-
-  /**
-   * @brief Constructs device-side structures and clears host-side structures
-   *
-   * Takes a snapshot of bitvector and creates a device-side copy
-   */
-  void move_to_device() noexcept;
 
   /**
    * @brief Populates rank and select indexes on host
