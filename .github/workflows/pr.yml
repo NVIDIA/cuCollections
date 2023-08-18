@@ -32,7 +32,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-
   get-devcontainer-version:
     name: Get devcontainer version
     runs-on: ubuntu-latest
