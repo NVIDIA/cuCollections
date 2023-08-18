@@ -42,7 +42,7 @@ struct rank {
    *
    * @return The base rank
    */
-  __host__ __device__ uint64_t abs() const
+  __host__ __device__ uint64_t constexpr abs() const noexcept
   {
     return (static_cast<uint64_t>(abs_hi_) << 8) | abs_lo_;
   }
@@ -52,7 +52,7 @@ struct rank {
    *
    * @param abs Base rank
    */
-  void set_abs(uint64_t abs)
+  void constexpr set_abs(uint64_t abs) noexcept
   {
     abs_hi_ = static_cast<uint32_t>(abs >> 8);
     abs_lo_ = static_cast<uint8_t>(abs);
@@ -100,14 +100,14 @@ class bit_vector {
    *
    * @param bit Boolean value of new bit to be added
    */
-  void append(bool bit);
+  void append(bool bit) noexcept;
 
   /**
    * @brief Builds indexes for rank and select
    *
    * Also creates device-side snapshot
    */
-  void build();
+  void build() noexcept;
 
   using size_type = typename Extent::value_type;  ///< size type to specify bit index
   /**
@@ -116,14 +116,14 @@ class bit_vector {
    * @param index position of bit to be modified
    * @param bit new value of bit
    */
-  void set(size_type index, bool bit);
+  void set(size_type index, bool bit) noexcept;
 
   /**
    * @brief Sets last bit to specified value
    *
    * @param bit new value of last bit
    */
-  void set_last(bool bit);
+  void set_last(bool bit) noexcept;
 
   static constexpr auto cg_size      = 1;      ///< CG size used for probing
   static constexpr auto window_size  = 1;      ///< Window size used for probing
@@ -158,7 +158,7 @@ class bit_vector {
    *
    * @return Number of bits bit_vector holds
    */
-  size_t size() const { return n_bits_; }
+  size_t constexpr size() const noexcept { return n_bits_; }
 
  private:
   uint64_t n_bits_;  ///< Number of bits added to bit_vector
@@ -183,14 +183,14 @@ class bit_vector {
    * @param host_array host array whose contents are used to intialize aow
    */
   template <class T>
-  void copy_host_array_to_aow(storage_type** aow, std::vector<T>& host_array);
+  void copy_host_array_to_aow(storage_type** aow, std::vector<T>& host_array) noexcept;
 
   /**
    * @brief Constructs device-side structures and clears host-side structures
    *
    * Effectively takes a snapshot of the bitvector and creates a device-side copy
    */
-  void move_to_device();
+  void move_to_device() noexcept;
 };
 
 }  // namespace experimental

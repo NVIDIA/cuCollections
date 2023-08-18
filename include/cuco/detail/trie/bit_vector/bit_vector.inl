@@ -43,7 +43,7 @@ bit_vector<Extent, Scope, Allocator, Storage>::~bit_vector()
 }
 
 template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-void bit_vector<Extent, Scope, Allocator, Storage>::append(bool bit)
+void bit_vector<Extent, Scope, Allocator, Storage>::append(bool bit) noexcept
 {
   if (n_bits_ % 256 == 0) { words_.resize((n_bits_ + 256) / 64); }  // Extend by four 64-bit words
   set(n_bits_, bit);
@@ -53,7 +53,7 @@ void bit_vector<Extent, Scope, Allocator, Storage>::append(bool bit)
 inline void update_selects(uint64_t word_id,
                            uint64_t word,
                            uint64_t& gcount,
-                           std::vector<uint64_t>& selects)
+                           std::vector<uint64_t>& selects) noexcept
 {
   uint64_t n_pops     = __builtin_popcountll(word);
   uint64_t new_gcount = gcount + n_pops;
@@ -75,7 +75,7 @@ inline void update_selects(uint64_t word_id,
 inline void build_ranks_and_selects(const std::vector<uint64_t>& words,
                                     std::vector<rank>& ranks,
                                     std::vector<uint64_t>& selects,
-                                    bool flip_bits)
+                                    bool flip_bits) noexcept
 {
   uint64_t n_blocks = words.size() / 4;  // Each block has four 64-bit words
   ranks.resize(n_blocks + 1);
@@ -100,7 +100,7 @@ inline void build_ranks_and_selects(const std::vector<uint64_t>& words,
 }
 
 template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-void bit_vector<Extent, Scope, Allocator, Storage>::build()
+void bit_vector<Extent, Scope, Allocator, Storage>::build() noexcept
 {
   build_ranks_and_selects(words_, ranks_, selects_, false);   // 1-bits
   build_ranks_and_selects(words_, ranks0_, selects0_, true);  // 0-bits
@@ -109,7 +109,7 @@ void bit_vector<Extent, Scope, Allocator, Storage>::build()
 }
 
 template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-void bit_vector<Extent, Scope, Allocator, Storage>::set(size_type index, bool bit)
+void bit_vector<Extent, Scope, Allocator, Storage>::set(size_type index, bool bit) noexcept
 {
   if (bit) {
     words_[index / 64] |= (1UL << (index % 64));
@@ -119,7 +119,7 @@ void bit_vector<Extent, Scope, Allocator, Storage>::set(size_type index, bool bi
 }
 
 template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-void bit_vector<Extent, Scope, Allocator, Storage>::set_last(bool bit)
+void bit_vector<Extent, Scope, Allocator, Storage>::set_last(bool bit) noexcept
 {
   set(n_bits_ - 1, bit);
 }
@@ -153,7 +153,7 @@ void initialize_aow(Storage* storage, thrust::device_vector<T>& device_array, ui
 template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
 template <class T>
 void bit_vector<Extent, Scope, Allocator, Storage>::copy_host_array_to_aow(
-  storage_type** aow, std::vector<T>& host_array)
+  storage_type** aow, std::vector<T>& host_array) noexcept
 {
   uint64_t num_elements = host_array.size();
   *aow                  = new storage_type(
@@ -170,7 +170,7 @@ void bit_vector<Extent, Scope, Allocator, Storage>::copy_host_array_to_aow(
 }
 
 template <class Extent, cuda::thread_scope Scope, class Allocator, class Storage>
-void bit_vector<Extent, Scope, Allocator, Storage>::move_to_device()
+void bit_vector<Extent, Scope, Allocator, Storage>::move_to_device() noexcept
 {
   copy_host_array_to_aow(&aow_words_, words_);
   copy_host_array_to_aow(&aow_ranks_, ranks_);
