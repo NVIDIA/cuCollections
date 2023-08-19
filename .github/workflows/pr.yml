@@ -32,6 +32,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  doxygen-check:
+    name: Doxygen check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Install Doxygen
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y doxygen
+      - name: Check Doxygen docs
+        run: |
+          ./ci/pre-commit/doxygen.sh
+          if [ $? -ne 0 ]; then
+            echo "Doxygen check failed"
+            exit 1
+          fi
+        shell: bash -euxo pipefail {0}
+
   get-devcontainer-version:
     name: Get devcontainer version
     runs-on: ubuntu-latest
