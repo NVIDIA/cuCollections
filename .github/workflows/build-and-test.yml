@@ -50,7 +50,15 @@ jobs:
             COMPILER_SEGMENT="${{ inputs.compiler }}${{ inputs.compiler_version }}-"
           fi
           DEVCONTAINER_IMAGE="rapidsai/devcontainers:${{inputs.devcontainer_version}}-cpp-${COMPILER_SEGMENT}cuda${{inputs.cuda_version}}-${{inputs.os}}"
+          echo "DEVCONTAINER_IMAGE=$DEVCONTAINER_IMAGE" >> $GITHUB_ENV
           echo "name=$DEVCONTAINER_IMAGE" >> $GITHUB_OUTPUT
+      - name: Check if devcontainer image exists
+        run: |
+          docker buildx imagetools inspect $DEVCONTAINER_IMAGE > /dev/null
+          if [ $? -ne 0 ]; then
+            echo "Error: Docker image $DEVCONTAINER_IMAGE does not exist."
+            exit 1
+          fi
 
   build:
     needs: devcontainer_image
@@ -58,7 +66,7 @@ jobs:
     name: Build ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
     uses: ./.github/workflows/run-as-coder.yml
     with:
-      name: Build ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}SM${{inputs.gpu_build_archs}}
+      name: Build ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
       runner: linux-${{inputs.cpu}}-cpu16
       image: ${{ needs.devcontainer_image.outputs.image_name }}
       command: |
@@ -70,7 +78,7 @@ jobs:
     name: Test ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
     uses: ./.github/workflows/run-as-coder.yml
     with:
-      name: Test ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}SM${{inputs.gpu_build_archs}}
+      name: Test ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
       runner: linux-${{inputs.cpu}}-gpu-v100-latest-1
       image: ${{ needs.devcontainer_image.outputs.image_name }}
       command: |
