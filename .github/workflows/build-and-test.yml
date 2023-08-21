@@ -55,10 +55,10 @@ jobs:
   build:
     needs: devcontainer_image
     if: inputs.build_script != '' && needs.devcontainer_image.outputs.image_name != ''
-    name: Build ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}
+    name: Build ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
     uses: ./.github/workflows/run-as-coder.yml
     with:
-      name: Build ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}
+      name: Build ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}SM${{inputs.gpu_build_archs}}
       runner: linux-${{inputs.cpu}}-cpu16
       image: ${{ needs.devcontainer_image.outputs.image_name }}
       command: |
@@ -67,10 +67,10 @@ jobs:
   test:
     needs: [devcontainer_image, build]
     if:  ${{ !cancelled() && ( needs.build.result == 'success' || needs.build.result == 'skipped' ) && inputs.test_script != '' && needs.devcontainer_image.outputs.image_name != '' && inputs.run_tests}}
-    name: Test ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}
+    name: Test ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
     uses: ./.github/workflows/run-as-coder.yml
     with:
-      name: Test ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}
+      name: Test ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}SM${{inputs.gpu_build_archs}}
       runner: linux-${{inputs.cpu}}-gpu-v100-latest-1
       image: ${{ needs.devcontainer_image.outputs.image_name }}
       command: |
