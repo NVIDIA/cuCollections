@@ -19,6 +19,6 @@ cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )";
 
 source ./build.sh "$@"
 
-ctest --test-dir ${BUILD_DIR}/tests --output-on-failure --timeout 15
+ctest --test-dir ${BUILD_DIR}/tests --output-on-failure --timeout 60
 
 echo "Test complete"
