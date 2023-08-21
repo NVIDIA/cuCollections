@@ -113,7 +113,13 @@ void bit_vector<Allocator>::build_ranks_and_selects(const std::vector<slot_type>
 
       size_type word_id = (block_id * words_per_block) + block_offset;
       slot_type word    = flip_bits ? ~words[word_id] : words[word_id];
-      count             = add_selects_entry(word_id, word, count, selects);
+
+      size_type prev_count = count;
+      count += __builtin_popcountll(word);
+
+      if ((prev_count - 1) / bits_per_block != (count - 1) / bits_per_block) {
+        add_selects_entry(word_id, word, prev_count, selects);
+      }
     }
   }
 
@@ -122,24 +128,22 @@ void bit_vector<Allocator>::build_ranks_and_selects(const std::vector<slot_type>
 }
 
 template <class Allocator>
-bit_vector<Allocator>::size_type bit_vector<Allocator>::add_selects_entry(
-  size_type word_id, slot_type word, size_type count_in, std::vector<size_type>& selects) noexcept
+void bit_vector<Allocator>::add_selects_entry(size_type word_id,
+                                              slot_type word,
+                                              size_type count,
+                                              std::vector<size_type>& selects) noexcept
 {
-  size_type count_out = count_in + __builtin_popcountll(word);
+  while (word != 0) {
+    size_type pos = __builtin_ctzll(word);
 
-  if ((count_in - 1) / bits_per_block != (count_out - 1) / bits_per_block) {
-    size_type count = count_in;
-    while (word != 0) {
-      size_type pos = __builtin_ctzll(word);
-      if (count % bits_per_block == 0) {
-        selects.push_back((word_id * bits_per_word + pos) / bits_per_block);
-        break;
-      }
-      word ^= 1UL << pos;
-      ++count;
+    if (count % bits_per_block == 0) {
+      selects.push_back((word_id * bits_per_word + pos) / bits_per_block);
+      break;
     }
+
+    word ^= 1UL << pos;
+    ++count;
   }
-  return count_out;
 }
 
 template <class Allocator>

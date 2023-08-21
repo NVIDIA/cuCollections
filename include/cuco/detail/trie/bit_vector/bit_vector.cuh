@@ -207,13 +207,11 @@ class bit_vector {
    * @param word Current word
    * @param count_in Running count of set bits in all previous words
    * @param selects Selects index
-   *
-   * @return Running count after including set bits in current word
    */
-  size_type add_selects_entry(size_type word_id,
-                              slot_type word,
-                              size_type count_in,
-                              std::vector<size_type>& selects) noexcept;
+  void add_selects_entry(size_type word_id,
+                         slot_type word,
+                         size_type count,
+                         std::vector<size_type>& selects) noexcept;
 };
 
 }  // namespace experimental
