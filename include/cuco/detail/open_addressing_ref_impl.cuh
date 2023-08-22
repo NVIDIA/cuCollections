@@ -574,7 +574,6 @@ class open_addressing_ref_impl {
     }
   }
 
- private:
   /**
    * @brief Compares the content of the address `address` (old value) with the `expected` value and,
    * only if they are the same, sets the content of `address` to `desired`.
@@ -659,6 +658,37 @@ class open_addressing_ref_impl {
     }
   }
 
+  /**
+   * @brief Gets the sentinel used to represent an empty slot.
+   *
+   * @return The sentinel value used to represent an empty slot
+   */
+  [[nodiscard]] __device__ constexpr value_type empty_slot_sentinel() const noexcept
+  {
+    return empty_slot_sentinel_;
+  }
+
+  /**
+   * @brief Gets the probing scheme.
+   *
+   * @return The probing scheme used for the container
+   */
+  [[nodiscard]] __device__ constexpr probing_scheme_type const& probing_scheme() const noexcept
+  {
+    return probing_scheme_;
+  }
+
+  /**
+   * @brief Gets the non-owning storage ref.
+   *
+   * @return The non-owning storage ref of the container
+   */
+  [[nodiscard]] __device__ constexpr storage_ref_type storage_ref() const noexcept
+  {
+    return storage_ref_;
+  }
+
+ private:
   /**
    * @brief Inserts the specified element with one single CAS operation.
    *

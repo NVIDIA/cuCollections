@@ -494,9 +494,9 @@ class static_map {
    * @return Pair of iterators indicating the last elements in the output
    */
   template <typename KeyOut, typename ValueOut>
-  [[nodiscard]] std::pair<KeyOut, ValueOut> retrieve_all(KeyOut keys_out,
-                                                         ValueOut values_out,
-                                                         cuda_stream_ref stream = {}) const;
+  std::pair<KeyOut, ValueOut> retrieve_all(KeyOut keys_out,
+                                           ValueOut values_out,
+                                           cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Gets the number of elements in the container.

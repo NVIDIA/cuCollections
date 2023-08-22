@@ -260,14 +260,16 @@ class operator_impl<
    */
   __device__ void insert_or_assign(value_type const& value) noexcept
   {
-    ref_type& ref_ = static_cast<ref_type&>(*this);
-    auto const key = value.first;
-
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter = ref_.impl_.probing_scheme_(key, ref_.impl_.storage_ref_.window_extent());
+
+    ref_type& ref_       = static_cast<ref_type&>(*this);
+    auto const key       = value.first;
+    auto& probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref     = ref_.impl_.storage_ref();
+    auto probing_iter    = probing_scheme(key, storage_ref.window_extent());
 
     while (true) {
-      auto const window_slots = ref_._impl_.storage_ref_[*probing_iter];
+      auto const window_slots = storage_ref[*probing_iter];
 
       for (auto& slot_content : window_slots) {
         auto const eq_res = ref_.predicate_(slot_content, key);
@@ -276,9 +278,7 @@ class operator_impl<
         if (eq_res == detail::equal_result::EMPTY) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           if (attempt_insert_or_assign(
-                (ref_.impl_.storage_ref_.data() + *probing_iter)->data() + intra_window_index,
-                value,
-                ref_.predicate_)) {
+                (storage_ref.data() + *probing_iter)->data() + intra_window_index, value)) {
             return;
           }
         }
@@ -300,13 +300,14 @@ class operator_impl<
                                    value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    auto const key = value.first;
 
-    auto probing_iter =
-      ref_.impl_.probing_scheme_(group, key, ref_.impl_.storage_ref_.window_extent());
+    auto const key       = value.first;
+    auto& probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref     = ref_.impl_.storage_ref();
+    auto probing_iter    = probing_scheme(key, storage_ref.window_extent());
 
     while (true) {
-      auto const window_slots = ref_.impl_.storage_ref_[*probing_iter];
+      auto const window_slots = storage_ref[*probing_iter];
 
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
@@ -328,8 +329,7 @@ class operator_impl<
         auto const status =
           (group.thread_rank() == src_lane)
             ? attempt_insert_or_assign(
-                (ref_.impl_.storage_ref_.data() + *probing_iter)->data() + intra_window_index,
-                value)
+                (storage_ref.data() + *probing_iter)->data() + intra_window_index, value)
             : false;
 
         // Exit if inserted or assigned
@@ -357,7 +357,7 @@ class operator_impl<
                                                      value_type const& value) noexcept
   {
     ref_type& ref_          = static_cast<ref_type&>(*this);
-    auto const expected_key = ref_.impl_.empty_slot_sentinel_.first;
+    auto const expected_key = ref_.impl_.empty_slot_sentinel().first;
 
     auto old_key      = ref_.impl_.compare_and_swap(&slot->first, expected_key, value.first);
     auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
