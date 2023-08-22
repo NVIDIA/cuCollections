@@ -101,6 +101,7 @@ ConfigureTest(STATIC_MULTIMAP_TEST
 ConfigureTest(BIT_VECTOR_TEST
     bit_vector/find_next_set_test.cu
     bit_vector/get_test.cu
+    bit_vector/set_test.cu
     bit_vector/rank_test.cu
     bit_vector/select_test.cu
     bit_vector/size_test.cu)

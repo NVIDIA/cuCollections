@@ -51,6 +51,12 @@ struct find_tag {
 struct bv_read_tag {
 } inline constexpr bv_read;
 
+/**
+ * @brief `bv_set` operator tag
+ */
+struct bv_set_tag {
+} inline constexpr bv_set;
+
 }  // namespace op
 }  // namespace experimental
 }  // namespace cuco
