@@ -95,6 +95,25 @@ void bit_vector<Allocator>::get(KeyIt keys_begin,
     ref_, keys_begin, outputs_begin, num_keys);
 }
 
+template <class Allocator>
+template <typename KeyIt, typename ValueIt>
+void bit_vector<Allocator>::set(KeyIt keys_begin,
+                                KeyIt keys_end,
+                                ValueIt vals_begin,
+                                cuda_stream_ref stream) const noexcept
+{
+  auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
+  if (num_keys == 0) { return; }
+
+  auto const grid_size =
+    (num_keys - 1) / (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE) + 1;
+
+  auto ref_ = this->ref(cuco::experimental::bv_set);
+
+  bitvector_set_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    ref_, keys_begin, vals_begin, num_keys);
+}
+
 template <typename BitvectorRef, typename KeyIt, typename OutputIt>
 __global__ void bitvector_get_kernel(BitvectorRef ref,
                                      KeyIt keys,
@@ -106,6 +125,21 @@ __global__ void bitvector_get_kernel(BitvectorRef ref,
 
   while (key_id < num_keys) {
     outputs[key_id] = ref.get(keys[key_id]);
+    key_id += loop_stride;
+  }
+}
+
+template <typename BitvectorRef, typename KeyIt, typename ValueIt>
+__global__ void bitvector_set_kernel(BitvectorRef ref,
+                                     KeyIt keys,
+                                     ValueIt values,
+                                     uint64_t num_keys)
+{
+  uint32_t const loop_stride = gridDim.x * blockDim.x;
+  uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;
+
+  while (key_id < num_keys) {
+    ref.set(keys[key_id], values[key_id]);
     key_id += loop_stride;
   }
 }

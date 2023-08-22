@@ -123,17 +123,34 @@ class bit_vector {
    * @brief Bulk get operation
    *
    * @tparam KeyIt Device-accessible iterator to keys
-   * @tparam OutputIt Device-accessible iterator to results
+   * @tparam OutputIt Device-accessible iterator to outputs
    *
-   * @param keys_begin Begin iterator to individual key characters
-   * @param keys_end End iterator to offsets
-   * @param outputs_begin Begin iterator to results
+   * @param keys_begin Begin iterator to keys list whose values are queried
+   * @param keys_end End iterator to keys list
+   * @param outputs_begin Begin iterator to outputs of get operation
    * @param stream Stream to execute get kernel
    */
   template <typename KeyIt, typename OutputIt>
   void get(KeyIt keys_begin,
            KeyIt keys_end,
            OutputIt outputs_begin,
+           cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief Bulk set operation
+   *
+   * @tparam KeyIt Device-accessible iterator to keys
+   * @tparam ValueIt Device-accessible iterator to values
+   *
+   * @param keys_begin Begin iterator to keys that need to modified
+   * @param keys_end End iterator to keys
+   * @param vals_begin Begin iterator to new bit values
+   * @param stream Stream to execute set kernel
+   */
+  template <typename KeyIt, typename ValueIt>
+  void set(KeyIt keys_begin,
+           KeyIt keys_end,
+           ValueIt vals_begin,
            cuda_stream_ref stream = {}) const noexcept;
 
   using allocator_type = Allocator;  ///< Allocator type

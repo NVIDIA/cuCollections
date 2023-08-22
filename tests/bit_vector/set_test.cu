@@ -21,32 +21,12 @@
 #include <thrust/sequence.h>
 #include <utils.hpp>
 
-template <class BitVectorRef>
-__global__ void set_kernel(BitVectorRef ref, uint64_t* keys, uint64_t* vals, uint64_t num_keys)
-{
-  size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
-  size_t stride = gridDim.x * blockDim.x;
-  while (index < num_keys) {
-    ref.set(keys[index], vals[index]);
-    index += stride;
-  }
-}
-
-template <class BitVectorRef>
-__global__ void get_kernel(BitVectorRef ref, size_t n, uint64_t* output)
-{
-  size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
-  size_t stride = gridDim.x * blockDim.x;
-  while (index < n) {
-    output[index] = ref.get(index);
-    index += stride;
-  }
-}
-
 TEST_CASE("Set test", "")
 {
-  constexpr std::size_t num_elements{400};
   cuco::experimental::bit_vector bv;
+
+  using size_type = cuco::experimental::bit_vector<>::size_type;
+  size_type num_elements{400};
 
   // Set odd bits on host
   for (size_t i = 0; i < num_elements; i++) {
@@ -54,27 +34,19 @@ TEST_CASE("Set test", "")
   }
   bv.build();
 
-  auto get_ref = bv.ref(cuco::experimental::bv_read);
-  thrust::device_vector<uint64_t> get_result(num_elements);
-  get_kernel<<<32, 32>>>(get_ref, num_elements, thrust::raw_pointer_cast(get_result.data()));
-  size_t num_set = thrust::reduce(thrust::device, get_result.begin(), get_result.end(), 0);
-  REQUIRE(num_set == num_elements / 2);
-
   // Set all bits on device
-  thrust::device_vector<uint64_t> d_keys(num_elements);
-  thrust::sequence(d_keys.begin(), d_keys.end(), 0);
+  thrust::device_vector<size_type> keys(num_elements);
+  thrust::sequence(keys.begin(), keys.end(), 0);
 
-  thrust::device_vector<uint64_t> d_vals(num_elements);
-  thrust::fill(d_vals.begin(), d_vals.end(), 1);
+  thrust::device_vector<bool> vals(num_elements);
+  thrust::fill(vals.begin(), vals.end(), 1);
 
-  auto set_ref = bv.ref(cuco::experimental::bv_set);
-  set_kernel<<<32, 32>>>(set_ref,
-                         thrust::raw_pointer_cast(d_keys.data()),
-                         thrust::raw_pointer_cast(d_vals.data()),
-                         num_elements);
+  bv.set(keys.begin(), keys.end(), vals.begin());
 
   // Check that all bits are set
-  get_kernel<<<32, 32>>>(get_ref, num_elements, thrust::raw_pointer_cast(get_result.data()));
-  num_set = thrust::reduce(thrust::device, get_result.begin(), get_result.end(), 0);
+  thrust::device_vector<size_type> get_outputs(num_elements);
+  bv.get(keys.begin(), keys.end(), get_outputs.begin());
+
+  size_type num_set = thrust::reduce(thrust::device, get_outputs.begin(), get_outputs.end(), 0);
   REQUIRE(num_set == num_elements);
 }
