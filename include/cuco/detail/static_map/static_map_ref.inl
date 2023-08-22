@@ -253,10 +253,10 @@ class operator_impl<
 
  public:
   /**
-   * @brief Inserts an element.
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, assigns `v`
+   * to the mapped_type corresponding to the key `k`.
    *
    * @param value The element to insert
-   * @return True if the given element is successfully inserted
    */
   __device__ void insert_or_assign(value_type const& value) noexcept
   {
@@ -290,9 +290,11 @@ class operator_impl<
   /**
    * @brief Inserts an element.
    *
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, assigns `v`
+   * to the mapped_type corresponding to the key `k`.
+   *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
-   * @return True if the given element is successfully inserted
    */
   __device__ void insert_or_assign(cooperative_groups::thread_block_tile<cg_size> const& group,
                                    value_type const& value) noexcept
@@ -339,6 +341,18 @@ class operator_impl<
   }
 
  private:
+  /**
+   * @brief Attempts to insert an element into a slot or update the matching payload with the given
+   * element
+   *
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, assigns `v`
+   * to the mapped_type corresponding to the key `k`.
+   *
+   * @param group The Cooperative Group used to perform group insert
+   * @param value The element to insert
+   *
+   * @return Returns `true` if the given `value` is inserted or `value` has a match in the map.
+   */
   __device__ constexpr bool attempt_insert_or_assign(value_type* slot,
                                                      value_type const& value) noexcept
   {
