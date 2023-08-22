@@ -311,7 +311,7 @@ TEMPLATE_TEST_CASE_SIG(
                                             thrust::equal_to<Key>,
                                             probe,
                                             cuco::cuda_allocator<std::byte>,
-                                            cuco::experimental::aow_storage<2>>{
+                                            cuco::experimental::storage<2>>{
     num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   REQUIRE(map.capacity() == gold_capacity);

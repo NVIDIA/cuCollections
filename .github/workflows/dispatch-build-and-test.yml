@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Dispatch build and test
+
+on:
+  workflow_call:
+    inputs:
+      per_cuda_compiler_matrix: {type: string, required: true}
+      build_script: {type: string, required: false}
+      test_script: {type: string, required: false}
+      devcontainer_version: {type: string, required: true}
+
+jobs:
+  # Using a matrix to dispatch to the build-and-test reusable workflow for each build configuration
+  # ensures that the build/test steps can overlap across different configurations. For example,
+  # the build step for CUDA 12.1 + gcc 9.3 can run at the same time as the test step for CUDA 11.0 + clang 11.
+  build_and_test:
+    name: ${{matrix.cpu}}
+    uses: ./.github/workflows/build-and-test.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(inputs.per_cuda_compiler_matrix) }}
+    with:
+      devcontainer_version: ${{ inputs.devcontainer_version }}
+      cuda_version: ${{ matrix.cuda }}
+      compiler: ${{ matrix.compiler.name }}
+      compiler_exe: ${{ matrix.compiler.exe }}
+      compiler_version: ${{ matrix.compiler.version }}
+      std: ${{ matrix.std }}
+      gpu_build_archs: ${{ matrix.gpu_build_archs }}
+      cpu: ${{ matrix.cpu }}
+      os: ${{ matrix.os }}
+      build_script: ${{ inputs.build_script }}
+      test_script: ${{ inputs.test_script }}
+      run_tests: ${{ contains(matrix.jobs, 'test') && !contains(github.event.head_commit.message, 'skip-tests') }}

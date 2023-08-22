@@ -71,7 +71,7 @@ class storage_base {
    *
    * @param size Number of elements to (de)allocate
    */
-  explicit constexpr storage_base(Extent size) : extent_{size} {}
+  __host__ __device__ explicit constexpr storage_base(Extent size) : extent_{size} {}
 
   /**
    * @brief Gets the total number of elements in the current storage.
