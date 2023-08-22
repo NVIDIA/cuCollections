@@ -49,10 +49,22 @@ TEST_CASE("Get test", "")
   }
   bv.build();
 
+  // Device-ref test
   auto ref = bv.ref(cuco::experimental::bv_read);
   thrust::device_vector<uint64_t> get_result(num_elements);
   get_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(get_result.data()));
 
   size_t num_set = thrust::reduce(thrust::device, get_result.begin(), get_result.end(), 0);
+  REQUIRE(num_set == num_set_ref);
+
+  // Host-bulk test
+  thrust::counting_iterator<uint64_t> iter(0);
+  thrust::device_vector<uint64_t> keys(num_elements);
+  thrust::copy(iter, iter + keys.size(), keys.begin());
+  thrust::fill(get_result.begin(), get_result.end(), 0);
+
+  bv.get(keys.begin(), keys.end(), get_result.begin());
+
+  num_set = thrust::reduce(thrust::device, get_result.begin(), get_result.end(), 0);
   REQUIRE(num_set == num_set_ref);
 }

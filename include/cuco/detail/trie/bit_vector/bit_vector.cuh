@@ -119,6 +119,23 @@ class bit_vector {
    */
   void build() noexcept;
 
+  /**
+   * @brief Bulk get operation
+   *
+   * @tparam KeyIt Device-accessible iterator to keys
+   * @tparam OutputIt Device-accessible iterator to results
+   *
+   * @param keys_begin Begin iterator to individual key characters
+   * @param keys_end End iterator to offsets
+   * @param outputs_begin Begin iterator to results
+   * @param stream Stream to execute get kernel
+   */
+  template <typename KeyIt, typename OutputIt>
+  void get(KeyIt keys_begin,
+           KeyIt keys_end,
+           OutputIt outputs_begin,
+           cuda_stream_ref stream = {}) const noexcept;
+
   using allocator_type = Allocator;  ///< Allocator type
   using slot_type      = uint64_t;   ///< Slot type
   using storage_type =
