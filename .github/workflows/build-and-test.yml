@@ -1,0 +1,86 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: build and test
+
+defaults:
+  run:
+    shell: bash -eo pipefail {0}
+
+on:
+  workflow_call:
+    inputs:
+      devcontainer_version: {type: string, required: true}
+      cuda_version: {type: string, required: true}
+      compiler: {type: string, required: true}
+      compiler_exe: {type: string, required: true}
+      compiler_version: {type: string, required: true}
+      std: {type: string, required: true}
+      gpu_build_archs: {type: string, required: true}
+      cpu: {type: string, required: true}
+      os: {type: string, required: true}
+      build_script: {type: string, required: false}
+      test_script: {type: string, required: false}
+      run_tests: {type: boolean, required: false, default: true}
+
+jobs:
+  devcontainer_image:
+    name: Devcontainer ${{ inputs.os }}/${{ inputs.compiler }}${{ inputs.compiler_version }}
+    runs-on: ubuntu-latest
+    outputs:
+      image_name: ${{ steps.compute-devcontainer-image-name.outputs.name }}
+    steps:
+      - name: Compute devcontainer image name
+        id: compute-devcontainer-image-name
+        run: |
+          COMPILER_SEGMENT=""
+          if [ "${{ inputs.compiler }}" != "cc" ] && [ "${{ inputs.compiler_exe }}" != "c++" ]; then
+            COMPILER_SEGMENT="${{ inputs.compiler }}${{ inputs.compiler_version }}-"
+          fi
+          DEVCONTAINER_IMAGE="rapidsai/devcontainers:${{inputs.devcontainer_version}}-cpp-${COMPILER_SEGMENT}cuda${{inputs.cuda_version}}-${{inputs.os}}"
+          echo "DEVCONTAINER_IMAGE=$DEVCONTAINER_IMAGE" >> $GITHUB_ENV
+          echo "name=$DEVCONTAINER_IMAGE" >> $GITHUB_OUTPUT
+      - name: Check if devcontainer image exists
+        run: |
+          docker buildx imagetools inspect $DEVCONTAINER_IMAGE > /dev/null
+          if [ $? -ne 0 ]; then
+            echo "Error: Docker image $DEVCONTAINER_IMAGE does not exist."
+            exit 1
+          fi
+
+  build:
+    needs: devcontainer_image
+    if: inputs.build_script != '' && needs.devcontainer_image.outputs.image_name != ''
+    name: Build ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
+    uses: ./.github/workflows/run-as-coder.yml
+    with:
+      name: Build ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
+      runner: linux-${{inputs.cpu}}-cpu16
+      image: ${{ needs.devcontainer_image.outputs.image_name }}
+      command: |
+        ${{ inputs.build_script }} "${{inputs.compiler_exe}}" "${{inputs.std}}" "${{inputs.gpu_build_archs}}"
+
+  test:
+    needs: [devcontainer_image, build]
+    if:  ${{ !cancelled() && ( needs.build.result == 'success' || needs.build.result == 'skipped' ) && inputs.test_script != '' && needs.devcontainer_image.outputs.image_name != '' && inputs.run_tests}}
+    name: Test ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
+    uses: ./.github/workflows/run-as-coder.yml
+    with:
+      name: Test ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
+      runner: linux-${{inputs.cpu}}-gpu-v100-latest-1
+      image: ${{ needs.devcontainer_image.outputs.image_name }}
+      command: |
+        nvidia-smi
+        ${{ inputs.test_script }} "${{inputs.compiler_exe}}" "${{inputs.std}}" "${{inputs.gpu_build_archs}}"
