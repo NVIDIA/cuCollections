@@ -24,8 +24,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-template <class BitVectorRef>
-__global__ void select_kernel(BitVectorRef ref, size_t n, uint64_t* output)
+template <class BitVectorRef, typename size_type>
+__global__ void select_kernel(BitVectorRef ref, size_type n, size_type* output)
 {
   size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
@@ -35,8 +35,8 @@ __global__ void select_kernel(BitVectorRef ref, size_t n, uint64_t* output)
   }
 }
 
-template <class BitVectorRef>
-__global__ void select0_kernel(BitVectorRef ref, size_t n, uint64_t* output)
+template <class BitVectorRef, typename size_type>
+__global__ void select0_kernel(BitVectorRef ref, size_type n, size_type* output)
 {
   size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
@@ -50,12 +50,13 @@ extern bool modulo_bitgen(uint64_t i);
 
 TEST_CASE("Select test", "")
 {
-  constexpr std::size_t num_elements{400};
-
   cuco::experimental::bit_vector bv;
 
-  uint64_t num_set = 0;
-  for (size_t i = 0; i < num_elements; i++) {
+  using size_type = cuco::experimental::bit_vector<>::size_type;
+  constexpr size_type num_elements{400};
+
+  size_type num_set = 0;
+  for (size_type i = 0; i < num_elements; i++) {
     bv.append(modulo_bitgen(i));
     num_set += modulo_bitgen(i);
   }
@@ -64,13 +65,13 @@ TEST_CASE("Select test", "")
 
   // Check select
   {
-    thrust::device_vector<uint64_t> device_result(num_set);
+    thrust::device_vector<size_type> device_result(num_set);
     select_kernel<<<1, 1024>>>(ref, num_set, thrust::raw_pointer_cast(device_result.data()));
-    thrust::host_vector<uint64_t> host_result = device_result;
+    thrust::host_vector<size_type> host_result = device_result;
 
-    uint64_t num_matches = 0;
-    uint64_t cur_set_pos = -1lu;
-    for (size_t i = 0; i < num_set; i++) {
+    size_type num_matches = 0;
+    size_type cur_set_pos = -1lu;
+    for (size_type i = 0; i < num_set; i++) {
       do {
         cur_set_pos++;
       } while (cur_set_pos < num_elements and !modulo_bitgen(cur_set_pos));
@@ -82,15 +83,15 @@ TEST_CASE("Select test", "")
 
   // Check select0
   {
-    uint64_t num_not_set = num_elements - num_set;
+    size_type num_not_set = num_elements - num_set;
 
-    thrust::device_vector<uint64_t> device_result(num_not_set);
+    thrust::device_vector<size_type> device_result(num_not_set);
     select0_kernel<<<1, 1024>>>(ref, num_not_set, thrust::raw_pointer_cast(device_result.data()));
-    thrust::host_vector<uint64_t> host_result = device_result;
+    thrust::host_vector<size_type> host_result = device_result;
 
-    uint64_t num_matches     = 0;
-    uint64_t cur_not_set_pos = -1lu;
-    for (size_t i = 0; i < num_not_set; i++) {
+    size_type num_matches     = 0;
+    size_type cur_not_set_pos = -1lu;
+    for (size_type i = 0; i < num_not_set; i++) {
       do {
         cur_not_set_pos++;
       } while (cur_not_set_pos < num_elements and modulo_bitgen(cur_not_set_pos));

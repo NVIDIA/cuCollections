@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
-
+#include <catch2/catch_test_macros.hpp>
 #include <cuco/detail/trie/bit_vector/bit_vector.cuh>
-
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/sequence.h>
+#include <utils.hpp>
 
-#include <catch2/catch_test_macros.hpp>
-
-template <class BitVectorRef>
-__global__ void get_kernel(BitVectorRef ref, size_t n, uint64_t* output)
+template <class BitVectorRef, typename size_type>
+__global__ void get_kernel(BitVectorRef ref, size_type n, size_type* output)
 {
   size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
@@ -38,12 +36,13 @@ bool modulo_bitgen(uint64_t i) { return i % 7 == 0; }
 
 TEST_CASE("Get test", "")
 {
-  constexpr std::size_t num_elements{400};
-
   cuco::experimental::bit_vector bv;
 
-  size_t num_set_ref = 0;
-  for (size_t i = 0; i < num_elements; i++) {
+  using size_type = cuco::experimental::bit_vector<>::size_type;
+  constexpr size_type num_elements{400};
+
+  size_type num_set_ref = 0;
+  for (size_type i = 0; i < num_elements; i++) {
     bv.append(modulo_bitgen(i));
     num_set_ref += modulo_bitgen(i);
   }
@@ -51,16 +50,15 @@ TEST_CASE("Get test", "")
 
   // Device-ref test
   auto ref = bv.ref(cuco::experimental::bv_read);
-  thrust::device_vector<uint64_t> get_result(num_elements);
+  thrust::device_vector<size_type> get_result(num_elements);
   get_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(get_result.data()));
 
-  size_t num_set = thrust::reduce(thrust::device, get_result.begin(), get_result.end(), 0);
+  size_type num_set = thrust::reduce(thrust::device, get_result.begin(), get_result.end(), 0);
   REQUIRE(num_set == num_set_ref);
 
   // Host-bulk test
-  thrust::counting_iterator<uint64_t> iter(0);
-  thrust::device_vector<uint64_t> keys(num_elements);
-  thrust::copy(iter, iter + keys.size(), keys.begin());
+  thrust::device_vector<size_type> keys(num_elements);
+  thrust::sequence(keys.begin(), keys.end(), 0);
   thrust::fill(get_result.begin(), get_result.end(), 0);
 
   bv.get(keys.begin(), keys.end(), get_result.begin());

@@ -24,8 +24,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-template <class BitVectorRef>
-__global__ void find_next_set_kernel(BitVectorRef ref, size_t n, uint64_t* output)
+template <class BitVectorRef, typename size_type>
+__global__ void find_next_set_kernel(BitVectorRef ref, size_type n, size_type* output)
 {
   size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
@@ -39,29 +39,30 @@ extern bool modulo_bitgen(uint64_t i);
 
 TEST_CASE("Find next set test", "")
 {
-  constexpr std::size_t num_elements{400};
-
   cuco::experimental::bit_vector bv;
 
-  for (size_t i = 0; i < num_elements; i++) {
+  using size_type = cuco::experimental::bit_vector<>::size_type;
+  constexpr size_type num_elements{400};
+
+  for (size_type i = 0; i < num_elements; i++) {
     bv.append(modulo_bitgen(i));
   }
   bv.build();
 
-  thrust::device_vector<uint64_t> device_result(num_elements);
+  thrust::device_vector<size_type> device_result(num_elements);
   auto ref = bv.ref(cuco::experimental::bv_read);
   find_next_set_kernel<<<1, 1024>>>(
     ref, num_elements, thrust::raw_pointer_cast(device_result.data()));
 
-  thrust::host_vector<uint64_t> host_result = device_result;
-  uint64_t num_matches                      = 0;
+  thrust::host_vector<size_type> host_result = device_result;
+  size_type num_matches                      = 0;
 
-  size_t next_set_pos = -1lu;
+  size_type next_set_pos = -1lu;
   do {
     next_set_pos++;
   } while (next_set_pos < num_elements and !modulo_bitgen(next_set_pos));
 
-  for (size_t key = 0; key < num_elements; key++) {
+  for (size_type key = 0; key < num_elements; key++) {
     num_matches += host_result[key] == next_set_pos;
 
     if (key == next_set_pos) {

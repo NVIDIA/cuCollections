@@ -24,8 +24,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-template <class BitVectorRef>
-__global__ void rank_kernel(BitVectorRef ref, size_t n, uint64_t* output)
+template <class BitVectorRef, typename size_type>
+__global__ void rank_kernel(BitVectorRef ref, size_type n, size_type* output)
 {
   size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
@@ -39,23 +39,24 @@ extern bool modulo_bitgen(uint64_t i);
 
 TEST_CASE("Rank test", "")
 {
-  constexpr std::size_t num_elements{400};
-
   cuco::experimental::bit_vector bv;
 
-  for (size_t i = 0; i < num_elements; i++) {
+  using size_type = cuco::experimental::bit_vector<>::size_type;
+  constexpr size_type num_elements{400};
+
+  for (size_type i = 0; i < num_elements; i++) {
     bv.append(modulo_bitgen(i));
   }
   bv.build();
 
-  thrust::device_vector<uint64_t> rank_result_device(num_elements);
+  thrust::device_vector<size_type> rank_result_device(num_elements);
   auto ref = bv.ref(cuco::experimental::bv_read);
   rank_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(rank_result_device.data()));
 
-  thrust::host_vector<uint64_t> rank_result = rank_result_device;
-  uint64_t cur_rank                         = 0;
-  uint64_t num_matches                      = 0;
-  for (size_t i = 0; i < num_elements; i++) {
+  thrust::host_vector<size_type> rank_result = rank_result_device;
+  size_type cur_rank                         = 0;
+  size_type num_matches                      = 0;
+  for (size_type i = 0; i < num_elements; i++) {
     num_matches += cur_rank == rank_result[i];
     if (modulo_bitgen(i)) { cur_rank++; }
   }

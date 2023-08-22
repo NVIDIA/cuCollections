@@ -20,15 +20,15 @@
 
 TEST_CASE("Size computation", "")
 {
-  constexpr std::size_t num_elements{400};
-
   cuco::experimental::bit_vector bv;
+  using size_type = cuco::experimental::bit_vector<>::size_type;
+  size_type num_elements{400};
 
-  for (size_t i = 0; i < num_elements; i++) {
+  for (size_type i = 0; i < num_elements; i++) {
     bv.append(i % 2 == 0);  // Alternate 0s and 1s pattern
   }
   bv.build();
 
-  auto const size = bv.size();
+  auto size = bv.size();
   REQUIRE(size == num_elements);
 }
