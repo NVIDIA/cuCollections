@@ -1,3 +1,4 @@
+#!/bin/bash
 # SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,7 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# This file controls which features from the `ops-bot` repository below are enabled.
-# - https://github.com/rapidsai/ops-bot
+# Ensure the script is being executed in its containing directory
+cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )";
 
-copy_prs: true
+source ./build.sh "$@"
+
+ctest --test-dir ${BUILD_DIR}/tests --output-on-failure --timeout 60
+
+echo "Test complete"

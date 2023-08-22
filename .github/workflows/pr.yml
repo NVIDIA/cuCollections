@@ -1,0 +1,121 @@
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This is the main workflow that runs on every PR and push to main
+name: pr
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - "pull-request/[0-9]+"
+
+# Only runs one instance of this workflow at a time for a given PR and cancels any in-progress runs when a new one starts.
+concurrency:
+  group: ${{ github.workflow }}-on-${{ github.event_name }}-from-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  doxygen-check:
+    name: Doxygen check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Install Doxygen
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y doxygen
+      - name: Check Doxygen docs
+        run: |
+          ./ci/pre-commit/doxygen.sh
+          if [ $? -ne 0 ]; then
+            echo "Doxygen check failed"
+            exit 1
+          fi
+        shell: bash -euxo pipefail {0}
+
+  get-devcontainer-version:
+    name: Get devcontainer version
+    runs-on: ubuntu-latest
+    outputs:
+      DEVCONTAINER_VERSION: ${{ steps.set-outputs.outputs.DEVCONTAINER_VERSION }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Get devcontainer version
+        id: set-outputs
+        run: |
+          DEVCONTAINER_VERSION=$(yq -o json ci/matrix.yml | jq -r '.devcontainer_version')
+          echo "DEVCONTAINER_VERSION=$DEVCONTAINER_VERSION" | tee -a "$GITHUB_OUTPUT"
+
+  compute-nvcc-matrix:
+    name: Compute NVCC matrix
+    runs-on: ubuntu-latest
+    outputs:
+      FULL_MATRIX: ${{ steps.set-outputs.outputs.FULL_MATRIX }}
+      CUDA_VERSIONS: ${{ steps.set-outputs.outputs.CUDA_VERSIONS }}
+      HOST_COMPILERS: ${{ steps.set-outputs.outputs.HOST_COMPILERS }}
+      PER_CUDA_COMPILER_MATRIX: ${{ steps.set-outputs.outputs.PER_CUDA_COMPILER_MATRIX }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Get full nvcc matrix
+        id: compute-nvcc-matrix
+        uses: ./.github/actions/compute-matrix
+        with:
+          matrix_file: './ci/matrix.yml'
+          matrix_query: '.pull_request.nvcc'
+      - name: Set outputs
+        id: set-outputs
+        run: |
+          FULL_MATRIX='${{steps.compute-nvcc-matrix.outputs.matrix}}'
+          echo "FULL_MATRIX=$FULL_MATRIX" | tee -a "$GITHUB_OUTPUT"
+          CUDA_VERSIONS=$(echo $FULL_MATRIX | jq -c '[.[] | .cuda] | unique')
+          echo "CUDA_VERSIONS=$CUDA_VERSIONS" | tee -a "$GITHUB_OUTPUT"
+          HOST_COMPILERS=$(echo $FULL_MATRIX | jq -c '[.[] | .compiler.name] | unique')
+          echo "HOST_COMPILERS=$HOST_COMPILERS" | tee -a "$GITHUB_OUTPUT"
+          PER_CUDA_COMPILER_MATRIX=$(echo $FULL_MATRIX | jq -c ' group_by(.cuda + .compiler.name) | map({(.[0].cuda + "-" + .[0].compiler.name): .}) | add')
+          echo "PER_CUDA_COMPILER_MATRIX=$PER_CUDA_COMPILER_MATRIX" | tee -a "$GITHUB_OUTPUT"
+
+  ci:
+    name: CUDA${{ matrix.cuda_version }} ${{ matrix.compiler }}
+    needs: [compute-nvcc-matrix, get-devcontainer-version]
+    uses: ./.github/workflows/dispatch-build-and-test.yml
+    strategy:
+      fail-fast: false
+      matrix:
+        cuda_version: ${{ fromJSON(needs.compute-nvcc-matrix.outputs.CUDA_VERSIONS) }}
+        compiler: ${{ fromJSON(needs.compute-nvcc-matrix.outputs.HOST_COMPILERS) }}
+    with:
+      per_cuda_compiler_matrix: ${{ toJSON(fromJSON(needs.compute-nvcc-matrix.outputs.PER_CUDA_COMPILER_MATRIX)[ format('{0}-{1}', matrix.cuda_version, matrix.compiler) ]) }}
+      build_script: "./ci/build.sh"
+      test_script: "./ci/test.sh"
+      devcontainer_version: ${{ needs.get-devcontainer-version.outputs.DEVCONTAINER_VERSION }}
+
+  # This job is the final job that runs after all other jobs and is used for branch protection status checks.
+  # See: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/collaborating-on-repositories-with-code-quality-features/about-status-checks
+  ci-success:
+    runs-on: ubuntu-latest
+    name: CI success
+    needs:
+      - ci
+    steps:
+      - run: echo "CI success"
