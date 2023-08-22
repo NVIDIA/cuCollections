@@ -310,14 +310,14 @@ class operator_impl<
         for (auto i = 0; i < window_size; ++i) {
           switch (ref_.predicate_(window_slots[i], key)) {
             case detail::equal_result::EMPTY:
-              return detail::window_results{detail::equal_result::EMPTY, i};
+              return detail::window_probing_results{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL:
-              return detail::window_results{detail::equal_result::EQUAL, i};
+              return detail::window_probing_results{detail::equal_result::EQUAL, i};
             default: continue;
           }
         }
         // returns dummy index `-1` for UNEQUAL
-        return detail::window_results{detail::equal_result::UNEQUAL, -1};
+        return detail::window_probing_results{detail::equal_result::UNEQUAL, -1};
       }();
 
       auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);

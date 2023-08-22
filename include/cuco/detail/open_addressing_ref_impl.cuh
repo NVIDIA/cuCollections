@@ -41,17 +41,18 @@ enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
 /**
  * @brief Helper struct to store intermediate window probing results.
  */
-struct window_results {
+struct window_probing_results {
   detail::equal_result state_;  ///< Equal result
   int32_t intra_window_index_;  ///< Intra-window index
 
   /**
-   * @brief Constructs window_results.
+   * @brief Constructs window_probing_results.
    *
    * @param state The three way equality result
    * @param index Intra-window index
    */
-  __device__ explicit constexpr window_results(detail::equal_result state, int32_t index) noexcept
+  __device__ explicit constexpr window_probing_results(detail::equal_result state,
+                                                       int32_t index) noexcept
     : state_{state}, intra_window_index_{index}
   {
   }
@@ -221,13 +222,15 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (predicate(window_slots[i], key)) {
-            case detail::equal_result::EMPTY: return window_results{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL: return window_results{detail::equal_result::EQUAL, i};
+            case detail::equal_result::EMPTY:
+              return window_probing_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL:
+              return window_probing_results{detail::equal_result::EQUAL, i};
             default: continue;
           }
         }
         // returns dummy index `-1` for UNEQUAL
-        return window_results{detail::equal_result::UNEQUAL, -1};
+        return window_probing_results{detail::equal_result::UNEQUAL, -1};
       }();
 
       // If the key is already in the container, return false
@@ -345,13 +348,15 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (predicate(window_slots[i], key)) {
-            case detail::equal_result::EMPTY: return window_results{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL: return window_results{detail::equal_result::EQUAL, i};
+            case detail::equal_result::EMPTY:
+              return window_probing_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL:
+              return window_probing_results{detail::equal_result::EQUAL, i};
             default: continue;
           }
         }
         // returns dummy index `-1` for UNEQUAL
-        return window_results{detail::equal_result::UNEQUAL, -1};
+        return window_probing_results{detail::equal_result::UNEQUAL, -1};
       }();
 
       auto* slot_ptr = (storage_ref_.data() + *probing_iter)->data() + intra_window_index;
@@ -541,13 +546,15 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (predicate(window_slots[i], key)) {
-            case detail::equal_result::EMPTY: return window_results{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL: return window_results{detail::equal_result::EQUAL, i};
+            case detail::equal_result::EMPTY:
+              return window_probing_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL:
+              return window_probing_results{detail::equal_result::EQUAL, i};
             default: continue;
           }
         }
         // returns dummy index `-1` for UNEQUAL
-        return window_results{detail::equal_result::UNEQUAL, -1};
+        return window_probing_results{detail::equal_result::UNEQUAL, -1};
       }();
 
       // Find a match for the probe key, thus return an iterator to the entry
