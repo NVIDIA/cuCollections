@@ -132,7 +132,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts an element.
    *
-   * @tparam IsSet Boolean indicating it's a set or map implementation
+   * @tparam HasPayload Boolean indicating it's a set or map implementation
    * @tparam Predicate Predicate type
    *
    * @param key Key of the element to insert
@@ -141,7 +141,7 @@ class open_addressing_ref_impl {
    *
    * @return True if the given element is successfully inserted
    */
-  template <bool IsSet, typename Predicate>
+  template <bool HasPayload, typename Predicate>
   __device__ bool insert(key_type const& key,
                          value_type const& value,
                          Predicate const& predicate) noexcept
@@ -159,7 +159,7 @@ class open_addressing_ref_impl {
         if (eq_res == detail::equal_result::EQUAL) { return false; }
         if (eq_res == detail::equal_result::EMPTY) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          switch (attempt_insert<IsSet>(
+          switch (attempt_insert<HasPayload>(
             (storage_ref_.data() + *probing_iter)->data() + intra_window_index, value, predicate)) {
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
@@ -174,7 +174,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts an element.
    *
-   * @tparam IsSet Boolean indicating it's a set or map implementation
+   * @tparam HasPayload Boolean indicating it's a set or map implementation
    * @tparam Predicate Predicate type
    *
    * @param group The Cooperative Group used to perform group insert
@@ -184,7 +184,7 @@ class open_addressing_ref_impl {
    *
    * @return True if the given element is successfully inserted
    */
-  template <bool IsSet, typename Predicate>
+  template <bool HasPayload, typename Predicate>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
                          key_type const& key,
                          value_type const& value,
@@ -216,7 +216,7 @@ class open_addressing_ref_impl {
         auto const src_lane = __ffs(group_contains_empty) - 1;
         auto const status =
           (group.thread_rank() == src_lane)
-            ? attempt_insert<IsSet>(
+            ? attempt_insert<HasPayload>(
                 (storage_ref_.data() + *probing_iter)->data() + intra_window_index,
                 value,
                 predicate)
@@ -240,7 +240,7 @@ class open_addressing_ref_impl {
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
-   * @tparam IsSet Boolean indicating it's a set or map implementation
+   * @tparam HasPayload Boolean indicating it's a set or map implementation
    * @tparam Predicate Predicate type
    *
    * @param key Key of the element to insert
@@ -250,7 +250,7 @@ class open_addressing_ref_impl {
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <bool IsSet, typename Predicate>
+  template <bool HasPayload, typename Predicate>
   __device__ thrust::pair<iterator, bool> insert_and_find(key_type const& key,
                                                           value_type const& value,
                                                           Predicate const& predicate) noexcept
@@ -270,7 +270,7 @@ class open_addressing_ref_impl {
         if (eq_res == detail::equal_result::EMPTY) {
           switch ([&]() {
             if constexpr (sizeof(value_type) <= 8) {
-              return packed_cas<IsSet>(window_ptr + i, value, predicate);
+              return packed_cas<HasPayload>(window_ptr + i, value, predicate);
             } else {
               return cas_dependent_write(window_ptr + i, value, predicate);
             }
@@ -296,7 +296,7 @@ class open_addressing_ref_impl {
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
-   * @tparam IsSet Boolean indicating it's a set or map implementation
+   * @tparam HasPayload Boolean indicating it's a set or map implementation
    * @tparam Predicate Predicate type
    *
    * @param group The Cooperative Group used to perform group insert_and_find
@@ -307,7 +307,7 @@ class open_addressing_ref_impl {
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <bool IsSet, typename Predicate>
+  template <bool HasPayload, typename Predicate>
   __device__ thrust::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group,
     key_type const& key,
@@ -348,7 +348,7 @@ class open_addressing_ref_impl {
         auto const status   = [&]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
           if constexpr (sizeof(value_type) <= 8) {
-            return packed_cas<IsSet>(slot_ptr, value, predicate);
+            return packed_cas<HasPayload>(slot_ptr, value, predicate);
           } else {
             return cas_dependent_write(slot_ptr, value, predicate);
           }
@@ -654,7 +654,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts the specified element with one single CAS operation.
    *
-   * @tparam IsSet Boolean indicating it's a set or map implementation
+   * @tparam HasPayload Boolean indicating it's a set or map implementation
    * @tparam Predicate Predicate type
    *
    * @param slot Pointer to the slot in memory
@@ -663,7 +663,7 @@ class open_addressing_ref_impl {
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  template <bool IsSet, typename Predicate>
+  template <bool HasPayload, typename Predicate>
   [[nodiscard]] __device__ constexpr insert_result packed_cas(value_type* slot,
                                                               value_type const& value,
                                                               Predicate const& predicate) noexcept
@@ -671,11 +671,11 @@ class open_addressing_ref_impl {
     auto old            = compare_and_swap(slot, this->empty_slot_sentinel_, value);
     auto* old_ptr       = reinterpret_cast<value_type*>(&old);
     auto const inserted = [&]() {
-      if constexpr (IsSet) {
+      if constexpr (HasPayload) {
         // If it's a set implementation, compare the whole slot content
         return cuco::detail::bitwise_compare(*old_ptr, this->empty_slot_sentinel_);
       }
-      if constexpr (not IsSet) {
+      if constexpr (not HasPayload) {
         // If it's a map implementation, compare keys only
         return cuco::detail::bitwise_compare(old_ptr->first, this->empty_slot_sentinel_.first);
       }
@@ -685,11 +685,11 @@ class open_addressing_ref_impl {
     } else {
       // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
       auto const res = [&]() {
-        if constexpr (IsSet) {
+        if constexpr (HasPayload) {
           // If it's a set implementation, compare the whole slot content
           return predicate.equal_to(*old_ptr, value);
         }
-        if constexpr (not IsSet) {
+        if constexpr (not HasPayload) {
           // If it's a map implementation, compare keys only
           return predicate.equal_to(old_ptr->first, value.first);
         }
@@ -786,7 +786,7 @@ class open_addressing_ref_impl {
    * @note Dispatches the correct implementation depending on the container
    * type and presence of other operator mixins.
    *
-   * @tparam IsSet Boolean indicating it's a set or map implementation
+   * @tparam HasPayload Boolean indicating it's a set or map implementation
    * @tparam Predicate Predicate type
    *
    * @param slot Pointer to the slot in memory
@@ -795,13 +795,13 @@ class open_addressing_ref_impl {
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  template <bool IsSet, typename Predicate>
+  template <bool HasPayload, typename Predicate>
   [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot,
                                                         value_type const& value,
                                                         Predicate const& predicate) noexcept
   {
     if constexpr (sizeof(value_type) <= 8) {
-      return packed_cas<IsSet>(slot, value, predicate);
+      return packed_cas<HasPayload>(slot, value, predicate);
     } else {
 #if (_CUDA_ARCH__ < 700)
       return cas_dependent_write(slot, value, predicate);
