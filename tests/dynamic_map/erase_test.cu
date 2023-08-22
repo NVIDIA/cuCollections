@@ -20,6 +20,7 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/functional.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -62,9 +63,7 @@ TEMPLATE_TEST_CASE_SIG("erase key",
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
     // keys were actaully deleted
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
-                                d_keys_exist.end(),
-                                [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
 
     // ensures that map is reusing deleted slots
     map.insert(pairs_begin, pairs_begin + num_keys);
@@ -73,21 +72,17 @@ TEMPLATE_TEST_CASE_SIG("erase key",
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin(),
-                               d_keys_exist.end(),
-                               [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
 
     // erase can act selectively
     map.erase(d_keys.begin(), d_keys.begin() + num_keys / 2);
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
-                                d_keys_exist.begin() + num_keys / 2,
-                                [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::none_of(
+      d_keys_exist.begin(), d_keys_exist.begin() + num_keys / 2, thrust::identity{}));
 
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin() + num_keys / 2,
-                               d_keys_exist.end(),
-                               [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::all_of(
+      d_keys_exist.begin() + num_keys / 2, d_keys_exist.end(), thrust::identity{}));
 
     // clear map
     map.erase(d_keys.begin() + num_keys / 2, d_keys.end());
@@ -115,13 +110,11 @@ TEMPLATE_TEST_CASE_SIG("erase key",
     map.erase(d_keys.begin(), d_keys.begin() + 2 * num_keys);
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
-                                d_keys_exist.begin() + 2 * num_keys,
-                                [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::none_of(
+      d_keys_exist.begin(), d_keys_exist.begin() + 2 * num_keys, thrust::identity{}));
 
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin() + 2 * num_keys,
-                               d_keys_exist.end(),
-                               [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::all_of(
+      d_keys_exist.begin() + 2 * num_keys, d_keys_exist.end(), thrust::identity{}));
 
     REQUIRE(map.get_size() == 2 * num_keys);
     // check that keys can be successfully deleted from all submaps (some will be unsuccessful
@@ -130,9 +123,7 @@ TEMPLATE_TEST_CASE_SIG("erase key",
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
-                                d_keys_exist.end(),
-                                [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
 
     REQUIRE(map.get_size() == 0);
   }
