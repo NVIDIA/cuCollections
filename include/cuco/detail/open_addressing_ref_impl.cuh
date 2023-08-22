@@ -674,8 +674,7 @@ class open_addressing_ref_impl {
       if constexpr (HasPayload) {
         // If it's a set implementation, compare the whole slot content
         return cuco::detail::bitwise_compare(*old_ptr, this->empty_slot_sentinel_);
-      }
-      if constexpr (not HasPayload) {
+      } else {
         // If it's a map implementation, compare keys only
         return cuco::detail::bitwise_compare(old_ptr->first, this->empty_slot_sentinel_.first);
       }
@@ -688,8 +687,7 @@ class open_addressing_ref_impl {
         if constexpr (HasPayload) {
           // If it's a set implementation, compare the whole slot content
           return predicate.equal_to(*old_ptr, value);
-        }
-        if constexpr (not HasPayload) {
+        } else {
           // If it's a map implementation, compare keys only
           return predicate.equal_to(old_ptr->first, value.first);
         }
