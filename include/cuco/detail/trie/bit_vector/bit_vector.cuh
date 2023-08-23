@@ -51,8 +51,10 @@ struct rank {
    * @brief Sets base rank of current 256-bit interval
    *
    * @param abs Base rank
+   *
+   * @return
    */
-  void constexpr set_abs(uint64_t abs) noexcept
+  constexpr void set_abs(uint64_t abs) noexcept
   {
     abs_hi_ = static_cast<uint32_t>(abs >> 8);
     abs_lo_ = static_cast<uint8_t>(abs);
@@ -80,10 +82,14 @@ union rank_union {
  *
  * @tparam Allocator Type of allocator used for device storage
  */
-
 template <class Allocator = cuco::cuda_allocator<std::byte>>
 class bit_vector {
  public:
+  /**
+   * @brief Constructs an empty bitvector
+   *
+   * @param allocator Allocator for internal storage
+   */
   bit_vector(Allocator const& allocator = Allocator{});
   ~bit_vector();
 
