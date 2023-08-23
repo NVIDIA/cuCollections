@@ -24,12 +24,12 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-template <class BitVectorRef, typename size_type>
-__global__ void rank_kernel(BitVectorRef ref, size_type n, size_type* output)
+template <class BitVectorRef, typename size_type, typename OutputIt>
+__global__ void rank_kernel(BitVectorRef ref, size_type num_elements, OutputIt output)
 {
   size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
-  while (index < n) {
+  while (index < num_elements) {
     output[index] = ref.rank(index);
     index += stride;
   }
@@ -51,7 +51,7 @@ TEST_CASE("Rank test", "")
 
   thrust::device_vector<size_type> rank_result_device(num_elements);
   auto ref = bv.ref(cuco::experimental::bv_read);
-  rank_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(rank_result_device.data()));
+  rank_kernel<<<1, 1024>>>(ref, num_elements, rank_result_device.data());
 
   thrust::host_vector<size_type> rank_result = rank_result_device;
   size_type cur_rank                         = 0;

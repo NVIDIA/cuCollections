@@ -21,12 +21,12 @@
 #include <thrust/sequence.h>
 #include <utils.hpp>
 
-template <class BitVectorRef, typename size_type>
-__global__ void get_kernel(BitVectorRef ref, size_type n, size_type* output)
+template <class BitVectorRef, typename size_type, typename OutputIt>
+__global__ void get_kernel(BitVectorRef ref, size_type num_elements, OutputIt output)
 {
   size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
-  while (index < n) {
+  while (index < num_elements) {
     output[index] = ref.get(index);
     index += stride;
   }
@@ -51,7 +51,7 @@ TEST_CASE("Get test", "")
   // Device-ref test
   auto ref = bv.ref(cuco::experimental::bv_read);
   thrust::device_vector<size_type> get_result(num_elements);
-  get_kernel<<<1, 1024>>>(ref, num_elements, thrust::raw_pointer_cast(get_result.data()));
+  get_kernel<<<1, 1024>>>(ref, num_elements, get_result.data());
 
   size_type num_set = thrust::reduce(thrust::device, get_result.begin(), get_result.end(), 0);
   REQUIRE(num_set == num_set_ref);

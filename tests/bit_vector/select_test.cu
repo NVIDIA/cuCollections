@@ -24,23 +24,23 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-template <class BitVectorRef, typename size_type>
-__global__ void select_kernel(BitVectorRef ref, size_type n, size_type* output)
+template <class BitVectorRef, typename size_type, typename OutputIt>
+__global__ void select_kernel(BitVectorRef ref, size_type num_elements, OutputIt output)
 {
   size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
-  while (index < n) {
+  while (index < num_elements) {
     output[index] = ref.select(index);
     index += stride;
   }
 }
 
-template <class BitVectorRef, typename size_type>
-__global__ void select0_kernel(BitVectorRef ref, size_type n, size_type* output)
+template <class BitVectorRef, typename size_type, typename OutputIt>
+__global__ void select0_kernel(BitVectorRef ref, size_type num_elements, OutputIt output)
 {
   size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
-  while (index < n) {
+  while (index < num_elements) {
     output[index] = ref.select0(index);
     index += stride;
   }
@@ -66,7 +66,7 @@ TEST_CASE("Select test", "")
   // Check select
   {
     thrust::device_vector<size_type> device_result(num_set);
-    select_kernel<<<1, 1024>>>(ref, num_set, thrust::raw_pointer_cast(device_result.data()));
+    select_kernel<<<1, 1024>>>(ref, num_set, device_result.data());
     thrust::host_vector<size_type> host_result = device_result;
 
     size_type num_matches = 0;
@@ -86,7 +86,7 @@ TEST_CASE("Select test", "")
     size_type num_not_set = num_elements - num_set;
 
     thrust::device_vector<size_type> device_result(num_not_set);
-    select0_kernel<<<1, 1024>>>(ref, num_not_set, thrust::raw_pointer_cast(device_result.data()));
+    select0_kernel<<<1, 1024>>>(ref, num_not_set, device_result.data());
     thrust::host_vector<size_type> host_result = device_result;
 
     size_type num_matches     = 0;
