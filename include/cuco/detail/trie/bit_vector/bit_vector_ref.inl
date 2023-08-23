@@ -44,6 +44,19 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
   }
 
   /**
+   * @brief Access a single word of internal storage
+   *
+   * @param word_id Index of word
+   *
+   * @return Word at position specified by index
+   */
+  [[nodiscard]] __device__ slot_type get_word(size_type word_id) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.words_ref_[word_id][0];
+  }
+
+  /**
    * @brief Find position of first set bit starting from a given position (inclusive)
    *
    * @param key Position of starting bit
