@@ -24,7 +24,6 @@
 
 #include <thrust/device_vector.h>
 
-#include <cuda/atomic>
 
 namespace cuco {
 namespace experimental {
