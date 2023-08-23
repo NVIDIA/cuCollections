@@ -170,7 +170,7 @@ void bit_vector<Allocator>::build_ranks_and_selects(const std::vector<slot_type>
       slot_type word    = flip_bits ? ~words[word_id] : words[word_id];
 
       size_type prev_count = count;
-      count += __builtin_popcountll(word);
+      count += cuda::std::popcount(word);
 
       if ((prev_count - 1) / bits_per_block != (count - 1) / bits_per_block) {
         add_selects_entry(word_id, word, prev_count, selects);
@@ -189,7 +189,7 @@ void bit_vector<Allocator>::add_selects_entry(size_type word_id,
                                               std::vector<size_type>& selects) noexcept
 {
   while (word != 0) {
-    size_type pos = __builtin_ctzll(word);
+    size_type pos = cuda::std::countr_zero(word);
 
     if (count % bits_per_block == 0) {
       selects.push_back((word_id * bits_per_word + pos) / bits_per_block);
