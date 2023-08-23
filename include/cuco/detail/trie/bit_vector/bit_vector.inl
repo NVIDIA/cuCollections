@@ -116,11 +116,11 @@ void bit_vector<Allocator>::set(KeyIt keys_begin,
     ref_, keys_begin, vals_begin, num_keys);
 }
 
-template <typename BitvectorRef, typename KeyIt, typename OutputIt>
+template <typename BitvectorRef, typename KeyIt, typename OutputIt, typename size_type>
 __global__ void bitvector_get_kernel(BitvectorRef ref,
                                      KeyIt keys,
                                      OutputIt outputs,
-                                     uint64_t num_keys)
+                                     size_type num_keys)
 {
   uint32_t const loop_stride = gridDim.x * blockDim.x;
   uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;
@@ -131,11 +131,11 @@ __global__ void bitvector_get_kernel(BitvectorRef ref,
   }
 }
 
-template <typename BitvectorRef, typename KeyIt, typename ValueIt>
+template <typename BitvectorRef, typename KeyIt, typename ValueIt, typename size_type>
 __global__ void bitvector_set_kernel(BitvectorRef ref,
                                      KeyIt keys,
                                      ValueIt values,
-                                     uint64_t num_keys)
+                                     size_type num_keys)
 {
   uint32_t const loop_stride = gridDim.x * blockDim.x;
   uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;
