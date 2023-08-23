@@ -274,7 +274,14 @@ class operator_impl<
       for (auto& slot_content : window_slots) {
         auto const eq_res = ref_.predicate_(slot_content, key);
 
-        // If the key is already in the container, return false
+        // If the key is already in the container, update the payload and return
+        if (eq_res == detail::equal_result::EQUAL) {
+          auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+          ref_.impl_.atomic_store(
+            &((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
+            value.second);
+          return;
+        }
         if (eq_res == detail::equal_result::EMPTY) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           if (attempt_insert_or_assign(
@@ -304,7 +311,7 @@ class operator_impl<
     auto const key       = value.first;
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
-    auto probing_iter    = probing_scheme(key, storage_ref.window_extent());
+    auto probing_iter    = probing_scheme(group, key, storage_ref.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref[*probing_iter];
@@ -323,6 +330,18 @@ class operator_impl<
         return detail::window_probing_results{detail::equal_result::UNEQUAL, -1};
       }();
 
+      auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
+      if (group_contains_equal) {
+        auto const src_lane = __ffs(group_contains_equal) - 1;
+        if (group.thread_rank() == src_lane) {
+          ref_.impl_.atomic_store(
+            &((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
+            value.second);
+        }
+        group.sync();
+        return;
+      }
+
       auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
       if (group_contains_empty) {
         auto const src_lane = __ffs(group_contains_empty) - 1;
@@ -330,7 +349,7 @@ class operator_impl<
           (group.thread_rank() == src_lane)
             ? attempt_insert_or_assign(
                 (storage_ref.data() + *probing_iter)->data() + intra_window_index, value)
-            : false;
+            : true;
 
         // Exit if inserted or assigned
         if (group.shfl(status, src_lane)) { return; }
