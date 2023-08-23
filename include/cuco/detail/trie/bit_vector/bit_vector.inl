@@ -20,9 +20,11 @@ namespace experimental {
 
 template <class Allocator>
 bit_vector<Allocator>::bit_vector(Allocator const& allocator)
-  : words_(),
-    ranks_(),
-    selects_(),
+  : words_{},
+    ranks_{},
+    ranks0_{},
+    selects_{},
+    selects0_{},
     n_bits_(0),
     allocator_(allocator),
     aow_words_(nullptr),
