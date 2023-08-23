@@ -35,7 +35,7 @@ __global__ void find_next_set_kernel(BitVectorRef ref, size_type n, size_type* o
   }
 }
 
-extern bool modulo_bitgen(uint64_t i);
+extern bool modulo_bitgen(uint64_t i);  // Defined in get_test.cu
 
 TEST_CASE("Find next set test", "")
 {

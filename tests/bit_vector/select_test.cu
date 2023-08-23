@@ -46,7 +46,7 @@ __global__ void select0_kernel(BitVectorRef ref, size_type n, size_type* output)
   }
 }
 
-extern bool modulo_bitgen(uint64_t i);
+extern bool modulo_bitgen(uint64_t i);  // Defined in get_test.cu
 
 TEST_CASE("Select test", "")
 {
