@@ -60,7 +60,7 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
     while (word == 0) {
       word = ref_.words_ref_[++word_id][0];
     }
-    return word_id * bits_per_word + __ffsll(word) - 1;
+    return word_id * bits_per_word + __ffsll(word) - 1;  // cuda intrinsic
   }
 
   /**
@@ -84,7 +84,7 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
 
     if (rel_id != 0) { n += rank.rels_[rel_id - 1]; }
 
-    n += __popcll(ref_.words_ref_[word_id][0] & ((1UL << bit_id) - 1));
+    n += cuda::std::popcount(ref_.words_ref_[word_id][0] & ((1UL << bit_id) - 1));
 
     return n;
   }
@@ -198,7 +198,7 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
     for (size_type pos = 0; pos < N; pos++) {
       word &= word - 1;
     }
-    return __ffsll(word & -word) - 1;
+    return __ffsll(word & -word) - 1;  // cuda intrinsic
   }
 };
 
@@ -222,8 +222,7 @@ class operator_impl<op::bv_set_tag, bit_vector_ref<StorageRef, Operators...>> {
 
     size_type word_id = key / bits_per_word;
     size_type bit_id  = key % bits_per_word;
-
-    slot_type& word = ref_.words_ref_[word_id][0];
+    slot_type& word   = ref_.words_ref_[word_id][0];
 
     if (bit) {
       word |= 1UL << bit_id;
