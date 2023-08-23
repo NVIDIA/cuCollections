@@ -20,29 +20,13 @@ namespace experimental {
 
 template <class Allocator>
 bit_vector<Allocator>::bit_vector(Allocator const& allocator)
-  : words_{},
-    ranks_{},
-    ranks0_{},
-    selects_{},
-    selects0_{},
-    n_bits_(0),
-    allocator_(allocator),
-    aow_words_(nullptr),
-    aow_ranks_(nullptr),
-    aow_selects_(nullptr),
-    aow_ranks0_(nullptr),
-    aow_selects0_(nullptr)
+  : words_{}, ranks_{}, ranks0_{}, selects_{}, selects0_{}, n_bits_(0), allocator_(allocator)
 {
 }
 
 template <class Allocator>
 bit_vector<Allocator>::~bit_vector()
 {
-  delete aow_words_;
-  delete aow_ranks_;
-  delete aow_selects_;
-  delete aow_ranks0_;
-  delete aow_selects0_;
 }
 
 template <class Allocator>
@@ -219,11 +203,11 @@ void bit_vector<Allocator>::add_selects_entry(size_type word_id,
 
 template <class Allocator>
 template <class T>
-void bit_vector<Allocator>::copy_host_array_to_aow(storage_type** aow,
+void bit_vector<Allocator>::copy_host_array_to_aow(std::unique_ptr<storage_type>* aow,
                                                    std::vector<T>& host_array) noexcept
 {
   uint64_t num_elements = host_array.size();
-  *aow                  = new storage_type(extent<size_type>{num_elements + 1}, allocator_);
+  *aow = std::make_unique<storage_type>(extent<size_type>{num_elements + 1}, allocator_);
 
   if (num_elements > 0) {
     // Move host array to device memory
@@ -250,7 +234,9 @@ __global__ void copy_to_window(WindowT* windows, cuco::detail::index_type n, T* 
 }
 
 template <class Storage, class T>
-void initialize_aow(Storage* storage, thrust::device_vector<T>& device_array, uint64_t num_elements)
+void initialize_aow(std::unique_ptr<Storage>& storage,
+                    thrust::device_vector<T>& device_array,
+                    uint64_t num_elements)
 {
   auto constexpr stride = 4;
   auto const grid_size  = (num_elements + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /

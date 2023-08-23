@@ -204,7 +204,7 @@ class bit_vector {
 
   // Device-side structures
   allocator_type allocator_;  ///< Allocator used to (de)allocate temporary storage
-  storage_type *aow_words_, *aow_ranks_, *aow_selects_, *aow_ranks0_, *aow_selects0_;
+  std::unique_ptr<storage_type> aow_words_, aow_ranks_, aow_selects_, aow_ranks0_, aow_selects0_;
 
   /**
    * @brief Constructs device-side structures and clears host-side structures
@@ -214,7 +214,7 @@ class bit_vector {
   void move_to_device() noexcept;
 
   /**
-   * @brief Creates a new window structure on device and intitializes it with contents of host array
+   * @brief Creates a new window structure on device and initializes it with contents of host array
    *
    * @tparam T Type of host array elements
    *
@@ -222,7 +222,8 @@ class bit_vector {
    * @param host_array host array whose contents are used to intialize aow
    */
   template <class T>
-  void copy_host_array_to_aow(storage_type** aow, std::vector<T>& host_array) noexcept;
+  void copy_host_array_to_aow(std::unique_ptr<storage_type>* aow,
+                              std::vector<T>& host_array) noexcept;
 
   /**
    * @brief Populates rank and select indexes on host
