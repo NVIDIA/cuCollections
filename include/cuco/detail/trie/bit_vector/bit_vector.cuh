@@ -185,9 +185,9 @@ class bit_vector {
  private:
   size_type n_bits_;  ///< Number of bits bit_vector currently holds
 
-  const size_type bits_per_word   = sizeof(slot_type) * 8;  ///< Bits in a word
-  const size_type words_per_block = 4;  ///< Provides tradeoff between space efficiency and perf.
-  const size_type bits_per_block  = words_per_block * bits_per_word;
+  static constexpr size_type bits_per_word   = sizeof(slot_type) * 8;  ///< Bits in a word
+  static constexpr size_type words_per_block = 4;  ///< Tradeoff between space efficiency and perf.
+  static constexpr size_type bits_per_block  = words_per_block * bits_per_word;
 
   // Host-side structures
   std::vector<slot_type> words_;     ///< Words vector that represents all bits
