@@ -24,7 +24,6 @@
 
 #include <thrust/device_vector.h>
 
-
 namespace cuco {
 namespace experimental {
 
