@@ -19,7 +19,7 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
   using slot_type = typename StorageRef::slot_type;            ///< Slot type
 
   static constexpr size_type bits_per_word   = sizeof(slot_type) * 8;
-  static constexpr size_type words_per_block = 4;  //< This should match the defintion in bit_vector
+  static constexpr size_type words_per_block = StorageRef::bit_vector_type::words_per_block;
 
  public:
   /**

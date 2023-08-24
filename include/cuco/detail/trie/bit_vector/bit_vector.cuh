@@ -160,8 +160,9 @@ class bit_vector {
    *@brief Struct to hold all storage refs needed by bitvector_ref
    */
   struct device_storage_ref {
-    using size_type = size_type;  ///< Size type
-    using slot_type = slot_type;  ///< Slot type
+    using size_type       = size_type;     ///< Size type
+    using slot_type       = slot_type;     ///< Slot type
+    using bit_vector_type = bit_vector<>;  ///< bit_vector_ref needs this to access words_per_block
 
     typename words_storage_type::ref_type words_ref_;  ///< Words ref
 
@@ -195,12 +196,14 @@ class bit_vector {
    */
   size_type constexpr size() const noexcept { return n_bits_; }
 
+  static constexpr size_type words_per_block = 4;  ///< Tradeoff between space efficiency and perf.
+
  private:
   size_type n_bits_;  ///< Number of bits bit_vector currently holds
 
-  static constexpr size_type bits_per_word   = sizeof(slot_type) * 8;  ///< Bits in a word
-  static constexpr size_type words_per_block = 4;  ///< Tradeoff between space efficiency and perf.
-  static constexpr size_type bits_per_block  = words_per_block * bits_per_word;
+  // These could be public if needed by other classes. Private for now
+  static constexpr size_type bits_per_word  = sizeof(slot_type) * 8;            ///< Bits in a word
+  static constexpr size_type bits_per_block = words_per_block * bits_per_word;  ///< Trivial
 
   // Host-side structures
   std::vector<slot_type> words_;     ///< Words vector that represents all bits
