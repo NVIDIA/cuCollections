@@ -202,7 +202,7 @@ void bit_vector<Allocator>::add_selects_entry(size_type word_id,
 }
 
 template <class Allocator>
-template <class T>
+template <class T, class storage_type>
 void bit_vector<Allocator>::copy_host_array_to_aow(std::unique_ptr<storage_type>* aow,
                                                    std::vector<T>& host_array) noexcept
 {
@@ -242,7 +242,7 @@ void initialize_aow(std::unique_ptr<Storage>& storage,
   auto const grid_size  = (num_elements + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
                          (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  auto device_ptr = reinterpret_cast<uint64_t*>(thrust::raw_pointer_cast(device_array.data()));
+  auto device_ptr = thrust::raw_pointer_cast(device_array.data());
   copy_to_window<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
     storage->data(), num_elements, device_ptr);
 }
@@ -252,11 +252,11 @@ template <typename... Operators>
 auto bit_vector<Allocator>::ref(Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
-  return ref_type<Operators...>{aow_words_->ref(),
-                                aow_ranks_->ref(),
-                                aow_selects_->ref(),
-                                aow_ranks0_->ref(),
-                                aow_selects0_->ref()};
+  return ref_type<Operators...>{device_storage_ref{aow_words_->ref(),
+                                                   aow_ranks_->ref(),
+                                                   aow_selects_->ref(),
+                                                   aow_ranks0_->ref(),
+                                                   aow_selects0_->ref()}};
 }
 
 }  // namespace experimental

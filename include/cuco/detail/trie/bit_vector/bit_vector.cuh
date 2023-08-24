@@ -18,7 +18,6 @@
 #pragma once
 
 #include <cuco/detail/trie/bit_vector/bit_vector_ref.cuh>
-#include <cuco/extent.cuh>
 #include <cuco/storage.cuh>
 #include <cuco/utility/allocator.hpp>
 
@@ -57,16 +56,6 @@ struct rank {
     abs_hi_ = static_cast<uint32_t>(abs >> 8);
     abs_lo_ = static_cast<uint8_t>(abs);
   }
-};
-
-/**
- * @brief Union of 64-bit word with rank
- *
- * Need this so that all aow_storage structures in bitvector have 64-bit element type
- */
-union rank_union {
-  uint64_t word_;  ///< word view
-  rank rank_;      ///< rank view
 };
 
 /**
@@ -159,13 +148,33 @@ class bit_vector {
 
   using allocator_type = Allocator;  ///< Allocator type
   using slot_type      = uint64_t;   ///< Slot type
-  using storage_type =
-    aow_storage<slot_type, 1, extent<size_type>, allocator_type>;  ///< Storage type
 
-  using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
+  using words_storage_type =
+    aow_storage<slot_type, 1, extent<size_type>, allocator_type>;  ///< storage type for words
+  using ranks_storage_type =
+    aow_storage<rank, 1, extent<size_type>, allocator_type>;  ///< storage type for ranks
+  using selects_storage_type =
+    aow_storage<size_type, 1, extent<size_type>, allocator_type>;  ///< storage type for selects
+
+  /**
+   *@brief Struct to hold all storage refs needed by bitvector_ref
+   */
+  struct device_storage_ref {
+    using size_type = size_type;  ///< Size type
+    using slot_type = slot_type;  ///< Slot type
+
+    typename words_storage_type::ref_type words_ref_;  ///< Words ref
+
+    typename ranks_storage_type::ref_type ranks_ref_;      ///< Ranks refs
+    typename selects_storage_type::ref_type selects_ref_;  ///< Selects refs
+
+    typename ranks_storage_type::ref_type ranks0_ref_;      ///< Ranks refs for 0 bits
+    typename selects_storage_type::ref_type selects0_ref_;  ///< Selects refs 0 bits
+  };
+
   template <typename... Operators>
   using ref_type =
-    bit_vector_ref<storage_ref_type, Operators...>;  ///< Non-owning container ref type
+    bit_vector_ref<device_storage_ref, Operators...>;  ///< Non-owning container ref type
 
   /**
    * @brief Get device ref with operators.
@@ -202,7 +211,13 @@ class bit_vector {
 
   // Device-side structures
   allocator_type allocator_;  ///< Allocator used to (de)allocate temporary storage
-  std::unique_ptr<storage_type> aow_words_, aow_ranks_, aow_selects_, aow_ranks0_, aow_selects0_;
+  std::unique_ptr<words_storage_type> aow_words_;
+
+  std::unique_ptr<ranks_storage_type> aow_ranks_;
+  std::unique_ptr<ranks_storage_type> aow_ranks0_;
+
+  std::unique_ptr<selects_storage_type> aow_selects_;
+  std::unique_ptr<selects_storage_type> aow_selects0_;
 
   /**
    * @brief Constructs device-side structures and clears host-side structures
@@ -219,7 +234,7 @@ class bit_vector {
    * @param aow pointer to destination (device window structure)
    * @param host_array host array whose contents are used to intialize aow
    */
-  template <class T>
+  template <class T, class storage_type>
   void copy_host_array_to_aow(std::unique_ptr<storage_type>* aow,
                               std::vector<T>& host_array) noexcept;
 
