@@ -272,4 +272,3 @@ class bit_vector {
 }  // namespace cuco
 
 #include <cuco/detail/trie/bit_vector/bit_vector.inl>
-#include <cuco/detail/trie/bit_vector/bit_vector_ref.inl>

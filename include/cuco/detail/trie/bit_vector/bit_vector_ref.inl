@@ -1,4 +1,4 @@
-#include <cuco/detail/trie/bit_vector/bit_vector.cuh>
+#include <cuda/std/bit>
 
 namespace cuco {
 namespace experimental {
@@ -173,13 +173,16 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
   /**
    * @brief Subtract rank estimate from input count and return an increment to word_id
    *
+   * @tparam Rank type
+   *
    * @param count Input count that will be updated
    * @param rank  Initial rank estimate for count
    *
    * @return Increment to word_id based on rank values
    */
-  [[nodiscard]] __device__ size_type
-  subtract_rank_from_count(size_type& count, cuco::experimental::rank rank) const noexcept
+  template <typename Rank>
+  [[nodiscard]] __device__ size_type subtract_rank_from_count(size_type& count,
+                                                              Rank rank) const noexcept
   {
     count -= rank.abs();
 

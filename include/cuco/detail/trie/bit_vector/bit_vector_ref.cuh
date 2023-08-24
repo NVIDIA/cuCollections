@@ -35,3 +35,5 @@ class bit_vector_ref
 
 }  // namespace experimental
 }  // namespace cuco
+
+#include <cuco/detail/trie/bit_vector/bit_vector_ref.inl>
