@@ -186,8 +186,8 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 `cuco::static_set` is a fixed-size container that stores unique elements in no particular order. See the Doxygen documentation in `static_set.cuh` for more detailed information.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/jnjcdG16c))
-- [Device-ref APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/EGMj6qx73))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/Pzf6vabz1))
+- [Device-ref APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/sfG3qKqGv))
 
 ### `static_map`
 
