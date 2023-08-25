@@ -349,7 +349,7 @@ class operator_impl<
           (group.thread_rank() == src_lane)
             ? attempt_insert_or_assign(
                 (storage_ref.data() + *probing_iter)->data() + intra_window_index, value)
-            : true;
+            : false;
 
         // Exit if inserted or assigned
         if (group.shfl(status, src_lane)) { return; }
