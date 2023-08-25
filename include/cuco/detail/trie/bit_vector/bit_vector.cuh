@@ -48,10 +48,8 @@ struct rank {
    * @brief Sets base rank of current 256-bit interval
    *
    * @param abs Base rank
-   *
-   * @return
    */
-  constexpr void set_abs(uint64_t abs) noexcept
+  __host__ __device__ void set_abs(uint64_t abs) noexcept
   {
     abs_hi_ = static_cast<uint32_t>(abs >> 8);
     abs_lo_ = static_cast<uint8_t>(abs);
@@ -206,69 +204,57 @@ class bit_vector {
   static constexpr size_type bits_per_block = words_per_block * bits_per_word;  ///< Trivial
 
   // Host-side structures
-  std::vector<slot_type> words_;     ///< Words vector that represents all bits
-  std::vector<rank> ranks_;          ///< Holds the rank values for every 256-th bit (4-th word)
-  std::vector<rank> ranks0_;         ///< Same as ranks_ but for `0` bits
-  std::vector<size_type> selects_;   ///< Holds indices of (0, 256, 512...)th `1` bit in ranks_
-  std::vector<size_type> selects0_;  ///< Same as selects_, but for `0` bits
+  std::vector<slot_type> words_;  ///< Words vector that represents all bits
 
   // Device-side structures
-  allocator_type allocator_;  ///< Allocator used to (de)allocate temporary storage
-  std::unique_ptr<words_storage_type> aow_words_;
+  thrust::device_vector<slot_type> d_words_;   ///< Device words vector
+  thrust::device_vector<rank> ranks_;          ///< Rank values for every 256-th bit (4-th word)
+  thrust::device_vector<rank> ranks0_;         ///< Same as ranks_ but for `0` bits
+  thrust::device_vector<size_type> selects_;   ///< Block indices of (0, 256, 512...)th `1` bit
+  thrust::device_vector<size_type> selects0_;  ///< Same as selects_, but for `0` bits
 
+  allocator_type allocator_;  ///< Allocator used to (de)allocate temporary storage
+  std::unique_ptr<words_storage_type> aow_words_;  ///< Array of window storage structure
   std::unique_ptr<ranks_storage_type> aow_ranks_;
   std::unique_ptr<ranks_storage_type> aow_ranks0_;
-
   std::unique_ptr<selects_storage_type> aow_selects_;
   std::unique_ptr<selects_storage_type> aow_selects0_;
 
   /**
-   * @brief Constructs device-side structures and clears host-side structures
+   * @brief Populates rank and select indexes on device
    *
-   * Takes a snapshot of bitvector and creates a device-side copy
-   */
-  void move_to_device() noexcept;
-
-  /**
-   * @brief Creates a new window structure on device and initializes it with contents of host array
-   *
-   * @tparam T Type of host array elements
-   *
-   * @param aow pointer to destination (device window structure)
-   * @param host_array host array whose contents are used to intialize aow
-   */
-  template <class T, class storage_type>
-  void copy_host_array_to_aow(std::unique_ptr<storage_type>* aow,
-                              std::vector<T>& host_array) noexcept;
-
-  /**
-   * @brief Populates rank and select indexes on host
-   *
-   * @param words Aarray of words with all bits
    * @param ranks Output array of ranks
    * @param selects Output array of selects
    * @param flip_bits If true, negate bits to construct indexes for `0` bits
    */
-  void build_ranks_and_selects(const std::vector<slot_type>& words,
-                               std::vector<rank>& ranks,
-                               std::vector<size_type>& selects,
-                               bool flip_bits) noexcept;
+  void build_ranks_and_selects(thrust::device_vector<rank>& ranks,
+                               thrust::device_vector<size_type>& selects,
+                               bool flip_bits);
 
   /**
-   * @brief Add an entry to selects index that points to bits in a given word
+   * @brief Creates a new window structure on device and initializes it from a device array
    *
-   * Entry will be added only when bitcount in current word pushes total bitcount beyond a
-   * 'bits_per_block' boundary
+   * @tparam T Type of device array elements
+   * @tparam storage_type Storage type
    *
-   * @param word_id Index of current word
-   * @param word Current word
-   * @param count_in Running count of set bits in all previous words
-   * @param selects Selects index
+   * @param aow pointer to destination (device window structure)
+   * @param device_array device array whose contents are used to intialize aow
    */
-  void add_selects_entry(size_type word_id,
-                         slot_type word,
-                         size_type count,
-                         std::vector<size_type>& selects) noexcept;
+  template <class T, class storage_type>
+  void copy_device_array_to_aow(std::unique_ptr<storage_type>* aow,
+                                thrust::device_vector<T>& device_array) noexcept;
+
+  /**
+   * @brief Helper function to calculate grid size for simple kernels
+   *
+   * @param num_elements Elements being processed by kernel
+   *
+   * @return grid size
+   */
+  size_type constexpr default_grid_size(size_type num_elements) const noexcept
+  {
+    return (num_elements - 1) / (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE) + 1;
+  }
 };
 
 }  // namespace experimental

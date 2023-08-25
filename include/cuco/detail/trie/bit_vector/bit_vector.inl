@@ -15,6 +15,9 @@
  * limitations under the License.
  */
 
+#include <thrust/execution_policy.h>
+#include <thrust/host_vector.h>
+
 namespace cuco {
 namespace experimental {
 
@@ -34,7 +37,7 @@ void bit_vector<Allocator>::append(bool bit) noexcept
 {
   if (n_bits_ % bits_per_block == 0) {
     size_type new_n_bits  = n_bits_ + bits_per_block;  // Extend storage by one block
-    size_type new_n_words = new_n_bits / words_per_block;
+    size_type new_n_words = new_n_bits / bits_per_word;
 
     words_.resize(new_n_words);
   }
@@ -72,10 +75,8 @@ void bit_vector<Allocator>::get(KeyIt keys_begin,
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
   if (num_keys == 0) { return; }
 
-  auto const grid_size =
-    (num_keys - 1) / (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE) + 1;
-
-  auto ref_ = this->ref(cuco::experimental::bv_read);
+  auto grid_size = default_grid_size(num_keys);
+  auto ref_      = this->ref(cuco::experimental::bv_read);
 
   bitvector_get_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
     ref_, keys_begin, outputs_begin, num_keys);
@@ -91,19 +92,30 @@ void bit_vector<Allocator>::set(KeyIt keys_begin,
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
   if (num_keys == 0) { return; }
 
-  auto const grid_size =
-    (num_keys - 1) / (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE) + 1;
-
-  auto ref_ = this->ref(cuco::experimental::bv_set);
+  auto grid_size = default_grid_size(num_keys);
+  auto ref_      = this->ref(cuco::experimental::bv_set);
 
   bitvector_set_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
     ref_, keys_begin, vals_begin, num_keys);
 }
 
-template <typename BitvectorRef, typename KeyIt, typename OutputIt, typename size_type>
+/*
+ * @brief Gather bits of a range of keys
+ *
+ * @tparam BitvectorRef Bitvector reference type
+ * @tparam KeyIt Device-accessible iterator to input keys
+ * @tparam ValueIt Device-accessible iterator to values
+ * @tparam size_type Size type
+ *
+ * @param ref Bitvector ref
+ * @param keys Begin iterator to keys
+ * @param outputs Begin iterator to outputs
+ * @param num_keys Number of input keys
+ */
+template <typename BitvectorRef, typename KeyIt, typename ValueIt, typename size_type>
 __global__ void bitvector_get_kernel(BitvectorRef ref,
                                      KeyIt keys,
-                                     OutputIt outputs,
+                                     ValueIt outputs,
                                      size_type num_keys)
 {
   uint32_t const loop_stride = gridDim.x * blockDim.x;
@@ -115,6 +127,19 @@ __global__ void bitvector_get_kernel(BitvectorRef ref,
   }
 }
 
+/*
+ * @brief Set bits of a range of keys
+ *
+ * @tparam BitvectorRef Bitvector reference type
+ * @tparam KeyIt Device-accessible iterator to input keys
+ * @tparam ValueIt Device-accessible iterator to values
+ * @tparam size_type Size type
+ *
+ * @param ref Bitvector ref
+ * @param keys Begin iterator to input keys
+ * @param values Begin iterator to input values
+ * @param num_keys Number of input keys
+ */
 template <typename BitvectorRef, typename KeyIt, typename ValueIt, typename size_type>
 __global__ void bitvector_set_kernel(BitvectorRef ref,
                                      KeyIt keys,
@@ -130,93 +155,197 @@ __global__ void bitvector_set_kernel(BitvectorRef ref,
   }
 }
 
+/*
+ * @brief Computes number of set or not-set bits in each word
+ *
+ * @tparam slot_type Word type
+ * @tparam size_type Size type
+ *
+ * @param words Input array of words
+ * @param bit_counts Output array of per-word bit counts
+ * @param num_words Number of words
+ * @param flip_bits Boolean to request negation of words before counting bits
+ */
+template <typename slot_type, typename size_type>
+__global__ void bit_counts_kernel(const slot_type* words,
+                                  size_type* bit_counts,
+                                  size_type num_words,
+                                  bool flip_bits)
+{
+  size_type word_id = blockDim.x * blockIdx.x + threadIdx.x;
+  size_type stride  = gridDim.x * blockDim.x;
+
+  while (word_id < num_words) {
+    auto word           = words[word_id];
+    bit_counts[word_id] = cuda::std::popcount(flip_bits ? ~word : word);
+    word_id += stride;
+  }
+}
+
+/*
+ * @brief Compute rank values at block size intervals.
+ *
+ * ranks[i] = Number of set bits in [0, i) range
+ * This kernel transforms prefix sum array of per-word bit counts
+ * into base-delta encoding style of `rank` struct.
+ * Since prefix sum is available, there are no dependencies across blocks.
+
+ * @tparam size_type Size type
+ *
+ * @param prefix_bit_counts Prefix sum array of per-word bit counts
+ * @param ranks Output array of ranks
+ * @param num_words Length of input array
+ * @param num_blocks Length of ouput array
+ * @param words_per_block Number of words in each block
+ */
+template <typename size_type>
+__global__ void encode_ranks_from_prefix_bit_counts(const size_type* prefix_bit_counts,
+                                                    rank* ranks,
+                                                    size_type num_words,
+                                                    size_type num_blocks,
+                                                    size_type words_per_block)
+{
+  size_type rank_id = blockDim.x * blockIdx.x + threadIdx.x;
+  size_type stride  = gridDim.x * blockDim.x;
+
+  while (rank_id < num_blocks) {
+    size_type word_id = rank_id * words_per_block;
+
+    // Set base value of rank
+    auto& rank = ranks[rank_id];
+    rank.set_abs(prefix_bit_counts[word_id]);
+
+    if (rank_id < num_blocks - 1) {
+      // For each subsequent word in this block, compute deltas from base
+      for (size_type block_offset = 0; block_offset < words_per_block - 1; block_offset++) {
+        auto delta = prefix_bit_counts[word_id + block_offset + 1] - prefix_bit_counts[word_id];
+        rank.rels_[block_offset] = delta;
+      }
+    }
+    rank_id += stride;
+  }
+}
+
+/*
+ * @brief Compute select values at block size intervals.
+ *
+ * selects[i] = Position of (i+ 1)th set bit
+ * This kernel check for blocks where prefix sum crosses a multiple of `bits_per_block`.
+ * Such blocks are marked in the output boolean array
+ *
+ * @tparam size_type Size type
+ *
+ * @param prefix_bit_counts Prefix sum array of per-word bit counts
+ * @param selects_markers Ouput array indicating whether a block has selects entry or not
+ * @param num_blocks Length of ouput array
+ * @param words_per_block Number of words in each block
+ * @param bits_per_block Number of bits in each block
+ */
+template <typename size_type>
+__global__ void mark_blocks_with_select_entries(const size_type* prefix_bit_counts,
+                                                bool* select_markers,
+                                                size_type num_blocks,
+                                                size_type words_per_block,
+                                                size_type bits_per_block)
+{
+  size_type block_id = blockDim.x * blockIdx.x + threadIdx.x;
+  size_type stride   = gridDim.x * blockDim.x;
+
+  while (block_id < num_blocks) {
+    if (block_id == 0) {  // Block 0 always has a selects entry
+      select_markers[block_id] = 1;
+      block_id += stride;
+      continue;
+    }
+
+    select_markers[block_id] = 0;  // Always clear marker first
+    size_type word_id        = block_id * words_per_block;
+    size_type prev_count     = prefix_bit_counts[word_id];
+
+    for (size_t block_offset = 1; block_offset <= words_per_block; block_offset++) {
+      size_type count = prefix_bit_counts[word_id + block_offset];
+
+      // Selects entry is added when cumulative bitcount crosses a multiple of bits_per_block
+      if ((prev_count - 1) / bits_per_block != (count - 1) / bits_per_block) {
+        select_markers[block_id] = 1;
+        break;
+      }
+      prev_count = count;
+    }
+
+    block_id += stride;
+  }
+}
+
+template <class Allocator>
+void bit_vector<Allocator>::build_ranks_and_selects(thrust::device_vector<rank>& ranks,
+                                                    thrust::device_vector<size_type>& selects,
+                                                    bool flip_bits)
+{
+  size_type num_words = (n_bits_ - 1) / bits_per_word + 1;
+  // Round up num_words to a block
+  if (num_words % words_per_block) { num_words += words_per_block - (num_words % words_per_block); }
+
+  // Step 1. Compute prefix sum of per-word bit counts
+
+  // Population counts for each word
+  // Sized to have one extra entry for subsequent prefix sum
+  thrust::device_vector<size_type> bit_counts(num_words + 1);
+  auto grid_size = default_grid_size(num_words);
+  bit_counts_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
+    thrust::raw_pointer_cast(d_words_.data()),
+    thrust::raw_pointer_cast(bit_counts.data()),
+    num_words,
+    flip_bits);
+
+  thrust::exclusive_scan(thrust::device, bit_counts.begin(), bit_counts.end(), bit_counts.begin());
+
+  // Step 2. Compute ranks
+  size_type num_blocks = (num_words - 1) / words_per_block + 2;
+  ranks.resize(num_blocks);
+
+  grid_size = default_grid_size(num_blocks);
+  encode_ranks_from_prefix_bit_counts<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
+    thrust::raw_pointer_cast(bit_counts.data()),
+    thrust::raw_pointer_cast(ranks.data()),
+    num_words,
+    num_blocks,
+    words_per_block);
+
+  // Step 3. Compute selects
+  thrust::device_vector<bool> select_markers(num_blocks);
+  mark_blocks_with_select_entries<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
+    thrust::raw_pointer_cast(bit_counts.data()),
+    thrust::raw_pointer_cast(select_markers.data()),
+    num_blocks,
+    words_per_block,
+    bits_per_block);
+
+  size_type num_selects =
+    thrust::reduce(thrust::device, select_markers.begin(), select_markers.end());
+  selects.resize(num_selects);
+
+  // Generate indices of non-zeros in select_markers
+  thrust::copy_if(thrust::device,
+                  thrust::make_counting_iterator(0lu),
+                  thrust::make_counting_iterator(num_blocks),
+                  select_markers.begin(),
+                  selects.begin(),
+                  thrust::identity());
+}
+
 template <class Allocator>
 void bit_vector<Allocator>::build() noexcept
 {
-  build_ranks_and_selects(words_, ranks_, selects_, false);   // 1-bits
-  build_ranks_and_selects(words_, ranks0_, selects0_, true);  // 0-bits
-  move_to_device();
-}
+  d_words_ = words_;
+  build_ranks_and_selects(ranks_, selects_, false);   // 1-bits
+  build_ranks_and_selects(ranks0_, selects0_, true);  // 0-bits
 
-template <class Allocator>
-void bit_vector<Allocator>::move_to_device() noexcept
-{
-  copy_host_array_to_aow(&aow_words_, words_);
-  copy_host_array_to_aow(&aow_ranks_, ranks_);
-  copy_host_array_to_aow(&aow_selects_, selects_);
-  copy_host_array_to_aow(&aow_ranks0_, ranks0_);
-  copy_host_array_to_aow(&aow_selects0_, selects0_);
-}
-
-template <class Allocator>
-void bit_vector<Allocator>::build_ranks_and_selects(const std::vector<slot_type>& words,
-                                                    std::vector<rank>& ranks,
-                                                    std::vector<size_type>& selects,
-                                                    bool flip_bits) noexcept
-{
-  size_type n_blocks = words.size() / words_per_block;
-  ranks.resize(n_blocks + 1);
-
-  size_type count = 0;
-  for (size_type block_id = 0; block_id < n_blocks; ++block_id) {
-    ranks[block_id].set_abs(count);
-
-    for (size_type block_offset = 0; block_offset < words_per_block; ++block_offset) {
-      if (block_offset != 0) {  // Compute deltas
-        ranks[block_id].rels_[block_offset - 1] = count - ranks[block_id].abs();
-      }
-
-      size_type word_id = (block_id * words_per_block) + block_offset;
-      slot_type word    = flip_bits ? ~words[word_id] : words[word_id];
-
-      size_type prev_count = count;
-      count += cuda::std::popcount(word);
-
-      if ((prev_count - 1) / bits_per_block != (count - 1) / bits_per_block) {
-        add_selects_entry(word_id, word, prev_count, selects);
-      }
-    }
-  }
-
-  ranks.back().set_abs(count);
-  selects.push_back(n_blocks);
-}
-
-template <class Allocator>
-void bit_vector<Allocator>::add_selects_entry(size_type word_id,
-                                              slot_type word,
-                                              size_type count,
-                                              std::vector<size_type>& selects) noexcept
-{
-  while (word != 0) {
-    size_type pos = cuda::std::countr_zero(word);
-
-    if (count % bits_per_block == 0) {
-      selects.push_back((word_id * bits_per_word + pos) / bits_per_block);
-      break;
-    }
-
-    word ^= 1UL << pos;
-    ++count;
-  }
-}
-
-template <class Allocator>
-template <class T, class storage_type>
-void bit_vector<Allocator>::copy_host_array_to_aow(std::unique_ptr<storage_type>* aow,
-                                                   std::vector<T>& host_array) noexcept
-{
-  uint64_t num_elements = host_array.size();
-  *aow = std::make_unique<storage_type>(extent<size_type>{num_elements + 1}, allocator_);
-
-  if (num_elements > 0) {
-    // Move host array to device memory
-    thrust::device_vector<T> device_array = host_array;
-    host_array.clear();
-
-    // Copy device array to window structure
-    initialize_aow(*aow, device_array, num_elements);
-  }
+  copy_device_array_to_aow(&aow_words_, d_words_);
+  copy_device_array_to_aow(&aow_ranks_, ranks_);
+  copy_device_array_to_aow(&aow_selects_, selects_);
+  copy_device_array_to_aow(&aow_ranks0_, ranks0_);
+  copy_device_array_to_aow(&aow_selects0_, selects0_);
 }
 
 // Copies device array to window structure
@@ -233,18 +362,23 @@ __global__ void copy_to_window(WindowT* windows, cuco::detail::index_type n, T* 
   }
 }
 
-template <class Storage, class T>
-void initialize_aow(std::unique_ptr<Storage>& storage,
-                    thrust::device_vector<T>& device_array,
-                    uint64_t num_elements)
+template <class Allocator>
+template <class T, class storage_type>
+void bit_vector<Allocator>::copy_device_array_to_aow(
+  std::unique_ptr<storage_type>* aow, thrust::device_vector<T>& device_array) noexcept
 {
-  auto constexpr stride = 4;
-  auto const grid_size  = (num_elements + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-                         (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
+  size_type num_elements = device_array.size();
+  *aow = std::make_unique<storage_type>(extent<size_type>{num_elements + 1}, allocator_);
 
-  auto device_ptr = thrust::raw_pointer_cast(device_array.data());
-  copy_to_window<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
-    storage->data(), num_elements, device_ptr);
+  if (num_elements > 0) {
+    auto constexpr stride = 4;
+    auto grid_size        = (num_elements + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+                     (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+    auto device_ptr = thrust::raw_pointer_cast(device_array.data());
+    copy_to_window<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
+      (*aow)->data(), num_elements, device_ptr);
+  }
 }
 
 template <class Allocator>
