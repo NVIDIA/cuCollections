@@ -42,7 +42,7 @@ TEST_CASE("Rank test", "")
   cuco::experimental::bit_vector bv;
 
   using size_type = cuco::experimental::bit_vector<>::size_type;
-  constexpr size_type num_elements{400};
+  constexpr size_type num_elements{4000};
 
   for (size_type i = 0; i < num_elements; i++) {
     bv.append(modulo_bitgen(i));

@@ -26,7 +26,7 @@ TEST_CASE("Set test", "")
   cuco::experimental::bit_vector bv;
 
   using size_type = cuco::experimental::bit_vector<>::size_type;
-  size_type num_elements{400};
+  constexpr size_type num_elements{400};
 
   // Set odd bits on host
   for (size_t i = 0; i < num_elements; i++) {
