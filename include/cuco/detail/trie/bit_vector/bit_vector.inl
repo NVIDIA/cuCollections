@@ -243,7 +243,7 @@ __global__ void encode_ranks_from_prefix_bit_counts(const size_type* prefix_bit_
  */
 template <typename size_type>
 __global__ void mark_blocks_with_select_entries(const size_type* prefix_bit_counts,
-                                                bool* select_markers,
+                                                size_type* select_markers,
                                                 size_type num_blocks,
                                                 size_type words_per_block,
                                                 size_type bits_per_block)
@@ -282,6 +282,7 @@ void bit_vector<Allocator>::build_ranks_and_selects(thrust::device_vector<rank>&
                                                     thrust::device_vector<size_type>& selects,
                                                     bool flip_bits)
 {
+  if (n_bits_ == 0) { return; }
   size_type num_words = (n_bits_ - 1) / bits_per_word + 1;
   // Round up num_words to a block
   if (num_words % words_per_block) { num_words += words_per_block - (num_words % words_per_block); }
@@ -313,7 +314,7 @@ void bit_vector<Allocator>::build_ranks_and_selects(thrust::device_vector<rank>&
     words_per_block);
 
   // Step 3. Compute selects
-  thrust::device_vector<bool> select_markers(num_blocks);
+  thrust::device_vector<size_type> select_markers(num_blocks);
   mark_blocks_with_select_entries<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
     thrust::raw_pointer_cast(bit_counts.data()),
     thrust::raw_pointer_cast(select_markers.data()),
@@ -338,6 +339,7 @@ template <class Allocator>
 void bit_vector<Allocator>::build() noexcept
 {
   d_words_ = words_;
+  words_.clear();
   build_ranks_and_selects(ranks_, selects_, false);   // 1-bits
   build_ranks_and_selects(ranks0_, selects0_, true);  // 0-bits
 
@@ -379,6 +381,7 @@ void bit_vector<Allocator>::copy_device_array_to_aow(
     copy_to_window<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
       (*aow)->data(), num_elements, device_ptr);
   }
+  device_array.clear();
 }
 
 template <class Allocator>
