@@ -76,6 +76,7 @@ class bit_vector {
    * @param allocator Allocator for internal storage
    */
   bit_vector(Allocator const& allocator = Allocator{});
+  bit_vector(cuco::experimental::bit_vector<Allocator>&& other) = default;
   ~bit_vector();
 
   /**
