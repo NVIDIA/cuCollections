@@ -22,8 +22,6 @@
 #include <thrust/device_vector.h>
 
 #include <cassert>
-#include <iostream>
-#include <queue>
 #include <vector>
 
 namespace cuco {
@@ -74,16 +72,14 @@ class trie {
               OutputIt outputs_begin,
               cuda_stream_ref stream = {}) const;
 
+  using size_type = std::size_t;  ///< size type
+
   /**
-   * @brief Get number of keys inserted into trie
+   * @brief Get current size i.e. number of keys inserted
    *
    * @return Number of keys
    */
-  uint64_t n_keys() const { return n_keys_; }
-
-  template <typename... Operators>
-  using ref_type =
-    cuco::experimental::trie_ref<T, Operators...>;  ///< Non-owning container ref type
+  size_type constexpr size() const { return n_keys_; }
 
   /**
    * @brief Get device ref with operators.
@@ -97,12 +93,41 @@ class trie {
   template <typename... Operators>
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
+ private:
+  size_type n_keys_;         ///< Number of keys inserted into trie
+  size_type n_nodes_;        ///< Number of nodes in trie
+  std::vector<T> last_key_;  ///< Last key inserted into trie
+
+  static constexpr T root_label_ = sizeof(T) == 1 ? ' ' : static_cast<T>(-1);  ///< Sentinel value
+
+  struct level;
+  size_type num_levels_;       ///< Number of trie levels
+  std::vector<level> levels_;  ///< Host-side array of levels
+  level* d_levels_ptr_;        ///< Device-side array of levels
+
+  using bv_read_ref = bit_vector_ref<bit_vector<>::device_storage_ref, bv_read_tag>;  ///< Read ref
+  thrust::device_vector<bv_read_ref> d_louds_refs_;  ///< refs to per-level louds bitvectors
+  thrust::device_vector<bv_read_ref> d_outs_refs_;   ///< refs to per-level outs bitvectors
+
+  bv_read_ref* d_louds_refs_ptr_;  ///< Raw pointer to d_louds_refs_
+  bv_read_ref* d_outs_refs_ptr_;   ///< Raw pointer to d_outs_refs_
+
+  trie<T>* device_ptr_;  ///< Device-side copy of trie
+
+  template <typename... Operators>
+  using ref_type =
+    cuco::experimental::trie_ref<T, Operators...>;  ///< Non-owning container ref type
+
+  // Mixins need to be friends with this class in order to access private members
+  template <typename Op, typename Ref>
+  friend class detail::operator_impl;
+
   /**
    * @brief Struct to represent each trie level
    */
   struct level {
     level();
-    level(level&& other) = default;
+    level(level&&) = default;  ///< Move constructor
 
     bit_vector<> louds;  ///< Indicates links to next and previous level
     bit_vector<> outs;   ///< Indicates terminal nodes of valid keys
@@ -111,29 +136,8 @@ class trie {
     thrust::device_vector<T> d_labels;  ///< Device-side copy of `labels`
     T* d_labels_ptr;                    ///< Raw pointer to d_labels
 
-    uint64_t offset;  ///< Count of nodes in all parent levels
+    size_type offset;  ///< Count of nodes in all parent levels
   };
-
-  level* d_levels_ptr_;  ///< Device-side array of levels
-
-  using bv_read_ref = bit_vector_ref<bit_vector<>::device_storage_ref, bv_read_tag>;
-  bv_read_ref* d_louds_refs_ptr_;  ///< Refs to louds bitvectors of each level
-  bv_read_ref* d_outs_refs_ptr_;   ///<  Refs to out bitvectors of each level
-
- private:
-  static constexpr T root_label_ = sizeof(T) == 1 ? ' ' : static_cast<T>(-1);  ///< Sentinel value
-  uint64_t num_levels_;        ///< Number of trie levels
-  std::vector<level> levels_;  ///< Host-side array of levels
-
-  uint64_t n_keys_;          ///< Number of keys inserted into trie
-  uint64_t n_nodes_;         ///< Number of nodes in trie
-  std::vector<T> last_key_;  ///< Last key inserted into trie
-
-  trie<T>* device_ptr_;  ///< Device-side copy of trie structure
-
-  using bv_refs_vector = thrust::device_vector<bv_read_ref>;
-  bv_refs_vector d_louds_refs_;  ///< refs to per-level louds bitvectors
-  bv_refs_vector d_outs_refs_;   ///< refs to per-level outs bitvectors
 };
 
 }  // namespace experimental

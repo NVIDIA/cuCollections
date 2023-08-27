@@ -22,13 +22,13 @@ namespace experimental {
 
 template <typename T>
 trie<T>::trie()
-  : levels_(2),
-    d_levels_ptr_(nullptr),
-    num_levels_(2),
-    n_keys_(0),
-    n_nodes_(1),
-    last_key_(),
-    device_ptr_(nullptr)
+  : levels_{2},
+    d_levels_ptr_{nullptr},
+    num_levels_{2},
+    n_keys_{0},
+    n_nodes_{1},
+    last_key_{},
+    device_ptr_{nullptr}
 {
   levels_[0].louds.append(0);
   levels_[0].louds.append(1);
@@ -61,7 +61,7 @@ void trie<T>::insert(const std::vector<T>& key)
 
   // Find first position where label is different from last_key
   // Trie is not updated till that position is reached, simply skip to next position
-  uint32_t pos = 0;
+  size_type pos = 0;
   for (; pos < key.size(); ++pos) {
     auto& level = levels_[pos + 1];
     T label     = key[pos];
@@ -112,7 +112,7 @@ void trie<T>::build()
 
   // Host-side per-level bit-vector refs
   std::vector<bv_read_ref> louds_refs, outs_refs;
-  uint64_t offset = 0;
+  size_type offset = 0;
 
   for (auto& level : levels_) {
     level.louds.build();
@@ -152,10 +152,10 @@ void trie<T>::lookup(KeyIt keys_begin,
                      OutputIt outputs_begin,
                      cuda_stream_ref stream) const
 {
-  auto const num_keys = cuco::detail::distance(offsets_begin, offsets_end) - 1;
+  auto num_keys = cuco::detail::distance(offsets_begin, offsets_end) - 1;
   if (num_keys == 0) { return; }
 
-  auto const grid_size =
+  auto grid_size =
     (num_keys - 1) / (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE) + 1;
 
   auto ref_ = this->ref(cuco::experimental::trie_lookup);
@@ -168,12 +168,12 @@ template <typename TrieRef, typename KeyIt, typename OffsetIt, typename OutputIt
 __global__ void trie_lookup_kernel(
   TrieRef ref, KeyIt keys, OffsetIt offsets, OutputIt outputs, uint64_t num_keys)
 {
-  uint32_t const loop_stride = gridDim.x * blockDim.x;
-  uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;
+  size_t loop_stride = gridDim.x * blockDim.x;
+  size_t key_id      = blockDim.x * blockIdx.x + threadIdx.x;
 
   while (key_id < num_keys) {
-    const auto key_start_pos  = keys + offsets[key_id];
-    const uint64_t key_length = offsets[key_id + 1] - offsets[key_id];
+    auto key_start_pos = keys + offsets[key_id];
+    size_t key_length  = offsets[key_id + 1] - offsets[key_id];
 
     outputs[key_id] = ref.lookup_key(key_start_pos, key_length);
     key_id += loop_stride;
