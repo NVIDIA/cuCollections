@@ -30,9 +30,9 @@ namespace experimental {
 /**
  * @brief Trie class
  *
- * @tparam T type of individual characters of vector keys (eg. char or int)
+ * @tparam label_type type of individual characters of vector keys (eg. char or int)
  */
-template <typename T>
+template <typename label_type>
 class trie {
  public:
   trie();
@@ -43,7 +43,7 @@ class trie {
    *
    * @param key Key to insert
    */
-  void insert(const std::vector<T>& key);
+  void insert(const std::vector<label_type>& key);
 
   /**
    * @brief Build level-by-level trie indexes after inserting all keys
@@ -94,11 +94,12 @@ class trie {
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
  private:
-  size_type n_keys_;         ///< Number of keys inserted into trie
-  size_type n_nodes_;        ///< Number of nodes in trie
-  std::vector<T> last_key_;  ///< Last key inserted into trie
+  size_type n_keys_;                  ///< Number of keys inserted into trie
+  size_type n_nodes_;                 ///< Number of nodes in trie
+  std::vector<label_type> last_key_;  ///< Last key inserted into trie
 
-  static constexpr T root_label_ = sizeof(T) == 1 ? ' ' : static_cast<T>(-1);  ///< Sentinel value
+  static constexpr label_type root_label_ =
+    sizeof(label_type) == 1 ? ' ' : static_cast<label_type>(-1);  ///< Sentinel value
 
   struct level;
   size_type num_levels_;       ///< Number of trie levels
@@ -112,11 +113,11 @@ class trie {
   bv_read_ref* d_louds_refs_ptr_;  ///< Raw pointer to d_louds_refs_
   bv_read_ref* d_outs_refs_ptr_;   ///< Raw pointer to d_outs_refs_
 
-  trie<T>* device_ptr_;  ///< Device-side copy of trie
+  trie<label_type>* device_ptr_;  ///< Device-side copy of trie
 
   template <typename... Operators>
   using ref_type =
-    cuco::experimental::trie_ref<T, Operators...>;  ///< Non-owning container ref type
+    cuco::experimental::trie_ref<label_type, Operators...>;  ///< Non-owning container ref type
 
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>
@@ -132,9 +133,9 @@ class trie {
     bit_vector<> louds;  ///< Indicates links to next and previous level
     bit_vector<> outs;   ///< Indicates terminal nodes of valid keys
 
-    std::vector<T> labels;              ///< Stores individual characters of keys
-    thrust::device_vector<T> d_labels;  ///< Device-side copy of `labels`
-    T* d_labels_ptr;                    ///< Raw pointer to d_labels
+    std::vector<label_type> labels;              ///< Stores individual characters of keys
+    thrust::device_vector<label_type> d_labels;  ///< Device-side copy of `labels`
+    label_type* d_labels_ptr;                    ///< Raw pointer to d_labels
 
     size_type offset;  ///< Count of nodes in all parent levels
   };

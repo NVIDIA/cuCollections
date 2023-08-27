@@ -20,8 +20,8 @@
 namespace cuco {
 namespace experimental {
 
-template <typename T>
-trie<T>::trie()
+template <typename label_type>
+trie<label_type>::trie()
   : levels_{2},
     d_levels_ptr_{nullptr},
     num_levels_{2},
@@ -37,15 +37,15 @@ trie<T>::trie()
   levels_[0].labels.push_back(root_label_);
 }
 
-template <typename T>
-trie<T>::~trie() noexcept(false)
+template <typename label_type>
+trie<label_type>::~trie() noexcept(false)
 {
   if (d_levels_ptr_) { CUCO_CUDA_TRY(cudaFree(d_levels_ptr_)); }
   if (device_ptr_) { CUCO_CUDA_TRY(cudaFree(device_ptr_)); }
 }
 
-template <typename T>
-void trie<T>::insert(const std::vector<T>& key)
+template <typename label_type>
+void trie<label_type>::insert(const std::vector<label_type>& key)
 {
   if (key == last_key_) { return; }         // Ignore duplicate keys
   assert(n_keys_ == 0 || key > last_key_);  // Keys are expected to be inserted in sorted order
@@ -64,7 +64,7 @@ void trie<T>::insert(const std::vector<T>& key)
   size_type pos = 0;
   for (; pos < key.size(); ++pos) {
     auto& level = levels_[pos + 1];
-    T label     = key[pos];
+    auto label  = key[pos];
 
     if ((pos == last_key_.size()) || (label != level.labels.back())) {
       level.louds.set_last(0);
@@ -105,8 +105,8 @@ T* move_vector_to_device(std::vector<T>& host_vector, thrust::device_vector<T>& 
   return thrust::raw_pointer_cast(device_vector.data());
 }
 
-template <typename T>
-void trie<T>::build()
+template <typename label_type>
+void trie<label_type>::build()
 {
   // Perform build level-by-level for all levels, followed by a deep-copy from host to device
 
@@ -140,17 +140,17 @@ void trie<T>::build()
     cudaMemcpy(d_levels_ptr_, &levels_[0], sizeof(level) * num_levels_, cudaMemcpyHostToDevice));
 
   // Finally create a device copy of full trie structure
-  CUCO_CUDA_TRY(cudaMalloc(&device_ptr_, sizeof(trie<T>)));
-  CUCO_CUDA_TRY(cudaMemcpy(device_ptr_, this, sizeof(trie<T>), cudaMemcpyHostToDevice));
+  CUCO_CUDA_TRY(cudaMalloc(&device_ptr_, sizeof(trie<label_type>)));
+  CUCO_CUDA_TRY(cudaMemcpy(device_ptr_, this, sizeof(trie<label_type>), cudaMemcpyHostToDevice));
 }
 
-template <typename T>
+template <typename label_type>
 template <typename KeyIt, typename OffsetIt, typename OutputIt>
-void trie<T>::lookup(KeyIt keys_begin,
-                     OffsetIt offsets_begin,
-                     OffsetIt offsets_end,
-                     OutputIt outputs_begin,
-                     cuda_stream_ref stream) const
+void trie<label_type>::lookup(KeyIt keys_begin,
+                              OffsetIt offsets_begin,
+                              OffsetIt offsets_end,
+                              OutputIt outputs_begin,
+                              cuda_stream_ref stream) const
 {
   auto num_keys = cuco::detail::distance(offsets_begin, offsets_end) - 1;
   if (num_keys == 0) { return; }
@@ -180,16 +180,16 @@ __global__ void trie_lookup_kernel(
   }
 }
 
-template <typename T>
+template <typename label_type>
 template <typename... Operators>
-auto trie<T>::ref(Operators...) const noexcept
+auto trie<label_type>::ref(Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
   return ref_type<Operators...>{device_ptr_};
 }
 
-template <typename T>
-trie<T>::level::level() : louds{}, outs{}, labels{}, d_labels_ptr{nullptr}, offset{0}
+template <typename label_type>
+trie<label_type>::level::level() : louds{}, outs{}, labels{}, d_labels_ptr{nullptr}, offset{0}
 {
 }
 
