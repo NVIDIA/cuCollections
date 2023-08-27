@@ -19,21 +19,10 @@
 #include <cuco/detail/trie/bit_vector/bit_vector.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 #include <thrust/host_vector.h>
+#include <thrust/sequence.h>
 
 #include <catch2/catch_test_macros.hpp>
-
-template <class BitVectorRef, typename size_type, typename OutputIt>
-__global__ void rank_kernel(BitVectorRef ref, size_type num_elements, OutputIt output)
-{
-  size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
-  size_t stride = gridDim.x * blockDim.x;
-  while (index < num_elements) {
-    output[index] = ref.rank(index);
-    index += stride;
-  }
-}
 
 extern bool modulo_bitgen(uint64_t i);  // Defined in get_test.cu
 
@@ -49,15 +38,19 @@ TEST_CASE("Rank test", "")
   }
   bv.build();
 
-  thrust::device_vector<size_type> rank_result_device(num_elements);
-  auto ref = bv.ref(cuco::experimental::bv_read);
-  rank_kernel<<<1, 1024>>>(ref, num_elements, rank_result_device.data());
+  thrust::device_vector<size_type> keys(num_elements);
+  thrust::sequence(keys.begin(), keys.end(), 0);
 
-  thrust::host_vector<size_type> rank_result = rank_result_device;
-  size_type cur_rank                         = 0;
-  size_type num_matches                      = 0;
+  thrust::device_vector<size_type> d_ranks(num_elements);
+
+  bv.ranks(keys.begin(), keys.end(), d_ranks.begin());
+
+  thrust::host_vector<size_type> h_ranks = d_ranks;
+
+  size_type cur_rank    = 0;
+  size_type num_matches = 0;
   for (size_type i = 0; i < num_elements; i++) {
-    num_matches += cur_rank == rank_result[i];
+    num_matches += cur_rank == h_ranks[i];
     if (modulo_bitgen(i)) { cur_rank++; }
   }
   REQUIRE(num_matches == num_elements);

@@ -83,6 +83,42 @@ void bit_vector<Allocator>::get(KeyIt keys_begin,
 }
 
 template <class Allocator>
+template <typename KeyIt, typename OutputIt>
+void bit_vector<Allocator>::ranks(KeyIt keys_begin,
+                                  KeyIt keys_end,
+                                  OutputIt outputs_begin,
+                                  cuda_stream_ref stream) const noexcept
+
+{
+  auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
+  if (num_keys == 0) { return; }
+
+  auto grid_size = default_grid_size(num_keys);
+  auto ref_      = this->ref(cuco::experimental::bv_read);
+
+  bitvector_rank_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    ref_, keys_begin, outputs_begin, num_keys);
+}
+
+template <class Allocator>
+template <typename KeyIt, typename OutputIt>
+void bit_vector<Allocator>::selects(KeyIt keys_begin,
+                                    KeyIt keys_end,
+                                    OutputIt outputs_begin,
+                                    cuda_stream_ref stream) const noexcept
+
+{
+  auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
+  if (num_keys == 0) { return; }
+
+  auto grid_size = default_grid_size(num_keys);
+  auto ref_      = this->ref(cuco::experimental::bv_read);
+
+  bitvector_select_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    ref_, keys_begin, outputs_begin, num_keys);
+}
+
+template <class Allocator>
 template <typename KeyIt, typename ValueIt>
 void bit_vector<Allocator>::set(KeyIt keys_begin,
                                 KeyIt keys_end,
@@ -123,6 +159,62 @@ __global__ void bitvector_get_kernel(BitvectorRef ref,
 
   while (key_id < num_keys) {
     outputs[key_id] = ref.get(keys[key_id]);
+    key_id += loop_stride;
+  }
+}
+
+/*
+ * @brief Gather rank values for a range of keys
+ *
+ * @tparam BitvectorRef Bitvector reference type
+ * @tparam KeyIt Device-accessible iterator to input keys
+ * @tparam ValueIt Device-accessible iterator to values
+ * @tparam size_type Size type
+ *
+ * @param ref Bitvector ref
+ * @param keys Begin iterator to keys
+ * @param outputs Begin iterator to outputs
+ * @param num_keys Number of input keys
+ */
+template <typename BitvectorRef, typename KeyIt, typename ValueIt, typename size_type>
+__global__ void bitvector_rank_kernel(BitvectorRef ref,
+                                      KeyIt keys,
+                                      ValueIt outputs,
+                                      size_type num_keys)
+{
+  uint32_t const loop_stride = gridDim.x * blockDim.x;
+  uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;
+
+  while (key_id < num_keys) {
+    outputs[key_id] = ref.rank(keys[key_id]);
+    key_id += loop_stride;
+  }
+}
+
+/*
+ * @brief Gather select values for a range of keys
+ *
+ * @tparam BitvectorRef Bitvector reference type
+ * @tparam KeyIt Device-accessible iterator to input keys
+ * @tparam ValueIt Device-accessible iterator to values
+ * @tparam size_type Size type
+ *
+ * @param ref Bitvector ref
+ * @param keys Begin iterator to keys
+ * @param outputs Begin iterator to outputs
+ * @param num_keys Number of input keys
+ */
+template <typename BitvectorRef, typename KeyIt, typename ValueIt, typename size_type>
+__global__ void bitvector_select_kernel(BitvectorRef ref,
+                                        KeyIt keys,
+                                        ValueIt outputs,
+                                        size_type num_keys)
+{
+  uint32_t const loop_stride = gridDim.x * blockDim.x;
+  uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;
+
+  while (key_id < num_keys) {
+    outputs[key_id] = ref.select(keys[key_id]);
     key_id += loop_stride;
   }
 }

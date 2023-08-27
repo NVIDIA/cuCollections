@@ -19,21 +19,10 @@
 #include <cuco/detail/trie/bit_vector/bit_vector.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 #include <thrust/host_vector.h>
+#include <thrust/sequence.h>
 
 #include <catch2/catch_test_macros.hpp>
-
-template <class BitVectorRef, typename size_type, typename OutputIt>
-__global__ void select_kernel(BitVectorRef ref, size_type num_elements, OutputIt output)
-{
-  size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
-  size_t stride = gridDim.x * blockDim.x;
-  while (index < num_elements) {
-    output[index] = ref.select(index);
-    index += stride;
-  }
-}
 
 template <class BitVectorRef, typename size_type, typename OutputIt>
 __global__ void select0_kernel(BitVectorRef ref, size_type num_elements, OutputIt output)
@@ -65,9 +54,14 @@ TEST_CASE("Select test", "")
 
   // Check select
   {
-    thrust::device_vector<size_type> device_result(num_set);
-    select_kernel<<<1, 1024>>>(ref, num_set, device_result.data());
-    thrust::host_vector<size_type> host_result = device_result;
+    thrust::device_vector<size_type> keys(num_set);
+    thrust::sequence(keys.begin(), keys.end(), 0);
+
+    thrust::device_vector<size_type> d_selects(num_set);
+
+    bv.selects(keys.begin(), keys.end(), d_selects.begin());
+
+    thrust::host_vector<size_type> h_selects = d_selects;
 
     size_type num_matches = 0;
     size_type cur_set_pos = -1lu;
@@ -76,7 +70,7 @@ TEST_CASE("Select test", "")
         cur_set_pos++;
       } while (cur_set_pos < num_elements and !modulo_bitgen(cur_set_pos));
 
-      num_matches += cur_set_pos == host_result[i];
+      num_matches += cur_set_pos == h_selects[i];
     }
     REQUIRE(num_matches == num_set);
   }

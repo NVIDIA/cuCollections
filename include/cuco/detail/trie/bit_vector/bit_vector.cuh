@@ -76,7 +76,7 @@ class bit_vector {
    * @param allocator Allocator for internal storage
    */
   bit_vector(Allocator const& allocator = Allocator{});
-  bit_vector(cuco::experimental::bit_vector<Allocator>&& other) = default;
+  bit_vector(cuco::experimental::bit_vector<Allocator>&&) = default;  ///< Move constructor
   ~bit_vector();
 
   /**
@@ -127,6 +127,40 @@ class bit_vector {
            KeyIt keys_end,
            OutputIt outputs_begin,
            cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief Bulk rank operation
+   *
+   * @tparam KeyIt Device-accessible iterator to keys
+   * @tparam OutputIt Device-accessible iterator to output ranks
+   *
+   * @param keys_begin Begin iterator to keys list whose ranks are queried
+   * @param keys_end End iterator to keys list
+   * @param outputs_begin Begin iterator to outputs ranks list
+   * @param stream Stream to execute ranks kernel
+   */
+  template <typename KeyIt, typename OutputIt>
+  void ranks(KeyIt keys_begin,
+             KeyIt keys_end,
+             OutputIt outputs_begin,
+             cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief Bulk select operation
+   *
+   * @tparam KeyIt Device-accessible iterator to keys
+   * @tparam OutputIt Device-accessible iterator to outputs
+   *
+   * @param keys_begin Begin iterator to keys list whose select values are queried
+   * @param keys_end End iterator to keys list
+   * @param outputs_begin Begin iterator to outputs selects list
+   * @param stream Stream to execute selects kernel
+   */
+  template <typename KeyIt, typename OutputIt>
+  void selects(KeyIt keys_begin,
+               KeyIt keys_end,
+               OutputIt outputs_begin,
+               cuda_stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Bulk set operation
