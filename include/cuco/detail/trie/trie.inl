@@ -21,20 +21,20 @@ namespace cuco {
 namespace experimental {
 
 template <typename label_type>
-trie<label_type>::trie()
-  : levels_{2},
-    d_levels_ptr_{nullptr},
-    num_levels_{2},
-    n_keys_{0},
-    n_nodes_{1},
+constexpr trie<label_type>::trie()
+  : num_keys_{0},
+    num_nodes_{1},
     last_key_{},
+    num_levels_{2},
+    levels_{2},
+    d_levels_ptr_{nullptr},
     device_ptr_{nullptr}
 {
-  levels_[0].louds.append(0);
-  levels_[0].louds.append(1);
-  levels_[1].louds.append(1);
-  levels_[0].outs.append(0);
-  levels_[0].labels.push_back(root_label_);
+  levels_[0].louds_.append(0);
+  levels_[0].louds_.append(1);
+  levels_[1].louds_.append(1);
+  levels_[0].outs_.append(0);
+  levels_[0].labels_.push_back(root_label_);
 }
 
 template <typename label_type>
@@ -45,15 +45,15 @@ trie<label_type>::~trie() noexcept(false)
 }
 
 template <typename label_type>
-void trie<label_type>::insert(const std::vector<label_type>& key)
+void trie<label_type>::insert(const std::vector<label_type>& key) noexcept
 {
-  if (key == last_key_) { return; }         // Ignore duplicate keys
-  assert(n_keys_ == 0 || key > last_key_);  // Keys are expected to be inserted in sorted order
+  if (key == last_key_) { return; }           // Ignore duplicate keys
+  assert(num_keys_ == 0 || key > last_key_);  // Keys are expected to be inserted in sorted order
 
   if (key.empty()) {
-    levels_[0].outs.set(0, 1);
-    ++levels_[1].offset;
-    ++n_keys_;
+    levels_[0].outs_.set(0, 1);
+    ++levels_[1].offset_;
+    ++num_keys_;
     return;
   }
 
@@ -66,37 +66,37 @@ void trie<label_type>::insert(const std::vector<label_type>& key)
     auto& level = levels_[pos + 1];
     auto label  = key[pos];
 
-    if ((pos == last_key_.size()) || (label != level.labels.back())) {
-      level.louds.set_last(0);
-      level.louds.append(1);
-      level.outs.append(0);
-      level.labels.push_back(label);
-      ++n_nodes_;
+    if ((pos == last_key_.size()) || (label != level.labels_.back())) {
+      level.louds_.set_last(0);
+      level.louds_.append(1);
+      level.outs_.append(0);
+      level.labels_.push_back(label);
+      ++num_nodes_;
       break;
     }
   }
 
   // Process remaining labels after divergence point from last_key
-  // Each such label will create a new edge and node pair in trie
+  // Each such label will create a new edge and node pair
   for (++pos; pos < key.size(); ++pos) {
     auto& level = levels_[pos + 1];
-    level.louds.append(0);
-    level.louds.append(1);
-    level.outs.append(0);
-    level.labels.push_back(key[pos]);
-    ++n_nodes_;
+    level.louds_.append(0);
+    level.louds_.append(1);
+    level.outs_.append(0);
+    level.labels_.push_back(key[pos]);
+    ++num_nodes_;
   }
 
-  levels_[key.size() + 1].louds.append(1);  // Mark end of current key
-  ++levels_[key.size() + 1].offset;
-  levels_[key.size()].outs.set_last(1);  // Set terminal bit indicating valid path
+  levels_[key.size() + 1].louds_.append(1);  // Mark end of current key
+  ++levels_[key.size() + 1].offset_;
+  levels_[key.size()].outs_.set_last(1);  // Set terminal bit indicating valid path
 
-  ++n_keys_;
+  ++num_keys_;
   last_key_ = key;
 }
 
 // Helper to move vector from host to device
-// Host vector is clear to avoid duplication. Device pointer is returned
+// Host vector is cleared to avoid duplication. Device pointer is returned
 template <typename T>
 T* move_vector_to_device(std::vector<T>& host_vector, thrust::device_vector<T>& device_vector)
 {
@@ -106,7 +106,7 @@ T* move_vector_to_device(std::vector<T>& host_vector, thrust::device_vector<T>& 
 }
 
 template <typename label_type>
-void trie<label_type>::build()
+void trie<label_type>::build() noexcept(false)
 {
   // Perform build level-by-level for all levels, followed by a deep-copy from host to device
 
@@ -115,17 +115,17 @@ void trie<label_type>::build()
   size_type offset = 0;
 
   for (auto& level : levels_) {
-    level.louds.build();
-    louds_refs.push_back(level.louds.ref(bv_read));
+    level.louds_.build();
+    louds_refs.push_back(level.louds_.ref(bv_read));
 
-    level.outs.build();
-    outs_refs.push_back(level.outs.ref(bv_read));
+    level.outs_.build();
+    outs_refs.push_back(level.outs_.ref(bv_read));
 
     // Move labels to device
-    level.d_labels_ptr = move_vector_to_device(level.labels, level.d_labels);
+    level.d_labels_ptr_ = move_vector_to_device(level.labels_, level.d_labels_);
 
-    offset += level.offset;
-    level.offset = offset;
+    offset += level.offset_;
+    level.offset_ = offset;
   }
 
   // Move bitvector refs to device
@@ -150,7 +150,7 @@ void trie<label_type>::lookup(KeyIt keys_begin,
                               OffsetIt offsets_begin,
                               OffsetIt offsets_end,
                               OutputIt outputs_begin,
-                              cuda_stream_ref stream) const
+                              cuda_stream_ref stream) const noexcept
 {
   auto num_keys = cuco::detail::distance(offsets_begin, offsets_end) - 1;
   if (num_keys == 0) { return; }
@@ -166,14 +166,14 @@ void trie<label_type>::lookup(KeyIt keys_begin,
 
 template <typename TrieRef, typename KeyIt, typename OffsetIt, typename OutputIt>
 __global__ void trie_lookup_kernel(
-  TrieRef ref, KeyIt keys, OffsetIt offsets, OutputIt outputs, uint64_t num_keys)
+  TrieRef ref, KeyIt keys, OffsetIt offsets, OutputIt outputs, size_t num_keys)
 {
-  size_t loop_stride = gridDim.x * blockDim.x;
-  size_t key_id      = blockDim.x * blockIdx.x + threadIdx.x;
+  auto loop_stride = gridDim.x * blockDim.x;
+  auto key_id      = blockDim.x * blockIdx.x + threadIdx.x;
 
   while (key_id < num_keys) {
     auto key_start_pos = keys + offsets[key_id];
-    size_t key_length  = offsets[key_id + 1] - offsets[key_id];
+    auto key_length    = offsets[key_id + 1] - offsets[key_id];
 
     outputs[key_id] = ref.lookup_key(key_start_pos, key_length);
     key_id += loop_stride;
@@ -189,7 +189,8 @@ auto trie<label_type>::ref(Operators...) const noexcept
 }
 
 template <typename label_type>
-trie<label_type>::level::level() : louds{}, outs{}, labels{}, d_labels_ptr{nullptr}, offset{0}
+trie<label_type>::level::level()
+  : louds_{}, outs_{}, labels_{}, d_labels_{}, d_labels_ptr_{nullptr}, offset_{0}
 {
 }
 
