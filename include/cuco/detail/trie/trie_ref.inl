@@ -1,5 +1,3 @@
-#include <cuco/trie_ref.cuh>
-
 namespace cuco {
 namespace experimental {
 
