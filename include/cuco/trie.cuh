@@ -15,14 +15,8 @@
  * limitations under the License.
  */
 
-#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/trie/bit_vector/bit_vector.cuh>
 #include <cuco/trie_ref.cuh>
-
-#include <thrust/device_vector.h>
-
-#include <cassert>
-#include <vector>
 
 namespace cuco {
 namespace experimental {

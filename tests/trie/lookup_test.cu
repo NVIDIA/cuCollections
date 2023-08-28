@@ -17,10 +17,8 @@
 #include <utils.hpp>
 
 #include <cuco/trie.cuh>
-#include <cuco/trie_ref.cuh>
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
 #include <thrust/host_vector.h>
 #include <thrust/scan.h>
 
