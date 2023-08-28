@@ -4,7 +4,7 @@ namespace experimental {
 template <typename label_type, typename... Operators>
 __host__ __device__ constexpr trie_ref<label_type, Operators...>::trie_ref(
   const trie<label_type>* trie) noexcept
-  : trie_(trie)
+  : trie_{trie}
 {
 }
 
@@ -12,7 +12,8 @@ namespace detail {
 
 template <typename label_type, typename... Operators>
 class operator_impl<op::trie_lookup_tag, trie_ref<label_type, Operators...>> {
-  using ref_type = trie_ref<label_type, Operators...>;
+  using ref_type  = trie_ref<label_type, Operators...>;
+  using size_type = size_t;
 
  public:
   /**
@@ -24,22 +25,22 @@ class operator_impl<op::trie_lookup_tag, trie_ref<label_type, Operators...>> {
    * @return Index of key if it exists in trie, -1 otherwise
    */
   template <typename KeyIt>
-  [[nodiscard]] __device__ uint64_t lookup_key(KeyIt key, uint64_t length) const noexcept
+  [[nodiscard]] __device__ size_type lookup_key(KeyIt key, size_type length) const noexcept
   {
     auto const& trie = static_cast<ref_type const&>(*this).trie_;
 
     // Level-by-level search. node_id is updated at each level
-    uint32_t node_id = 0;
-    for (uint32_t cur_depth = 1; cur_depth <= length; cur_depth++) {
+    size_type node_id = 0;
+    for (size_type cur_depth = 1; cur_depth <= length; cur_depth++) {
       if (!search_label_in_children(key[cur_depth - 1], node_id, cur_depth)) { return -1lu; }
     }
 
     // Check for terminal node bit that indicates a valid key
-    uint64_t leaf_level_id = length;
+    size_type leaf_level_id = length;
     if (!trie->d_outs_refs_ptr_[leaf_level_id].get(node_id)) { return -1lu; }
 
     // Key exists in trie, generate the index
-    auto offset = trie->d_levels_ptr_[leaf_level_id].offset;
+    auto offset = trie->d_levels_ptr_[leaf_level_id].offset_;
     auto rank   = trie->d_outs_refs_ptr_[leaf_level_id].rank(node_id);
 
     return offset + rank;
@@ -55,16 +56,16 @@ class operator_impl<op::trie_lookup_tag, trie_ref<label_type, Operators...>> {
    * @return Position of last child
    */
   template <typename BitVectorRef>
-  [[nodiscard]] __device__ uint32_t get_last_child_position(BitVectorRef louds,
-                                                            uint32_t& node_id) const noexcept
+  [[nodiscard]] __device__ size_type get_last_child_position(BitVectorRef louds,
+                                                             size_type& node_id) const noexcept
   {
-    uint32_t node_pos = 0;
+    size_type node_pos = 0;
     if (node_id != 0) {
       node_pos = louds.select(node_id - 1) + 1;
       node_id  = node_pos - node_id;
     }
 
-    uint32_t pos_end = louds.find_next_set(node_pos);
+    auto pos_end = louds.find_next_set(node_pos);
     return node_id + (pos_end - node_pos);
   }
 
@@ -78,17 +79,17 @@ class operator_impl<op::trie_lookup_tag, trie_ref<label_type, Operators...>> {
    * @return Boolean indicating success of search process
    */
   [[nodiscard]] __device__ bool search_label_in_children(label_type target,
-                                                         uint32_t& node_id,
-                                                         uint32_t level_id) const noexcept
+                                                         size_type& node_id,
+                                                         size_type level_id) const noexcept
   {
     auto const& trie = static_cast<ref_type const&>(*this).trie_;
     auto louds       = trie->d_louds_refs_ptr_[level_id];
 
-    uint32_t end   = get_last_child_position(louds, node_id);  // Position of last child
-    uint32_t begin = node_id;  // Position of first child, initialized after find_last_child call
+    auto end   = get_last_child_position(louds, node_id);  // Position of last child
+    auto begin = node_id;  // Position of first child, initialized after find_last_child call
 
     auto& level = trie->d_levels_ptr_[level_id];
-    auto labels = level.d_labels_ptr;
+    auto labels = level.d_labels_ptr_;
 
     // Binary search labels array of current level
     while (begin < end) {

@@ -29,7 +29,7 @@ namespace experimental {
 template <typename label_type>
 class trie {
  public:
-  trie();
+  constexpr trie();
   ~trie() noexcept(false);
 
   /**
@@ -37,14 +37,14 @@ class trie {
    *
    * @param key Key to insert
    */
-  void insert(const std::vector<label_type>& key);
+  void insert(const std::vector<label_type>& key) noexcept;
 
   /**
    * @brief Build level-by-level trie indexes after inserting all keys
    *
    * In addition, a snapshot of current trie state is copied to device
    */
-  void build();
+  void build() noexcept(false);
 
   /**
    * @brief Bulk lookup vector of keys
@@ -64,7 +64,7 @@ class trie {
               OffsetIt offsets_begin,
               OffsetIt offsets_end,
               OutputIt outputs_begin,
-              cuda_stream_ref stream = {}) const;
+              cuda_stream_ref stream = {}) const noexcept;
 
   using size_type = std::size_t;  ///< size type
 
@@ -73,7 +73,7 @@ class trie {
    *
    * @return Number of keys
    */
-  size_type constexpr size() const { return n_keys_; }
+  size_type constexpr size() const noexcept { return num_keys_; }
 
   /**
    * @brief Get device ref with operators.
@@ -88,12 +88,11 @@ class trie {
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
  private:
-  size_type n_keys_;                  ///< Number of keys inserted into trie
-  size_type n_nodes_;                 ///< Number of nodes in trie
+  size_type num_keys_;                ///< Number of keys inserted into trie
+  size_type num_nodes_;               ///< Number of internal nodes
   std::vector<label_type> last_key_;  ///< Last key inserted into trie
 
-  static constexpr label_type root_label_ =
-    sizeof(label_type) == 1 ? ' ' : static_cast<label_type>(-1);  ///< Sentinel value
+  static constexpr label_type root_label_ = sizeof(label_type) == 1 ? ' ' : -1;  ///< Sentinel value
 
   struct level;
   size_type num_levels_;       ///< Number of trie levels
@@ -124,14 +123,14 @@ class trie {
     level();
     level(level&&) = default;  ///< Move constructor
 
-    bit_vector<> louds;  ///< Indicates links to next and previous level
-    bit_vector<> outs;   ///< Indicates terminal nodes of valid keys
+    bit_vector<> louds_;  ///< Indicates links to next and previous level
+    bit_vector<> outs_;   ///< Indicates terminal nodes of valid keys
 
-    std::vector<label_type> labels;              ///< Stores individual characters of keys
-    thrust::device_vector<label_type> d_labels;  ///< Device-side copy of `labels`
-    label_type* d_labels_ptr;                    ///< Raw pointer to d_labels
+    std::vector<label_type> labels_;              ///< Stores individual characters of keys
+    thrust::device_vector<label_type> d_labels_;  ///< Device-side copy of `labels`
+    label_type* d_labels_ptr_;                    ///< Raw pointer to d_labels
 
-    size_type offset;  ///< Count of nodes in all parent levels
+    size_type offset_;  ///< Cumulative node count in parent levels
   };
 };
 
