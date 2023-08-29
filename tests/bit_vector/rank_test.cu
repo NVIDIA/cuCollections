@@ -30,7 +30,7 @@ TEST_CASE("Rank test", "")
 {
   cuco::experimental::detail::bit_vector bv;
 
-  using size_type = cuco::experimental::detail::bit_vector::size_type;
+  using size_type = std::size_t;
   constexpr size_type num_elements{4000};
 
   for (size_type i = 0; i < num_elements; i++) {

@@ -41,7 +41,7 @@ TEST_CASE("Select test", "")
 {
   cuco::experimental::detail::bit_vector bv;
 
-  using size_type = cuco::experimental::detail::bit_vector::size_type;
+  using size_type = std::size_t;
   constexpr size_type num_elements{4000};
 
   size_type num_set = 0;

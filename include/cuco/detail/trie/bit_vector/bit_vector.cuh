@@ -22,6 +22,7 @@
 #include <cuco/detail/tuning.cuh>
 #include <cuco/detail/utils.hpp>
 
+#include <thrust/device_malloc_allocator.h>
 #include <thrust/device_vector.h>
 
 #include <cuda/std/array>
@@ -71,11 +72,17 @@ struct rank {
  * new operations close to constant time.
  * Bitvector construction happens on host, after which the structures are moved to device.
  * All subsequent read-only operations access device structures only.
+ *
+ * @tparam Allocator Type of allocator used for device storage
  */
+template <class Allocator = thrust::device_malloc_allocator<std::byte>>
 class bit_vector {
  public:
   using size_type = std::size_t;  ///< size type to specify bit index
   using slot_type = uint64_t;     ///< Slot type
+  using allocator_type =
+    typename std::allocator_traits<Allocator>::rebind_alloc<slot_type>;  ///< Type of the allocator
+                                                                         ///< to (de)allocate words
 
   static constexpr size_type words_per_block = 4;  ///< Tradeoff between space efficiency and perf.
   static constexpr size_type bits_per_word   = sizeof(slot_type) * CHAR_BIT;     ///< Bits in a word
@@ -83,8 +90,10 @@ class bit_vector {
 
   /**
    * @brief Constructs an empty bitvector
+   *
+   * @param allocator Allocator used for allocating device storage
    */
-  inline bit_vector();
+  inline bit_vector(Allocator const& allocator = Allocator{});
   bit_vector(bit_vector&&) = default;  ///< Move constructor
   inline ~bit_vector();
 
@@ -207,13 +216,24 @@ class bit_vector {
   size_type constexpr size() const noexcept { return n_bits_; }
 
  private:
-  size_type n_bits_;  ///< Number of bits bit_vector currently holds
+  using rank_allocator_type =
+    typename std::allocator_traits<Allocator>::rebind_alloc<rank>;  ///< Type of the allocator to
+                                                                    ///< (de)allocate ranks
+  using size_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+    size_type>;  ///< Type of the allocator to (de)allocate indices
 
-  thrust::device_vector<slot_type> words_;     ///< Words vector that represents all bits
-  thrust::device_vector<rank> ranks_;          ///< Rank values for every 256-th bit (4-th word)
-  thrust::device_vector<rank> ranks0_;         ///< Same as ranks_ but for `0` bits
-  thrust::device_vector<size_type> selects_;   ///< Block indices of (0, 256, 512...)th `1` bit
-  thrust::device_vector<size_type> selects0_;  ///< Same as selects_, but for `0` bits
+  allocator_type allocator_;  ///< Words allocator
+  size_type n_bits_;          ///< Number of bits bit_vector currently holds
+
+  thrust::device_vector<slot_type, allocator_type>
+    words_;  ///< Words vector that represents all bits
+  thrust::device_vector<rank, rank_allocator_type>
+    ranks_;  ///< Rank values for every 256-th bit (4-th word)
+  thrust::device_vector<rank, rank_allocator_type> ranks0_;  ///< Same as ranks_ but for `0` bits
+  thrust::device_vector<size_type, size_allocator_type>
+    selects_;  ///< Block indices of (0, 256, 512...)th `1` bit
+  thrust::device_vector<size_type, size_allocator_type>
+    selects0_;  ///< Same as selects_, but for `0` bits
 
   /**
    * @brief Populates rank and select indexes on device
@@ -222,9 +242,9 @@ class bit_vector {
    * @param selects Output array of selects
    * @param flip_bits If true, negate bits to construct indexes for `0` bits
    */
-  inline void build_ranks_and_selects(thrust::device_vector<rank>& ranks,
-                                      thrust::device_vector<size_type>& selects,
-                                      bool flip_bits);
+  void build_ranks_and_selects(thrust::device_vector<rank, rank_allocator_type>& ranks,
+                               thrust::device_vector<size_type, size_allocator_type>& selects,
+                               bool flip_bits) noexcept;
 
   /**
    * @brief Helper function to calculate grid size for simple kernels

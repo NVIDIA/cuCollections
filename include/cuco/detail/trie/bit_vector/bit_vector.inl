@@ -22,11 +22,25 @@ namespace cuco {
 namespace experimental {
 namespace detail {
 
-bit_vector::bit_vector() : n_bits_{0}, words_{}, ranks_{}, ranks0_{}, selects_{}, selects0_{} {}
+template <class Allocator>
+bit_vector<Allocator>::bit_vector(Allocator const& allocator)
+  : allocator_{allocator},
+    n_bits_{0},
+    words_{allocator},
+    ranks_{allocator},
+    ranks0_{allocator},
+    selects_{allocator},
+    selects0_{allocator}
+{
+}
 
-bit_vector::~bit_vector() {}
+template <class Allocator>
+bit_vector<Allocator>::~bit_vector()
+{
+}
 
-void bit_vector::append(bool bit) noexcept
+template <class Allocator>
+void bit_vector<Allocator>::append(bool bit) noexcept
 {
   if (n_bits_ % bits_per_block == 0) {
     words_.resize(words_.size() + words_per_block);  // Extend storage by one block
@@ -36,7 +50,8 @@ void bit_vector::append(bool bit) noexcept
   ++n_bits_;
 }
 
-void bit_vector::set(size_type index, bool bit) noexcept
+template <class Allocator>
+void bit_vector<Allocator>::set(size_type index, bool bit) noexcept
 {
   size_type word_id = index / bits_per_word;
   size_type bit_id  = index % bits_per_word;
@@ -47,13 +62,18 @@ void bit_vector::set(size_type index, bool bit) noexcept
   }
 }
 
-void bit_vector::set_last(bool bit) noexcept { set(n_bits_ - 1, bit); }
+template <class Allocator>
+void bit_vector<Allocator>::set_last(bool bit) noexcept
+{
+  set(n_bits_ - 1, bit);
+}
 
+template <class Allocator>
 template <typename KeyIt, typename OutputIt>
-void bit_vector::get(KeyIt keys_begin,
-                     KeyIt keys_end,
-                     OutputIt outputs_begin,
-                     cuda_stream_ref stream) const noexcept
+void bit_vector<Allocator>::get(KeyIt keys_begin,
+                                KeyIt keys_end,
+                                OutputIt outputs_begin,
+                                cuda_stream_ref stream) const noexcept
 
 {
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
@@ -66,11 +86,12 @@ void bit_vector::get(KeyIt keys_begin,
     ref_, keys_begin, outputs_begin, num_keys);
 }
 
+template <class Allocator>
 template <typename KeyIt, typename OutputIt>
-void bit_vector::ranks(KeyIt keys_begin,
-                       KeyIt keys_end,
-                       OutputIt outputs_begin,
-                       cuda_stream_ref stream) const noexcept
+void bit_vector<Allocator>::ranks(KeyIt keys_begin,
+                                  KeyIt keys_end,
+                                  OutputIt outputs_begin,
+                                  cuda_stream_ref stream) const noexcept
 
 {
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
@@ -83,11 +104,12 @@ void bit_vector::ranks(KeyIt keys_begin,
     ref_, keys_begin, outputs_begin, num_keys);
 }
 
+template <class Allocator>
 template <typename KeyIt, typename OutputIt>
-void bit_vector::selects(KeyIt keys_begin,
-                         KeyIt keys_end,
-                         OutputIt outputs_begin,
-                         cuda_stream_ref stream) const noexcept
+void bit_vector<Allocator>::selects(KeyIt keys_begin,
+                                    KeyIt keys_end,
+                                    OutputIt outputs_begin,
+                                    cuda_stream_ref stream) const noexcept
 
 {
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
@@ -306,9 +328,11 @@ __global__ void mark_blocks_with_select_entries(const size_type* prefix_bit_coun
   }
 }
 
-void bit_vector::build_ranks_and_selects(thrust::device_vector<rank>& ranks,
-                                         thrust::device_vector<size_type>& selects,
-                                         bool flip_bits)
+template <class Allocator>
+void bit_vector<Allocator>::build_ranks_and_selects(
+  thrust::device_vector<rank, rank_allocator_type>& ranks,
+  thrust::device_vector<size_type, size_allocator_type>& selects,
+  bool flip_bits) noexcept
 {
   if (n_bits_ == 0) { return; }
 
@@ -360,14 +384,17 @@ void bit_vector::build_ranks_and_selects(thrust::device_vector<rank>& ranks,
                   thrust::identity());
 }
 
-void bit_vector::build() noexcept
+template <class Allocator>
+void bit_vector<Allocator>::build() noexcept
 {
   build_ranks_and_selects(ranks_, selects_, false);   // 1-bits
   build_ranks_and_selects(ranks0_, selects0_, true);  // 0-bits
 }
 
+template <class Allocator>
 template <typename... Operators>
-bit_vector::ref_type<Operators...> bit_vector::ref(Operators...) const noexcept
+bit_vector<Allocator>::ref_type<Operators...> bit_vector<Allocator>::ref(
+  Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
   return ref_type<Operators...>{device_storage_ref{thrust::raw_pointer_cast(words_.data()),
