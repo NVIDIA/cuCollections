@@ -22,6 +22,8 @@
 
 #include <thrust/device_vector.h>
 
+#include <climits>
+
 namespace cuco {
 namespace experimental {
 namespace detail {
@@ -67,6 +69,13 @@ struct rank {
  */
 class bit_vector {
  public:
+  using size_type = std::size_t;  ///< size type to specify bit index
+  using slot_type = uint64_t;     ///< Slot type
+
+  static constexpr size_type words_per_block = 4;  ///< Tradeoff between space efficiency and perf.
+  static constexpr size_type bits_per_word   = sizeof(slot_type) * CHAR_BIT;     ///< Bits in a word
+  static constexpr size_type bits_per_block  = words_per_block * bits_per_word;  ///< Trivial
+
   /**
    * @brief Constructs an empty bitvector
    */
@@ -83,7 +92,6 @@ class bit_vector {
    */
   inline void append(bool bit) noexcept;
 
-  using size_type = std::size_t;  ///< size type to specify bit index
   /**
    * @brief Modifies a single bit
    *
@@ -155,8 +163,6 @@ class bit_vector {
                OutputIt outputs_begin,
                cuda_stream_ref stream = {}) const noexcept;
 
-  using slot_type = uint64_t;  ///< Slot type
-
   /**
    *@brief Struct to hold all storage refs needed by bitvector_ref
    */
@@ -195,13 +201,7 @@ class bit_vector {
    */
   size_type constexpr size() const noexcept { return n_bits_; }
 
-  static constexpr size_type words_per_block = 4;  ///< Tradeoff between space efficiency and perf.
-
  private:
-  // These could be public if needed by other classes. Private for now
-  static constexpr size_type bits_per_word  = sizeof(slot_type) * 8;            ///< Bits in a word
-  static constexpr size_type bits_per_block = words_per_block * bits_per_word;  ///< Trivial
-
   size_type n_bits_;  ///< Number of bits bit_vector currently holds
 
   thrust::device_vector<slot_type> words_;     ///< Words vector that represents all bits
