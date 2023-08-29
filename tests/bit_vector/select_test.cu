@@ -50,7 +50,7 @@ TEST_CASE("Select test", "")
     num_set += modulo_bitgen(i);
   }
   bv.build();
-  auto ref = bv.ref(cuco::experimental::bv_read);
+  auto ref = bv.ref();
 
   // Check select
   {

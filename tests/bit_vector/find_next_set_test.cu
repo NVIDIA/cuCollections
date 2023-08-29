@@ -50,7 +50,7 @@ TEST_CASE("Find next set test", "")
   bv.build();
 
   thrust::device_vector<size_type> device_result(num_elements);
-  auto ref = bv.ref(cuco::experimental::bv_read);
+  auto ref = bv.ref();
   find_next_set_kernel<<<1, 1024>>>(ref, num_elements, device_result.data());
 
   thrust::host_vector<size_type> host_result = device_result;

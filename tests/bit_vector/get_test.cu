@@ -49,7 +49,7 @@ TEST_CASE("Get test", "")
   bv.build();
 
   // Device-ref test
-  auto ref = bv.ref(cuco::experimental::bv_read);
+  auto ref = bv.ref();
   thrust::device_vector<size_type> get_result(num_elements);
   get_kernel<<<1, 1024>>>(ref, num_elements, get_result.data());
 

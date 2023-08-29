@@ -81,10 +81,9 @@ void bit_vector<Allocator>::get(KeyIt keys_begin,
   if (num_keys == 0) { return; }
 
   auto grid_size = default_grid_size(num_keys);
-  auto ref_      = this->ref(cuco::experimental::bv_read);
 
   bitvector_get_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-    ref_, keys_begin, outputs_begin, num_keys);
+    ref(), keys_begin, outputs_begin, num_keys);
 }
 
 template <class Allocator>
@@ -99,10 +98,9 @@ void bit_vector<Allocator>::ranks(KeyIt keys_begin,
   if (num_keys == 0) { return; }
 
   auto grid_size = default_grid_size(num_keys);
-  auto ref_      = this->ref(cuco::experimental::bv_read);
 
   bitvector_rank_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-    ref_, keys_begin, outputs_begin, num_keys);
+    ref(), keys_begin, outputs_begin, num_keys);
 }
 
 template <class Allocator>
@@ -117,10 +115,9 @@ void bit_vector<Allocator>::selects(KeyIt keys_begin,
   if (num_keys == 0) { return; }
 
   auto grid_size = default_grid_size(num_keys);
-  auto ref_      = this->ref(cuco::experimental::bv_read);
 
   bitvector_select_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-    ref_, keys_begin, outputs_begin, num_keys);
+    ref(), keys_begin, outputs_begin, num_keys);
 }
 
 template <class Allocator>
@@ -187,16 +184,13 @@ void bit_vector<Allocator>::build() noexcept
 }
 
 template <class Allocator>
-template <typename... Operators>
-bit_vector<Allocator>::ref_type<Operators...> bit_vector<Allocator>::ref(
-  Operators...) const noexcept
+bit_vector<Allocator>::ref_type bit_vector<Allocator>::ref() const noexcept
 {
-  static_assert(sizeof...(Operators), "No operators specified");
-  return ref_type<Operators...>{device_storage_ref{thrust::raw_pointer_cast(words_.data()),
-                                                   thrust::raw_pointer_cast(ranks_.data()),
-                                                   thrust::raw_pointer_cast(selects_.data()),
-                                                   thrust::raw_pointer_cast(ranks0_.data()),
-                                                   thrust::raw_pointer_cast(selects0_.data())}};
+  return ref_type{storage_ref_type{thrust::raw_pointer_cast(words_.data()),
+                                   thrust::raw_pointer_cast(ranks_.data()),
+                                   thrust::raw_pointer_cast(selects_.data()),
+                                   thrust::raw_pointer_cast(ranks0_.data()),
+                                   thrust::raw_pointer_cast(selects0_.data())}};
 }
 
 }  // namespace detail
