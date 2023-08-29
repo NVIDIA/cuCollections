@@ -80,9 +80,8 @@ class bit_vector {
  public:
   using size_type = std::size_t;  ///< size type to specify bit index
   using slot_type = uint64_t;     ///< Slot type
-  using allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<slot_type>;  ///< Type of the allocator
-                                                                         ///< to (de)allocate words
+  /// Type of the allocator to (de)allocate words
+  using allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<slot_type>;
 
   static constexpr size_type words_per_block = 4;  ///< Tradeoff between space efficiency and perf.
   static constexpr size_type bits_per_word   = sizeof(slot_type) * CHAR_BIT;     ///< Bits in a word
@@ -216,24 +215,24 @@ class bit_vector {
   size_type constexpr size() const noexcept { return n_bits_; }
 
  private:
-  using rank_allocator_type =
-    typename std::allocator_traits<Allocator>::rebind_alloc<rank>;  ///< Type of the allocator to
-                                                                    ///< (de)allocate ranks
-  using size_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
-    size_type>;  ///< Type of the allocator to (de)allocate indices
+  /// Type of the allocator to (de)allocate ranks
+  using rank_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<rank>;
+  /// Type of the allocator to (de)allocate indices
+  using size_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<size_type>;
 
   allocator_type allocator_;  ///< Words allocator
   size_type n_bits_;          ///< Number of bits bit_vector currently holds
 
-  thrust::device_vector<slot_type, allocator_type>
-    words_;  ///< Words vector that represents all bits
-  thrust::device_vector<rank, rank_allocator_type>
-    ranks_;  ///< Rank values for every 256-th bit (4-th word)
-  thrust::device_vector<rank, rank_allocator_type> ranks0_;  ///< Same as ranks_ but for `0` bits
-  thrust::device_vector<size_type, size_allocator_type>
-    selects_;  ///< Block indices of (0, 256, 512...)th `1` bit
-  thrust::device_vector<size_type, size_allocator_type>
-    selects0_;  ///< Same as selects_, but for `0` bits
+  /// Words vector that represents all bits
+  thrust::device_vector<slot_type, allocator_type> words_;
+  /// Rank values for every 256-th bit (4-th word)
+  thrust::device_vector<rank, rank_allocator_type> ranks_;
+  /// Same as ranks_ but for `0` bits
+  thrust::device_vector<rank, rank_allocator_type> ranks0_;
+  /// Block indices of (0, 256, 512...)th `1` bit
+  thrust::device_vector<size_type, size_allocator_type> selects_;
+  /// Same as selects_, but for `0` bits
+  thrust::device_vector<size_type, size_allocator_type> selects0_;
 
   /**
    * @brief Populates rank and select indexes on device
