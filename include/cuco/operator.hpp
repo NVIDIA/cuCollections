@@ -45,12 +45,6 @@ struct contains_tag {
 struct find_tag {
 } inline constexpr find;
 
-/**
- * @brief `bv_read` operator tag
- */
-struct bv_read_tag {
-} inline constexpr bv_read;
-
 }  // namespace op
 }  // namespace experimental
 }  // namespace cuco
