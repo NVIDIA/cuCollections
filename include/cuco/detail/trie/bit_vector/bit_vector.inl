@@ -21,18 +21,16 @@
 namespace cuco {
 namespace experimental {
 
-bit_vector::bit_vector() : words_{}, ranks_{}, ranks0_{}, selects_{}, selects0_{}, n_bits_{0} {}
+bit_vector::bit_vector() : n_bits_{0}, words_{}, ranks_{}, ranks0_{}, selects_{}, selects0_{} {}
 
 bit_vector::~bit_vector() {}
 
 void bit_vector::append(bool bit) noexcept
 {
   if (n_bits_ % bits_per_block == 0) {
-    size_type new_n_bits  = n_bits_ + bits_per_block;  // Extend storage by one block
-    size_type new_n_words = new_n_bits / bits_per_word;
-
-    words_.resize(new_n_words);
+    words_.resize(words_.size() + words_per_block);  // Extend storage by one block
   }
+
   set(n_bits_, bit);
   ++n_bits_;
 }
@@ -41,7 +39,6 @@ void bit_vector::set(size_type index, bool bit) noexcept
 {
   size_type word_id = index / bits_per_word;
   size_type bit_id  = index % bits_per_word;
-
   if (bit) {
     words_[word_id] |= 1UL << bit_id;
   } else {
@@ -313,18 +310,15 @@ void bit_vector::build_ranks_and_selects(thrust::device_vector<rank>& ranks,
                                          bool flip_bits)
 {
   if (n_bits_ == 0) { return; }
-  size_type num_words = (n_bits_ - 1) / bits_per_word + 1;
-  // Round up num_words to a block
-  if (num_words % words_per_block) { num_words += words_per_block - (num_words % words_per_block); }
 
   // Step 1. Compute prefix sum of per-word bit counts
-
   // Population counts for each word
   // Sized to have one extra entry for subsequent prefix sum
+  size_type num_words = words_.size();
   thrust::device_vector<size_type> bit_counts(num_words + 1);
   auto grid_size = default_grid_size(num_words);
   bit_counts_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
-    thrust::raw_pointer_cast(d_words_.data()),
+    thrust::raw_pointer_cast(words_.data()),
     thrust::raw_pointer_cast(bit_counts.data()),
     num_words,
     flip_bits);
@@ -367,8 +361,6 @@ void bit_vector::build_ranks_and_selects(thrust::device_vector<rank>& ranks,
 
 void bit_vector::build() noexcept
 {
-  d_words_ = words_;
-  words_.clear();
   build_ranks_and_selects(ranks_, selects_, false);   // 1-bits
   build_ranks_and_selects(ranks0_, selects0_, true);  // 0-bits
 }
@@ -377,7 +369,7 @@ template <typename... Operators>
 bit_vector::ref_type<Operators...> bit_vector::ref(Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
-  return ref_type<Operators...>{device_storage_ref{thrust::raw_pointer_cast(d_words_.data()),
+  return ref_type<Operators...>{device_storage_ref{thrust::raw_pointer_cast(words_.data()),
                                                    thrust::raw_pointer_cast(ranks_.data()),
                                                    thrust::raw_pointer_cast(selects_.data()),
                                                    thrust::raw_pointer_cast(ranks0_.data()),

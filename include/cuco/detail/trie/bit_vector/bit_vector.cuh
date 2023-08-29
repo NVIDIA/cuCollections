@@ -197,17 +197,13 @@ class bit_vector {
   static constexpr size_type words_per_block = 4;  ///< Tradeoff between space efficiency and perf.
 
  private:
-  size_type n_bits_;  ///< Number of bits bit_vector currently holds
-
   // These could be public if needed by other classes. Private for now
   static constexpr size_type bits_per_word  = sizeof(slot_type) * 8;            ///< Bits in a word
   static constexpr size_type bits_per_block = words_per_block * bits_per_word;  ///< Trivial
 
-  // Host-side structures
-  std::vector<slot_type> words_;  ///< Words vector that represents all bits
+  size_type n_bits_;  ///< Number of bits bit_vector currently holds
 
-  // Device-side structures
-  thrust::device_vector<slot_type> d_words_;   ///< Device words vector
+  thrust::device_vector<slot_type> words_;     ///< Words vector that represents all bits
   thrust::device_vector<rank> ranks_;          ///< Rank values for every 256-th bit (4-th word)
   thrust::device_vector<rank> ranks0_;         ///< Same as ranks_ but for `0` bits
   thrust::device_vector<size_type> selects_;   ///< Block indices of (0, 256, 512...)th `1` bit
