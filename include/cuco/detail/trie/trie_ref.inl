@@ -37,11 +37,11 @@ class operator_impl<op::trie_lookup_tag, trie_ref<label_type, Operators...>> {
 
     // Check for terminal node bit that indicates a valid key
     size_type leaf_level_id = length;
-    if (!trie->d_outs_refs_ptr_[leaf_level_id].get(node_id)) { return -1lu; }
+    if (!trie->outs_refs_ptr_[leaf_level_id].get(node_id)) { return -1lu; }
 
     // Key exists in trie, generate the index
     auto offset = trie->d_levels_ptr_[leaf_level_id].offset_;
-    auto rank   = trie->d_outs_refs_ptr_[leaf_level_id].rank(node_id);
+    auto rank   = trie->outs_refs_ptr_[leaf_level_id].rank(node_id);
 
     return offset + rank;
   }
@@ -83,13 +83,13 @@ class operator_impl<op::trie_lookup_tag, trie_ref<label_type, Operators...>> {
                                                          size_type level_id) const noexcept
   {
     auto const& trie = static_cast<ref_type const&>(*this).trie_;
-    auto louds       = trie->d_louds_refs_ptr_[level_id];
+    auto louds       = trie->louds_refs_ptr_[level_id];
 
     auto end   = get_last_child_position(louds, node_id);  // Position of last child
     auto begin = node_id;  // Position of first child, initialized after find_last_child call
 
     auto& level = trie->d_levels_ptr_[level_id];
-    auto labels = level.d_labels_ptr_;
+    auto labels = level.labels_ptr_;
 
     // Binary search labels array of current level
     while (begin < end) {
