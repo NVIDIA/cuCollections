@@ -22,7 +22,10 @@
 
 #include <thrust/device_vector.h>
 
+#include <cuda/std/array>
+
 #include <climits>
+#include <cstddef>
 
 namespace cuco {
 namespace experimental {
