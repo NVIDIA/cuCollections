@@ -15,7 +15,7 @@
  */
 #pragma once
 
-#include <cuco/detail/utils.hpp>
+#include <cuco/detail/utility/cuda.cuh>
 
 #include <cub/block/block_reduce.cuh>
 
@@ -71,8 +71,8 @@ __global__ void insert_if_n(InputIterator first,
   __shared__ typename BlockReduce::TempStorage temp_storage;
   typename Ref::size_type thread_num_successes = 0;
 
-  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
-  cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
+  auto const loop_stride = cuco::detail::grid_stride<CGSize>();
+  auto idx               = cuco::detail::global_thread_id<CGSize>();
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
@@ -129,8 +129,8 @@ template <int32_t CGSize,
 __global__ void insert_if_n(
   InputIterator first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
-  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
-  cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
+  auto const loop_stride = cuco::detail::grid_stride<CGSize>();
+  auto idx               = cuco::detail::global_thread_id<CGSize>();
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
@@ -188,11 +188,10 @@ __global__ void contains_if_n(InputIt first,
 {
   namespace cg = cooperative_groups;
 
-  auto const block      = cg::this_thread_block();
-  auto const thread_idx = block.thread_rank();
-
-  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
-  cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
+  auto const block       = cg::this_thread_block();
+  auto const thread_idx  = block.thread_rank();
+  auto const loop_stride = cuco::detail::grid_stride<CGSize>();
+  auto idx               = cuco::detail::global_thread_id<CGSize>();
 
   __shared__ bool output_buffer[BlockSize / CGSize];
 
@@ -239,8 +238,8 @@ __global__ void size(StorageRef storage, Predicate is_filled, AtomicT* count)
 {
   using size_type = typename StorageRef::size_type;
 
-  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
-  cuco::detail::index_type idx               = BlockSize * blockIdx.x + threadIdx.x;
+  auto const loop_stride = cuco::detail::grid_stride();
+  auto idx               = cuco::detail::global_thread_id();
 
   size_type thread_count = 0;
   auto const n           = storage.num_windows();

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,12 @@
 #pragma once
 
 namespace cuco {
-namespace experimental {
 namespace detail {
 
-static constexpr int CUCO_DEFAULT_BLOCK_SIZE = 128;
-static constexpr int CUCO_DEFAULT_STRIDE     = 1;
+using index_type = int64_t;  ///< CUDA thread index type
+
+static constexpr int32_t CUCO_DEFAULT_BLOCK_SIZE = 128;  ///< Default block size
+static constexpr int32_t CUCO_DEFAULT_STRIDE     = 1;    ///< Default stride
 
 }  // namespace detail
-}  // namespace experimental
 }  // namespace cuco

@@ -16,14 +16,13 @@
 #pragma once
 
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/utility/cuda.hpp>
 
 #include <iterator>
 #include <type_traits>
 
 namespace cuco {
 namespace detail {
-
-using index_type = int64_t;  ///< index type for internal use
 
 // safe division
 #ifndef SDIV

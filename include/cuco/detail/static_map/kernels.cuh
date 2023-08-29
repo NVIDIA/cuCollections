@@ -16,7 +16,7 @@
 #pragma once
 
 #include <cuco/detail/bitwise_compare.cuh>
-#include <cuco/detail/utils.hpp>
+#include <cuco/detail/utility/cuda.cuh>
 
 #include <cub/block/block_reduce.cuh>
 
@@ -91,11 +91,11 @@ __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_
 {
   namespace cg = cooperative_groups;
 
-  auto const block      = cg::this_thread_block();
-  auto const thread_idx = block.thread_rank();
+  auto const block       = cg::this_thread_block();
+  auto const thread_idx  = block.thread_rank();
+  auto const loop_stride = cuco::detail::grid_stride<CGSize>();
+  auto idx               = cuco::detail::global_thread_id<CGSize>();
 
-  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
-  cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
   __shared__ typename Ref::mapped_type output_buffer[BlockSize / CGSize];
 
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration

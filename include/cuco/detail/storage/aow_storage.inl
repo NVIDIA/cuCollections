@@ -19,7 +19,7 @@
 #include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/storage/kernels.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
-#include <cuco/detail/tuning.cuh>
+#include <cuco/detail/utility/cuda.hpp>
 #include <cuco/extent.cuh>
 
 #include <cuda/std/array>
@@ -68,10 +68,11 @@ void aow_storage<T, WindowSize, Extent, Allocator>::initialize(value_type key,
                                                                cuda_stream_ref stream) noexcept
 {
   auto constexpr stride = 4;
-  auto const grid_size  = (this->num_windows() + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-                         (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
+  auto const grid_size =
+    (this->num_windows() + stride * cuco::detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+    (stride * cuco::detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  detail::initialize<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  detail::initialize<<<grid_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
     this->data(), this->num_windows(), key);
 }
 
