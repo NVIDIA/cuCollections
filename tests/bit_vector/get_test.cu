@@ -38,7 +38,7 @@ TEST_CASE("Get test", "")
 {
   cuco::experimental::bit_vector bv;
 
-  using size_type = cuco::experimental::bit_vector<>::size_type;
+  using size_type = cuco::experimental::bit_vector::size_type;
   constexpr size_type num_elements{400};
 
   size_type num_set_ref = 0;

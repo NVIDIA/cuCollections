@@ -19,7 +19,6 @@
 
 #include <cuco/detail/trie/bit_vector/bit_vector_ref.cuh>
 #include <cuco/storage.cuh>
-#include <cuco/utility/allocator.hpp>
 
 #include <thrust/device_vector.h>
 
@@ -64,20 +63,15 @@ struct rank {
  * new operations close to constant time.
  * Bitvector construction happens on host, after which the structures are moved to device.
  * All subsequent read-only operations access device structures only.
- *
- * @tparam Allocator Type of allocator used for device storage
  */
-template <class Allocator = cuco::cuda_allocator<std::byte>>
 class bit_vector {
  public:
   /**
    * @brief Constructs an empty bitvector
-   *
-   * @param allocator Allocator for internal storage
    */
-  bit_vector(Allocator const& allocator = Allocator{});
-  bit_vector(cuco::experimental::bit_vector<Allocator>&&) = default;  ///< Move constructor
-  ~bit_vector();
+  inline bit_vector();
+  bit_vector(cuco::experimental::bit_vector&&) = default;  ///< Move constructor
+  inline ~bit_vector();
 
   /**
    * @brief adds a new bit at the end
@@ -86,7 +80,7 @@ class bit_vector {
    *
    * @param bit Boolean value of new bit to be added
    */
-  void append(bool bit) noexcept;
+  inline void append(bool bit) noexcept;
 
   using size_type = std::size_t;  ///< size type to specify bit index
   /**
@@ -95,21 +89,19 @@ class bit_vector {
    * @param index position of bit to be modified
    * @param bit new value of bit
    */
-  void set(size_type index, bool bit) noexcept;
+  inline void set(size_type index, bool bit) noexcept;
 
   /**
    * @brief Sets last bit to specified value
    *
    * @param bit new value of last bit
    */
-  void set_last(bool bit) noexcept;
+  inline void set_last(bool bit) noexcept;
 
   /**
    * @brief Builds indexes for rank and select
-   *
-   * Also creates device-side snapshot
    */
-  void build() noexcept;
+  inline void build() noexcept;
 
   /**
    * @brief Bulk get operation
@@ -162,31 +154,21 @@ class bit_vector {
                OutputIt outputs_begin,
                cuda_stream_ref stream = {}) const noexcept;
 
-  using allocator_type = Allocator;  ///< Allocator type
-  using slot_type      = uint64_t;   ///< Slot type
-
-  using words_storage_type =
-    aow_storage<slot_type, 1, extent<size_type>, allocator_type>;  ///< storage type for words
-  using ranks_storage_type =
-    aow_storage<rank, 1, extent<size_type>, allocator_type>;  ///< storage type for ranks
-  using selects_storage_type =
-    aow_storage<size_type, 1, extent<size_type>, allocator_type>;  ///< storage type for selects
+  using slot_type = uint64_t;  ///< Slot type
 
   /**
    *@brief Struct to hold all storage refs needed by bitvector_ref
    */
   struct device_storage_ref {
-    using size_type       = size_type;     ///< Size type
-    using slot_type       = slot_type;     ///< Slot type
-    using bit_vector_type = bit_vector<>;  ///< bit_vector_ref needs this to access words_per_block
+    using bit_vector_type = bit_vector;  ///< bit_vector_ref needs this to access words_per_block
 
-    typename words_storage_type::ref_type words_ref_;  ///< Words ref
+    const slot_type* words_ref_;  ///< Words ref
 
-    typename ranks_storage_type::ref_type ranks_ref_;      ///< Ranks refs
-    typename selects_storage_type::ref_type selects_ref_;  ///< Selects refs
+    const rank* ranks_ref_;         ///< Ranks refs
+    const size_type* selects_ref_;  ///< Selects refs
 
-    typename ranks_storage_type::ref_type ranks0_ref_;      ///< Ranks refs for 0 bits
-    typename selects_storage_type::ref_type selects0_ref_;  ///< Selects refs 0 bits
+    const rank* ranks0_ref_;         ///< Ranks refs for 0 bits
+    const size_type* selects0_ref_;  ///< Selects refs 0 bits
   };
 
   template <typename... Operators>
@@ -203,7 +185,7 @@ class bit_vector {
    * @return Device ref of the current `bit_vector` object
    */
   template <typename... Operators>
-  [[nodiscard]] auto ref(Operators... ops) const noexcept;
+  [[nodiscard]] ref_type<Operators...> ref(Operators... ops) const noexcept;
 
   /**
    * @brief Get the number of bits bit_vector holds
@@ -231,13 +213,6 @@ class bit_vector {
   thrust::device_vector<size_type> selects_;   ///< Block indices of (0, 256, 512...)th `1` bit
   thrust::device_vector<size_type> selects0_;  ///< Same as selects_, but for `0` bits
 
-  allocator_type allocator_;  ///< Allocator used to (de)allocate temporary storage
-  std::unique_ptr<words_storage_type> aow_words_;  ///< Array of window storage structure
-  std::unique_ptr<ranks_storage_type> aow_ranks_;
-  std::unique_ptr<ranks_storage_type> aow_ranks0_;
-  std::unique_ptr<selects_storage_type> aow_selects_;
-  std::unique_ptr<selects_storage_type> aow_selects0_;
-
   /**
    * @brief Populates rank and select indexes on device
    *
@@ -245,22 +220,9 @@ class bit_vector {
    * @param selects Output array of selects
    * @param flip_bits If true, negate bits to construct indexes for `0` bits
    */
-  void build_ranks_and_selects(thrust::device_vector<rank>& ranks,
-                               thrust::device_vector<size_type>& selects,
-                               bool flip_bits);
-
-  /**
-   * @brief Creates a new window structure on device and initializes it from a device array
-   *
-   * @tparam T Type of device array elements
-   * @tparam storage_type Storage type
-   *
-   * @param aow pointer to destination (device window structure)
-   * @param device_array device array whose contents are used to intialize aow
-   */
-  template <class T, class storage_type>
-  void copy_device_array_to_aow(std::unique_ptr<storage_type>* aow,
-                                thrust::device_vector<T>& device_array) noexcept;
+  inline void build_ranks_and_selects(thrust::device_vector<rank>& ranks,
+                                      thrust::device_vector<size_type>& selects,
+                                      bool flip_bits);
 
   /**
    * @brief Helper function to calculate grid size for simple kernels
