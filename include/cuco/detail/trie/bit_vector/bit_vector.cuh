@@ -17,8 +17,10 @@
 
 #pragma once
 
+#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/trie/bit_vector/bit_vector_ref.cuh>
-#include <cuco/storage.cuh>
+#include <cuco/detail/tuning.cuh>
+#include <cuco/detail/utils.hpp>
 
 #include <thrust/device_vector.h>
 
