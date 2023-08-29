@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/detail/equal_wrapper.cuh>
+#include <cuco/detail/probing_scheme_base.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/pair.cuh>
 
