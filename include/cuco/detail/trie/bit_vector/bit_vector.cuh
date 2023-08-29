@@ -24,6 +24,7 @@
 
 namespace cuco {
 namespace experimental {
+namespace detail {
 
 /**
  * @brief Struct to store ranks of bits at 256-bit intervals
@@ -70,7 +71,7 @@ class bit_vector {
    * @brief Constructs an empty bitvector
    */
   inline bit_vector();
-  bit_vector(cuco::experimental::bit_vector&&) = default;  ///< Move constructor
+  bit_vector(bit_vector&&) = default;  ///< Move constructor
   inline ~bit_vector();
 
   /**
@@ -233,6 +234,7 @@ class bit_vector {
   }
 };
 
+}  // namespace detail
 }  // namespace experimental
 }  // namespace cuco
 

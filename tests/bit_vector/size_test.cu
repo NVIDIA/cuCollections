@@ -20,8 +20,8 @@
 
 TEST_CASE("Size computation", "")
 {
-  cuco::experimental::bit_vector bv;
-  using size_type = cuco::experimental::bit_vector::size_type;
+  cuco::experimental::detail::bit_vector bv;
+  using size_type = cuco::experimental::detail::bit_vector::size_type;
   constexpr size_type num_elements{400};
 
   for (size_type i = 0; i < num_elements; i++) {

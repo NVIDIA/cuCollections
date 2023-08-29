@@ -36,9 +36,9 @@ bool modulo_bitgen(uint64_t i) { return i % 7 == 0; }
 
 TEST_CASE("Get test", "")
 {
-  cuco::experimental::bit_vector bv;
+  cuco::experimental::detail::bit_vector bv;
 
-  using size_type = cuco::experimental::bit_vector::size_type;
+  using size_type = cuco::experimental::detail::bit_vector::size_type;
   constexpr size_type num_elements{400};
 
   size_type num_set_ref = 0;

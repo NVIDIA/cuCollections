@@ -20,6 +20,7 @@
 
 namespace cuco {
 namespace experimental {
+namespace detail {
 
 bit_vector::bit_vector() : n_bits_{0}, words_{}, ranks_{}, ranks0_{}, selects_{}, selects0_{} {}
 
@@ -376,5 +377,6 @@ bit_vector::ref_type<Operators...> bit_vector::ref(Operators...) const noexcept
                                                    thrust::raw_pointer_cast(selects0_.data())}};
 }
 
+}  // namespace detail
 }  // namespace experimental
 }  // namespace cuco
