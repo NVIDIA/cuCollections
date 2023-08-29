@@ -99,7 +99,7 @@ class trie {
   std::vector<level> levels_;  ///< Host-side array of levels
   level* d_levels_ptr_;        ///< Device-side array of levels
 
-  using bv_read_ref = bit_vector_ref<bit_vector<>::device_storage_ref, bv_read_tag>;  ///< Read ref
+  using bv_read_ref = bit_vector_ref<bit_vector::device_storage_ref, bv_read_tag>;  ///< Read ref
   thrust::device_vector<bv_read_ref> d_louds_refs_;  ///< refs to per-level louds bitvectors
   thrust::device_vector<bv_read_ref> d_outs_refs_;   ///< refs to per-level outs bitvectors
 
@@ -123,8 +123,8 @@ class trie {
     level();
     level(level&&) = default;  ///< Move constructor
 
-    bit_vector<> louds_;  ///< Indicates links to next and previous level
-    bit_vector<> outs_;   ///< Indicates terminal nodes of valid keys
+    bit_vector louds_;  ///< Indicates links to next and previous level
+    bit_vector outs_;   ///< Indicates terminal nodes of valid keys
 
     std::vector<label_type> labels_;              ///< Stores individual characters of keys
     thrust::device_vector<label_type> d_labels_;  ///< Device-side copy of `labels`
