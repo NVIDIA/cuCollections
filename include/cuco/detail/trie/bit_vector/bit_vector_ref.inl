@@ -212,36 +212,6 @@ class operator_impl<op::bv_read_tag, bit_vector_ref<StorageRef, Operators...>> {
   }
 };
 
-template <typename StorageRef, typename... Operators>
-class operator_impl<op::bv_set_tag, bit_vector_ref<StorageRef, Operators...>> {
-  using ref_type  = bit_vector_ref<StorageRef, Operators...>;  ///< Bitvector ref type
-  using size_type = typename StorageRef::size_type;            ///< Size type
-  using slot_type = typename StorageRef::slot_type;            ///< Slot type
-  static constexpr size_type bits_per_word = sizeof(slot_type) * 8;
-
- public:
-  /**
-   * @brief Modify a single bit
-   *
-   * @param key Position of bit
-   * @param bit New value of bit
-   */
-  __device__ void set(size_type key, bool bit) noexcept
-  {
-    ref_type& ref_ = static_cast<ref_type&>(*this);
-
-    size_type word_id = key / bits_per_word;
-    size_type bit_id  = key % bits_per_word;
-    auto& word        = ref_.storage_.words_ref_[word_id][0];
-
-    if (bit) {
-      word |= 1UL << bit_id;
-    } else {
-      word &= ~(1UL << bit_id);
-    }
-  }
-};
-
 }  // namespace detail
 }  // namespace experimental
 }  // namespace cuco

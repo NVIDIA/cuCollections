@@ -162,23 +162,6 @@ class bit_vector {
                OutputIt outputs_begin,
                cuda_stream_ref stream = {}) const noexcept;
 
-  /**
-   * @brief Bulk set operation
-   *
-   * @tparam KeyIt Device-accessible iterator to keys
-   * @tparam ValueIt Device-accessible iterator to values
-   *
-   * @param keys_begin Begin iterator to keys that need to modified
-   * @param keys_end End iterator to keys
-   * @param vals_begin Begin iterator to new bit values
-   * @param stream Stream to execute set kernel
-   */
-  template <typename KeyIt, typename ValueIt>
-  void set(KeyIt keys_begin,
-           KeyIt keys_end,
-           ValueIt vals_begin,
-           cuda_stream_ref stream = {}) const noexcept;
-
   using allocator_type = Allocator;  ///< Allocator type
   using slot_type      = uint64_t;   ///< Slot type
 

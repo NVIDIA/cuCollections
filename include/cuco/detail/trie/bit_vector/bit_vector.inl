@@ -118,23 +118,6 @@ void bit_vector<Allocator>::selects(KeyIt keys_begin,
     ref_, keys_begin, outputs_begin, num_keys);
 }
 
-template <class Allocator>
-template <typename KeyIt, typename ValueIt>
-void bit_vector<Allocator>::set(KeyIt keys_begin,
-                                KeyIt keys_end,
-                                ValueIt vals_begin,
-                                cuda_stream_ref stream) const noexcept
-{
-  auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
-  if (num_keys == 0) { return; }
-
-  auto grid_size = default_grid_size(num_keys);
-  auto ref_      = this->ref(cuco::experimental::bv_set);
-
-  bitvector_set_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
-    ref_, keys_begin, vals_begin, num_keys);
-}
-
 /*
  * @brief Gather bits of a range of keys
  *
@@ -215,34 +198,6 @@ __global__ void bitvector_select_kernel(BitvectorRef ref,
 
   while (key_id < num_keys) {
     outputs[key_id] = ref.select(keys[key_id]);
-    key_id += loop_stride;
-  }
-}
-
-/*
- * @brief Set bits of a range of keys
- *
- * @tparam BitvectorRef Bitvector reference type
- * @tparam KeyIt Device-accessible iterator to input keys
- * @tparam ValueIt Device-accessible iterator to values
- * @tparam size_type Size type
- *
- * @param ref Bitvector ref
- * @param keys Begin iterator to input keys
- * @param values Begin iterator to input values
- * @param num_keys Number of input keys
- */
-template <typename BitvectorRef, typename KeyIt, typename ValueIt, typename size_type>
-__global__ void bitvector_set_kernel(BitvectorRef ref,
-                                     KeyIt keys,
-                                     ValueIt values,
-                                     size_type num_keys)
-{
-  uint32_t const loop_stride = gridDim.x * blockDim.x;
-  uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;
-
-  while (key_id < num_keys) {
-    ref.set(keys[key_id], values[key_id]);
     key_id += loop_stride;
   }
 }
