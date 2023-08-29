@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include <cuda/std/bit>
+
 namespace cuco {
 namespace experimental {
 namespace detail {

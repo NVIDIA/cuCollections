@@ -18,14 +18,11 @@
 #pragma once
 
 #include <cuco/cuda_stream_ref.hpp>
-#include <cuco/detail/tuning.cuh>
-#include <cuco/detail/utils.hpp>
 
 #include <thrust/device_malloc_allocator.h>
 #include <thrust/device_vector.h>
 
 #include <cuda/std/array>
-#include <cuda/std/bit>
 
 #include <climits>
 #include <cstddef>
@@ -199,10 +196,7 @@ class bit_vector {
 ￼   *
 ￼   * @param storage Struct with non-owning refs to bitvector slot storages
 ￼   */
-    __host__ __device__ explicit constexpr reference(storage_ref_type storage) noexcept
-      : storage_{storage}
-    {
-    }
+    __host__ __device__ explicit constexpr reference(storage_ref_type storage) noexcept;
 
     /**
      * @brief Access value of a single bit
@@ -211,10 +205,7 @@ class bit_vector {
      *
      * @return Value of bit at position specified by key
      */
-    [[nodiscard]] __device__ bool get(size_type key) const noexcept
-    {
-      return (storage_.words_ref_[key / bits_per_word] >> (key % bits_per_word)) & 1UL;
-    }
+    [[nodiscard]] __device__ bool get(size_type key) const noexcept;
 
     /**
      * @brief Access a single word of internal storage
@@ -223,10 +214,7 @@ class bit_vector {
      *
      * @return Word at position specified by index
      */
-    [[nodiscard]] __device__ slot_type get_word(size_type word_id) const noexcept
-    {
-      return storage_.words_ref_[word_id];
-    }
+    [[nodiscard]] __device__ slot_type get_word(size_type word_id) const noexcept;
 
     /**
      * @brief Find position of first set bit starting from a given position (inclusive)
@@ -235,17 +223,7 @@ class bit_vector {
      *
      * @return Index of next set bit
      */
-    [[nodiscard]] __device__ size_type find_next_set(size_type key) const noexcept
-    {
-      size_type word_id = key / bits_per_word;
-      size_type bit_id  = key % bits_per_word;
-      slot_type word    = storage_.words_ref_[word_id];
-      word &= ~(0lu) << bit_id;
-      while (word == 0) {
-        word = storage_.words_ref_[++word_id];
-      }
-      return word_id * bits_per_word + __ffsll(word) - 1;  // cuda intrinsic
-    }
+    [[nodiscard]] __device__ size_type find_next_set(size_type key) const noexcept;
 
     /**
      * @brief Find number of set bits (rank) in all positions before the input position (exclusive)
@@ -254,22 +232,7 @@ class bit_vector {
      *
      * @return Rank of input position
      */
-    [[nodiscard]] __device__ size_type rank(size_type key) const noexcept
-    {
-      size_type word_id = key / bits_per_word;
-      size_type bit_id  = key % bits_per_word;
-      size_type rank_id = word_id / words_per_block;
-      size_type rel_id  = word_id % words_per_block;
-
-      auto rank   = storage_.ranks_ref_[rank_id];
-      size_type n = rank.abs();
-
-      if (rel_id != 0) { n += rank.rels_[rel_id - 1]; }
-
-      n += cuda::std::popcount(storage_.words_ref_[word_id] & ((1UL << bit_id) - 1));
-
-      return n;
-    }
+    [[nodiscard]] __device__ size_type rank(size_type key) const noexcept;
 
     /**
      * @brief Find position of Nth set (1) bit counting from start of bitvector
@@ -278,16 +241,7 @@ class bit_vector {
      *
      * @return Position of Nth set bit
      */
-    [[nodiscard]] __device__ size_type select(size_type count) const noexcept
-    {
-      auto rank_id = get_initial_rank_estimate(count, storage_.selects_ref_, storage_.ranks_ref_);
-      auto rank    = storage_.ranks_ref_[rank_id];
-
-      size_type word_id = rank_id * words_per_block;
-      word_id += subtract_rank_from_count(count, rank);
-
-      return word_id * bits_per_word + select_bit_in_word(count, storage_.words_ref_[word_id]);
-    }
+    [[nodiscard]] __device__ size_type select(size_type count) const noexcept;
 
     /**
      * @brief Find position of Nth not-set (0) bit counting from start of bitvector
@@ -296,16 +250,7 @@ class bit_vector {
      *
      * @return Position of Nth not-set bit
      */
-    [[nodiscard]] __device__ size_type select0(size_type count) const noexcept
-    {
-      auto rank_id = get_initial_rank_estimate(count, storage_.selects0_ref_, storage_.ranks0_ref_);
-      auto rank    = storage_.ranks0_ref_[rank_id];
-
-      size_type word_id = rank_id * words_per_block;
-      word_id += subtract_rank_from_count(count, rank);
-
-      return word_id * bits_per_word + select_bit_in_word(count, ~(storage_.words_ref_[word_id]));
-    }
+    [[nodiscard]] __device__ size_type select0(size_type count) const noexcept;
 
    private:
     /**
@@ -319,28 +264,7 @@ class bit_vector {
      */
     template <typename SelectsRef, typename RanksRef>
     [[nodiscard]] __device__ size_type get_initial_rank_estimate(
-      size_type count, const SelectsRef& selects, const RanksRef& ranks) const noexcept
-    {
-      size_type block_id = count / (bits_per_word * words_per_block);
-      size_type begin    = selects[block_id];
-      size_type end      = selects[block_id + 1] + 1UL;
-
-      if (begin + 10 >= end) {  // Linear search
-        while (count >= ranks[begin + 1].abs()) {
-          ++begin;
-        }
-      } else {  // Binary search
-        while (begin + 1 < end) {
-          size_type middle = (begin + end) / 2;
-          if (count < ranks[middle].abs()) {
-            end = middle;
-          } else {
-            begin = middle;
-          }
-        }
-      }
-      return begin;
-    }
+      size_type count, const SelectsRef& selects, const RanksRef& ranks) const noexcept;
 
     /**
      * @brief Subtract rank estimate from input count and return an increment to word_id
@@ -354,19 +278,7 @@ class bit_vector {
      */
     template <typename Rank>
     [[nodiscard]] __device__ size_type subtract_rank_from_count(size_type& count,
-                                                                Rank rank) const noexcept
-    {
-      count -= rank.abs();
-
-      bool a0       = count >= rank.rels_[0];
-      bool a1       = count >= rank.rels_[1];
-      bool a2       = count >= rank.rels_[2];
-      size_type inc = a0 + a1 + a2;
-
-      count -= (inc > 0) * rank.rels_[inc - (inc > 0)];
-
-      return inc;
-    }
+                                                                Rank rank) const noexcept;
 
     /**
      * @brief Find position of Nth set bit in a 64-bit word
@@ -376,13 +288,7 @@ class bit_vector {
      * @return Position of Nth set bit
      */
     [[nodiscard]] __device__ size_type select_bit_in_word(size_type N,
-                                                          slot_type word) const noexcept
-    {
-      for (size_type pos = 0; pos < N; pos++) {
-        word &= word - 1;
-      }
-      return __ffsll(word & -word) - 1;  // cuda intrinsic
-    }
+                                                          slot_type word) const noexcept;
 
     storage_ref_type storage_;  ///< Non-owning storage
   };
@@ -401,7 +307,7 @@ class bit_vector {
    *
    * @return Number of bits bit_vector holds
    */
-  size_type constexpr size() const noexcept { return n_bits_; }
+  [[nodiscard]] constexpr size_type size() const noexcept;
 
  private:
   /// Type of the allocator to (de)allocate ranks
@@ -441,10 +347,8 @@ class bit_vector {
    *
    * @return grid size
    */
-  size_type constexpr default_grid_size(size_type num_elements) const noexcept
-  {
-    return (num_elements - 1) / (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE) + 1;
-  }
+  // TODO: to be moved to the CUDA utility header
+  size_type constexpr default_grid_size(size_type num_elements) const noexcept;
 };
 
 }  // namespace detail

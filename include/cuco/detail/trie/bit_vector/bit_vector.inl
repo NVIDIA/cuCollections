@@ -16,9 +16,13 @@
  */
 
 #include <cuco/detail/trie/bit_vector/kernels.cuh>
+#include <cuco/detail/tuning.cuh>
+#include <cuco/detail/utils.hpp>
 
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+
+#include <cuda/std/bit>
 
 namespace cuco {
 namespace experimental {
@@ -193,6 +197,154 @@ bit_vector<Allocator>::ref_type bit_vector<Allocator>::ref() const noexcept
                                    thrust::raw_pointer_cast(selects0_.data())}};
 }
 
+template <class Allocator>
+constexpr bit_vector<Allocator>::size_type bit_vector<Allocator>::size() const noexcept
+{
+  return n_bits_;
+}
+
+template <class Allocator>
+constexpr bit_vector<Allocator>::size_type bit_vector<Allocator>::default_grid_size(
+  size_type num_elements) const noexcept
+{
+  return (num_elements - 1) / (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE) + 1;
+}
+
+// Device reference implementations
+template <class Allocator>
+__host__ __device__ constexpr bit_vector<Allocator>::reference::reference(
+  storage_ref_type storage) noexcept
+  : storage_{storage}
+{
+}
+
+template <class Allocator>
+__device__ bool bit_vector<Allocator>::reference::get(size_type key) const noexcept
+{
+  return (storage_.words_ref_[key / bits_per_word] >> (key % bits_per_word)) & 1UL;
+}
+
+template <class Allocator>
+__device__ typename bit_vector<Allocator>::slot_type bit_vector<Allocator>::reference::get_word(
+  size_type word_id) const noexcept
+{
+  return storage_.words_ref_[word_id];
+}
+
+template <class Allocator>
+__device__ typename bit_vector<Allocator>::size_type
+bit_vector<Allocator>::reference::find_next_set(size_type key) const noexcept
+{
+  size_type word_id = key / bits_per_word;
+  size_type bit_id  = key % bits_per_word;
+  slot_type word    = storage_.words_ref_[word_id];
+  word &= ~(0lu) << bit_id;
+  while (word == 0) {
+    word = storage_.words_ref_[++word_id];
+  }
+  return word_id * bits_per_word + __ffsll(word) - 1;  // cuda intrinsic
+}
+
+template <class Allocator>
+__device__ typename bit_vector<Allocator>::size_type bit_vector<Allocator>::reference::rank(
+  size_type key) const noexcept
+{
+  size_type word_id = key / bits_per_word;
+  size_type bit_id  = key % bits_per_word;
+  size_type rank_id = word_id / words_per_block;
+  size_type rel_id  = word_id % words_per_block;
+
+  auto rank   = storage_.ranks_ref_[rank_id];
+  size_type n = rank.abs();
+
+  if (rel_id != 0) { n += rank.rels_[rel_id - 1]; }
+
+  n += cuda::std::popcount(storage_.words_ref_[word_id] & ((1UL << bit_id) - 1));
+
+  return n;
+}
+
+template <class Allocator>
+__device__ typename bit_vector<Allocator>::size_type bit_vector<Allocator>::reference::select(
+  size_type count) const noexcept
+{
+  auto rank_id = get_initial_rank_estimate(count, storage_.selects_ref_, storage_.ranks_ref_);
+  auto rank    = storage_.ranks_ref_[rank_id];
+
+  size_type word_id = rank_id * words_per_block;
+  word_id += subtract_rank_from_count(count, rank);
+
+  return word_id * bits_per_word + select_bit_in_word(count, storage_.words_ref_[word_id]);
+}
+
+template <class Allocator>
+__device__ typename bit_vector<Allocator>::size_type bit_vector<Allocator>::reference::select0(
+  size_type count) const noexcept
+{
+  auto rank_id = get_initial_rank_estimate(count, storage_.selects0_ref_, storage_.ranks0_ref_);
+  auto rank    = storage_.ranks0_ref_[rank_id];
+
+  size_type word_id = rank_id * words_per_block;
+  word_id += subtract_rank_from_count(count, rank);
+
+  return word_id * bits_per_word + select_bit_in_word(count, ~(storage_.words_ref_[word_id]));
+}
+
+template <class Allocator>
+template <typename SelectsRef, typename RanksRef>
+__device__ typename bit_vector<Allocator>::size_type
+bit_vector<Allocator>::reference::get_initial_rank_estimate(size_type count,
+                                                            SelectsRef const& selects,
+                                                            RanksRef const& ranks) const noexcept
+{
+  size_type block_id = count / (bits_per_word * words_per_block);
+  size_type begin    = selects[block_id];
+  size_type end      = selects[block_id + 1] + 1UL;
+
+  if (begin + 10 >= end) {  // Linear search
+    while (count >= ranks[begin + 1].abs()) {
+      ++begin;
+    }
+  } else {  // Binary search
+    while (begin + 1 < end) {
+      size_type middle = (begin + end) / 2;
+      if (count < ranks[middle].abs()) {
+        end = middle;
+      } else {
+        begin = middle;
+      }
+    }
+  }
+  return begin;
+}
+
+template <class Allocator>
+template <typename Rank>
+__device__ typename bit_vector<Allocator>::size_type
+bit_vector<Allocator>::reference::subtract_rank_from_count(size_type& count,
+                                                           Rank rank) const noexcept
+{
+  count -= rank.abs();
+
+  bool a0       = count >= rank.rels_[0];
+  bool a1       = count >= rank.rels_[1];
+  bool a2       = count >= rank.rels_[2];
+  size_type inc = a0 + a1 + a2;
+
+  count -= (inc > 0) * rank.rels_[inc - (inc > 0)];
+
+  return inc;
+}
+
+template <class Allocator>
+__device__ typename bit_vector<Allocator>::size_type
+bit_vector<Allocator>::reference::select_bit_in_word(size_type N, slot_type word) const noexcept
+{
+  for (size_type pos = 0; pos < N; pos++) {
+    word &= word - 1;
+  }
+  return __ffsll(word & -word) - 1;  // cuda intrinsic
+}
 }  // namespace detail
 }  // namespace experimental
 }  // namespace cuco
