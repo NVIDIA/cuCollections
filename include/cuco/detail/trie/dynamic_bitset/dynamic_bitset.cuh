@@ -73,7 +73,7 @@ struct rank {
  * @tparam Allocator Type of allocator used for device storage
  */
 template <class Allocator = thrust::device_malloc_allocator<std::byte>>
-class bit_vector {
+class dynamic_bitset {
  public:
   using size_type = std::size_t;  ///< size type to specify bit index
   using slot_type = uint64_t;     ///< Slot type
@@ -89,9 +89,9 @@ class bit_vector {
    *
    * @param allocator Allocator used for allocating device storage
    */
-  inline bit_vector(Allocator const& allocator = Allocator{});
-  bit_vector(bit_vector&&) = default;  ///< Move constructor
-  inline ~bit_vector();
+  inline dynamic_bitset(Allocator const& allocator = Allocator{});
+  dynamic_bitset(dynamic_bitset&&) = default;  ///< Move constructor
+  inline ~dynamic_bitset();
 
   /**
    * @brief adds a new bit at the end
@@ -187,12 +187,12 @@ class bit_vector {
   };
 
   /**
-   * @brief Device non-owning reference type of bit_vector
+   * @brief Device non-owning reference type of dynamic_bitset
    */
   class reference {
    public:
     /**
-￼   * @brief Constructs bit_vector_ref.
+￼   * @brief Constructs dynamic_bitset_ref.
 ￼   *
 ￼   * @param storage Struct with non-owning refs to bitvector slot storages
 ￼   */
@@ -298,14 +298,14 @@ class bit_vector {
   /**
    * @brief Gets non-owning device ref of the current object
    *
-   * @return Device ref of the current `bit_vector` object
+   * @return Device ref of the current `dynamic_bitset` object
    */
   [[nodiscard]] ref_type ref() const noexcept;
 
   /**
-   * @brief Gets the number of bits bit_vector holds
+   * @brief Gets the number of bits dynamic_bitset holds
    *
-   * @return Number of bits bit_vector holds
+   * @return Number of bits dynamic_bitset holds
    */
   [[nodiscard]] constexpr size_type size() const noexcept;
 
@@ -316,7 +316,7 @@ class bit_vector {
   using size_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<size_type>;
 
   allocator_type allocator_;  ///< Words allocator
-  size_type n_bits_;          ///< Number of bits bit_vector currently holds
+  size_type n_bits_;          ///< Number of bits dynamic_bitset currently holds
 
   /// Words vector that represents all bits
   thrust::device_vector<slot_type, allocator_type> words_;
@@ -355,4 +355,4 @@ class bit_vector {
 }  // namespace experimental
 }  // namespace cuco
 
-#include <cuco/detail/trie/bit_vector/bit_vector.inl>
+#include <cuco/detail/trie/dynamic_bitset/dynamic_bitset.inl>

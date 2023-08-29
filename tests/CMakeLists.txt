@@ -97,10 +97,10 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/pair_function_test.cu)
 
 ###################################################################################################
-# - bit_vector tests ------------------------------------------------------------------------------
-ConfigureTest(BIT_VECTOR_TEST
-    bit_vector/find_next_set_test.cu
-    bit_vector/get_test.cu
-    bit_vector/rank_test.cu
-    bit_vector/select_test.cu
-    bit_vector/size_test.cu)
+# - dynamic_bitset tests --------------------------------------------------------------------------
+ConfigureTest(DYNAMIC_BITSET_TEST
+    dynamic_bitset/find_next_set_test.cu
+    dynamic_bitset/get_test.cu
+    dynamic_bitset/rank_test.cu
+    dynamic_bitset/select_test.cu
+    dynamic_bitset/size_test.cu)

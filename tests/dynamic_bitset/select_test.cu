@@ -16,7 +16,7 @@
 
 #include <utils.hpp>
 
-#include <cuco/detail/trie/bit_vector/bit_vector.cuh>
+#include <cuco/detail/trie/dynamic_bitset/dynamic_bitset.cuh>
 
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
@@ -39,7 +39,7 @@ extern bool modulo_bitgen(uint64_t i);  // Defined in get_test.cu
 
 TEST_CASE("Select test", "")
 {
-  cuco::experimental::detail::bit_vector bv;
+  cuco::experimental::detail::dynamic_bitset bv;
 
   using size_type = std::size_t;
   constexpr size_type num_elements{4000};
