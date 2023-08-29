@@ -100,11 +100,11 @@ class trie {
   level* d_levels_ptr_;        ///< Device-side array of levels
 
   using bv_read_ref = bit_vector_ref<bit_vector::device_storage_ref, bv_read_tag>;  ///< Read ref
-  thrust::device_vector<bv_read_ref> d_louds_refs_;  ///< refs to per-level louds bitvectors
-  thrust::device_vector<bv_read_ref> d_outs_refs_;   ///< refs to per-level outs bitvectors
+  thrust::device_vector<bv_read_ref> louds_refs_;  ///< refs to per-level louds bitvectors
+  thrust::device_vector<bv_read_ref> outs_refs_;   ///< refs to per-level outs bitvectors
 
-  bv_read_ref* d_louds_refs_ptr_;  ///< Raw pointer to d_louds_refs_
-  bv_read_ref* d_outs_refs_ptr_;   ///< Raw pointer to d_outs_refs_
+  bv_read_ref* louds_refs_ptr_;  ///< Raw pointer to d_louds_refs_
+  bv_read_ref* outs_refs_ptr_;   ///< Raw pointer to d_outs_refs_
 
   trie<label_type>* device_ptr_;  ///< Device-side copy of trie
 
@@ -126,9 +126,8 @@ class trie {
     bit_vector louds_;  ///< Indicates links to next and previous level
     bit_vector outs_;   ///< Indicates terminal nodes of valid keys
 
-    std::vector<label_type> labels_;              ///< Stores individual characters of keys
-    thrust::device_vector<label_type> d_labels_;  ///< Device-side copy of `labels`
-    label_type* d_labels_ptr_;                    ///< Raw pointer to d_labels
+    thrust::device_vector<label_type> labels_;  ///< Stores individual characters of keys
+    label_type* labels_ptr_;                    ///< Raw pointer to labels
 
     size_type offset_;  ///< Cumulative node count in parent levels
   };

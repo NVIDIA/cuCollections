@@ -95,42 +95,26 @@ void trie<label_type>::insert(const std::vector<label_type>& key) noexcept
   last_key_ = key;
 }
 
-// Helper to move vector from host to device
-// Host vector is cleared to avoid duplication. Device pointer is returned
-template <typename T>
-T* move_vector_to_device(std::vector<T>& host_vector, thrust::device_vector<T>& device_vector)
-{
-  device_vector = host_vector;
-  host_vector.clear();
-  return thrust::raw_pointer_cast(device_vector.data());
-}
-
 template <typename label_type>
 void trie<label_type>::build() noexcept(false)
 {
   // Perform build level-by-level for all levels, followed by a deep-copy from host to device
-
-  // Host-side per-level bit-vector refs
-  std::vector<bv_read_ref> louds_refs, outs_refs;
   size_type offset = 0;
-
   for (auto& level : levels_) {
     level.louds_.build();
-    louds_refs.push_back(level.louds_.ref(bv_read));
+    louds_refs_.push_back(level.louds_.ref(bv_read));
 
     level.outs_.build();
-    outs_refs.push_back(level.outs_.ref(bv_read));
+    outs_refs_.push_back(level.outs_.ref(bv_read));
 
-    // Move labels to device
-    level.d_labels_ptr_ = move_vector_to_device(level.labels_, level.d_labels_);
+    level.labels_ptr_ = thrust::raw_pointer_cast(level.labels_.data());
 
     offset += level.offset_;
     level.offset_ = offset;
   }
 
-  // Move bitvector refs to device
-  d_louds_refs_ptr_ = move_vector_to_device(louds_refs, d_louds_refs_);
-  d_outs_refs_ptr_  = move_vector_to_device(outs_refs, d_outs_refs_);
+  louds_refs_ptr_ = thrust::raw_pointer_cast(louds_refs_.data());
+  outs_refs_ptr_  = thrust::raw_pointer_cast(outs_refs_.data());
 
   num_levels_ = levels_.size();
 
@@ -189,8 +173,7 @@ auto trie<label_type>::ref(Operators...) const noexcept
 }
 
 template <typename label_type>
-trie<label_type>::level::level()
-  : louds_{}, outs_{}, labels_{}, d_labels_{}, d_labels_ptr_{nullptr}, offset_{0}
+trie<label_type>::level::level() : louds_{}, outs_{}, labels_{}, labels_ptr_{nullptr}, offset_{0}
 {
 }
 
