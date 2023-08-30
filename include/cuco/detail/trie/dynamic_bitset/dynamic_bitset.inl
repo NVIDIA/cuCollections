@@ -29,7 +29,7 @@ namespace experimental {
 namespace detail {
 
 template <class Allocator>
-dynamic_bitset<Allocator>::dynamic_bitset(Allocator const& allocator)
+constexpr dynamic_bitset<Allocator>::dynamic_bitset(Allocator const& allocator)
   : allocator_{allocator},
     n_bits_{0},
     words_{allocator},
@@ -41,12 +41,7 @@ dynamic_bitset<Allocator>::dynamic_bitset(Allocator const& allocator)
 }
 
 template <class Allocator>
-dynamic_bitset<Allocator>::~dynamic_bitset()
-{
-}
-
-template <class Allocator>
-void dynamic_bitset<Allocator>::append(bool bit) noexcept
+constexpr void dynamic_bitset<Allocator>::append(bool bit) noexcept
 {
   if (n_bits_ % bits_per_block == 0) {
     words_.resize(words_.size() + words_per_block);  // Extend storage by one block
@@ -56,7 +51,7 @@ void dynamic_bitset<Allocator>::append(bool bit) noexcept
 }
 
 template <class Allocator>
-void dynamic_bitset<Allocator>::set(size_type index, bool bit) noexcept
+constexpr void dynamic_bitset<Allocator>::set(size_type index, bool bit) noexcept
 {
   size_type word_id = index / bits_per_word;
   size_type bit_id  = index % bits_per_word;
@@ -68,17 +63,17 @@ void dynamic_bitset<Allocator>::set(size_type index, bool bit) noexcept
 }
 
 template <class Allocator>
-void dynamic_bitset<Allocator>::set_last(bool bit) noexcept
+constexpr void dynamic_bitset<Allocator>::set_last(bool bit) noexcept
 {
   set(n_bits_ - 1, bit);
 }
 
 template <class Allocator>
 template <typename KeyIt, typename OutputIt>
-void dynamic_bitset<Allocator>::get(KeyIt keys_begin,
-                                    KeyIt keys_end,
-                                    OutputIt outputs_begin,
-                                    cuda_stream_ref stream) const noexcept
+constexpr void dynamic_bitset<Allocator>::get(KeyIt keys_begin,
+                                              KeyIt keys_end,
+                                              OutputIt outputs_begin,
+                                              cuda_stream_ref stream) const noexcept
 
 {
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
@@ -92,10 +87,10 @@ void dynamic_bitset<Allocator>::get(KeyIt keys_begin,
 
 template <class Allocator>
 template <typename KeyIt, typename OutputIt>
-void dynamic_bitset<Allocator>::ranks(KeyIt keys_begin,
-                                      KeyIt keys_end,
-                                      OutputIt outputs_begin,
-                                      cuda_stream_ref stream) const noexcept
+constexpr void dynamic_bitset<Allocator>::ranks(KeyIt keys_begin,
+                                                KeyIt keys_end,
+                                                OutputIt outputs_begin,
+                                                cuda_stream_ref stream) const noexcept
 
 {
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
@@ -109,10 +104,10 @@ void dynamic_bitset<Allocator>::ranks(KeyIt keys_begin,
 
 template <class Allocator>
 template <typename KeyIt, typename OutputIt>
-void dynamic_bitset<Allocator>::selects(KeyIt keys_begin,
-                                        KeyIt keys_end,
-                                        OutputIt outputs_begin,
-                                        cuda_stream_ref stream) const noexcept
+constexpr void dynamic_bitset<Allocator>::selects(KeyIt keys_begin,
+                                                  KeyIt keys_end,
+                                                  OutputIt outputs_begin,
+                                                  cuda_stream_ref stream) const noexcept
 
 {
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
@@ -125,7 +120,7 @@ void dynamic_bitset<Allocator>::selects(KeyIt keys_begin,
 }
 
 template <class Allocator>
-void dynamic_bitset<Allocator>::build_ranks_and_selects(
+constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
   thrust::device_vector<rank, rank_allocator_type>& ranks,
   thrust::device_vector<size_type, size_allocator_type>& selects,
   bool flip_bits) noexcept
@@ -181,14 +176,14 @@ void dynamic_bitset<Allocator>::build_ranks_and_selects(
 }
 
 template <class Allocator>
-void dynamic_bitset<Allocator>::build() noexcept
+constexpr void dynamic_bitset<Allocator>::build() noexcept
 {
   build_ranks_and_selects(ranks_, selects_, false);   // 1-bits
   build_ranks_and_selects(ranks0_, selects0_, true);  // 0-bits
 }
 
 template <class Allocator>
-dynamic_bitset<Allocator>::ref_type dynamic_bitset<Allocator>::ref() const noexcept
+constexpr dynamic_bitset<Allocator>::ref_type dynamic_bitset<Allocator>::ref() const noexcept
 {
   return ref_type{storage_ref_type{thrust::raw_pointer_cast(words_.data()),
                                    thrust::raw_pointer_cast(ranks_.data()),
@@ -211,6 +206,7 @@ constexpr dynamic_bitset<Allocator>::size_type dynamic_bitset<Allocator>::defaul
 }
 
 // Device reference implementations
+
 template <class Allocator>
 __host__ __device__ constexpr dynamic_bitset<Allocator>::reference::reference(
   storage_ref_type storage) noexcept
@@ -219,13 +215,13 @@ __host__ __device__ constexpr dynamic_bitset<Allocator>::reference::reference(
 }
 
 template <class Allocator>
-__device__ bool dynamic_bitset<Allocator>::reference::get(size_type key) const noexcept
+__device__ constexpr bool dynamic_bitset<Allocator>::reference::get(size_type key) const noexcept
 {
   return (storage_.words_ref_[key / bits_per_word] >> (key % bits_per_word)) & 1UL;
 }
 
 template <class Allocator>
-__device__ typename dynamic_bitset<Allocator>::slot_type
+__device__ constexpr typename dynamic_bitset<Allocator>::slot_type
 dynamic_bitset<Allocator>::reference::get_word(size_type word_id) const noexcept
 {
   return storage_.words_ref_[word_id];
@@ -246,8 +242,8 @@ dynamic_bitset<Allocator>::reference::find_next_set(size_type key) const noexcep
 }
 
 template <class Allocator>
-__device__ typename dynamic_bitset<Allocator>::size_type dynamic_bitset<Allocator>::reference::rank(
-  size_type key) const noexcept
+__device__ constexpr typename dynamic_bitset<Allocator>::size_type
+dynamic_bitset<Allocator>::reference::rank(size_type key) const noexcept
 {
   size_type word_id = key / bits_per_word;
   size_type bit_id  = key % bits_per_word;
@@ -265,7 +261,7 @@ __device__ typename dynamic_bitset<Allocator>::size_type dynamic_bitset<Allocato
 }
 
 template <class Allocator>
-__device__ typename dynamic_bitset<Allocator>::size_type
+__device__ constexpr typename dynamic_bitset<Allocator>::size_type
 dynamic_bitset<Allocator>::reference::select(size_type count) const noexcept
 {
   auto rank_id = get_initial_rank_estimate(count, storage_.selects_ref_, storage_.ranks_ref_);
@@ -278,7 +274,7 @@ dynamic_bitset<Allocator>::reference::select(size_type count) const noexcept
 }
 
 template <class Allocator>
-__device__ typename dynamic_bitset<Allocator>::size_type
+__device__ constexpr typename dynamic_bitset<Allocator>::size_type
 dynamic_bitset<Allocator>::reference::select0(size_type count) const noexcept
 {
   auto rank_id = get_initial_rank_estimate(count, storage_.selects0_ref_, storage_.ranks0_ref_);
@@ -292,7 +288,7 @@ dynamic_bitset<Allocator>::reference::select0(size_type count) const noexcept
 
 template <class Allocator>
 template <typename SelectsRef, typename RanksRef>
-__device__ typename dynamic_bitset<Allocator>::size_type
+__device__ constexpr typename dynamic_bitset<Allocator>::size_type
 dynamic_bitset<Allocator>::reference::get_initial_rank_estimate(
   size_type count, SelectsRef const& selects, RanksRef const& ranks) const noexcept
 {
@@ -319,7 +315,7 @@ dynamic_bitset<Allocator>::reference::get_initial_rank_estimate(
 
 template <class Allocator>
 template <typename Rank>
-__device__ typename dynamic_bitset<Allocator>::size_type
+__device__ constexpr typename dynamic_bitset<Allocator>::size_type
 dynamic_bitset<Allocator>::reference::subtract_rank_from_count(size_type& count,
                                                                Rank rank) const noexcept
 {

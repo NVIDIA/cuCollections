@@ -44,7 +44,7 @@ struct rank {
    *
    * @return The base rank
    */
-  __host__ __device__ uint64_t constexpr abs() const noexcept
+  __host__ __device__ constexpr uint64_t abs() const noexcept
   {
     return (static_cast<uint64_t>(abs_hi_) << 8) | abs_lo_;
   }
@@ -54,7 +54,7 @@ struct rank {
    *
    * @param abs Base rank
    */
-  __host__ __device__ void set_abs(uint64_t abs) noexcept
+  __host__ __device__ constexpr void set_abs(uint64_t abs) noexcept
   {
     abs_hi_ = static_cast<uint32_t>(abs >> 8);
     abs_lo_ = static_cast<uint8_t>(abs);
@@ -72,6 +72,7 @@ struct rank {
  *
  * @tparam Allocator Type of allocator used for device storage
  */
+// TODO: have to use device_malloc_allocator for now otherwise the container cannot grow
 template <class Allocator = thrust::device_malloc_allocator<std::byte>>
 class dynamic_bitset {
  public:
@@ -89,9 +90,7 @@ class dynamic_bitset {
    *
    * @param allocator Allocator used for allocating device storage
    */
-  inline dynamic_bitset(Allocator const& allocator = Allocator{});
-  dynamic_bitset(dynamic_bitset&&) = default;  ///< Move constructor
-  inline ~dynamic_bitset();
+  constexpr dynamic_bitset(Allocator const& allocator = Allocator{});
 
   /**
    * @brief adds a new bit at the end
@@ -100,7 +99,7 @@ class dynamic_bitset {
    *
    * @param bit Boolean value of new bit to be added
    */
-  inline void append(bool bit) noexcept;
+  constexpr void append(bool bit) noexcept;
 
   /**
    * @brief Modifies a single bit
@@ -108,19 +107,19 @@ class dynamic_bitset {
    * @param index position of bit to be modified
    * @param bit new value of bit
    */
-  inline void set(size_type index, bool bit) noexcept;
+  constexpr void set(size_type index, bool bit) noexcept;
 
   /**
    * @brief Sets last bit to specified value
    *
    * @param bit new value of last bit
    */
-  inline void set_last(bool bit) noexcept;
+  constexpr void set_last(bool bit) noexcept;
 
   /**
    * @brief Builds indexes for rank and select
    */
-  inline void build() noexcept;
+  constexpr void build() noexcept;
 
   /**
    * @brief Bulk get operation
@@ -134,10 +133,10 @@ class dynamic_bitset {
    * @param stream Stream to execute get kernel
    */
   template <typename KeyIt, typename OutputIt>
-  void get(KeyIt keys_begin,
-           KeyIt keys_end,
-           OutputIt outputs_begin,
-           cuda_stream_ref stream = {}) const noexcept;
+  constexpr void get(KeyIt keys_begin,
+                     KeyIt keys_end,
+                     OutputIt outputs_begin,
+                     cuda_stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Bulk rank operation
@@ -151,10 +150,10 @@ class dynamic_bitset {
    * @param stream Stream to execute ranks kernel
    */
   template <typename KeyIt, typename OutputIt>
-  void ranks(KeyIt keys_begin,
-             KeyIt keys_end,
-             OutputIt outputs_begin,
-             cuda_stream_ref stream = {}) const noexcept;
+  constexpr void ranks(KeyIt keys_begin,
+                       KeyIt keys_end,
+                       OutputIt outputs_begin,
+                       cuda_stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Bulk select operation
@@ -168,14 +167,15 @@ class dynamic_bitset {
    * @param stream Stream to execute selects kernel
    */
   template <typename KeyIt, typename OutputIt>
-  void selects(KeyIt keys_begin,
-               KeyIt keys_end,
-               OutputIt outputs_begin,
-               cuda_stream_ref stream = {}) const noexcept;
+  constexpr void selects(KeyIt keys_begin,
+                         KeyIt keys_end,
+                         OutputIt outputs_begin,
+                         cuda_stream_ref stream = {}) const noexcept;
 
   /**
    *@brief Struct to hold all storage refs needed by bitvector_ref
    */
+  // TODO: this is not a real ref type, to be changed
   struct storage_ref_type {
     const slot_type* words_ref_;  ///< Words refs
 
@@ -205,7 +205,7 @@ class dynamic_bitset {
      *
      * @return Value of bit at position specified by key
      */
-    [[nodiscard]] __device__ bool get(size_type key) const noexcept;
+    [[nodiscard]] __device__ constexpr bool get(size_type key) const noexcept;
 
     /**
      * @brief Access a single word of internal storage
@@ -214,7 +214,7 @@ class dynamic_bitset {
      *
      * @return Word at position specified by index
      */
-    [[nodiscard]] __device__ slot_type get_word(size_type word_id) const noexcept;
+    [[nodiscard]] __device__ constexpr slot_type get_word(size_type word_id) const noexcept;
 
     /**
      * @brief Find position of first set bit starting from a given position (inclusive)
@@ -232,7 +232,7 @@ class dynamic_bitset {
      *
      * @return Rank of input position
      */
-    [[nodiscard]] __device__ size_type rank(size_type key) const noexcept;
+    [[nodiscard]] __device__ constexpr size_type rank(size_type key) const noexcept;
 
     /**
      * @brief Find position of Nth set (1) bit counting from start of bitvector
@@ -241,7 +241,7 @@ class dynamic_bitset {
      *
      * @return Position of Nth set bit
      */
-    [[nodiscard]] __device__ size_type select(size_type count) const noexcept;
+    [[nodiscard]] __device__ constexpr size_type select(size_type count) const noexcept;
 
     /**
      * @brief Find position of Nth not-set (0) bit counting from start of bitvector
@@ -250,7 +250,7 @@ class dynamic_bitset {
      *
      * @return Position of Nth not-set bit
      */
-    [[nodiscard]] __device__ size_type select0(size_type count) const noexcept;
+    [[nodiscard]] __device__ constexpr size_type select0(size_type count) const noexcept;
 
    private:
     /**
@@ -263,7 +263,7 @@ class dynamic_bitset {
      * @return index in ranks which corresponds to highest rank less than count (least upper bound)
      */
     template <typename SelectsRef, typename RanksRef>
-    [[nodiscard]] __device__ size_type get_initial_rank_estimate(
+    [[nodiscard]] __device__ constexpr size_type get_initial_rank_estimate(
       size_type count, const SelectsRef& selects, const RanksRef& ranks) const noexcept;
 
     /**
@@ -277,8 +277,8 @@ class dynamic_bitset {
      * @return Increment to word_id based on rank values
      */
     template <typename Rank>
-    [[nodiscard]] __device__ size_type subtract_rank_from_count(size_type& count,
-                                                                Rank rank) const noexcept;
+    [[nodiscard]] __device__ constexpr size_type subtract_rank_from_count(size_type& count,
+                                                                          Rank rank) const noexcept;
 
     /**
      * @brief Find position of Nth set bit in a 64-bit word
@@ -300,7 +300,7 @@ class dynamic_bitset {
    *
    * @return Device ref of the current `dynamic_bitset` object
    */
-  [[nodiscard]] ref_type ref() const noexcept;
+  [[nodiscard]] constexpr ref_type ref() const noexcept;
 
   /**
    * @brief Gets the number of bits dynamic_bitset holds
@@ -336,9 +336,10 @@ class dynamic_bitset {
    * @param selects Output array of selects
    * @param flip_bits If true, negate bits to construct indexes for `0` bits
    */
-  void build_ranks_and_selects(thrust::device_vector<rank, rank_allocator_type>& ranks,
-                               thrust::device_vector<size_type, size_allocator_type>& selects,
-                               bool flip_bits) noexcept;
+  constexpr void build_ranks_and_selects(
+    thrust::device_vector<rank, rank_allocator_type>& ranks,
+    thrust::device_vector<size_type, size_allocator_type>& selects,
+    bool flip_bits) noexcept;
 
   /**
    * @brief Helper function to calculate grid size for simple kernels
@@ -348,7 +349,7 @@ class dynamic_bitset {
    * @return grid size
    */
   // TODO: to be moved to the CUDA utility header
-  size_type constexpr default_grid_size(size_type num_elements) const noexcept;
+  constexpr size_type default_grid_size(size_type num_elements) const noexcept;
 };
 
 }  // namespace detail
