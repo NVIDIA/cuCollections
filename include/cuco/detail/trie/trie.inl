@@ -102,10 +102,10 @@ void trie<label_type>::build() noexcept(false)
   size_type offset = 0;
   for (auto& level : levels_) {
     level.louds_.build();
-    louds_refs_.push_back(level.louds_.ref(bv_read));
+    louds_refs_.push_back(level.louds_.ref());
 
     level.outs_.build();
-    outs_refs_.push_back(level.outs_.ref(bv_read));
+    outs_refs_.push_back(level.outs_.ref());
 
     level.labels_ptr_ = thrust::raw_pointer_cast(level.labels_.data());
 

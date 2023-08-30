@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-#include <cuco/detail/trie/bit_vector/bit_vector.cuh>
+#include <cuco/detail/trie/dynamic_bitset/dynamic_bitset.cuh>
 #include <cuco/trie_ref.cuh>
 
 namespace cuco {
@@ -99,12 +99,12 @@ class trie {
   std::vector<level> levels_;  ///< Host-side array of levels
   level* d_levels_ptr_;        ///< Device-side array of levels
 
-  using bv_read_ref = bit_vector_ref<bit_vector::device_storage_ref, bv_read_tag>;  ///< Read ref
-  thrust::device_vector<bv_read_ref> louds_refs_;  ///< refs to per-level louds bitvectors
-  thrust::device_vector<bv_read_ref> outs_refs_;   ///< refs to per-level outs bitvectors
+  using bitset_ref = detail::dynamic_bitset<>::ref_type;  ///< Read ref
+  thrust::device_vector<bitset_ref> louds_refs_;          ///< refs to per-level louds bitvectors
+  thrust::device_vector<bitset_ref> outs_refs_;           ///< refs to per-level outs bitvectors
 
-  bv_read_ref* louds_refs_ptr_;  ///< Raw pointer to d_louds_refs_
-  bv_read_ref* outs_refs_ptr_;   ///< Raw pointer to d_outs_refs_
+  bitset_ref* louds_refs_ptr_;  ///< Raw pointer to d_louds_refs_
+  bitset_ref* outs_refs_ptr_;   ///< Raw pointer to d_outs_refs_
 
   trie<label_type>* device_ptr_;  ///< Device-side copy of trie
 
@@ -123,8 +123,8 @@ class trie {
     level();
     level(level&&) = default;  ///< Move constructor
 
-    bit_vector louds_;  ///< Indicates links to next and previous level
-    bit_vector outs_;   ///< Indicates terminal nodes of valid keys
+    detail::dynamic_bitset<> louds_;  ///< Indicates links to next and previous level
+    detail::dynamic_bitset<> outs_;   ///< Indicates terminal nodes of valid keys
 
     thrust::device_vector<label_type> labels_;  ///< Stores individual characters of keys
     label_type* labels_ptr_;                    ///< Raw pointer to labels
