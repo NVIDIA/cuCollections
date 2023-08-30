@@ -25,12 +25,12 @@
 #include <catch2/catch_test_macros.hpp>
 
 template <class BitVectorRef, typename size_type, typename OutputIt>
-__global__ void select0_kernel(BitVectorRef ref, size_type num_elements, OutputIt output)
+__global__ void select_false_kernel(BitVectorRef ref, size_type num_elements, OutputIt output)
 {
   size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
   while (index < num_elements) {
-    output[index] = ref.select0(index);
+    output[index] = ref.select_false(index);
     index += stride;
   }
 }
@@ -75,12 +75,12 @@ TEST_CASE("Select test", "")
     REQUIRE(num_matches == num_set);
   }
 
-  // Check select0
+  // Check select_false
   {
     size_type num_not_set = num_elements - num_set;
 
     thrust::device_vector<size_type> device_result(num_not_set);
-    select0_kernel<<<1, 1024>>>(ref, num_not_set, device_result.data());
+    select_false_kernel<<<1, 1024>>>(ref, num_not_set, device_result.data());
     thrust::host_vector<size_type> host_result = device_result;
 
     size_type num_matches     = 0;

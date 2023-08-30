@@ -179,11 +179,11 @@ class dynamic_bitset {
   struct storage_ref_type {
     const slot_type* words_ref_;  ///< Words refs
 
-    const rank* ranks_ref_;         ///< Ranks refs
-    const size_type* selects_ref_;  ///< Selects refs
+    const rank* ranks_true_ref_;         ///< Ranks refs for 1 bits
+    const size_type* selects_true_ref_;  ///< Selects refs for 1 bits
 
-    const rank* ranks0_ref_;         ///< Ranks refs for 0 bits
-    const size_type* selects0_ref_;  ///< Selects refs 0 bits
+    const rank* ranks_false_ref_;         ///< Ranks refs for 0 bits
+    const size_type* selects_false_ref_;  ///< Selects refs 0 bits
   };
 
   /**
@@ -250,7 +250,7 @@ class dynamic_bitset {
      *
      * @return Position of Nth not-set bit
      */
-    [[nodiscard]] __device__ constexpr size_type select0(size_type count) const noexcept;
+    [[nodiscard]] __device__ constexpr size_type select_false(size_type count) const noexcept;
 
    private:
     /**
@@ -321,13 +321,13 @@ class dynamic_bitset {
   /// Words vector that represents all bits
   thrust::device_vector<slot_type, allocator_type> words_;
   /// Rank values for every 256-th bit (4-th word)
-  thrust::device_vector<rank, rank_allocator_type> ranks_;
+  thrust::device_vector<rank, rank_allocator_type> ranks_true_;
   /// Same as ranks_ but for `0` bits
-  thrust::device_vector<rank, rank_allocator_type> ranks0_;
+  thrust::device_vector<rank, rank_allocator_type> ranks_false_;
   /// Block indices of (0, 256, 512...)th `1` bit
-  thrust::device_vector<size_type, size_allocator_type> selects_;
+  thrust::device_vector<size_type, size_allocator_type> selects_true_;
   /// Same as selects_, but for `0` bits
-  thrust::device_vector<size_type, size_allocator_type> selects0_;
+  thrust::device_vector<size_type, size_allocator_type> selects_false_;
 
   /**
    * @brief Populates rank and select indexes on device

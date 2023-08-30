@@ -33,10 +33,10 @@ constexpr dynamic_bitset<Allocator>::dynamic_bitset(Allocator const& allocator)
   : allocator_{allocator},
     n_bits_{0},
     words_{allocator},
-    ranks_{allocator},
-    ranks0_{allocator},
-    selects_{allocator},
-    selects0_{allocator}
+    ranks_true_{allocator},
+    ranks_false_{allocator},
+    selects_true_{allocator},
+    selects_false_{allocator}
 {
 }
 
@@ -178,18 +178,18 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
 template <class Allocator>
 constexpr void dynamic_bitset<Allocator>::build() noexcept
 {
-  build_ranks_and_selects(ranks_, selects_, false);   // 1-bits
-  build_ranks_and_selects(ranks0_, selects0_, true);  // 0-bits
+  build_ranks_and_selects(ranks_true_, selects_true_, false);   // 1 bits
+  build_ranks_and_selects(ranks_false_, selects_false_, true);  // 0 bits
 }
 
 template <class Allocator>
 constexpr dynamic_bitset<Allocator>::ref_type dynamic_bitset<Allocator>::ref() const noexcept
 {
   return ref_type{storage_ref_type{thrust::raw_pointer_cast(words_.data()),
-                                   thrust::raw_pointer_cast(ranks_.data()),
-                                   thrust::raw_pointer_cast(selects_.data()),
-                                   thrust::raw_pointer_cast(ranks0_.data()),
-                                   thrust::raw_pointer_cast(selects0_.data())}};
+                                   thrust::raw_pointer_cast(ranks_true_.data()),
+                                   thrust::raw_pointer_cast(selects_true_.data()),
+                                   thrust::raw_pointer_cast(ranks_false_.data()),
+                                   thrust::raw_pointer_cast(selects_false_.data())}};
 }
 
 template <class Allocator>
@@ -250,7 +250,7 @@ dynamic_bitset<Allocator>::reference::rank(size_type key) const noexcept
   size_type rank_id = word_id / words_per_block;
   size_type rel_id  = word_id % words_per_block;
 
-  auto rank   = storage_.ranks_ref_[rank_id];
+  auto rank   = storage_.ranks_true_ref_[rank_id];
   size_type n = rank.abs();
 
   if (rel_id != 0) { n += rank.rels_[rel_id - 1]; }
@@ -264,8 +264,9 @@ template <class Allocator>
 __device__ constexpr typename dynamic_bitset<Allocator>::size_type
 dynamic_bitset<Allocator>::reference::select(size_type count) const noexcept
 {
-  auto rank_id = get_initial_rank_estimate(count, storage_.selects_ref_, storage_.ranks_ref_);
-  auto rank    = storage_.ranks_ref_[rank_id];
+  auto rank_id =
+    get_initial_rank_estimate(count, storage_.selects_true_ref_, storage_.ranks_true_ref_);
+  auto rank = storage_.ranks_true_ref_[rank_id];
 
   size_type word_id = rank_id * words_per_block;
   word_id += subtract_rank_from_count(count, rank);
@@ -275,10 +276,11 @@ dynamic_bitset<Allocator>::reference::select(size_type count) const noexcept
 
 template <class Allocator>
 __device__ constexpr typename dynamic_bitset<Allocator>::size_type
-dynamic_bitset<Allocator>::reference::select0(size_type count) const noexcept
+dynamic_bitset<Allocator>::reference::select_false(size_type count) const noexcept
 {
-  auto rank_id = get_initial_rank_estimate(count, storage_.selects0_ref_, storage_.ranks0_ref_);
-  auto rank    = storage_.ranks0_ref_[rank_id];
+  auto rank_id =
+    get_initial_rank_estimate(count, storage_.selects_false_ref_, storage_.ranks_false_ref_);
+  auto rank = storage_.ranks_false_ref_[rank_id];
 
   size_type word_id = rank_id * words_per_block;
   word_id += subtract_rank_from_count(count, rank);
