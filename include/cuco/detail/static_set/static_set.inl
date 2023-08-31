@@ -227,10 +227,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
 
-  auto const grid_size =
-    (cg_size * num_keys +
-     cuco::detail::CUCO_DEFAULT_STRIDE * cuco::detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-    (cuco::detail::CUCO_DEFAULT_STRIDE * cuco::detail::CUCO_DEFAULT_BLOCK_SIZE);
+  auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
 
   static_set_ns::detail::find<cg_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE>
     <<<grid_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(

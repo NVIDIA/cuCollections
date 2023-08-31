@@ -28,15 +28,15 @@ static constexpr int32_t CUCO_DEFAULT_STRIDE     = 1;    ///< Default stride
  *
  * @param num Number of elements to handle in the kernel
  * @param cg_size Number of threads per CUDA Cooperative Group
- * @param block_size Number of threads in each thread block
  * @param stride Number of elements to be handled by each thread
+ * @param block_size Number of threads in each thread block
  *
  * @return The resulting grid size
  */
 constexpr auto compute_grid_size(index_type num,
                                  int32_t cg_size    = 1,
-                                 int32_t block_size = CUCO_DEFAULT_BLOCK_SIZE,
-                                 int32_t stride     = CUCO_DEFAULT_STRIDE)
+                                 int32_t stride     = CUCO_DEFAULT_STRIDE,
+                                 int32_t block_size = CUCO_DEFAULT_BLOCK_SIZE)
 {
   return (cg_size * num + stride * block_size - 1) / (stride * block_size);
 }
