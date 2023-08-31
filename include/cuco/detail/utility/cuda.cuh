@@ -43,7 +43,7 @@ __device__ static constexpr index_type global_thread_id() noexcept
 template <index_type CGSize = 1>
 __device__ static constexpr index_type grid_stride() noexcept
 {
-  return index_type{gridDim.x} + index_type{blockDim.x} / CGSize;
+  return index_type{gridDim.x} * index_type{blockDim.x} / CGSize;
 }
 
 }  // namespace detail
