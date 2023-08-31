@@ -17,10 +17,10 @@
 #pragma once
 
 #include <cuco/cuda_stream_ref.hpp>
-#include <cuco/detail/storage/kernels.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/detail/tuning.cuh>
 #include <cuco/extent.cuh>
+#include <cuco/utility/helper_kernels.cuh>
 
 #include <cuda/std/array>
 
@@ -71,7 +71,7 @@ void aow_storage<T, WindowSize, Extent, Allocator>::initialize(value_type key,
   auto const grid_size  = (this->num_windows() + stride * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
                          (stride * detail::CUCO_DEFAULT_BLOCK_SIZE);
 
-  detail::initialize<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  initialize_windows<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
     this->data(), this->num_windows(), key);
 }
 

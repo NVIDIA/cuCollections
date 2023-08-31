@@ -15,34 +15,35 @@
  */
 #pragma once
 
+#include <cuco/aow_storage.cuh>
 #include <cuco/detail/utils.hpp>
 
 #include <cstddef>
 
 namespace cuco {
 namespace experimental {
-namespace detail {
 
 /**
  * @brief Initializes each slot in the window storage to contain `value`.
  *
- * @tparam WindowT Window type
+ * @tparam T Window slot type
+ * @tparam WindowSize Number of slots per window
  *
  * @param windows Pointer to flat storage for windows
  * @param n Number of input windows
  * @param value Value to which all values in `slots` are initialized
  */
-template <typename WindowT>
-__global__ void initialize(WindowT* windows,
-                           cuco::detail::index_type n,
-                           typename WindowT::value_type value)
+template <typename T, int32_t WindowSize>
+__global__ void initialize_windows(cuco::experimental::window<T, WindowSize>* windows,
+                                   cuco::detail::index_type n,
+                                   T value)
 {
   cuco::detail::index_type const loop_stride = gridDim.x * blockDim.x;
   cuco::detail::index_type idx               = blockDim.x * blockIdx.x + threadIdx.x;
 
   while (idx < n) {
     auto& window_slots = *(windows + idx);
-#pragma unroll
+#pragma unroll(WindowSize)
     for (auto& slot : window_slots) {
       slot = value;
     }
@@ -50,6 +51,5 @@ __global__ void initialize(WindowT* windows,
   }
 }
 
-}  // namespace detail
 }  // namespace experimental
 }  // namespace cuco
