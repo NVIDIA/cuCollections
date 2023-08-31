@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
+#include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.cuh>
-#include <cuco/detail/utils.hpp>
 
 #include <thrust/count.h>
 #include <thrust/execution_policy.h>
@@ -286,7 +286,6 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve(
 
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
-  constexpr auto block_size  = 128;
   constexpr auto is_outer    = false;
 
   auto view                   = get_device_view();
@@ -295,23 +294,14 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve(
     return cg_size();
   }();
 
-  auto const grid_size = detail::get_grid_size(detail::retrieve<block_size,
-                                                                flushing_cg_size,
-                                                                cg_size(),
-                                                                buffer_size,
-                                                                is_outer,
-                                                                InputIt,
-                                                                OutputIt,
-                                                                atomic_ctr_type,
-                                                                device_view,
-                                                                KeyEqual>,
-                                               block_size);
+  auto const grid_size = detail::compute_grid_size(num_keys, cg_size());
 
   CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
 
-  detail::retrieve<block_size, flushing_cg_size, cg_size(), buffer_size, is_outer>
-    <<<grid_size, block_size, 0, stream>>>(
+  detail::
+    retrieve<detail::CUCO_DEFAULT_BLOCK_SIZE, flushing_cg_size, cg_size(), buffer_size, is_outer>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
       first, num_keys, output_begin, d_counter_.get(), view, key_equal);
 
   CUCO_CUDA_TRY(cudaMemcpyAsync(
@@ -336,7 +326,6 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve_
 
   // Using per-warp buffer for vector loads and per-CG buffer for scalar loads
   constexpr auto buffer_size = uses_vector_load() ? (warp_size() * 3u) : (cg_size() * 3u);
-  constexpr auto block_size  = 128;
   constexpr auto is_outer    = true;
 
   auto view                   = get_device_view();
@@ -345,23 +334,14 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve_
     return cg_size();
   }();
 
-  auto const grid_size = detail::get_grid_size(detail::retrieve<block_size,
-                                                                flushing_cg_size,
-                                                                cg_size(),
-                                                                buffer_size,
-                                                                is_outer,
-                                                                InputIt,
-                                                                OutputIt,
-                                                                atomic_ctr_type,
-                                                                device_view,
-                                                                KeyEqual>,
-                                               block_size);
+  auto const grid_size = detail::compute_grid_size(num_keys, cg_size());
 
   CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
 
-  detail::retrieve<block_size, flushing_cg_size, cg_size(), buffer_size, is_outer>
-    <<<grid_size, block_size, 0, stream>>>(
+  detail::
+    retrieve<detail::CUCO_DEFAULT_BLOCK_SIZE, flushing_cg_size, cg_size(), buffer_size, is_outer>
+    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
       first, num_keys, output_begin, d_counter_.get(), view, key_equal);
 
   CUCO_CUDA_TRY(cudaMemcpyAsync(

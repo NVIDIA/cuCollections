@@ -29,20 +29,6 @@ namespace detail {
 #define SDIV(x, y) (((x) + (y)-1) / (y))
 #endif
 
-template <typename Kernel>
-auto get_grid_size(Kernel kernel, std::size_t block_size, std::size_t dynamic_smem_bytes = 0)
-{
-  int grid_size{-1};
-  CUCO_CUDA_TRY(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &grid_size, kernel, block_size, dynamic_smem_bytes));
-  int dev_id{-1};
-  CUCO_CUDA_TRY(cudaGetDevice(&dev_id));
-  int num_sms{-1};
-  CUCO_CUDA_TRY(cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id));
-  grid_size *= num_sms;
-  return grid_size;
-}
-
 template <typename Iterator>
 constexpr inline index_type distance(Iterator begin, Iterator end)
 {
