@@ -129,7 +129,8 @@ class dynamic_bitset {
   constexpr void build() noexcept;
 
   /**
-   * @brief Bulk test operation
+   * @brief For any element `keys_begin[i]` in the range `[keys_begin, keys_end)`, stores the
+   * boolean value at position `keys_begin[i]` to `output_begin[i]`.
    *
    * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to bitset's
    * `size_type`
@@ -148,7 +149,8 @@ class dynamic_bitset {
                       cuda_stream_ref stream = {}) const noexcept;
 
   /**
-   * @brief Bulk rank operation
+   * @brief For any element `keys_begin[i]` in the range `[keys_begin, keys_end)`, stores total
+   * count of `1` bits preceeding (but not including) position `keys_begin[i]` to `output_begin[i]`.
    *
    * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to bitset's
    * `size_type`
@@ -167,7 +169,8 @@ class dynamic_bitset {
                       cuda_stream_ref stream = {}) const noexcept;
 
   /**
-   * @brief Bulk select operation
+   * @brief For any element `keys_begin[i]` in the range `[keys_begin, keys_end)`, stores the
+   * position of `keys_begin[i]`th `1` bit to `output_begin[i]`.
    *
    * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to bitset's
    * `size_type`
