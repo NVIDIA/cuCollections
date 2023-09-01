@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include <cuco/detail/utils.hpp>
+
 #include <cuda/std/bit>
 
 namespace cuco {
@@ -39,12 +41,12 @@ namespace detail {
 template <typename BitsetRef, typename KeyIt, typename ValueIt, typename size_type>
 __global__ void bitset_get_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, size_type num_keys)
 {
-  uint32_t const loop_stride = gridDim.x * blockDim.x;
-  uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;
+  cuco::detail::index_type key_id = blockDim.x * blockIdx.x + threadIdx.x;
+  cuco::detail::index_type stride = gridDim.x * blockDim.x;
 
   while (key_id < num_keys) {
     outputs[key_id] = ref.get(keys[key_id]);
-    key_id += loop_stride;
+    key_id += stride;
   }
 }
 
@@ -64,12 +66,12 @@ __global__ void bitset_get_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, si
 template <typename BitsetRef, typename KeyIt, typename ValueIt, typename size_type>
 __global__ void bitset_rank_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, size_type num_keys)
 {
-  uint32_t const loop_stride = gridDim.x * blockDim.x;
-  uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;
+  cuco::detail::index_type key_id = blockDim.x * blockIdx.x + threadIdx.x;
+  cuco::detail::index_type stride = gridDim.x * blockDim.x;
 
   while (key_id < num_keys) {
     outputs[key_id] = ref.rank(keys[key_id]);
-    key_id += loop_stride;
+    key_id += stride;
   }
 }
 
@@ -89,12 +91,12 @@ __global__ void bitset_rank_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, s
 template <typename BitsetRef, typename KeyIt, typename ValueIt, typename size_type>
 __global__ void bitset_select_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, size_type num_keys)
 {
-  uint32_t const loop_stride = gridDim.x * blockDim.x;
-  uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;
+  cuco::detail::index_type key_id = blockDim.x * blockIdx.x + threadIdx.x;
+  cuco::detail::index_type stride = gridDim.x * blockDim.x;
 
   while (key_id < num_keys) {
     outputs[key_id] = ref.select(keys[key_id]);
-    key_id += loop_stride;
+    key_id += stride;
   }
 }
 
@@ -115,8 +117,8 @@ __global__ void bit_counts_kernel(const slot_type* words,
                                   size_type num_words,
                                   bool flip_bits)
 {
-  size_type word_id = blockDim.x * blockIdx.x + threadIdx.x;
-  size_type stride  = gridDim.x * blockDim.x;
+  cuco::detail::index_type word_id = blockDim.x * blockIdx.x + threadIdx.x;
+  cuco::detail::index_type stride  = gridDim.x * blockDim.x;
 
   while (word_id < num_words) {
     auto word           = words[word_id];
@@ -148,8 +150,8 @@ __global__ void encode_ranks_from_prefix_bit_counts(const size_type* prefix_bit_
                                                     size_type num_blocks,
                                                     size_type words_per_block)
 {
-  size_type rank_id = blockDim.x * blockIdx.x + threadIdx.x;
-  size_type stride  = gridDim.x * blockDim.x;
+  cuco::detail::index_type rank_id = blockDim.x * blockIdx.x + threadIdx.x;
+  cuco::detail::index_type stride  = gridDim.x * blockDim.x;
 
   while (rank_id < num_blocks) {
     size_type word_id = rank_id * words_per_block;
@@ -191,8 +193,8 @@ __global__ void mark_blocks_with_select_entries(const size_type* prefix_bit_coun
                                                 size_type words_per_block,
                                                 size_type bits_per_block)
 {
-  size_type block_id = blockDim.x * blockIdx.x + threadIdx.x;
-  size_type stride   = gridDim.x * blockDim.x;
+  cuco::detail::index_type block_id = blockDim.x * blockIdx.x + threadIdx.x;
+  cuco::detail::index_type stride   = gridDim.x * blockDim.x;
 
   while (block_id < num_blocks) {
     if (block_id == 0) {  // Block 0 always has a selects entry

@@ -27,8 +27,8 @@
 template <class BitsetRef, typename size_type, typename OutputIt>
 __global__ void select_false_kernel(BitsetRef ref, size_type num_elements, OutputIt output)
 {
-  size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
-  size_t stride = gridDim.x * blockDim.x;
+  cuco::detail::index_type index  = blockIdx.x * blockDim.x + threadIdx.x;
+  cuco::detail::index_type stride = gridDim.x * blockDim.x;
   while (index < num_elements) {
     output[index] = ref.select_false(index);
     index += stride;
