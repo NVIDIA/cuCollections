@@ -69,7 +69,7 @@ struct rank {
 /**
  * @brief Bitset class with rank and select index structures
  *
- * In addition to standard bitset get/set operations, this class provides
+ * In addition to standard bitset set/test operations, this class provides
  * rank and select operation API. It maintains index structures to make both these
  * new operations close to constant time.
  *
@@ -129,21 +129,21 @@ class dynamic_bitset {
   constexpr void build() noexcept;
 
   /**
-   * @brief Bulk get operation
+   * @brief Bulk test operation
    *
    * @tparam KeyIt Device-accessible iterator to keys
    * @tparam OutputIt Device-accessible iterator to outputs
    *
    * @param keys_begin Begin iterator to keys list whose values are queried
    * @param keys_end End iterator to keys list
-   * @param outputs_begin Begin iterator to outputs of get operation
-   * @param stream Stream to execute get kernel
+   * @param outputs_begin Begin iterator to outputs of test operation
+   * @param stream Stream to execute test kernel
    */
   template <typename KeyIt, typename OutputIt>
-  constexpr void get(KeyIt keys_begin,
-                     KeyIt keys_end,
-                     OutputIt outputs_begin,
-                     cuda_stream_ref stream = {}) const noexcept;
+  constexpr void test(KeyIt keys_begin,
+                      KeyIt keys_end,
+                      OutputIt outputs_begin,
+                      cuda_stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Bulk rank operation
@@ -214,7 +214,7 @@ class dynamic_bitset {
      *
      * @return Value of bit at position specified by key
      */
-    [[nodiscard]] __device__ constexpr bool get(size_type key) const noexcept;
+    [[nodiscard]] __device__ constexpr bool test(size_type key) const noexcept;
 
     /**
      * @brief Access a single word of internal storage
@@ -232,7 +232,7 @@ class dynamic_bitset {
      *
      * @return Index of next set bit
      */
-    [[nodiscard]] __device__ size_type find_next_set(size_type key) const noexcept;
+    [[nodiscard]] __device__ size_type find_next(size_type key) const noexcept;
 
     /**
      * @brief Find number of set bits (rank) in all positions before the input position (exclusive)

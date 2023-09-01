@@ -25,12 +25,12 @@
 #include <catch2/catch_test_macros.hpp>
 
 template <class BitsetRef, typename size_type, typename OutputIt>
-__global__ void find_next_set_kernel(BitsetRef ref, size_type num_elements, OutputIt output)
+__global__ void find_next_kernel(BitsetRef ref, size_type num_elements, OutputIt output)
 {
   cuco::detail::index_type index  = blockIdx.x * blockDim.x + threadIdx.x;
   cuco::detail::index_type stride = gridDim.x * blockDim.x;
   while (index < num_elements) {
-    output[index] = ref.find_next_set(index);
+    output[index] = ref.find_next(index);
     index += stride;
   }
 }
@@ -51,7 +51,7 @@ TEST_CASE("Find next set test", "")
 
   thrust::device_vector<size_type> device_result(num_elements);
   auto ref = bv.ref();
-  find_next_set_kernel<<<1, 1024>>>(ref, num_elements, device_result.data());
+  find_next_kernel<<<1, 1024>>>(ref, num_elements, device_result.data());
 
   thrust::host_vector<size_type> host_result = device_result;
   size_type num_matches                      = 0;

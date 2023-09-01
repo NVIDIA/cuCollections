@@ -70,10 +70,10 @@ constexpr void dynamic_bitset<Allocator>::set_last(bool bit) noexcept
 
 template <class Allocator>
 template <typename KeyIt, typename OutputIt>
-constexpr void dynamic_bitset<Allocator>::get(KeyIt keys_begin,
-                                              KeyIt keys_end,
-                                              OutputIt outputs_begin,
-                                              cuda_stream_ref stream) const noexcept
+constexpr void dynamic_bitset<Allocator>::test(KeyIt keys_begin,
+                                               KeyIt keys_end,
+                                               OutputIt outputs_begin,
+                                               cuda_stream_ref stream) const noexcept
 
 {
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
@@ -81,7 +81,7 @@ constexpr void dynamic_bitset<Allocator>::get(KeyIt keys_begin,
 
   auto grid_size = default_grid_size(num_keys);
 
-  bitset_get_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  bitset_test_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
     ref(), keys_begin, outputs_begin, num_keys);
 }
 
@@ -215,7 +215,7 @@ __host__ __device__ constexpr dynamic_bitset<Allocator>::reference::reference(
 }
 
 template <class Allocator>
-__device__ constexpr bool dynamic_bitset<Allocator>::reference::get(size_type key) const noexcept
+__device__ constexpr bool dynamic_bitset<Allocator>::reference::test(size_type key) const noexcept
 {
   return (storage_.words_ref_[key / bits_per_word] >> (key % bits_per_word)) & 1UL;
 }
@@ -229,7 +229,7 @@ dynamic_bitset<Allocator>::reference::word(size_type word_id) const noexcept
 
 template <class Allocator>
 __device__ typename dynamic_bitset<Allocator>::size_type
-dynamic_bitset<Allocator>::reference::find_next_set(size_type key) const noexcept
+dynamic_bitset<Allocator>::reference::find_next(size_type key) const noexcept
 {
   size_type word_id = key / bits_per_word;
   size_type bit_id  = key % bits_per_word;

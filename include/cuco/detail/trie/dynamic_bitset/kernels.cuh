@@ -26,7 +26,7 @@ namespace experimental {
 namespace detail {
 
 /*
- * @brief Gather bits of a range of keys
+ * @brief Test bits for a range of keys
  *
  * @tparam BitsetRef Bitset reference type
  * @tparam KeyIt Device-accessible iterator to input keys
@@ -39,13 +39,13 @@ namespace detail {
  * @param num_keys Number of input keys
  */
 template <typename BitsetRef, typename KeyIt, typename ValueIt, typename size_type>
-__global__ void bitset_get_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, size_type num_keys)
+__global__ void bitset_test_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, size_type num_keys)
 {
   cuco::detail::index_type key_id = blockDim.x * blockIdx.x + threadIdx.x;
   cuco::detail::index_type stride = gridDim.x * blockDim.x;
 
   while (key_id < num_keys) {
-    outputs[key_id] = ref.get(keys[key_id]);
+    outputs[key_id] = ref.test(keys[key_id]);
     key_id += stride;
   }
 }

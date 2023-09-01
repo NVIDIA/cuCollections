@@ -22,12 +22,12 @@
 #include <utils.hpp>
 
 template <class BitsetRef, typename size_type, typename OutputIt>
-__global__ void get_kernel(BitsetRef ref, size_type num_elements, OutputIt output)
+__global__ void test_kernel(BitsetRef ref, size_type num_elements, OutputIt output)
 {
   cuco::detail::index_type index  = blockIdx.x * blockDim.x + threadIdx.x;
   cuco::detail::index_type stride = gridDim.x * blockDim.x;
   while (index < num_elements) {
-    output[index] = ref.get(index);
+    output[index] = ref.test(index);
     index += stride;
   }
 }
@@ -50,19 +50,19 @@ TEST_CASE("Get test", "")
 
   // Device-ref test
   auto ref = bv.ref();
-  thrust::device_vector<size_type> get_result(num_elements);
-  get_kernel<<<1, 1024>>>(ref, num_elements, get_result.data());
+  thrust::device_vector<size_type> test_result(num_elements);
+  test_kernel<<<1, 1024>>>(ref, num_elements, test_result.data());
 
-  size_type num_set = thrust::reduce(thrust::device, get_result.begin(), get_result.end(), 0);
+  size_type num_set = thrust::reduce(thrust::device, test_result.begin(), test_result.end(), 0);
   REQUIRE(num_set == num_set_ref);
 
   // Host-bulk test
   thrust::device_vector<size_type> keys(num_elements);
   thrust::sequence(keys.begin(), keys.end(), 0);
-  thrust::fill(get_result.begin(), get_result.end(), 0);
+  thrust::fill(test_result.begin(), test_result.end(), 0);
 
-  bv.get(keys.begin(), keys.end(), get_result.begin());
+  bv.test(keys.begin(), keys.end(), test_result.begin());
 
-  num_set = thrust::reduce(thrust::device, get_result.begin(), get_result.end(), 0);
+  num_set = thrust::reduce(thrust::device, test_result.begin(), test_result.end(), 0);
   REQUIRE(num_set == num_set_ref);
 }
