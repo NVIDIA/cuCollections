@@ -67,13 +67,15 @@ struct rank {
 };
 
 /**
- * @brief Bitvector class with rank and select index structures
+ * @brief Bitset class with rank and select index structures
  *
- * In addition to standard bitvector get/set operations, this class provides
+ * In addition to standard bitset get/set operations, this class provides
  * rank and select operation API. It maintains index structures to make both these
  * new operations close to constant time.
- * Bitvector construction happens on host, after which the structures are moved to device.
- * All subsequent read-only operations access device structures only.
+ *
+ * Current limitations:
+ * - Stream controls are partially supported due to the use of `thrust::device_vector` as storage
+ * - Device ref doesn't support modifiers like `set`, `reset`, etc.
  *
  * @tparam Allocator Type of allocator used for device storage
  */
@@ -91,7 +93,7 @@ class dynamic_bitset {
   static constexpr size_type bits_per_block  = words_per_block * bits_per_word;  ///< Trivial
 
   /**
-   * @brief Constructs an empty bitvector
+   * @brief Constructs an empty bitset
    *
    * @param allocator Allocator used for allocating device storage
    */
@@ -178,7 +180,7 @@ class dynamic_bitset {
                          cuda_stream_ref stream = {}) const noexcept;
 
   /**
-   *@brief Struct to hold all storage refs needed by bitvector_ref
+   *@brief Struct to hold all storage refs needed by reference
    */
   // TODO: this is not a real ref type, to be changed
   struct storage_ref_type {
@@ -197,10 +199,10 @@ class dynamic_bitset {
   class reference {
    public:
     /**
-￼   * @brief Constructs dynamic_bitset_ref.
-￼   *
-￼   * @param storage Struct with non-owning refs to bitvector slot storages
-￼   */
+     * @brief Constructs a reference
+     *
+     * @param storage Struct with non-owning refs to bitset storage arrays
+     */
     __host__ __device__ explicit constexpr reference(storage_ref_type storage) noexcept;
 
     /**
@@ -240,7 +242,7 @@ class dynamic_bitset {
     [[nodiscard]] __device__ constexpr size_type rank(size_type key) const noexcept;
 
     /**
-     * @brief Find position of Nth set (1) bit counting from start of bitvector
+     * @brief Find position of Nth set (1) bit counting from start
      *
      * @param count Input N
      *
@@ -249,7 +251,7 @@ class dynamic_bitset {
     [[nodiscard]] __device__ constexpr size_type select(size_type count) const noexcept;
 
     /**
-     * @brief Find position of Nth not-set (0) bit counting from start of bitvector
+     * @brief Find position of Nth not-set (0) bit counting from start
      *
      * @param count Input N
      *

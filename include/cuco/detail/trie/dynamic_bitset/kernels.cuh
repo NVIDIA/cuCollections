@@ -26,21 +26,18 @@ namespace detail {
 /*
  * @brief Gather bits of a range of keys
  *
- * @tparam BitvectorRef Bitvector reference type
+ * @tparam BitsetRef Bitset reference type
  * @tparam KeyIt Device-accessible iterator to input keys
  * @tparam ValueIt Device-accessible iterator to values
  * @tparam size_type Size type
  *
- * @param ref Bitvector ref
+ * @param ref Bitset ref
  * @param keys Begin iterator to keys
  * @param outputs Begin iterator to outputs
  * @param num_keys Number of input keys
  */
-template <typename BitvectorRef, typename KeyIt, typename ValueIt, typename size_type>
-__global__ void bitvector_get_kernel(BitvectorRef ref,
-                                     KeyIt keys,
-                                     ValueIt outputs,
-                                     size_type num_keys)
+template <typename BitsetRef, typename KeyIt, typename ValueIt, typename size_type>
+__global__ void bitset_get_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, size_type num_keys)
 {
   uint32_t const loop_stride = gridDim.x * blockDim.x;
   uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;
@@ -54,21 +51,18 @@ __global__ void bitvector_get_kernel(BitvectorRef ref,
 /*
  * @brief Gather rank values for a range of keys
  *
- * @tparam BitvectorRef Bitvector reference type
+ * @tparam BitsetRef Bitset reference type
  * @tparam KeyIt Device-accessible iterator to input keys
  * @tparam ValueIt Device-accessible iterator to values
  * @tparam size_type Size type
  *
- * @param ref Bitvector ref
+ * @param ref Bitset ref
  * @param keys Begin iterator to keys
  * @param outputs Begin iterator to outputs
  * @param num_keys Number of input keys
  */
-template <typename BitvectorRef, typename KeyIt, typename ValueIt, typename size_type>
-__global__ void bitvector_rank_kernel(BitvectorRef ref,
-                                      KeyIt keys,
-                                      ValueIt outputs,
-                                      size_type num_keys)
+template <typename BitsetRef, typename KeyIt, typename ValueIt, typename size_type>
+__global__ void bitset_rank_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, size_type num_keys)
 {
   uint32_t const loop_stride = gridDim.x * blockDim.x;
   uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;
@@ -82,21 +76,18 @@ __global__ void bitvector_rank_kernel(BitvectorRef ref,
 /*
  * @brief Gather select values for a range of keys
  *
- * @tparam BitvectorRef Bitvector reference type
+ * @tparam BitsetRef Bitset reference type
  * @tparam KeyIt Device-accessible iterator to input keys
  * @tparam ValueIt Device-accessible iterator to values
  * @tparam size_type Size type
  *
- * @param ref Bitvector ref
+ * @param ref Bitset ref
  * @param keys Begin iterator to keys
  * @param outputs Begin iterator to outputs
  * @param num_keys Number of input keys
  */
-template <typename BitvectorRef, typename KeyIt, typename ValueIt, typename size_type>
-__global__ void bitvector_select_kernel(BitvectorRef ref,
-                                        KeyIt keys,
-                                        ValueIt outputs,
-                                        size_type num_keys)
+template <typename BitsetRef, typename KeyIt, typename ValueIt, typename size_type>
+__global__ void bitset_select_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, size_type num_keys)
 {
   uint32_t const loop_stride = gridDim.x * blockDim.x;
   uint32_t key_id            = blockDim.x * blockIdx.x + threadIdx.x;

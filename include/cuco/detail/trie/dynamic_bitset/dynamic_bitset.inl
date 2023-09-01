@@ -81,7 +81,7 @@ constexpr void dynamic_bitset<Allocator>::get(KeyIt keys_begin,
 
   auto grid_size = default_grid_size(num_keys);
 
-  bitvector_get_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  bitset_get_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
     ref(), keys_begin, outputs_begin, num_keys);
 }
 
@@ -98,7 +98,7 @@ constexpr void dynamic_bitset<Allocator>::ranks(KeyIt keys_begin,
 
   auto grid_size = default_grid_size(num_keys);
 
-  bitvector_rank_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  bitset_rank_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
     ref(), keys_begin, outputs_begin, num_keys);
 }
 
@@ -115,7 +115,7 @@ constexpr void dynamic_bitset<Allocator>::selects(KeyIt keys_begin,
 
   auto grid_size = default_grid_size(num_keys);
 
-  bitvector_select_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  bitset_select_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
     ref(), keys_begin, outputs_begin, num_keys);
 }
 

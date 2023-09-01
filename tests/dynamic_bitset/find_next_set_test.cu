@@ -24,8 +24,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-template <class BitVectorRef, typename size_type, typename OutputIt>
-__global__ void find_next_set_kernel(BitVectorRef ref, size_type num_elements, OutputIt output)
+template <class BitsetRef, typename size_type, typename OutputIt>
+__global__ void find_next_set_kernel(BitsetRef ref, size_type num_elements, OutputIt output)
 {
   size_t index  = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = gridDim.x * blockDim.x;
