@@ -84,12 +84,12 @@ template <class Allocator = thrust::device_malloc_allocator<std::byte>>
 class dynamic_bitset {
  public:
   using size_type = std::size_t;  ///< size type to specify bit index
-  using slot_type = uint64_t;     ///< Slot type
+  using word_type = uint64_t;     ///< word type
   /// Type of the allocator to (de)allocate words
-  using allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<slot_type>;
+  using allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<word_type>;
 
   static constexpr size_type words_per_block = 4;  ///< Tradeoff between space efficiency and perf.
-  static constexpr size_type bits_per_word   = sizeof(slot_type) * CHAR_BIT;     ///< Bits in a word
+  static constexpr size_type bits_per_word   = sizeof(word_type) * CHAR_BIT;     ///< Bits in a word
   static constexpr size_type bits_per_block  = words_per_block * bits_per_word;  ///< Trivial
 
   /**
@@ -186,7 +186,7 @@ class dynamic_bitset {
    */
   // TODO: this is not a real ref type, to be changed
   struct storage_ref_type {
-    const slot_type* words_ref_;  ///< Words ref
+    const word_type* words_ref_;  ///< Words ref
 
     const rank_type* ranks_true_ref_;    ///< Ranks ref for 1 bits
     const size_type* selects_true_ref_;  ///< Selects ref for 1 bits
@@ -223,7 +223,7 @@ class dynamic_bitset {
      *
      * @return Word at position specified by index
      */
-    [[nodiscard]] __device__ constexpr slot_type word(size_type word_id) const noexcept;
+    [[nodiscard]] __device__ constexpr word_type word(size_type word_id) const noexcept;
 
     /**
      * @brief Find position of first set bit starting from a given position (inclusive)
@@ -297,7 +297,7 @@ class dynamic_bitset {
      * @return Position of Nth set bit
      */
     [[nodiscard]] __device__ size_type select_bit_in_word(size_type N,
-                                                          slot_type word) const noexcept;
+                                                          word_type word) const noexcept;
 
     storage_ref_type storage_;  ///< Non-owning storage
   };
@@ -328,7 +328,7 @@ class dynamic_bitset {
   size_type n_bits_;          ///< Number of bits dynamic_bitset currently holds
 
   /// Words vector that represents all bits
-  thrust::device_vector<slot_type, allocator_type> words_;
+  thrust::device_vector<word_type, allocator_type> words_;
   /// Rank values for every 256-th bit (4-th word)
   thrust::device_vector<rank_type, rank_allocator_type> ranks_true_;
   /// Same as ranks_ but for `0` bits

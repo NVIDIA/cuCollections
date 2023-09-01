@@ -103,7 +103,7 @@ __global__ void bitset_select_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs,
 /*
  * @brief Computes number of set or not-set bits in each word
  *
- * @tparam slot_type Word type
+ * @tparam word_type Word type
  * @tparam size_type Size type
  *
  * @param words Input array of words
@@ -111,8 +111,8 @@ __global__ void bitset_select_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs,
  * @param num_words Number of words
  * @param flip_bits Boolean to request negation of words before counting bits
  */
-template <typename slot_type, typename size_type>
-__global__ void bit_counts_kernel(const slot_type* words,
+template <typename word_type, typename size_type>
+__global__ void bit_counts_kernel(const word_type* words,
                                   size_type* bit_counts,
                                   size_type num_words,
                                   bool flip_bits)

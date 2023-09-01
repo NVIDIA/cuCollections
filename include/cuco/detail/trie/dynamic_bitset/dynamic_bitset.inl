@@ -221,7 +221,7 @@ __device__ constexpr bool dynamic_bitset<Allocator>::reference::test(size_type k
 }
 
 template <class Allocator>
-__device__ constexpr typename dynamic_bitset<Allocator>::slot_type
+__device__ constexpr typename dynamic_bitset<Allocator>::word_type
 dynamic_bitset<Allocator>::reference::word(size_type word_id) const noexcept
 {
   return storage_.words_ref_[word_id];
@@ -233,7 +233,7 @@ dynamic_bitset<Allocator>::reference::find_next(size_type key) const noexcept
 {
   size_type word_id = key / bits_per_word;
   size_type bit_id  = key % bits_per_word;
-  slot_type word    = storage_.words_ref_[word_id];
+  word_type word    = storage_.words_ref_[word_id];
   word &= ~(0lu) << bit_id;
   while (word == 0) {
     word = storage_.words_ref_[++word_id];
@@ -335,7 +335,7 @@ dynamic_bitset<Allocator>::reference::subtract_rank_from_count(size_type& count,
 
 template <class Allocator>
 __device__ typename dynamic_bitset<Allocator>::size_type
-dynamic_bitset<Allocator>::reference::select_bit_in_word(size_type N, slot_type word) const noexcept
+dynamic_bitset<Allocator>::reference::select_bit_in_word(size_type N, word_type word) const noexcept
 {
   for (size_type pos = 0; pos < N; pos++) {
     word &= word - 1;
