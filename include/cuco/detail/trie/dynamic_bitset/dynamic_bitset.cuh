@@ -100,28 +100,28 @@ class dynamic_bitset {
   constexpr dynamic_bitset(Allocator const& allocator = Allocator{});
 
   /**
-   * @brief adds a new bit at the end
+   * @brief Appends the given element `value` to the end of the bitset
    *
-   * Grows internal storage if needed
+   * This API may involve data reallocation if the current storage is exhausted.
    *
-   * @param bit Boolean value of new bit to be added
+   * @param value Boolean value of the new bit to be added
    */
-  constexpr void append(bool bit) noexcept;
+  constexpr void push_back(bool value) noexcept;
 
   /**
-   * @brief Modifies a single bit
+   * @brief Sets the target bit indexed by `index` to a specified `value`.
    *
-   * @param index position of bit to be modified
-   * @param bit new value of bit
+   * @param index Position of bit to be modified
+   * @param value New value of the target bit
    */
-  constexpr void set(size_type index, bool bit) noexcept;
+  constexpr void set(size_type index, bool value) noexcept;
 
   /**
-   * @brief Sets last bit to specified value
+   * @brief Sets the last bit to a specified value
    *
-   * @param bit new value of last bit
+   * @param value New value of the last bit
    */
-  constexpr void set_last(bool bit) noexcept;
+  constexpr void set_last(bool value) noexcept;
 
   /**
    * @brief Builds indexes for rank and select

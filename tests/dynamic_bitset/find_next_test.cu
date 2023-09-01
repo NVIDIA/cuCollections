@@ -45,7 +45,7 @@ TEST_CASE("Find next set test", "")
   constexpr size_type num_elements{400};
 
   for (size_type i = 0; i < num_elements; i++) {
-    bv.append(modulo_bitgen(i));
+    bv.push_back(modulo_bitgen(i));
   }
   bv.build();
 

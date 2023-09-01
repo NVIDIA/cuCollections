@@ -41,7 +41,7 @@ constexpr dynamic_bitset<Allocator>::dynamic_bitset(Allocator const& allocator)
 }
 
 template <class Allocator>
-constexpr void dynamic_bitset<Allocator>::append(bool bit) noexcept
+constexpr void dynamic_bitset<Allocator>::push_back(bool bit) noexcept
 {
   if (n_bits_ % bits_per_block == 0) {
     words_.resize(words_.size() + words_per_block);  // Extend storage by one block

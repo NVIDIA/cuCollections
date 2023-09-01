@@ -43,7 +43,7 @@ TEST_CASE("Get test", "")
 
   size_type num_set_ref = 0;
   for (size_type i = 0; i < num_elements; i++) {
-    bv.append(modulo_bitgen(i));
+    bv.push_back(modulo_bitgen(i));
     num_set_ref += modulo_bitgen(i);
   }
   bv.build();

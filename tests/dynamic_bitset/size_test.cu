@@ -25,7 +25,7 @@ TEST_CASE("Size computation", "")
   constexpr size_type num_elements{400};
 
   for (size_type i = 0; i < num_elements; i++) {
-    bv.append(i % 2 == 0);  // Alternate 0s and 1s pattern
+    bv.push_back(i % 2 == 0);  // Alternate 0s and 1s pattern
   }
   bv.build();
 

@@ -46,7 +46,7 @@ TEST_CASE("Select test", "")
 
   size_type num_set = 0;
   for (size_type i = 0; i < num_elements; i++) {
-    bv.append(modulo_bitgen(i));
+    bv.push_back(modulo_bitgen(i));
     num_set += modulo_bitgen(i);
   }
   bv.build();
