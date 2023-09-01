@@ -381,7 +381,7 @@ class operator_impl<
     auto old_key      = ref_.impl_.compare_and_swap(&slot->first, expected_key, value.first);
     auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
 
-    // if key success or key was alreay present in the map
+    // if key success or key was already present in the map
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key) or
         (ref_.predicate_.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL)) {
       // Update payload
