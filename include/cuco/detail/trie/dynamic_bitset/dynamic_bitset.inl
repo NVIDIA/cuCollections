@@ -121,7 +121,7 @@ constexpr void dynamic_bitset<Allocator>::selects(KeyIt keys_begin,
 
 template <class Allocator>
 constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
-  thrust::device_vector<rank, rank_allocator_type>& ranks,
+  thrust::device_vector<rank_type, rank_allocator_type>& ranks,
   thrust::device_vector<size_type, size_allocator_type>& selects,
   bool flip_bits) noexcept
 {

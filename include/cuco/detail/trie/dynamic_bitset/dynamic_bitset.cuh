@@ -179,18 +179,20 @@ class dynamic_bitset {
                          OutputIt outputs_begin,
                          cuda_stream_ref stream = {}) const noexcept;
 
+  using rank_type = cuco::experimental::detail::rank;  ///< Rank type
+
   /**
    *@brief Struct to hold all storage refs needed by reference
    */
   // TODO: this is not a real ref type, to be changed
   struct storage_ref_type {
-    const slot_type* words_ref_;  ///< Words refs
+    const slot_type* words_ref_;  ///< Words ref
 
-    const rank* ranks_true_ref_;         ///< Ranks refs for 1 bits
-    const size_type* selects_true_ref_;  ///< Selects refs for 1 bits
+    const rank_type* ranks_true_ref_;    ///< Ranks ref for 1 bits
+    const size_type* selects_true_ref_;  ///< Selects ref for 1 bits
 
-    const rank* ranks_false_ref_;         ///< Ranks refs for 0 bits
-    const size_type* selects_false_ref_;  ///< Selects refs 0 bits
+    const rank_type* ranks_false_ref_;    ///< Ranks ref for 0 bits
+    const size_type* selects_false_ref_;  ///< Selects ref 0 bits
   };
 
   /**
@@ -318,7 +320,7 @@ class dynamic_bitset {
 
  private:
   /// Type of the allocator to (de)allocate ranks
-  using rank_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<rank>;
+  using rank_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<rank_type>;
   /// Type of the allocator to (de)allocate indices
   using size_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<size_type>;
 
@@ -328,9 +330,9 @@ class dynamic_bitset {
   /// Words vector that represents all bits
   thrust::device_vector<slot_type, allocator_type> words_;
   /// Rank values for every 256-th bit (4-th word)
-  thrust::device_vector<rank, rank_allocator_type> ranks_true_;
+  thrust::device_vector<rank_type, rank_allocator_type> ranks_true_;
   /// Same as ranks_ but for `0` bits
-  thrust::device_vector<rank, rank_allocator_type> ranks_false_;
+  thrust::device_vector<rank_type, rank_allocator_type> ranks_false_;
   /// Block indices of (0, 256, 512...)th `1` bit
   thrust::device_vector<size_type, size_allocator_type> selects_true_;
   /// Same as selects_, but for `0` bits
@@ -344,7 +346,7 @@ class dynamic_bitset {
    * @param flip_bits If true, negate bits to construct indexes for `0` bits
    */
   constexpr void build_ranks_and_selects(
-    thrust::device_vector<rank, rank_allocator_type>& ranks,
+    thrust::device_vector<rank_type, rank_allocator_type>& ranks,
     thrust::device_vector<size_type, size_allocator_type>& selects,
     bool flip_bits) noexcept;
 
