@@ -245,15 +245,15 @@ template <class Allocator>
 __device__ constexpr typename dynamic_bitset<Allocator>::size_type
 dynamic_bitset<Allocator>::reference::rank(size_type key) const noexcept
 {
-  size_type word_id = key / bits_per_word;
-  size_type bit_id  = key % bits_per_word;
-  size_type rank_id = word_id / words_per_block;
-  size_type rel_id  = word_id % words_per_block;
+  size_type word_id   = key / bits_per_word;
+  size_type bit_id    = key % bits_per_word;
+  size_type rank_id   = word_id / words_per_block;
+  size_type offset_id = word_id % words_per_block;
 
   auto rank   = storage_.ranks_true_ref_[rank_id];
-  size_type n = rank.abs();
+  size_type n = rank.base();
 
-  if (rel_id != 0) { n += rank.rels_[rel_id - 1]; }
+  if (offset_id != 0) { n += rank.offsets_[offset_id - 1]; }
 
   n += cuda::std::popcount(storage_.words_ref_[word_id] & ((1UL << bit_id) - 1));
 
@@ -299,13 +299,13 @@ dynamic_bitset<Allocator>::reference::get_initial_rank_estimate(
   size_type end      = selects[block_id + 1] + 1UL;
 
   if (begin + 10 >= end) {  // Linear search
-    while (count >= ranks[begin + 1].abs()) {
+    while (count >= ranks[begin + 1].base()) {
       ++begin;
     }
   } else {  // Binary search
     while (begin + 1 < end) {
       size_type middle = (begin + end) / 2;
-      if (count < ranks[middle].abs()) {
+      if (count < ranks[middle].base()) {
         end = middle;
       } else {
         begin = middle;
@@ -321,14 +321,14 @@ __device__ constexpr typename dynamic_bitset<Allocator>::size_type
 dynamic_bitset<Allocator>::reference::subtract_rank_from_count(size_type& count,
                                                                Rank rank) const noexcept
 {
-  count -= rank.abs();
+  count -= rank.base();
 
-  bool a0       = count >= rank.rels_[0];
-  bool a1       = count >= rank.rels_[1];
-  bool a2       = count >= rank.rels_[2];
+  bool a0       = count >= rank.offsets_[0];
+  bool a1       = count >= rank.offsets_[1];
+  bool a2       = count >= rank.offsets_[2];
   size_type inc = a0 + a1 + a2;
 
-  count -= (inc > 0) * rank.rels_[inc - (inc > 0)];
+  count -= (inc > 0) * rank.offsets_[inc - (inc > 0)];
 
   return inc;
 }

@@ -165,13 +165,13 @@ __global__ void encode_ranks_from_prefix_bit_counts(const size_type* prefix_bit_
 
     // Set base value of rank
     auto& rank = ranks[rank_id];
-    rank.set_abs(prefix_bit_counts[word_id]);
+    rank.set_base(prefix_bit_counts[word_id]);
 
     if (rank_id < num_blocks - 1) {
       // For each subsequent word in this block, compute deltas from base
       for (size_type block_offset = 0; block_offset < words_per_block - 1; block_offset++) {
         auto delta = prefix_bit_counts[word_id + block_offset + 1] - prefix_bit_counts[word_id];
-        rank.rels_[block_offset] = delta;
+        rank.offsets_[block_offset] = delta;
       }
     }
     rank_id += stride;
