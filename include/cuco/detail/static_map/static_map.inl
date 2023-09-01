@@ -176,12 +176,10 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   auto const num = cuco::detail::distance(first, last);
   if (num == 0) { return; }
 
-  auto const grid_size =
-    (cg_size * num + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+  auto const grid_size = cuco::detail::compute_grid_size(num, cg_size);
 
-  static_map_ns::detail::insert_or_assign<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  static_map_ns::detail::insert_or_assign<cg_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE>
+    <<<grid_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
       first, num, ref(op::insert_or_assign));
 }
 
