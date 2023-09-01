@@ -221,7 +221,7 @@ class dynamic_bitset {
      *
      * @return Word at position specified by index
      */
-    [[nodiscard]] __device__ constexpr slot_type get_word(size_type word_id) const noexcept;
+    [[nodiscard]] __device__ constexpr slot_type word(size_type word_id) const noexcept;
 
     /**
      * @brief Find position of first set bit starting from a given position (inclusive)
@@ -270,7 +270,7 @@ class dynamic_bitset {
      * @return index in ranks which corresponds to highest rank less than count (least upper bound)
      */
     template <typename SelectsRef, typename RanksRef>
-    [[nodiscard]] __device__ constexpr size_type get_initial_rank_estimate(
+    [[nodiscard]] __device__ constexpr size_type initial_rank_estimate(
       size_type count, const SelectsRef& selects, const RanksRef& ranks) const noexcept;
 
     /**

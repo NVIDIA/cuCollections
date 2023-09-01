@@ -222,7 +222,7 @@ __device__ constexpr bool dynamic_bitset<Allocator>::reference::get(size_type ke
 
 template <class Allocator>
 __device__ constexpr typename dynamic_bitset<Allocator>::slot_type
-dynamic_bitset<Allocator>::reference::get_word(size_type word_id) const noexcept
+dynamic_bitset<Allocator>::reference::word(size_type word_id) const noexcept
 {
   return storage_.words_ref_[word_id];
 }
@@ -264,9 +264,8 @@ template <class Allocator>
 __device__ constexpr typename dynamic_bitset<Allocator>::size_type
 dynamic_bitset<Allocator>::reference::select(size_type count) const noexcept
 {
-  auto rank_id =
-    get_initial_rank_estimate(count, storage_.selects_true_ref_, storage_.ranks_true_ref_);
-  auto rank = storage_.ranks_true_ref_[rank_id];
+  auto rank_id = initial_rank_estimate(count, storage_.selects_true_ref_, storage_.ranks_true_ref_);
+  auto rank    = storage_.ranks_true_ref_[rank_id];
 
   size_type word_id = rank_id * words_per_block;
   word_id += subtract_rank_from_count(count, rank);
@@ -279,7 +278,7 @@ __device__ constexpr typename dynamic_bitset<Allocator>::size_type
 dynamic_bitset<Allocator>::reference::select_false(size_type count) const noexcept
 {
   auto rank_id =
-    get_initial_rank_estimate(count, storage_.selects_false_ref_, storage_.ranks_false_ref_);
+    initial_rank_estimate(count, storage_.selects_false_ref_, storage_.ranks_false_ref_);
   auto rank = storage_.ranks_false_ref_[rank_id];
 
   size_type word_id = rank_id * words_per_block;
@@ -291,8 +290,9 @@ dynamic_bitset<Allocator>::reference::select_false(size_type count) const noexce
 template <class Allocator>
 template <typename SelectsRef, typename RanksRef>
 __device__ constexpr typename dynamic_bitset<Allocator>::size_type
-dynamic_bitset<Allocator>::reference::get_initial_rank_estimate(
-  size_type count, SelectsRef const& selects, RanksRef const& ranks) const noexcept
+dynamic_bitset<Allocator>::reference::initial_rank_estimate(size_type count,
+                                                            SelectsRef const& selects,
+                                                            RanksRef const& ranks) const noexcept
 {
   size_type block_id = count / (bits_per_word * words_per_block);
   size_type begin    = selects[block_id];
