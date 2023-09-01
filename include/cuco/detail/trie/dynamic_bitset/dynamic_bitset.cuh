@@ -131,8 +131,10 @@ class dynamic_bitset {
   /**
    * @brief Bulk test operation
    *
-   * @tparam KeyIt Device-accessible iterator to keys
-   * @tparam OutputIt Device-accessible iterator to outputs
+   * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to bitset's
+   * `size_type`
+   * @tparam OutputIt Device-accessible iterator whose `value_type` can be constructed from boolean
+   * type
    *
    * @param keys_begin Begin iterator to keys list whose values are queried
    * @param keys_end End iterator to keys list
@@ -148,8 +150,10 @@ class dynamic_bitset {
   /**
    * @brief Bulk rank operation
    *
-   * @tparam KeyIt Device-accessible iterator to keys
-   * @tparam OutputIt Device-accessible iterator to output ranks
+   * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to bitset's
+   * `size_type`
+   * @tparam OutputIt Device-accessible iterator whose `value_type` can be constructed from bitset's
+   * `size_type`
    *
    * @param keys_begin Begin iterator to keys list whose ranks are queried
    * @param keys_end End iterator to keys list
@@ -165,8 +169,10 @@ class dynamic_bitset {
   /**
    * @brief Bulk select operation
    *
-   * @tparam KeyIt Device-accessible iterator to keys
-   * @tparam OutputIt Device-accessible iterator to outputs
+   * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to bitset's
+   * `size_type`
+   * @tparam OutputIt Device-accessible iterator whose `value_type` can be constructed from bitset's
+   * `size_type`
    *
    * @param keys_begin Begin iterator to keys list whose select values are queried
    * @param keys_end End iterator to keys list
