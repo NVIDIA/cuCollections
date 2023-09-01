@@ -99,7 +99,7 @@ ConfigureTest(STATIC_MULTIMAP_TEST
 ###################################################################################################
 # - dynamic_bitset tests --------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_BITSET_TEST
-    dynamic_bitset/find_next_set_test.cu
+    dynamic_bitset/find_next_test.cu
     dynamic_bitset/get_test.cu
     dynamic_bitset/rank_test.cu
     dynamic_bitset/select_test.cu
