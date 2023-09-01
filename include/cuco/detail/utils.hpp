@@ -24,11 +24,6 @@
 namespace cuco {
 namespace detail {
 
-// safe division
-#ifndef SDIV
-#define SDIV(x, y) (((x) + (y)-1) / (y))
-#endif
-
 template <typename Iterator>
 constexpr inline index_type distance(Iterator begin, Iterator end)
 {

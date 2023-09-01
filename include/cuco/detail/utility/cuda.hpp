@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <cuco/detail/utility/math.hpp>
+
 namespace cuco {
 namespace detail {
 
@@ -38,7 +40,7 @@ constexpr auto compute_grid_size(index_type num,
                                  int32_t stride     = CUCO_DEFAULT_STRIDE,
                                  int32_t block_size = CUCO_DEFAULT_BLOCK_SIZE)
 {
-  return (cg_size * num + stride * block_size - 1) / (stride * block_size);
+  return ceiling_div(cg_size * num, stride * block_size);
 }
 
 }  // namespace detail
