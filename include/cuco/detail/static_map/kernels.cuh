@@ -30,7 +30,44 @@ namespace static_map_ns {
 namespace detail {
 
 /**
- * @brief Finds the equivalent map elements of all keys in the range `[first, last)`.
+ * @brief For any key-value pair `{k, v}` in the range `[first, first + n)`, if a key equivalent to
+ * `k` already exists in the container, assigns `v` to the mapped_type corresponding to the key `k`.
+ * If the key does not exist, inserts the pair as if by insert.
+ *
+ * @note If multiple elements in `[first, first + n)` compare equal, it is unspecified which element
+ * is inserted.
+ *
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIterator Device accessible input iterator whose `value_type` is
+ * convertible to the `value_type` of the data structure
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
+template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Ref>
+__global__ void insert_or_assign(InputIterator first, cuco::detail::index_type n, Ref ref)
+{
+  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
+  cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
+
+  while (idx < n) {
+    typename Ref::value_type const insert_pair{*(first + idx)};
+    if constexpr (CGSize == 1) {
+      ref.insert_or_assign(insert_pair);
+    } else {
+      auto const tile =
+        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+      ref.insert_or_assign(tile, insert_pair);
+    }
+    idx += loop_stride;
+  }
+}
+
+/**
+ * @brief Finds the equivalent map elements of all keys in the range `[first, first + n)`.
  *
  * @note If the key `*(first + i)` has a match in the container, copies the payload of its matched
  * element to `(output_begin + i)`. Else, copies the empty value sentinel. Uses the CUDA Cooperative

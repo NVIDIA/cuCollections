@@ -290,6 +290,46 @@ class static_map {
                        cuda_stream_ref stream = {}) noexcept;
 
   /**
+   * @brief For any key-value pair `{k, v}` in the range `[first, last)`, if a key equivalent to `k`
+   * already exists in the container, assigns `v` to the mapped_type corresponding to the key `k`.
+   * If the key does not exist, inserts the pair as if by insert.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `insert_or_assign_async`.
+   * @note If multiple pairs in `[first, last)` compare equal, it is unspecified which pair is
+   * inserted or assigned.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_map<K, V>::value_type></tt> is `true`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt>
+  void insert_or_assign(InputIt first, InputIt last, cuda_stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief For any key-value pair `{k, v}` in the range `[first, last)`, if a key equivalent to `k`
+   * already exists in the container, assigns `v` to the mapped_type corresponding to the key `k`.
+   * If the key does not exist, inserts the pair as if by insert.
+   *
+   * @note If multiple pairs in `[first, last)` compare equal, it is unspecified which pair is
+   * inserted or assigned.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_map<K, V>::value_type></tt> is `true`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt>
+  void insert_or_assign_async(InputIt first, InputIt last, cuda_stream_ref stream = {}) noexcept;
+
+  /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
@@ -454,9 +494,9 @@ class static_map {
    * @return Pair of iterators indicating the last elements in the output
    */
   template <typename KeyOut, typename ValueOut>
-  [[nodiscard]] std::pair<KeyOut, ValueOut> retrieve_all(KeyOut keys_out,
-                                                         ValueOut values_out,
-                                                         cuda_stream_ref stream = {}) const;
+  std::pair<KeyOut, ValueOut> retrieve_all(KeyOut keys_out,
+                                           ValueOut values_out,
+                                           cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Gets the number of elements in the container.

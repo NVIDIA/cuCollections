@@ -422,7 +422,7 @@ class static_set {
    * @return Iterator indicating the end of the output
    */
   template <typename OutputIt>
-  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream = {}) const;
+  OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Gets the number of elements in the container.
