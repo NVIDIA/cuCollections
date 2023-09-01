@@ -59,7 +59,7 @@ TEST_CASE("Select test", "")
 
     thrust::device_vector<size_type> d_selects(num_set);
 
-    bv.selects(keys.begin(), keys.end(), d_selects.begin());
+    bv.select(keys.begin(), keys.end(), d_selects.begin());
 
     thrust::host_vector<size_type> h_selects = d_selects;
 

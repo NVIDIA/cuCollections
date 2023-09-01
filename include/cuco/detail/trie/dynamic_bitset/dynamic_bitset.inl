@@ -87,10 +87,10 @@ constexpr void dynamic_bitset<Allocator>::get(KeyIt keys_begin,
 
 template <class Allocator>
 template <typename KeyIt, typename OutputIt>
-constexpr void dynamic_bitset<Allocator>::ranks(KeyIt keys_begin,
-                                                KeyIt keys_end,
-                                                OutputIt outputs_begin,
-                                                cuda_stream_ref stream) const noexcept
+constexpr void dynamic_bitset<Allocator>::rank(KeyIt keys_begin,
+                                               KeyIt keys_end,
+                                               OutputIt outputs_begin,
+                                               cuda_stream_ref stream) const noexcept
 
 {
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
@@ -104,10 +104,10 @@ constexpr void dynamic_bitset<Allocator>::ranks(KeyIt keys_begin,
 
 template <class Allocator>
 template <typename KeyIt, typename OutputIt>
-constexpr void dynamic_bitset<Allocator>::selects(KeyIt keys_begin,
-                                                  KeyIt keys_end,
-                                                  OutputIt outputs_begin,
-                                                  cuda_stream_ref stream) const noexcept
+constexpr void dynamic_bitset<Allocator>::select(KeyIt keys_begin,
+                                                 KeyIt keys_end,
+                                                 OutputIt outputs_begin,
+                                                 cuda_stream_ref stream) const noexcept
 
 {
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);

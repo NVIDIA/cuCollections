@@ -157,10 +157,10 @@ class dynamic_bitset {
    * @param stream Stream to execute ranks kernel
    */
   template <typename KeyIt, typename OutputIt>
-  constexpr void ranks(KeyIt keys_begin,
-                       KeyIt keys_end,
-                       OutputIt outputs_begin,
-                       cuda_stream_ref stream = {}) const noexcept;
+  constexpr void rank(KeyIt keys_begin,
+                      KeyIt keys_end,
+                      OutputIt outputs_begin,
+                      cuda_stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Bulk select operation
@@ -174,10 +174,10 @@ class dynamic_bitset {
    * @param stream Stream to execute selects kernel
    */
   template <typename KeyIt, typename OutputIt>
-  constexpr void selects(KeyIt keys_begin,
-                         KeyIt keys_end,
-                         OutputIt outputs_begin,
-                         cuda_stream_ref stream = {}) const noexcept;
+  constexpr void select(KeyIt keys_begin,
+                        KeyIt keys_end,
+                        OutputIt outputs_begin,
+                        cuda_stream_ref stream = {}) const noexcept;
 
   using rank_type = cuco::experimental::detail::rank;  ///< Rank type
 

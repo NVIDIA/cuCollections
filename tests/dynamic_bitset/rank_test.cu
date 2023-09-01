@@ -43,7 +43,7 @@ TEST_CASE("Rank test", "")
 
   thrust::device_vector<size_type> d_ranks(num_elements);
 
-  bv.ranks(keys.begin(), keys.end(), d_ranks.begin());
+  bv.rank(keys.begin(), keys.end(), d_ranks.begin());
 
   thrust::host_vector<size_type> h_ranks = d_ranks;
 
