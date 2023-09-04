@@ -21,29 +21,23 @@ namespace cuco {
 namespace detail {
 
 /**
-￼   * @brief Returns the global thread index in a 1D scalar grid
-*
-* @tparam CGSize Number of threads in each CUDA Cooperative Group
-*
-* @return The global thread index
-￼   */
-template <index_type CGSize = 1>
+ * @brief Returns the global thread index in a 1D scalar grid
+ *
+ * @return The global thread index
+ */
 __device__ static constexpr index_type global_thread_id() noexcept
 {
-  return (index_type{threadIdx.x} + index_type{blockDim.x} * index_type{blockIdx.x}) / CGSize;
+  return index_type{threadIdx.x} + index_type{blockDim.x} * index_type{blockIdx.x};
 }
 
 /**
-￼   * @brief Returns the grid stride of a 1D grid
-*
-* @tparam CGSize Number of threads in each CUDA Cooperative Group
-*
-* @return The grid stride
-￼   */
-template <index_type CGSize = 1>
+ * @brief Returns the grid stride of a 1D grid
+ *
+ * @return The grid stride
+ */
 __device__ static constexpr index_type grid_stride() noexcept
 {
-  return index_type{gridDim.x} * index_type{blockDim.x} / CGSize;
+  return index_type{gridDim.x} * index_type{blockDim.x};
 }
 
 }  // namespace detail
