@@ -81,7 +81,7 @@ template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
     (static_cast<uint64_t>(std::numeric_limits<SizeType>::max()) < max_prime)
       ? std::numeric_limits<SizeType>::max()
       : static_cast<SizeType>(max_prime);
-  auto const size = cuco::detail::ceiling_div(
+  auto const size = cuco::detail::int_div_ceil(
     std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), CGSize * WindowSize);
   if (size > max_value) { CUCO_FAIL("Invalid input extent"); }
 

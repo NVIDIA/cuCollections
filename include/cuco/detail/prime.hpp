@@ -20154,7 +20154,7 @@ constexpr T get_valid_capacity(T capacity) noexcept
     if constexpr (not uses_vector_load) { return cg_size; }
   }();
 
-  auto const c         = ceiling_div(capacity, stride);
+  auto const c         = int_div_ceil(capacity, stride);
   auto const min_prime = std::lower_bound(primes.begin(), primes.end(), c);
   return *min_prime * stride;
 }

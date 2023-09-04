@@ -35,7 +35,7 @@ namespace detail {
  * @return Ceiling of the integer division
  */
 template <typename T, typename U>
-constexpr T ceiling_div(T dividend, U divisor) noexcept
+constexpr T int_div_ceil(T dividend, U divisor) noexcept
 {
   static_assert(std::is_integral_v<T>);
   static_assert(std::is_integral_v<U>);

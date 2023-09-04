@@ -40,7 +40,7 @@ constexpr auto compute_grid_size(index_type num,
                                  int32_t stride     = CUCO_DEFAULT_STRIDE,
                                  int32_t block_size = CUCO_DEFAULT_BLOCK_SIZE)
 {
-  return ceiling_div(cg_size * num, stride * block_size);
+  return int_div_ceil(cg_size * num, stride * block_size);
 }
 
 }  // namespace detail
