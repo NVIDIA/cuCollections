@@ -190,8 +190,8 @@ class open_addressing_impl {
     auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
 
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::insert_if_n<cg_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, always_true, thrust::identity{}, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
@@ -219,8 +219,8 @@ class open_addressing_impl {
     auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
 
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::insert_if_n<cg_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, always_true, thrust::identity{}, container_ref);
   }
 
@@ -267,8 +267,8 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
 
-    detail::insert_if_n<cg_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, stencil, pred, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
@@ -309,8 +309,8 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
 
-    detail::insert_if_n<cg_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, stencil, pred, container_ref);
   }
 
@@ -341,8 +341,8 @@ class open_addressing_impl {
     auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
 
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::contains_if_n<cg_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, always_true, thrust::identity{}, output_begin, container_ref);
   }
 
@@ -389,8 +389,8 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
 
-    detail::contains_if_n<cg_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, stencil, pred, output_begin, container_ref);
   }
 
@@ -481,8 +481,8 @@ class open_addressing_impl {
 
     // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
     // v2.1.0
-    detail::size<cuco::detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::size<cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         storage_.ref(), is_filled, counter.data());
 
     return counter.load_to_host(stream);

@@ -71,7 +71,7 @@ void aow_storage<T, WindowSize, Extent, Allocator>::initialize(value_type key,
   auto constexpr stride  = 4;
   auto const grid_size   = cuco::detail::compute_grid_size(this->num_windows(), cg_size, stride);
 
-  detail::initialize<<<grid_size, cuco::detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  detail::initialize<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
     this->data(), this->num_windows(), key);
 }
 

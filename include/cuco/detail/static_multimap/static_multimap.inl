@@ -299,9 +299,8 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve(
   CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
 
-  detail::
-    retrieve<detail::CUCO_DEFAULT_BLOCK_SIZE, flushing_cg_size, cg_size(), buffer_size, is_outer>
-    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  detail::retrieve<detail::default_block_size(), flushing_cg_size, cg_size(), buffer_size, is_outer>
+    <<<grid_size, detail::default_block_size(), 0, stream>>>(
       first, num_keys, output_begin, d_counter_.get(), view, key_equal);
 
   CUCO_CUDA_TRY(cudaMemcpyAsync(
@@ -339,9 +338,8 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve_
   CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
 
-  detail::
-    retrieve<detail::CUCO_DEFAULT_BLOCK_SIZE, flushing_cg_size, cg_size(), buffer_size, is_outer>
-    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  detail::retrieve<detail::default_block_size(), flushing_cg_size, cg_size(), buffer_size, is_outer>
+    <<<grid_size, detail::default_block_size(), 0, stream>>>(
       first, num_keys, output_begin, d_counter_.get(), view, key_equal);
 
   CUCO_CUDA_TRY(cudaMemcpyAsync(

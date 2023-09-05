@@ -22,8 +22,10 @@ namespace detail {
 
 using index_type = int64_t;  ///< CUDA thread index type
 
-static constexpr int32_t CUCO_DEFAULT_BLOCK_SIZE = 128;  ///< Default block size
-static constexpr int32_t CUCO_DEFAULT_STRIDE     = 1;    ///< Default stride
+/// Default block size
+static constexpr int32_t default_block_size() noexcept { return 128; }
+/// Default stride
+static constexpr int32_t default_stride() noexcept { return 1; }
 
 /**
  * @brief Computes the desired 1D grid size with the given parameters
@@ -37,8 +39,8 @@ static constexpr int32_t CUCO_DEFAULT_STRIDE     = 1;    ///< Default stride
  */
 constexpr auto compute_grid_size(index_type num,
                                  int32_t cg_size    = 1,
-                                 int32_t stride     = CUCO_DEFAULT_STRIDE,
-                                 int32_t block_size = CUCO_DEFAULT_BLOCK_SIZE)
+                                 int32_t stride     = default_stride(),
+                                 int32_t block_size = default_block_size())
 {
   return int_div_ceil(cg_size * num, stride * block_size);
 }
