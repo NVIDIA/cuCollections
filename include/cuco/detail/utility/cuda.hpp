@@ -23,9 +23,9 @@ namespace detail {
 using index_type = int64_t;  ///< CUDA thread index type
 
 /// Default block size
-static constexpr int32_t default_block_size() noexcept { return 128; }
+constexpr int32_t default_block_size() noexcept { return 128; }
 /// Default stride
-static constexpr int32_t default_stride() noexcept { return 1; }
+constexpr int32_t default_stride() noexcept { return 1; }
 
 /**
  * @brief Computes the desired 1D grid size with the given parameters
