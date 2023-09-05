@@ -263,6 +263,60 @@ class static_set {
                        cuda_stream_ref stream = {}) noexcept;
 
   /**
+   * @brief Erases keys in the range `[first, last)`.
+   *
+   * For each key `k` in `[first, last)`, if contains(k) returns true, removes `k` and it's
+   * associated value from the container. Else, no effect.
+   *
+   *  Side-effects:
+   *  - `contains(k) == false`
+   *  - `find(k) == end()`
+   *  - `insert({k,v}) == true`
+   *  - `size()` is reduced by the total number of erased keys
+   *
+   * This function synchronizes `stream`.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream Stream used for executing the kernels
+   *
+   * @throw std::runtime_error if a unique erased key sentinel value was not
+   * provided at construction
+   */
+  template <typename InputIt>
+  void erase(InputIt first, InputIt last, cuda_stream_ref stream = {});
+
+  /**
+   * @brief Asynchronously erases keys in the range `[first, last)`.
+   *
+   * For each key `k` in `[first, last)`, if contains(k) returns true, removes `k` and it's
+   * associated value from the container. Else, no effect.
+   *
+   *  Side-effects:
+   *  - `contains(k) == false`
+   *  - `find(k) == end()`
+   *  - `insert({k,v}) == true`
+   *  - `size()` is reduced by the total number of erased keys
+   *
+   * This function synchronizes `stream`.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream Stream used for executing the kernels
+   *
+   * @throw std::runtime_error if a unique erased key sentinel value was not
+   * provided at construction
+   */
+  template <typename InputIt>
+  void erase_async(InputIt first, InputIt last, cuda_stream_ref stream = {});
+
+  /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
