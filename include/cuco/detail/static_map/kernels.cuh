@@ -50,8 +50,8 @@ namespace detail {
 template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Ref>
 __global__ void insert_or_assign(InputIterator first, cuco::detail::index_type n, Ref ref)
 {
-  auto const loop_stride = cuco::detail::grid_stride<CGSize>();
-  auto idx               = cuco::detail::global_thread_id<CGSize>();
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
     typename Ref::value_type const insert_pair{*(first + idx)};
@@ -93,8 +93,8 @@ __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_
 
   auto const block       = cg::this_thread_block();
   auto const thread_idx  = block.thread_rank();
-  auto const loop_stride = cuco::detail::grid_stride<CGSize>();
-  auto idx               = cuco::detail::global_thread_id<CGSize>();
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   __shared__ typename Ref::mapped_type output_buffer[BlockSize / CGSize];
 

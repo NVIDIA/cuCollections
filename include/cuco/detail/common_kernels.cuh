@@ -71,8 +71,8 @@ __global__ void insert_if_n(InputIterator first,
   __shared__ typename BlockReduce::TempStorage temp_storage;
   typename Ref::size_type thread_num_successes = 0;
 
-  auto const loop_stride = cuco::detail::grid_stride<CGSize>();
-  auto idx               = cuco::detail::global_thread_id<CGSize>();
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
@@ -129,8 +129,8 @@ template <int32_t CGSize,
 __global__ void insert_if_n(
   InputIterator first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
-  auto const loop_stride = cuco::detail::grid_stride<CGSize>();
-  auto idx               = cuco::detail::global_thread_id<CGSize>();
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
@@ -190,8 +190,8 @@ __global__ void contains_if_n(InputIt first,
 
   auto const block       = cg::this_thread_block();
   auto const thread_idx  = block.thread_rank();
-  auto const loop_stride = cuco::detail::grid_stride<CGSize>();
-  auto idx               = cuco::detail::global_thread_id<CGSize>();
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   __shared__ bool output_buffer[BlockSize / CGSize];
 

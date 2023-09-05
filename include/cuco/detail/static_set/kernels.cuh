@@ -55,8 +55,8 @@ __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_
 
   auto const block       = cg::this_thread_block();
   auto const thread_idx  = block.thread_rank();
-  auto const loop_stride = cuco::detail::grid_stride<CGSize>();
-  auto idx               = cuco::detail::global_thread_id<CGSize>();
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   __shared__ typename Ref::key_type output_buffer[BlockSize / CGSize];
 

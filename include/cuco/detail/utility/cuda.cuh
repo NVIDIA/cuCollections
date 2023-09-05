@@ -25,7 +25,7 @@ namespace detail {
  *
  * @return The global thread index
  */
-__device__ static constexpr index_type global_thread_id() noexcept
+__device__ static index_type global_thread_id() noexcept
 {
   return index_type{threadIdx.x} + index_type{blockDim.x} * index_type{blockIdx.x};
 }
@@ -35,7 +35,7 @@ __device__ static constexpr index_type global_thread_id() noexcept
  *
  * @return The grid stride
  */
-__device__ static constexpr index_type grid_stride() noexcept
+__device__ static index_type grid_stride() noexcept
 {
   return index_type{gridDim.x} * index_type{blockDim.x};
 }
