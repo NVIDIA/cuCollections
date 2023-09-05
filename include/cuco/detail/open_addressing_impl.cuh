@@ -200,7 +200,7 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Asynchonously inserts all keys in the range `[first, last)`.
+   * @brief Asynchronously inserts all keys in the range `[first, last)`.
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -281,7 +281,7 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Asynchonously inserts keys in the range `[first, last)` if `pred` of the corresponding
+   * @brief Asynchronously inserts keys in the range `[first, last)` if `pred` of the corresponding
    * stencil returns true.
    *
    * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
@@ -362,7 +362,7 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
    * the container.
    *
    * @tparam InputIt Device accessible input iterator
@@ -396,7 +396,7 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
    * the container if `pred` of the corresponding stencil returns true.
    *
    * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
