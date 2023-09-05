@@ -323,6 +323,45 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief Asynchronously erases keys in the range `[first, last)`.
+   *
+   * For each key `k` in `[first, last)`, if contains(k) returns true, removes `k` and it's
+   * associated value from the container. Else, no effect.
+   *
+   *  Side-effects:
+   *  - `contains(k) == false`
+   *  - `find(k) == end()`
+   *  - `insert({k,v}) == true`
+   *  - `size()` is reduced by the total number of erased keys
+   *
+   * This function synchronizes `stream`.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream Stream used for executing the kernels
+   *
+   * @throw std::runtime_error if a unique erased key sentinel value was not
+   * provided at construction
+   */
+  template <typename InputIt, typename Ref>
+  void erase_async(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream = {})
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size =
+      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
+      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+
+    detail::erase<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
+      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(first, num_keys, container_ref);
+  }
+
+  /**
    * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
    * the container.
    *
