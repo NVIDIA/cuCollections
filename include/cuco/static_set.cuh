@@ -60,9 +60,9 @@ namespace experimental {
  * construction.
  *
  * @note Allows constant time concurrent modify or lookup operations from threads in device code.
- * @note cuCollections data stuctures always place the slot keys on the left-hand side when invoking
- * the key comparison predicate, i.e., `pred(slot_key, query_key)`. Order-sensitive `KeyEqual`
- * should be used with caution.
+ * @note cuCollections data structures always place the slot keys on the left-hand side when
+ * invoking the key comparison predicate, i.e., `pred(slot_key, query_key)`. Order-sensitive
+ * `KeyEqual` should be used with caution.
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
@@ -194,7 +194,7 @@ class static_set {
   size_type insert(InputIt first, InputIt last, cuda_stream_ref stream = {});
 
   /**
-   * @brief Asynchonously inserts all keys in the range `[first, last)`.
+   * @brief Asynchronously inserts all keys in the range `[first, last)`.
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -236,7 +236,7 @@ class static_set {
     InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream = {});
 
   /**
-   * @brief Asynchonously inserts keys in the range `[first, last)` if `pred` of the corresponding
+   * @brief Asynchronously inserts keys in the range `[first, last)` if `pred` of the corresponding
    * stencil returns true.
    *
    * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
@@ -283,7 +283,7 @@ class static_set {
                 cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
    * the set.
    *
    * @tparam InputIt Device accessible input iterator
@@ -334,7 +334,7 @@ class static_set {
                    cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
    * the set if `pred` of the corresponding stencil returns true.
    *
    * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
@@ -384,7 +384,7 @@ class static_set {
   void find(InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief For all keys in the range `[first, last)`, asynchonously finds an element with key
+   * @brief For all keys in the range `[first, last)`, asynchronously finds an element with key
    * equivalent to the query key.
    *
    * @note If the key `*(first + i)` has a matched `element` in the set, copies `element` to
