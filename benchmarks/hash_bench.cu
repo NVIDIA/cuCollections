@@ -16,7 +16,6 @@
 
 #include <defaults.hpp>
 
-#include <cuco/detail/utils.hpp>
 #include <cuco/hash_functions.cuh>
 
 #include <nvbench/nvbench.cuh>
@@ -70,7 +69,7 @@ void hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
   bool const materialize_result = false;
   constexpr auto block_size     = 128;
   auto const num_keys  = state.get_int64_or_default("NumInputs", cuco::benchmark::defaults::N * 10);
-  auto const grid_size = SDIV(num_keys, block_size * 16);
+  auto const grid_size = (num_keys + block_size * 16 - 1) / block_size * 16;
 
   thrust::device_vector<typename Hash::result_type> hash_values((materialize_result) ? num_keys
                                                                                      : 1);

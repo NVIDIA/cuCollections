@@ -20,7 +20,7 @@
 #include <cuco/detail/common_functors.cuh>
 #include <cuco/detail/common_kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
-#include <cuco/detail/tuning.cuh>
+#include <cuco/detail/utility/cuda.hpp>
 #include <cuco/extent.cuh>
 #include <cuco/probing_scheme.cuh>
 #include <cuco/storage.cuh>
@@ -187,13 +187,11 @@ class open_addressing_impl {
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, always_true, thrust::identity{}, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
@@ -218,13 +216,11 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, always_true, thrust::identity{}, container_ref);
   }
 
@@ -269,12 +265,10 @@ class open_addressing_impl {
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, stencil, pred, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
@@ -313,12 +307,10 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, stencil, pred, container_ref);
   }
 
@@ -346,13 +338,11 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::contains_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, always_true, thrust::identity{}, output_begin, container_ref);
   }
 
@@ -397,12 +387,10 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::contains_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, stencil, pred, output_begin, container_ref);
   }
 
@@ -489,14 +477,12 @@ class open_addressing_impl {
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
-    auto const grid_size =
-      (storage_.num_windows() + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(storage_.num_windows());
 
     // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
     // v2.1.0
-    detail::size<detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::size<cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         storage_.ref(), is_filled, counter.data());
 
     return counter.load_to_host(stream);
