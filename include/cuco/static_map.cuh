@@ -221,7 +221,7 @@ class static_map {
   size_type insert(InputIt first, InputIt last, cuda_stream_ref stream = {});
 
   /**
-   * @brief Asynchonously inserts all keys in the range `[first, last)`.
+   * @brief Asynchronously inserts all keys in the range `[first, last)`.
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -263,7 +263,7 @@ class static_map {
     InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream = {});
 
   /**
-   * @brief Asynchonously inserts keys in the range `[first, last)` if `pred` of the corresponding
+   * @brief Asynchronously inserts keys in the range `[first, last)` if `pred` of the corresponding
    * stencil returns true.
    *
    * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
@@ -350,7 +350,7 @@ class static_map {
                 cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
    * the map.
    *
    * @tparam InputIt Device accessible input iterator
@@ -401,7 +401,7 @@ class static_map {
                    cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
    * the map if `pred` of the corresponding stencil returns true.
    *
    * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
