@@ -37,10 +37,10 @@ static constexpr int32_t default_stride() noexcept { return 1; }
  *
  * @return The resulting grid size
  */
-constexpr auto compute_grid_size(index_type num,
-                                 int32_t cg_size    = 1,
-                                 int32_t stride     = default_stride(),
-                                 int32_t block_size = default_block_size())
+constexpr auto grid_size(index_type num,
+                         int32_t cg_size    = 1,
+                         int32_t stride     = default_stride(),
+                         int32_t block_size = default_block_size()) noexcept
 {
   return int_div_ceil(cg_size * num, stride * block_size);
 }

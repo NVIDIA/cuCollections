@@ -187,7 +187,7 @@ class open_addressing_impl {
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
-    auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     auto const always_true = thrust::constant_iterator<bool>{true};
     detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
@@ -216,7 +216,7 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     auto const always_true = thrust::constant_iterator<bool>{true};
     detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
@@ -265,7 +265,7 @@ class open_addressing_impl {
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
-    auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
@@ -307,7 +307,7 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
@@ -338,7 +338,7 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     auto const always_true = thrust::constant_iterator<bool>{true};
     detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
@@ -387,7 +387,7 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size = cuco::detail::compute_grid_size(num_keys, cg_size);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
@@ -477,7 +477,7 @@ class open_addressing_impl {
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
-    auto const grid_size = cuco::detail::compute_grid_size(storage_.num_windows());
+    auto const grid_size = cuco::detail::grid_size(storage_.num_windows());
 
     // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
     // v2.1.0

@@ -294,7 +294,7 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve(
     return cg_size();
   }();
 
-  auto const grid_size = detail::compute_grid_size(num_keys, cg_size());
+  auto const grid_size = detail::grid_size(num_keys, cg_size());
 
   CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
@@ -333,7 +333,7 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve_
     return cg_size();
   }();
 
-  auto const grid_size = detail::compute_grid_size(num_keys, cg_size());
+  auto const grid_size = detail::grid_size(num_keys, cg_size());
 
   CUCO_CUDA_TRY(cudaMemsetAsync(d_counter_.get(), 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_counter;
