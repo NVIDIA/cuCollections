@@ -20,7 +20,7 @@
 #include <cuco/detail/common_functors.cuh>
 #include <cuco/detail/common_kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
-#include <cuco/detail/tuning.cuh>
+#include <cuco/detail/utility/cuda.hpp>
 #include <cuco/extent.cuh>
 #include <cuco/probing_scheme.cuh>
 #include <cuco/storage.cuh>
@@ -183,20 +183,18 @@ class open_addressing_impl {
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, always_true, thrust::identity{}, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
   }
 
   /**
-   * @brief Asynchonously inserts all keys in the range `[first, last)`.
+   * @brief Asynchronously inserts all keys in the range `[first, last)`.
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -214,13 +212,11 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, always_true, thrust::identity{}, container_ref);
   }
 
@@ -265,19 +261,17 @@ class open_addressing_impl {
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, stencil, pred, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
   }
 
   /**
-   * @brief Asynchonously inserts keys in the range `[first, last)` if `pred` of the corresponding
+   * @brief Asynchronously inserts keys in the range `[first, last)` if `pred` of the corresponding
    * stencil returns true.
    *
    * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
@@ -309,17 +303,15 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::insert_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, stencil, pred, container_ref);
   }
 
   /**
-   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
    * the container.
    *
    * @tparam InputIt Device accessible input iterator
@@ -342,18 +334,16 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::contains_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, always_true, thrust::identity{}, output_begin, container_ref);
   }
 
   /**
-   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
    * the container if `pred` of the corresponding stencil returns true.
    *
    * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
@@ -393,12 +383,10 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::contains_if_n<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         first, num_keys, stencil, pred, output_begin, container_ref);
   }
 
@@ -485,14 +473,12 @@ class open_addressing_impl {
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
-    auto const grid_size =
-      (storage_.num_windows() + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(storage_.num_windows());
 
     // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
     // v2.1.0
-    detail::size<detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+    detail::size<cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
         storage_.ref(), is_filled, counter.data());
 
     return counter.load_to_host(stream);

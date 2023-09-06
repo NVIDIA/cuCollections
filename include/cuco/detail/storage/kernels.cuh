@@ -15,7 +15,7 @@
  */
 #pragma once
 
-#include <cuco/detail/utils.hpp>
+#include <cuco/detail/utility/cuda.cuh>
 
 #include <cstddef>
 
@@ -37,8 +37,8 @@ __global__ void initialize(WindowT* windows,
                            cuco::detail::index_type n,
                            typename WindowT::value_type value)
 {
-  cuco::detail::index_type const loop_stride = gridDim.x * blockDim.x;
-  cuco::detail::index_type idx               = blockDim.x * blockIdx.x + threadIdx.x;
+  auto const loop_stride = cuco::detail::grid_stride();
+  auto idx               = cuco::detail::global_thread_id();
 
   while (idx < n) {
     auto& window_slots = *(windows + idx);

@@ -17,7 +17,7 @@
 #include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/static_map/functors.cuh>
 #include <cuco/detail/static_map/kernels.cuh>
-#include <cuco/detail/tuning.cuh>
+#include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
 #include <cuco/operator.hpp>
 #include <cuco/static_map_ref.cuh>
@@ -153,6 +153,44 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_or_assign(InputIt first, InputIt last, cuda_stream_ref stream) noexcept
+{
+  return this->insert_or_assign_async(first, last, stream);
+  stream.synchronize();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_or_assign_async(InputIt first, InputIt last, cuda_stream_ref stream) noexcept
+{
+  auto const num = cuco::detail::distance(first, last);
+  if (num == 0) { return; }
+
+  auto const grid_size = cuco::detail::grid_size(num, cg_size);
+
+  static_map_ns::detail::insert_or_assign<cg_size, cuco::detail::default_block_size()>
+    <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+      first, num, ref(op::insert_or_assign));
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename InputIt, typename OutputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
@@ -248,12 +286,10 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
 
-  auto const grid_size =
-    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+  auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-  static_map_ns::detail::find<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  static_map_ns::detail::find<cg_size, cuco::detail::default_block_size()>
+    <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
       first, num_keys, output_begin, ref(op::find));
 }
 

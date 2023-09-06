@@ -16,46 +16,13 @@
 #pragma once
 
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/utility/cuda.hpp>
 
 #include <iterator>
 #include <type_traits>
 
 namespace cuco {
 namespace detail {
-
-using index_type = int64_t;  ///< index type for internal use
-
-/**
- * @brief Compute the number of bits of a simple type.
- *
- * @tparam T The type we want to infer its size in bits
- *
- * @return Size of type T in bits
- */
-template <typename T>
-static constexpr std::size_t type_bits() noexcept
-{
-  return sizeof(T) * CHAR_BIT;
-}
-
-// safe division
-#ifndef SDIV
-#define SDIV(x, y) (((x) + (y)-1) / (y))
-#endif
-
-template <typename Kernel>
-auto get_grid_size(Kernel kernel, std::size_t block_size, std::size_t dynamic_smem_bytes = 0)
-{
-  int grid_size{-1};
-  CUCO_CUDA_TRY(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
-    &grid_size, kernel, block_size, dynamic_smem_bytes));
-  int dev_id{-1};
-  CUCO_CUDA_TRY(cudaGetDevice(&dev_id));
-  int num_sms{-1};
-  CUCO_CUDA_TRY(cudaDeviceGetAttribute(&num_sms, cudaDevAttrMultiProcessorCount, dev_id));
-  grid_size *= num_sms;
-  return grid_size;
-}
 
 template <typename Iterator>
 constexpr inline index_type distance(Iterator begin, Iterator end)

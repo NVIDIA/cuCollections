@@ -34,6 +34,12 @@ struct insert_and_find_tag {
 } inline constexpr insert_and_find;
 
 /**
+ * @brief `insert_or_assign` operator tag
+ */
+struct insert_or_assign_tag {
+} inline constexpr insert_or_assign;
+
+/**
  * @brief `contains` operator tag
  */
 struct contains_tag {
