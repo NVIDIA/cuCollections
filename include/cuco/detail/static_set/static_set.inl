@@ -17,7 +17,7 @@
 #include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/static_set/functors.cuh>
 #include <cuco/detail/static_set/kernels.cuh>
-#include <cuco/detail/tuning.cuh>
+#include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
 #include <cuco/operator.hpp>
 #include <cuco/static_set_ref.cuh>
@@ -227,12 +227,10 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
 
-  auto const grid_size =
-    (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-    (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+  auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-  static_set_ns::detail::find<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-    <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  static_set_ns::detail::find<cg_size, cuco::detail::default_block_size()>
+    <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
       first, num_keys, output_begin, ref(op::find));
 }
 

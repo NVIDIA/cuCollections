@@ -16,8 +16,7 @@
  */
 
 #include <cuco/detail/trie/dynamic_bitset/kernels.cuh>
-#include <cuco/detail/tuning.cuh>
-#include <cuco/detail/utils.hpp>
+#include <cuco/detail/utility/cuda.hpp>
 
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
@@ -82,9 +81,9 @@ constexpr void dynamic_bitset<Allocator>::test(KeyIt keys_begin,
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
   if (num_keys == 0) { return; }
 
-  auto grid_size = default_grid_size(num_keys);
+  auto const grid_size = cuco::detail::grid_size(num_keys);
 
-  bitset_test_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  bitset_test_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
     ref(), keys_begin, outputs_begin, num_keys);
 }
 
@@ -94,15 +93,14 @@ constexpr void dynamic_bitset<Allocator>::rank(KeyIt keys_begin,
                                                KeyIt keys_end,
                                                OutputIt outputs_begin,
                                                cuda_stream_ref stream) noexcept
-
 {
   build();
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
   if (num_keys == 0) { return; }
 
-  auto grid_size = default_grid_size(num_keys);
+  auto const grid_size = cuco::detail::grid_size(num_keys);
 
-  bitset_rank_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  bitset_rank_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
     ref(), keys_begin, outputs_begin, num_keys);
 }
 
@@ -118,9 +116,9 @@ constexpr void dynamic_bitset<Allocator>::select(KeyIt keys_begin,
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
   if (num_keys == 0) { return; }
 
-  auto grid_size = default_grid_size(num_keys);
+  auto const grid_size = cuco::detail::grid_size(num_keys);
 
-  bitset_select_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  bitset_select_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
     ref(), keys_begin, outputs_begin, num_keys);
 }
 
@@ -137,8 +135,8 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
   // Sized to have one extra entry for subsequent prefix sum
   size_type num_words = words_.size();
   thrust::device_vector<size_type> bit_counts(num_words + 1);
-  auto grid_size = default_grid_size(num_words);
-  bit_counts_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
+  auto grid_size = cuco::detail::grid_size(num_words);
+  bit_counts_kernel<<<grid_size, cuco::detail::default_block_size()>>>(
     thrust::raw_pointer_cast(words_.data()),
     thrust::raw_pointer_cast(bit_counts.data()),
     num_words,
@@ -150,8 +148,8 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
   size_type num_blocks = (num_words - 1) / words_per_block + 2;
   ranks.resize(num_blocks);
 
-  grid_size = default_grid_size(num_blocks);
-  encode_ranks_from_prefix_bit_counts<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
+  grid_size = cuco::detail::grid_size(num_blocks);
+  encode_ranks_from_prefix_bit_counts<<<grid_size, cuco::detail::default_block_size()>>>(
     thrust::raw_pointer_cast(bit_counts.data()),
     thrust::raw_pointer_cast(ranks.data()),
     num_words,
@@ -160,7 +158,7 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
 
   // Step 3. Compute selects
   thrust::device_vector<size_type> select_markers(num_blocks);
-  mark_blocks_with_select_entries<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE>>>(
+  mark_blocks_with_select_entries<<<grid_size, cuco::detail::default_block_size()>>>(
     thrust::raw_pointer_cast(bit_counts.data()),
     thrust::raw_pointer_cast(select_markers.data()),
     num_blocks,
@@ -204,13 +202,6 @@ template <class Allocator>
 constexpr dynamic_bitset<Allocator>::size_type dynamic_bitset<Allocator>::size() const noexcept
 {
   return n_bits_;
-}
-
-template <class Allocator>
-constexpr dynamic_bitset<Allocator>::size_type dynamic_bitset<Allocator>::default_grid_size(
-  size_type num_elements) const noexcept
-{
-  return (num_elements - 1) / (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE) + 1;
 }
 
 // Device reference implementations
