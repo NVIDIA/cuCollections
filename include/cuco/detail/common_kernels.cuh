@@ -163,8 +163,8 @@ __global__ void insert_if_n(
 template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Ref>
 __global__ void erase(InputIterator first, cuco::detail::index_type n, Ref ref)
 {
-  cuco::detail::index_type const loop_stride = gridDim.x * BlockSize / CGSize;
-  cuco::detail::index_type idx               = (BlockSize * blockIdx.x + threadIdx.x) / CGSize;
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
     typename Ref::value_type const erase_element{*(first + idx)};

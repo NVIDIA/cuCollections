@@ -345,12 +345,11 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size =
-      (cg_size * num_keys + detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE - 1) /
-      (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::erase<cg_size, detail::CUCO_DEFAULT_BLOCK_SIZE>
-      <<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(first, num_keys, container_ref);
+    detail::erase<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+        first, num_keys, container_ref);
   }
 
   /**
