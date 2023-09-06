@@ -27,11 +27,10 @@
 namespace cuco {
 namespace experimental {
 
-template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N = dynamic_extent>
+template <int32_t WindowSize, typename SizeType, std::size_t N = dynamic_extent>
 struct window_extent {
   using value_type = SizeType;  ///< Extent value type
 
-  static auto constexpr cg_size     = CGSize;
   static auto constexpr window_size = WindowSize;
 
   __host__ __device__ constexpr value_type value() const noexcept { return N; }
@@ -45,13 +44,11 @@ struct window_extent {
   friend auto constexpr make_window_extent(extent<SizeType_, N_> ext);
 };
 
-template <int32_t CGSize, int32_t WindowSize, typename SizeType>
-struct window_extent<CGSize, WindowSize, SizeType, dynamic_extent>
-  : cuco::utility::fast_int<SizeType> {
+template <int32_t WindowSize, typename SizeType>
+struct window_extent<WindowSize, SizeType, dynamic_extent> : cuco::utility::fast_int<SizeType> {
   using value_type =
     typename cuco::utility::fast_int<SizeType>::fast_int::value_type;  ///< Extent value type
 
-  static auto constexpr cg_size     = CGSize;
   static auto constexpr window_size = WindowSize;
 
  private:
@@ -86,14 +83,13 @@ template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
   if (size > max_value) { CUCO_FAIL("Invalid input extent"); }
 
   if constexpr (N == dynamic_extent) {
-    return window_extent<CGSize, WindowSize, SizeType>{static_cast<SizeType>(
+    return window_extent<WindowSize, SizeType>{static_cast<SizeType>(
       *cuco::detail::lower_bound(
         cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
       CGSize)};
   }
   if constexpr (N != dynamic_extent) {
-    return window_extent<CGSize,
-                         WindowSize,
+    return window_extent<WindowSize,
                          SizeType,
                          static_cast<std::size_t>(
                            *cuco::detail::lower_bound(cuco::detail::primes.begin(),
@@ -115,8 +111,8 @@ template <typename...>
 struct is_window_extent : std::false_type {
 };
 
-template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
-struct is_window_extent<window_extent<CGSize, WindowSize, SizeType, N>> : std::true_type {
+template <int32_t WindowSize, typename SizeType, std::size_t N>
+struct is_window_extent<window_extent<WindowSize, SizeType, N>> : std::true_type {
 };
 
 template <typename T>

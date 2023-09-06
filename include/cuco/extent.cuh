@@ -79,11 +79,12 @@ struct extent<SizeType, dynamic_extent> {
  * @note This type is used internally and can only be constructed using the `make_window_extent'
  * factory method.
  *
+ * @tparam WindowSize Number of slots per window
  * @tparam SizeType Size type
  * @tparam N Extent
  *
  */
-template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
+template <int32_t WindowSize, typename SizeType, std::size_t N>
 struct window_extent;
 
 /**
