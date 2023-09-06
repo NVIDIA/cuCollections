@@ -358,16 +358,6 @@ class dynamic_bitset {
     thrust::device_vector<rank_type, rank_allocator_type>& ranks,
     thrust::device_vector<size_type, size_allocator_type>& selects,
     bool flip_bits) noexcept;
-
-  /**
-   * @brief Helper function to calculate grid size for simple kernels
-   *
-   * @param num_elements Elements being processed by kernel
-   *
-   * @return grid size
-   */
-  // TODO: to be moved to the CUDA utility header
-  constexpr size_type default_grid_size(size_type num_elements) const noexcept;
 };
 
 }  // namespace detail
