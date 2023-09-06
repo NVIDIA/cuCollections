@@ -47,7 +47,6 @@ TEST_CASE("Find next set test", "")
   for (size_type i = 0; i < num_elements; i++) {
     bv.push_back(modulo_bitgen(i));
   }
-  bv.build();
 
   thrust::device_vector<size_type> device_result(num_elements);
   auto ref = bv.ref();

@@ -36,7 +36,6 @@ TEST_CASE("Rank test", "")
   for (size_type i = 0; i < num_elements; i++) {
     bv.push_back(modulo_bitgen(i));
   }
-  bv.build();
 
   thrust::device_vector<size_type> keys(num_elements);
   thrust::sequence(keys.begin(), keys.end(), 0);

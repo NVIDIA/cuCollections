@@ -32,6 +32,7 @@ template <class Allocator>
 constexpr dynamic_bitset<Allocator>::dynamic_bitset(Allocator const& allocator)
   : allocator_{allocator},
     n_bits_{0},
+    is_built_{false},
     words_{allocator},
     ranks_true_{allocator},
     ranks_false_{allocator},
@@ -53,6 +54,7 @@ constexpr void dynamic_bitset<Allocator>::push_back(bool bit) noexcept
 template <class Allocator>
 constexpr void dynamic_bitset<Allocator>::set(size_type index, bool bit) noexcept
 {
+  is_built_         = false;
   size_type word_id = index / bits_per_word;
   size_type bit_id  = index % bits_per_word;
   if (bit) {
@@ -73,9 +75,10 @@ template <typename KeyIt, typename OutputIt>
 constexpr void dynamic_bitset<Allocator>::test(KeyIt keys_begin,
                                                KeyIt keys_end,
                                                OutputIt outputs_begin,
-                                               cuda_stream_ref stream) const noexcept
+                                               cuda_stream_ref stream) noexcept
 
 {
+  build();
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
   if (num_keys == 0) { return; }
 
@@ -90,9 +93,10 @@ template <typename KeyIt, typename OutputIt>
 constexpr void dynamic_bitset<Allocator>::rank(KeyIt keys_begin,
                                                KeyIt keys_end,
                                                OutputIt outputs_begin,
-                                               cuda_stream_ref stream) const noexcept
+                                               cuda_stream_ref stream) noexcept
 
 {
+  build();
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
   if (num_keys == 0) { return; }
 
@@ -107,9 +111,10 @@ template <typename KeyIt, typename OutputIt>
 constexpr void dynamic_bitset<Allocator>::select(KeyIt keys_begin,
                                                  KeyIt keys_end,
                                                  OutputIt outputs_begin,
-                                                 cuda_stream_ref stream) const noexcept
+                                                 cuda_stream_ref stream) noexcept
 
 {
+  build();
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
   if (num_keys == 0) { return; }
 
@@ -178,8 +183,11 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
 template <class Allocator>
 constexpr void dynamic_bitset<Allocator>::build() noexcept
 {
-  build_ranks_and_selects(ranks_true_, selects_true_, false);   // 1 bits
-  build_ranks_and_selects(ranks_false_, selects_false_, true);  // 0 bits
+  if (not is_built_) {
+    build_ranks_and_selects(ranks_true_, selects_true_, false);   // 1 bits
+    build_ranks_and_selects(ranks_false_, selects_false_, true);  // 0 bits
+    is_built_ = true;
+  }
 }
 
 template <class Allocator>

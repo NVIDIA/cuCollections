@@ -27,7 +27,6 @@ TEST_CASE("Size computation", "")
   for (size_type i = 0; i < num_elements; i++) {
     bv.push_back(i % 2 == 0);  // Alternate 0s and 1s pattern
   }
-  bv.build();
 
   auto size = bv.size();
   REQUIRE(size == num_elements);

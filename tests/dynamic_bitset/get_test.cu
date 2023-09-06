@@ -46,22 +46,23 @@ TEST_CASE("Get test", "")
     bv.push_back(modulo_bitgen(i));
     num_set_ref += modulo_bitgen(i);
   }
-  bv.build();
-
-  // Device-ref test
-  auto ref = bv.ref();
-  thrust::device_vector<size_type> test_result(num_elements);
-  test_kernel<<<1, 1024>>>(ref, num_elements, test_result.data());
-
-  size_type num_set = thrust::reduce(thrust::device, test_result.begin(), test_result.end(), 0);
-  REQUIRE(num_set == num_set_ref);
 
   // Host-bulk test
   thrust::device_vector<size_type> keys(num_elements);
   thrust::sequence(keys.begin(), keys.end(), 0);
+
+  thrust::device_vector<size_type> test_result(num_elements);
   thrust::fill(test_result.begin(), test_result.end(), 0);
 
   bv.test(keys.begin(), keys.end(), test_result.begin());
+
+  size_type num_set = thrust::reduce(thrust::device, test_result.begin(), test_result.end(), 0);
+  REQUIRE(num_set == num_set_ref);
+
+  // Device-ref test
+  auto ref = bv.ref();
+  thrust::fill(test_result.begin(), test_result.end(), 0);
+  test_kernel<<<1, 1024>>>(ref, num_elements, test_result.data());
 
   num_set = thrust::reduce(thrust::device, test_result.begin(), test_result.end(), 0);
   REQUIRE(num_set == num_set_ref);

@@ -124,11 +124,6 @@ class dynamic_bitset {
   constexpr void set_last(bool value) noexcept;
 
   /**
-   * @brief Builds indexes for rank and select
-   */
-  constexpr void build() noexcept;
-
-  /**
    * @brief For any element `keys_begin[i]` in the range `[keys_begin, keys_end)`, stores the
    * boolean value at position `keys_begin[i]` to `output_begin[i]`.
    *
@@ -146,7 +141,7 @@ class dynamic_bitset {
   constexpr void test(KeyIt keys_begin,
                       KeyIt keys_end,
                       OutputIt outputs_begin,
-                      cuda_stream_ref stream = {}) const noexcept;
+                      cuda_stream_ref stream = {}) noexcept;
 
   /**
    * @brief For any element `keys_begin[i]` in the range `[keys_begin, keys_end)`, stores total
@@ -166,7 +161,7 @@ class dynamic_bitset {
   constexpr void rank(KeyIt keys_begin,
                       KeyIt keys_end,
                       OutputIt outputs_begin,
-                      cuda_stream_ref stream = {}) const noexcept;
+                      cuda_stream_ref stream = {}) noexcept;
 
   /**
    * @brief For any element `keys_begin[i]` in the range `[keys_begin, keys_end)`, stores the
@@ -186,7 +181,7 @@ class dynamic_bitset {
   constexpr void select(KeyIt keys_begin,
                         KeyIt keys_end,
                         OutputIt outputs_begin,
-                        cuda_stream_ref stream = {}) const noexcept;
+                        cuda_stream_ref stream = {}) noexcept;
 
   using rank_type = cuco::experimental::detail::rank;  ///< Rank type
 
@@ -335,6 +330,7 @@ class dynamic_bitset {
 
   allocator_type allocator_;  ///< Words allocator
   size_type n_bits_;          ///< Number of bits dynamic_bitset currently holds
+  bool is_built_;  ///< Flag indicating whether the rank and select indices are built or not
 
   /// Words vector that represents all bits
   thrust::device_vector<word_type, allocator_type> words_;
@@ -348,11 +344,16 @@ class dynamic_bitset {
   thrust::device_vector<size_type, size_allocator_type> selects_false_;
 
   /**
-   * @brief Populates rank and select indexes on device
+   * @brief Builds indexes for rank and select
+   */
+  constexpr void build() noexcept;
+
+  /**
+   * @brief Populates rank and select indexes for true or false bits
    *
    * @param ranks Output array of ranks
    * @param selects Output array of selects
-   * @param flip_bits If true, negate bits to construct indexes for `0` bits
+   * @param flip_bits If true, negate bits to construct indexes for false bits
    */
   constexpr void build_ranks_and_selects(
     thrust::device_vector<rank_type, rank_allocator_type>& ranks,

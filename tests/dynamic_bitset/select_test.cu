@@ -49,8 +49,6 @@ TEST_CASE("Select test", "")
     bv.push_back(modulo_bitgen(i));
     num_set += modulo_bitgen(i);
   }
-  bv.build();
-  auto ref = bv.ref();
 
   // Check select
   {
@@ -79,6 +77,7 @@ TEST_CASE("Select test", "")
   {
     size_type num_not_set = num_elements - num_set;
 
+    auto ref = bv.ref();
     thrust::device_vector<size_type> device_result(num_not_set);
     select_false_kernel<<<1, 1024>>>(ref, num_not_set, device_result.data());
     thrust::host_vector<size_type> host_result = device_result;
