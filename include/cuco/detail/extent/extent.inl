@@ -18,6 +18,7 @@
 
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>  // TODO move to detail/extent/
+#include <cuco/detail/utility/math.hpp>
 #include <cuco/detail/utils.hpp>
 #include <cuco/utility/fast_int.cuh>
 
@@ -80,8 +81,8 @@ template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
     (static_cast<uint64_t>(std::numeric_limits<SizeType>::max()) < max_prime)
       ? std::numeric_limits<SizeType>::max()
       : static_cast<SizeType>(max_prime);
-  auto const size =
-    SDIV(std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), CGSize * WindowSize);
+  auto const size = cuco::detail::int_div_ceil(
+    std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), CGSize * WindowSize);
   if (size > max_value) { CUCO_FAIL("Invalid input extent"); }
 
   if constexpr (N == dynamic_extent) {

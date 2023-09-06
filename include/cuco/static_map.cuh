@@ -61,9 +61,9 @@ namespace experimental {
  * construction.
  *
  * @note Allows constant time concurrent modify or lookup operations from threads in device code.
- * @note cuCollections data stuctures always place the slot keys on the left-hand side when invoking
- * the key comparison predicate, i.e., `pred(slot_key, query_key)`. Order-sensitive `KeyEqual`
- * should be used with caution.
+ * @note cuCollections data structures always place the slot keys on the left-hand side when
+ * invoking the key comparison predicate, i.e., `pred(slot_key, query_key)`. Order-sensitive
+ * `KeyEqual` should be used with caution.
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
@@ -221,7 +221,7 @@ class static_map {
   size_type insert(InputIt first, InputIt last, cuda_stream_ref stream = {});
 
   /**
-   * @brief Asynchonously inserts all keys in the range `[first, last)`.
+   * @brief Asynchronously inserts all keys in the range `[first, last)`.
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -263,7 +263,7 @@ class static_map {
     InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream = {});
 
   /**
-   * @brief Asynchonously inserts keys in the range `[first, last)` if `pred` of the corresponding
+   * @brief Asynchronously inserts keys in the range `[first, last)` if `pred` of the corresponding
    * stencil returns true.
    *
    * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
@@ -290,6 +290,46 @@ class static_map {
                        cuda_stream_ref stream = {}) noexcept;
 
   /**
+   * @brief For any key-value pair `{k, v}` in the range `[first, last)`, if a key equivalent to `k`
+   * already exists in the container, assigns `v` to the mapped_type corresponding to the key `k`.
+   * If the key does not exist, inserts the pair as if by insert.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `insert_or_assign_async`.
+   * @note If multiple pairs in `[first, last)` compare equal, it is unspecified which pair is
+   * inserted or assigned.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_map<K, V>::value_type></tt> is `true`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt>
+  void insert_or_assign(InputIt first, InputIt last, cuda_stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief For any key-value pair `{k, v}` in the range `[first, last)`, if a key equivalent to `k`
+   * already exists in the container, assigns `v` to the mapped_type corresponding to the key `k`.
+   * If the key does not exist, inserts the pair as if by insert.
+   *
+   * @note If multiple pairs in `[first, last)` compare equal, it is unspecified which pair is
+   * inserted or assigned.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_map<K, V>::value_type></tt> is `true`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt>
+  void insert_or_assign_async(InputIt first, InputIt last, cuda_stream_ref stream = {}) noexcept;
+
+  /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
@@ -310,7 +350,7 @@ class static_map {
                 cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
    * the map.
    *
    * @tparam InputIt Device accessible input iterator
@@ -361,7 +401,7 @@ class static_map {
                    cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief Asynchonously indicates whether the keys in the range `[first, last)` are contained in
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
    * the map if `pred` of the corresponding stencil returns true.
    *
    * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
@@ -412,7 +452,7 @@ class static_map {
   void find(InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief For all keys in the range `[first, last)`, asynchonously finds a payload with its key
+   * @brief For all keys in the range `[first, last)`, asynchronously finds a payload with its key
    * equivalent to the query key.
    *
    * @note If the key `*(first + i)` has a matched `element` in the map, copies the payload of
@@ -454,9 +494,9 @@ class static_map {
    * @return Pair of iterators indicating the last elements in the output
    */
   template <typename KeyOut, typename ValueOut>
-  [[nodiscard]] std::pair<KeyOut, ValueOut> retrieve_all(KeyOut keys_out,
-                                                         ValueOut values_out,
-                                                         cuda_stream_ref stream = {}) const;
+  std::pair<KeyOut, ValueOut> retrieve_all(KeyOut keys_out,
+                                           ValueOut values_out,
+                                           cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Gets the number of elements in the container.
