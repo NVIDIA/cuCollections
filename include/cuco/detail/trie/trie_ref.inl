@@ -37,7 +37,7 @@ class operator_impl<op::trie_lookup_tag, trie_ref<label_type, Operators...>> {
 
     // Check for terminal node bit that indicates a valid key
     size_type leaf_level_id = length;
-    if (!trie->outs_refs_ptr_[leaf_level_id].get(node_id)) { return -1lu; }
+    if (!trie->outs_refs_ptr_[leaf_level_id].test(node_id)) { return -1lu; }
 
     // Key exists in trie, generate the index
     auto offset = trie->d_levels_ptr_[leaf_level_id].offset_;
@@ -65,7 +65,7 @@ class operator_impl<op::trie_lookup_tag, trie_ref<label_type, Operators...>> {
       node_id  = node_pos - node_id;
     }
 
-    auto pos_end = louds.find_next_set(node_pos);
+    auto pos_end = louds.find_next(node_pos);
     return node_id + (pos_end - node_pos);
   }
 

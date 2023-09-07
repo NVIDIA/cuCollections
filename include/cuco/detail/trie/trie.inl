@@ -30,10 +30,10 @@ constexpr trie<label_type>::trie()
     d_levels_ptr_{nullptr},
     device_ptr_{nullptr}
 {
-  levels_[0].louds_.append(0);
-  levels_[0].louds_.append(1);
-  levels_[1].louds_.append(1);
-  levels_[0].outs_.append(0);
+  levels_[0].louds_.push_back(0);
+  levels_[0].louds_.push_back(1);
+  levels_[1].louds_.push_back(1);
+  levels_[0].outs_.push_back(0);
   levels_[0].labels_.push_back(root_label_);
 }
 
@@ -68,8 +68,8 @@ void trie<label_type>::insert(const std::vector<label_type>& key) noexcept
 
     if ((pos == last_key_.size()) || (label != level.labels_.back())) {
       level.louds_.set_last(0);
-      level.louds_.append(1);
-      level.outs_.append(0);
+      level.louds_.push_back(1);
+      level.outs_.push_back(0);
       level.labels_.push_back(label);
       ++num_nodes_;
       break;
@@ -80,14 +80,14 @@ void trie<label_type>::insert(const std::vector<label_type>& key) noexcept
   // Each such label will create a new edge and node pair
   for (++pos; pos < key.size(); ++pos) {
     auto& level = levels_[pos + 1];
-    level.louds_.append(0);
-    level.louds_.append(1);
-    level.outs_.append(0);
+    level.louds_.push_back(0);
+    level.louds_.push_back(1);
+    level.outs_.push_back(0);
     level.labels_.push_back(key[pos]);
     ++num_nodes_;
   }
 
-  levels_[key.size() + 1].louds_.append(1);  // Mark end of current key
+  levels_[key.size() + 1].louds_.push_back(1);  // Mark end of current key
   ++levels_[key.size() + 1].offset_;
   levels_[key.size()].outs_.set_last(1);  // Set terminal bit indicating valid path
 
@@ -101,10 +101,7 @@ void trie<label_type>::build() noexcept(false)
   // Perform build level-by-level for all levels, followed by a deep-copy from host to device
   size_type offset = 0;
   for (auto& level : levels_) {
-    level.louds_.build();
     louds_refs_.push_back(level.louds_.ref());
-
-    level.outs_.build();
     outs_refs_.push_back(level.outs_.ref());
 
     level.labels_ptr_ = thrust::raw_pointer_cast(level.labels_.data());
@@ -139,12 +136,10 @@ void trie<label_type>::lookup(KeyIt keys_begin,
   auto num_keys = cuco::detail::distance(offsets_begin, offsets_end) - 1;
   if (num_keys == 0) { return; }
 
-  auto grid_size =
-    (num_keys - 1) / (detail::CUCO_DEFAULT_STRIDE * detail::CUCO_DEFAULT_BLOCK_SIZE) + 1;
+  auto const grid_size = cuco::detail::grid_size(num_keys);
+  auto ref_            = this->ref(cuco::experimental::trie_lookup);
 
-  auto ref_ = this->ref(cuco::experimental::trie_lookup);
-
-  trie_lookup_kernel<<<grid_size, detail::CUCO_DEFAULT_BLOCK_SIZE, 0, stream>>>(
+  trie_lookup_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
     ref_, keys_begin, offsets_begin, outputs_begin, num_keys);
 }
 
