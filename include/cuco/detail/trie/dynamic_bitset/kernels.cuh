@@ -17,7 +17,8 @@
 
 #pragma once
 
-#include <cuco/detail/utils.hpp>
+#include <cuco/detail/utility/cuda.cuh>
+#include <cuco/detail/utility/cuda.hpp>
 
 #include <cuda/std/bit>
 
@@ -31,18 +32,20 @@ namespace detail {
  * @tparam BitsetRef Bitset reference type
  * @tparam KeyIt Device-accessible iterator to input keys
  * @tparam ValueIt Device-accessible iterator to values
- * @tparam size_type Size type
  *
  * @param ref Bitset ref
  * @param keys Begin iterator to keys
  * @param outputs Begin iterator to outputs
  * @param num_keys Number of input keys
  */
-template <typename BitsetRef, typename KeyIt, typename ValueIt, typename size_type>
-__global__ void bitset_test_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, size_type num_keys)
+template <typename BitsetRef, typename KeyIt, typename ValueIt>
+__global__ void bitset_test_kernel(BitsetRef ref,
+                                   KeyIt keys,
+                                   ValueIt outputs,
+                                   cuco::detail::index_type num_keys)
 {
-  cuco::detail::index_type key_id = blockDim.x * blockIdx.x + threadIdx.x;
-  cuco::detail::index_type stride = gridDim.x * blockDim.x;
+  auto key_id       = cuco::detail::global_thread_id();
+  auto const stride = cuco::detail::grid_stride();
 
   while (key_id < num_keys) {
     outputs[key_id] = ref.test(keys[key_id]);
@@ -56,18 +59,20 @@ __global__ void bitset_test_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, s
  * @tparam BitsetRef Bitset reference type
  * @tparam KeyIt Device-accessible iterator to input keys
  * @tparam ValueIt Device-accessible iterator to values
- * @tparam size_type Size type
  *
  * @param ref Bitset ref
  * @param keys Begin iterator to keys
  * @param outputs Begin iterator to outputs
  * @param num_keys Number of input keys
  */
-template <typename BitsetRef, typename KeyIt, typename ValueIt, typename size_type>
-__global__ void bitset_rank_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, size_type num_keys)
+template <typename BitsetRef, typename KeyIt, typename ValueIt>
+__global__ void bitset_rank_kernel(BitsetRef ref,
+                                   KeyIt keys,
+                                   ValueIt outputs,
+                                   cuco::detail::index_type num_keys)
 {
-  cuco::detail::index_type key_id = blockDim.x * blockIdx.x + threadIdx.x;
-  cuco::detail::index_type stride = gridDim.x * blockDim.x;
+  auto key_id       = cuco::detail::global_thread_id();
+  auto const stride = cuco::detail::grid_stride();
 
   while (key_id < num_keys) {
     outputs[key_id] = ref.rank(keys[key_id]);
@@ -81,18 +86,20 @@ __global__ void bitset_rank_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, s
  * @tparam BitsetRef Bitset reference type
  * @tparam KeyIt Device-accessible iterator to input keys
  * @tparam ValueIt Device-accessible iterator to values
- * @tparam size_type Size type
  *
  * @param ref Bitset ref
  * @param keys Begin iterator to keys
  * @param outputs Begin iterator to outputs
  * @param num_keys Number of input keys
  */
-template <typename BitsetRef, typename KeyIt, typename ValueIt, typename size_type>
-__global__ void bitset_select_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs, size_type num_keys)
+template <typename BitsetRef, typename KeyIt, typename ValueIt>
+__global__ void bitset_select_kernel(BitsetRef ref,
+                                     KeyIt keys,
+                                     ValueIt outputs,
+                                     cuco::detail::index_type num_keys)
 {
-  cuco::detail::index_type key_id = blockDim.x * blockIdx.x + threadIdx.x;
-  cuco::detail::index_type stride = gridDim.x * blockDim.x;
+  auto key_id       = cuco::detail::global_thread_id();
+  auto const stride = cuco::detail::grid_stride();
 
   while (key_id < num_keys) {
     outputs[key_id] = ref.select(keys[key_id]);
@@ -103,22 +110,22 @@ __global__ void bitset_select_kernel(BitsetRef ref, KeyIt keys, ValueIt outputs,
 /*
  * @brief Computes number of set or not-set bits in each word
  *
- * @tparam word_type Word type
- * @tparam size_type Size type
+ * @tparam WordType Word type
+ * @tparam SizeType Size type
  *
  * @param words Input array of words
  * @param bit_counts Output array of per-word bit counts
  * @param num_words Number of words
  * @param flip_bits Boolean to request negation of words before counting bits
  */
-template <typename word_type, typename size_type>
-__global__ void bit_counts_kernel(const word_type* words,
-                                  size_type* bit_counts,
-                                  size_type num_words,
+template <typename WordType, typename SizeType>
+__global__ void bit_counts_kernel(WordType const* words,
+                                  SizeType* bit_counts,
+                                  cuco::detail::index_type num_words,
                                   bool flip_bits)
 {
-  cuco::detail::index_type word_id = blockDim.x * blockIdx.x + threadIdx.x;
-  cuco::detail::index_type stride  = gridDim.x * blockDim.x;
+  auto word_id      = cuco::detail::global_thread_id();
+  auto const stride = cuco::detail::grid_stride();
 
   while (word_id < num_words) {
     auto word           = words[word_id];
@@ -135,7 +142,7 @@ __global__ void bit_counts_kernel(const word_type* words,
  * into base-delta encoding style of `rank` struct.
  * Since prefix sum is available, there are no dependencies across blocks.
 
- * @tparam size_type Size type
+ * @tparam SizeType Size type
  *
  * @param prefix_bit_counts Prefix sum array of per-word bit counts
  * @param ranks Output array of ranks
@@ -143,18 +150,18 @@ __global__ void bit_counts_kernel(const word_type* words,
  * @param num_blocks Length of ouput array
  * @param words_per_block Number of words in each block
  */
-template <typename size_type>
-__global__ void encode_ranks_from_prefix_bit_counts(const size_type* prefix_bit_counts,
+template <typename SizeType>
+__global__ void encode_ranks_from_prefix_bit_counts(const SizeType* prefix_bit_counts,
                                                     rank* ranks,
-                                                    size_type num_words,
-                                                    size_type num_blocks,
-                                                    size_type words_per_block)
+                                                    SizeType num_words,
+                                                    SizeType num_blocks,
+                                                    SizeType words_per_block)
 {
-  cuco::detail::index_type rank_id = blockDim.x * blockIdx.x + threadIdx.x;
-  cuco::detail::index_type stride  = gridDim.x * blockDim.x;
+  auto rank_id      = cuco::detail::global_thread_id();
+  auto const stride = cuco::detail::grid_stride();
 
   while (rank_id < num_blocks) {
-    size_type word_id = rank_id * words_per_block;
+    SizeType word_id = rank_id * words_per_block;
 
     // Set base value of rank
     auto& rank = ranks[rank_id];
@@ -162,7 +169,7 @@ __global__ void encode_ranks_from_prefix_bit_counts(const size_type* prefix_bit_
 
     if (rank_id < num_blocks - 1) {
       // For each subsequent word in this block, compute deltas from base
-      for (size_type block_offset = 0; block_offset < words_per_block - 1; block_offset++) {
+      for (SizeType block_offset = 0; block_offset < words_per_block - 1; block_offset++) {
         auto delta = prefix_bit_counts[word_id + block_offset + 1] - prefix_bit_counts[word_id];
         rank.offsets_[block_offset] = delta;
       }
@@ -178,7 +185,7 @@ __global__ void encode_ranks_from_prefix_bit_counts(const size_type* prefix_bit_
  * This kernel check for blocks where prefix sum crosses a multiple of `bits_per_block`.
  * Such blocks are marked in the output boolean array
  *
- * @tparam size_type Size type
+ * @tparam SizeType Size type
  *
  * @param prefix_bit_counts Prefix sum array of per-word bit counts
  * @param selects_markers Ouput array indicating whether a block has selects entry or not
@@ -186,15 +193,15 @@ __global__ void encode_ranks_from_prefix_bit_counts(const size_type* prefix_bit_
  * @param words_per_block Number of words in each block
  * @param bits_per_block Number of bits in each block
  */
-template <typename size_type>
-__global__ void mark_blocks_with_select_entries(const size_type* prefix_bit_counts,
-                                                size_type* select_markers,
-                                                size_type num_blocks,
-                                                size_type words_per_block,
-                                                size_type bits_per_block)
+template <typename SizeType>
+__global__ void mark_blocks_with_select_entries(SizeType const* prefix_bit_counts,
+                                                SizeType* select_markers,
+                                                SizeType num_blocks,
+                                                SizeType words_per_block,
+                                                SizeType bits_per_block)
 {
-  cuco::detail::index_type block_id = blockDim.x * blockIdx.x + threadIdx.x;
-  cuco::detail::index_type stride   = gridDim.x * blockDim.x;
+  auto block_id     = cuco::detail::global_thread_id();
+  auto const stride = cuco::detail::grid_stride();
 
   while (block_id < num_blocks) {
     if (block_id == 0) {  // Block 0 always has a selects entry
@@ -204,11 +211,11 @@ __global__ void mark_blocks_with_select_entries(const size_type* prefix_bit_coun
     }
 
     select_markers[block_id] = 0;  // Always clear marker first
-    size_type word_id        = block_id * words_per_block;
-    size_type prev_count     = prefix_bit_counts[word_id];
+    SizeType word_id         = block_id * words_per_block;
+    SizeType prev_count      = prefix_bit_counts[word_id];
 
     for (size_t block_offset = 1; block_offset <= words_per_block; block_offset++) {
-      size_type count = prefix_bit_counts[word_id + block_offset];
+      SizeType count = prefix_bit_counts[word_id + block_offset];
 
       // Selects entry is added when cumulative bitcount crosses a multiple of bits_per_block
       if ((prev_count - 1) / bits_per_block != (count - 1) / bits_per_block) {

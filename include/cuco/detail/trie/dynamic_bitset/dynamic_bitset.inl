@@ -17,6 +17,7 @@
 
 #include <cuco/detail/trie/dynamic_bitset/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
+#include <cuco/detail/utils.hpp>
 
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
