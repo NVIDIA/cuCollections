@@ -31,6 +31,48 @@ __device__ auto constexpr data = cuda::std::array<T, 6>{1, 2, 3, 5, 6, 7};
 
 constexpr T none = std::numeric_limits<T>::max();  // denotes a missing value
 
+template <typename Extent>
+__global__ void infimum_kernel(T* result, Extent extent)
+{
+  auto const res = cuco::detail::infimum(data.begin(), data.end(), extent);
+
+  *result = (res != data.end()) ? *res : none;
+}
+
+template <size_t N>
+constexpr T compute_device_infimum(cuco::experimental::extent<T, N> extent)
+{
+  T res_h = none;
+  T* res_d;
+  CUCO_CUDA_TRY(cudaMalloc(&res_d, sizeof(T)));
+  infimum_kernel<<<1, 1>>>(res_d, extent);
+  CUCO_CUDA_TRY(cudaMemcpy(&res_h, res_d, sizeof(T), cudaMemcpyDeviceToHost));
+  CUCO_CUDA_TRY(cudaFree(res_d));
+
+  return res_h;
+}
+
+template <typename Extent>
+__global__ void supremum_kernel(T* result, Extent extent)
+{
+  auto const res = cuco::detail::supremum(data.begin(), data.end(), extent);
+
+  *result = (res != data.end()) ? *res : none;
+}
+
+template <size_t N>
+constexpr T compute_device_supremum(cuco::experimental::extent<T, N> extent)
+{
+  T res_h = none;
+  T* res_d;
+  CUCO_CUDA_TRY(cudaMalloc(&res_d, sizeof(T)));
+  supremum_kernel<<<1, 1>>>(res_d, extent);
+  CUCO_CUDA_TRY(cudaMemcpy(&res_h, res_d, sizeof(T), cudaMemcpyDeviceToHost));
+  CUCO_CUDA_TRY(cudaFree(res_d));
+
+  return res_h;
+}
+
 template <size_t N>
 constexpr T compute_host_infimum(cuco::experimental::extent<T, N> extent)
 {
@@ -58,6 +100,15 @@ TEST_CASE("Infimum computation", "")
     CHECK(compute_host_infimum(cuco::experimental::extent<T>{8}) == 7);
   }
 
+  SECTION("Check if device-generated infimum is correct.")
+  {
+    CHECK(compute_device_infimum(cuco::experimental::extent<T>{0}) == none);
+    CHECK(compute_device_infimum(cuco::experimental::extent<T>{1}) == 1);
+    CHECK(compute_device_infimum(cuco::experimental::extent<T>{4}) == 3);
+    CHECK(compute_device_infimum(cuco::experimental::extent<T>{7}) == 7);
+    CHECK(compute_device_infimum(cuco::experimental::extent<T>{8}) == 7);
+  }
+
   SECTION("Check if constexpr infimum is correct.")
   {
     STATIC_REQUIRE(compute_host_infimum(cuco::experimental::extent<T, 0>{}) == none);
@@ -67,7 +118,7 @@ TEST_CASE("Infimum computation", "")
     STATIC_REQUIRE(compute_host_infimum(cuco::experimental::extent<T, 8>{}) == 7);
   }
 
-  // TODO device test
+  // TODO device constexpr test
 }
 
 TEST_CASE("Supremum computation", "")
@@ -81,6 +132,15 @@ TEST_CASE("Supremum computation", "")
     CHECK(compute_host_supremum(cuco::experimental::extent<T>{8}) == none);
   }
 
+  SECTION("Check if device-generated supremum is correct.")
+  {
+    CHECK(compute_device_supremum(cuco::experimental::extent<T>{0}) == 1);
+    CHECK(compute_device_supremum(cuco::experimental::extent<T>{1}) == 1);
+    CHECK(compute_device_supremum(cuco::experimental::extent<T>{4}) == 5);
+    CHECK(compute_device_supremum(cuco::experimental::extent<T>{7}) == 7);
+    CHECK(compute_device_supremum(cuco::experimental::extent<T>{8}) == none);
+  }
+
   SECTION("Check if constexpr supremum is correct.")
   {
     STATIC_REQUIRE(compute_host_supremum(cuco::experimental::extent<T, 0>{}) == 1);
@@ -90,5 +150,5 @@ TEST_CASE("Supremum computation", "")
     STATIC_REQUIRE(compute_host_supremum(cuco::experimental::extent<T, 8>{}) == none);
   }
 
-  // TODO device test
+  // TODO device constexpr test
 }
