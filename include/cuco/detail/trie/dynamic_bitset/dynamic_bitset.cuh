@@ -348,8 +348,10 @@ class dynamic_bitset {
 
   /**
    * @brief Builds indexes for rank and select
+   *
+   * @param stream Stream to execute kernels
    */
-  constexpr void build() noexcept;
+  constexpr void build(cuda_stream_ref stream = {}) noexcept;
 
   /**
    * @brief Populates rank and select indexes for true or false bits
@@ -357,11 +359,13 @@ class dynamic_bitset {
    * @param ranks Output array of ranks
    * @param selects Output array of selects
    * @param flip_bits If true, negate bits to construct indexes for false bits
+   * @param stream Stream to execute kernels
    */
   constexpr void build_ranks_and_selects(
     thrust::device_vector<rank_type, rank_allocator_type>& ranks,
     thrust::device_vector<size_type, size_allocator_type>& selects,
-    bool flip_bits) noexcept;
+    bool flip_bits,
+    cuda_stream_ref stream = {});
 };
 
 }  // namespace detail

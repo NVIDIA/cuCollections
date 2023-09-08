@@ -20,7 +20,10 @@
 #include <cuco/detail/utils.hpp>
 
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
+#include <thrust/iterator/discard_iterator.h>
+
+#include <cub/device/device_scan.cuh>
+#include <cub/device/device_select.cuh>
 
 #include <cuda/std/bit>
 
@@ -127,31 +130,50 @@ template <class Allocator>
 constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
   thrust::device_vector<rank_type, rank_allocator_type>& ranks,
   thrust::device_vector<size_type, size_allocator_type>& selects,
-  bool flip_bits) noexcept
+  bool flip_bits,
+  cuda_stream_ref stream)
 {
   if (n_bits_ == 0) { return; }
 
   // Step 1. Compute prefix sum of per-word bit counts
   // Population counts for each word
+  size_type const num_words = words_.size();
   // Sized to have one extra entry for subsequent prefix sum
-  size_type num_words = words_.size();
-  thrust::device_vector<size_type, size_allocator_type> bit_counts(num_words + 1, this->allocator_);
-  auto grid_size = cuco::detail::grid_size(num_words);
-  bit_counts_kernel<<<grid_size, cuco::detail::default_block_size()>>>(
-    thrust::raw_pointer_cast(words_.data()),
-    thrust::raw_pointer_cast(bit_counts.data()),
-    num_words,
-    flip_bits);
+  auto const bit_counts_size = num_words + 1;
 
-  thrust::exclusive_scan(thrust::device, bit_counts.begin(), bit_counts.end(), bit_counts.begin());
+  thrust::device_vector<size_type, size_allocator_type> bit_counts(num_words + 1, this->allocator_);
+  auto const bit_counts_begin = thrust::raw_pointer_cast(bit_counts.data());
+
+  auto grid_size = cuco::detail::grid_size(num_words);
+  bit_counts_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+    thrust::raw_pointer_cast(words_.data()), bit_counts_begin, num_words, flip_bits);
+
+  std::size_t temp_storage_bytes = 0;
+  using temp_allocator_type = typename std::allocator_traits<allocator_type>::rebind_alloc<char>;
+  auto temp_allocator       = temp_allocator_type{this->allocator_};
+
+  CUCO_CUDA_TRY(cub::DeviceScan::ExclusiveSum(
+    nullptr, temp_storage_bytes, bit_counts_begin, bit_counts_begin, bit_counts_size, stream));
+
+  // Allocate temporary storage
+  auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
+
+  CUCO_CUDA_TRY(cub::DeviceScan::ExclusiveSum(thrust::raw_pointer_cast(d_temp_storage),
+                                              temp_storage_bytes,
+                                              bit_counts_begin,
+                                              bit_counts_begin,
+                                              bit_counts_size,
+                                              stream));
+
+  temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
 
   // Step 2. Compute ranks
-  size_type num_blocks = (num_words - 1) / words_per_block + 2;
+  auto const num_blocks = (num_words - 1) / words_per_block + 2;
   ranks.resize(num_blocks);
 
   grid_size = cuco::detail::grid_size(num_blocks);
-  encode_ranks_from_prefix_bit_counts<<<grid_size, cuco::detail::default_block_size()>>>(
-    thrust::raw_pointer_cast(bit_counts.data()),
+  encode_ranks_from_prefix_bit_counts<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+    bit_counts_begin,
     thrust::raw_pointer_cast(ranks.data()),
     num_words,
     num_blocks,
@@ -160,32 +182,69 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
   // Step 3. Compute selects
   thrust::device_vector<size_type, size_allocator_type> select_markers(num_blocks,
                                                                        this->allocator_);
-  mark_blocks_with_select_entries<<<grid_size, cuco::detail::default_block_size()>>>(
-    thrust::raw_pointer_cast(bit_counts.data()),
+  mark_blocks_with_select_entries<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+    bit_counts_begin,
     thrust::raw_pointer_cast(select_markers.data()),
     num_blocks,
     words_per_block,
     bits_per_block);
 
-  size_type num_selects =
-    thrust::reduce(thrust::device, select_markers.begin(), select_markers.end());
+  auto d_sum = reinterpret_cast<size_type*>(thrust::raw_pointer_cast(
+    std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type))));
+  CUCO_CUDA_TRY(cub::DeviceReduce::Sum(nullptr,
+                                       temp_storage_bytes,
+                                       thrust::raw_pointer_cast(select_markers.data()),
+                                       d_sum,
+                                       num_blocks,
+                                       stream));
+
+  d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
+
+  CUCO_CUDA_TRY(cub::DeviceReduce::Sum(thrust::raw_pointer_cast(d_temp_storage),
+                                       temp_storage_bytes,
+                                       thrust::raw_pointer_cast(select_markers.data()),
+                                       d_sum,
+                                       num_blocks,
+                                       stream));
+
+  size_type num_selects{};
+  CUCO_CUDA_TRY(
+    cudaMemcpyAsync(&num_selects, d_sum, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
+  stream.synchronize();
+  std::allocator_traits<temp_allocator_type>::deallocate(
+    temp_allocator, thrust::device_ptr<char>{reinterpret_cast<char*>(d_sum)}, sizeof(size_type));
+
   selects.resize(num_selects);
 
-  // Generate indices of non-zeros in select_markers
-  thrust::copy_if(thrust::device,
-                  thrust::make_counting_iterator(0lu),
-                  thrust::make_counting_iterator(num_blocks),
-                  select_markers.begin(),
-                  selects.begin(),
-                  thrust::identity());
+  CUCO_CUDA_TRY(cub::DeviceSelect::Flagged(nullptr,
+                                           temp_storage_bytes,
+                                           thrust::make_counting_iterator(0UL),
+                                           thrust::raw_pointer_cast(select_markers.data()),
+                                           thrust::raw_pointer_cast(selects.data()),
+                                           thrust::make_discard_iterator(),
+                                           num_blocks,
+                                           stream));
+
+  d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
+
+  CUCO_CUDA_TRY(cub::DeviceSelect::Flagged(thrust::raw_pointer_cast(d_temp_storage),
+                                           temp_storage_bytes,
+                                           thrust::make_counting_iterator(0UL),
+                                           thrust::raw_pointer_cast(select_markers.data()),
+                                           thrust::raw_pointer_cast(selects.data()),
+                                           thrust::discard_iterator(),
+                                           num_blocks,
+                                           stream));
+
+  temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
 }
 
 template <class Allocator>
-constexpr void dynamic_bitset<Allocator>::build() noexcept
+constexpr void dynamic_bitset<Allocator>::build(cuda_stream_ref stream) noexcept
 {
   if (not is_built_) {
-    build_ranks_and_selects(ranks_true_, selects_true_, false);   // 1 bits
-    build_ranks_and_selects(ranks_false_, selects_false_, true);  // 0 bits
+    build_ranks_and_selects(ranks_true_, selects_true_, false, stream);   // 1 bits
+    build_ranks_and_selects(ranks_false_, selects_false_, true, stream);  // 0 bits
     is_built_ = true;
   }
 }
