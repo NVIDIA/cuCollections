@@ -234,7 +234,7 @@ dynamic_bitset<Allocator>::reference::find_next(size_type key) const noexcept
   size_type word_id = key / bits_per_word;
   size_type bit_id  = key % bits_per_word;
   word_type word    = storage_.words_ref_[word_id];
-  word &= ~(0lu) << bit_id;
+  word &= ~(0UL) << bit_id;
   while (word == 0) {
     word = storage_.words_ref_[++word_id];
   }
