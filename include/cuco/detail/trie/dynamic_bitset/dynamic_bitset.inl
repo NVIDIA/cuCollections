@@ -135,7 +135,7 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
   // Population counts for each word
   // Sized to have one extra entry for subsequent prefix sum
   size_type num_words = words_.size();
-  thrust::device_vector<size_type> bit_counts(num_words + 1);
+  thrust::device_vector<size_type, size_allocator_type> bit_counts(num_words + 1, this->allocator_);
   auto grid_size = cuco::detail::grid_size(num_words);
   bit_counts_kernel<<<grid_size, cuco::detail::default_block_size()>>>(
     thrust::raw_pointer_cast(words_.data()),
@@ -158,7 +158,8 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
     words_per_block);
 
   // Step 3. Compute selects
-  thrust::device_vector<size_type> select_markers(num_blocks);
+  thrust::device_vector<size_type, size_allocator_type> select_markers(num_blocks,
+                                                                       this->allocator_);
   mark_blocks_with_select_entries<<<grid_size, cuco::detail::default_block_size()>>>(
     thrust::raw_pointer_cast(bit_counts.data()),
     thrust::raw_pointer_cast(select_markers.data()),
