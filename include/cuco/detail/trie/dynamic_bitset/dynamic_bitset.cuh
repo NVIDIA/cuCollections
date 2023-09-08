@@ -32,7 +32,7 @@ namespace experimental {
 namespace detail {
 
 /**
- * @brief Struct to store ranks of bits at 256-bit intervals
+ * @brief Struct to store ranks of bits at 256-bit intervals (or blocks)
  *
  * This struct encodes a list of four rank values using base + offset format
  * e.g. [1000, 1005, 1006, 1009] is stored as base = 1000, offsets = [5, 6, 9]
@@ -88,9 +88,12 @@ class dynamic_bitset {
   /// Type of the allocator to (de)allocate words
   using allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<word_type>;
 
-  static constexpr size_type words_per_block = 4;  ///< Tradeoff between space efficiency and perf.
-  static constexpr size_type bits_per_word   = sizeof(word_type) * CHAR_BIT;     ///< Bits in a word
-  static constexpr size_type bits_per_block  = words_per_block * bits_per_word;  ///< Trivial
+  /// Number of bits per block. Note this is a tradeoff between space efficiency and perf.
+  static constexpr size_type words_per_block = 4;
+  /// Number of bits in a word
+  static constexpr size_type bits_per_word = sizeof(word_type) * CHAR_BIT;
+  /// Number of bits in a block
+  static constexpr size_type bits_per_block = words_per_block * bits_per_word;
 
   /**
    * @brief Constructs an empty bitset
