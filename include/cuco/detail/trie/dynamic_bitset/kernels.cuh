@@ -30,18 +30,20 @@ namespace detail {
  * @brief Test bits for a range of keys
  *
  * @tparam BitsetRef Bitset reference type
- * @tparam KeyIt Device-accessible iterator to input keys
- * @tparam ValueIt Device-accessible iterator to values
+ * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to bitset's
+ * `size_type`
+ * @tparam OutputIt Device-accessible iterator whose `value_type` can be constructed from boolean
+ * type
  *
  * @param ref Bitset ref
  * @param keys Begin iterator to keys
  * @param outputs Begin iterator to outputs
  * @param num_keys Number of input keys
  */
-template <typename BitsetRef, typename KeyIt, typename ValueIt>
+template <typename BitsetRef, typename KeyIt, typename OutputIt>
 __global__ void bitset_test_kernel(BitsetRef ref,
                                    KeyIt keys,
-                                   ValueIt outputs,
+                                   OutputIt outputs,
                                    cuco::detail::index_type num_keys)
 {
   auto key_id       = cuco::detail::global_thread_id();
@@ -57,18 +59,20 @@ __global__ void bitset_test_kernel(BitsetRef ref,
  * @brief Gather rank values for a range of keys
  *
  * @tparam BitsetRef Bitset reference type
- * @tparam KeyIt Device-accessible iterator to input keys
- * @tparam ValueIt Device-accessible iterator to values
+ * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to bitset's
+ * `size_type`
+ * @tparam OutputIt Device-accessible iterator whose `value_type` can be constructed from bitset's
+ * `size_type`
  *
  * @param ref Bitset ref
  * @param keys Begin iterator to keys
  * @param outputs Begin iterator to outputs
  * @param num_keys Number of input keys
  */
-template <typename BitsetRef, typename KeyIt, typename ValueIt>
+template <typename BitsetRef, typename KeyIt, typename OutputIt>
 __global__ void bitset_rank_kernel(BitsetRef ref,
                                    KeyIt keys,
-                                   ValueIt outputs,
+                                   OutputIt outputs,
                                    cuco::detail::index_type num_keys)
 {
   auto key_id       = cuco::detail::global_thread_id();
@@ -84,18 +88,20 @@ __global__ void bitset_rank_kernel(BitsetRef ref,
  * @brief Gather select values for a range of keys
  *
  * @tparam BitsetRef Bitset reference type
- * @tparam KeyIt Device-accessible iterator to input keys
- * @tparam ValueIt Device-accessible iterator to values
+ * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to bitset's
+ * `size_type`
+ * @tparam OutputIt Device-accessible iterator whose `value_type` can be constructed from bitset's
+ * `size_type`
  *
  * @param ref Bitset ref
  * @param keys Begin iterator to keys
  * @param outputs Begin iterator to outputs
  * @param num_keys Number of input keys
  */
-template <typename BitsetRef, typename KeyIt, typename ValueIt>
+template <typename BitsetRef, typename KeyIt, typename OutputIt>
 __global__ void bitset_select_kernel(BitsetRef ref,
                                      KeyIt keys,
-                                     ValueIt outputs,
+                                     OutputIt outputs,
                                      cuco::detail::index_type num_keys)
 {
   auto key_id       = cuco::detail::global_thread_id();
