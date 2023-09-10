@@ -107,8 +107,8 @@ class trie {
   level* d_levels_ptr_;        ///< Device-side array of levels
 
   using bitset_ref = detail::dynamic_bitset<>::ref_type;  ///< Read ref
-  thrust::device_vector<bitset_ref> louds_refs_;          ///< refs to per-level louds bitvectors
-  thrust::device_vector<bitset_ref> outs_refs_;           ///< refs to per-level outs bitvectors
+  thrust::device_vector<bitset_ref> louds_refs_;          ///< refs to per-level louds bitsets
+  thrust::device_vector<bitset_ref> outs_refs_;           ///< refs to per-level outs bitsets
 
   bitset_ref* louds_refs_ptr_;  ///< Raw pointer to d_louds_refs_
   bitset_ref* outs_refs_ptr_;   ///< Raw pointer to d_outs_refs_

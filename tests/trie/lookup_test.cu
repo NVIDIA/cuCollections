@@ -25,14 +25,14 @@
 #include <catch2/catch_test_macros.hpp>
 
 struct valid_key {
-  valid_key(uint64_t num_keys) : num_keys_(num_keys) {}
-  __host__ __device__ bool operator()(uint64_t x) const { return x < num_keys_; }
-  const uint64_t num_keys_;
+  valid_key(size_t num_keys) : num_keys_(num_keys) {}
+  __host__ __device__ bool operator()(size_t x) const { return x < num_keys_; }
+  const size_t num_keys_;
 };
 
 template <typename KeyType>
 void generate_keys(thrust::host_vector<KeyType>& keys,
-                   thrust::host_vector<uint64_t>& offsets,
+                   thrust::host_vector<size_t>& offsets,
                    size_t num_keys,
                    size_t max_key_value,
                    size_t max_key_length)
@@ -58,7 +58,7 @@ TEST_CASE("Lookup test", "")
   std::size_t max_key_value  = 1000;
   std::size_t max_key_length = 32;
   thrust::host_vector<KeyType> keys;
-  thrust::host_vector<uint64_t> offsets;
+  thrust::host_vector<size_t> offsets;
 
   generate_keys(keys, offsets, num_keys, max_key_value, max_key_length);
 
@@ -97,9 +97,9 @@ TEST_CASE("Lookup test", "")
   trie.build();
 
   {
-    thrust::device_vector<uint64_t> lookup_result(num_keys, -1lu);
-    thrust::device_vector<KeyType> device_keys     = keys;
-    thrust::device_vector<uint64_t> device_offsets = offsets;
+    thrust::device_vector<size_t> lookup_result(num_keys, -1lu);
+    thrust::device_vector<KeyType> device_keys   = keys;
+    thrust::device_vector<size_t> device_offsets = offsets;
 
     trie.lookup(
       device_keys.begin(), device_offsets.begin(), device_offsets.end(), lookup_result.begin());
