@@ -25,11 +25,17 @@ namespace experimental {
  * @brief Trie class
  *
  * @tparam label_type type of individual characters of vector keys (eg. char or int)
+ * @tparam Allocator Type of allocator used for device storage
  */
-template <typename LabelType>
+template <typename LabelType, class Allocator = thrust::device_malloc_allocator<std::byte>>
 class trie {
  public:
-  constexpr trie();
+  /**
+   * @brief Constructs an empty trie
+   *
+   * @param allocator Allocator used for allocating device storage
+   */
+  constexpr trie(Allocator const& allocator = Allocator{});
   ~trie() noexcept(false);
 
   /**
@@ -88,6 +94,7 @@ class trie {
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
  private:
+  Allocator allocator_;              ///< Allocator
   size_type num_keys_;               ///< Number of keys inserted into trie
   size_type num_nodes_;              ///< Number of internal nodes
   std::vector<LabelType> last_key_;  ///< Last key inserted into trie
@@ -110,7 +117,8 @@ class trie {
 
   template <typename... Operators>
   using ref_type =
-    cuco::experimental::trie_ref<LabelType, Operators...>;  ///< Non-owning container ref type
+    cuco::experimental::trie_ref<LabelType, Allocator, Operators...>;  ///< Non-owning container ref
+                                                                       ///< type
 
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>
