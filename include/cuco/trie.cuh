@@ -26,7 +26,7 @@ namespace experimental {
  *
  * @tparam label_type type of individual characters of vector keys (eg. char or int)
  */
-template <typename label_type>
+template <typename LabelType>
 class trie {
  public:
   constexpr trie();
@@ -37,7 +37,7 @@ class trie {
    *
    * @param key Key to insert
    */
-  void insert(const std::vector<label_type>& key) noexcept;
+  void insert(const std::vector<LabelType>& key) noexcept;
 
   /**
    * @brief Build level-by-level trie indexes after inserting all keys
@@ -88,11 +88,11 @@ class trie {
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
  private:
-  size_type num_keys_;                ///< Number of keys inserted into trie
-  size_type num_nodes_;               ///< Number of internal nodes
-  std::vector<label_type> last_key_;  ///< Last key inserted into trie
+  size_type num_keys_;               ///< Number of keys inserted into trie
+  size_type num_nodes_;              ///< Number of internal nodes
+  std::vector<LabelType> last_key_;  ///< Last key inserted into trie
 
-  static constexpr label_type root_label_ = sizeof(label_type) == 1 ? ' ' : -1;  ///< Sentinel value
+  static constexpr LabelType root_label_ = sizeof(LabelType) == 1 ? ' ' : -1;  ///< Sentinel value
 
   struct level;
   size_type num_levels_;       ///< Number of trie levels
@@ -106,11 +106,11 @@ class trie {
   bitset_ref* louds_refs_ptr_;  ///< Raw pointer to d_louds_refs_
   bitset_ref* outs_refs_ptr_;   ///< Raw pointer to d_outs_refs_
 
-  trie<label_type>* device_ptr_;  ///< Device-side copy of trie
+  trie<LabelType>* device_ptr_;  ///< Device-side copy of trie
 
   template <typename... Operators>
   using ref_type =
-    cuco::experimental::trie_ref<label_type, Operators...>;  ///< Non-owning container ref type
+    cuco::experimental::trie_ref<LabelType, Operators...>;  ///< Non-owning container ref type
 
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>
@@ -126,8 +126,8 @@ class trie {
     detail::dynamic_bitset<> louds_;  ///< Indicates links to next and previous level
     detail::dynamic_bitset<> outs_;   ///< Indicates terminal nodes of valid keys
 
-    thrust::device_vector<label_type> labels_;  ///< Stores individual characters of keys
-    label_type* labels_ptr_;                    ///< Raw pointer to labels
+    thrust::device_vector<LabelType> labels_;  ///< Stores individual characters of keys
+    LabelType* labels_ptr_;                    ///< Raw pointer to labels
 
     size_type offset_;  ///< Cumulative node count in parent levels
   };
