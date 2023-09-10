@@ -17,15 +17,18 @@ class operator_impl<op::trie_lookup_tag, trie_ref<LabelType, Allocator, Operator
 
  public:
   /**
-   * @brief Lookup a single key in trie
+   * @brief Lookup a single key
    *
-   * @param key Iterator to first character of search key
+   * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to trie's
+   * `LabelType`
+   *
+   * @param key Iterator to first character of key
    * @param length Number of characters in key
    *
    * @return Index of key if it exists in trie, -1 otherwise
    */
   template <typename KeyIt>
-  [[nodiscard]] __device__ size_type lookup_key(KeyIt key, size_type length) const noexcept
+  [[nodiscard]] __device__ size_type lookup(KeyIt key, size_type length) const noexcept
   {
     auto const& trie = static_cast<ref_type const&>(*this).trie_;
 
@@ -49,6 +52,8 @@ class operator_impl<op::trie_lookup_tag, trie_ref<LabelType, Allocator, Operator
  private:
   /**
    * @brief Find position of last child of a node
+   *
+   * @tparam BitsetRef Device-accessible reference to bitset
    *
    * @param louds louds bitset of current level
    * @param node_id node index in current level
