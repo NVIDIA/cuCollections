@@ -20,8 +20,8 @@
 namespace cuco {
 namespace experimental {
 
-template <typename label_type>
-constexpr trie<label_type>::trie()
+template <typename LabelType>
+constexpr trie<LabelType>::trie()
   : num_keys_{0},
     num_nodes_{1},
     last_key_{},
@@ -37,15 +37,15 @@ constexpr trie<label_type>::trie()
   levels_[0].labels_.push_back(root_label_);
 }
 
-template <typename label_type>
-trie<label_type>::~trie() noexcept(false)
+template <typename LabelType>
+trie<LabelType>::~trie() noexcept(false)
 {
   if (d_levels_ptr_) { CUCO_CUDA_TRY(cudaFree(d_levels_ptr_)); }
   if (device_ptr_) { CUCO_CUDA_TRY(cudaFree(device_ptr_)); }
 }
 
-template <typename label_type>
-void trie<label_type>::insert(const std::vector<label_type>& key) noexcept
+template <typename LabelType>
+void trie<LabelType>::insert(const std::vector<LabelType>& key) noexcept
 {
   if (key == last_key_) { return; }           // Ignore duplicate keys
   assert(num_keys_ == 0 || key > last_key_);  // Keys are expected to be inserted in sorted order
@@ -95,8 +95,8 @@ void trie<label_type>::insert(const std::vector<label_type>& key) noexcept
   last_key_ = key;
 }
 
-template <typename label_type>
-void trie<label_type>::build() noexcept(false)
+template <typename LabelType>
+void trie<LabelType>::build() noexcept(false)
 {
   // Perform build level-by-level for all levels, followed by a deep-copy from host to device
   size_type offset = 0;
@@ -121,17 +121,17 @@ void trie<label_type>::build() noexcept(false)
     cudaMemcpy(d_levels_ptr_, &levels_[0], sizeof(level) * num_levels_, cudaMemcpyHostToDevice));
 
   // Finally create a device copy of full trie structure
-  CUCO_CUDA_TRY(cudaMalloc(&device_ptr_, sizeof(trie<label_type>)));
-  CUCO_CUDA_TRY(cudaMemcpy(device_ptr_, this, sizeof(trie<label_type>), cudaMemcpyHostToDevice));
+  CUCO_CUDA_TRY(cudaMalloc(&device_ptr_, sizeof(trie<LabelType>)));
+  CUCO_CUDA_TRY(cudaMemcpy(device_ptr_, this, sizeof(trie<LabelType>), cudaMemcpyHostToDevice));
 }
 
-template <typename label_type>
+template <typename LabelType>
 template <typename KeyIt, typename OffsetIt, typename OutputIt>
-void trie<label_type>::lookup(KeyIt keys_begin,
-                              OffsetIt offsets_begin,
-                              OffsetIt offsets_end,
-                              OutputIt outputs_begin,
-                              cuda_stream_ref stream) const noexcept
+void trie<LabelType>::lookup(KeyIt keys_begin,
+                             OffsetIt offsets_begin,
+                             OffsetIt offsets_end,
+                             OutputIt outputs_begin,
+                             cuda_stream_ref stream) const noexcept
 {
   auto num_keys = cuco::detail::distance(offsets_begin, offsets_end) - 1;
   if (num_keys == 0) { return; }
@@ -159,16 +159,16 @@ __global__ void trie_lookup_kernel(
   }
 }
 
-template <typename label_type>
+template <typename LabelType>
 template <typename... Operators>
-auto trie<label_type>::ref(Operators...) const noexcept
+auto trie<LabelType>::ref(Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
   return ref_type<Operators...>{device_ptr_};
 }
 
-template <typename label_type>
-trie<label_type>::level::level() : louds_{}, outs_{}, labels_{}, labels_ptr_{nullptr}, offset_{0}
+template <typename LabelType>
+trie<LabelType>::level::level() : louds_{}, outs_{}, labels_{}, labels_ptr_{nullptr}, offset_{0}
 {
 }
 

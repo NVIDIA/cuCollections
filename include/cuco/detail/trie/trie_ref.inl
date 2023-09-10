@@ -1,18 +1,18 @@
 namespace cuco {
 namespace experimental {
 
-template <typename label_type, typename... Operators>
-__host__ __device__ constexpr trie_ref<label_type, Operators...>::trie_ref(
-  const trie<label_type>* trie) noexcept
+template <typename LabelType, typename... Operators>
+__host__ __device__ constexpr trie_ref<LabelType, Operators...>::trie_ref(
+  const trie<LabelType>* trie) noexcept
   : trie_{trie}
 {
 }
 
 namespace detail {
 
-template <typename label_type, typename... Operators>
-class operator_impl<op::trie_lookup_tag, trie_ref<label_type, Operators...>> {
-  using ref_type  = trie_ref<label_type, Operators...>;
+template <typename LabelType, typename... Operators>
+class operator_impl<op::trie_lookup_tag, trie_ref<LabelType, Operators...>> {
+  using ref_type  = trie_ref<LabelType, Operators...>;
   using size_type = size_t;
 
  public:
@@ -78,7 +78,7 @@ class operator_impl<op::trie_lookup_tag, trie_ref<label_type, Operators...>> {
    *
    * @return Boolean indicating success of search process
    */
-  [[nodiscard]] __device__ bool search_label_in_children(label_type target,
+  [[nodiscard]] __device__ bool search_label_in_children(LabelType target,
                                                          size_type& node_id,
                                                          size_type level_id) const noexcept
   {
