@@ -50,14 +50,14 @@ class operator_impl<op::trie_lookup_tag, trie_ref<LabelType, Allocator, Operator
   /**
    * @brief Find position of last child of a node
    *
-   * @param louds louds bitvector of current level
+   * @param louds louds bitset of current level
    * @param node_id node index in current level
    *
    * @return Position of last child
    */
-  template <typename BitVectorRef>
-  [[nodiscard]] __device__ size_type get_last_child_position(BitVectorRef louds,
-                                                             size_type& node_id) const noexcept
+  template <typename BitsetRef>
+  [[nodiscard]] __device__ size_type last_child_position(BitsetRef louds,
+                                                         size_type& node_id) const noexcept
   {
     size_type node_pos = 0;
     if (node_id != 0) {
@@ -85,7 +85,7 @@ class operator_impl<op::trie_lookup_tag, trie_ref<LabelType, Allocator, Operator
     auto const& trie = static_cast<ref_type const&>(*this).trie_;
     auto louds       = trie->louds_refs_ptr_[level_id];
 
-    auto end   = get_last_child_position(louds, node_id);  // Position of last child
+    auto end   = last_child_position(louds, node_id);  // Position of last child
     auto begin = node_id;  // Position of first child, initialized after find_last_child call
 
     auto& level = trie->d_levels_ptr_[level_id];
