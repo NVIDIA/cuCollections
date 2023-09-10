@@ -39,7 +39,7 @@ class trie {
   ~trie() noexcept(false);
 
   /**
-   * @brief Insert new key into trie
+   * @brief Insert a single key into trie
    *
    * @param key Key to insert
    */
@@ -53,16 +53,22 @@ class trie {
   void build() noexcept(false);
 
   /**
-   * @brief Bulk lookup vector of keys
+   * @brief For every pair (`offsets_begin[i]`, `offsets_begin[i + 1]`) in the range
+   * `[offsets_begin, offsets_end)`, checks if the key defined by characters in the range
+   * [`keys_begin[offsets_begin[i]]`, `keys_begin[offsets_begin[i + 1]]`) is present in trie.
+   * Stores the index of key if it exists in trie (-1 otherwise) in `outputs_begin[i]`
    *
-   * @tparam KeyIt Device-accessible iterator to individual characters of keys
-   * @tparam OffsetIt Device-accessible iterator to positions of key boundaries
-   * @tparam OutputIt Device-accessible iterator to lookup result
+   * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to trie's
+   * `LabelType`
+   * @tparam OffsetIt Device-accessible iterator whose `value_type` can be converted to trie's
+   * `size_type`
+   * @tparam OutputIt Device-accessible iterator whose `value_type` can be constructed from boolean
+   * type
    *
    * @param keys_begin Begin iterator to individual key characters
    * @param offsets_begin Begin iterator to offsets of key boundaries
    * @param offsets_end End iterator to offsets
-   * @param outputs_begin Begin iterator to results
+   * @param outputs_begin Begin iterator to lookup results
    * @param stream Stream to execute lookup kernel
    */
   template <typename KeyIt, typename OffsetIt, typename OutputIt>

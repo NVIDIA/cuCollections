@@ -155,7 +155,7 @@ __global__ void trie_lookup_kernel(
     auto key_start_pos = keys + offsets[key_id];
     auto key_length    = offsets[key_id + 1] - offsets[key_id];
 
-    outputs[key_id] = ref.lookup_key(key_start_pos, key_length);
+    outputs[key_id] = ref.lookup(key_start_pos, key_length);
     key_id += loop_stride;
   }
 }
