@@ -5,7 +5,7 @@
 namespace cuco {
 namespace experimental {
 
-template <typename LabelType>
+template <typename LabelType, class Allocator>
 class trie;
 
 /**
@@ -15,18 +15,19 @@ class trie;
  * @tparam LabelType Trie label type
  * @tparam Operators Device operator options defined in `include/cuco/operator.hpp`
  */
-template <typename LabelType, typename... Operators>
-class trie_ref : public detail::operator_impl<Operators, trie_ref<LabelType, Operators...>>... {
+template <typename LabelType, class Allocator, typename... Operators>
+class trie_ref
+  : public detail::operator_impl<Operators, trie_ref<LabelType, Allocator, Operators...>>... {
  public:
   /**
    * @brief Constructs trie_ref.
    *
    * @param trie Non-owning ref of trie
    */
-  __host__ __device__ explicit constexpr trie_ref(const trie<LabelType>* trie) noexcept;
+  __host__ __device__ explicit constexpr trie_ref(const trie<LabelType, Allocator>* trie) noexcept;
 
  private:
-  const trie<LabelType>* trie_;
+  const trie<LabelType, Allocator>* trie_;
 
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>

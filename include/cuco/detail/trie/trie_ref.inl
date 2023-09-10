@@ -1,18 +1,18 @@
 namespace cuco {
 namespace experimental {
 
-template <typename LabelType, typename... Operators>
-__host__ __device__ constexpr trie_ref<LabelType, Operators...>::trie_ref(
-  const trie<LabelType>* trie) noexcept
+template <typename LabelType, class Allocator, typename... Operators>
+__host__ __device__ constexpr trie_ref<LabelType, Allocator, Operators...>::trie_ref(
+  const trie<LabelType, Allocator>* trie) noexcept
   : trie_{trie}
 {
 }
 
 namespace detail {
 
-template <typename LabelType, typename... Operators>
-class operator_impl<op::trie_lookup_tag, trie_ref<LabelType, Operators...>> {
-  using ref_type  = trie_ref<LabelType, Operators...>;
+template <typename LabelType, class Allocator, typename... Operators>
+class operator_impl<op::trie_lookup_tag, trie_ref<LabelType, Allocator, Operators...>> {
+  using ref_type  = trie_ref<LabelType, Allocator, Operators...>;
   using size_type = size_t;
 
  public:
