@@ -147,8 +147,8 @@ template <typename TrieRef, typename KeyIt, typename OffsetIt, typename OutputIt
 __global__ void trie_lookup_kernel(
   TrieRef ref, KeyIt keys, OffsetIt offsets, OutputIt outputs, size_t num_keys)
 {
-  auto loop_stride = gridDim.x * blockDim.x;
-  auto key_id      = blockDim.x * blockIdx.x + threadIdx.x;
+  auto key_id            = cuco::detail::global_thread_id();
+  auto const loop_stride = cuco::detail::grid_stride();
 
   while (key_id < num_keys) {
     auto key_start_pos = keys + offsets[key_id];
