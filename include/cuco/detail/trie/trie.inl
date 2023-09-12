@@ -101,8 +101,16 @@ void trie<LabelType, Allocator>::build() noexcept(false)
 {
   // Perform build level-by-level for all levels, followed by a deep-copy from host to device
   size_type offset = 0;
+
+  thrust::device_vector<size_type> test_keys(1, 0);
+  thrust::device_vector<bool> test_results(1);
+
   for (auto& level : levels_) {
+    // Run host-bulk test on bitvectors to initiate internal build()
+    level.louds_.test(test_keys.begin(), test_keys.end(), test_results.begin());
     louds_refs_.push_back(level.louds_.ref());
+
+    level.outs_.test(test_keys.begin(), test_keys.end(), test_results.begin());
     outs_refs_.push_back(level.outs_.ref());
 
     level.labels_ptr_ = thrust::raw_pointer_cast(level.labels_.data());

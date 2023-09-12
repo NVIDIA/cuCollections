@@ -82,6 +82,7 @@ constexpr void dynamic_bitset<Allocator>::test(KeyIt keys_begin,
 
 {
   build();
+  if (n_bits_ == 0) { return; }
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
   if (num_keys == 0) { return; }
 
