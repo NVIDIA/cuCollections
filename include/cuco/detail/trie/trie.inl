@@ -130,8 +130,9 @@ void trie<LabelType, Allocator>::build() noexcept(false)
     cudaMemcpy(d_levels_ptr_, &levels_[0], sizeof(level) * num_levels_, cudaMemcpyHostToDevice));
 
   // Finally create a device copy of full trie structure
-  CUCO_CUDA_TRY(cudaMalloc(&device_ptr_, sizeof(trie<LabelType>)));
-  CUCO_CUDA_TRY(cudaMemcpy(device_ptr_, this, sizeof(trie<LabelType>), cudaMemcpyHostToDevice));
+  CUCO_CUDA_TRY(cudaMalloc(&device_ptr_, sizeof(trie<LabelType, Allocator>)));
+  CUCO_CUDA_TRY(
+    cudaMemcpy(device_ptr_, this, sizeof(trie<LabelType, Allocator>), cudaMemcpyHostToDevice));
 }
 
 template <typename LabelType, class Allocator>

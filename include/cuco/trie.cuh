@@ -112,19 +112,22 @@ class trie {
   std::vector<level> levels_;  ///< Host-side array of levels
   level* d_levels_ptr_;        ///< Device-side array of levels
 
-  using bitset_ref = detail::dynamic_bitset<>::ref_type;  ///< Read ref
-  thrust::device_vector<bitset_ref> louds_refs_;          ///< refs to per-level louds bitsets
-  thrust::device_vector<bitset_ref> outs_refs_;           ///< refs to per-level outs bitsets
+  using bitset_ref = typename detail::dynamic_bitset<Allocator>::ref_type;  ///< Read ref
+  /// Type of the allocator to (de)allocate bitset refs
+  using bitset_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<bitset_ref>;
+  ///< refs to per-level louds bitsets
+  thrust::device_vector<bitset_ref, bitset_allocator_type> louds_refs_;
+  ///< refs to per-level outs bitsets
+  thrust::device_vector<bitset_ref, bitset_allocator_type> outs_refs_;
 
-  bitset_ref* louds_refs_ptr_;  ///< Raw pointer to d_louds_refs_
-  bitset_ref* outs_refs_ptr_;   ///< Raw pointer to d_outs_refs_
+  bitset_ref* louds_refs_ptr_;  ///< Raw device pointer to louds_refs_
+  bitset_ref* outs_refs_ptr_;   ///< Raw device pointer to outs_refs_
 
-  trie<LabelType>* device_ptr_;  ///< Device-side copy of trie
+  trie<LabelType, Allocator>* device_ptr_;  ///< Device-side copy of trie
 
+  ///< Non-owning container ref type
   template <typename... Operators>
-  using ref_type =
-    cuco::experimental::trie_ref<LabelType, Allocator, Operators...>;  ///< Non-owning container ref
-                                                                       ///< type
+  using ref_type = cuco::experimental::trie_ref<LabelType, Allocator, Operators...>;
 
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>
@@ -137,11 +140,14 @@ class trie {
     level();
     level(level&&) = default;  ///< Move constructor
 
-    detail::dynamic_bitset<> louds_;  ///< Indicates links to next and previous level
-    detail::dynamic_bitset<> outs_;   ///< Indicates terminal nodes of valid keys
+    detail::dynamic_bitset<Allocator> louds_;  ///< Indicates links to next and previous level
+    detail::dynamic_bitset<Allocator> outs_;   ///< Indicates terminal nodes of valid keys
 
-    thrust::device_vector<LabelType> labels_;  ///< Stores individual characters of keys
-    LabelType* labels_ptr_;                    ///< Raw pointer to labels
+    /// Type of the allocator to (de)allocate labels
+    using label_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<LabelType>;
+    ///< Stores individual characters of keys
+    thrust::device_vector<LabelType, label_allocator_type> labels_;
+    LabelType* labels_ptr_;  ///< Raw device pointer to labels
 
     size_type offset_;  ///< Cumulative node count in parent levels
   };
