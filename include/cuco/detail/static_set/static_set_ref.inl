@@ -52,6 +52,26 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+template <typename... OtherOperators>
+__host__ __device__ constexpr static_set_ref<Key,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
+                                             Operators...>::
+  static_set_ref(
+    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, OtherOperators...>&&
+      other) noexcept
+  : impl_{std::move(other.impl_)}, predicate_{std::move(other.predicate_)}
+{
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 __host__ __device__ constexpr auto
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
   const noexcept
@@ -70,6 +90,20 @@ static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::e
   const noexcept
 {
   return predicate_.empty_sentinel_;
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename... NewOperators>
+auto static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
+  NewOperators...) && noexcept
+{
+  return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>(
+    std::move(*this));
 }
 
 namespace detail {
