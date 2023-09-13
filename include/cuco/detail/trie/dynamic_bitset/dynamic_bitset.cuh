@@ -103,6 +103,16 @@ class dynamic_bitset {
   constexpr dynamic_bitset(Allocator const& allocator = Allocator{});
 
   /**
+   * @brief Inserts words in the range [word_begin, word_end)
+   *
+   * @param words_begin Begin iterator to words list
+   * @param words_end End iterator to words list
+   * @param n_bits Number of bits to be inserted
+   */
+  template <typename WordIt>
+  constexpr void insert(WordIt words_begin, WordIt words_end, size_type n_bits);
+
+  /**
    * @brief Appends the given element `value` to the end of the bitset
    *
    * This API may involve data reallocation if the current storage is exhausted.

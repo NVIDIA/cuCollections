@@ -31,10 +31,10 @@ constexpr trie<LabelType, Allocator>::trie(Allocator const& allocator)
     d_levels_ptr_{nullptr},
     device_ptr_{nullptr}
 {
-  levels_[0].louds_.push_back(0);
-  levels_[0].louds_.push_back(1);
-  levels_[1].louds_.push_back(1);
-  levels_[0].outs_.push_back(0);
+  levels_[0].h_louds_.push_back(0);
+  levels_[0].h_louds_.push_back(1);
+  levels_[1].h_louds_.push_back(1);
+  levels_[0].h_outs_.push_back(0);
   levels_[0].labels_.push_back(root_label_);
 }
 
@@ -52,7 +52,7 @@ void trie<LabelType, Allocator>::insert(const std::vector<LabelType>& key) noexc
   assert(num_keys_ == 0 || key > last_key_);  // Keys are expected to be inserted in sorted order
 
   if (key.empty()) {
-    levels_[0].outs_.set(0, 1);
+    levels_[0].h_outs_.set(0, 1);
     ++levels_[1].offset_;
     ++num_keys_;
     return;
@@ -68,9 +68,9 @@ void trie<LabelType, Allocator>::insert(const std::vector<LabelType>& key) noexc
     auto label  = key[pos];
 
     if ((pos == last_key_.size()) || (label != level.labels_.back())) {
-      level.louds_.set_last(0);
-      level.louds_.push_back(1);
-      level.outs_.push_back(0);
+      level.h_louds_.set_last(0);
+      level.h_louds_.push_back(1);
+      level.h_outs_.push_back(0);
       level.labels_.push_back(label);
       ++num_nodes_;
       break;
@@ -81,16 +81,16 @@ void trie<LabelType, Allocator>::insert(const std::vector<LabelType>& key) noexc
   // Each such label will create a new edge and node pair
   for (++pos; pos < key.size(); ++pos) {
     auto& level = levels_[pos + 1];
-    level.louds_.push_back(0);
-    level.louds_.push_back(1);
-    level.outs_.push_back(0);
+    level.h_louds_.push_back(0);
+    level.h_louds_.push_back(1);
+    level.h_outs_.push_back(0);
     level.labels_.push_back(key[pos]);
     ++num_nodes_;
   }
 
-  levels_[key.size() + 1].louds_.push_back(1);  // Mark end of current key
+  levels_[key.size() + 1].h_louds_.push_back(1);  // Mark end of current key
   ++levels_[key.size() + 1].offset_;
-  levels_[key.size()].outs_.set_last(1);  // Set terminal bit indicating valid path
+  levels_[key.size()].h_outs_.set_last(1);  // Set terminal bit indicating valid path
 
   ++num_keys_;
   last_key_ = key;
@@ -106,9 +106,17 @@ void trie<LabelType, Allocator>::build() noexcept(false)
   thrust::device_vector<bool> test_results(1);
 
   for (auto& level : levels_) {
+    level.louds_.insert(
+      level.h_louds_.words_.begin(), level.h_louds_.words_.end(), level.h_louds_.n_bits_);
+    level.h_louds_.clear();
+
     // Run host-bulk test on bitvectors to initiate internal build()
     level.louds_.test(test_keys.begin(), test_keys.end(), test_results.begin());
     louds_refs_.push_back(level.louds_.ref());
+
+    level.outs_.insert(
+      level.h_outs_.words_.begin(), level.h_outs_.words_.end(), level.h_outs_.n_bits_);
+    level.h_outs_.clear();
 
     level.outs_.test(test_keys.begin(), test_keys.end(), test_results.begin());
     outs_refs_.push_back(level.outs_.ref());
@@ -179,7 +187,7 @@ auto trie<LabelType, Allocator>::ref(Operators...) const noexcept
 
 template <typename LabelType, class Allocator>
 trie<LabelType, Allocator>::level::level()
-  : louds_{}, outs_{}, labels_{}, labels_ptr_{nullptr}, offset_{0}
+  : h_louds_{}, h_outs_{}, louds_{}, outs_{}, labels_{}, labels_ptr_{nullptr}, offset_{0}
 {
 }
 

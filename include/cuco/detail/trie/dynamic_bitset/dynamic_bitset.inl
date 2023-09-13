@@ -45,6 +45,21 @@ constexpr dynamic_bitset<Allocator>::dynamic_bitset(Allocator const& allocator)
 }
 
 template <class Allocator>
+template <typename WordIt>
+constexpr void dynamic_bitset<Allocator>::insert(WordIt words_begin,
+                                                 WordIt words_end,
+                                                 size_type n_bits)
+{
+  if (n_bits == 0) { return; }
+  size_t num_blocks = (n_bits - 1) / bits_per_block + 1;
+  assert(num_blocks == cuco::detail::distance(words_begin, words_end));
+
+  words_.reserve(num_blocks);
+  words_.insert(words_.end(), words_begin, words_end);
+  n_bits_ = n_bits;
+}
+
+template <class Allocator>
 constexpr void dynamic_bitset<Allocator>::push_back(bool bit) noexcept
 {
   if (n_bits_ % bits_per_block == 0) {

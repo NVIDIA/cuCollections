@@ -17,6 +17,7 @@
 
 #include <cuco/detail/trie/dynamic_bitset/dynamic_bitset.cuh>
 #include <cuco/trie_ref.cuh>
+#include <thrust/host_vector.h>
 
 namespace cuco {
 namespace experimental {
@@ -112,7 +113,8 @@ class trie {
   std::vector<level> levels_;  ///< Host-side array of levels
   level* d_levels_ptr_;        ///< Device-side array of levels
 
-  using bitset_ref = typename detail::dynamic_bitset<Allocator>::ref_type;  ///< Read ref
+  using bitset_type = typename detail::dynamic_bitset<Allocator>;  ///< Bitset type
+  using bitset_ref  = typename bitset_type::ref_type;              ///< Bitset ref
   /// Type of the allocator to (de)allocate bitset refs
   using bitset_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<bitset_ref>;
   ///< refs to per-level louds bitsets
@@ -133,6 +135,45 @@ class trie {
   template <typename Op, typename Ref>
   friend class detail::operator_impl;
 
+  // Host bitset to buffer bit updates before bulk initializing dynamic_bitset on device
+  // TODO: This struct replicates code from dynamic_bitset. Remove these parts from dynamic_bitset?
+  struct host_bitset {
+    using word_type = typename bitset_type::word_type;
+    thrust::host_vector<word_type> words_;
+    size_type n_bits_;
+
+    host_bitset() noexcept : n_bits_{0} {}
+    void push_back(bool bit) noexcept
+    {
+      if (n_bits_ % bits_per_block == 0) {
+        words_.resize(words_.size() + words_per_block);  // Extend storage by one block
+      }
+
+      set(n_bits_++, bit);
+    }
+    void set(size_type index, bool bit) noexcept
+    {
+      size_type word_id = index / bits_per_word;
+      size_type bit_id  = index % bits_per_word;
+      if (bit) {
+        words_[word_id] |= 1UL << bit_id;
+      } else {
+        words_[word_id] &= ~(1UL << bit_id);
+      }
+    }
+    void set_last(bool bit) noexcept { set(n_bits_ - 1, bit); }
+    void clear() noexcept
+    {
+      words_.clear();
+      n_bits_ = 0;
+    }
+
+   private:
+    const size_type words_per_block = bitset_type::words_per_block;
+    const size_type bits_per_block  = bitset_type::bits_per_block;
+    const size_type bits_per_word   = bitset_type::bits_per_word;
+  };
+
   /**
    * @brief Struct to represent each trie level
    */
@@ -140,8 +181,11 @@ class trie {
     level();
     level(level&&) = default;  ///< Move constructor
 
-    detail::dynamic_bitset<Allocator> louds_;  ///< Indicates links to next and previous level
-    detail::dynamic_bitset<Allocator> outs_;   ///< Indicates terminal nodes of valid keys
+    bitset_type louds_;  ///< Indicates links to next and previous level
+    bitset_type outs_;   ///< Indicates terminal nodes of valid keys
+
+    host_bitset h_louds_;  ///< Host buffer for louds
+    host_bitset h_outs_;   ///< Host buffer for outs
 
     /// Type of the allocator to (de)allocate labels
     using label_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<LabelType>;
