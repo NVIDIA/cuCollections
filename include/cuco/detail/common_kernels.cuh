@@ -82,9 +82,7 @@ __global__ void insert_if_n(InputIterator first,
       } else {
         auto const tile =
           cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-        if (ref.insert(tile, insert_element) && tile.thread_rank() == 0) {
-          thread_num_successes++;
-        };
+        if (ref.insert(tile, insert_element) && tile.thread_rank() == 0) { thread_num_successes++; }
       }
     }
     idx += loop_stride;
