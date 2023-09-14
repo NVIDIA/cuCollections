@@ -397,6 +397,53 @@ class open_addressing_ref_impl {
     }
   }
 
+  /*
+template <typename Hash, typename KeyEqual>
+__device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::erase(
+  key_type const& k) noexcept
+{
+  auto current_slot{initial_slot(k, hash)};
+
+  value_type const insert_pair =
+    make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
+
+  while (true) {
+    static_assert(sizeof(Key) == sizeof(atomic_key_type));
+    static_assert(sizeof(Value) == sizeof(atomic_mapped_type));
+    // TODO: Replace reinterpret_cast with atomic ref when available.
+    value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
+    auto existing_key        = slot_contents.first;
+    auto existing_value      = slot_contents.second;
+
+    // Key doesn't exist, return false
+    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) { return false; }
+
+    // Key exists, return true if successfully deleted
+    if (key_equal(existing_key, k)) {
+      if constexpr (cuco::detail::is_packable<value_type>()) {
+        auto slot = reinterpret_cast<
+          cuda::atomic<typename cuco::detail::pair_converter<value_type>::packed_type>*>(
+          current_slot);
+        cuco::detail::pair_converter<value_type> expected_pair{
+          cuco::make_pair(existing_key, existing_value)};
+        cuco::detail::pair_converter<value_type> new_pair{insert_pair};
+
+        return slot->compare_exchange_strong(
+          expected_pair.packed, new_pair.packed, cuda::std::memory_order_relaxed);
+      }
+      if constexpr (not cuco::detail::is_packable<value_type>()) {
+        current_slot->second.compare_exchange_strong(
+          existing_value, insert_pair.second, cuda::std::memory_order_relaxed);
+        return current_slot->first.compare_exchange_strong(
+          existing_key, insert_pair.first, cuda::std::memory_order_relaxed);
+      }
+    }
+
+    current_slot = next_slot(current_slot);
+  }
+}
+*/
+
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
