@@ -76,13 +76,15 @@ __global__ void insert_if_n(InputIterator first,
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
-      typename Ref::value_type const insert_pair{*(first + idx)};
+      typename Ref::value_type const insert_element{*(first + idx)};
       if constexpr (CGSize == 1) {
-        if (ref.insert(insert_pair)) { thread_num_successes++; };
+        if (ref.insert(insert_element)) { thread_num_successes++; };
       } else {
         auto const tile =
           cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-        if (ref.insert(tile, insert_pair) && tile.thread_rank() == 0) { thread_num_successes++; };
+        if (ref.insert(tile, insert_element) && tile.thread_rank() == 0) {
+          thread_num_successes++;
+        };
       }
     }
     idx += loop_stride;
@@ -134,13 +136,13 @@ __global__ void insert_if_n(
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
-      typename Ref::value_type const insert_pair{*(first + idx)};
+      typename Ref::value_type const insert_element{*(first + idx)};
       if constexpr (CGSize == 1) {
-        ref.insert(insert_pair);
+        ref.insert(insert_element);
       } else {
         auto const tile =
           cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-        ref.insert(tile, insert_pair);
+        ref.insert(tile, insert_element);
       }
     }
     idx += loop_stride;
