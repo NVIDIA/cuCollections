@@ -53,6 +53,32 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::static_set(
+  Extent capacity,
+  empty_key<Key> empty_key_sentinel,
+  erased_key<Key> erased_key_sentinel,
+  KeyEqual const& pred,
+  ProbingScheme const& probing_scheme,
+  Allocator const& alloc,
+  cuda_stream_ref stream)
+  : impl_{std::make_unique<impl_type>(capacity,
+                                      empty_key_sentinel,
+                                      empty_key_sentinel,
+                                      erased_key_sentinel,
+                                      pred,
+                                      probing_scheme,
+                                      alloc,
+                                      stream)}
+{
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear(
   cuda_stream_ref stream) noexcept
 {
