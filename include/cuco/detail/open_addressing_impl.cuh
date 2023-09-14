@@ -120,18 +120,63 @@ class open_addressing_impl {
    * @param stream CUDA stream used to initialize the data structure
    */
   constexpr open_addressing_impl(Extent capacity,
-                                 key_type empty_key_sentinel,
-                                 value_type empty_slot_sentinel,
+                                 Key empty_key_sentinel,
+                                 Value empty_slot_sentinel,
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
                                  cuda_stream_ref stream) noexcept
     : empty_key_sentinel_{empty_key_sentinel},
       empty_slot_sentinel_{empty_slot_sentinel},
+      erased_key_sentinel_{empty_key_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
       storage_{make_window_extent<open_addressing_impl>(capacity), alloc}
   {
+    this->clear_async(stream);
+  }
+
+  /**
+   * @brief Constructs a statically-sized open addressing data structure with the specified initial
+   * capacity, sentinel values and CUDA stream.
+   *
+   * @note The actual capacity depends on the given `capacity`, the probing scheme, CG size, and the
+   * window size and it is computed via the `make_window_extent` factory. Insert operations will not
+   * automatically grow the container. Attempting to insert more unique keys than the capacity of
+   * the container results in undefined behavior.
+   * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
+   * this sentinel value.
+   * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
+   * stream before the object is first used.
+   *
+   * @param capacity The requested lower-bound size
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_slot_sentinel The reserved slot value for empty slots
+   * @param erased_key_sentinel The reserved key value for erased slots
+   * @param pred Key equality binary predicate
+   * @param probing_scheme Probing scheme
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the data structure
+   */
+  constexpr open_addressing_impl(Extent capacity,
+                                 Key empty_key_sentinel,
+                                 Value empty_slot_sentinel,
+                                 Key erased_key_sentinel,
+                                 KeyEqual const& pred,
+                                 ProbingScheme const& probing_scheme,
+                                 Allocator const& alloc,
+                                 cuda_stream_ref stream) noexcept
+    : empty_key_sentinel_{empty_key_sentinel},
+      empty_slot_sentinel_{empty_slot_sentinel},
+      erased_key_sentinel_{erased_key_sentinel},
+      predicate_{pred},
+      probing_scheme_{probing_scheme},
+      storage_{make_window_extent<open_addressing_impl>(capacity), alloc}
+  {
+    CUCO_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
+                 "The empty key sentinel and erased key sentinel cannot be the same value.",
+                 std::logic_error);
+
     this->clear_async(stream);
   }
 
@@ -577,6 +622,7 @@ class open_addressing_impl {
  protected:
   key_type empty_key_sentinel_;         ///< Key value that represents an empty slot
   value_type empty_slot_sentinel_;      ///< Slot value that represents an empty slot
+  key_type erased_key_sentinel_;        ///< Key value that represents an erased slot
   key_equal predicate_;                 ///< Key equality binary predicate
   probing_scheme_type probing_scheme_;  ///< Probing scheme
   storage_type storage_;                ///< Slot window storage
