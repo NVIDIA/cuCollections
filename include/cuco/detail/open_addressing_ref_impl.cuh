@@ -159,18 +159,23 @@ class open_addressing_ref_impl {
    * @tparam HasPayload Boolean indicating it's a set or map implementation
    * @tparam Predicate Predicate type
    *
-   * @param key Key of the element to insert
    * @param value The element to insert
    * @param predicate Predicate used to compare slot content against `key`
    *
    * @return True if the given element is successfully inserted
    */
   template <bool HasPayload, typename Predicate>
-  __device__ bool insert(key_type const& key,
-                         value_type const& value,
-                         Predicate const& predicate) noexcept
+  __device__ bool insert(value_type const& value, Predicate const& predicate) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+
+    auto const key = [&]() {
+      if constexpr (HasPayload) {
+        return value.first;
+      } else {
+        return value;
+      }
+    }();
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
@@ -202,7 +207,6 @@ class open_addressing_ref_impl {
    * @tparam Predicate Predicate type
    *
    * @param group The Cooperative Group used to perform group insert
-   * @param key Key of the element to insert
    * @param value The element to insert
    * @param predicate Predicate used to compare slot content against `key`
    *
@@ -210,10 +214,16 @@ class open_addressing_ref_impl {
    */
   template <bool HasPayload, typename Predicate>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
-                         key_type const& key,
                          value_type const& value,
                          Predicate const& predicate) noexcept
   {
+    auto const key = [&]() {
+      if constexpr (HasPayload) {
+        return value.first;
+      } else {
+        return value;
+      }
+    }();
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
@@ -269,7 +279,6 @@ class open_addressing_ref_impl {
    * @tparam HasPayload Boolean indicating it's a set or map implementation
    * @tparam Predicate Predicate type
    *
-   * @param key Key of the element to insert
    * @param value The element to insert
    * @param predicate Predicate used to compare slot content against `key`
    *
@@ -277,11 +286,18 @@ class open_addressing_ref_impl {
    * insertion is successful or not.
    */
   template <bool HasPayload, typename Predicate>
-  __device__ thrust::pair<iterator, bool> insert_and_find(key_type const& key,
-                                                          value_type const& value,
+  __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value,
                                                           Predicate const& predicate) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+
+    auto const key = [&]() {
+      if constexpr (HasPayload) {
+        return value.first;
+      } else {
+        return value;
+      }
+    }();
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
@@ -326,7 +342,6 @@ class open_addressing_ref_impl {
    * @tparam Predicate Predicate type
    *
    * @param group The Cooperative Group used to perform group insert_and_find
-   * @param key Key of the element to insert
    * @param value The element to insert
    * @param predicate Predicate used to compare slot content against `key`
    *
@@ -336,10 +351,16 @@ class open_addressing_ref_impl {
   template <bool HasPayload, typename Predicate>
   __device__ thrust::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group,
-    key_type const& key,
     value_type const& value,
     Predicate const& predicate) noexcept
   {
+    auto const key = [&]() {
+      if constexpr (HasPayload) {
+        return value.first;
+      } else {
+        return value;
+      }
+    }();
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
@@ -710,11 +731,11 @@ class open_addressing_ref_impl {
     auto* old_ptr       = reinterpret_cast<value_type*>(&old);
     auto const inserted = [&]() {
       if constexpr (HasPayload) {
-        // If it's a set implementation, compare the whole slot content
-        return cuco::detail::bitwise_compare(*old_ptr, this->empty_slot_sentinel_);
-      } else {
         // If it's a map implementation, compare keys only
         return cuco::detail::bitwise_compare(old_ptr->first, this->empty_slot_sentinel_.first);
+      } else {
+        // If it's a set implementation, compare the whole slot content
+        return cuco::detail::bitwise_compare(*old_ptr, this->empty_slot_sentinel_);
       }
     }();
     if (inserted) {
@@ -723,11 +744,11 @@ class open_addressing_ref_impl {
       // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
       auto const res = [&]() {
         if constexpr (HasPayload) {
-          // If it's a set implementation, compare the whole slot content
-          return predicate.equal_to(*old_ptr, value);
-        } else {
           // If it's a map implementation, compare keys only
           return predicate.equal_to(old_ptr->first, value.first);
+        } else {
+          // If it's a set implementation, compare the whole slot content
+          return predicate.equal_to(*old_ptr, value);
         }
       }();
       return res == detail::equal_result::EQUAL ? insert_result::DUPLICATE
