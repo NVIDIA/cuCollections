@@ -17,7 +17,8 @@
 #pragma once
 
 #include <cuco/detail/error.hpp>
-#include <cuco/extent.cuh>
+
+#include <cstddef>
 
 namespace cuco {
 
