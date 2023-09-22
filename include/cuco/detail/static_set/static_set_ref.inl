@@ -101,8 +101,8 @@ class operator_impl<op::insert_tag,
   __device__ bool insert(value_type const& value) noexcept
   {
     ref_type& ref_             = static_cast<ref_type&>(*this);
-    auto constexpr has_payload = true;
-    return ref_.impl_.insert<has_payload>(value, value, ref_.predicate_);
+    auto constexpr has_payload = false;
+    return ref_.impl_.insert<has_payload>(value, ref_.predicate_);
   }
 
   /**
@@ -117,8 +117,8 @@ class operator_impl<op::insert_tag,
                          value_type const& value) noexcept
   {
     auto& ref_                 = static_cast<ref_type&>(*this);
-    auto constexpr has_payload = true;
-    return ref_.impl_.insert<has_payload>(group, value, value, ref_.predicate_);
+    auto constexpr has_payload = false;
+    return ref_.impl_.insert<has_payload>(group, value, ref_.predicate_);
   }
 };
 
@@ -182,8 +182,8 @@ class operator_impl<op::insert_and_find_tag,
   __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
   {
     ref_type& ref_             = static_cast<ref_type&>(*this);
-    auto constexpr has_payload = true;
-    return ref_.impl_.insert_and_find<has_payload>(value, value, ref_.predicate_);
+    auto constexpr has_payload = false;
+    return ref_.impl_.insert_and_find<has_payload>(value, ref_.predicate_);
   }
 
   /**
@@ -203,8 +203,8 @@ class operator_impl<op::insert_and_find_tag,
     cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
   {
     ref_type& ref_             = static_cast<ref_type&>(*this);
-    auto constexpr has_payload = true;
-    return ref_.impl_.insert_and_find<has_payload>(group, value, value, ref_.predicate_);
+    auto constexpr has_payload = false;
+    return ref_.impl_.insert_and_find<has_payload>(group, value, ref_.predicate_);
   }
 };
 
