@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <iostream>
+#include <numeric>
 
 /**
  * @file device_subsets_example.cu
@@ -52,16 +53,16 @@ using probing_scheme_type = cuco::experimental::linear_probing<
   cg_size,
   cuco::default_hash_function<key_type>>;  ///< Type controls CG granularity and probing scheme
                                            ///< (linear probing v.s. double hashing)
-using storage_type = cuco::experimental::aow_storage<key_type, window_size>;  ///< Storage type
-using storage_ref_type =
-  typename storage_type::ref_type;  ///< Lightweight non-owning storage ref type
-template <typename Operator>
+using extent_type = cuco::experimental::window_extent<std::size_t>;
+using storage_type =
+  cuco::experimental::aow_storage<key_type, window_size>;  ///< Type of bulk allocation storage
+using storage_ref_type = cuco::experimental::aow_storage_ref<key_type, window_size, extent_type>;
+;  ///< Lightweight non-owning storage ref type
 using ref_type = cuco::experimental::static_set_ref<key_type,
                                                     cuda::thread_scope_device,
                                                     thrust::equal_to<key_type>,
                                                     probing_scheme_type,
-                                                    storage_ref_type,
-                                                    Operator>;  ///< Set ref type
+                                                    storage_ref_type>;  ///< Set ref type
 
 /// Sample data to insert and query
 __device__ constexpr std::array<key_type, N> data = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19};
@@ -74,16 +75,9 @@ key_type constexpr empty_key_sentinel = -1;
  *
  * Each Cooperative Group creates its own subset and inserts `N` sample data.
  *
- * @tparam WindowType Storage window type
- * @tparam SizeType Size type
- * @tparam OffsetType Offset type
- *
- * @param windows Pointer to the window array
- * @param sizes Pointer to the subset sizes array
- * @param offsets Pointer to the subset offsets array
+ * @param set_refs Pointer to the array of subset objects
  */
-template <typename WindowType, typename SizeType, typename OffsetType>
-__global__ void insert(WindowType* windows, SizeType* sizes, OffsetType* offsets)
+__global__ void insert(ref_type* set_refs)
 {
   namespace cg = cooperative_groups;
 
@@ -91,13 +85,13 @@ __global__ void insert(WindowType* windows, SizeType* sizes, OffsetType* offsets
   // Get subset (or CG) index
   auto const idx = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
-  // Construct an "insert" ref with the given storage
-  auto set_ref = ref_type<cuco::experimental::insert_tag>{
-    cuco::empty_key<key_type>{-1}, {}, {}, storage_ref_type{sizes[idx], windows + offsets[idx]}};
+  // TODO copying the ref first is dumb
+  auto raw_set_ref    = *(set_refs + idx);
+  auto insert_set_ref = std::move(raw_set_ref).with(cuco::experimental::insert);
 
   // Insert `N` elemtns into the set with CG insert
   for (int i = 0; i < N; i++) {
-    set_ref.insert(tile, data[i]);
+    insert_set_ref.insert(tile, data[i]);
   }
 }
 
@@ -107,25 +101,18 @@ __global__ void insert(WindowType* windows, SizeType* sizes, OffsetType* offsets
  * Each Cooperative Group reconstructs its own subset ref based on the storage parameters and
  * verifies all inserted data can be found.
  *
- * @tparam WindowType Storage window type
- * @tparam SizeType Size type
- * @tparam OffsetType Offset type
- *
- * @param windows Pointer to the window array
- * @param sizes Pointer to the subset sizes array
- * @param offsets Pointer to the subset offsets array
+ * @param set_refs Pointer to the array of subset objects
  */
-template <typename WindowType, typename SizeType, typename OffsetType>
-__global__ void find(WindowType* windows, SizeType* sizes, OffsetType* offsets)
+template <typename SetRefIter>
+__global__ void find(SetRefIter set_refs)
 {
   namespace cg = cooperative_groups;
 
   auto const tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
   auto const idx  = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
-  // Reconstruct an "find" ref with the same storage
-  auto set_ref = ref_type<cuco::experimental::find_tag>{
-    cuco::empty_key<key_type>{-1}, {}, {}, storage_ref_type{sizes[idx], windows + offsets[idx]}};
+  auto raw_set_ref  = *(set_refs + idx);
+  auto find_set_ref = std::move(raw_set_ref).with(cuco::experimental::find);
 
   // Result denoting if any of the inserted data is not found
   __shared__ int result;
@@ -134,7 +121,7 @@ __global__ void find(WindowType* windows, SizeType* sizes, OffsetType* offsets)
 
   for (int i = 0; i < N; i++) {
     // Query the set with inserted data
-    auto const found = set_ref.find(tile, data[i]);
+    auto const found = find_set_ref.find(tile, data[i]);
     // Record if the inserted data has been found
     atomicOr(&result, *found != data[i]);
   }
@@ -154,32 +141,45 @@ int main()
   auto constexpr subset_sizes =
     std::array<std::size_t, num>{20, 20, 20, 20, 30, 30, 30, 30, 40, 40, 40, 40, 50, 50, 50, 50};
 
-  auto valid_sizes = std::vector<std::size_t>(num);
-  // Compute the valid sizes based on requested sizes
-  std::generate(valid_sizes.begin(), valid_sizes.end(), [&, n = 0]() mutable {
-    // The requested size could cause infinite probing sequences for hash sets thus the valid size
-    // required by the container MUST be computed via `make_window_extent`
-    return cuco::experimental::make_window_extent<cg_size, window_size>(subset_sizes[n++]);
-  });
+  auto valid_sizes = std::vector<extent_type>();
+  valid_sizes.reserve(num);
 
-  // Copy host data to device
-  auto const d_sizes = thrust::device_vector<std::size_t>{valid_sizes};
-  auto d_offsets     = thrust::device_vector<std::size_t>(num);
-  // Compute the offset for each subset
-  thrust::exclusive_scan(d_sizes.begin(), d_sizes.end(), d_offsets.begin());
+  for (size_t i = 0; i < num; ++i) {
+    valid_sizes.emplace_back(cuco::experimental::make_window_extent<ref_type>(subset_sizes[i]));
+  }
 
-  // Get the total size of all subsets.
-  auto const num_windows = thrust::reduce(valid_sizes.begin(), valid_sizes.end());
+  std::vector<std::size_t> offsets(num + 1, 0);
+
+  // prefix sum to compute offsets and total number of windows
+  std::size_t current_sum = 0;
+  for (std::size_t i = 0; i < valid_sizes.size(); ++i) {
+    current_sum += static_cast<std::size_t>(valid_sizes[i].value());
+    offsets[i + 1] = current_sum;
+  }
+
+  // total number of windows is located at the back of the offsets array
+  auto const total_num_windows = offsets.back();
 
   // Create a single bulk storage used by all subsets
-  auto d_set_storage = storage_type{num_windows};
+  auto set_storage = storage_type{total_num_windows};
   // Initializes the storage with the given sentinel
-  d_set_storage.initialize(empty_key_sentinel);
+  set_storage.initialize(empty_key_sentinel);
+
+  std::vector<ref_type> set_refs;
+
+  // create subsets
+  for (std::size_t i = 0; i < num; ++i) {
+    storage_ref_type storage_ref{valid_sizes[i], set_storage.data() + offsets[i]};
+    ref_type set_ref{cuco::empty_key<key_type>{empty_key_sentinel}, {}, {}, storage_ref};
+    set_refs.push_back(set_ref);
+  }
+
+  thrust::device_vector<ref_type> d_set_refs(set_refs);
 
   // Insert sample data
-  insert<<<1, 128>>>(d_set_storage.data(), d_sizes.data().get(), d_offsets.data().get());
+  insert<<<1, 128>>>(d_set_refs.data().get());
   // Find all inserted data
-  find<<<1, 128>>>(d_set_storage.data(), d_sizes.data().get(), d_offsets.data().get());
+  find<<<1, 128>>>(d_set_refs.data().get());
 
   return 0;
 }
