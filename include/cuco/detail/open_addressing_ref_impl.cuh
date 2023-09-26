@@ -88,6 +88,10 @@ class open_addressing_ref_impl {
                       ProbingScheme>,
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
+  // TODO: how to re-enable this check?
+  // static_assert(is_window_extent_v<typename StorageRef::extent_type>,
+  // "Extent is not a valid cuco::window_extent");
+
  public:
   using key_type            = Key;                                     ///< Key type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
