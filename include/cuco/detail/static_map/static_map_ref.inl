@@ -57,6 +57,30 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+template <typename... OtherOperators>
+__host__ __device__ constexpr static_map_ref<Key,
+                                             T,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
+                                             Operators...>::
+  static_map_ref(
+    static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, OtherOperators...>&&
+      other) noexcept
+  : impl_{std::move(other.impl_)},
+    predicate_{std::move(other.predicate_)},
+    empty_value_sentinel_{other.empty_value_sentinel_}
+{
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 __host__ __device__ constexpr auto
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
   const noexcept
@@ -90,6 +114,21 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
   empty_value_sentinel() const noexcept
 {
   return empty_value_sentinel_;
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename... NewOperators>
+auto static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
+  NewOperators...) && noexcept
+{
+  return static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>(
+    std::move(*this));
 }
 
 template <typename Key,

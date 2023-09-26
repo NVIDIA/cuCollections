@@ -110,6 +110,18 @@ class static_map_ref
     storage_ref_type storage_ref) noexcept;
 
   /**
+   * @brief Operator-agnostic move constructor.
+   *
+   * @tparam OtherOperators Operator set of the `other` object
+   *
+   * @param other Object to construct `*this` from
+   */
+  template <typename... OtherOperators>
+  __host__ __device__ explicit constexpr static_map_ref(
+    static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, OtherOperators...>&&
+      other) noexcept;
+
+  /**
    * @brief Gets the maximum number of elements the container can hold.
    *
    * @return The maximum number of elements the container can hold
@@ -130,6 +142,23 @@ class static_map_ref
    */
   [[nodiscard]] __host__ __device__ constexpr mapped_type empty_value_sentinel() const noexcept;
 
+  /**
+   * @brief Creates a reference with new operators from the current object.
+   *
+   * Note that this function uses move semantics and thus invalidates the current object.
+   *
+   * @warning Using two or more reference objects to the same container but with
+   * a different operator set at the same time results in undefined behavior.
+   *
+   * @tparam NewOperators List of `cuco::op::*_tag` types
+   *
+   * @param ops List of operators, e.g., `cuco::insert`
+   *
+   * @return `*this` with `NewOperators...`
+   */
+  template <typename... NewOperators>
+  [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
+
  private:
   struct predicate_wrapper;
 
@@ -140,6 +169,16 @@ class static_map_ref
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>
   friend class detail::operator_impl;
+
+  // Refs with other operator sets need to be friends too
+  template <typename Key_,
+            typename T_,
+            cuda::thread_scope Scope_,
+            typename KeyEqual_,
+            typename ProbingScheme_,
+            typename StorageRef_,
+            typename... Operators_>
+  friend class static_map_ref;
 };
 
 }  // namespace experimental
