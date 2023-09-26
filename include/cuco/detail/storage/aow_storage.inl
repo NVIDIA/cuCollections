@@ -67,6 +67,14 @@ template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
 void aow_storage<T, WindowSize, Extent, Allocator>::initialize(value_type key,
                                                                cuda_stream_ref stream) noexcept
 {
+  this->initialize_async(key, stream);
+  stream.synchronize();
+}
+
+template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
+void aow_storage<T, WindowSize, Extent, Allocator>::initialize_async(
+  value_type key, cuda_stream_ref stream) noexcept
+{
   auto constexpr cg_size = 1;
   auto constexpr stride  = 4;
   auto const grid_size   = cuco::detail::grid_size(this->num_windows(), cg_size, stride);

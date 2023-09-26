@@ -83,7 +83,7 @@ struct extent<SizeType, dynamic_extent> {
  * @tparam N Extent
  *
  */
-template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
+template <typename SizeType, std::size_t N = dynamic_extent>
 struct window_extent;
 
 /**
@@ -118,15 +118,16 @@ template <typename Container, typename SizeType, std::size_t N>
  * the capacity ctor argument for the container.
  *
  * @tparam Container Container type to compute the extent for
+ * @tparam SizeType Size type
  *
  * @param size The input size
  *
  * @throw If the input size is invalid
  *
- * @return Resulting valid extent as `std::size_t`
+ * @return Resulting valid extent
  */
-template <typename Container>
-[[nodiscard]] std::size_t constexpr make_window_extent(std::size_t size);
+template <typename Container, typename SizeType>
+[[nodiscard]] auto constexpr make_window_extent(SizeType size);
 
 /**
  * @brief Computes valid window extent based on given parameters.
@@ -162,15 +163,16 @@ template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
  *
  * @tparam CGSize Number of elements handled per CG
  * @tparam WindowSize Number of elements handled per Window
+ * @tparam SizeType Size type
  *
  * @param size The input size
  *
  * @throw If the input size is invalid
  *
- * @return Resulting valid extent as `std::size_t`
+ * @return Resulting valid extent
  */
-template <int32_t CGSize, int32_t WindowSize>
-[[nodiscard]] std::size_t constexpr make_window_extent(std::size_t size);
+template <int32_t CGSize, int32_t WindowSize, typename SizeType>
+[[nodiscard]] auto constexpr make_window_extent(SizeType size);
 
 }  // namespace experimental
 }  // namespace cuco

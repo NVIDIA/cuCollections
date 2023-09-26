@@ -20,6 +20,7 @@
 
 namespace cuco {
 namespace experimental {
+
 /**
  * @brief Public storage class.
  *
