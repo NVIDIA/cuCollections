@@ -53,11 +53,11 @@ using probing_scheme_type = cuco::experimental::linear_probing<
   cg_size,
   cuco::default_hash_function<key_type>>;  ///< Type controls CG granularity and probing scheme
                                            ///< (linear probing v.s. double hashing)
-using storage_type =
-  cuco::experimental::aow_storage<key_type, window_size>;  ///< Type of bulk allocation storage
-using storage_ref_type =
-  typename storage_type::ref_type;  ///< Lightweight non-owning storage ref type
-using ref_type = cuco::experimental::static_set_ref<key_type,
+/// Type of bulk allocation storage
+using storage_type = cuco::experimental::aow_storage<key_type, window_size>;
+/// Lightweight non-owning storage ref type
+using storage_ref_type = typename storage_type::ref_type;
+using ref_type         = cuco::experimental::static_set_ref<key_type,
                                                     cuda::thread_scope_device,
                                                     thrust::equal_to<key_type>,
                                                     probing_scheme_type,
@@ -84,7 +84,6 @@ __global__ void insert(ref_type* set_refs)
   // Get subset (or CG) index
   auto const idx = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
-  // TODO copying the ref first is dumb
   auto raw_set_ref    = *(set_refs + idx);
   auto insert_set_ref = std::move(raw_set_ref).with(cuco::experimental::insert);
 
@@ -102,8 +101,7 @@ __global__ void insert(ref_type* set_refs)
  *
  * @param set_refs Pointer to the array of subset objects
  */
-template <typename SetRefIter>
-__global__ void find(SetRefIter set_refs)
+__global__ void find(ref_type* set_refs)
 {
   namespace cg = cooperative_groups;
 
@@ -170,8 +168,8 @@ int main()
   // create subsets
   for (std::size_t i = 0; i < num; ++i) {
     storage_ref_type storage_ref{valid_sizes[i], set_storage.data() + offsets[i]};
-    ref_type set_ref{cuco::empty_key<key_type>{empty_key_sentinel}, {}, {}, storage_ref};
-    set_refs.push_back(set_ref);
+    set_refs.emplace_back(
+      ref_type{cuco::empty_key<key_type>{empty_key_sentinel}, {}, {}, storage_ref});
   }
 
   thrust::device_vector<ref_type> d_set_refs(set_refs);
