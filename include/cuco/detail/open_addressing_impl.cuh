@@ -136,13 +136,13 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Constructs a statically-sized open addressing data structure with the specified initial
-   * capacity, sentinel values and CUDA stream.
+   * @brief Constructs a statically-sized open addressing data structure with the number of elements
+   * to insert, sentinel values, the desired load factor and CUDA stream
    *
-   * @note The actual capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * window size and it is computed via the `make_window_extent` factory. Insert operations will not
-   * automatically grow the container. Attempting to insert more unique keys than the capacity of
-   * the container results in undefined behavior.
+   * @note The actual capacity depends on the given `n`, the probing scheme, CG size, the desired
+   * load factor and the window size and it is computed via the `make_window_extent` factory. Insert
+   * operations will not automatically grow the container. Attempting to insert more unique keys
+   * than the capacity of the container results in undefined behavior.
    * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
    * this sentinel value.
    * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
@@ -152,19 +152,20 @@ class open_addressing_impl {
    * @throw If the desired occupancy is no bigger than zero
    * @throw If the desired occupancy is larger than one
    *
-   * @param capacity The requested lower-bound size
+   * @param n The number of elements to insert
+   * @param desired_load_factor The desired load factor of the container, e.g., 0.5 implies a 50%
+   * load factor
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_slot_sentinel The reserved slot value for empty slots
-   * @param desired_load_factor The desired load factor of the container
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the data structure
    */
-  constexpr open_addressing_impl(Extent capacity,
+  constexpr open_addressing_impl(Extent n,
+                                 double desired_load_factor,
                                  Key empty_key_sentinel,
                                  Value empty_slot_sentinel,
-                                 double desired_load_factor,
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
@@ -174,7 +175,7 @@ class open_addressing_impl {
       predicate_{pred},
       probing_scheme_{probing_scheme},
       storage_{make_window_extent<open_addressing_impl>(
-                 static_cast<size_type>(static_cast<double>(capacity) / desired_load_factor)),
+                 static_cast<size_type>(static_cast<double>(n) / desired_load_factor)),
                alloc}
   {
     CUCO_EXPECTS(desired_load_factor > 0., "Desired occupancy must be larger than zero");
