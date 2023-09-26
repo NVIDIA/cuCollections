@@ -70,7 +70,7 @@ __host__ __device__ constexpr static_map_ref<Key,
       other) noexcept
   : impl_{std::move(other.impl_)},
     predicate_{std::move(other.predicate_)},
-    empty_value_sentinel_{other.empty_value_sentinel_}
+    empty_value_sentinel_{std::move(other.empty_value_sentinel_)}
 {
 }
 
