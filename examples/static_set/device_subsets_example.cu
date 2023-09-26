@@ -53,11 +53,10 @@ using probing_scheme_type = cuco::experimental::linear_probing<
   cg_size,
   cuco::default_hash_function<key_type>>;  ///< Type controls CG granularity and probing scheme
                                            ///< (linear probing v.s. double hashing)
-using extent_type = cuco::experimental::window_extent<std::size_t>;
 using storage_type =
   cuco::experimental::aow_storage<key_type, window_size>;  ///< Type of bulk allocation storage
-using storage_ref_type = cuco::experimental::aow_storage_ref<key_type, window_size, extent_type>;
-;  ///< Lightweight non-owning storage ref type
+using storage_ref_type =
+  typename storage_type::ref_type;  ///< Lightweight non-owning storage ref type
 using ref_type = cuco::experimental::static_set_ref<key_type,
                                                     cuda::thread_scope_device,
                                                     thrust::equal_to<key_type>,
@@ -141,11 +140,12 @@ int main()
   auto constexpr subset_sizes =
     std::array<std::size_t, num>{20, 20, 20, 20, 30, 30, 30, 30, 40, 40, 40, 40, 50, 50, 50, 50};
 
-  auto valid_sizes = std::vector<extent_type>();
+  auto valid_sizes = std::vector<std::size_t>();
   valid_sizes.reserve(num);
 
   for (size_t i = 0; i < num; ++i) {
-    valid_sizes.emplace_back(cuco::experimental::make_window_extent<ref_type>(subset_sizes[i]));
+    valid_sizes.emplace_back(
+      static_cast<std::size_t>(cuco::experimental::make_window_extent<ref_type>(subset_sizes[i])));
   }
 
   std::vector<std::size_t> offsets(num + 1, 0);
@@ -153,7 +153,7 @@ int main()
   // prefix sum to compute offsets and total number of windows
   std::size_t current_sum = 0;
   for (std::size_t i = 0; i < valid_sizes.size(); ++i) {
-    current_sum += static_cast<std::size_t>(valid_sizes[i].value());
+    current_sum += valid_sizes[i];
     offsets[i + 1] = current_sum;
   }
 

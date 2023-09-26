@@ -88,14 +88,6 @@ class open_addressing_ref_impl {
                       ProbingScheme>,
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
-  // TODO: revise those build-time checks
-  static_assert(is_window_extent_v<typename StorageRef::extent_type>,
-                "Extent is not a valid cuco::window_extent");
-  // static_assert(ProbingScheme::cg_size == StorageRef::extent_type::cg_size,
-  //              "Extent has incompatible CG size");
-  // static_assert(StorageRef::window_size == StorageRef::extent_type::window_size,
-  //             "Extent has incompatible window size");
-
  public:
   using key_type            = Key;                                     ///< Key type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
