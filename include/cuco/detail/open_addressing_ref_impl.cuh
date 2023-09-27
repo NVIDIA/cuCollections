@@ -283,8 +283,8 @@ class open_addressing_ref_impl {
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <bool HasPayload, typename Predicate>
-  __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value,
+  template <bool HasPayload, typename Predicate, typename local_value_type>
+  __device__ thrust::pair<iterator, bool> insert_and_find(local_value_type const& value,
                                                           Predicate const& predicate) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
@@ -346,10 +346,10 @@ class open_addressing_ref_impl {
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <bool HasPayload, typename Predicate>
+  template <bool HasPayload, typename Predicate, typename local_value_type>
   __device__ thrust::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group,
-    value_type const& value,
+    local_value_type const& value,
     Predicate const& predicate) noexcept
   {
     auto const key = [&]() {
@@ -720,12 +720,12 @@ class open_addressing_ref_impl {
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  template <bool HasPayload, typename Predicate>
+  template <bool HasPayload, typename Predicate, typename local_value_type>
   [[nodiscard]] __device__ constexpr insert_result packed_cas(value_type* slot,
-                                                              value_type const& value,
+                                                              local_value_type const& value,
                                                               Predicate const& predicate) noexcept
   {
-    auto old            = compare_and_swap(slot, this->empty_slot_sentinel_, value);
+    auto old            = compare_and_swap(slot, this->empty_slot_sentinel_, static_cast<value_type>(value));
     auto* old_ptr       = reinterpret_cast<value_type*>(&old);
     auto const inserted = [&]() {
       if constexpr (HasPayload) {

@@ -62,8 +62,8 @@ struct equal_wrapper {
    *
    * @return `EQUAL` if `lhs` and `rhs` are equivalent. `UNEQUAL` otherwise.
    */
-  template <typename U>
-  __device__ constexpr equal_result equal_to(T const& lhs, U const& rhs) const noexcept
+  template <typename local_T, typename U>
+  __device__ constexpr equal_result equal_to(local_T const& lhs, U const& rhs) const noexcept
   {
     return equal_(lhs, rhs) ? equal_result::EQUAL : equal_result::UNEQUAL;
   }

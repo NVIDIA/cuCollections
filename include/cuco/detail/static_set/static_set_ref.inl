@@ -233,8 +233,9 @@ class operator_impl<op::insert_and_find_tag,
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
+   template <typename local_value_type>
   __device__ thrust::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
+    cooperative_groups::thread_block_tile<cg_size> const& group, local_value_type const& value) noexcept
   {
     ref_type& ref_             = static_cast<ref_type&>(*this);
     auto constexpr has_payload = false;
