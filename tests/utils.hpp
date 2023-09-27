@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,13 @@
 
 #include <utils.cuh>
 
+#include <cuco/detail/error.hpp>
+
 #include <thrust/functional.h>
 
 #include <cooperative_groups.h>
+
+#include <iterator>
 
 namespace cuco {
 namespace test {
@@ -35,23 +39,23 @@ enum class probe_sequence { linear_probing, double_hashing };
 template <typename Iterator, typename Predicate>
 int count_if(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = 0)
 {
-  auto const size      = end - begin;
+  auto const size      = std::distance(begin, end);
   auto const grid_size = (size + block_size - 1) / block_size;
 
   int* count;
-  cudaMallocManaged(&count, sizeof(int));
+  CUCO_CUDA_TRY(cudaMallocManaged(&count, sizeof(int)));
 
   *count = 0;
   int device_id;
-  cudaGetDevice(&device_id);
-  cudaMemPrefetchAsync(count, sizeof(int), device_id, stream);
+  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(count, sizeof(int), device_id, stream));
 
   detail::count_if<<<grid_size, block_size, 0, stream>>>(begin, end, count, p);
-  cudaStreamSynchronize(stream);
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
-  auto res = *count;
+  auto const res = *count;
 
-  cudaFree(count);
+  CUCO_CUDA_TRY(cudaFree(count));
 
   return res;
 }
@@ -59,7 +63,7 @@ int count_if(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = 0)
 template <typename Iterator, typename Predicate>
 bool all_of(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = 0)
 {
-  auto const size  = end - begin;
+  auto const size  = std::distance(begin, end);
   auto const count = count_if(begin, end, p, stream);
 
   return size == count;
@@ -81,23 +85,23 @@ bool none_of(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = 0)
 template <typename Iterator1, typename Iterator2, typename Predicate>
 bool equal(Iterator1 begin1, Iterator1 end1, Iterator2 begin2, Predicate p, cudaStream_t stream = 0)
 {
-  auto const size      = end1 - begin1;
+  auto const size      = std::distance(begin1, end1);
   auto const grid_size = (size + block_size - 1) / block_size;
 
   int* count;
-  cudaMallocManaged(&count, sizeof(int));
+  CUCO_CUDA_TRY(cudaMallocManaged(&count, sizeof(int)));
 
   *count = 0;
   int device_id;
-  cudaGetDevice(&device_id);
-  cudaMemPrefetchAsync(count, sizeof(int), device_id, stream);
+  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
+  CUCO_CUDA_TRY(cudaMemPrefetchAsync(count, sizeof(int), device_id, stream));
 
   detail::count_if<<<grid_size, block_size, 0, stream>>>(begin1, end1, begin2, count, p);
-  cudaStreamSynchronize(stream);
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
-  auto res = *count;
+  auto const res = *count;
 
-  cudaFree(count);
+  CUCO_CUDA_TRY(cudaFree(count));
 
   return res == size;
 }

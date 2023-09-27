@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 #include <thrust/sort.h>
 #include <thrust/transform.h>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 template <typename Map>
 __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
@@ -36,7 +36,7 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
   using Value = typename Map::mapped_type;
 
   thrust::device_vector<Key> d_keys(num_items / 2);
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_items);
+  thrust::device_vector<cuco::pair<Key, Value>> d_pairs(num_items);
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   // multiplicity = 2
@@ -45,10 +45,10 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
                     thrust::counting_iterator<int>(num_items),
                     d_pairs.begin(),
                     [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i / 2, i};
+                      return cuco::pair<Key, Value>{i / 2, i};
                     });
 
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_results(num_items);
+  thrust::device_vector<cuco::pair<Key, Value>> d_results(num_items);
 
   auto key_begin    = d_keys.begin();
   auto pair_begin   = d_pairs.begin();
@@ -91,22 +91,22 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
     REQUIRE(size == num_items);
 
     // sort before compare
-    thrust::sort(thrust::device,
-                 d_results.begin(),
-                 d_results.end(),
-                 [] __device__(const cuco::pair_type<Key, Value>& lhs,
-                               const cuco::pair_type<Key, Value>& rhs) {
-                   if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
-                   return lhs.second < rhs.second;
-                 });
+    thrust::sort(
+      thrust::device,
+      d_results.begin(),
+      d_results.end(),
+      [] __device__(const cuco::pair<Key, Value>& lhs, const cuco::pair<Key, Value>& rhs) {
+        if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
+        return lhs.second < rhs.second;
+      });
 
-    REQUIRE(cuco::test::equal(
-      pair_begin,
-      pair_begin + num_items,
-      output_begin,
-      [] __device__(cuco::pair_type<Key, Value> lhs, cuco::pair_type<Key, Value> rhs) {
-        return lhs.first == rhs.first and lhs.second == rhs.second;
-      }));
+    REQUIRE(
+      cuco::test::equal(pair_begin,
+                        pair_begin + num_items,
+                        output_begin,
+                        [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
+                          return lhs.first == rhs.first and lhs.second == rhs.second;
+                        }));
   }
 
   SECTION("count and count_outer should return the same value.")
@@ -129,22 +129,22 @@ __inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
     REQUIRE(size == size_outer);
 
     // sort before compare
-    thrust::sort(thrust::device,
-                 d_results.begin(),
-                 d_results.end(),
-                 [] __device__(const cuco::pair_type<Key, Value>& lhs,
-                               const cuco::pair_type<Key, Value>& rhs) {
-                   if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
-                   return lhs.second < rhs.second;
-                 });
+    thrust::sort(
+      thrust::device,
+      d_results.begin(),
+      d_results.end(),
+      [] __device__(const cuco::pair<Key, Value>& lhs, const cuco::pair<Key, Value>& rhs) {
+        if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
+        return lhs.second < rhs.second;
+      });
 
-    REQUIRE(cuco::test::equal(
-      pair_begin,
-      pair_begin + num_items,
-      output_begin,
-      [] __device__(cuco::pair_type<Key, Value> lhs, cuco::pair_type<Key, Value> rhs) {
-        return lhs.first == rhs.first and lhs.second == rhs.second;
-      }));
+    REQUIRE(
+      cuco::test::equal(pair_begin,
+                        pair_begin + num_items,
+                        output_begin,
+                        [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
+                          return lhs.first == rhs.first and lhs.second == rhs.second;
+                        }));
   }
 }
 
@@ -161,18 +161,11 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr std::size_t num_items{4};
 
-  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
-    cuco::static_multimap<Key,
-                          Value,
-                          cuda::thread_scope_device,
-                          cuco::cuda_allocator<char>,
-                          cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
-      map{5, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
-    test_multiplicity_two(map, num_items);
-  }
-  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{
-      5, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
-    test_multiplicity_two(map, num_items);
-  }
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<1, cuco::default_hash_function<Key>>,
+                                   cuco::double_hashing<8, cuco::default_hash_function<Key>>>;
+
+  cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
+    map{5, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  test_multiplicity_two(map, num_items);
 }

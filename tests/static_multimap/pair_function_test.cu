@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,13 +27,13 @@
 #include <thrust/transform.h>
 #include <thrust/tuple.h>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 // Custom pair equal
 template <typename Key, typename Value>
 struct pair_equal {
-  __device__ bool operator()(const cuco::pair_type<Key, Value>& lhs,
-                             const cuco::pair_type<Key, Value>& rhs) const
+  __device__ bool operator()(const cuco::pair<Key, Value>& lhs,
+                             const cuco::pair<Key, Value>& rhs) const
   {
     return lhs.first == rhs.first;
   }
@@ -43,7 +43,7 @@ template <typename Key, typename Value, typename Map, typename PairIt>
 __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num_pairs)
 {
   map.insert(pair_begin, pair_begin + num_pairs);
-  cudaStreamSynchronize(0);
+  CUCO_CUDA_TRY(cudaStreamSynchronize(0));
 
   auto res = map.get_size();
   REQUIRE(res == num_pairs);
@@ -54,7 +54,7 @@ __inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num
                     thrust::counting_iterator<int>(num_pairs),
                     pair_begin,
                     [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i, i};
+                      return cuco::pair<Key, Value>{i, i};
                     });
 
   SECTION("pair_contains returns true for all inserted pairs and false for non-inserted ones.")
@@ -121,7 +121,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int64_t, cuco::test::probe_sequence::double_hashing))
 {
   constexpr std::size_t num_pairs{4};
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_pairs);
+  thrust::device_vector<cuco::pair<Key, Value>> d_pairs(num_pairs);
 
   // pair multiplicity = 2
   thrust::transform(thrust::device,
@@ -129,22 +129,14 @@ TEMPLATE_TEST_CASE_SIG(
                     thrust::counting_iterator<int>(num_pairs),
                     d_pairs.begin(),
                     [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i / 2, i};
+                      return cuco::pair<Key, Value>{i / 2, i};
                     });
 
-  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
-    cuco::static_multimap<Key,
-                          Value,
-                          cuda::thread_scope_device,
-                          cuco::cuda_allocator<char>,
-                          cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
-      map{
-        num_pairs * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
-    test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
-  }
-  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{
-      num_pairs * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
-    test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
-  }
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<1, cuco::default_hash_function<Key>>,
+                                   cuco::double_hashing<8, cuco::default_hash_function<Key>>>;
+
+  cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
+    map{num_pairs * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  test_pair_functions<Key, Value>(map, d_pairs.begin(), num_pairs);
 }

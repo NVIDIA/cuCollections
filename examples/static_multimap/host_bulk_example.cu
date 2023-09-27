@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,9 +38,7 @@ int main(void)
   // sentinels. Note the capacity is chosen knowing we will insert 50,000 keys,
   // for an load factor of 50%.
   cuco::static_multimap<key_type, value_type> map{
-    N * 2,
-    cuco::sentinel::empty_key{empty_key_sentinel},
-    cuco::sentinel::empty_value{empty_value_sentinel}};
+    N * 2, cuco::empty_key{empty_key_sentinel}, cuco::empty_value{empty_value_sentinel}};
 
   thrust::device_vector<thrust::pair<key_type, value_type>> pairs(N);
 
@@ -62,13 +60,12 @@ int main(void)
   // The `_outer` suffix indicates that the occurrence of a non-match is 1.
   auto const output_size = map.count_outer(keys_to_find.begin(), keys_to_find.end());
 
-  thrust::device_vector<cuco::pair_type<key_type, value_type>> d_results(output_size);
+  thrust::device_vector<cuco::pair<key_type, value_type>> d_results(output_size);
 
   // Finds all keys {0, 1, 2, ...} and stores associated key/value pairs into `d_results`
   // If a key `keys_to_find[i]` doesn't exist, `d_results[i].second == empty_value_sentinel`
-  auto output_end =
-    map.retrieve_outer(keys_to_find.begin(), keys_to_find.end(), d_results.data().get());
-  auto retrieve_size = output_end - d_results.data().get();
+  auto output_end = map.retrieve_outer(keys_to_find.begin(), keys_to_find.end(), d_results.begin());
+  auto retrieve_size = output_end - d_results.begin();
 
   // The total number of outer matches should be `N + N / 2`
   assert(not(output_size == retrieve_size == N + N / 2));

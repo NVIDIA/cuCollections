@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,15 +28,15 @@
 #include <thrust/sort.h>
 #include <thrust/transform.h>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 #include <cooperative_groups.h>
 
 // Custom pair equal
 template <typename Key, typename Value>
 struct pair_equal {
-  __device__ bool operator()(const cuco::pair_type<Key, Value>& lhs,
-                             const cuco::pair_type<Key, Value>& rhs) const
+  __device__ bool operator()(const cuco::pair<Key, Value>& lhs,
+                             const cuco::pair<Key, Value>& rhs) const
   {
     return lhs.first == rhs.first;
   }
@@ -86,7 +86,7 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;
 
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_pairs);
+  thrust::device_vector<cuco::pair<Key, Value>> d_pairs(num_pairs);
 
   // pair multiplicity = 2
   thrust::transform(thrust::device,
@@ -94,7 +94,7 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
                     thrust::counting_iterator<int>(num_pairs),
                     d_pairs.begin(),
                     [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i / 2, i};
+                      return cuco::pair<Key, Value>{i / 2, i};
                     });
 
   auto pair_begin = d_pairs.begin();
@@ -107,7 +107,7 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
                     thrust::counting_iterator<int>(num_pairs),
                     pair_begin,
                     [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i, i};
+                      return cuco::pair<Key, Value>{i, i};
                     });
 
   // create an array of prefix sum
@@ -196,19 +196,11 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr std::size_t num_pairs{200};
 
-  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
-    cuco::static_multimap<Key,
-                          Value,
-                          cuda::thread_scope_device,
-                          cuco::cuda_allocator<char>,
-                          cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
-      map{
-        num_pairs * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
-    test_non_shmem_pair_retrieve(map, num_pairs);
-  }
-  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{
-      num_pairs * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
-    test_non_shmem_pair_retrieve(map, num_pairs);
-  }
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<1, cuco::default_hash_function<Key>>,
+                                   cuco::double_hashing<8, cuco::default_hash_function<Key>>>;
+
+  cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
+    map{num_pairs * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  test_non_shmem_pair_retrieve(map, num_pairs);
 }

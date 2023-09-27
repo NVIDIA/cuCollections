@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/transform.h>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 #include <tuple>
 
@@ -101,13 +101,11 @@ TEMPLATE_TEST_CASE("Heterogeneous lookup",
                         cuda::thread_scope_device,
                         cuco::cuda_allocator<char>,
                         cuco::linear_probing<1, custom_hasher>>
-    map{capacity,
-        cuco::sentinel::empty_key<Key>{sentinel_key},
-        cuco::sentinel::empty_value<Value>{sentinel_value}};
+    map{capacity, cuco::empty_key<Key>{sentinel_key}, cuco::empty_value<Value>{sentinel_value}};
 
-  auto insert_pairs = thrust::make_transform_iterator(
-    thrust::counting_iterator<int>(0),
-    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
+  auto insert_pairs =
+    thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
+                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
   auto probe_keys = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
                                                     [] __device__(auto i) { return ProbeKey(i); });
 

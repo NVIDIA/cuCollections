@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 #include <thrust/sequence.h>
 #include <thrust/tuple.h>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 #include <limits>
 
@@ -95,7 +95,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
   std::vector<std::unique_ptr<MapType>> maps;
   for (std::size_t map_id = 0; map_id < number_of_maps; ++map_id) {
     maps.push_back(std::make_unique<MapType>(
-      map_capacity, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}));
+      map_capacity, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}));
   }
 
   thrust::device_vector<bool> d_keys_exist(number_of_maps * elements_in_map);
@@ -148,9 +148,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
                                d_keys_exist.data().get(),
                                d_keys_and_values_correct.data().get());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
-                                d_keys_exist.end(),
-                                [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
   }
 }
 
@@ -161,11 +159,8 @@ __global__ void shared_memory_hash_table_kernel(bool* key_found)
   using map_type = typename cuco::static_map<K, V, cuda::thread_scope_block>::device_mutable_view;
   using find_map_type = typename cuco::static_map<K, V, cuda::thread_scope_block>::device_view;
   __shared__ typename map_type::slot_type slots[N];
-  auto map = map_type::make_from_uninitialized_slots(cg::this_thread_block(),
-                                                     &slots[0],
-                                                     N,
-                                                     cuco::sentinel::empty_key<K>{-1},
-                                                     cuco::sentinel::empty_value<V>{-1});
+  auto map = map_type::make_from_uninitialized_slots(
+    cg::this_thread_block(), &slots[0], N, cuco::empty_key<K>{-1}, cuco::empty_value<V>{-1});
 
   auto g            = cg::this_thread_block();
   std::size_t index = threadIdx.x + blockIdx.x * blockDim.x;

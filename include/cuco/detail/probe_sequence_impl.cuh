@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <cuco/detail/hash_functions.cuh>
-#include <cuco/detail/pair.cuh>
+#include <cuco/detail/utils.cuh>
+#include <cuco/pair.cuh>
 
 #include <cuda/std/atomic>
 
@@ -72,13 +72,13 @@ template <typename Key,
           uint32_t CGSize>
 class probe_sequence_impl_base {
  protected:
-  using value_type         = cuco::pair_type<Key, Value>;       ///< Type of key/value pairs
+  using value_type         = cuco::pair<Key, Value>;            ///< Type of key/value pairs
   using key_type           = Key;                               ///< Key type
   using mapped_type        = Value;                             ///< Type of mapped values
   using atomic_key_type    = cuda::atomic<key_type, Scope>;     ///< Type of atomic keys
   using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;  ///< Type of atomic mapped values
   /// Pair type of atomic key and atomic mapped value
-  using pair_atomic_type = cuco::pair_type<atomic_key_type, atomic_mapped_type>;
+  using pair_atomic_type = cuco::pair<atomic_key_type, atomic_mapped_type>;
   /// Type of the forward iterator to `pair_atomic_type`
   using iterator = pair_atomic_type*;
   /// Type of the forward iterator to `const pair_atomic_type`

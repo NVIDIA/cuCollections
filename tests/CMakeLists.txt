@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2022, NVIDIA CORPORATION.
+# Copyright (c) 2018-2023, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #=============================================================================
-cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
 include(CTest)
 
@@ -23,34 +23,48 @@ include(CTest)
 CPMAddPackage(
   NAME Catch2
   GITHUB_REPOSITORY catchorg/Catch2
-  VERSION 2.13.9
+  VERSION 3.3.0
 )
 
+# Header for catch_discover_tests
 if(Catch2_ADDED)
-    include(${Catch2_SOURCE_DIR}/contrib/Catch.cmake)
+    include(${Catch2_SOURCE_DIR}/extras/Catch.cmake)
 endif()
-
-# catch_main.cpp defines `CATCH_CONFIG_MAIN` which provides main()
-# Compiles it to be linked into test executables
-add_library(CatchMain OBJECT ${CMAKE_CURRENT_SOURCE_DIR}/catch_main.cpp)
-target_link_libraries(CatchMain Catch2::Catch2)
 
 ###################################################################################################
 function(ConfigureTest TEST_NAME)
-    add_executable(${TEST_NAME} ${ARGN}
-                   $<TARGET_OBJECTS:CatchMain>) # Link in the CatchMain object file
-    target_link_libraries(${TEST_NAME} Catch2::Catch2 cuco CUDA::cudart)
+    add_executable(${TEST_NAME} ${ARGN})
+    target_link_libraries(${TEST_NAME} PRIVATE Catch2::Catch2WithMain cuco CUDA::cudart)
     target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     set_target_properties(${TEST_NAME} PROPERTIES
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     target_compile_options(${TEST_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
       --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)
-    catch_discover_tests(${TEST_NAME})
+    catch_discover_tests(${TEST_NAME} EXTRA_ARGS --allow-running-no-tests)
 endfunction(ConfigureTest)
 
 ###################################################################################################
 ### test sources ##################################################################################
 ###################################################################################################
+
+###################################################################################################
+# - utility tests ---------------------------------------------------------------------------------
+ConfigureTest(UTILITY_TEST
+    utility/extent_test.cu
+    utility/storage_test.cu
+    utility/fast_int_test.cu
+    utility/hash_test.cu)
+
+###################################################################################################
+# - static_set tests ------------------------------------------------------------------------------
+ConfigureTest(STATIC_SET_TEST
+    static_set/capacity_test.cu
+    static_set/heterogeneous_lookup_test.cu
+    static_set/insert_and_find_test.cu
+    static_set/large_input_test.cu
+    static_set/retrieve_all_test.cu
+    static_set/size_test.cu
+    static_set/unique_sequence_test.cu)
 
 ###################################################################################################
 # - static_map tests ------------------------------------------------------------------------------
@@ -60,6 +74,7 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/erase_test.cu
     static_map/heterogeneous_lookup_test.cu
     static_map/insert_and_find_test.cu
+    static_map/insert_or_assign_test.cu
     static_map/key_sentinel_test.cu
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
@@ -68,7 +83,8 @@ ConfigureTest(STATIC_MAP_TEST
 ###################################################################################################
 # - dynamic_map tests -----------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_MAP_TEST
-    dynamic_map/unique_sequence_test.cu)
+    dynamic_map/unique_sequence_test.cu
+    dynamic_map/erase_test.cu)
 
 ###################################################################################################
 # - static_multimap tests -------------------------------------------------------------------------
@@ -80,3 +96,12 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/multiplicity_test.cu
     static_multimap/non_match_test.cu
     static_multimap/pair_function_test.cu)
+
+###################################################################################################
+# - dynamic_bitset tests --------------------------------------------------------------------------
+ConfigureTest(DYNAMIC_BITSET_TEST
+    dynamic_bitset/find_next_test.cu
+    dynamic_bitset/get_test.cu
+    dynamic_bitset/rank_test.cu
+    dynamic_bitset/select_test.cu
+    dynamic_bitset/size_test.cu)

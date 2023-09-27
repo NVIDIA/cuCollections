@@ -17,6 +17,7 @@
 #include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/utils.cuh>
+#include <cuco/detail/utils.hpp>
 
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
@@ -27,12 +28,11 @@
 namespace cuco {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-static_map<Key, Value, Scope, Allocator>::static_map(
-  std::size_t capacity,
-  sentinel::empty_key<Key> empty_key_sentinel,
-  sentinel::empty_value<Value> empty_value_sentinel,
-  Allocator const& alloc,
-  cudaStream_t stream)
+static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
+                                                     empty_key<Key> empty_key_sentinel,
+                                                     empty_value<Value> empty_value_sentinel,
+                                                     Allocator const& alloc,
+                                                     cudaStream_t stream)
   : capacity_{std::max(capacity, std::size_t{1})},  // to avoid dereferencing a nullptr (Issue #72)
     empty_key_sentinel_{empty_key_sentinel.value},
     empty_value_sentinel_{empty_value_sentinel.value},
@@ -52,13 +52,12 @@ static_map<Key, Value, Scope, Allocator>::static_map(
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
-static_map<Key, Value, Scope, Allocator>::static_map(
-  std::size_t capacity,
-  sentinel::empty_key<Key> empty_key_sentinel,
-  sentinel::empty_value<Value> empty_value_sentinel,
-  sentinel::erased_key<Key> erased_key_sentinel,
-  Allocator const& alloc,
-  cudaStream_t stream)
+static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
+                                                     empty_key<Key> empty_key_sentinel,
+                                                     empty_value<Value> empty_value_sentinel,
+                                                     erased_key<Key> erased_key_sentinel,
+                                                     Allocator const& alloc,
+                                                     cudaStream_t stream)
   : capacity_{std::max(capacity, std::size_t{1})},  // to avoid dereferencing a nullptr (Issue #72)
     empty_key_sentinel_{empty_key_sentinel.value},
     empty_value_sentinel_{empty_value_sentinel.value},
@@ -66,8 +65,9 @@ static_map<Key, Value, Scope, Allocator>::static_map(
     slot_allocator_{alloc},
     counter_allocator_{alloc}
 {
-  CUCO_RUNTIME_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
-                       "The empty key sentinel and erased key sentinel cannot be the same value.");
+  CUCO_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
+               "The empty key sentinel and erased key sentinel cannot be the same value.",
+               std::runtime_error);
 
   slots_         = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
   num_successes_ = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
@@ -102,7 +102,7 @@ template <typename InputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::insert(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const block_size = 128;
@@ -116,8 +116,8 @@ void static_map<Key, Value, Scope, Allocator>::insert(
   CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_num_successes;
 
-  detail::insert<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
-    first, first + num_keys, num_successes_, view, hash, key_equal);
+  detail::insert<block_size, tile_size>
+    <<<grid_size, block_size, 0, stream>>>(first, num_keys, num_successes_, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
 
@@ -140,7 +140,7 @@ void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
                                                          KeyEqual key_equal,
                                                          cudaStream_t stream)
 {
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto constexpr block_size = 128;
@@ -167,10 +167,11 @@ template <typename InputIt, typename Hash, typename KeyEqual>
 void static_map<Key, Value, Scope, Allocator>::erase(
   InputIt first, InputIt last, Hash hash, KeyEqual key_equal, cudaStream_t stream)
 {
-  CUCO_RUNTIME_EXPECTS(get_empty_key_sentinel() != get_erased_key_sentinel(),
-                       "You must provide a unique erased key sentinel value at map construction.");
+  CUCO_EXPECTS(get_empty_key_sentinel() != get_erased_key_sentinel(),
+               "You must provide a unique erased key sentinel value at map construction.",
+               std::runtime_error);
 
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto constexpr block_size = 128;
@@ -184,8 +185,8 @@ void static_map<Key, Value, Scope, Allocator>::erase(
   CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
   std::size_t h_num_successes;
 
-  detail::erase<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
-    first, first + num_keys, num_successes_, view, hash, key_equal);
+  detail::erase<block_size, tile_size>
+    <<<grid_size, block_size, 0, stream>>>(first, num_keys, num_successes_, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
 
@@ -203,7 +204,7 @@ void static_map<Key, Value, Scope, Allocator>::find(InputIt first,
                                                     KeyEqual key_equal,
                                                     cudaStream_t stream)
 {
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const block_size = 128;
@@ -213,13 +214,13 @@ void static_map<Key, Value, Scope, Allocator>::find(InputIt first,
   auto view             = get_device_view();
 
   detail::find<block_size, tile_size, Value>
-    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, num_keys, output_begin, view, hash, key_equal);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename KeyOut, typename ValueOut>
 std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_all(
-  KeyOut keys_out, ValueOut values_out, cudaStream_t stream)
+  KeyOut keys_out, ValueOut values_out, cudaStream_t stream) const
 {
   static_assert(sizeof(pair_atomic_type) == sizeof(value_type));
   auto slots_begin = reinterpret_cast<value_type*>(slots_);
@@ -259,6 +260,10 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
   CUCO_CUDA_TRY(
     cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(std::size_t), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+  std::allocator_traits<temp_allocator_type>::deallocate(
+    temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(std::size_t));
+  std::allocator_traits<temp_allocator_type>::deallocate(
+    temp_allocator, d_temp_storage, temp_storage_bytes);
 
   return std::make_pair(keys_out + h_num_out, values_out + h_num_out);
 }
@@ -272,7 +277,7 @@ void static_map<Key, Value, Scope, Allocator>::contains(InputIt first,
                                                         KeyEqual key_equal,
                                                         cudaStream_t stream) const
 {
-  auto num_keys = std::distance(first, last);
+  auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
 
   auto const block_size = 128;
@@ -282,7 +287,7 @@ void static_map<Key, Value, Scope, Allocator>::contains(InputIt first,
   auto view             = get_device_view();
 
   detail::contains<block_size, tile_size>
-    <<<grid_size, block_size, 0, stream>>>(first, last, output_begin, view, hash, key_equal);
+    <<<grid_size, block_size, 0, stream>>>(first, num_keys, output_begin, view, hash, key_equal);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>

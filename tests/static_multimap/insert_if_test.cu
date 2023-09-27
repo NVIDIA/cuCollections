@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 template <typename Key, typename Map, typename PairIt, typename KeyIt>
 __inline__ void test_insert_if(Map& map, PairIt pair_begin, KeyIt key_begin, std::size_t size)
@@ -55,7 +55,7 @@ TEMPLATE_TEST_CASE_SIG(
   constexpr std::size_t num_keys{1'000};
 
   thrust::device_vector<Key> d_keys(num_keys);
-  thrust::device_vector<cuco::pair_type<Key, Value>> d_pairs(num_keys);
+  thrust::device_vector<cuco::pair<Key, Value>> d_pairs(num_keys);
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   // multiplicity = 1
@@ -64,21 +64,14 @@ TEMPLATE_TEST_CASE_SIG(
                     thrust::counting_iterator<int>(num_keys),
                     d_pairs.begin(),
                     [] __device__(auto i) {
-                      return cuco::pair_type<Key, Value>{i, i};
+                      return cuco::pair<Key, Value>{i, i};
                     });
 
-  if constexpr (Probe == cuco::test::probe_sequence::linear_probing) {
-    cuco::static_multimap<Key,
-                          Value,
-                          cuda::thread_scope_device,
-                          cuco::cuda_allocator<char>,
-                          cuco::linear_probing<1, cuco::detail::MurmurHash3_32<Key>>>
-      map{num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
-    test_insert_if<Key>(map, d_pairs.begin(), d_keys.begin(), num_keys);
-  }
-  if constexpr (Probe == cuco::test::probe_sequence::double_hashing) {
-    cuco::static_multimap<Key, Value> map{
-      num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
-    test_insert_if<Key>(map, d_pairs.begin(), d_keys.begin(), num_keys);
-  }
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<1, cuco::default_hash_function<Key>>,
+                                   cuco::double_hashing<8, cuco::default_hash_function<Key>>>;
+
+  cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
+    map{num_keys * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  test_insert_if<Key>(map, d_pairs.begin(), d_keys.begin(), num_keys);
 }

@@ -22,6 +22,7 @@
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <cooperative_groups.h>
+#include <cooperative_groups/memcpy_async.h>
 
 namespace cuco {
 template <typename Key,
@@ -497,23 +498,31 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     }
     offset = g.shfl(offset, 0);
 
-    if constexpr (thrust::is_contiguous_iterator_v<OutputIt>) {
 #if defined(CUCO_HAS_CG_MEMCPY_ASYNC)
+    constexpr bool uses_memcpy_async = thrust::is_contiguous_iterator_v<OutputIt>;
+#else
+    constexpr bool uses_memcpy_async = false;
+#endif  // end CUCO_HAS_CG_MEMCPY_ASYNC
+
+    if constexpr (uses_memcpy_async) {
 #if defined(CUCO_HAS_CUDA_BARRIER)
       cooperative_groups::memcpy_async(
         g,
-        output_begin + offset,
+        &thrust::raw_reference_cast(*(output_begin + offset)),
         output_buffer,
         cuda::aligned_size_t<alignof(value_type)>(sizeof(value_type) * num_outputs));
 #else
-      cooperative_groups::memcpy_async(
-        g, output_begin + offset, output_buffer, sizeof(value_type) * num_outputs);
+      cooperative_groups::memcpy_async(g,
+                                       &thrust::raw_reference_cast(*(output_begin + offset)),
+                                       output_buffer,
+                                       sizeof(value_type) * num_outputs);
 #endif  // end CUCO_HAS_CUDA_BARRIER
-      return;
-#endif  // end CUCO_HAS_CG_MEMCPY_ASYNC
     }
-    for (auto index = lane_id; index < num_outputs; index += g.size()) {
-      *(output_begin + offset + index) = output_buffer[index];
+
+    if constexpr (not uses_memcpy_async) {
+      for (auto index = lane_id; index < num_outputs; index += g.size()) {
+        *(output_begin + offset + index) = output_buffer[index];
+      }
     }
   }
 
@@ -991,8 +1000,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       if (*flushing_cg_counter + flushing_cg.size() * vector_width() > buffer_size) {
         flush_output_buffer(
           flushing_cg, *flushing_cg_counter, output_buffer, num_matches, output_begin);
+        // Everyone in the group reads the counter when flushing, so
+        // sync before writing.
+        flushing_cg.sync();
         // First lane reset warp-level counter
         if (flushing_cg.thread_rank() == 0) { *flushing_cg_counter = 0; }
+        flushing_cg.sync();
       }
 
       current_slot = next_slot(current_slot);
@@ -1083,8 +1096,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       // Flush if the next iteration won't fit into buffer
       if ((*cg_counter + g.size()) > buffer_size) {
         flush_output_buffer(g, *cg_counter, output_buffer, num_matches, output_begin);
+        // Everyone in the group reads the counter when flushing, so
+        // sync before writing.
+        g.sync();
         // First lane reset CG-level counter
         if (lane_id == 0) { *cg_counter = 0; }
+        g.sync();
       }
       current_slot = next_slot(current_slot);
     }  // while running
@@ -1419,8 +1436,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
                             num_matches,
                             probe_output_begin,
                             contained_output_begin);
+        // Everyone in the group reads the counter when flushing, so
+        // sync before writing.
+        flushing_cg.sync();
         // First lane reset warp-level counter
         if (flushing_cg.thread_rank() == 0) { *flushing_cg_counter = 0; }
+        flushing_cg.sync();
       }
 
       current_slot = next_slot(current_slot);
@@ -1530,8 +1551,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
                             num_matches,
                             probe_output_begin,
                             contained_output_begin);
+        // Everyone in the group reads the counter when flushing, so
+        // sync before writing.
+        g.sync();
         // First lane reset CG-level counter
         if (lane_id == 0) { *cg_counter = 0; }
+        g.sync();
       }
       current_slot = next_slot(current_slot);
     }  // while running

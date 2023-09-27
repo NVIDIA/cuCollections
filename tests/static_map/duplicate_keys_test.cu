@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 TEMPLATE_TEST_CASE_SIG("Duplicate keys",
                        "",
@@ -39,7 +39,7 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
 {
   constexpr std::size_t num_keys{500'000};
   cuco::static_map<Key, Value> map{
-    num_keys * 2, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
+    num_keys * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
@@ -49,7 +49,7 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
 
   auto pairs_begin = thrust::make_transform_iterator(
     thrust::make_counting_iterator<int>(0),
-    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i / 2, i / 2); });
+    [] __device__(auto i) { return cuco::pair<Key, Value>(i / 2, i / 2); });
 
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);

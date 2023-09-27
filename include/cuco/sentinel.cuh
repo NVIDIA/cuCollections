@@ -16,22 +16,24 @@
 
 #pragma once
 
+#include <cuco/detail/utils.cuh>
+
 namespace cuco {
-namespace sentinel {
+inline namespace sentinel {
+
 /**
  * @brief A strong type wrapper used to denote the empty key sentinel.
  *
  * @tparam T Type of the key values
  */
 template <typename T>
-struct empty_key {
+struct empty_key : public cuco::detail::strong_type<T> {
   /**
    * @brief Constructs an empty key sentinel with the given `v`.
    *
    * @param v The empty key sentinel value
    */
-  __host__ __device__ explicit constexpr empty_key(T v) : value{v} {}
-  T value;  ///< Empty key sentinel
+  __host__ __device__ explicit constexpr empty_key(T v) : cuco::detail::strong_type<T>(v) {}
 };
 
 /**
@@ -40,14 +42,13 @@ struct empty_key {
  * @tparam T Type of the mapped values
  */
 template <typename T>
-struct empty_value {
+struct empty_value : public cuco::detail::strong_type<T> {
   /**
    * @brief Constructs an empty value sentinel with the given `v`.
    *
    * @param v The empty value sentinel value
    */
-  __host__ __device__ explicit constexpr empty_value(T v) : value{v} {}
-  T value;  ///< Empty value sentinel
+  __host__ __device__ explicit constexpr empty_value(T v) : cuco::detail::strong_type<T>(v) {}
 };
 
 /**
@@ -56,14 +57,13 @@ struct empty_value {
  * @tparam T Type of the key values
  */
 template <typename T>
-struct erased_key {
+struct erased_key : public cuco::detail::strong_type<T> {
   /**
    * @brief Constructs an erased key sentinel with the given `v`.
    *
    * @param v The erased key sentinel value
    */
-  __host__ __device__ explicit constexpr erased_key(T v) : value{v} {}
-  T value;  ///< Erased key sentinel
+  __host__ __device__ explicit constexpr erased_key(T v) : cuco::detail::strong_type<T>(v) {}
 };
 
 }  // namespace sentinel

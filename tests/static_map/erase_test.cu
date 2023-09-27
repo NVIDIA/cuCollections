@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,18 @@
  * limitations under the License.
  */
 
-#include <catch2/catch.hpp>
+#include <utils.hpp>
+
+#include <cuco/static_map.cuh>
+
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/functional.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/tuple.h>
 
-#include <cuco/static_map.cuh>
-
-#include <utils.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
 {
@@ -33,10 +35,8 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
   constexpr std::size_t num_keys = 1'000'000;
   constexpr std::size_t capacity = 1'100'000;
 
-  cuco::static_map<Key, Value> map{capacity,
-                                   cuco::sentinel::empty_key<Key>{-1},
-                                   cuco::sentinel::empty_value<Value>{-1},
-                                   cuco::sentinel::erased_key<Key>{-2}};
+  cuco::static_map<Key, Value> map{
+    capacity, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, cuco::erased_key<Key>{-2}};
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
@@ -60,9 +60,7 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
-                                d_keys_exist.end(),
-                                [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
 
     map.insert(pairs_begin, pairs_begin + num_keys);
 
@@ -70,20 +68,16 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin(),
-                               d_keys_exist.end(),
-                               [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
 
     map.erase(d_keys.begin(), d_keys.begin() + num_keys / 2);
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(),
-                                d_keys_exist.begin() + num_keys / 2,
-                                [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::none_of(
+      d_keys_exist.begin(), d_keys_exist.begin() + num_keys / 2, thrust::identity{}));
 
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin() + num_keys / 2,
-                               d_keys_exist.end(),
-                               [] __device__(const bool key_found) { return key_found; }));
+    REQUIRE(cuco::test::all_of(
+      d_keys_exist.begin() + num_keys / 2, d_keys_exist.end(), thrust::identity{}));
 
     map.erase(d_keys.begin() + num_keys / 2, d_keys.end());
     REQUIRE(map.get_size() == 0);

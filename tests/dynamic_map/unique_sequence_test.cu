@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 #include <thrust/sequence.h>
 #include <thrust/tuple.h>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        "",
@@ -38,8 +38,9 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
                        (int64_t, int64_t))
 {
   constexpr std::size_t num_keys{50'000'000};
+
   cuco::dynamic_map<Key, Value> map{
-    30'000'000, cuco::sentinel::empty_key<Key>{-1}, cuco::sentinel::empty_value<Value>{-1}};
+    30'000'000, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
@@ -47,9 +48,9 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   thrust::sequence(thrust::device, d_values.begin(), d_values.end());
 
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<int>(0),
-    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
+  auto pairs_begin =
+    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
+                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
 
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);

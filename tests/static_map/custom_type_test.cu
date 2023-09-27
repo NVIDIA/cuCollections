@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/transform.h>
 
-#include <catch2/catch.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 
 #include <tuple>
 
@@ -113,9 +113,8 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
   constexpr std::size_t num      = 100;
   constexpr std::size_t capacity = num * 2;
-  cuco::static_map<Key, Value> map{capacity,
-                                   cuco::sentinel::empty_key<Key>{sentinel_key},
-                                   cuco::sentinel::empty_value<Value>{sentinel_value}};
+  cuco::static_map<Key, Value> map{
+    capacity, cuco::empty_key<Key>{sentinel_key}, cuco::empty_value<Value>{sentinel_value}};
 
   thrust::device_vector<Key> insert_keys(num);
   thrust::device_vector<Value> insert_values(num);
@@ -132,9 +131,9 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                     insert_values.begin(),
                     [] __device__(auto i) { return Value{i}; });
 
-  auto insert_pairs = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<int>(0),
-    [] __device__(auto i) { return cuco::pair_type<Key, Value>(i, i); });
+  auto insert_pairs =
+    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
+                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
 
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
   {
@@ -213,7 +212,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     map.insert(insert_pairs, insert_pairs + num, hash_custom_key{}, custom_key_equals{});
     auto view = map.get_device_view();
     REQUIRE(cuco::test::all_of(
-      insert_pairs, insert_pairs + num, [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+      insert_pairs, insert_pairs + num, [view] __device__(cuco::pair<Key, Value> const& pair) {
         return view.contains(pair.first, hash_custom_key{}, custom_key_equals{});
       }));
   }
@@ -221,12 +220,11 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   SECTION("Inserting unique keys should return insert success.")
   {
     auto m_view = map.get_device_mutable_view();
-    REQUIRE(
-      cuco::test::all_of(insert_pairs,
-                         insert_pairs + num,
-                         [m_view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
-                           return m_view.insert(pair, hash_custom_key{}, custom_key_equals{});
-                         }));
+    REQUIRE(cuco::test::all_of(insert_pairs,
+                               insert_pairs + num,
+                               [m_view] __device__(cuco::pair<Key, Value> const& pair) mutable {
+                                 return m_view.insert(pair, hash_custom_key{}, custom_key_equals{});
+                               }));
   }
 
   SECTION("Cannot find any key in an empty hash map")
@@ -237,7 +235,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
       REQUIRE(cuco::test::all_of(
         insert_pairs,
         insert_pairs + num,
-        [view] __device__(cuco::pair_type<Key, Value> const& pair) mutable {
+        [view] __device__(cuco::pair<Key, Value> const& pair) mutable {
           return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) == view.end();
         }));
     }
@@ -246,9 +244,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     {
       auto const view = map.get_device_view();
       REQUIRE(cuco::test::all_of(
-        insert_pairs,
-        insert_pairs + num,
-        [view] __device__(cuco::pair_type<Key, Value> const& pair) {
+        insert_pairs, insert_pairs + num, [view] __device__(cuco::pair<Key, Value> const& pair) {
           return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) == view.end();
         }));
     }

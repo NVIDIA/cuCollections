@@ -5,13 +5,13 @@
 <th><b><a href="">Doxygen Documentation (TODO)</a></b></th>
 </tr></table>
 
-`cuCollections` (`cuco`) is an open-source, header-only library of GPU-accelerated, concurrent data structures. 
+`cuCollections` (`cuco`) is an open-source, header-only library of GPU-accelerated, concurrent data structures.
 
-Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://github.com/thrust/cub) provide STL-like, GPU accelerated algorithms and primitives, `cuCollections` provides STL-like concurrent data structures. `cuCollections` is not a one-to-one, drop-in replacement for STL data structures like `std::unordered_map`. Instead, it provides functionally similar data structures tailored for efficient use with GPUs. 
+Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://github.com/thrust/cub) provide STL-like, GPU accelerated algorithms and primitives, `cuCollections` provides STL-like concurrent data structures. `cuCollections` is not a one-to-one, drop-in replacement for STL data structures like `std::unordered_map`. Instead, it provides functionally similar data structures tailored for efficient use with GPUs.
 
 ## Development Status
 
-`cuCollections` is still under heavy development. Users should expect breaking changes and refactoring to be common. 
+`cuCollections` is still under heavy development. Users should expect breaking changes and refactoring to be common.
 
 ## Getting cuCollections
 
@@ -21,14 +21,14 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 
 `cuCollections` is designed to make it easy to include within another CMake project.
  The `CMakeLists.txt` exports a `cuco` target that can be linked<sup>[1](#link-footnote)</sup>
- into a target to setup include directories, dependencies, and compile flags necessary to use `cuCollections` in your project. 
+ into a target to setup include directories, dependencies, and compile flags necessary to use `cuCollections` in your project.
 
 
 We recommend using [CMake Package Manager (CPM)](https://github.com/TheLartians/CPM.cmake) to fetch `cuCollections` into your project.
 With CPM, getting `cuCollections` is easy:
 
-```
-cmake_minimum_required(VERSION 3.14 FATAL_ERROR)
+```cmake
+cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
 include(path/to/CPM.cmake)
 
@@ -47,12 +47,12 @@ target_link_libraries(my_library cuco)
 
 This will take care of downloading `cuCollections` from GitHub and making the headers available in a location that can be found by CMake. Linking against the `cuco` target will provide everything needed for `cuco` to be used by the `my_library` target.
 
-<a name="link-footnote">1</a>: `cuCollections` is header-only and therefore there is no binary component to "link" against. The linking terminology comes from CMake's `target_link_libraries` which is still used even for header-only library targets. 
+<a name="link-footnote">1</a>: `cuCollections` is header-only and therefore there is no binary component to "link" against. The linking terminology comes from CMake's `target_link_libraries` which is still used even for header-only library targets.
 
 ## Requirements
-- `nvcc 11+`
+- `nvcc 11.5+`
 - C++17
-- Volta+ 
+- Volta+
     - Pascal is partially supported. Any data structures that require blocking algorithms are not supported. See [libcu++](https://nvidia.github.io/libcudacxx/setup/requirements.html#device-architectures) documentation for more details.
 
 ## Dependencies
@@ -67,15 +67,15 @@ No action is required from the user to satisfy these dependencies. `cuCollection
 
 ## Building cuCollections
 
-Since `cuCollections` is header-only, there is nothing to build to use it. 
+Since `cuCollections` is header-only, there is nothing to build to use it.
 
 To build the tests, benchmarks, and examples:
 
-```
+```bash
 cd $CUCO_ROOT
 mkdir -p build
 cd build
-cmake .. 
+cmake ..
 make
 ```
 Binaries will be built into:
@@ -179,23 +179,32 @@ class example_class {
 
 ## Data Structures
 
-We plan to add many GPU-accelerated, concurrent data structures to `cuCollections`. As of now, the two flagships are variants of hash tables. 
+We plan to add many GPU-accelerated, concurrent data structures to `cuCollections`. As of now, the two flagships are variants of hash tables.
+
+### `static_set`
+
+`cuco::static_set` is a fixed-size container that stores unique elements in no particular order. See the Doxygen documentation in `static_set.cuh` for more detailed information.
+
+#### Examples:
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/Pzf6vabz1))
+- [Device-ref APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/sfG3qKqGv))
 
 ### `static_map`
 
 `cuco::static_map` is a fixed-size hash table using open addressing with linear probing. See the Doxygen documentation in `static_map.cuh` for more detailed information.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/ervPzqh64))
-- [Device-view APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/device_view_example.cu) (see [live example in godbolt](https://godbolt.org/z/qMWrfE6ET))
-- [Custom data types, key equality operators and hash functions](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/custom_type_example.cu) (see [live example in godbolt](https://godbolt.org/z/oGfYjzMGT))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/T49P85Mnd))
+- [Device-view APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/device_view_example.cu) (see [live example in godbolt](https://godbolt.org/z/dh8bMn3G1))
+- [Custom data types, key equality operators and hash functions](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/custom_type_example.cu) (see [live example in godbolt](https://godbolt.org/z/7djKevK6e))
+- [Key histogram](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/count_by_key_example.cu) (see [live example in godbolt](https://godbolt.org/z/vecGeYM48))
 
 ### `static_multimap`
 
 `cuco::static_multimap` is a fixed-size hash table that supports storing equivalent keys. It uses double hashing by default and supports switching to linear probing. See the Doxygen documentation in `static_multimap.cuh` for more detailed information.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_multimap/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/Po4eTEn1a))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_multimap/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/PrbqG6ae4))
 
 ### `dynamic_map`
 

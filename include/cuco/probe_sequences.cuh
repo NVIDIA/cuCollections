@@ -60,7 +60,7 @@ class linear_probing : public detail::probe_sequence_base<CGSize> {
  * @tparam Hash1 Unary callable type
  * @tparam Hash2 Unary callable type
  */
-template <uint32_t CGSize, typename Hash1, typename Hash2>
+template <uint32_t CGSize, typename Hash1, typename Hash2 = Hash1>
 class double_hashing : public detail::probe_sequence_base<CGSize> {
  public:
   using probe_sequence_base_type =

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,9 +14,23 @@
  * limitations under the License.
  */
 
- #pragma once
+#pragma once
 
- #include <nv/target>
+#include <nv/target>
+
+#if !defined(__CUDACC_VER_MAJOR__) || !defined(__CUDACC_VER_MINOR__)
+#error "NVCC version not found"
+#elif __CUDACC_VER_MAJOR__ < 11 || (__CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ < 5)
+#error "NVCC version 11.5 or later is required"
+#endif
+
+#if !defined(__CUDACC_RELAXED_CONSTEXPR__)
+#error "Support for relaxed constexpr is required"
+#endif
+
+#if !defined(__CUDACC_EXTENDED_LAMBDA__)
+#error "Support for extended device lambdas is required"
+#endif
 
 // WAR for libcudacxx/296
 #define CUCO_CUDA_MINIMUM_ARCH _NV_FIRST_ARG(__CUDA_ARCH_LIST__)
@@ -25,10 +39,14 @@
 #define CUCO_HAS_CUDA_BARRIER
 #endif
 
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11100)
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11010)
 #define CUCO_HAS_CG_MEMCPY_ASYNC
 #endif
 
 #if (CUCO_CUDA_MINIMUM_ARCH >= 700)
 #define CUCO_HAS_INDEPENDENT_THREADS
+#endif
+
+#if defined(__SIZEOF_INT128__)
+#define CUCO_HAS_INT128
 #endif
