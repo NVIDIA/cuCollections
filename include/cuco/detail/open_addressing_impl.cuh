@@ -34,6 +34,8 @@
 
 #include <cuda/atomic>
 
+#include <cmath>
+
 namespace cuco {
 namespace experimental {
 namespace detail {
@@ -175,7 +177,7 @@ class open_addressing_impl {
       predicate_{pred},
       probing_scheme_{probing_scheme},
       storage_{make_window_extent<open_addressing_impl>(
-                 static_cast<size_type>(static_cast<double>(n) / desired_load_factor)),
+                 static_cast<size_type>(std::ceil(static_cast<double>(n) / desired_load_factor))),
                alloc}
   {
     CUCO_EXPECTS(desired_load_factor > 0., "Desired occupancy must be larger than zero");
