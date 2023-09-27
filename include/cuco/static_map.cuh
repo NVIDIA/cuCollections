@@ -198,6 +198,9 @@ class static_map {
    * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
    * stream before the object is first used.
    *
+   * @throw If the desired occupancy is no bigger than zero
+   * @throw If the desired occupancy is no smaller than one
+   *
    * @param n The number of elements to insert
    * @param desired_load_factor The desired load factor of the container, e.g., 0.5 implies a 50%
    * load factor

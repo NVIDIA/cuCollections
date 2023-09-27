@@ -152,7 +152,7 @@ class open_addressing_impl {
    * @note Static extent will become dynamic extent by invoking this constructor.
    *
    * @throw If the desired occupancy is no bigger than zero
-   * @throw If the desired occupancy is larger than one
+   * @throw If the desired occupancy is no smaller than one
    *
    * @param n The number of elements to insert
    * @param desired_load_factor The desired load factor of the container, e.g., 0.5 implies a 50%
@@ -181,7 +181,7 @@ class open_addressing_impl {
                alloc}
   {
     CUCO_EXPECTS(desired_load_factor > 0., "Desired occupancy must be larger than zero");
-    CUCO_EXPECTS(desired_load_factor <= 1., "Desired occupancy cannot be larger than one");
+    CUCO_EXPECTS(desired_load_factor < 1., "Desired occupancy must be smaller than one");
 
     this->clear_async(stream);
   }
