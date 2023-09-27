@@ -76,7 +76,7 @@ __global__ void insert_if_n(InputIterator first,
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
-      typename Ref::value_type const insert_element{*(first + idx)};
+      auto const insert_element{*(first + idx)};
       if constexpr (CGSize == 1) {
         if (ref.insert(insert_element)) { thread_num_successes++; };
       } else {
@@ -134,7 +134,7 @@ __global__ void insert_if_n(
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
-      typename Ref::value_type const insert_element{*(first + idx)};
+      auto const insert_element{*(first + idx)};
       if constexpr (CGSize == 1) {
         ref.insert(insert_element);
       } else {
