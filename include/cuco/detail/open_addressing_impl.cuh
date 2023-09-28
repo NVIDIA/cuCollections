@@ -147,9 +147,9 @@ class open_addressing_impl {
    * than the capacity of the container results in undefined behavior.
    * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
    * this sentinel value.
-   * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
-   * stream before the object is first used.
-   * @note Static extent will become dynamic extent by invoking this constructor.
+   * @note This constructor doesn't synchronize the given stream.
+   * @note This overload will convert compile-time extents to runtime constants which might lead to
+   * performance regressions.
    *
    * @throw If the desired occupancy is no bigger than zero
    * @throw If the desired occupancy is no smaller than one
