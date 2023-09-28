@@ -183,14 +183,17 @@ class static_map {
                        cuda_stream_ref stream              = {});
 
   /**
-   * @brief Constructs a statically-sized map with the number of elements to insert, sentinel
-   * values, the desired load factor, and CUDA stream
+   * @brief Constructs a statically-sized map with the number of elements to insert `n`, the desired
+   * load factor, etc
    *
-   * The actual map capacity depends on the given `n`, the probing scheme, CG size, the desired load
-   * factor and the window size and it is computed via the `make_window_extent` factory. Insert
-   * operations will not automatically grow the map. Attempting to insert more unique keys than the
-   * capacity of the map results in undefined behavior.
-   *
+   * @note This constructor helps users create a map based on the number of elements to insert and
+   * the desired load factor without manually computing the desired capacity. The actual map
+   * capacity will be a size no smaller than `ceil(n / desired_load_factor)`. It's determined by
+   * multiple factors including the given `n`, the desired load factor, the probing scheme, the CG
+   * size, and the window size and is computed via the `make_window_extent` factory.
+   * @note Insert operations will not automatically grow the container.
+   * @note Attempting to insert more unique keys than the capacity of the container results in
+   * undefined behavior.
    * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
    * this sentinel value.
    * @note This constructor doesn't synchronize the given stream.
