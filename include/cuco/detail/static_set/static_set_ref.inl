@@ -132,7 +132,8 @@ class operator_impl<op::insert_tag,
    *
    * @return True if the given element is successfully inserted
    */
-  __device__ bool insert(value_type const& value) noexcept
+  template <typename Value>
+  __device__ bool insert(Value const& value) noexcept
   {
     ref_type& ref_             = static_cast<ref_type&>(*this);
     auto constexpr has_payload = false;
@@ -147,8 +148,9 @@ class operator_impl<op::insert_tag,
    *
    * @return True if the given element is successfully inserted
    */
+  template <typename Value>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
-                         value_type const& value) noexcept
+                         Value const& value) noexcept
   {
     auto& ref_                 = static_cast<ref_type&>(*this);
     auto constexpr has_payload = false;
@@ -208,12 +210,15 @@ class operator_impl<op::insert_and_find_tag,
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
    * @param value The element to insert
    *
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
+  template <typename Value>
+  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
   {
     ref_type& ref_             = static_cast<ref_type&>(*this);
     auto constexpr has_payload = false;
@@ -227,14 +232,17 @@ class operator_impl<op::insert_and_find_tag,
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
    *
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
+  template <typename Value>
   __device__ thrust::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
+    cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
   {
     ref_type& ref_             = static_cast<ref_type&>(*this);
     auto constexpr has_payload = false;

@@ -68,16 +68,16 @@ struct custom_hasher {
   template <typename CustomKey>
   __device__ uint32_t operator()(CustomKey const& k) const
   {
-    return thrust::raw_reference_cast(k).a;
+    return k.a;
   };
 };
 
 // User-defined device key equality
 struct custom_key_equal {
-  template <typename LHS, typename RHS>
-  __device__ bool operator()(LHS const& lhs, RHS const& rhs) const
+  template <typename SlotKey, typename InputKey>
+  __device__ bool operator()(SlotKey const& lhs, InputKey const& rhs) const
   {
-    return thrust::raw_reference_cast(lhs) == thrust::raw_reference_cast(rhs).a;
+    return lhs == rhs.a;
   }
 };
 
