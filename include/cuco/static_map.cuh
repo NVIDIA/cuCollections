@@ -197,8 +197,8 @@ class static_map {
    * this sentinel value.
    * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
    * stream before the object is first used.
-   * @note Static extent should not use this overload since it will convert all extents into a
-   * runtime constant.
+   * @note This overload will convert compile-time extents to runtime constants which might lead to
+   * performance regressions.
    *
    * @throw If the desired occupancy is no bigger than zero
    * @throw If the desired occupancy is no smaller than one
