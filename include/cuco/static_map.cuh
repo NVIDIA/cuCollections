@@ -85,7 +85,6 @@ namespace experimental {
  * @tparam Allocator Type of allocator used for device storage
  * @tparam Storage Slot window storage type
  */
-
 template <class Key,
           class T,
           class Extent             = cuco::experimental::extent<std::size_t>,
@@ -165,8 +164,7 @@ class static_map {
    *
    * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
    * this sentinel value.
-   * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
-   * stream before the object is first used.
+   * @note This constructor doesn't synchronize the given stream.
    *
    * @param capacity The requested lower-bound map size
    * @param empty_key_sentinel The reserved key value for empty slots
@@ -195,8 +193,7 @@ class static_map {
    *
    * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
    * this sentinel value.
-   * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
-   * stream before the object is first used.
+   * @note This constructor doesn't synchronize the given stream.
    * @note This overload will convert compile-time extents to runtime constants which might lead to
    * performance regressions.
    *
