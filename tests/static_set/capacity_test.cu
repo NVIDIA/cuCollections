@@ -76,6 +76,36 @@ TEST_CASE("Static set capacity", "")
     REQUIRE(ref_capacity == gold_capacity);
   }
 
+  SECTION("Set can be constructed from plain integer.")
+  {
+    auto constexpr gold_capacity = 422;  // 211 x 2
+
+    cuco::experimental::
+      static_set<Key, std::size_t, cuda::thread_scope_device, Equal, ProbeT, AllocatorT, StorageT>
+        set{num_keys, cuco::empty_key<Key>{-1}};
+    auto const capacity = set.capacity();
+    REQUIRE(capacity == gold_capacity);
+
+    auto ref                = set.ref(cuco::experimental::insert);
+    auto const ref_capacity = ref.capacity();
+    REQUIRE(ref_capacity == gold_capacity);
+  }
+
+  SECTION("Set can be constructed from plain integer and load factor.")
+  {
+    auto constexpr gold_capacity = 502;  // 251 x 2
+
+    cuco::experimental::
+      static_set<Key, std::size_t, cuda::thread_scope_device, Equal, ProbeT, AllocatorT, StorageT>
+        set{num_keys, 0.8, cuco::empty_key<Key>{-1}};
+    auto const capacity = set.capacity();
+    REQUIRE(capacity == gold_capacity);
+
+    auto ref                = set.ref(cuco::experimental::insert);
+    auto const ref_capacity = ref.capacity();
+    REQUIRE(ref_capacity == gold_capacity);
+  }
+
   SECTION("Dynamic extent is evaluated at run time.")
   {
     auto constexpr gold_capacity = 412;  // 103 x 2 x 2

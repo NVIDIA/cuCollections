@@ -62,6 +62,35 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  static_map(Extent n,
+             double desired_load_factor,
+             empty_key<Key> empty_key_sentinel,
+             empty_value<T> empty_value_sentinel,
+             KeyEqual const& pred,
+             ProbingScheme const& probing_scheme,
+             Allocator const& alloc,
+             cuda_stream_ref stream)
+  : impl_{std::make_unique<impl_type>(n,
+                                      desired_load_factor,
+                                      empty_key_sentinel,
+                                      cuco::pair{empty_key_sentinel, empty_value_sentinel},
+                                      pred,
+                                      probing_scheme,
+                                      alloc,
+                                      stream)},
+    empty_value_sentinel_{empty_value_sentinel}
+{
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear(
   cuda_stream_ref stream) noexcept
 {
