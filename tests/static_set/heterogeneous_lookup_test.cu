@@ -42,7 +42,7 @@ struct key_pair {
   // https://github.com/NVIDIA/libcudacxx/issues/223
   __device__ bool operator==(key_pair const& other) const { return a == other.a and b == other.b; }
 
-  __device__ operator T() const noexcept { return a; }
+  __device__ explicit operator T() const noexcept { return a; }
 };
 
 // probe key type

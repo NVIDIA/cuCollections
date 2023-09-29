@@ -78,7 +78,7 @@ __global__ void insert_if_n(InputIt first,
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
-      typename std::iterator_traits<InputIt>::value_type const insert_element{*(first + idx)};
+      typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};
       if constexpr (CGSize == 1) {
         if (ref.insert(insert_element)) { thread_num_successes++; };
       } else {
@@ -136,7 +136,7 @@ __global__ void insert_if_n(
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
-      typename std::iterator_traits<InputIt>::value_type const insert_element{*(first + idx)};
+      typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};
       if constexpr (CGSize == 1) {
         ref.insert(insert_element);
       } else {
@@ -200,7 +200,7 @@ __global__ void contains_if_n(InputIt first,
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
     if constexpr (CGSize == 1) {
       if (idx < n) {
-        auto const key = *(first + idx);
+        typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
         /*
          * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased
          * sector stores from L2 to global memory. By writing results to shared memory and then

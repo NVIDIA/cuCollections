@@ -64,7 +64,7 @@ __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_
 
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
     if (idx < n) {
-      typename std::iterator_traits<InputIt>::value_type const key = *(first + idx);
+      typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
       if constexpr (CGSize == 1) {
         auto const found = ref.find(key);
         /*

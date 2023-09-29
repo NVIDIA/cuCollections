@@ -312,8 +312,7 @@ class open_addressing_ref_impl {
         if (eq_res == detail::equal_result::EQUAL) { return {iterator{&window_ptr[i]}, false}; }
         if (eq_res == detail::equal_result::EMPTY) {
           switch ([&]() {
-            if constexpr ((sizeof(value_type) <= 8) and
-                          cuda::std::is_convertible_v<Value, value_type>) {
+            if constexpr (sizeof(value_type) <= 8) {
               return packed_cas<HasPayload>(window_ptr + i, value, predicate);
             } else {
               return cas_dependent_write(window_ptr + i, value, predicate);
@@ -776,14 +775,14 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ constexpr insert_result back_to_back_cas(
     value_type* slot, Value const& value, Predicate const& predicate) noexcept
   {
+    using mapped_type = decltype(this->empty_slot_sentinel_.second);
+
     auto const expected_key     = this->empty_slot_sentinel_.first;
     auto const expected_payload = this->empty_slot_sentinel_.second;
 
-    auto old_key = compare_and_swap(&slot->first, expected_key, value.first);  // TODO static_cast?
+    auto old_key = compare_and_swap(&slot->first, expected_key, static_cast<key_type>(value.first));
     auto old_payload =
-      compare_and_swap(&slot->second, expected_payload, value.second);  // TODO static_cast?
-
-    using mapped_type = decltype(expected_payload);
+      compare_and_swap(&slot->second, expected_payload, static_cast<mapped_type>(value.second));
 
     auto* old_key_ptr     = reinterpret_cast<key_type*>(&old_key);
     auto* old_payload_ptr = reinterpret_cast<mapped_type*>(&old_payload);
@@ -792,7 +791,7 @@ class open_addressing_ref_impl {
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
       while (not cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
         old_payload =
-          compare_and_swap(&slot->second, expected_payload, value.second);  // TODO static_cast?
+          compare_and_swap(&slot->second, expected_payload, static_cast<mapped_type>(value.second));
       }
       return insert_result::SUCCESS;
     } else if (cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
@@ -824,15 +823,17 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(
     value_type* slot, Value const& value, Predicate const& predicate) noexcept
   {
+    using mapped_type = decltype(this->empty_slot_sentinel_.second);
+
     auto const expected_key = this->empty_slot_sentinel_.first;
 
-    auto old_key = compare_and_swap(&slot->first, expected_key, value.first);  // TODO static_cast?
+    auto old_key = compare_and_swap(&slot->first, expected_key, static_cast<key_type>(value.first));
 
     auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
 
     // if key success
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
-      atomic_store(&slot->second, value.second);
+      atomic_store(&slot->second, static_cast<mapped_type>(value.second));
       return insert_result::SUCCESS;
     }
 
@@ -866,7 +867,7 @@ class open_addressing_ref_impl {
                                                         Value const& value,
                                                         Predicate const& predicate) noexcept
   {
-    if constexpr ((sizeof(value_type) <= 8) and cuda::std::is_convertible_v<Value, value_type>) {
+    if constexpr (sizeof(value_type) <= 8) {
       return packed_cas<HasPayload>(slot, value, predicate);
     } else {
 #if (_CUDA_ARCH__ < 700)
