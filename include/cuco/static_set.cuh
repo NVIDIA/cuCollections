@@ -79,7 +79,6 @@ namespace experimental {
  * @tparam Allocator Type of allocator used for device storage
  * @tparam Storage Slot window storage type
  */
-
 template <class Key,
           class Extent             = cuco::experimental::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
@@ -131,7 +130,7 @@ class static_set {
 
   /**
    * @brief Constructs a statically-sized set with the specified initial capacity, sentinel values
-   * and CUDA stream.
+   * and CUDA stream
    *
    * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
    * window size and it is computed via the `make_window_extent` factory. Insert operations will not
@@ -140,8 +139,7 @@ class static_set {
    *
    * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
    * this sentinel value.
-   * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
-   * stream before the object is first used.
+   * @note This constructor doesn't synchronize the given stream.
    *
    * @param capacity The requested lower-bound set size
    * @param empty_key_sentinel The reserved key value for empty slots
@@ -151,6 +149,44 @@ class static_set {
    * @param stream CUDA stream used to initialize the set
    */
   constexpr static_set(Extent capacity,
+                       empty_key<Key> empty_key_sentinel,
+                       KeyEqual const& pred                = {},
+                       ProbingScheme const& probing_scheme = {},
+                       Allocator const& alloc              = {},
+                       cuda_stream_ref stream              = {});
+
+  /**
+   * @brief Constructs a statically-sized map with the number of elements to insert `n`, the desired
+   * load factor, etc
+   *
+   * @note This constructor helps users create a set based on the number of elements to insert and
+   * the desired load factor without manually computing the desired capacity. The actual set
+   * capacity will be a size no smaller than `ceil(n / desired_load_factor)`. It's determined by
+   * multiple factors including the given `n`, the desired load factor, the probing scheme, the CG
+   * size, and the window size and is computed via the `make_window_extent` factory.
+   * @note Insert operations will not automatically grow the container.
+   * @note Attempting to insert more unique keys than the capacity of the container results in
+   * undefined behavior.
+   * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
+   * this sentinel value.
+   * @note This constructor doesn't synchronize the given stream.
+   * @note This overload will convert compile-time extents to runtime constants which might lead to
+   * performance regressions.
+   *
+   * @throw If the desired occupancy is no bigger than zero
+   * @throw If the desired occupancy is no smaller than one
+   *
+   * @param n The number of elements to insert
+   * @param desired_load_factor The desired load factor of the container, e.g., 0.5 implies a 50%
+   * load factor
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param pred Key equality binary predicate
+   * @param probing_scheme Probing scheme
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the set
+   */
+  constexpr static_set(Extent n,
+                       double desired_load_factor,
                        empty_key<Key> empty_key_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
