@@ -214,7 +214,7 @@ __global__ void contains_if_n(InputIt first,
     } else {
       auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
       if (idx < n) {
-        typename std::iterator_traits<InputIt>::value_type const key = *(first + idx);
+        typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
         auto const found = pred(*(stencil + idx)) ? ref.contains(tile, key) : false;
         if (tile.thread_rank() == 0) { *(output_begin + idx) = found; }
       }
