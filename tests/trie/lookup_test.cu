@@ -34,19 +34,17 @@ template <typename KeyType>
 void generate_keys(thrust::host_vector<KeyType>& keys,
                    thrust::host_vector<size_t>& offsets,
                    size_t num_keys,
-                   size_t max_key_value,
                    size_t max_key_length)
 {
   for (size_t key_id = 0; key_id < num_keys; key_id++) {
     size_t cur_key_length = 1 + (std::rand() % max_key_length);
     offsets.push_back(cur_key_length);
     for (size_t pos = 0; pos < cur_key_length; pos++) {
-      keys.push_back(1 + (std::rand() % max_key_value));
+      keys.push_back(std::rand());
     }
   }
 
-  // Add a dummy 0 to simplify subsequent scan
-  offsets.push_back(0);
+  offsets.push_back(0);  // Extend size by 1 for subsequent scan
   thrust::exclusive_scan(offsets.begin(), offsets.end(), offsets.begin());  // in-place scan
 }
 
@@ -55,12 +53,11 @@ TEST_CASE("Lookup test", "")
   using KeyType = int;
 
   std::size_t num_keys       = 64 * 1024;
-  std::size_t max_key_value  = 1000;
-  std::size_t max_key_length = 32;
+  std::size_t max_key_length = 6;
   thrust::host_vector<KeyType> keys;
   thrust::host_vector<size_t> offsets;
 
-  generate_keys(keys, offsets, num_keys, max_key_value, max_key_length);
+  generate_keys(keys, offsets, num_keys, max_key_length);
 
   cuco::experimental::trie<KeyType> trie;
 
@@ -75,7 +72,7 @@ TEST_CASE("Lookup test", "")
     }
 
     struct vectorKeyCompare {
-      bool operator()(const std::vector<KeyType>& lhs, const std::vector<KeyType>& rhs)
+      bool operator()(const std::vector<KeyType>& lhs, const std::vector<KeyType>& rhs) const
       {
         for (size_t pos = 0; pos < min(lhs.size(), rhs.size()); pos++) {
           if (lhs[pos] < rhs[pos]) {
@@ -92,9 +89,9 @@ TEST_CASE("Lookup test", "")
     for (auto key : all_keys) {
       trie.insert(key);
     }
-  }
 
-  trie.build();
+    trie.build();
+  }
 
   {
     thrust::device_vector<size_t> lookup_result(num_keys, -1lu);
