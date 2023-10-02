@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/open_addressing_ref_impl.cuh>
+#include <cuco/detail/open_addressing_impl/open_addressing_ref_impl.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/operator.hpp>
 #include <cuco/probing_scheme.cuh>

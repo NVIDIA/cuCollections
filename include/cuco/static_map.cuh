@@ -18,7 +18,7 @@
 
 #include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/__config>
-#include <cuco/detail/open_addressing_impl.cuh>
+#include <cuco/detail/open_addressing_impl/open_addressing_impl.cuh>
 #include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/pair.cuh>
