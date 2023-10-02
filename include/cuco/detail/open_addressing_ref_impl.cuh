@@ -155,6 +155,7 @@ class open_addressing_ref_impl {
    * @brief Inserts an element.
    *
    * @tparam HasPayload Boolean indicating it's a set or map implementation
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
    * @tparam Predicate Predicate type
    *
    * @param value The element to insert
@@ -162,8 +163,8 @@ class open_addressing_ref_impl {
    *
    * @return True if the given element is successfully inserted
    */
-  template <bool HasPayload, typename Predicate>
-  __device__ bool insert(value_type const& value, Predicate const& predicate) noexcept
+  template <bool HasPayload, typename Value, typename Predicate>
+  __device__ bool insert(Value const& value, Predicate const& predicate) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
@@ -202,6 +203,7 @@ class open_addressing_ref_impl {
    * @brief Inserts an element.
    *
    * @tparam HasPayload Boolean indicating it's a set or map implementation
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
    * @tparam Predicate Predicate type
    *
    * @param group The Cooperative Group used to perform group insert
@@ -210,9 +212,9 @@ class open_addressing_ref_impl {
    *
    * @return True if the given element is successfully inserted
    */
-  template <bool HasPayload, typename Predicate>
+  template <bool HasPayload, typename Value, typename Predicate>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
-                         value_type const& value,
+                         Value const& value,
                          Predicate const& predicate) noexcept
   {
     auto const key = [&]() {
@@ -275,6 +277,7 @@ class open_addressing_ref_impl {
    * not.
    *
    * @tparam HasPayload Boolean indicating it's a set or map implementation
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
    * @tparam Predicate Predicate type
    *
    * @param value The element to insert
@@ -283,8 +286,8 @@ class open_addressing_ref_impl {
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <bool HasPayload, typename Predicate>
-  __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value,
+  template <bool HasPayload, typename Value, typename Predicate>
+  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value,
                                                           Predicate const& predicate) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
@@ -337,6 +340,7 @@ class open_addressing_ref_impl {
    * not.
    *
    * @tparam HasPayload Boolean indicating it's a set or map implementation
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
    * @tparam Predicate Predicate type
    *
    * @param group The Cooperative Group used to perform group insert_and_find
@@ -346,10 +350,10 @@ class open_addressing_ref_impl {
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <bool HasPayload, typename Predicate>
+  template <bool HasPayload, typename Value, typename Predicate>
   __device__ thrust::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group,
-    value_type const& value,
+    Value const& value,
     Predicate const& predicate) noexcept
   {
     auto const key = [&]() {
@@ -712,6 +716,7 @@ class open_addressing_ref_impl {
    * @brief Inserts the specified element with one single CAS operation.
    *
    * @tparam HasPayload Boolean indicating it's a set or map implementation
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
    * @tparam Predicate Predicate type
    *
    * @param slot Pointer to the slot in memory
@@ -720,12 +725,12 @@ class open_addressing_ref_impl {
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  template <bool HasPayload, typename Predicate>
+  template <bool HasPayload, typename Value, typename Predicate>
   [[nodiscard]] __device__ constexpr insert_result packed_cas(value_type* slot,
-                                                              value_type const& value,
+                                                              Value const& value,
                                                               Predicate const& predicate) noexcept
   {
-    auto old            = compare_and_swap(slot, this->empty_slot_sentinel_, value);
+    auto old = compare_and_swap(slot, this->empty_slot_sentinel_, static_cast<value_type>(value));
     auto* old_ptr       = reinterpret_cast<value_type*>(&old);
     auto const inserted = [&]() {
       if constexpr (HasPayload) {
@@ -757,6 +762,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts the specified element with two back-to-back CAS operations.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
    * @tparam Predicate Predicate type
    *
    * @param slot Pointer to the slot in memory
@@ -765,17 +771,18 @@ class open_addressing_ref_impl {
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  template <typename Predicate>
+  template <typename Value, typename Predicate>
   [[nodiscard]] __device__ constexpr insert_result back_to_back_cas(
-    value_type* slot, value_type const& value, Predicate const& predicate) noexcept
+    value_type* slot, Value const& value, Predicate const& predicate) noexcept
   {
+    using mapped_type = decltype(this->empty_slot_sentinel_.second);
+
     auto const expected_key     = this->empty_slot_sentinel_.first;
     auto const expected_payload = this->empty_slot_sentinel_.second;
 
-    auto old_key     = compare_and_swap(&slot->first, expected_key, value.first);
-    auto old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
-
-    using mapped_type = decltype(expected_payload);
+    auto old_key = compare_and_swap(&slot->first, expected_key, static_cast<key_type>(value.first));
+    auto old_payload =
+      compare_and_swap(&slot->second, expected_payload, static_cast<mapped_type>(value.second));
 
     auto* old_key_ptr     = reinterpret_cast<key_type*>(&old_key);
     auto* old_payload_ptr = reinterpret_cast<mapped_type*>(&old_payload);
@@ -783,7 +790,8 @@ class open_addressing_ref_impl {
     // if key success
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
       while (not cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
-        old_payload = compare_and_swap(&slot->second, expected_payload, value.second);
+        old_payload =
+          compare_and_swap(&slot->second, expected_payload, static_cast<mapped_type>(value.second));
       }
       return insert_result::SUCCESS;
     } else if (cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
@@ -802,6 +810,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts the specified element with CAS-dependent write operations.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
    * @tparam Predicate Predicate type
    *
    * @param slot Pointer to the slot in memory
@@ -810,19 +819,21 @@ class open_addressing_ref_impl {
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  template <typename Predicate>
+  template <typename Value, typename Predicate>
   [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(
-    value_type* slot, value_type const& value, Predicate const& predicate) noexcept
+    value_type* slot, Value const& value, Predicate const& predicate) noexcept
   {
+    using mapped_type = decltype(this->empty_slot_sentinel_.second);
+
     auto const expected_key = this->empty_slot_sentinel_.first;
 
-    auto old_key = compare_and_swap(&slot->first, expected_key, value.first);
+    auto old_key = compare_and_swap(&slot->first, expected_key, static_cast<key_type>(value.first));
 
     auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
 
     // if key success
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
-      atomic_store(&slot->second, value.second);
+      atomic_store(&slot->second, static_cast<mapped_type>(value.second));
       return insert_result::SUCCESS;
     }
 
@@ -842,6 +853,7 @@ class open_addressing_ref_impl {
    * type and presence of other operator mixins.
    *
    * @tparam HasPayload Boolean indicating it's a set or map implementation
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
    * @tparam Predicate Predicate type
    *
    * @param slot Pointer to the slot in memory
@@ -850,9 +862,9 @@ class open_addressing_ref_impl {
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  template <bool HasPayload, typename Predicate>
+  template <bool HasPayload, typename Value, typename Predicate>
   [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot,
-                                                        value_type const& value,
+                                                        Value const& value,
                                                         Predicate const& predicate) noexcept
   {
     if constexpr (sizeof(value_type) <= 8) {

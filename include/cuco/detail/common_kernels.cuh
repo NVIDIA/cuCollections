@@ -23,6 +23,8 @@
 
 #include <cooperative_groups.h>
 
+#include <iterator>
+
 namespace cuco {
 namespace experimental {
 namespace detail {
@@ -37,7 +39,7 @@ namespace detail {
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
- * @tparam InputIterator Device accessible input iterator whose `value_type` is
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
  * @tparam StencilIt Device accessible random access iterator whose value_type is
  * convertible to Predicate's argument type
@@ -55,12 +57,12 @@ namespace detail {
  */
 template <int32_t CGSize,
           int32_t BlockSize,
-          typename InputIterator,
+          typename InputIt,
           typename StencilIt,
           typename Predicate,
           typename AtomicT,
           typename Ref>
-__global__ void insert_if_n(InputIterator first,
+__global__ void insert_if_n(InputIt first,
                             cuco::detail::index_type n,
                             StencilIt stencil,
                             Predicate pred,
@@ -76,7 +78,7 @@ __global__ void insert_if_n(InputIterator first,
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
-      typename Ref::value_type const insert_element{*(first + idx)};
+      typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};
       if constexpr (CGSize == 1) {
         if (ref.insert(insert_element)) { thread_num_successes++; };
       } else {
@@ -106,7 +108,7 @@ __global__ void insert_if_n(InputIterator first,
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
- * @tparam InputIterator Device accessible input iterator whose `value_type` is
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
  * @tparam StencilIt Device accessible random access iterator whose value_type is
  * convertible to Predicate's argument type
@@ -122,19 +124,19 @@ __global__ void insert_if_n(InputIterator first,
  */
 template <int32_t CGSize,
           int32_t BlockSize,
-          typename InputIterator,
+          typename InputIt,
           typename StencilIt,
           typename Predicate,
           typename Ref>
 __global__ void insert_if_n(
-  InputIterator first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
+  InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
-      typename Ref::value_type const insert_element{*(first + idx)};
+      typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};
       if constexpr (CGSize == 1) {
         ref.insert(insert_element);
       } else {
@@ -198,7 +200,7 @@ __global__ void contains_if_n(InputIt first,
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
     if constexpr (CGSize == 1) {
       if (idx < n) {
-        auto const key = *(first + idx);
+        typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
         /*
          * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased
          * sector stores from L2 to global memory. By writing results to shared memory and then
@@ -212,7 +214,7 @@ __global__ void contains_if_n(InputIt first,
     } else {
       auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
       if (idx < n) {
-        auto const key   = *(first + idx);
+        typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
         auto const found = pred(*(stencil + idx)) ? ref.contains(tile, key) : false;
         if (tile.thread_rank() == 0) { *(output_begin + idx) = found; }
       }
