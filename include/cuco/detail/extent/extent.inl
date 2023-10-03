@@ -103,12 +103,10 @@ template <int32_t CGSize, int32_t WindowSize, typename SizeType>
 namespace detail {
 
 template <typename...>
-struct is_window_extent : std::false_type {
-};
+struct is_window_extent : std::false_type {};
 
 template <typename SizeType, std::size_t N>
-struct is_window_extent<window_extent<SizeType, N>> : std::true_type {
-};
+struct is_window_extent<window_extent<SizeType, N>> : std::true_type {};
 
 template <typename T>
 inline constexpr bool is_window_extent_v = is_window_extent<T>::value;
