@@ -55,15 +55,16 @@ struct equal_wrapper {
   /**
    * @brief Equality check with the given equality callable.
    *
-   * @tparam U Right-hand side Element type
+   * @tparam LHS Left-hand side Element type
+   * @tparam RHS Right-hand side Element type
    *
    * @param lhs Left-hand side element to check equality
    * @param rhs Right-hand side element to check equality
    *
    * @return `EQUAL` if `lhs` and `rhs` are equivalent. `UNEQUAL` otherwise.
    */
-  template <typename U>
-  __device__ constexpr equal_result equal_to(T const& lhs, U const& rhs) const noexcept
+  template <typename LHS, typename RHS>
+  __device__ constexpr equal_result equal_to(LHS const& lhs, RHS const& rhs) const noexcept
   {
     return equal_(lhs, rhs) ? equal_result::EQUAL : equal_result::UNEQUAL;
   }
@@ -75,15 +76,16 @@ struct equal_wrapper {
    * first then perform a equality check with the given `equal_` callable, i.e., `equal_(lhs, rhs)`.
    * @note Container (like set or map) keys MUST be always on the left-hand side.
    *
-   * @tparam U Right-hand side Element type
+   * @tparam LHS Left-hand side Element type
+   * @tparam RHS Right-hand side Element type
    *
    * @param lhs Left-hand side element to check equality
    * @param rhs Right-hand side element to check equality
    *
    * @return Three way equality comparison result
    */
-  template <typename U>
-  __device__ constexpr equal_result operator()(T const& lhs, U const& rhs) const noexcept
+  template <typename LHS, typename RHS>
+  __device__ constexpr equal_result operator()(LHS const& lhs, RHS const& rhs) const noexcept
   {
     return cuco::detail::bitwise_compare(lhs, empty_sentinel_) ? equal_result::EMPTY
                                                                : this->equal_to(lhs, rhs);

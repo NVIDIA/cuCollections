@@ -41,6 +41,8 @@ struct key_pair {
   // Device equality operator is mandatory due to libcudacxx bug:
   // https://github.com/NVIDIA/libcudacxx/issues/223
   __device__ bool operator==(key_pair const& other) const { return a == other.a and b == other.b; }
+
+  __device__ explicit operator T() const noexcept { return a; }
 };
 
 // probe key type
@@ -66,23 +68,24 @@ struct custom_hasher {
   template <typename CustomKey>
   __device__ uint32_t operator()(CustomKey const& k) const
   {
-    return thrust::raw_reference_cast(k).a;
+    return k.a;
   };
 };
 
 // User-defined device key equality
 struct custom_key_equal {
-  template <typename LHS, typename RHS>
-  __device__ bool operator()(LHS const& lhs, RHS const& rhs) const
+  template <typename SlotKey, typename InputKey>
+  __device__ bool operator()(SlotKey const& lhs, InputKey const& rhs) const
   {
-    return thrust::raw_reference_cast(lhs).a == thrust::raw_reference_cast(rhs).a;
+    return lhs == rhs.a;
   }
 };
 
 TEMPLATE_TEST_CASE_SIG(
   "Heterogeneous lookup", "", ((typename T, int CGSize), T, CGSize), (int32_t, 1), (int32_t, 2))
 {
-  using Key        = key_pair<T>;
+  using Key        = T;
+  using InsertKey  = key_pair<T>;
   using ProbeKey   = key_triplet<T>;
   using probe_type = cuco::experimental::double_hashing<CGSize, custom_hasher, custom_hasher>;
 
@@ -98,15 +101,15 @@ TEMPLATE_TEST_CASE_SIG(
                                                probe_type>{
     capacity, cuco::empty_key<Key>{sentinel_key}, custom_key_equal{}, probe};
 
-  auto insert_pairs = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
-                                                      [] __device__(auto i) { return Key{i}; });
-  auto probe_keys   = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
+  auto insert_keys = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0), [] __device__(auto i) { return InsertKey(i); });
+  auto probe_keys = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
                                                     [] __device__(auto i) { return ProbeKey(i); });
 
   SECTION("All inserted keys should be contained")
   {
     thrust::device_vector<bool> contained(num);
-    my_set.insert(insert_pairs, insert_pairs + num);
+    my_set.insert(insert_keys, insert_keys + num);
     my_set.contains(probe_keys, probe_keys + num, contained.begin());
     REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
   }

@@ -69,6 +69,7 @@ ConfigureTest(STATIC_SET_TEST
 ###################################################################################################
 # - static_map tests ------------------------------------------------------------------------------
 ConfigureTest(STATIC_MAP_TEST
+    static_map/capacity_test.cu
     static_map/custom_type_test.cu
     static_map/duplicate_keys_test.cu
     static_map/erase_test.cu

@@ -52,6 +52,26 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+template <typename... OtherOperators>
+__host__ __device__ constexpr static_set_ref<Key,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
+                                             Operators...>::
+  static_set_ref(
+    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, OtherOperators...>&&
+      other) noexcept
+  : impl_{std::move(other.impl_)}, predicate_{std::move(other.predicate_)}
+{
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 __host__ __device__ constexpr auto
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
   const noexcept
@@ -70,6 +90,20 @@ static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::e
   const noexcept
 {
   return predicate_.empty_sentinel_;
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename... NewOperators>
+auto static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
+  NewOperators...) && noexcept
+{
+  return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>(
+    std::move(*this));
 }
 
 namespace detail {
@@ -94,31 +128,35 @@ class operator_impl<op::insert_tag,
   /**
    * @brief Inserts an element.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
    * @param value The element to insert
    *
    * @return True if the given element is successfully inserted
    */
-  __device__ bool insert(value_type const& value) noexcept
+  template <typename Value>
+  __device__ bool insert(Value const& value) noexcept
   {
-    ref_type& ref_             = static_cast<ref_type&>(*this);
-    auto constexpr has_payload = true;
-    return ref_.impl_.insert<has_payload>(value, value, ref_.predicate_);
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.insert(value, ref_.predicate_);
   }
 
   /**
    * @brief Inserts an element.
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    *
    * @return True if the given element is successfully inserted
    */
+  template <typename Value>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
-                         value_type const& value) noexcept
+                         Value const& value) noexcept
   {
-    auto& ref_                 = static_cast<ref_type&>(*this);
-    auto constexpr has_payload = true;
-    return ref_.impl_.insert<has_payload>(group, value, value, ref_.predicate_);
+    auto& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.insert(group, value, ref_.predicate_);
   }
 };
 
@@ -174,16 +212,18 @@ class operator_impl<op::insert_and_find_tag,
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
    * @param value The element to insert
    *
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
+  template <typename Value>
+  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
   {
-    ref_type& ref_             = static_cast<ref_type&>(*this);
-    auto constexpr has_payload = true;
-    return ref_.impl_.insert_and_find<has_payload>(value, value, ref_.predicate_);
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.insert_and_find(value, ref_.predicate_);
   }
 
   /**
@@ -193,18 +233,20 @@ class operator_impl<op::insert_and_find_tag,
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
    *
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
+  template <typename Value>
   __device__ thrust::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
+    cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
   {
-    ref_type& ref_             = static_cast<ref_type&>(*this);
-    auto constexpr has_payload = true;
-    return ref_.impl_.insert_and_find<has_payload>(group, value, value, ref_.predicate_);
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.insert_and_find(group, value, ref_.predicate_);
   }
 };
 

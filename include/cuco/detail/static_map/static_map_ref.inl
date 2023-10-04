@@ -57,6 +57,30 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+template <typename... OtherOperators>
+__host__ __device__ constexpr static_map_ref<Key,
+                                             T,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
+                                             Operators...>::
+  static_map_ref(
+    static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, OtherOperators...>&&
+      other) noexcept
+  : impl_{std::move(other.impl_)},
+    predicate_{std::move(other.predicate_)},
+    empty_value_sentinel_{std::move(other.empty_value_sentinel_)}
+{
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 __host__ __device__ constexpr auto
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
   const noexcept
@@ -90,6 +114,21 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
   empty_value_sentinel() const noexcept
 {
   return empty_value_sentinel_;
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename... NewOperators>
+auto static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
+  NewOperators...) && noexcept
+{
+  return static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>(
+    std::move(*this));
 }
 
 template <typename Key,
@@ -209,9 +248,8 @@ class operator_impl<
    */
   __device__ bool insert(value_type const& value) noexcept
   {
-    ref_type& ref_             = static_cast<ref_type&>(*this);
-    auto constexpr has_payload = false;
-    return ref_.impl_.insert<has_payload>(value.first, value, ref_.predicate_);
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.insert(value, ref_.predicate_);
   }
 
   /**
@@ -224,9 +262,8 @@ class operator_impl<
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
                          value_type const& value) noexcept
   {
-    auto& ref_                 = static_cast<ref_type&>(*this);
-    auto constexpr has_payload = false;
-    return ref_.impl_.insert<has_payload>(group, value.first, value, ref_.predicate_);
+    auto& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.insert(group, value, ref_.predicate_);
   }
 };
 
@@ -453,9 +490,8 @@ class operator_impl<
    */
   __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
   {
-    ref_type& ref_             = static_cast<ref_type&>(*this);
-    auto constexpr has_payload = false;
-    return ref_.impl_.insert_and_find<has_payload>(value.first, value, ref_.predicate_);
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.insert_and_find(value, ref_.predicate_);
   }
 
   /**
@@ -474,9 +510,8 @@ class operator_impl<
   __device__ thrust::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
   {
-    ref_type& ref_             = static_cast<ref_type&>(*this);
-    auto constexpr has_payload = false;
-    return ref_.impl_.insert_and_find<has_payload>(group, value.first, value, ref_.predicate_);
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.insert_and_find(group, value, ref_.predicate_);
   }
 };
 

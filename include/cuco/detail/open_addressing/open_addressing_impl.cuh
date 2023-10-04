@@ -34,6 +34,8 @@
 
 #include <cuda/atomic>
 
+#include <cmath>
+
 namespace cuco {
 namespace experimental {
 namespace detail {
@@ -137,6 +139,59 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief Constructs a statically-sized open addressing data structure with the number of elements
+   * to insert `n`, the desired load factor, etc.
+   *
+   * @note This constructor helps users create a data structure based on the number of elements to
+   * insert and the desired load factor without manually computing the desired capacity. The actual
+   * capacity will be a size no smaller than `ceil(n / desired_load_factor)`. It's determined by
+   * multiple factors including the given `n`, the desired load factor, the probing scheme, the CG
+   * size, and the window size and is computed via the `make_window_extent` factory.
+   * @note Insert operations will not automatically grow the container.
+   * @note Attempting to insert more unique keys than the capacity of the container results in
+   * undefined behavior.
+   * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
+   * this sentinel value.
+   * @note This constructor doesn't synchronize the given stream.
+   * @note This overload will convert compile-time extents to runtime constants which might lead to
+   * performance regressions.
+   *
+   * @throw If the desired occupancy is no bigger than zero
+   * @throw If the desired occupancy is no smaller than one
+   *
+   * @param n The number of elements to insert
+   * @param desired_load_factor The desired load factor of the container, e.g., 0.5 implies a 50%
+   * load factor
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_slot_sentinel The reserved slot value for empty slots
+   * @param pred Key equality binary predicate
+   * @param probing_scheme Probing scheme
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the data structure
+   */
+  constexpr open_addressing_impl(Extent n,
+                                 double desired_load_factor,
+                                 Key empty_key_sentinel,
+                                 Value empty_slot_sentinel,
+                                 KeyEqual const& pred,
+                                 ProbingScheme const& probing_scheme,
+                                 Allocator const& alloc,
+                                 cuda_stream_ref stream)
+    : empty_key_sentinel_{empty_key_sentinel},
+      empty_slot_sentinel_{empty_slot_sentinel},
+      predicate_{pred},
+      probing_scheme_{probing_scheme},
+      storage_{make_window_extent<open_addressing_impl>(
+                 static_cast<size_type>(std::ceil(static_cast<double>(n) / desired_load_factor))),
+               alloc}
+  {
+    CUCO_EXPECTS(desired_load_factor > 0., "Desired occupancy must be larger than zero");
+    CUCO_EXPECTS(desired_load_factor < 1., "Desired occupancy must be smaller than one");
+
+    this->clear_async(stream);
+  }
+
+  /**
    * @brief Constructs a statically-sized open addressing data structure with the specified initial
    * capacity, sentinel values and CUDA stream.
    *
@@ -186,11 +241,7 @@ class open_addressing_impl {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuda_stream_ref stream) noexcept
-  {
-    this->clear_async(stream);
-    stream.synchronize();
-  }
+  void clear(cuda_stream_ref stream) noexcept { storage_.initialize(empty_slot_sentinel_, stream); }
 
   /**
    * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
@@ -200,7 +251,7 @@ class open_addressing_impl {
    */
   void clear_async(cuda_stream_ref stream) noexcept
   {
-    storage_.initialize(empty_slot_sentinel_, stream);
+    storage_.initialize_async(empty_slot_sentinel_, stream);
   }
 
   /**

@@ -17,9 +17,12 @@
 #pragma once
 
 #include <cuco/detail/equal_wrapper.cuh>
-#include <cuco/detail/open_addressing_ref_impl.cuh>
+#include <cuco/detail/open_addressing/open_addressing_ref_impl.cuh>
+#include <cuco/hash_functions.cuh>
 #include <cuco/operator.hpp>
+#include <cuco/probing_scheme.cuh>
 #include <cuco/sentinel.cuh>
+#include <cuco/storage.cuh>
 
 #include <cuda/std/atomic>
 
@@ -109,6 +112,18 @@ class static_set_ref
                                                         StorageRef storage_ref) noexcept;
 
   /**
+   * @brief Operator-agnostic move constructor.
+   *
+   * @tparam OtherOperators Operator set of the `other` object
+   *
+   * @param other Object to construct `*this` from
+   */
+  template <typename... OtherOperators>
+  __host__ __device__ explicit constexpr static_set_ref(
+    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, OtherOperators...>&&
+      other) noexcept;
+
+  /**
    * @brief Gets the maximum number of elements the container can hold.
    *
    * @return The maximum number of elements the container can hold
@@ -122,6 +137,23 @@ class static_set_ref
    */
   [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept;
 
+  /**
+   * @brief Creates a reference with new operators from the current object.
+   *
+   * Note that this function uses move semantics and thus invalidates the current object.
+   *
+   * @warning Using two or more reference objects to the same container but with
+   * a different operator set at the same time results in undefined behavior.
+   *
+   * @tparam NewOperators List of `cuco::op::*_tag` types
+   *
+   * @param ops List of operators, e.g., `cuco::insert`
+   *
+   * @return `*this` with `NewOperators...`
+   */
+  template <typename... NewOperators>
+  [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
+
  private:
   impl_type impl_;
   detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
@@ -129,6 +161,15 @@ class static_set_ref
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>
   friend class detail::operator_impl;
+
+  // Refs with other operator sets need to be friends too
+  template <typename Key_,
+            cuda::thread_scope Scope_,
+            typename KeyEqual_,
+            typename ProbingScheme_,
+            typename StorageRef_,
+            typename... Operators_>
+  friend class static_set_ref;
 };
 
 }  // namespace experimental

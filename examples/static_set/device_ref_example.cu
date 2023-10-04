@@ -26,6 +26,14 @@
 #include <cstddef>
 #include <iostream>
 
+/**
+ * @file device_reference_example.cu
+ * @brief Demonstrates usage of the static_set device-side APIs.
+ *
+ * static_set provides a non-owning reference which can be used to interact with
+ * the container from within device code.
+ */
+
 // insert a set of keys into a hash set using one cooperative group for each task
 template <typename SetRef, typename InputIterator>
 __global__ void custom_cooperative_insert(SetRef set, InputIterator keys, std::size_t n)
@@ -60,14 +68,6 @@ __global__ void custom_contains(SetRef set, InputIterator keys, std::size_t n, O
   }
 }
 
-/**
- * @file device_reference_example.cu
- * @brief Demonstrates usage of the static_set device-side APIs.
- *
- * static_set provides a non-owning reference which can be used to interact with
- * the container from within device code.
- *
- */
 int main(void)
 {
   using Key = int;
