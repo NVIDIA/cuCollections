@@ -17,7 +17,7 @@
 #pragma once
 
 #include <cuco/cuda_stream_ref.hpp>
-#include <cuco/detail/open_addressing_impl.cuh>
+#include <cuco/detail/open_addressing/open_addressing_impl.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/probing_scheme.cuh>
