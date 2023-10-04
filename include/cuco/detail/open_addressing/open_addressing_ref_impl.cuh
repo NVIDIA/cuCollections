@@ -21,7 +21,6 @@
 #include <cuco/extent.cuh>
 #include <cuco/pair.cuh>
 #include <cuco/probing_scheme.cuh>
-#include <cuco/sentinel.cuh>
 
 #include <thrust/distance.h>
 #include <thrust/pair.h>
@@ -120,20 +119,18 @@ class open_addressing_ref_impl {
   /**
    * @brief Constructs open_addressing_ref_impl.
    *
-   * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_slot_sentinel Sentinel indicating an empty slot
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr open_addressing_ref_impl(
-    cuco::empty_key<key_type> empty_key_sentinel,
     value_type empty_slot_sentinel,
     key_equal const& predicate,
     probing_scheme_type const& probing_scheme,
     storage_ref_type storage_ref) noexcept
     : empty_slot_sentinel_{empty_slot_sentinel},
-      predicate_{empty_key_sentinel, predicate},
+      predicate_{this->extract_key(empty_slot_sentinel), predicate},
       probing_scheme_{probing_scheme},
       storage_ref_{storage_ref}
   {

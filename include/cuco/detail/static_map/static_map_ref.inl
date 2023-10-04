@@ -44,8 +44,7 @@ __host__ __device__ constexpr static_map_ref<
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
                                 StorageRef storage_ref) noexcept
-  : impl_{empty_key_sentinel,
-          cuco::pair{empty_key_sentinel, empty_value_sentinel},
+  : impl_{cuco::pair{empty_key_sentinel, empty_value_sentinel},
           predicate,
           probing_scheme,
           storage_ref},

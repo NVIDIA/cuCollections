@@ -41,7 +41,7 @@ __host__ __device__ constexpr static_set_ref<
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
                                 StorageRef storage_ref) noexcept
-  : impl_{empty_key_sentinel, empty_key_sentinel, predicate, probing_scheme, storage_ref}
+  : impl_{empty_key_sentinel, predicate, probing_scheme, storage_ref}
 {
 }
 
