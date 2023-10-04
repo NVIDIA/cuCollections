@@ -141,7 +141,7 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  [[nodiscard]] __host__ __device__ constexpr auto empty_key_sentinel() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr key_type const& empty_key_sentinel() const noexcept
   {
     return this->predicate_.empty_sentinel_;
   }
@@ -151,7 +151,7 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an empty slot
    */
-  [[nodiscard]] __device__ constexpr value_type empty_slot_sentinel() const noexcept
+  [[nodiscard]] __device__ constexpr value_type const& empty_slot_sentinel() const noexcept
   {
     return empty_slot_sentinel_;
   }
@@ -161,7 +161,7 @@ class open_addressing_ref_impl {
    *
    * @return The key equality predicate
    */
-  [[nodiscard]] __host__ __device__ constexpr detail::equal_wrapper<key_type, key_equal> key_eq()
+  [[nodiscard]] __device__ constexpr detail::equal_wrapper<key_type, key_equal> const& key_eq()
     const noexcept
   {
     return this->predicate_;
@@ -182,7 +182,7 @@ class open_addressing_ref_impl {
    *
    * @return The non-owning storage ref of the container
    */
-  [[nodiscard]] __device__ constexpr storage_ref_type storage_ref() const noexcept
+  [[nodiscard]] __device__ constexpr storage_ref_type const& storage_ref() const noexcept
   {
     return storage_ref_;
   }
@@ -695,7 +695,8 @@ class open_addressing_ref_impl {
    * @return The key
    */
   template <typename Value>
-  [[nodiscard]] __host__ __device__ constexpr auto extract_key(Value const& value) const noexcept
+  [[nodiscard]] __host__ __device__ constexpr auto const& extract_key(
+    Value const& value) const noexcept
   {
     if constexpr (this->has_payload) {
       return value.first;
