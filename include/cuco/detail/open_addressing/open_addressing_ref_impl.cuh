@@ -437,13 +437,13 @@ class open_addressing_ref_impl {
     }
   }
 
-  template <bool HasPayload, typename Predicate>
-  __device__ bool erase(value_type const& value, Predicate const& predicate) noexcept
+  template <typename Value, typename Predicate>
+  __device__ bool erase(Value const& value, Predicate const& predicate) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
     auto const key = [&]() {
-      if constexpr (HasPayload) {
+      if constexpr (this->has_payload) {
         return value.first;
       } else {
         return value;
@@ -463,13 +463,13 @@ class open_addressing_ref_impl {
         if (eq_res == detail::equal_result::EQUAL) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           auto const erased_slot        = [&]() {
-            if constexpr (HasPayload) {
+            if constexpr (this->has_payload) {
               return cuco::pair{erased_key_sentinel_, empty_slot_sentinel_.second};
             } else {
               return erased_key_sentinel_;
             }
           }();
-          switch (attempt_insert<HasPayload>(
+          switch (attempt_insert<this->has_payload>(
             (storage_ref_.data() + *probing_iter)->data() + intra_window_index,
             erased_slot,
             predicate)) {
