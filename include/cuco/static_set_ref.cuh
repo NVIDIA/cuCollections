@@ -68,7 +68,6 @@ class static_set_ref
     detail::open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
 
  public:
-  // TODO use impl_type::* aliases
   using key_type            = Key;                                     ///< Key Type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
   using storage_ref_type    = StorageRef;                              ///< Type of storage ref

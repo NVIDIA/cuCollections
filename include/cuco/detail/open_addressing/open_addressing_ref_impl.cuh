@@ -150,13 +150,44 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Gets the sentinel used to represent an empty slot.
+   *
+   * @return The sentinel value used to represent an empty slot
+   */
+  [[nodiscard]] __device__ constexpr value_type empty_slot_sentinel() const noexcept
+  {
+    return empty_slot_sentinel_;
+  }
+
+  /**
    * @brief Returns the function that compares keys for equality.
    *
    * @return The key equality predicate
    */
-  [[nodiscard]] __host__ __device__ constexpr auto key_eq() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr detail::equal_wrapper<key_type, key_equal> key_eq()
+    const noexcept
   {
     return this->predicate_;
+  }
+
+  /**
+   * @brief Gets the probing scheme.
+   *
+   * @return The probing scheme used for the container
+   */
+  [[nodiscard]] __device__ constexpr probing_scheme_type const& probing_scheme() const noexcept
+  {
+    return probing_scheme_;
+  }
+
+  /**
+   * @brief Gets the non-owning storage ref.
+   *
+   * @return The non-owning storage ref of the container
+   */
+  [[nodiscard]] __device__ constexpr storage_ref_type storage_ref() const noexcept
+  {
+    return storage_ref_;
   }
 
   /**
@@ -185,21 +216,6 @@ class open_addressing_ref_impl {
    * @return An iterator to one past the last slot
    */
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept { return storage_ref_.end(); }
-
-  /**
-   * @brief Extracts the key from a given value type.
-   *
-   * @return The key
-   */
-  template <typename Value>
-  [[nodiscard]] __host__ __device__ constexpr auto extract_key(Value const& value) const noexcept
-  {
-    if constexpr (this->has_payload) {
-      return value.first;
-    } else {
-      return value;
-    }
-  }
 
   /**
    * @brief Inserts an element.
@@ -675,37 +691,22 @@ class open_addressing_ref_impl {
     }
   }
 
-  /**
-   * @brief Gets the sentinel used to represent an empty slot.
-   *
-   * @return The sentinel value used to represent an empty slot
-   */
-  [[nodiscard]] __device__ constexpr value_type empty_slot_sentinel() const noexcept
-  {
-    return empty_slot_sentinel_;
-  }
-
-  /**
-   * @brief Gets the probing scheme.
-   *
-   * @return The probing scheme used for the container
-   */
-  [[nodiscard]] __device__ constexpr probing_scheme_type const& probing_scheme() const noexcept
-  {
-    return probing_scheme_;
-  }
-
-  /**
-   * @brief Gets the non-owning storage ref.
-   *
-   * @return The non-owning storage ref of the container
-   */
-  [[nodiscard]] __device__ constexpr storage_ref_type storage_ref() const noexcept
-  {
-    return storage_ref_;
-  }
-
  private:
+  /**
+   * @brief Extracts the key from a given value type.
+   *
+   * @return The key
+   */
+  template <typename Value>
+  [[nodiscard]] __host__ __device__ constexpr auto extract_key(Value const& value) const noexcept
+  {
+    if constexpr (this->has_payload) {
+      return value.first;
+    } else {
+      return value;
+    }
+  }
+
   /**
    * @brief Inserts the specified element with one single CAS operation.
    *
