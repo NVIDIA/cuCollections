@@ -44,9 +44,12 @@ __host__ __device__ constexpr static_map_ref<
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
                                 StorageRef storage_ref) noexcept
-  : impl_{cuco::pair{empty_key_sentinel, empty_value_sentinel}, probing_scheme, storage_ref},
-    empty_value_sentinel_{empty_value_sentinel},
-    predicate_{empty_key_sentinel, predicate}
+  : impl_{empty_key_sentinel,
+          cuco::pair{empty_key_sentinel, empty_value_sentinel},
+          predicate,
+          probing_scheme,
+          storage_ref},
+    empty_value_sentinel_{empty_value_sentinel}
 {
 }
 
@@ -68,9 +71,7 @@ __host__ __device__ constexpr static_map_ref<Key,
   static_map_ref(
     static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, OtherOperators...>&&
       other) noexcept
-  : impl_{std::move(other.impl_)},
-    predicate_{std::move(other.predicate_)},
-    empty_value_sentinel_{std::move(other.empty_value_sentinel_)}
+  : impl_{std::move(other.impl_)}, empty_value_sentinel_{std::move(other.empty_value_sentinel_)}
 {
 }
 
@@ -99,7 +100,7 @@ __host__ __device__ constexpr Key
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
   empty_key_sentinel() const noexcept
 {
-  return predicate_.empty_sentinel_;
+  return impl_.empty_key_sentinel();
 }
 
 template <typename Key,
@@ -131,94 +132,6 @@ auto static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operator
     std::move(*this));
 }
 
-template <typename Key,
-          typename T,
-          cuda::thread_scope Scope,
-          typename KeyEqual,
-          typename ProbingScheme,
-          typename StorageRef,
-          typename... Operators>
-struct static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
-  predicate_wrapper {
-  detail::equal_wrapper<key_type, key_equal> predicate_;
-
-  /**
-   * @brief Map predicate wrapper ctor.
-   *
-   * @param sentinel Sentinel value
-   * @param equal Equality binary callable
-   */
-  __host__ __device__ constexpr predicate_wrapper(key_type empty_key_sentinel,
-                                                  key_equal const& equal) noexcept
-    : predicate_{empty_key_sentinel, equal}
-  {
-  }
-
-  /**
-   * @brief Equality check with the given equality callable.
-   *
-   * @tparam U Right-hand side Element type
-   *
-   * @param lhs Left-hand side element to check equality
-   * @param rhs Right-hand side element to check equality
-   *
-   * @return `EQUAL` if `lhs` and `rhs` are equivalent. `UNEQUAL` otherwise.
-   */
-  template <typename U>
-  __device__ constexpr detail::equal_result equal_to(value_type const& lhs,
-                                                     U const& rhs) const noexcept
-  {
-    return predicate_.equal_to(lhs.first, rhs);
-  }
-
-  /**
-   * @brief Equality check with the given equality callable.
-   *
-   * @param lhs Left-hand side element to check equality
-   * @param rhs Right-hand side element to check equality
-   *
-   * @return `EQUAL` if `lhs` and `rhs` are equivalent. `UNEQUAL` otherwise.
-   */
-  __device__ constexpr detail::equal_result equal_to(value_type const& lhs,
-                                                     value_type const& rhs) const noexcept
-  {
-    return predicate_.equal_to(lhs.first, rhs.first);
-  }
-
-  /**
-   * @brief Equality check with the given equality callable.
-   *
-   * @param lhs Left-hand side key to check equality
-   * @param rhs Right-hand side key to check equality
-   *
-   * @return `EQUAL` if `lhs` and `rhs` are equivalent. `UNEQUAL` otherwise.
-   */
-  __device__ constexpr detail::equal_result equal_to(key_type const& lhs,
-                                                     key_type const& rhs) const noexcept
-  {
-    return predicate_.equal_to(lhs, rhs);
-  }
-
-  /**
-   * @brief Order-sensitive equality operator.
-   *
-   * @note Container keys MUST be always on the left-hand side.
-   *
-   * @tparam U Right-hand side Element type
-   *
-   * @param lhs Left-hand side element to check equality
-   * @param rhs Right-hand side element to check equality
-   *
-   * @return Three way equality comparison result
-   */
-  template <typename U>
-  __device__ constexpr detail::equal_result operator()(value_type const& lhs,
-                                                       U const& rhs) const noexcept
-  {
-    return predicate_(lhs.first, rhs);
-  }
-};
-
 namespace detail {
 
 template <typename Key,
@@ -249,7 +162,7 @@ class operator_impl<
   __device__ bool insert(value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert(value, ref_.predicate_);
+    return ref_.impl_.insert(value);
   }
 
   /**
@@ -263,7 +176,7 @@ class operator_impl<
                          value_type const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert(group, value, ref_.predicate_);
+    return ref_.impl_.insert(group, value);
   }
 };
 
@@ -309,7 +222,7 @@ class operator_impl<
       auto const window_slots = storage_ref[*probing_iter];
 
       for (auto& slot_content : window_slots) {
-        auto const eq_res = ref_.predicate_(slot_content, key);
+        auto const eq_res = ref_.impl_.key_eq()(slot_content.first, key);
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
@@ -355,7 +268,7 @@ class operator_impl<
 
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
-          switch (ref_.predicate_(window_slots[i], key)) {
+          switch (ref_.impl_.key_eq()(window_slots[i].first, key)) {
             case detail::equal_result::EMPTY:
               return detail::window_probing_results{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL:
@@ -420,7 +333,7 @@ class operator_impl<
 
     // if key success or key was already present in the map
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key) or
-        (ref_.predicate_.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL)) {
+        (ref_.impl_.key_eq().equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL)) {
       // Update payload
       ref_.impl_.atomic_store(&slot->second, value.second);
       return true;
@@ -491,7 +404,7 @@ class operator_impl<
   __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert_and_find(value, ref_.predicate_);
+    return ref_.impl_.insert_and_find(value);
   }
 
   /**
@@ -511,7 +424,7 @@ class operator_impl<
     cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert_and_find(group, value, ref_.predicate_);
+    return ref_.impl_.insert_and_find(group, value);
   }
 };
 
@@ -551,7 +464,7 @@ class operator_impl<
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.contains(key, ref_.predicate_);
+    return ref_.impl_.contains(key);
   }
 
   /**
@@ -572,7 +485,7 @@ class operator_impl<
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.contains(group, key, ref_.predicate_);
+    return ref_.impl_.contains(group, key);
   }
 };
 
@@ -640,7 +553,7 @@ class operator_impl<
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.find(key, ref_.predicate_);
+    return ref_.impl_.find(key);
   }
 
   /**
@@ -661,7 +574,7 @@ class operator_impl<
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.find(group, key, ref_.predicate_);
+    return ref_.impl_.find(group, key);
   }
 };
 
