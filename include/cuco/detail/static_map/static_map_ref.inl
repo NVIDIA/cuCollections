@@ -57,6 +57,35 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+__host__ __device__ constexpr static_map_ref<
+  Key,
+  T,
+  Scope,
+  KeyEqual,
+  ProbingScheme,
+  StorageRef,
+  Operators...>::static_map_ref(cuco::empty_key<Key> empty_key_sentinel,
+                                cuco::empty_value<T> empty_value_sentinel,
+                                cuco::erased_key<Key> erased_key_sentinel,
+                                KeyEqual const& predicate,
+                                ProbingScheme const& probing_scheme,
+                                StorageRef storage_ref) noexcept
+  : impl_{cuco::pair{empty_key_sentinel, empty_value_sentinel},
+          erased_key_sentinel,
+          probing_scheme,
+          storage_ref},
+    empty_value_sentinel_{empty_value_sentinel},
+    predicate_{empty_key_sentinel, predicate}
+{
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename... OtherOperators>
 __host__ __device__ constexpr static_map_ref<Key,
                                              T,

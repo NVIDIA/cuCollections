@@ -640,6 +640,16 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief Gets the sentinel value used to represent an empty key slot.
+   *
+   * @return The sentinel value used to represent an empty key slot
+   */
+  [[nodiscard]] constexpr key_type erased_key_sentinel() const noexcept
+  {
+    return erased_key_sentinel_;
+  }
+
+  /**
    * @brief Gets the key comparator.
    *
    * @return The comparator used to compare keys

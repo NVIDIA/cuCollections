@@ -569,6 +569,13 @@ class static_set {
   [[nodiscard]] constexpr key_type empty_key_sentinel() const noexcept;
 
   /**
+   * @brief Gets the sentinel value used to represent an erased key slot.
+   *
+   * @return The sentinel value used to represent an erased key slot
+   */
+  [[nodiscard]] constexpr key_type erased_key_sentinel() const noexcept;
+
+  /**
    * @brief Get device ref with operators.
    *
    * @tparam Operators Set of `cuco::op` to be provided by the ref

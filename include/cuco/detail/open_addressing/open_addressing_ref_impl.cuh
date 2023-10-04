@@ -128,6 +128,25 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Constructs open_addressing_ref_impl.
+   *
+   * @param empty_slot_sentinel Sentinel indicating an empty slot
+   * @param probing_scheme Probing scheme
+   * @param storage_ref Non-owning ref of slot storage
+   */
+  __host__ __device__ explicit constexpr open_addressing_ref_impl(
+    value_type empty_slot_sentinel,
+    key_type erased_key_sentinel,
+    probing_scheme_type const& probing_scheme,
+    storage_ref_type storage_ref) noexcept
+    : empty_slot_sentinel_{empty_slot_sentinel},
+      erased_key_sentinel_{erased_key_sentinel},
+      probing_scheme_{probing_scheme},
+      storage_ref_{storage_ref}
+  {
+  }
+
+  /**
    * @brief Gets the maximum number of elements the container can hold.
    *
    * @return The maximum number of elements the container can hold
@@ -920,6 +939,7 @@ class open_addressing_ref_impl {
   }
 
   value_type empty_slot_sentinel_;      ///< Sentinel value indicating an empty slot
+  key_type erased_key_sentinel_;        ///< Key value that represents an erased slot
   probing_scheme_type probing_scheme_;  ///< Probing scheme
   storage_ref_type storage_ref_;        ///< Slot storage ref
 };

@@ -476,16 +476,37 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_type
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  erased_key_sentinel() const noexcept
+{
+  return impl_->erased_key_sentinel();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename... Operators>
 auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref(
   Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
-  return ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
-                                cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
-                                impl_->key_eq(),
-                                impl_->probing_scheme(),
-                                impl_->storage_ref()};
+  return this->empty_key_sentinel() == this->erased_key_sentinel()
+           ? ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
+                                    cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
+                                    impl_->key_eq(),
+                                    impl_->probing_scheme(),
+                                    impl_->storage_ref()}
+           : ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
+                                    cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
+                                    impl_->key_eq(),
+                                    impl_->probing_scheme(),
+                                    impl_->storage_ref()};
 }
 }  // namespace experimental
 }  // namespace cuco
