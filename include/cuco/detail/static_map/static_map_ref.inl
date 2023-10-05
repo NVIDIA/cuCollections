@@ -44,11 +44,8 @@ __host__ __device__ constexpr static_map_ref<
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
                                 StorageRef storage_ref) noexcept
-  : impl_{cuco::pair{empty_key_sentinel, empty_value_sentinel},
-          predicate,
-          probing_scheme,
-          storage_ref},
-    empty_value_sentinel_{empty_value_sentinel}
+  : impl_{
+      cuco::pair{empty_key_sentinel, empty_value_sentinel}, predicate, probing_scheme, storage_ref}
 {
 }
 
@@ -70,7 +67,7 @@ __host__ __device__ constexpr static_map_ref<Key,
   static_map_ref(
     static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, OtherOperators...>&&
       other) noexcept
-  : impl_{std::move(other.impl_)}, empty_value_sentinel_{std::move(other.empty_value_sentinel_)}
+  : impl_{std::move(other.impl_)}
 {
 }
 
@@ -113,7 +110,7 @@ __host__ __device__ constexpr T
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
   empty_value_sentinel() const noexcept
 {
-  return empty_value_sentinel_;
+  return impl_.empty_value_sentinel();
 }
 
 template <typename Key,

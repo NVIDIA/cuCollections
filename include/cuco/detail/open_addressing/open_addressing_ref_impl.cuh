@@ -147,11 +147,22 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Gets the sentinel value used to represent an empty payload slot.
+   *
+   * @return The sentinel value used to represent an empty payload slot
+   */
+  template <bool Dummy = true, typename Enable = std::enable_if_t<has_payload and Dummy>>
+  [[nodiscard]] __host__ __device__ constexpr auto const& empty_value_sentinel() const noexcept
+  {
+    return this->extract_payload(this->empty_slot_sentinel());
+  }
+
+  /**
    * @brief Gets the sentinel used to represent an empty slot.
    *
    * @return The sentinel value used to represent an empty slot
    */
-  [[nodiscard]] __device__ constexpr value_type const& empty_slot_sentinel() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr value_type const& empty_slot_sentinel() const noexcept
   {
     return empty_slot_sentinel_;
   }
@@ -692,6 +703,10 @@ class open_addressing_ref_impl {
   /**
    * @brief Extracts the key from a given value type.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
+   * @param value The input value
+   *
    * @return The key
    */
   template <typename Value>
@@ -703,6 +718,24 @@ class open_addressing_ref_impl {
     } else {
       return value;
     }
+  }
+
+  /**
+   * @brief Extracts the payload from a given value type.
+   *
+   * @note This function is only available if `this->has_payload == true`
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
+   * @param value The input value
+   *
+   * @return The payload
+   */
+  template <typename Value, typename Enable = std::enable_if_t<has_payload and sizeof(Value)>>
+  [[nodiscard]] __host__ __device__ constexpr auto const& extract_payload(
+    Value const& value) const noexcept
+  {
+    return value.second;
   }
 
   /**

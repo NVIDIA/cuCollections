@@ -161,8 +161,7 @@ class static_map_ref
   [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
 
  private:
-  impl_type impl_;                    ///< Static map ref implementation
-  mapped_type empty_value_sentinel_;  ///< Empty value sentinel
+  impl_type impl_;  ///< Static map ref implementation
 
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>
