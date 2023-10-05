@@ -172,7 +172,7 @@ class open_addressing_ref_impl {
    *
    * @return The key equality predicate
    */
-  [[nodiscard]] __device__ constexpr detail::equal_wrapper<key_type, key_equal> const& key_eq()
+  [[nodiscard]] __device__ constexpr detail::equal_wrapper<key_type, key_equal> const& predicate()
     const noexcept
   {
     return this->predicate_;

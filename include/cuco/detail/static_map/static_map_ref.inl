@@ -218,7 +218,7 @@ class operator_impl<
       auto const window_slots = storage_ref[*probing_iter];
 
       for (auto& slot_content : window_slots) {
-        auto const eq_res = ref_.impl_.key_eq()(slot_content.first, key);
+        auto const eq_res = ref_.impl_.predicate()(slot_content.first, key);
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
@@ -264,7 +264,7 @@ class operator_impl<
 
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
-          switch (ref_.impl_.key_eq()(window_slots[i].first, key)) {
+          switch (ref_.impl_.predicate()(window_slots[i].first, key)) {
             case detail::equal_result::EMPTY:
               return detail::window_probing_results{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL:
@@ -329,7 +329,8 @@ class operator_impl<
 
     // if key success or key was already present in the map
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key) or
-        (ref_.impl_.key_eq().equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL)) {
+        (ref_.impl_.predicate().equal_to(*old_key_ptr, value.first) ==
+         detail::equal_result::EQUAL)) {
       // Update payload
       ref_.impl_.atomic_store(&slot->second, value.second);
       return true;
