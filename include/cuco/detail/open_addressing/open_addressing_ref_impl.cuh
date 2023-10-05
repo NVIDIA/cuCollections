@@ -892,6 +892,7 @@ class open_addressing_ref_impl {
     }
   }
 
+  // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
   value_type empty_slot_sentinel_;  ///< Sentinel value indicating an empty slot
   detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
   probing_scheme_type probing_scheme_;                    ///< Probing scheme
