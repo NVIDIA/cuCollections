@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/detail/open_addressing/open_addressing_ref_impl.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/operator.hpp>
@@ -65,7 +64,8 @@ class static_set_ref
   : public detail::operator_impl<
       Operators,
       static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
-  using impl_type = detail::open_addressing_ref_impl<Key, Scope, ProbingScheme, StorageRef>;
+  using impl_type =
+    detail::open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
 
  public:
   using key_type            = Key;                                     ///< Key Type
@@ -142,8 +142,6 @@ class static_set_ref
 
  private:
   impl_type impl_;
-  // TODO can we remove this?
-  detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
 
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>

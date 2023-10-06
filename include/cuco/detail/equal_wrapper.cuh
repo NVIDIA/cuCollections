@@ -38,6 +38,7 @@ enum class equal_result : int32_t { UNEQUAL = 0, EMPTY = 1, EQUAL = 2 };
  */
 template <typename T, typename Equal>
 struct equal_wrapper {
+  // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
   T empty_sentinel_;  ///< Sentinel value
   Equal equal_;       ///< Custom equality callable
 
