@@ -288,7 +288,6 @@ __global__ void rehash(StorageRef storage_ref, ContainerRef container_ref, Predi
     if (idx < n) {
       auto const window = storage_ref[idx];
 
-      // #pragma unroll window.size()
       for (auto const& slot : window) {
         if (is_filled(slot)) { buffer[atomicAdd_block(&buffer_size, 1)] = slot; }
       }
