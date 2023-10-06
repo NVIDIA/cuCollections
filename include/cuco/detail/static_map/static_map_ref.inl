@@ -256,7 +256,7 @@ class operator_impl<
             value.second);
           return;
         }
-        if (eq_res == detail::equal_result::EMPTY) {
+        if (eq_res == detail::equal_result::AVAILABLE) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           if (attempt_insert_or_assign(
                 (storage_ref.data() + *probing_iter)->data() + intra_window_index, value)) {
@@ -293,8 +293,8 @@ class operator_impl<
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (ref_.impl_.predicate()(window_slots[i].first, key)) {
-            case detail::equal_result::EMPTY:
-              return detail::window_probing_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::AVAILABLE:
+              return detail::window_probing_results{detail::equal_result::AVAILABLE, i};
             case detail::equal_result::EQUAL:
               return detail::window_probing_results{detail::equal_result::EQUAL, i};
             default: continue;
@@ -316,9 +316,9 @@ class operator_impl<
         return;
       }
 
-      auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
-      if (group_contains_empty) {
-        auto const src_lane = __ffs(group_contains_empty) - 1;
+      auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
+      if (group_contains_available) {
+        auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status =
           (group.thread_rank() == src_lane)
             ? attempt_insert_or_assign(
