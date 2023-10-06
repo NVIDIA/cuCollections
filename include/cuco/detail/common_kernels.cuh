@@ -261,6 +261,51 @@ __global__ void size(StorageRef storage, Predicate is_filled, AtomicT* count)
   if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
 }
 
+template <int32_t BlockSize, typename StorageRef, typename ContainerRef, typename Predicate>
+__global__ void rehash(StorageRef storage_ref, ContainerRef container_ref, Predicate is_filled)
+{
+  namespace cg = cooperative_groups;
+
+  __shared__ typename ContainerRef::value_type buffer[BlockSize];
+  __shared__ unsigned int buffer_size;
+
+  auto constexpr cg_size = ContainerRef::cg_size;
+  auto const block       = cg::this_thread_block();
+  auto const tile        = cg::tiled_partition<cg_size>(block);
+
+  auto const thread_rank         = block.thread_rank();
+  auto constexpr tiles_per_block = BlockSize / cg_size;  // tile.meta_group_size() but constexpr
+  auto const tile_rank           = tile.meta_group_rank();
+  auto const loop_stride         = cuco::detail::grid_stride();
+  auto idx                       = cuco::detail::global_thread_id();
+  auto const n                   = storage_ref.num_windows();
+
+  while (idx - thread_rank < n) {
+    if (thread_rank == 0) { buffer_size = 0; }
+    block.sync();
+
+    // gather values in shmem buffer
+    if (idx < n) {
+      auto const window = storage_ref[idx];
+
+      // #pragma unroll window.size()
+      for (auto const& slot : window) {
+        if (is_filled(slot)) { buffer[atomicAdd_block(&buffer_size, 1)] = slot; }
+      }
+    }
+    block.sync();
+
+    auto const local_buffer_size = buffer_size;  // this avoids an additional block.sync()
+
+    // insert from shmem buffer into the container
+    for (auto tidx = tile_rank; tidx < local_buffer_size; tidx += tiles_per_block) {
+      container_ref.insert(tile, buffer[tidx]);
+    }
+
+    idx += loop_stride;
+  }
+}
+
 }  // namespace detail
 }  // namespace experimental
 }  // namespace cuco

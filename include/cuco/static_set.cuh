@@ -461,6 +461,42 @@ class static_set {
   OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream = {}) const;
 
   /**
+   * @brief Rebuilds the container.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `rehash_async`.
+   *
+   * @param stream CUDA stream used to get the number of inserted elements
+   */
+  void rehash(cuda_stream_ref stream = {});
+
+  /**
+   * @brief Rebuilds the container.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `rehash_async`.
+   *
+   * @param capacity New capacity of the container
+   * @param stream CUDA stream used to get the number of inserted elements
+   */
+  void rehash(size_type capacity, cuda_stream_ref stream = {});
+
+  /**
+   * @brief Rebuilds the container.
+   *
+   * @param stream CUDA stream used to get the number of inserted elements
+   */
+  void rehash_async(cuda_stream_ref stream = {});
+
+  /**
+   * @brief Rebuilds the container.
+   *
+   * @param capacity New capacity of the container
+   * @param stream CUDA stream used to get the number of inserted elements
+   */
+  void rehash_async(size_type capacity, cuda_stream_ref stream = {});
+
+  /**
    * @brief Gets the number of elements in the container.
    *
    * @note This function synchronizes the given stream.

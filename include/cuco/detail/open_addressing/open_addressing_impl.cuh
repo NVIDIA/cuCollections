@@ -22,6 +22,7 @@
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/extent.cuh>
+#include <cuco/operator.hpp>
 #include <cuco/probing_scheme.cuh>
 #include <cuco/storage.cuh>
 #include <cuco/utility/traits.hpp>
@@ -537,6 +538,50 @@ class open_addressing_impl {
         storage_.ref(), is_filled, counter.data());
 
     return counter.load_to_host(stream);
+  }
+
+  // TODO docs
+  template <typename Container, typename Predicate>
+  void rehash(Container const& container, Predicate const& is_filled, cuda_stream_ref stream)
+  {
+    this->rehash_async(container, is_filled, stream);
+    stream.synchronize();
+  }
+
+  template <typename Container, typename Predicate>
+  void rehash(extent_type extent,
+              Container const& container,
+              Predicate const& is_filled,
+              cuda_stream_ref stream)
+  {
+    this->rehash_async(extent, container, is_filled, stream);
+    stream.synchronize();
+  }
+
+  template <typename Container, typename Predicate>
+  void rehash_async(Container const& container, Predicate const& is_filled, cuda_stream_ref stream)
+  {
+    this->rehash_async(this->storage_.window_extent(), container, is_filled, stream);
+  }
+
+  template <typename Container, typename Predicate>
+  void rehash_async(extent_type extent,
+                    Container const& container,
+                    Predicate const& is_filled,
+                    cuda_stream_ref stream)
+  {
+    auto const old_storage = std::move(this->storage_);
+    new (&storage_) storage_type{extent, this->allocator()};
+    this->clear_async(stream);
+
+    auto const num_windows = old_storage.num_windows();
+    if (num_windows == 0) { return; }
+    auto constexpr block_size = cuco::detail::default_block_size();
+    auto constexpr stride     = cuco::detail::default_stride();
+    auto const grid_size      = cuco::detail::int_div_ceil(num_windows, stride * block_size);
+
+    detail::rehash<block_size><<<grid_size, block_size, 0, stream>>>(
+      old_storage.ref(), container.ref(op::insert), is_filled);
   }
 
   /**

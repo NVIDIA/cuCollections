@@ -142,6 +142,7 @@ class static_set_ref
 
  private:
   impl_type impl_;
+  // TODO can we remove this?
   detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
 
   // Mixins need to be friends with this class in order to access private members
