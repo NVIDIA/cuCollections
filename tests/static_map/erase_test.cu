@@ -27,16 +27,13 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
-TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
+using size_type = int32_t;
+
+template <typename Map>
+void test_erase(Map& map, size_type num_keys)
 {
-  using Key   = T;
-  using Value = T;
-
-  constexpr std::size_t num_keys = 1'000'000;
-  constexpr std::size_t capacity = 1'100'000;
-
-  cuco::static_map<Key, Value> map{
-    capacity, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, cuco::erased_key<Key>{-2}};
+  using Key   = typename Map::key_type;
+  using Value = typename Map::mapped_type;
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
@@ -52,11 +49,11 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
   {
     map.insert(pairs_begin, pairs_begin + num_keys);
 
-    REQUIRE(map.get_size() == num_keys);
+    REQUIRE(map.size() == num_keys);
 
     map.erase(d_keys.begin(), d_keys.end());
 
-    REQUIRE(map.get_size() == 0);
+    REQUIRE(map.size() == 0);
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
@@ -64,7 +61,7 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
 
     map.insert(pairs_begin, pairs_begin + num_keys);
 
-    REQUIRE(map.get_size() == num_keys);
+    REQUIRE(map.size() == num_keys);
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
@@ -80,6 +77,53 @@ TEMPLATE_TEST_CASE_SIG("erase key", "", ((typename T), T), (int32_t), (int64_t))
       d_keys_exist.begin() + num_keys / 2, d_keys_exist.end(), thrust::identity{}));
 
     map.erase(d_keys.begin() + num_keys / 2, d_keys.end());
-    REQUIRE(map.get_size() == 0);
+    REQUIRE(map.size() == 0);
   }
+}
+
+TEMPLATE_TEST_CASE_SIG(
+  "static_map erase tests",
+  "",
+  ((typename Key, typename Value, cuco::test::probe_sequence Probe, int CGSize),
+   Key,
+   Value,
+   Probe,
+   CGSize),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
+{
+  constexpr size_type num_keys{400};
+
+  using probe =
+    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                       cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+                       cuco::experimental::double_hashing<CGSize,
+                                                          cuco::murmurhash3_32<Key>,
+                                                          cuco::murmurhash3_32<Key>>>;
+
+  auto map = cuco::experimental::static_map<Key,
+                                            Value,
+                                            cuco::experimental::extent<size_type>,
+                                            cuda::thread_scope_device,
+                                            thrust::equal_to<Key>,
+                                            probe,
+                                            cuco::cuda_allocator<std::byte>,
+                                            cuco::experimental::storage<2>>{
+    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, cuco::erased_key<Key>{-2}};
+
+  test_erase(map, num_keys);
 }
