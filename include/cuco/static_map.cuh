@@ -414,7 +414,7 @@ class static_map {
    * This function synchronizes `stream`.
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the map's `value_type`
+   * convertible to the map's `key_type`
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
@@ -441,7 +441,7 @@ class static_map {
    * This function synchronizes `stream`.
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the map's `value_type`
+   * convertible to the map's `key_type`
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
