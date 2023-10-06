@@ -220,7 +220,7 @@ class open_addressing_impl {
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
-                                 cuda_stream_ref stream) noexcept
+                                 cuda_stream_ref stream)
     : empty_key_sentinel_{empty_key_sentinel},
       empty_slot_sentinel_{empty_slot_sentinel},
       erased_key_sentinel_{erased_key_sentinel},
@@ -425,7 +425,7 @@ class open_addressing_impl {
    * This function synchronizes `stream`.
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `value_type`
+   * convertible to the container's `key_type`
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
@@ -438,6 +438,10 @@ class open_addressing_impl {
   template <typename InputIt, typename Ref>
   void erase_async(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream = {})
   {
+    CUCO_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
+                 "The empty key sentinel and erased key sentinel cannot be the same value.",
+                 std::logic_error);
+
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 

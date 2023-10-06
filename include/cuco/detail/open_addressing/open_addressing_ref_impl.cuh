@@ -490,18 +490,17 @@ class open_addressing_ref_impl {
   /**
    * @brief Erases an element.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
    *
    * @param value The element to erase
    *
    * @return True if the given element is successfully erased
    */
-  template <typename Value>
-  __device__ bool erase(Value const& value) noexcept
+  template <typename ProbeKey>
+  __device__ bool erase(ProbeKey const& key) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    auto const key    = this->extract_key(value);
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
@@ -531,18 +530,17 @@ class open_addressing_ref_impl {
   /**
    * @brief Erases an element.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform group erase
    * @param value The element to erase
    *
    * @return True if the given element is successfully erased
    */
-  template <typename Value>
+  template <typename ProbeKey>
   __device__ bool erase(cooperative_groups::thread_block_tile<cg_size> const& group,
-                        Value const& value) noexcept
+                        ProbeKey const& key) noexcept
   {
-    auto const key    = this->extract_key(value);
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
@@ -877,10 +875,10 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an erased slot
    */
-  [[nodiscard]] __device__ constexpr value_type const& erased_slot_sentinel() const noexcept
+  [[nodiscard]] __device__ constexpr value_type const erased_slot_sentinel() const noexcept
   {
     if constexpr (this->has_payload) {
-      return cuco::pair{this->erased_key_sentinel(), this->extract_payload()};
+      return cuco::pair{this->erased_key_sentinel(), this->empty_slot_sentinel().second};
     } else {
       return this->erased_key_sentinel();
     }
