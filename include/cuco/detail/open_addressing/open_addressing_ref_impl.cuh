@@ -71,10 +71,15 @@ struct window_probing_results {
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>` returning true
  * @tparam Scope The scope in which operations will be performed by individual threads.
+ * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
  * @tparam StorageRef Storage ref type
  */
-template <typename Key, cuda::thread_scope Scope, typename ProbingScheme, typename StorageRef>
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef>
 class open_addressing_ref_impl {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
 
@@ -100,8 +105,9 @@ class open_addressing_ref_impl {
   using value_type          = typename storage_ref_type::value_type;   ///< Storage element type
   using extent_type         = typename storage_ref_type::extent_type;  ///< Extent type
   using size_type           = typename storage_ref_type::size_type;    ///< Probing scheme size type
-  using iterator            = typename storage_ref_type::iterator;     ///< Slot iterator type
-  using const_iterator = typename storage_ref_type::const_iterator;    ///< Const slot iterator type
+  using key_equal           = KeyEqual;  ///< Type of key equality binary callable
+  using iterator            = typename storage_ref_type::iterator;   ///< Slot iterator type
+  using const_iterator = typename storage_ref_type::const_iterator;  ///< Const slot iterator type
 
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr auto window_size =
@@ -114,14 +120,18 @@ class open_addressing_ref_impl {
    * @brief Constructs open_addressing_ref_impl.
    *
    * @param empty_slot_sentinel Sentinel indicating an empty slot
+   * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr open_addressing_ref_impl(
     value_type empty_slot_sentinel,
+    key_equal const& predicate,
     probing_scheme_type const& probing_scheme,
     storage_ref_type storage_ref) noexcept
     : empty_slot_sentinel_{empty_slot_sentinel},
+      predicate_{
+        this->extract_key(empty_slot_sentinel), this->extract_key(empty_slot_sentinel), predicate},
       probing_scheme_{probing_scheme},
       storage_ref_{storage_ref}
   {
@@ -131,19 +141,94 @@ class open_addressing_ref_impl {
    * @brief Constructs open_addressing_ref_impl.
    *
    * @param empty_slot_sentinel Sentinel indicating an empty slot
+   * @param erased_key_sentinel Sentinel indicating an erased key
+   * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr open_addressing_ref_impl(
     value_type empty_slot_sentinel,
     key_type erased_key_sentinel,
+    key_equal const& predicate,
     probing_scheme_type const& probing_scheme,
     storage_ref_type storage_ref) noexcept
     : empty_slot_sentinel_{empty_slot_sentinel},
-      erased_key_sentinel_{erased_key_sentinel},
+      predicate_{this->extract_key(empty_slot_sentinel), erased_key_sentinel, predicate},
       probing_scheme_{probing_scheme},
       storage_ref_{storage_ref}
   {
+  }
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty key slot.
+   *
+   * @return The sentinel value used to represent an empty key slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr key_type const& empty_key_sentinel() const noexcept
+  {
+    return this->predicate_.empty_sentinel_;
+  }
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty payload slot.
+   *
+   * @return The sentinel value used to represent an empty payload slot
+   */
+  template <bool Dummy = true, typename Enable = std::enable_if_t<has_payload and Dummy>>
+  [[nodiscard]] __host__ __device__ constexpr auto const& empty_value_sentinel() const noexcept
+  {
+    return this->extract_payload(this->empty_slot_sentinel());
+  }
+
+  /**
+   * @brief Gets the sentinel value used to represent an erased key slot.
+   *
+   * @return The sentinel value used to represent an erased key slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr key_type const& erased_key_sentinel() const noexcept
+  {
+    return this->predicate_.erased_sentinel_;
+  }
+
+  /**
+   * @brief Gets the sentinel used to represent an empty slot.
+   *
+   * @return The sentinel value used to represent an empty slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr value_type const& empty_slot_sentinel() const noexcept
+  {
+    return empty_slot_sentinel_;
+  }
+
+  /**
+   * @brief Returns the function that compares keys for equality.
+   *
+   * @return The key equality predicate
+   */
+  [[nodiscard]] __device__ constexpr detail::equal_wrapper<key_type, key_equal> const& predicate()
+    const noexcept
+  {
+    return this->predicate_;
+  }
+
+  /**
+   * @brief Gets the probing scheme.
+   *
+   * @return The probing scheme used for the container
+   */
+  [[nodiscard]] __device__ constexpr probing_scheme_type const& probing_scheme() const noexcept
+  {
+    return probing_scheme_;
+  }
+
+  /**
+   * @brief Gets the non-owning storage ref.
+   *
+   * @return The non-owning storage ref of the container
+   */
+  [[nodiscard]] __device__ constexpr storage_ref_type const& storage_ref() const noexcept
+  {
+    return storage_ref_;
   }
 
   /**
@@ -177,39 +262,31 @@ class open_addressing_ref_impl {
    * @brief Inserts an element.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
-   * @tparam Predicate Predicate type
    *
    * @param value The element to insert
-   * @param predicate Predicate used to compare slot content against `key`
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename Value, typename Predicate>
-  __device__ bool insert(Value const& value, Predicate const& predicate) noexcept
+  template <typename Value>
+  __device__ bool insert(Value const& value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    auto const key = [&]() {
-      if constexpr (this->has_payload) {
-        return value.first;
-      } else {
-        return value;
-      }
-    }();
+    auto const key    = this->extract_key(value);
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
 
       for (auto& slot_content : window_slots) {
-        auto const eq_res = predicate(slot_content, key);
+        auto const eq_res = this->predicate_(this->extract_key(slot_content), key);
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) { return false; }
         if (eq_res == detail::equal_result::EMPTY) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          switch (attempt_insert(
-            (storage_ref_.data() + *probing_iter)->data() + intra_window_index, value, predicate)) {
+          switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+                                 value)) {
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: return false;
@@ -224,26 +301,17 @@ class open_addressing_ref_impl {
    * @brief Inserts an element.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
-   * @tparam Predicate Predicate type
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
-   * @param predicate Predicate used to compare slot content against `key`
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename Value, typename Predicate>
+  template <typename Value>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
-                         Value const& value,
-                         Predicate const& predicate) noexcept
+                         Value const& value) noexcept
   {
-    auto const key = [&]() {
-      if constexpr (this->has_payload) {
-        return value.first;
-      } else {
-        return value;
-      }
-    }();
+    auto const key    = this->extract_key(value);
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
@@ -251,7 +319,7 @@ class open_addressing_ref_impl {
 
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
-          switch (predicate(window_slots[i], key)) {
+          switch (this->predicate_(this->extract_key(window_slots[i]), key)) {
             case detail::equal_result::EMPTY:
               return window_probing_results{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL:
@@ -273,8 +341,7 @@ class open_addressing_ref_impl {
         auto const status =
           (group.thread_rank() == src_lane)
             ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
-                             value,
-                             predicate)
+                             value)
             : insert_result::CONTINUE;
 
         switch (group.shfl(status, src_lane)) {
@@ -296,34 +363,25 @@ class open_addressing_ref_impl {
    * not.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
-   * @tparam Predicate Predicate type
    *
    * @param value The element to insert
-   * @param predicate Predicate used to compare slot content against `key`
    *
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <typename Value, typename Predicate>
-  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value,
-                                                          Predicate const& predicate) noexcept
+  template <typename Value>
+  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    auto const key = [&]() {
-      if constexpr (this->has_payload) {
-        return value.first;
-      } else {
-        return value;
-      }
-    }();
+    auto const key    = this->extract_key(value);
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref_[*probing_iter];
 
       for (auto i = 0; i < window_size; ++i) {
-        auto const eq_res = predicate(window_slots[i], key);
+        auto const eq_res = this->predicate_(this->extract_key(window_slots[i]), key);
         auto* window_ptr  = (storage_ref_.data() + *probing_iter)->data();
 
         // If the key is already in the container, return false
@@ -331,9 +389,9 @@ class open_addressing_ref_impl {
         if (eq_res == detail::equal_result::EMPTY) {
           switch ([&]() {
             if constexpr (sizeof(value_type) <= 8) {
-              return packed_cas(window_ptr + i, value, predicate);
+              return packed_cas(window_ptr + i, value);
             } else {
-              return cas_dependent_write(window_ptr + i, value, predicate);
+              return cas_dependent_write(window_ptr + i, value);
             }
           }()) {
             case insert_result::SUCCESS: {
@@ -358,28 +416,18 @@ class open_addressing_ref_impl {
    * not.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
-   * @tparam Predicate Predicate type
    *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
-   * @param predicate Predicate used to compare slot content against `key`
    *
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <typename Value, typename Predicate>
+  template <typename Value>
   __device__ thrust::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size> const& group,
-    Value const& value,
-    Predicate const& predicate) noexcept
+    cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
   {
-    auto const key = [&]() {
-      if constexpr (this->has_payload) {
-        return value.first;
-      } else {
-        return value;
-      }
-    }();
+    auto const key    = this->extract_key(value);
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
@@ -387,7 +435,7 @@ class open_addressing_ref_impl {
 
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
-          switch (predicate(window_slots[i], key)) {
+          switch (this->predicate_(this->extract_key(window_slots[i]), key)) {
             case detail::equal_result::EMPTY:
               return window_probing_results{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL:
@@ -416,9 +464,9 @@ class open_addressing_ref_impl {
         auto const status   = [&]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
           if constexpr (sizeof(value_type) <= 8) {
-            return packed_cas(slot_ptr, value, predicate);
+            return packed_cas(slot_ptr, value);
           } else {
-            return cas_dependent_write(slot_ptr, value, predicate);
+            return cas_dependent_write(slot_ptr, value);
           }
         }();
 
@@ -464,9 +512,9 @@ class open_addressing_ref_impl {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           auto const erased_slot        = [&]() {
             if constexpr (this->has_payload) {
-              return cuco::pair{erased_key_sentinel_, empty_slot_sentinel_.second};
+              return cuco::pair{this->erased_key_sentinel(), empty_slot_sentinel_.second};
             } else {
-              return erased_key_sentinel_;
+              return this->erased_key_sentinel();
             }
           }();
           switch (attempt_insert<this->has_payload>(
@@ -489,16 +537,13 @@ class open_addressing_ref_impl {
    * false.
    *
    * @tparam ProbeKey Probe key type
-   * @tparam Predicate Predicate type
    *
    * @param key The key to search for
-   * @param predicate Predicate used to compare slot content against `key`
    *
    * @return A boolean indicating whether the probe key is present
    */
-  template <typename ProbeKey, typename Predicate>
-  [[nodiscard]] __device__ bool contains(ProbeKey const& key,
-                                         Predicate const& predicate) const noexcept
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
@@ -508,7 +553,7 @@ class open_addressing_ref_impl {
       auto const window_slots = storage_ref_[*probing_iter];
 
       for (auto& slot_content : window_slots) {
-        switch (predicate(slot_content, key)) {
+        switch (this->predicate_(this->extract_key(slot_content), key)) {
           case detail::equal_result::UNEQUAL: continue;
           case detail::equal_result::EMPTY: return false;
           case detail::equal_result::EQUAL: return true;
@@ -525,19 +570,15 @@ class open_addressing_ref_impl {
    * false.
    *
    * @tparam ProbeKey Probe key type
-   * @tparam Predicate Predicate type
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
-   * @param predicate Predicate used to compare slot content against `key`
    *
    * @return A boolean indicating whether the probe key is present
    */
-  template <typename ProbeKey, typename Predicate>
+  template <typename ProbeKey>
   [[nodiscard]] __device__ bool contains(
-    cooperative_groups::thread_block_tile<cg_size> const& group,
-    ProbeKey const& key,
-    Predicate const& predicate) const noexcept
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
@@ -546,7 +587,7 @@ class open_addressing_ref_impl {
 
       auto const state = [&]() {
         for (auto& slot : window_slots) {
-          switch (predicate(slot, key)) {
+          switch (this->predicate_(this->extract_key(slot), key)) {
             case detail::equal_result::EMPTY: return detail::equal_result::EMPTY;
             case detail::equal_result::EQUAL: return detail::equal_result::EQUAL;
             default: continue;
@@ -569,16 +610,13 @@ class open_addressing_ref_impl {
    * `key`. If no such element exists, returns `end()`.
    *
    * @tparam ProbeKey Probe key type
-   * @tparam Predicate Predicate type
    *
    * @param key The key to search for
-   * @param predicate Predicate used to compare slot content against `key`
    *
    * @return An iterator to the position at which the equivalent key is stored
    */
-  template <typename ProbeKey, typename Predicate>
-  [[nodiscard]] __device__ const_iterator find(ProbeKey const& key,
-                                               Predicate const& predicate) const noexcept
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ const_iterator find(ProbeKey const& key) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
@@ -588,7 +626,7 @@ class open_addressing_ref_impl {
       auto const window_slots = storage_ref_[*probing_iter];
 
       for (auto i = 0; i < window_size; ++i) {
-        switch (predicate(window_slots[i], key)) {
+        switch (this->predicate_(this->extract_key(window_slots[i]), key)) {
           case detail::equal_result::EMPTY: {
             return this->end();
           }
@@ -609,19 +647,15 @@ class open_addressing_ref_impl {
    * `key`. If no such element exists, returns `end()`.
    *
    * @tparam ProbeKey Probe key type
-   * @tparam Predicate Predicate type
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
-   * @param predicate Predicate used to compare slot content against `key`
    *
    * @return An iterator to the position at which the equivalent key is stored
    */
-  template <typename ProbeKey, typename Predicate>
-  [[nodiscard]] __device__ const_iterator
-  find(cooperative_groups::thread_block_tile<cg_size> const& group,
-       ProbeKey const& key,
-       Predicate const& predicate) const noexcept
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ const_iterator find(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
@@ -630,7 +664,7 @@ class open_addressing_ref_impl {
 
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
-          switch (predicate(window_slots[i], key)) {
+          switch (this->predicate_(this->extract_key(window_slots[i]), key)) {
             case detail::equal_result::EMPTY:
               return window_probing_results{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL:
@@ -743,53 +777,58 @@ class open_addressing_ref_impl {
     }
   }
 
-  /**
-   * @brief Gets the sentinel used to represent an empty slot.
-   *
-   * @return The sentinel value used to represent an empty slot
-   */
-  [[nodiscard]] __device__ constexpr value_type empty_slot_sentinel() const noexcept
-  {
-    return empty_slot_sentinel_;
-  }
-
-  /**
-   * @brief Gets the probing scheme.
-   *
-   * @return The probing scheme used for the container
-   */
-  [[nodiscard]] __device__ constexpr probing_scheme_type const& probing_scheme() const noexcept
-  {
-    return probing_scheme_;
-  }
-
-  /**
-   * @brief Gets the non-owning storage ref.
-   *
-   * @return The non-owning storage ref of the container
-   */
-  [[nodiscard]] __device__ constexpr storage_ref_type storage_ref() const noexcept
-  {
-    return storage_ref_;
-  }
-
  private:
+  /**
+   * @brief Extracts the key from a given value type.
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
+   * @param value The input value
+   *
+   * @return The key
+   */
+  template <typename Value>
+  [[nodiscard]] __host__ __device__ constexpr auto const& extract_key(
+    Value const& value) const noexcept
+  {
+    if constexpr (this->has_payload) {
+      return value.first;
+    } else {
+      return value;
+    }
+  }
+
+  /**
+   * @brief Extracts the payload from a given value type.
+   *
+   * @note This function is only available if `this->has_payload == true`
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
+   * @param value The input value
+   *
+   * @return The payload
+   */
+  template <typename Value, typename Enable = std::enable_if_t<has_payload and sizeof(Value)>>
+  [[nodiscard]] __host__ __device__ constexpr auto const& extract_payload(
+    Value const& value) const noexcept
+  {
+    return value.second;
+  }
+
   /**
    * @brief Inserts the specified element with one single CAS operation.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
-   * @tparam Predicate Predicate type
    *
    * @param slot Pointer to the slot in memory
    * @param value Element to insert
-   * @param predicate Predicate used to compare slot content against `key`
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  template <typename Value, typename Predicate>
+  template <typename Value>
   [[nodiscard]] __device__ constexpr insert_result packed_cas(value_type* slot,
-                                                              Value const& value,
-                                                              Predicate const& predicate) noexcept
+                                                              Value const& value) noexcept
   {
     auto old = compare_and_swap(slot, this->empty_slot_sentinel_, static_cast<value_type>(value));
     auto* old_ptr       = reinterpret_cast<value_type*>(&old);
@@ -809,10 +848,10 @@ class open_addressing_ref_impl {
       auto const res = [&]() {
         if constexpr (this->has_payload) {
           // If it's a map implementation, compare keys only
-          return predicate.equal_to(old_ptr->first, value.first);
+          return this->predicate_.equal_to(old_ptr->first, value.first);
         } else {
           // If it's a set implementation, compare the whole slot content
-          return predicate.equal_to(*old_ptr, value);
+          return this->predicate_.equal_to(*old_ptr, value);
         }
       }();
       return res == detail::equal_result::EQUAL ? insert_result::DUPLICATE
@@ -824,17 +863,15 @@ class open_addressing_ref_impl {
    * @brief Inserts the specified element with two back-to-back CAS operations.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
-   * @tparam Predicate Predicate type
    *
    * @param slot Pointer to the slot in memory
    * @param value Element to insert
-   * @param predicate Predicate used to compare slot content against `key`
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  template <typename Value, typename Predicate>
-  [[nodiscard]] __device__ constexpr insert_result back_to_back_cas(
-    value_type* slot, Value const& value, Predicate const& predicate) noexcept
+  template <typename Value>
+  [[nodiscard]] __device__ constexpr insert_result back_to_back_cas(value_type* slot,
+                                                                    Value const& value) noexcept
   {
     using mapped_type = decltype(this->empty_slot_sentinel_.second);
 
@@ -861,7 +898,7 @@ class open_addressing_ref_impl {
 
     // Our key was already present in the slot, so our key is a duplicate
     // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-    if (predicate.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL) {
+    if (this->predicate_.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL) {
       return insert_result::DUPLICATE;
     }
 
@@ -872,17 +909,15 @@ class open_addressing_ref_impl {
    * @brief Inserts the specified element with CAS-dependent write operations.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
-   * @tparam Predicate Predicate type
    *
    * @param slot Pointer to the slot in memory
    * @param value Element to insert
-   * @param predicate Predicate used to compare slot content against `key`
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  template <typename Value, typename Predicate>
-  [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(
-    value_type* slot, Value const& value, Predicate const& predicate) noexcept
+  template <typename Value>
+  [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(value_type* slot,
+                                                                       Value const& value) noexcept
   {
     using mapped_type = decltype(this->empty_slot_sentinel_.second);
 
@@ -900,7 +935,7 @@ class open_addressing_ref_impl {
 
     // Our key was already present in the slot, so our key is a duplicate
     // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-    if (predicate.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL) {
+    if (this->predicate_.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL) {
       return insert_result::DUPLICATE;
     }
 
@@ -914,34 +949,32 @@ class open_addressing_ref_impl {
    * type and presence of other operator mixins.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
-   * @tparam Predicate Predicate type
    *
    * @param slot Pointer to the slot in memory
    * @param value Element to insert
-   * @param predicate Predicate used to compare slot content against `key`
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
-  template <typename Value, typename Predicate>
+  template <typename Value>
   [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot,
-                                                        Value const& value,
-                                                        Predicate const& predicate) noexcept
+                                                        Value const& value) noexcept
   {
     if constexpr (sizeof(value_type) <= 8) {
-      return packed_cas(slot, value, predicate);
+      return packed_cas(slot, value);
     } else {
 #if (_CUDA_ARCH__ < 700)
-      return cas_dependent_write(slot, value, predicate);
+      return cas_dependent_write(slot, value);
 #else
-      return back_to_back_cas(slot, value, predicate);
+      return back_to_back_cas(slot, value);
 #endif
     }
   }
 
-  value_type empty_slot_sentinel_;      ///< Sentinel value indicating an empty slot
-  key_type erased_key_sentinel_;        ///< Key value that represents an erased slot
-  probing_scheme_type probing_scheme_;  ///< Probing scheme
-  storage_ref_type storage_ref_;        ///< Slot storage ref
+  // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
+  value_type empty_slot_sentinel_;  ///< Sentinel value indicating an empty slot
+  detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
+  probing_scheme_type probing_scheme_;                    ///< Probing scheme
+  storage_ref_type storage_ref_;                          ///< Slot storage ref
 };
 
 }  // namespace detail

@@ -67,7 +67,8 @@ class static_map_ref
   : public detail::operator_impl<
       Operators,
       static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
-  using impl_type = detail::open_addressing_ref_impl<Key, Scope, ProbingScheme, StorageRef>;
+  using impl_type =
+    detail::open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
 
   static_assert(sizeof(T) <= 8, "Container does not support payload types larger than 8 bytes.");
 
@@ -176,11 +177,7 @@ class static_map_ref
   [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
 
  private:
-  struct predicate_wrapper;
-
-  impl_type impl_;                    ///< Static map ref implementation
-  predicate_wrapper predicate_;       ///< Key equality binary callable
-  mapped_type empty_value_sentinel_;  ///< Empty value sentinel
+  impl_type impl_;  ///< Static map ref implementation
 
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>
