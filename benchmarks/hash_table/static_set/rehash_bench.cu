@@ -25,25 +25,25 @@
 #include <thrust/device_vector.h>
 
 /**
- * @brief A benchmark evaluating `cuco::static_set::size` performance
+ * @brief A benchmark evaluating `cuco::static_set::rehash` performance
  */
 template <typename Key, typename Dist>
 void static_set_rehash(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
-  auto const num_keys = state.get_int64_or_default("NumInputs", cuco::benchmark::defaults::N);
+  std::size_t const capacity = state.get_int64_or_default("Capacity", cuco::benchmark::defaults::N);
   auto const occupancy =
     state.get_float64_or_default("Occupancy", cuco::benchmark::defaults::OCCUPANCY);
 
-  std::size_t const size = num_keys / occupancy;
+  std::size_t const num_keys = capacity * occupancy;
 
-  thrust::device_vector<Key> keys(num_keys);
+  thrust::device_vector<Key> keys(num_keys);  // slots per second
 
   cuco::utility::key_generator gen;
   gen.generate(cuco::benchmark::dist_from_state<Dist>(state), keys.begin(), keys.end());
 
-  state.add_element_count(num_keys);
+  state.add_element_count(capacity);
 
-  cuco::experimental::static_set<Key> set{size, cuco::empty_key<Key>{-1}};
+  cuco::experimental::static_set<Key> set{capacity, cuco::empty_key<Key>{-1}};
 
   set.insert(keys.begin(), keys.end());
 
