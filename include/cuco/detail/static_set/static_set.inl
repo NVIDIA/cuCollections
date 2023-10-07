@@ -329,7 +329,8 @@ OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   auto const begin =
     thrust::make_transform_iterator(thrust::counting_iterator<size_type>{0},
                                     detail::get_slot<storage_ref_type>(impl_->storage_ref()));
-  auto const is_filled = static_set_ns::detail::slot_is_filled(this->empty_key_sentinel());
+  auto const is_filled =
+    static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
 
   return impl_->retrieve_all(begin, output_begin, is_filled, stream);
 }
@@ -345,7 +346,8 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cuda_stream_ref stream) const noexcept
 {
-  auto const is_filled = static_set_ns::detail::slot_is_filled(this->empty_key_sentinel());
+  auto const is_filled =
+    static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
   return impl_->size(is_filled, stream);
 }
 

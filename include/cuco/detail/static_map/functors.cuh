@@ -63,14 +63,19 @@ struct get_slot {
  */
 template <typename T, typename U>
 struct slot_is_filled {
-  T empty_sentinel_;  ///< The value of the empty key sentinel
+  T empty_sentinel_;   ///< The value of the empty key sentinel
+  T erased_sentinel_;  ///< Key value that represents an erased slot
 
   /**
-   * @brief Constructs `slot_is_filled` functor with the given empty sentinel.
+   * @brief Constructs `slot_is_filled` functor with the given sentinels.
    *
-   * @param s Sentinel indicating empty slot
+   * @param empty_sentinel Sentinel indicating empty slot
+   * @param erased_sentinel Sentinel indicating erased slot
    */
-  explicit constexpr slot_is_filled(T const& s) noexcept : empty_sentinel_{s} {}
+  explicit constexpr slot_is_filled(T const& empty_sentinel, T const& erased_sentinel) noexcept
+    : empty_sentinel_{empty_sentinel}, erased_sentinel_{erased_sentinel}
+  {
+  }
 
   /**
    * @brief Indicates if the target slot `slot` is filled.
@@ -84,7 +89,8 @@ struct slot_is_filled {
   template <typename Slot>
   __device__ constexpr bool operator()(Slot const& slot) const noexcept
   {
-    return not cuco::detail::bitwise_compare(empty_sentinel_, thrust::get<0>(slot));
+    return not(cuco::detail::bitwise_compare(empty_sentinel_, thrust::get<0>(slot)) or
+               cuco::detail::bitwise_compare(erased_sentinel_, thrust::get<0>(slot)));
   }
 
   /**
@@ -96,7 +102,8 @@ struct slot_is_filled {
    */
   __device__ constexpr bool operator()(cuco::pair<T, U> const& slot) const noexcept
   {
-    return not cuco::detail::bitwise_compare(empty_sentinel_, slot.first);
+    return not(cuco::detail::bitwise_compare(empty_sentinel_, slot.first) or
+               cuco::detail::bitwise_compare(erased_sentinel_, slot.first));
   }
 };
 
