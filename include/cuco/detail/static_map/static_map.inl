@@ -506,6 +506,7 @@ auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
                                     impl_->storage_ref()}
            : ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
                                     cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
+                                    cuco::erased_key<key_type>(this->erased_key_sentinel()),
                                     impl_->key_eq(),
                                     impl_->probing_scheme(),
                                     impl_->storage_ref()};
