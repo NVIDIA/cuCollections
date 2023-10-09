@@ -256,7 +256,8 @@ class operator_impl<
             value.second);
           return;
         }
-        if (eq_res == detail::equal_result::EMPTY) {
+        if (eq_res == detail::equal_result::EMPTY or
+            cuco::detail::bitwise_compare(slot_content.first, ref_.impl_.erased_key_sentinel())) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           if (attempt_insert_or_assign(
                 (storage_ref.data() + *probing_iter)->data() + intra_window_index, value)) {
@@ -297,7 +298,14 @@ class operator_impl<
               return detail::window_probing_results{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL:
               return detail::window_probing_results{detail::equal_result::EQUAL, i};
-            default: continue;
+            default: {
+              if (cuco::detail::bitwise_compare(window_slots[i].first,
+                                                ref_.impl_.erased_key_sentinel())) {
+                return window_probing_results{detail::equal_result::ERASED, i};
+              } else {
+                continue;
+              }
+            }
           }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -316,7 +324,8 @@ class operator_impl<
         return;
       }
 
-      auto const group_contains_available = group.ballot(state == detail::equal_result::EMPTY);
+      auto const group_contains_available =
+        group.ballot(state == detail::equal_result::EMPTY or state == detail::equal_result::ERASED);
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status =
