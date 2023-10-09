@@ -587,7 +587,7 @@ class open_addressing_ref_impl {
         auto const status =
           (group.thread_rank() == src_lane)
             ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
-                             window_slots[src_lane],
+                             window_slots[intra_window_index],
                              this->erased_slot_sentinel())
             : insert_result::CONTINUE;
 
