@@ -576,9 +576,10 @@ class open_addressing_impl {
 
     auto const num_windows = old_storage.num_windows();
     if (num_windows == 0) { return; }
+
     auto constexpr block_size = cuco::detail::default_block_size();
     auto constexpr stride     = cuco::detail::default_stride();
-    auto const grid_size      = cuco::detail::int_div_ceil(num_windows, stride * block_size);
+    auto const grid_size      = cuco::detail::grid_size(num_windows, 1, stride, block_size);
 
     detail::rehash<block_size><<<grid_size, block_size, 0, stream>>>(
       old_storage.ref(), container.ref(op::insert), is_filled);
