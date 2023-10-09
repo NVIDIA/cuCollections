@@ -261,8 +261,10 @@ __global__ void size(StorageRef storage, Predicate is_filled, AtomicT* count)
   if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
 }
 
-template <int32_t BlockSize, typename StorageRef, typename ContainerRef, typename Predicate>
-__global__ void rehash(StorageRef storage_ref, ContainerRef container_ref, Predicate is_filled)
+template <int32_t BlockSize, typename ContainerRef, typename Predicate>
+__global__ void rehash(typename ContainerRef::storage_ref_type storage_ref,
+                       ContainerRef container_ref,
+                       Predicate is_filled)
 {
   namespace cg = cooperative_groups;
 
