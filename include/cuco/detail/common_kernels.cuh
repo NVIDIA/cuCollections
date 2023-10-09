@@ -296,12 +296,13 @@ __global__ void rehash(typename ContainerRef::storage_ref_type storage_ref,
     }
     block.sync();
 
-    auto const local_buffer_size = buffer_size;  // this avoids an additional block.sync()
+    auto const local_buffer_size = buffer_size;
 
     // insert from shmem buffer into the container
     for (auto tidx = tile_rank; tidx < local_buffer_size; tidx += tiles_per_block) {
       container_ref.insert(tile, buffer[tidx]);
     }
+    block.sync();
 
     idx += loop_stride;
   }
