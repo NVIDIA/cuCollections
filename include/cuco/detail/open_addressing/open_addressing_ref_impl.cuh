@@ -328,7 +328,6 @@ class open_addressing_ref_impl {
             case detail::equal_result::EQUAL:
               return window_probing_results{detail::equal_result::EQUAL, i};
             default: {
-              continue;
               if (cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
                                                 this->erased_key_sentinel())) {
                 return window_probing_results{detail::equal_result::ERASED, i};
@@ -455,7 +454,6 @@ class open_addressing_ref_impl {
             case detail::equal_result::EQUAL:
               return window_probing_results{detail::equal_result::EQUAL, i};
             default: {
-              continue;
               if (cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
                                                 this->erased_key_sentinel())) {
                 return window_probing_results{detail::equal_result::ERASED, i};
