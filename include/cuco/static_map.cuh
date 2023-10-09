@@ -542,7 +542,7 @@ class static_map {
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `rehash_async`.
    *
-   * @param stream CUDA stream used to get the number of inserted elements
+   * @param stream CUDA stream used for this operation
    */
   void rehash(cuda_stream_ref stream = {});
 
@@ -551,24 +551,29 @@ class static_map {
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `rehash_async`.
+   * @note Behavior is undefined if the desired `capacity` is insufficient to store all of contained
+   * elements.
    *
    * @param capacity New capacity of the container
-   * @param stream CUDA stream used to get the number of inserted elements
+   * @param stream CUDA stream used for this operation
    */
   void rehash(size_type capacity, cuda_stream_ref stream = {});
 
   /**
-   * @brief Rebuilds the container.
+   * @brief Asynchonously rebuilds the container.
    *
-   * @param stream CUDA stream used to get the number of inserted elements
+   * @param stream CUDA stream used for this operation
    */
   void rehash_async(cuda_stream_ref stream = {});
 
   /**
-   * @brief Rebuilds the container.
+   * @brief Asynchonously rebuilds the container.
+   *
+   * @note Behavior is undefined if the desired `capacity` is insufficient to store all of contained
+   * elements.
    *
    * @param capacity New capacity of the container
-   * @param stream CUDA stream used to get the number of inserted elements
+   * @param stream CUDA stream used for this operation
    */
   void rehash_async(size_type capacity, cuda_stream_ref stream = {});
 
