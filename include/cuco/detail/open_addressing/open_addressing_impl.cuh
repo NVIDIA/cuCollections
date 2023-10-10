@@ -682,6 +682,7 @@ class open_addressing_impl {
   [[nodiscard]] constexpr storage_ref_type storage_ref() const noexcept { return storage_.ref(); }
 
  protected:
+  // TODO: cleanup by using equal wrapper as a data member
   key_type empty_key_sentinel_;         ///< Key value that represents an empty slot
   value_type empty_slot_sentinel_;      ///< Slot value that represents an empty slot
   key_type erased_key_sentinel_;        ///< Key value that represents an erased slot
