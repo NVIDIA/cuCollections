@@ -152,10 +152,14 @@ class operator_impl<
   /**
    * @brief Inserts an element.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
    * @param value The element to insert
+   *
    * @return True if the given element is successfully inserted
    */
-  __device__ bool insert(value_type const& value) noexcept
+  template <typename Value>
+  __device__ bool insert(Value const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert(value);
@@ -164,12 +168,16 @@ class operator_impl<
   /**
    * @brief Inserts an element.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
+   *
    * @return True if the given element is successfully inserted
    */
+  template <typename Value>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
-                         value_type const& value) noexcept
+                         Value const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert(group, value);
@@ -202,9 +210,12 @@ class operator_impl<
    * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, assigns `v`
    * to the mapped_type corresponding to the key `k`.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
    * @param value The element to insert
    */
-  __device__ void insert_or_assign(value_type const& value) noexcept
+  template <typename Value>
+  __device__ void insert_or_assign(Value const& value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
@@ -246,11 +257,14 @@ class operator_impl<
    * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, assigns `v`
    * to the mapped_type corresponding to the key `k`.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    */
+  template <typename Value>
   __device__ void insert_or_assign(cooperative_groups::thread_block_tile<cg_size> const& group,
-                                   value_type const& value) noexcept
+                                   Value const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
@@ -313,13 +327,15 @@ class operator_impl<
    * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, assigns `v`
    * to the mapped_type corresponding to the key `k`.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    *
    * @return Returns `true` if the given `value` is inserted or `value` has a match in the map.
    */
-  __device__ constexpr bool attempt_insert_or_assign(value_type* slot,
-                                                     value_type const& value) noexcept
+  template <typename Value>
+  __device__ constexpr bool attempt_insert_or_assign(value_type* slot, Value const& value) noexcept
   {
     ref_type& ref_          = static_cast<ref_type&>(*this);
     auto const expected_key = ref_.impl_.empty_slot_sentinel().first;
@@ -411,14 +427,17 @@ class operator_impl<
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
    *
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
+  template <typename Value>
   __device__ thrust::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, value_type const& value) noexcept
+    cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(group, value);

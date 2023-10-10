@@ -41,6 +41,8 @@ struct key_pair {
   // Device equality operator is mandatory due to libcudacxx bug:
   // https://github.com/NVIDIA/libcudacxx/issues/223
   __device__ bool operator==(key_pair const& other) const { return a == other.a and b == other.b; }
+
+  __device__ explicit operator T() const noexcept { return a; }
 };
 
 // probe key type
@@ -64,61 +66,74 @@ struct key_triplet {
 // User-defined device hasher
 struct custom_hasher {
   template <typename CustomKey>
-  __device__ uint32_t operator()(CustomKey const& k)
+  __device__ uint32_t operator()(CustomKey const& k) const
   {
-    return thrust::raw_reference_cast(k).a;
+    return k.a;
   };
 };
 
 // User-defined device key equality
 struct custom_key_equal {
-  template <typename LHS, typename RHS>
-  __device__ bool operator()(LHS const& lhs, RHS const& rhs)
+  template <typename SlotKey, typename InputKey>
+  __device__ bool operator()(SlotKey const& lhs, InputKey const& rhs) const
   {
-    return thrust::raw_reference_cast(lhs).a == thrust::raw_reference_cast(rhs).a;
+    return lhs == rhs.a;
   }
 };
 
-TEMPLATE_TEST_CASE("Heterogeneous lookup",
-                   "",
+TEMPLATE_TEST_CASE_SIG("Heterogeneous lookup",
+                       "",
+                       ((typename T, int CGSize), T, CGSize),
 #if defined(CUCO_HAS_INDEPENDENT_THREADS)  // Key type larger than 8B only supported for sm_70 and
                                            // up
-                   int64_t,
+                       (int64_t, 1),
+                       (int64_t, 2),
 #endif
-                   int32_t)
+
+                       (int32_t, 1),
+                       (int32_t, 2))
 {
-  using Key      = key_pair<TestType>;
-  using Value    = TestType;
-  using ProbeKey = key_triplet<TestType>;
+  using Key        = T;
+  using Value      = T;
+  using InsertKey  = key_pair<T>;
+  using ProbeKey   = key_triplet<T>;
+  using probe_type = cuco::experimental::double_hashing<CGSize, custom_hasher, custom_hasher>;
 
   auto const sentinel_key   = Key{-1};
   auto const sentinel_value = Value{-1};
 
   constexpr std::size_t num      = 100;
   constexpr std::size_t capacity = num * 2;
-  cuco::static_map<Key, Value> map{
-    capacity, cuco::empty_key<Key>{sentinel_key}, cuco::empty_value<Value>{sentinel_value}};
+  auto const probe               = probe_type{custom_hasher{}, custom_hasher{}};
+  auto my_map                    = cuco::experimental::static_map<Key,
+                                               Value,
+                                               cuco::experimental::extent<std::size_t>,
+                                               cuda::thread_scope_device,
+                                               custom_key_equal,
+                                               probe_type>{capacity,
+                                                           cuco::empty_key<Key>{sentinel_key},
+                                                           cuco::empty_value{sentinel_value},
+                                                           custom_key_equal{},
+                                                           probe};
 
-  auto insert_pairs =
-    thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
+  auto insert_pairs = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0),
+    [] __device__(auto i) { return cuco::pair<InsertKey, Value>(i, i); });
   auto probe_keys = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
                                                     [] __device__(auto i) { return ProbeKey(i); });
 
   SECTION("All inserted keys-value pairs should be contained")
   {
     thrust::device_vector<bool> contained(num);
-    map.insert(insert_pairs, insert_pairs + num, custom_hasher{}, custom_key_equal{});
-    map.contains(
-      probe_keys, probe_keys + num, contained.begin(), custom_hasher{}, custom_key_equal{});
+    my_map.insert(insert_pairs, insert_pairs + num);
+    my_map.contains(probe_keys, probe_keys + num, contained.begin());
     REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
     thrust::device_vector<bool> contained(num);
-    map.contains(
-      probe_keys, probe_keys + num, contained.begin(), custom_hasher{}, custom_key_equal{});
+    my_map.contains(probe_keys, probe_keys + num, contained.begin());
     REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 }
