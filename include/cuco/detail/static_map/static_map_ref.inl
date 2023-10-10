@@ -409,12 +409,15 @@ class operator_impl<
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
    * @param value The element to insert
    *
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  __device__ thrust::pair<iterator, bool> insert_and_find(value_type const& value) noexcept
+  template <typename Value>
+  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(value);
