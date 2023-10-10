@@ -404,13 +404,14 @@ class static_map {
    *
    * @note For each key `k` in `[first, last)`, if contains(k) returns true, removes `k` and it's
    * associated value from the map. Else, no effect.
+   *
    * @note This function synchronizes `stream`.
+   *
    * @note Side-effects:
    *  - `contains(k) == false`
    *  - `find(k) == end()`
    *  - `insert({k,v}) == true`
    *  - `size()` is reduced by the total number of erased keys
-   *
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `key_type`
@@ -430,6 +431,7 @@ class static_map {
    *
    * @note For each key `k` in `[first, last)`, if contains(k) returns true, removes `k` and it's
    * associated value from the map. Else, no effect.
+   *
    * @note Side-effects:
    *  - `contains(k) == false`
    *  - `find(k) == end()`

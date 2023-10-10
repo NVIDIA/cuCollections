@@ -415,6 +415,7 @@ class open_addressing_impl {
    *
    * @note For each key `k` in `[first, last)`, if contains(k) returns true, removes `k` and it's
    * associated value from the container. Else, no effect.
+   *
    * @note Side-effects:
    *  - `contains(k) == false`
    *  - `find(k) == end()`
