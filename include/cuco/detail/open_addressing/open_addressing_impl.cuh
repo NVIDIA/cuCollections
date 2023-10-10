@@ -641,9 +641,9 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Gets the sentinel value used to represent an empty key slot.
+   * @brief Gets the sentinel value used to represent an erased key slot.
    *
-   * @return The sentinel value used to represent an empty key slot
+   * @return The sentinel value used to represent an erased key slot
    */
   [[nodiscard]] constexpr key_type erased_key_sentinel() const noexcept
   {
