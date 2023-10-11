@@ -56,6 +56,34 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+__host__ __device__ constexpr static_map_ref<
+  Key,
+  T,
+  Scope,
+  KeyEqual,
+  ProbingScheme,
+  StorageRef,
+  Operators...>::static_map_ref(cuco::empty_key<Key> empty_key_sentinel,
+                                cuco::empty_value<T> empty_value_sentinel,
+                                cuco::erased_key<Key> erased_key_sentinel,
+                                KeyEqual const& predicate,
+                                ProbingScheme const& probing_scheme,
+                                StorageRef storage_ref) noexcept
+  : impl_{cuco::pair{empty_key_sentinel, empty_value_sentinel},
+          erased_key_sentinel,
+          predicate,
+          probing_scheme,
+          storage_ref}
+{
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename... OtherOperators>
 __host__ __device__ constexpr static_map_ref<Key,
                                              T,
@@ -228,7 +256,8 @@ class operator_impl<
             value.second);
           return;
         }
-        if (eq_res == detail::equal_result::EMPTY) {
+        if (eq_res == detail::equal_result::EMPTY or
+            cuco::detail::bitwise_compare(slot_content.first, ref_.impl_.erased_key_sentinel())) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           if (attempt_insert_or_assign(
                 (storage_ref.data() + *probing_iter)->data() + intra_window_index, value)) {
@@ -269,7 +298,14 @@ class operator_impl<
               return detail::window_probing_results{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL:
               return detail::window_probing_results{detail::equal_result::EQUAL, i};
-            default: continue;
+            default: {
+              if (cuco::detail::bitwise_compare(window_slots[i].first,
+                                                ref_.impl_.erased_key_sentinel())) {
+                return window_probing_results{detail::equal_result::ERASED, i};
+              } else {
+                continue;
+              }
+            }
           }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -288,9 +324,10 @@ class operator_impl<
         return;
       }
 
-      auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
-      if (group_contains_empty) {
-        auto const src_lane = __ffs(group_contains_empty) - 1;
+      auto const group_contains_available =
+        group.ballot(state == detail::equal_result::EMPTY or state == detail::equal_result::ERASED);
+      if (group_contains_available) {
+        auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status =
           (group.thread_rank() == src_lane)
             ? attempt_insert_or_assign(
@@ -422,6 +459,60 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(group, value);
+  }
+};
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::erase_tag,
+  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief Erases an element.
+   *
+   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
+   *
+   * @param key The element to erase
+   *
+   * @return True if the given element is successfully erased
+   */
+  template <typename ProbeKey>
+  __device__ bool erase(ProbeKey const& key) noexcept
+  {
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.erase(key);
+  }
+
+  /**
+   * @brief Erases an element.
+   *
+   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
+   *
+   * @param group The Cooperative Group used to perform group insert
+   * @param key The element to erase
+   *
+   * @return True if the given element is successfully erased
+   */
+  template <typename ProbeKey>
+  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size> const& group,
+                        ProbeKey const& key) noexcept
+  {
+    auto& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.erase(group, key);
   }
 };
 

@@ -223,6 +223,38 @@ class static_map {
                        cuda_stream_ref stream              = {});
 
   /**
+   * @brief Constructs a statically-sized map with the specified initial capacity, sentinel values
+   * and CUDA stream.
+   *
+   * The actual map capacity depends on the given `capacity`, the probing scheme, CG size, and the
+   * window size and it is computed via the `make_window_extent` factory. Insert operations will not
+   * automatically grow the map. Attempting to insert more unique keys than the capacity of the map
+   * results in undefined behavior.
+   *
+   * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
+   * this sentinel value.
+   * @note If a non-default CUDA stream is provided, the caller is responsible for synchronizing the
+   * stream before the object is first used.
+   *
+   * @param capacity The requested lower-bound map size
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param erased_key_sentinel The reserved key to denote erased slots
+   * @param pred Key equality binary predicate
+   * @param probing_scheme Probing scheme
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the map
+   */
+  constexpr static_map(Extent capacity,
+                       empty_key<Key> empty_key_sentinel,
+                       empty_value<T> empty_value_sentinel,
+                       erased_key<Key> erased_key_sentinel,
+                       KeyEqual const& pred                = {},
+                       ProbingScheme const& probing_scheme = {},
+                       Allocator const& alloc              = {},
+                       cuda_stream_ref stream              = {});
+
+  /**
    * @brief Erases all elements from the container. After this call, `size()` returns zero.
    * Invalidates any references, pointers, or iterators referring to contained elements.
    *
@@ -366,6 +398,58 @@ class static_map {
    */
   template <typename InputIt>
   void insert_or_assign_async(InputIt first, InputIt last, cuda_stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief Erases keys in the range `[first, last)`.
+   *
+   * @note For each key `k` in `[first, last)`, if contains(k) returns true, removes `k` and it's
+   * associated value from the map. Else, no effect.
+   *
+   * @note This function synchronizes `stream`.
+   *
+   * @note Side-effects:
+   *  - `contains(k) == false`
+   *  - `find(k) == end()`
+   *  - `insert({k,v}) == true`
+   *  - `size()` is reduced by the total number of erased keys
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the map's `key_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream Stream used for executing the kernels
+   *
+   * @throw std::runtime_error if a unique erased key sentinel value was not
+   * provided at construction
+   */
+  template <typename InputIt>
+  void erase(InputIt first, InputIt last, cuda_stream_ref stream = {});
+
+  /**
+   * @brief Asynchronously erases keys in the range `[first, last)`.
+   *
+   * @note For each key `k` in `[first, last)`, if contains(k) returns true, removes `k` and it's
+   * associated value from the map. Else, no effect.
+   *
+   * @note Side-effects:
+   *  - `contains(k) == false`
+   *  - `find(k) == end()`
+   *  - `insert({k,v}) == true`
+   *  - `size()` is reduced by the total number of erased keys
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the map's `key_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream Stream used for executing the kernels
+   *
+   * @throw std::runtime_error if a unique erased key sentinel value was not
+   * provided at construction
+   */
+  template <typename InputIt>
+  void erase_async(InputIt first, InputIt last, cuda_stream_ref stream = {});
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -566,6 +650,13 @@ class static_map {
    * @return The sentinel value used to represent an empty value slot
    */
   [[nodiscard]] constexpr mapped_type empty_value_sentinel() const noexcept;
+
+  /**
+   * @brief Gets the sentinel value used to represent an erased key slot.
+   *
+   * @return The sentinel value used to represent an erased key slot
+   */
+  [[nodiscard]] constexpr key_type erased_key_sentinel() const noexcept;
 
   /**
    * @brief Get device ref with operators.

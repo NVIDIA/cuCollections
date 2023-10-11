@@ -26,7 +26,7 @@ namespace detail {
 /**
  * @brief Enum of equality comparison results.
  */
-enum class equal_result : int32_t { UNEQUAL = 0, EMPTY = 1, EQUAL = 2 };
+enum class equal_result : int32_t { UNEQUAL = 0, EMPTY = 1, EQUAL = 2, ERASED = 3 };
 
 /**
  * @brief Key equality wrapper.
@@ -39,17 +39,21 @@ enum class equal_result : int32_t { UNEQUAL = 0, EMPTY = 1, EQUAL = 2 };
 template <typename T, typename Equal>
 struct equal_wrapper {
   // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
-  T empty_sentinel_;  ///< Sentinel value
-  Equal equal_;       ///< Custom equality callable
+  T empty_sentinel_;   ///< Empty sentinel value
+  T erased_sentinel_;  ///< Erased sentinel value
+  Equal equal_;        ///< Custom equality callable
 
   /**
    * @brief Equality wrapper ctor.
    *
-   * @param sentinel Sentinel value
+   * @param empty_sentinel Empty sentinel value
+   * @param erased_sentinel Erased sentinel value
    * @param equal Equality binary callable
    */
-  __host__ __device__ constexpr equal_wrapper(T sentinel, Equal const& equal) noexcept
-    : empty_sentinel_{sentinel}, equal_{equal}
+  __host__ __device__ constexpr equal_wrapper(T empty_sentinel,
+                                              T erased_sentinel,
+                                              Equal const& equal) noexcept
+    : empty_sentinel_{empty_sentinel}, erased_sentinel_{erased_sentinel}, equal_{equal}
   {
   }
 
