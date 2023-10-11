@@ -38,3 +38,20 @@ struct vectorKeyCompare {
     return lhs.size() <= rhs.size();
   }
 };
+
+inline std::chrono::high_resolution_clock::time_point current_time()
+{
+  return std::chrono::high_resolution_clock::now();
+}
+inline size_t elapsed_seconds(std::chrono::high_resolution_clock::time_point begin)
+{
+  return std::chrono::duration_cast<std::chrono::seconds>(current_time() - begin).count();
+}
+inline size_t elapsed_milliseconds(std::chrono::high_resolution_clock::time_point begin)
+{
+  return std::chrono::duration_cast<std::chrono::milliseconds>(current_time() - begin).count();
+}
+inline size_t elapsed_microseconds(std::chrono::high_resolution_clock::time_point begin)
+{
+  return std::chrono::duration_cast<std::chrono::microseconds>(current_time() - begin).count();
+}
