@@ -27,10 +27,14 @@ TEST_CASE("Rehash", "")
 {
   using key_type    = int;
   using mapped_type = long;
-  constexpr std::size_t num_keys{400};
 
-  cuco::experimental::static_map<key_type, mapped_type> map{
-    num_keys, cuco::empty_key<key_type>{-1}, cuco::empty_value<mapped_type>{-1}};
+  constexpr std::size_t num_keys{400};
+  constexpr std::size_t num_erased_keys{100};
+
+  cuco::experimental::static_map map{num_keys,
+                                     cuco::empty_key<key_type>{-1},
+                                     cuco::empty_value<mapped_type>{-1},
+                                     cuco::erased_key<key_type>{-2}};
 
   thrust::device_vector<key_type> d_keys(num_keys);
   thrust::device_vector<mapped_type> d_values(num_keys);
@@ -49,7 +53,7 @@ TEST_CASE("Rehash", "")
   map.rehash(num_keys * 2);
   REQUIRE(map.size() == num_keys);
 
-  // TODO erase num_erased keys
-  // map.rehash()
-  // REQUIRE(map.size() == num_keys - num_erased);
+  map.erase(d_keys.begin(), d_keys.begin() + num_erased_keys);
+  map.rehash();
+  REQUIRE(map.size() == num_keys - num_erased_keys);
 }

@@ -23,11 +23,15 @@
 
 TEST_CASE("Rehash", "")
 {
+  using key_type = int;
+
   constexpr std::size_t num_keys{400};
+  constexpr std::size_t num_erased_keys{100};
 
-  cuco::experimental::static_set<int> set{num_keys, cuco::empty_key{-1}};
+  cuco::experimental::static_set set{
+    num_keys, cuco::empty_key<key_type>{-1}, cuco::erased_key<key_type>{-2}};
 
-  thrust::device_vector<int> d_keys(num_keys);
+  thrust::device_vector<key_type> d_keys(num_keys);
 
   thrust::sequence(d_keys.begin(), d_keys.end());
 
@@ -39,7 +43,7 @@ TEST_CASE("Rehash", "")
   set.rehash(num_keys * 2);
   REQUIRE(set.size() == num_keys);
 
-  // TODO erase num_erased keys
-  // set.rehash()
-  // REQUIRE(set.size() == num_keys - num_erased);
+  set.erase(d_keys.begin(), d_keys.begin() + num_erased_keys);
+  set.rehash();
+  REQUIRE(set.size() == num_keys - num_erased_keys);
 }
