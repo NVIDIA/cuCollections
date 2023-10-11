@@ -541,17 +541,18 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Rebuilds the container.
+   * @brief Regenerates the container
    *
-   * @note This function synchronizes the given stream.
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `rehash_async`.
    *
    * @tparam Container The container type this function operates on
    * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
+   * @param extent The container's new `window_extent` after this operation took place
    * @param container The container to be rehashed
    * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
-   *
    */
   template <typename Container, typename Predicate>
   void rehash(Container const& container, Predicate const& is_filled, cuda_stream_ref stream)
@@ -561,11 +562,20 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Rebuilds the container.
+   * @brief Asynchronously reserves at least the specified number of slots and regenerates the
+   * container
    *
-   * @note This function synchronizes the given stream.
-   * @note Behavior is undefined if the desired `extent` is insufficient to store all of contained
-   * elements.
+   * @note Changes the number of windows to a value that is not less than `extent`, then
+   * rehashes the container, i.e. puts the elements into appropriate slots considering
+   * that the total number of slots has changed.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `rehash_async`.
+   *
+   * @note Behavior is undefined if the desired `extent` is insufficient to store all of the
+   * contained elements.
+   *
+   * @note This function is not available if the conatiner's `extent_type` is static.
    *
    * @tparam Container The container type this function operates on
    * @tparam Predicate Type of predicate indicating if the given slot is filled
@@ -574,7 +584,6 @@ class open_addressing_impl {
    * @param container The container to be rehashed
    * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
-   *
    */
   template <typename Container, typename Predicate>
   void rehash(extent_type extent,
@@ -587,27 +596,7 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Asynchonously rebuilds the container.
-   *
-   * @tparam Container The container type this function operates on
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
-   *
-   * @param container The container to be rehashed
-   * @param is_filled Predicate indicating if the given slot is filled
-   * @param stream CUDA stream used for this operation
-   *
-   */
-  template <typename Container, typename Predicate>
-  void rehash_async(Container const& container, Predicate const& is_filled, cuda_stream_ref stream)
-  {
-    this->rehash_async(this->storage_.window_extent(), container, is_filled, stream);
-  }
-
-  /**
-   * @brief Asynchonously rebuilds the container.
-   *
-   * @note Behavior is undefined if the desired `extent` is insufficient to store all of contained
-   * elements.
+   * @brief Asynchronously regenerates the container
    *
    * @tparam Container The container type this function operates on
    * @tparam Predicate Type of predicate indicating if the given slot is filled
@@ -616,7 +605,33 @@ class open_addressing_impl {
    * @param container The container to be rehashed
    * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
+   */
+  template <typename Container, typename Predicate>
+  void rehash_async(Container const& container, Predicate const& is_filled, cuda_stream_ref stream)
+  {
+    this->rehash_async(this->storage_.window_extent(), container, is_filled, stream);
+  }
+
+  /**
+   * @brief Asynchronously reserves at least the specified number of slots and regenerates the
+   * container
    *
+   * @note Changes the number of windows to a value that is not less than `extent`, then
+   * rehashes the container, i.e. puts the elements into appropriate slots considering
+   * that the total number of slots has changed.
+   *
+   * @note Behavior is undefined if the desired `extent` is insufficient to store all of the
+   * contained elements.
+   *
+   * @note This function is not available if the conatiner's `extent_type` is static.
+   *
+   * @tparam Container The container type this function operates on
+   * @tparam Predicate Type of predicate indicating if the given slot is filled
+   *
+   * @param extent The container's new `window_extent` after this operation took place
+   * @param container The container to be rehashed
+   * @param is_filled Predicate indicating if the given slot is filled
+   * @param stream CUDA stream used for this operation
    */
   template <typename Container, typename Predicate>
   void rehash_async(extent_type extent,

@@ -461,7 +461,7 @@ class static_set {
   OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief Rebuilds the container.
+   * @brief Regenerates the container.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `rehash_async`.
@@ -471,12 +471,19 @@ class static_set {
   void rehash(cuda_stream_ref stream = {});
 
   /**
-   * @brief Rebuilds the container.
+   * @brief Reserves at least the specified number of slots and regenerates the container
+   *
+   * @note Changes the number of slots to a value that is not less than `capacity`, then
+   * rehashes the container, i.e. puts the elements into appropriate slots considering
+   * that the total number of slots has changed.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `rehash_async`.
-   * @note Behavior is undefined if the desired `capacity` is insufficient to store all of contained
-   * elements.
+   *
+   * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
+   * contained elements.
+   *
+   * @note This function is not available if the conatiner's `extent_type` is static.
    *
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
@@ -484,17 +491,24 @@ class static_set {
   void rehash(size_type capacity, cuda_stream_ref stream = {});
 
   /**
-   * @brief Asynchonously rebuilds the container.
+   * @brief Asynchronously regenerates the container.
    *
    * @param stream CUDA stream used for this operation
    */
   void rehash_async(cuda_stream_ref stream = {});
 
   /**
-   * @brief Asynchonously rebuilds the container.
+   * @brief Asynchronously reserves at least the specified number of slots and regenerates the
+   * container
    *
-   * @note Behavior is undefined if the desired `capacity` is insufficient to store all of contained
-   * elements.
+   * @note Changes the number of slots to a value that is not less than `capacity`, then
+   * rehashes the container, i.e. puts the elements into appropriate slots considering
+   * that the total number of slots has changed.
+   *
+   * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
+   * contained elements.
+   *
+   * @note This function is not available if the conatiner's `extent_type` is static.
    *
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
