@@ -51,6 +51,27 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+__host__ __device__ constexpr static_set_ref<
+  Key,
+  Scope,
+  KeyEqual,
+  ProbingScheme,
+  StorageRef,
+  Operators...>::static_set_ref(cuco::empty_key<Key> empty_key_sentinel,
+                                cuco::erased_key<Key> erased_key_sentinel,
+                                KeyEqual const& predicate,
+                                ProbingScheme const& probing_scheme,
+                                StorageRef storage_ref) noexcept
+  : impl_{empty_key_sentinel, erased_key_sentinel, predicate, probing_scheme, storage_ref}
+{
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename... OtherOperators>
 __host__ __device__ constexpr static_set_ref<Key,
                                              Scope,
@@ -246,6 +267,58 @@ class operator_impl<op::insert_and_find_tag,
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(group, value);
+  }
+};
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<op::erase_tag,
+                    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type  = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type   = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief Erases an element.
+   *
+   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
+   *
+   * @param key The element to erase
+   *
+   * @return True if the given element is successfully erased
+   */
+  template <typename ProbeKey>
+  __device__ bool erase(ProbeKey const& key) noexcept
+  {
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.erase(key);
+  }
+
+  /**
+   * @brief Erases an element.
+   *
+   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
+   *
+   * @param group The Cooperative Group used to perform group erase
+   * @param value The element to erase
+   *
+   * @return True if the given element is successfully erased
+   */
+  template <typename ProbeKey>
+  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size> const& group,
+                        ProbeKey const& key) noexcept
+  {
+    auto& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.erase(group, key);
   }
 };
 

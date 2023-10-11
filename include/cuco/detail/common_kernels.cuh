@@ -150,6 +150,38 @@ __global__ void insert_if_n(
 }
 
 /**
+ * @brief Asynchronously erases keys in the range `[first, first + n)`.
+ *
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the `value_type` of the data structure
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
+template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Ref>
+__global__ void erase(InputIt first, cuco::detail::index_type n, Ref ref)
+{
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
+
+  while (idx < n) {
+    typename std::iterator_traits<InputIt>::value_type const& erase_element{*(first + idx)};
+    if constexpr (CGSize == 1) {
+      ref.erase(erase_element);
+    } else {
+      auto const tile =
+        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+      ref.erase(tile, erase_element);
+    }
+    idx += loop_stride;
+  }
+}
+
+/**
  * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the data
  * structure if `pred` of the corresponding stencil returns true.
  *

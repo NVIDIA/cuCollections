@@ -103,12 +103,28 @@ class static_map_ref
    * @param probing_scheme Probing scheme
    * @param storage_ref Non-owning ref of slot storage
    */
-  __host__ __device__ explicit constexpr static_map_ref(
-    cuco::empty_key<key_type> empty_key_sentinel,
-    cuco::empty_value<mapped_type> empty_value_sentinel,
-    key_equal const& predicate,
-    probing_scheme_type const& probing_scheme,
-    storage_ref_type storage_ref) noexcept;
+  __host__ __device__ explicit constexpr static_map_ref(cuco::empty_key<Key> empty_key_sentinel,
+                                                        cuco::empty_value<T> empty_value_sentinel,
+                                                        KeyEqual const& predicate,
+                                                        ProbingScheme const& probing_scheme,
+                                                        StorageRef storage_ref) noexcept;
+
+  /**
+   * @brief Constructs static_map_ref.
+   *
+   * @param empty_key_sentinel Sentinel indicating empty key
+   * @param empty_value_sentinel Sentinel indicating empty payload
+   * @param erased_key_sentinel Sentinel indicating erased key
+   * @param predicate Key equality binary callable
+   * @param probing_scheme Probing scheme
+   * @param storage_ref Non-owning ref of slot storage
+   */
+  __host__ __device__ explicit constexpr static_map_ref(cuco::empty_key<Key> empty_key_sentinel,
+                                                        cuco::empty_value<T> empty_value_sentinel,
+                                                        cuco::erased_key<Key> erased_key_sentinel,
+                                                        KeyEqual const& predicate,
+                                                        ProbingScheme const& probing_scheme,
+                                                        StorageRef storage_ref) noexcept;
 
   /**
    * @brief Operator-agnostic move constructor.

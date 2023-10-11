@@ -130,7 +130,30 @@ class open_addressing_ref_impl {
     probing_scheme_type const& probing_scheme,
     storage_ref_type storage_ref) noexcept
     : empty_slot_sentinel_{empty_slot_sentinel},
-      predicate_{this->extract_key(empty_slot_sentinel), predicate},
+      predicate_{
+        this->extract_key(empty_slot_sentinel), this->extract_key(empty_slot_sentinel), predicate},
+      probing_scheme_{probing_scheme},
+      storage_ref_{storage_ref}
+  {
+  }
+
+  /**
+   * @brief Constructs open_addressing_ref_impl.
+   *
+   * @param empty_slot_sentinel Sentinel indicating an empty slot
+   * @param erased_key_sentinel Sentinel indicating an erased key
+   * @param predicate Key equality binary callable
+   * @param probing_scheme Probing scheme
+   * @param storage_ref Non-owning ref of slot storage
+   */
+  __host__ __device__ explicit constexpr open_addressing_ref_impl(
+    value_type empty_slot_sentinel,
+    key_type erased_key_sentinel,
+    key_equal const& predicate,
+    probing_scheme_type const& probing_scheme,
+    storage_ref_type storage_ref) noexcept
+    : empty_slot_sentinel_{empty_slot_sentinel},
+      predicate_{this->extract_key(empty_slot_sentinel), erased_key_sentinel, predicate},
       probing_scheme_{probing_scheme},
       storage_ref_{storage_ref}
   {
@@ -155,6 +178,16 @@ class open_addressing_ref_impl {
   [[nodiscard]] __host__ __device__ constexpr auto const& empty_value_sentinel() const noexcept
   {
     return this->extract_payload(this->empty_slot_sentinel());
+  }
+
+  /**
+   * @brief Gets the sentinel value used to represent an erased key slot.
+   *
+   * @return The sentinel value used to represent an erased key slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr key_type const& erased_key_sentinel() const noexcept
+  {
+    return this->predicate_.erased_sentinel_;
   }
 
   /**
@@ -250,9 +283,12 @@ class open_addressing_ref_impl {
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) { return false; }
-        if (eq_res == detail::equal_result::EMPTY) {
+        if (eq_res == detail::equal_result::EMPTY or
+            cuco::detail::bitwise_compare(this->extract_key(slot_content),
+                                          this->erased_key_sentinel())) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+                                 slot_content,
                                  value)) {
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
@@ -291,7 +327,14 @@ class open_addressing_ref_impl {
               return window_probing_results{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL:
               return window_probing_results{detail::equal_result::EQUAL, i};
-            default: continue;
+            default: {
+              if (cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
+                                                this->erased_key_sentinel())) {
+                return window_probing_results{detail::equal_result::ERASED, i};
+              } else {
+                continue;
+              }
+            }
           }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -301,13 +344,14 @@ class open_addressing_ref_impl {
       // If the key is already in the container, return false
       if (group.any(state == detail::equal_result::EQUAL)) { return false; }
 
-      auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
-
-      if (group_contains_empty) {
-        auto const src_lane = __ffs(group_contains_empty) - 1;
+      auto const group_contains_available =
+        group.ballot(state == detail::equal_result::EMPTY or state == detail::equal_result::ERASED);
+      if (group_contains_available) {
+        auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status =
           (group.thread_rank() == src_lane)
             ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+                             window_slots[intra_window_index],
                              value)
             : insert_result::CONTINUE;
 
@@ -353,12 +397,14 @@ class open_addressing_ref_impl {
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) { return {iterator{&window_ptr[i]}, false}; }
-        if (eq_res == detail::equal_result::EMPTY) {
+        if (eq_res == detail::equal_result::EMPTY or
+            cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
+                                          this->erased_key_sentinel())) {
           switch ([&]() {
             if constexpr (sizeof(value_type) <= 8) {
-              return packed_cas(window_ptr + i, value);
+              return packed_cas(window_ptr + i, window_slots[i], value);
             } else {
-              return cas_dependent_write(window_ptr + i, value);
+              return cas_dependent_write(window_ptr + i, window_slots[i], value);
             }
           }()) {
             case insert_result::SUCCESS: {
@@ -407,7 +453,14 @@ class open_addressing_ref_impl {
               return window_probing_results{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL:
               return window_probing_results{detail::equal_result::EQUAL, i};
-            default: continue;
+            default: {
+              if (cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
+                                                this->erased_key_sentinel())) {
+                return window_probing_results{detail::equal_result::ERASED, i};
+              } else {
+                continue;
+              }
+            }
           }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -424,16 +477,17 @@ class open_addressing_ref_impl {
         return {iterator{reinterpret_cast<value_type*>(res)}, false};
       }
 
-      auto const group_contains_empty = group.ballot(state == detail::equal_result::EMPTY);
-      if (group_contains_empty) {
-        auto const src_lane = __ffs(group_contains_empty) - 1;
+      auto const group_contains_available =
+        group.ballot(state == detail::equal_result::EMPTY or state == detail::equal_result::ERASED);
+      if (group_contains_available) {
+        auto const src_lane = __ffs(group_contains_available) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
-        auto const status   = [&]() {
+        auto const status   = [&, target_idx = intra_window_index]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
           if constexpr (sizeof(value_type) <= 8) {
-            return packed_cas(slot_ptr, value);
+            return packed_cas(slot_ptr, window_slots[target_idx], value);
           } else {
-            return cas_dependent_write(slot_ptr, value);
+            return cas_dependent_write(slot_ptr, window_slots[target_idx], value);
           }
         }();
 
@@ -446,6 +500,103 @@ class open_addressing_ref_impl {
           }
           default: continue;
         }
+      } else {
+        ++probing_iter;
+      }
+    }
+  }
+
+  /**
+   * @brief Erases an element.
+   *
+   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
+   *
+   * @param value The element to erase
+   *
+   * @return True if the given element is successfully erased
+   */
+  template <typename ProbeKey>
+  __device__ bool erase(ProbeKey const& key) noexcept
+  {
+    static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+
+    auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
+
+    while (true) {
+      auto const window_slots = storage_ref_[*probing_iter];
+
+      for (auto& slot_content : window_slots) {
+        auto const eq_res = this->predicate_(this->extract_key(slot_content), key);
+
+        // Key doesn't exist, return false
+        if (eq_res == detail::equal_result::EMPTY) { return false; }
+        // Key exists, return true if successfully deleted
+        if (eq_res == detail::equal_result::EQUAL) {
+          auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+          switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+                                 slot_content,
+                                 this->erased_slot_sentinel())) {
+            case insert_result::SUCCESS: return true;
+            case insert_result::DUPLICATE: return false;
+            default: continue;
+          }
+        }
+      }
+      ++probing_iter;
+    }
+  }
+
+  /**
+   * @brief Erases an element.
+   *
+   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
+   *
+   * @param group The Cooperative Group used to perform group erase
+   * @param value The element to erase
+   *
+   * @return True if the given element is successfully erased
+   */
+  template <typename ProbeKey>
+  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size> const& group,
+                        ProbeKey const& key) noexcept
+  {
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
+
+    while (true) {
+      auto const window_slots = storage_ref_[*probing_iter];
+
+      auto const [state, intra_window_index] = [&]() {
+        for (auto i = 0; i < window_size; ++i) {
+          switch (this->predicate_(this->extract_key(window_slots[i]), key)) {
+            case detail::equal_result::EMPTY:
+              return window_probing_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::EQUAL:
+              return window_probing_results{detail::equal_result::EQUAL, i};
+            default: continue;
+          }
+        }
+        // returns dummy index `-1` for UNEQUAL
+        return window_probing_results{detail::equal_result::UNEQUAL, -1};
+      }();
+
+      auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
+      if (group_contains_equal) {
+        auto const src_lane = __ffs(group_contains_equal) - 1;
+        auto const status =
+          (group.thread_rank() == src_lane)
+            ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+                             window_slots[intra_window_index],
+                             this->erased_slot_sentinel())
+            : insert_result::CONTINUE;
+
+        switch (group.shfl(status, src_lane)) {
+          case insert_result::SUCCESS: return true;
+          case insert_result::DUPLICATE: return false;
+          default: continue;
+        }
+      } else if (group.any(state == detail::equal_result::EMPTY)) {
+        // Key doesn't exist, return false
+        return false;
       } else {
         ++probing_iter;
       }
@@ -739,45 +890,44 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Gets the sentinel used to represent an erased slot.
+   *
+   * @return The sentinel value used to represent an erased slot
+   */
+  [[nodiscard]] __device__ constexpr value_type const erased_slot_sentinel() const noexcept
+  {
+    if constexpr (this->has_payload) {
+      return cuco::pair{this->erased_key_sentinel(), this->empty_slot_sentinel().second};
+    } else {
+      return this->erased_key_sentinel();
+    }
+  }
+
+  /**
    * @brief Inserts the specified element with one single CAS operation.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
    *
-   * @param slot Pointer to the slot in memory
-   * @param value Element to insert
+   * @param address Pointer to the slot in memory
+   * @param expected Element to compare against
+   * @param desired Element to insert
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
   template <typename Value>
-  [[nodiscard]] __device__ constexpr insert_result packed_cas(value_type* slot,
-                                                              Value const& value) noexcept
+  [[nodiscard]] __device__ constexpr insert_result packed_cas(value_type* address,
+                                                              value_type const& expected,
+                                                              Value const& desired) noexcept
   {
-    auto old = compare_and_swap(slot, this->empty_slot_sentinel_, static_cast<value_type>(value));
-    auto* old_ptr       = reinterpret_cast<value_type*>(&old);
-    auto const inserted = [&]() {
-      if constexpr (this->has_payload) {
-        // If it's a map implementation, compare keys only
-        return cuco::detail::bitwise_compare(old_ptr->first, this->empty_slot_sentinel_.first);
-      } else {
-        // If it's a set implementation, compare the whole slot content
-        return cuco::detail::bitwise_compare(*old_ptr, this->empty_slot_sentinel_);
-      }
-    }();
-    if (inserted) {
+    auto old      = compare_and_swap(address, expected, static_cast<value_type>(desired));
+    auto* old_ptr = reinterpret_cast<value_type*>(&old);
+    if (cuco::detail::bitwise_compare(this->extract_key(*old_ptr), this->extract_key(expected))) {
       return insert_result::SUCCESS;
     } else {
-      // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-      auto const res = [&]() {
-        if constexpr (this->has_payload) {
-          // If it's a map implementation, compare keys only
-          return this->predicate_.equal_to(old_ptr->first, value.first);
-        } else {
-          // If it's a set implementation, compare the whole slot content
-          return this->predicate_.equal_to(*old_ptr, value);
-        }
-      }();
-      return res == detail::equal_result::EQUAL ? insert_result::DUPLICATE
-                                                : insert_result::CONTINUE;
+      return this->predicate_.equal_to(this->extract_key(*old_ptr), this->extract_key(desired)) ==
+                 detail::equal_result::EQUAL
+               ? insert_result::DUPLICATE
+               : insert_result::CONTINUE;
     }
   }
 
@@ -786,23 +936,26 @@ class open_addressing_ref_impl {
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
    *
-   * @param slot Pointer to the slot in memory
-   * @param value Element to insert
+   * @param address Pointer to the slot in memory
+   * @param expected Element to compare against
+   * @param desired Element to insert
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
   template <typename Value>
-  [[nodiscard]] __device__ constexpr insert_result back_to_back_cas(value_type* slot,
-                                                                    Value const& value) noexcept
+  [[nodiscard]] __device__ constexpr insert_result back_to_back_cas(value_type* address,
+                                                                    value_type const& expected,
+                                                                    Value const& desired) noexcept
   {
     using mapped_type = decltype(this->empty_slot_sentinel_.second);
 
-    auto const expected_key     = this->empty_slot_sentinel_.first;
-    auto const expected_payload = this->empty_slot_sentinel_.second;
+    auto const expected_key     = expected.first;
+    auto const expected_payload = expected.second;
 
-    auto old_key = compare_and_swap(&slot->first, expected_key, static_cast<key_type>(value.first));
-    auto old_payload =
-      compare_and_swap(&slot->second, expected_payload, static_cast<mapped_type>(value.second));
+    auto old_key =
+      compare_and_swap(&address->first, expected_key, static_cast<key_type>(desired.first));
+    auto old_payload = compare_and_swap(
+      &address->second, expected_payload, static_cast<mapped_type>(desired.second));
 
     auto* old_key_ptr     = reinterpret_cast<key_type*>(&old_key);
     auto* old_payload_ptr = reinterpret_cast<mapped_type*>(&old_payload);
@@ -810,17 +963,17 @@ class open_addressing_ref_impl {
     // if key success
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
       while (not cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
-        old_payload =
-          compare_and_swap(&slot->second, expected_payload, static_cast<mapped_type>(value.second));
+        old_payload = compare_and_swap(
+          &address->second, expected_payload, static_cast<mapped_type>(desired.second));
       }
       return insert_result::SUCCESS;
     } else if (cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
-      atomic_store(&slot->second, expected_payload);
+      atomic_store(&address->second, expected_payload);
     }
 
     // Our key was already present in the slot, so our key is a duplicate
     // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-    if (this->predicate_.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL) {
+    if (this->predicate_.equal_to(*old_key_ptr, desired.first) == detail::equal_result::EQUAL) {
       return insert_result::DUPLICATE;
     }
 
@@ -832,32 +985,34 @@ class open_addressing_ref_impl {
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
    *
-   * @param slot Pointer to the slot in memory
-   * @param value Element to insert
+   * @param address Pointer to the slot in memory
+   * @param expected Element to compare against
+   * @param desired Element to insert
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
   template <typename Value>
-  [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(value_type* slot,
-                                                                       Value const& value) noexcept
+  [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(
+    value_type* address, value_type const& expected, Value const& desired) noexcept
   {
     using mapped_type = decltype(this->empty_slot_sentinel_.second);
 
-    auto const expected_key = this->empty_slot_sentinel_.first;
+    auto const expected_key = expected.first;
 
-    auto old_key = compare_and_swap(&slot->first, expected_key, static_cast<key_type>(value.first));
+    auto old_key =
+      compare_and_swap(&address->first, expected_key, static_cast<key_type>(desired.first));
 
     auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
 
     // if key success
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
-      atomic_store(&slot->second, static_cast<mapped_type>(value.second));
+      atomic_store(&address->second, static_cast<mapped_type>(desired.second));
       return insert_result::SUCCESS;
     }
 
     // Our key was already present in the slot, so our key is a duplicate
     // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-    if (this->predicate_.equal_to(*old_key_ptr, value.first) == detail::equal_result::EQUAL) {
+    if (this->predicate_.equal_to(*old_key_ptr, desired.first) == detail::equal_result::EQUAL) {
       return insert_result::DUPLICATE;
     }
 
@@ -872,22 +1027,24 @@ class open_addressing_ref_impl {
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
    *
-   * @param slot Pointer to the slot in memory
-   * @param value Element to insert
+   * @param address Pointer to the slot in memory
+   * @param expected Element to compare against
+   * @param desired Element to insert
    *
    * @return Result of this operation, i.e., success/continue/duplicate
    */
   template <typename Value>
-  [[nodiscard]] __device__ insert_result attempt_insert(value_type* slot,
-                                                        Value const& value) noexcept
+  [[nodiscard]] __device__ insert_result attempt_insert(value_type* address,
+                                                        value_type const& expected,
+                                                        Value const& desired) noexcept
   {
     if constexpr (sizeof(value_type) <= 8) {
-      return packed_cas(slot, value);
+      return packed_cas(address, expected, desired);
     } else {
 #if (_CUDA_ARCH__ < 700)
-      return cas_dependent_write(slot, value);
+      return cas_dependent_write(address, expected, desired);
 #else
-      return back_to_back_cas(slot, value);
+      return back_to_back_cas(address, expected, desired);
 #endif
     }
   }
