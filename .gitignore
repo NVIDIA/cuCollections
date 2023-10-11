@@ -49,6 +49,7 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+tests/Testing/
 
 ## Patching
 *.diff
@@ -139,6 +140,14 @@ ENV/
 
 # clang
 compile_commands.json
+.clangd/
 
 # figures
 *.eps
+
+# Github
+/.config/
+/.devcontainer.json
+
+# AWS cache
+/.aws/
