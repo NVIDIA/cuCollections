@@ -22,6 +22,7 @@
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/extent.cuh>
+#include <cuco/operator.hpp>
 #include <cuco/probing_scheme.cuh>
 #include <cuco/storage.cuh>
 #include <cuco/utility/traits.hpp>
@@ -622,6 +623,120 @@ class open_addressing_impl {
         storage_.ref(), is_filled, counter.data());
 
     return counter.load_to_host(stream);
+  }
+
+  /**
+   * @brief Regenerates the container
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `rehash_async`.
+   *
+   * @tparam Container The container type this function operates on
+   * @tparam Predicate Type of predicate indicating if the given slot is filled
+   *
+   * @param extent The container's new `window_extent` after this operation took place
+   * @param container The container to be rehashed
+   * @param is_filled Predicate indicating if the given slot is filled
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename Container, typename Predicate>
+  void rehash(Container const& container, Predicate const& is_filled, cuda_stream_ref stream)
+  {
+    this->rehash_async(container, is_filled, stream);
+    stream.synchronize();
+  }
+
+  /**
+   * @brief Asynchronously reserves at least the specified number of slots and regenerates the
+   * container
+   *
+   * @note Changes the number of windows to a value that is not less than `extent`, then
+   * rehashes the container, i.e. puts the elements into appropriate slots considering
+   * that the total number of slots has changed.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `rehash_async`.
+   *
+   * @note Behavior is undefined if the desired `extent` is insufficient to store all of the
+   * contained elements.
+   *
+   * @note This function is not available if the conatiner's `extent_type` is static.
+   *
+   * @tparam Container The container type this function operates on
+   * @tparam Predicate Type of predicate indicating if the given slot is filled
+   *
+   * @param extent The container's new `window_extent` after this operation took place
+   * @param container The container to be rehashed
+   * @param is_filled Predicate indicating if the given slot is filled
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename Container, typename Predicate>
+  void rehash(extent_type extent,
+              Container const& container,
+              Predicate const& is_filled,
+              cuda_stream_ref stream)
+  {
+    this->rehash_async(extent, container, is_filled, stream);
+    stream.synchronize();
+  }
+
+  /**
+   * @brief Asynchronously regenerates the container
+   *
+   * @tparam Container The container type this function operates on
+   * @tparam Predicate Type of predicate indicating if the given slot is filled
+   *
+   * @param extent The container's new `window_extent` after this operation took place
+   * @param container The container to be rehashed
+   * @param is_filled Predicate indicating if the given slot is filled
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename Container, typename Predicate>
+  void rehash_async(Container const& container, Predicate const& is_filled, cuda_stream_ref stream)
+  {
+    this->rehash_async(this->storage_.window_extent(), container, is_filled, stream);
+  }
+
+  /**
+   * @brief Asynchronously reserves at least the specified number of slots and regenerates the
+   * container
+   *
+   * @note Changes the number of windows to a value that is not less than `extent`, then
+   * rehashes the container, i.e. puts the elements into appropriate slots considering
+   * that the total number of slots has changed.
+   *
+   * @note Behavior is undefined if the desired `extent` is insufficient to store all of the
+   * contained elements.
+   *
+   * @note This function is not available if the conatiner's `extent_type` is static.
+   *
+   * @tparam Container The container type this function operates on
+   * @tparam Predicate Type of predicate indicating if the given slot is filled
+   *
+   * @param extent The container's new `window_extent` after this operation took place
+   * @param container The container to be rehashed
+   * @param is_filled Predicate indicating if the given slot is filled
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename Container, typename Predicate>
+  void rehash_async(extent_type extent,
+                    Container const& container,
+                    Predicate const& is_filled,
+                    cuda_stream_ref stream)
+  {
+    auto const old_storage = std::move(this->storage_);
+    new (&storage_) storage_type{extent, this->allocator()};
+    this->clear_async(stream);
+
+    auto const num_windows = old_storage.num_windows();
+    if (num_windows == 0) { return; }
+
+    auto constexpr block_size = cuco::detail::default_block_size();
+    auto constexpr stride     = cuco::detail::default_stride();
+    auto const grid_size      = cuco::detail::grid_size(num_windows, 1, stride, block_size);
+
+    detail::rehash<block_size><<<grid_size, block_size, 0, stream>>>(
+      old_storage.ref(), container.ref(op::insert), is_filled);
   }
 
   /**

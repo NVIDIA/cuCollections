@@ -342,6 +342,68 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
+  cuda_stream_ref stream)
+{
+  auto const is_filled =
+    static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
+  this->impl_->rehash(*this, is_filled, stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
+  size_type capacity, cuda_stream_ref stream)
+{
+  auto const is_filled =
+    static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
+  auto const extent = make_window_extent<static_set>(capacity);
+  this->impl_->rehash(extent, *this, is_filled, stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
+  cuda_stream_ref stream)
+{
+  auto const is_filled =
+    static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
+  this->impl_->rehash_async(*this, is_filled, stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
+  size_type capacity, cuda_stream_ref stream)
+{
+  auto const is_filled =
+    static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
+  auto const extent = make_window_extent<static_set>(capacity);
+  this->impl_->rehash_async(extent, *this, is_filled, stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cuda_stream_ref stream) const noexcept

@@ -48,6 +48,7 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
   using impl_type::initialize_async;
   using impl_type::num_windows;
   using impl_type::ref;
+  using impl_type::window_extent;
 
   /**
    * @brief Constructs storage.

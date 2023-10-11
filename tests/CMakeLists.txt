@@ -63,6 +63,7 @@ ConfigureTest(STATIC_SET_TEST
     static_set/insert_and_find_test.cu
     static_set/large_input_test.cu
     static_set/retrieve_all_test.cu
+    static_set/rehash_test.cu
     static_set/size_test.cu
     static_set/unique_sequence_test.cu)
 
@@ -79,7 +80,8 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/key_sentinel_test.cu
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
-    static_map/unique_sequence_test.cu)
+    static_map/unique_sequence_test.cu
+    static_map/rehash_test.cu)
 
 ###################################################################################################
 # - dynamic_map tests -----------------------------------------------------------------------------
