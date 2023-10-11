@@ -29,14 +29,19 @@ namespace detail {
  */
 template <typename T>
 struct slot_is_filled {
-  T empty_sentinel_;  ///< The value of the empty key sentinel
+  T empty_sentinel_;   ///< The value of the empty key sentinel
+  T erased_sentinel_;  ///< Key value that represents an erased slot
 
   /**
-   * @brief Constructs `slot_is_filled` functor with the given empty sentinel.
+   * @brief Constructs `slot_is_filled` functor with the given sentinels.
    *
-   * @param s Sentinel indicating empty slot
+   * @param empty_sentinel Sentinel indicating empty slot
+   * @param erased_sentinel Sentinel indicating erased slot
    */
-  explicit constexpr slot_is_filled(T const& s) noexcept : empty_sentinel_{s} {}
+  explicit constexpr slot_is_filled(T const& empty_sentinel, T const& erased_sentinel) noexcept
+    : empty_sentinel_{empty_sentinel}, erased_sentinel_{erased_sentinel}
+  {
+  }
 
   /**
    * @brief Indicates if the target slot `slot` is filled.
@@ -49,7 +54,8 @@ struct slot_is_filled {
    */
   __device__ constexpr bool operator()(T const& slot) const noexcept
   {
-    return not cuco::detail::bitwise_compare(empty_sentinel_, slot);
+    return not(cuco::detail::bitwise_compare(empty_sentinel_, slot) or
+               cuco::detail::bitwise_compare(erased_sentinel_, slot));
   }
 };
 

@@ -150,6 +150,38 @@ __global__ void insert_if_n(
 }
 
 /**
+ * @brief Asynchronously erases keys in the range `[first, first + n)`.
+ *
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the `value_type` of the data structure
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
+template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Ref>
+__global__ void erase(InputIt first, cuco::detail::index_type n, Ref ref)
+{
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
+
+  while (idx < n) {
+    typename std::iterator_traits<InputIt>::value_type const& erase_element{*(first + idx)};
+    if constexpr (CGSize == 1) {
+      ref.erase(erase_element);
+    } else {
+      auto const tile =
+        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+      ref.erase(tile, erase_element);
+    }
+    idx += loop_stride;
+  }
+}
+
+/**
  * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the data
  * structure if `pred` of the corresponding stencil returns true.
  *
@@ -259,6 +291,53 @@ __global__ void size(StorageRef storage, Predicate is_filled, AtomicT* count)
   __shared__ typename BlockReduce::TempStorage temp_storage;
   auto const block_count = BlockReduce(temp_storage).Sum(thread_count);
   if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
+}
+
+template <int32_t BlockSize, typename ContainerRef, typename Predicate>
+__global__ void rehash(typename ContainerRef::storage_ref_type storage_ref,
+                       ContainerRef container_ref,
+                       Predicate is_filled)
+{
+  namespace cg = cooperative_groups;
+
+  __shared__ typename ContainerRef::value_type buffer[BlockSize];
+  __shared__ unsigned int buffer_size;
+
+  auto constexpr cg_size = ContainerRef::cg_size;
+  auto const block       = cg::this_thread_block();
+  auto const tile        = cg::tiled_partition<cg_size>(block);
+
+  auto const thread_rank         = block.thread_rank();
+  auto constexpr tiles_per_block = BlockSize / cg_size;  // tile.meta_group_size() but constexpr
+  auto const tile_rank           = tile.meta_group_rank();
+  auto const loop_stride         = cuco::detail::grid_stride();
+  auto idx                       = cuco::detail::global_thread_id();
+  auto const n                   = storage_ref.num_windows();
+
+  while (idx - thread_rank < n) {
+    if (thread_rank == 0) { buffer_size = 0; }
+    block.sync();
+
+    // gather values in shmem buffer
+    if (idx < n) {
+      auto const window = storage_ref[idx];
+
+      for (auto const& slot : window) {
+        if (is_filled(slot)) { buffer[atomicAdd_block(&buffer_size, 1)] = slot; }
+      }
+    }
+    block.sync();
+
+    auto const local_buffer_size = buffer_size;
+
+    // insert from shmem buffer into the container
+    for (auto tidx = tile_rank; tidx < local_buffer_size; tidx += tiles_per_block) {
+      container_ref.insert(tile, buffer[tidx]);
+    }
+    block.sync();
+
+    idx += loop_stride;
+  }
 }
 
 }  // namespace detail

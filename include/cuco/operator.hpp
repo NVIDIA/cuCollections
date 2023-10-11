@@ -40,6 +40,12 @@ struct insert_or_assign_tag {
 } inline constexpr insert_or_assign;
 
 /**
+ * @brief `erase` operator tag
+ */
+struct erase_tag {
+} inline constexpr erase;
+
+/**
  * @brief `contains` operator tag
  */
 struct contains_tag {
