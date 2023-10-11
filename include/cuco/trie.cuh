@@ -42,9 +42,13 @@ class trie {
   /**
    * @brief Insert a single key into trie
    *
-   * @param key Key to insert
+   * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to trie's
+   * `LabelType`
+   * @param keys_begin Begin iterator to list of labels of input key
+   * @param keys_end End iterator to list of labels of input key
    */
-  void insert(const std::vector<LabelType>& key) noexcept;
+  template <typename KeyIt>
+  void insert(KeyIt keys_begin, KeyIt keys_end) noexcept;
 
   /**
    * @brief Build level-by-level trie indexes after inserting all keys

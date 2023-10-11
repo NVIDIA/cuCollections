@@ -46,28 +46,35 @@ trie<LabelType, Allocator>::~trie() noexcept(false)
 }
 
 template <typename LabelType, class Allocator>
-void trie<LabelType, Allocator>::insert(const std::vector<LabelType>& key) noexcept
+template <typename KeyIt>
+void trie<LabelType, Allocator>::insert(KeyIt keys_begin, KeyIt keys_end) noexcept
 {
-  if (key == last_key_) { return; }           // Ignore duplicate keys
-  assert(num_keys_ == 0 || key > last_key_);  // Keys are expected to be inserted in sorted order
+  size_t key_length = std::distance(keys_begin, keys_end);
 
-  if (key.empty()) {
+  bool same_as_last_key = key_length == last_key_.size();
+  for (size_t pos = 0; same_as_last_key && pos < last_key_.size(); pos++) {
+    if (keys_begin[pos] != last_key_[pos]) { same_as_last_key = false; }
+  }
+  if (same_as_last_key) { return; }  // Ignore duplicate keys
+  // assert(num_keys_ == 0 || key > last_key_);  // Keys are expected to be inserted in sorted order
+
+  if (key_length == 0) {
     levels_[0].h_outs_.set(0, 1);
     ++levels_[1].offset_;
     ++num_keys_;
     return;
   }
 
-  if (key.size() + 1 >= levels_.size()) { levels_.resize(key.size() + 2); }
+  if (key_length + 1 >= levels_.size()) { levels_.resize(key_length + 2); }
 
   // Find first position where label is different from last_key
   // Trie is not updated till that position is reached, simply skip to next position
   size_type pos = 0;
-  for (; pos < key.size(); ++pos) {
+  for (; pos < key_length; ++pos) {
     auto& level = levels_[pos + 1];
-    auto label  = key[pos];
+    auto label  = keys_begin[pos];
 
-    if ((pos == last_key_.size()) || (label != level.labels_.back())) {
+    if (pos == last_key_.size() || label != level.labels_.back()) {
       level.h_louds_.set_last(0);
       level.h_louds_.push_back(1);
       level.h_outs_.push_back(0);
@@ -79,21 +86,25 @@ void trie<LabelType, Allocator>::insert(const std::vector<LabelType>& key) noexc
 
   // Process remaining labels after divergence point from last_key
   // Each such label will create a new edge and node pair
-  for (++pos; pos < key.size(); ++pos) {
+  for (++pos; pos < key_length; ++pos) {
     auto& level = levels_[pos + 1];
     level.h_louds_.push_back(0);
     level.h_louds_.push_back(1);
     level.h_outs_.push_back(0);
-    level.labels_.push_back(key[pos]);
+    level.labels_.push_back(keys_begin[pos]);
     ++num_nodes_;
   }
 
-  levels_[key.size() + 1].h_louds_.push_back(1);  // Mark end of current key
-  ++levels_[key.size() + 1].offset_;
-  levels_[key.size()].h_outs_.set_last(1);  // Set terminal bit indicating valid path
+  levels_[key_length + 1].h_louds_.push_back(1);  // Mark end of current key
+  ++levels_[key_length + 1].offset_;
+  levels_[key_length].h_outs_.set_last(1);  // Set terminal bit indicating valid path
 
   ++num_keys_;
-  last_key_ = key;
+
+  last_key_.resize(key_length);
+  for (size_t pos = 0; pos < key_length; pos++) {
+    last_key_[pos] = keys_begin[pos];
+  }
 }
 
 template <typename LabelType, class Allocator>
