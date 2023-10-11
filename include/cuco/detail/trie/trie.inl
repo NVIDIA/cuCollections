@@ -165,7 +165,7 @@ void trie<LabelType, Allocator>::lookup(KeyIt keys_begin,
   auto num_keys = cuco::detail::distance(offsets_begin, offsets_end) - 1;
   if (num_keys == 0) { return; }
 
-  auto const grid_size = cuco::detail::grid_size(num_keys);
+  auto const grid_size = min(128lu, cuco::detail::grid_size(num_keys));
   auto ref_            = this->ref(cuco::experimental::trie_lookup);
 
   trie_lookup_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
