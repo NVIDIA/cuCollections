@@ -49,7 +49,7 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
-tests/Testing/
+/tests/Testing/
 
 ## Patching
 *.diff
@@ -140,7 +140,7 @@ ENV/
 
 # clang
 compile_commands.json
-.clangd/
+/.clangd/
 
 # figures
 *.eps
