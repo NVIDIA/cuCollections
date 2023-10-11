@@ -418,7 +418,8 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   cuda_stream_ref stream)
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel());
+  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
+                                                                       this->erased_key_sentinel());
   this->impl_->rehash(*this, is_filled, stream);
 }
 
@@ -433,7 +434,8 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   size_type capacity, cuda_stream_ref stream)
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel());
+  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
+                                                                       this->erased_key_sentinel());
   auto const extent    = make_window_extent<static_map>(capacity);
   this->impl_->rehash(extent, *this, is_filled, stream);
 }
@@ -449,7 +451,8 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   cuda_stream_ref stream)
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel());
+  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
+                                                                       this->erased_key_sentinel());
   this->impl_->rehash_async(*this, is_filled, stream);
 }
 
@@ -464,7 +467,8 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   size_type capacity, cuda_stream_ref stream)
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel());
+  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
+                                                                       this->erased_key_sentinel());
   auto const extent    = make_window_extent<static_map>(capacity);
   this->impl_->rehash_async(extent, *this, is_filled, stream);
 }
