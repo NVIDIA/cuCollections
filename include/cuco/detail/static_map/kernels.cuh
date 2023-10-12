@@ -21,6 +21,7 @@
 #include <cub/block/block_reduce.cuh>
 
 #include <cuda/atomic>
+#include <iterator>
 
 #include <cooperative_groups.h>
 
@@ -39,7 +40,7 @@ namespace detail {
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
- * @tparam InputIterator Device accessible input iterator whose `value_type` is
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
  * @tparam Ref Type of non-owning device ref allowing access to storage
  *
@@ -47,14 +48,14 @@ namespace detail {
  * @param n Number of input elements
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIterator, typename Ref>
-__global__ void insert_or_assign(InputIterator first, cuco::detail::index_type n, Ref ref)
+template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Ref>
+__global__ void insert_or_assign(InputIt first, cuco::detail::index_type n, Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    typename Ref::value_type const insert_pair{*(first + idx)};
+    typename std::iterator_traits<InputIt>::value_type const& insert_pair = *(first + idx);
     if constexpr (CGSize == 1) {
       ref.insert_or_assign(insert_pair);
     } else {
@@ -100,7 +101,7 @@ __global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_
 
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
     if (idx < n) {
-      auto const key = *(first + idx);
+      typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
       if constexpr (CGSize == 1) {
         auto const found = ref.find(key);
         /*
