@@ -1,5 +1,9 @@
 #pragma once
 
+#include <chrono>
+#include <fstream>
+#include <sstream>
+
 struct valid_key {
   valid_key(size_t num_keys) : num_keys_(num_keys) {}
   __host__ __device__ bool operator()(size_t x) const { return x < num_keys_; }
@@ -38,6 +42,62 @@ struct vectorKeyCompare {
     return lhs.size() <= rhs.size();
   }
 };
+
+inline std::vector<std::string> read_input_keys(const char* filename, size_t num_keys)
+{
+  std::ifstream input_file(filename);
+  if (!input_file.is_open()) {
+    std::cout << "Error opening file: " << filename << std::endl;
+    exit(1);
+  }
+  std::vector<std::string> keys;
+  std::string line;
+  while (keys.size() < num_keys and getline(input_file, line)) {
+    keys.push_back(line);
+  }
+  return keys;
+}
+
+template <typename KeyType>
+std::vector<KeyType> split_str_into_ints(const std::string& key)
+{
+  std::stringstream ss(key);
+  std::vector<KeyType> tokens;
+  std::string buf;
+
+  while (ss >> buf) {
+    tokens.push_back(stoi(buf));
+  }
+  return tokens;
+}
+
+template <typename KeyType>
+std::vector<std::vector<KeyType>> generate_split_keys(const std::vector<std::string>& keys)
+{
+  std::vector<std::vector<KeyType>> split_keys(keys.size());
+#pragma omp parallel for
+  for (size_t i = 0; i < keys.size(); i++) {
+    split_keys[i] = split_str_into_ints<KeyType>(keys[i]);
+  }
+  return split_keys;
+}
+
+template <typename KeyType>
+void find_pivots(const std::vector<std::vector<KeyType>>& keys,
+                 std::vector<KeyType>& pivot_vals,
+                 std::vector<size_t>& pivot_offsets)
+{
+  pivot_vals.push_back(keys[0][1]);
+  pivot_offsets.push_back(0);
+
+  for (size_t pos = 1; pos < keys.size(); pos++) {
+    if (keys[pos][1] != keys[pos - 1][1]) {
+      pivot_vals.push_back(keys[pos][1]);
+      pivot_offsets.push_back(pos);
+    }
+  }
+  pivot_offsets.push_back(keys.size());
+}
 
 inline std::chrono::high_resolution_clock::time_point current_time()
 {

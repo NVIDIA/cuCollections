@@ -18,77 +18,14 @@
 
 #include <cuco/trie.cuh>
 
-#include <chrono>
-#include <fstream>
 #include <iomanip>
 #include <numeric>
-#include <sstream>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
-#include <thrust/scan.h>
-#include <unordered_set>
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "common.hpp"
-
-using namespace std;
-
-vector<string> read_input_keys(const char* filename, size_t num_keys)
-{
-  ifstream input_file(filename);
-  if (!input_file.is_open()) {
-    std::cout << "Error opening file: " << filename << std::endl;
-    exit(1);
-  }
-  vector<string> keys;
-  string line;
-  while (keys.size() < num_keys and getline(input_file, line)) {
-    keys.push_back(line);
-  }
-  return keys;
-}
-
-template <typename KeyType>
-vector<KeyType> split_str_into_ints(const string& key)
-{
-  stringstream ss(key);
-  vector<KeyType> tokens;
-  string buf;
-
-  while (ss >> buf) {
-    tokens.push_back(stoi(buf));
-  }
-  return tokens;
-}
-
-template <typename KeyType>
-vector<vector<KeyType>> generate_split_keys(const vector<string>& keys)
-{
-  vector<vector<KeyType>> split_keys(keys.size());
-#pragma omp parallel for
-  for (size_t i = 0; i < keys.size(); i++) {
-    split_keys[i] = split_str_into_ints<KeyType>(keys[i]);
-  }
-  return split_keys;
-}
-
-template <typename KeyType>
-void find_pivots(const vector<vector<KeyType>>& keys,
-                 std::vector<KeyType>& pivot_vals,
-                 std::vector<size_t>& pivot_offsets)
-{
-  pivot_vals.push_back(keys[0][1]);
-  pivot_offsets.push_back(0);
-
-  for (size_t pos = 1; pos < keys.size(); pos++) {
-    if (keys[pos][1] != keys[pos - 1][1]) {
-      pivot_vals.push_back(keys[pos][1]);
-      pivot_offsets.push_back(pos);
-    }
-  }
-  pivot_offsets.push_back(keys.size());
-}
+#include "trie_utils.hpp"
 
 TEST_CASE("Perf test", "")
 {

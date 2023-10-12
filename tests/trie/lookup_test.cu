@@ -24,7 +24,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "common.hpp"
+#include "trie_utils.hpp"
 
 TEST_CASE("Lookup test", "")
 {
