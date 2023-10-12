@@ -35,7 +35,7 @@ constexpr trie<LabelType, Allocator>::trie(Allocator const& allocator)
   levels_[0].h_louds_.push_back(1);
   levels_[1].h_louds_.push_back(1);
   levels_[0].h_outs_.push_back(0);
-  levels_[0].labels_.push_back(root_label_);
+  levels_[0].h_labels_.push_back(root_label_);
 }
 
 template <typename LabelType, class Allocator>
@@ -74,11 +74,11 @@ void trie<LabelType, Allocator>::insert(KeyIt keys_begin, KeyIt keys_end) noexce
     auto& level = levels_[pos + 1];
     auto label  = keys_begin[pos];
 
-    if (pos == last_key_.size() || label != level.labels_.back()) {
+    if (pos == last_key_.size() || label != level.h_labels_.back()) {
       level.h_louds_.set_last(0);
       level.h_louds_.push_back(1);
       level.h_outs_.push_back(0);
-      level.labels_.push_back(label);
+      level.h_labels_.push_back(label);
       ++num_nodes_;
       break;
     }
@@ -91,7 +91,7 @@ void trie<LabelType, Allocator>::insert(KeyIt keys_begin, KeyIt keys_end) noexce
     level.h_louds_.push_back(0);
     level.h_louds_.push_back(1);
     level.h_outs_.push_back(0);
-    level.labels_.push_back(keys_begin[pos]);
+    level.h_labels_.push_back(keys_begin[pos]);
     ++num_nodes_;
   }
 
@@ -132,6 +132,8 @@ void trie<LabelType, Allocator>::build() noexcept(false)
     level.outs_.test(test_keys.begin(), test_keys.end(), test_results.begin());
     outs_refs_.push_back(level.outs_.ref());
 
+    level.labels_ = level.h_labels_;
+    level.h_labels_.clear();
     level.labels_ptr_ = thrust::raw_pointer_cast(level.labels_.data());
 
     offset += level.offset_;
@@ -198,7 +200,14 @@ auto trie<LabelType, Allocator>::ref(Operators...) const noexcept
 
 template <typename LabelType, class Allocator>
 trie<LabelType, Allocator>::level::level()
-  : h_louds_{}, h_outs_{}, louds_{}, outs_{}, labels_{}, labels_ptr_{nullptr}, offset_{0}
+  : h_louds_{},
+    h_outs_{},
+    louds_{},
+    outs_{},
+    labels_{},
+    labels_ptr_{nullptr},
+    h_labels_{},
+    offset_{0}
 {
 }
 

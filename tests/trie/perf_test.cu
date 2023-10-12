@@ -93,7 +93,7 @@ TEST_CASE("Perf test", "")
   using KeyType = int;
 
   const char* input_filename = "trie_dataset.txt";
-  auto keys       = generate_split_keys<KeyType>(read_input_keys(input_filename, 1000 * 1000));
+  auto keys       = generate_split_keys<KeyType>(read_input_keys(input_filename, 45 * 1000 * 1000));
   size_t num_keys = keys.size();
   std::cout << "Num keys " << num_keys << std::endl;
 
@@ -102,17 +102,18 @@ TEST_CASE("Perf test", "")
   for (auto& key : keys) {
     trie.insert(key.begin(), key.end());
   }
-  auto insert_sec = elapsed_seconds(begin);
-  std::cout << "Insert time " << insert_sec << "s ";
-  std::cout << std::setprecision(2) << (1. * num_keys / insert_sec) / 1000 << "K keys/sec"
+  auto insert_msec = elapsed_milliseconds(begin);
+
+  std::cout << "Insert " << std::setprecision(2) << insert_msec / 1000. << "s @ ";
+  std::cout << std::setprecision(2) << (1. * num_keys / insert_msec) / 1000 << "M keys/sec"
             << std::endl;
 
   begin = current_time();
   trie.build();
   auto build_msec = elapsed_milliseconds(begin);
 
-  std::cout << "Build time " << build_msec << "ms ";
-  std::cout << std::setprecision(2) << (1. * num_keys / build_msec) / 1000 << "M keys/sec"
+  std::cout << "Build " << build_msec << "ms @ ";
+  std::cout << std::setprecision(3) << (1. * num_keys / build_msec) / 1000 << "M keys/sec"
             << std::endl;
 
   std::random_shuffle(keys.begin(), keys.end());
@@ -126,21 +127,28 @@ TEST_CASE("Perf test", "")
     }
     lookup_offsets.push_back(lookup_offsets.back() + key.size());
   }
-  std::cout << "Average key length " << std::setprecision(2)
-            << 1. * lookup_offsets.back() / num_keys << std::endl;
+  // std::cout << "Average key length " << std::setprecision(2)
+  //          << 1. * lookup_offsets.back() / num_keys << std::endl;
 
   thrust::device_vector<KeyType> d_lookup_inputs = lookup_inputs;
   thrust::device_vector<size_t> d_lookup_offsets = lookup_offsets;
   thrust::device_vector<size_t> d_lookup_result(num_keys, -1lu);
 
+  cudaStream_t stream;
+  cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking);
+
   begin = current_time();
   trie.lookup(d_lookup_inputs.begin(),
               d_lookup_offsets.begin(),
               d_lookup_offsets.end(),
-              d_lookup_result.begin());
-  auto lookup_usec = elapsed_microseconds(begin);
-  std::cout << "Lookup time " << lookup_usec << "us ";
-  std::cout << std::setprecision(2) << (num_keys / lookup_usec) / 1000 << "B keys/sec" << std::endl;
+              d_lookup_result.begin(),
+              stream);
+  cudaStreamSynchronize(stream);
+  auto lookup_msec = elapsed_milliseconds(begin);
+
+  std::cout << "Lookup " << lookup_msec << "ms @ ";
+  std::cout << std::setprecision(2) << (1. * num_keys / lookup_msec) / 1000.0 << "M keys/sec"
+            << std::endl;
 
   REQUIRE(cuco::test::all_of(d_lookup_result.begin(), d_lookup_result.end(), valid_key(num_keys)));
 }

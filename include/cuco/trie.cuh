@@ -197,6 +197,8 @@ class trie {
     thrust::device_vector<LabelType, label_allocator_type> labels_;
     LabelType* labels_ptr_;  ///< Raw device pointer to labels
 
+    std::vector<LabelType> h_labels_;  ///< Host copy of labels, using std::vector for performance
+
     size_type offset_;  ///< Cumulative node count in parent levels
   };
 };
