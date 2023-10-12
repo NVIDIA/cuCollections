@@ -21,6 +21,7 @@
 #include <chrono>
 #include <fstream>
 #include <iomanip>
+#include <numeric>
 #include <sstream>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
@@ -65,6 +66,7 @@ template <typename KeyType>
 vector<vector<KeyType>> generate_split_keys(const vector<string>& keys)
 {
   vector<vector<KeyType>> split_keys(keys.size());
+#pragma omp parallel for
   for (size_t i = 0; i < keys.size(); i++) {
     split_keys[i] = split_str_into_ints<KeyType>(keys[i]);
   }
@@ -118,15 +120,22 @@ TEST_CASE("Perf test", "")
 
   std::random_shuffle(keys.begin(), keys.end());
 
-  thrust::host_vector<size_t> lookup_inputs;
-  thrust::host_vector<size_t> lookup_offsets;
-  lookup_offsets.push_back(0);
-  for (auto key : keys) {
-    for (auto subkey : key) {
-      lookup_inputs.push_back(subkey);
-    }
-    lookup_offsets.push_back(lookup_offsets.back() + key.size());
+  thrust::host_vector<size_t> lookup_offsets(num_keys + 1);
+  lookup_offsets[0] = 0;
+#pragma omp parallel for
+  for (size_t i = 0; i < num_keys; i++) {
+    lookup_offsets[i + 1] = keys[i].size();
   }
+  std::partial_sum(lookup_offsets.begin(), lookup_offsets.end(), lookup_offsets.begin());
+
+  thrust::host_vector<size_t> lookup_inputs(lookup_offsets.back());
+#pragma omp parallel for
+  for (size_t i = 0; i < num_keys; i++) {
+    for (size_t pos = 0; pos < keys[i].size(); pos++) {
+      lookup_inputs[lookup_offsets[i] + pos] = keys[i][pos];
+    }
+  }
+
   // std::cout << "Average key length " << std::setprecision(2)
   //          << 1. * lookup_offsets.back() / num_keys << std::endl;
 

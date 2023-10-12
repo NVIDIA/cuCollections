@@ -34,12 +34,13 @@ endif()
 ###################################################################################################
 function(ConfigureTest TEST_NAME)
     add_executable(${TEST_NAME} ${ARGN})
-    target_link_libraries(${TEST_NAME} PRIVATE Catch2::Catch2WithMain cuco CUDA::cudart)
+    target_link_options(${TEST_NAME} PRIVATE -fopenmp)
+    target_link_libraries(${TEST_NAME} PRIVATE Catch2::Catch2WithMain cuco CUDA::cudart Threads::Threads)
     target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     set_target_properties(${TEST_NAME} PROPERTIES
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     target_compile_options(${TEST_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)
+      --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage -fopenmp)
     catch_discover_tests(${TEST_NAME} EXTRA_ARGS --allow-running-no-tests)
 endfunction(ConfigureTest)
 
