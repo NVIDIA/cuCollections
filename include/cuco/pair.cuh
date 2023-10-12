@@ -22,7 +22,7 @@
 #include <thrust/device_reference.h>
 #include <thrust/tuple.h>
 
-#include <tuple>
+#include <cuda/std/tuple>
 #include <type_traits>
 
 namespace cuco {
@@ -87,7 +87,8 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
    */
   template <typename T, std::enable_if_t<detail::is_std_pair_like<T>::value>* = nullptr>
   __host__ __device__ constexpr pair(T const& p)
-    : pair{std::get<0>(thrust::raw_reference_cast(p)), std::get<1>(thrust::raw_reference_cast(p))}
+    : pair{cuda::std::get<0>(thrust::raw_reference_cast(p)),
+           cuda::std::get<1>(thrust::raw_reference_cast(p))}
   {
   }
 
@@ -143,4 +144,4 @@ __host__ __device__ constexpr bool operator==(cuco::pair<T1, T2> const& lhs,
 
 }  // namespace cuco
 
-#include <cuco/detail/pair.inl>
+#include <cuco/detail/pair/pair.inl>
