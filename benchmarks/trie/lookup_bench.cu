@@ -31,8 +31,8 @@ using namespace cuco::utility;
  */
 void trie_lookup(nvbench::state& state)
 {
-  auto const num_keys       = 64 * 1024;
-  auto const max_key_length = 6;
+  auto const num_keys       = state.get_int64_or_default("NumKeys", 100 * 1000);
+  auto const max_key_length = state.get_int64_or_default("MaxKeyLength", 10);
 
   using LabelType = int;
   cuco::experimental::trie<LabelType> trie;
@@ -40,14 +40,17 @@ void trie_lookup(nvbench::state& state)
   thrust::host_vector<LabelType> labels;
   thrust::host_vector<size_t> offsets;
 
-  generate_labels(labels, offsets, num_keys, max_key_length);
+  distribution::unique lengths_dist;
+  distribution::gaussian labels_dist{0.5};
+  generate_labels(labels, offsets, num_keys, max_key_length, lengths_dist, labels_dist);
   auto keys = sorted_keys(labels, offsets);
+
   for (auto key : keys) {
     trie.insert(key.begin(), key.end());
   }
   trie.build();
 
-  const size_t query_size = num_keys / 10;
+  const size_t query_size = min(1000 * 1000lu, num_keys / 10);
   thrust::device_vector<LabelType> inputs(labels.begin(), labels.begin() + offsets[query_size]);
   thrust::device_vector<size_t> d_offsets(offsets.begin(), offsets.begin() + query_size);
   thrust::device_vector<size_t> outputs(query_size);
@@ -58,4 +61,9 @@ void trie_lookup(nvbench::state& state)
   });
 }
 
-NVBENCH_BENCH(trie_lookup).set_name("trie_lookup").set_max_noise(defaults::MAX_NOISE);
+NVBENCH_BENCH(trie_lookup)
+  .set_name("trie_lookup")
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumKeys",
+                  std::vector<nvbench::int64_t>{100 * 1000, 1000 * 1000, 10 * 1000 * 1000})
+  .add_int64_axis("MaxKeyLength", std::vector<nvbench::int64_t>{4, 8, 16});

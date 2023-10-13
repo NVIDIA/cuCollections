@@ -31,22 +31,19 @@ using namespace cuco::utility;
  */
 void trie_insert(nvbench::state& state)
 {
+  auto const num_keys       = state.get_int64_or_default("NumKeys", 100 * 1000);
+  auto const max_key_length = state.get_int64_or_default("MaxKeyLength", 10);
+
   using LabelType = int;
   cuco::experimental::trie<LabelType> trie;
 
-  auto const num_keys = 64 * 1024;
-  std::vector<std::vector<LabelType>> keys;
+  thrust::host_vector<LabelType> labels;
+  thrust::host_vector<size_t> offsets;
 
-  bool synthetic_dataset = true;
-  if (synthetic_dataset) {
-    thrust::host_vector<LabelType> labels;
-    thrust::host_vector<size_t> offsets;
-    auto const max_key_length = 6;
-    generate_labels(labels, offsets, num_keys, max_key_length);
-    keys = sorted_keys(labels, offsets);
-  } else {
-    keys = read_keys<LabelType>("trie_dataset.txt", num_keys);
-  }
+  distribution::unique lengths_dist;
+  distribution::gaussian labels_dist{0.5};
+  generate_labels(labels, offsets, num_keys, max_key_length, lengths_dist, labels_dist);
+  auto keys = sorted_keys(labels, offsets);
 
   state.add_element_count(num_keys);
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
@@ -56,4 +53,8 @@ void trie_insert(nvbench::state& state)
   });
 }
 
-NVBENCH_BENCH(trie_insert).set_name("trie_insert").set_max_noise(defaults::MAX_NOISE);
+NVBENCH_BENCH(trie_insert)
+  .set_name("trie_insert")
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumKeys", std::vector<nvbench::int64_t>{100 * 1000, 1000 * 1000})
+  .add_int64_axis("MaxKeyLength", std::vector<nvbench::int64_t>{4, 8, 16});

@@ -12,15 +12,16 @@ struct valid_key {
   const size_t num_keys_;
 };
 
-template <typename LabelType>
+template <typename LabelType, typename LengthsDist, typename LabelsDist>
 void generate_labels(thrust::host_vector<LabelType>& labels,
                      thrust::host_vector<size_t>& offsets,
                      size_t num_keys,
-                     size_t max_key_length)
+                     size_t max_key_length,
+                     LengthsDist lengths_dist,
+                     LabelsDist labels_dist)
 {
   cuco::utility::key_generator gen;
 
-  cuco::utility::distribution::unique lengths_dist;
   offsets.resize(num_keys);
   gen.generate(lengths_dist, offsets.begin(), offsets.end());
 
@@ -31,7 +32,6 @@ void generate_labels(thrust::host_vector<LabelType>& labels,
   offsets.push_back(0);
   thrust::exclusive_scan(offsets.begin(), offsets.end(), offsets.begin());
 
-  cuco::utility::distribution::gaussian labels_dist{0.5};
   labels.resize(offsets.back());
   gen.generate(labels_dist, labels.begin(), labels.end());
 }

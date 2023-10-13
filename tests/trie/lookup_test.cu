@@ -26,6 +26,8 @@
 
 #include "trie_utils.hpp"
 
+using namespace cuco::utility;
+
 TEST_CASE("Lookup test", "")
 {
   using LabelType = int;
@@ -36,7 +38,9 @@ TEST_CASE("Lookup test", "")
   thrust::host_vector<LabelType> labels;
   thrust::host_vector<size_t> offsets;
 
-  generate_labels(labels, offsets, num_keys, max_key_length);
+  distribution::unique lengths_dist;
+  distribution::gaussian labels_dist{0.5};
+  generate_labels(labels, offsets, num_keys, max_key_length, lengths_dist, labels_dist);
   auto keys = sorted_keys(labels, offsets);
 
   cuco::experimental::trie<LabelType> trie;
