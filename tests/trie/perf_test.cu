@@ -29,15 +29,15 @@
 
 TEST_CASE("Perf test", "")
 {
-  using KeyType = int;
+  using LabelType = int;
 
   const char* input_filename = "trie_dataset.txt";
-  auto keys       = generate_split_keys<KeyType>(read_input_keys(input_filename, 45 * 1000 * 1000));
+  auto keys = generate_split_keys<LabelType>(read_input_keys(input_filename, 45 * 1000 * 1000));
   size_t num_keys = keys.size();
   std::cout << "Num keys " << num_keys << std::endl;
 
   auto begin = current_time();
-  cuco::experimental::trie<KeyType> trie;
+  cuco::experimental::trie<LabelType> trie;
   for (auto& key : keys) {
     trie.insert(key.begin(), key.end());
   }
@@ -76,8 +76,8 @@ TEST_CASE("Perf test", "")
   // std::cout << "Average key length " << std::setprecision(2)
   //          << 1. * lookup_offsets.back() / num_keys << std::endl;
 
-  thrust::device_vector<KeyType> d_lookup_inputs = lookup_inputs;
-  thrust::device_vector<size_t> d_lookup_offsets = lookup_offsets;
+  thrust::device_vector<LabelType> d_lookup_inputs = lookup_inputs;
+  thrust::device_vector<size_t> d_lookup_offsets   = lookup_offsets;
   thrust::device_vector<size_t> d_lookup_result(num_keys, -1lu);
 
   cudaStream_t stream;

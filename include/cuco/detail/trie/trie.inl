@@ -46,14 +46,14 @@ trie<LabelType, Allocator>::~trie() noexcept(false)
 }
 
 template <typename LabelType, class Allocator>
-template <typename KeyIt>
-void trie<LabelType, Allocator>::insert(KeyIt keys_begin, KeyIt keys_end) noexcept
+template <typename LabelIt>
+void trie<LabelType, Allocator>::insert(LabelIt labels_begin, LabelIt labels_end) noexcept
 {
-  size_t key_length = std::distance(keys_begin, keys_end);
+  size_t key_length = std::distance(labels_begin, labels_end);
 
   bool same_as_last_key = key_length == last_key_.size();
   for (size_t pos = 0; same_as_last_key && pos < last_key_.size(); pos++) {
-    if (keys_begin[pos] != last_key_[pos]) { same_as_last_key = false; }
+    if (labels_begin[pos] != last_key_[pos]) { same_as_last_key = false; }
   }
   if (same_as_last_key) { return; }  // Ignore duplicate keys
   // assert(num_keys_ == 0 || key > last_key_);  // Keys are expected to be inserted in sorted order
@@ -72,7 +72,7 @@ void trie<LabelType, Allocator>::insert(KeyIt keys_begin, KeyIt keys_end) noexce
   size_type pos = 0;
   for (; pos < key_length; ++pos) {
     auto& level = levels_[pos + 1];
-    auto label  = keys_begin[pos];
+    auto label  = labels_begin[pos];
 
     if (pos == last_key_.size() || label != level.h_labels_.back()) {
       level.h_louds_.set_last(0);
@@ -91,7 +91,7 @@ void trie<LabelType, Allocator>::insert(KeyIt keys_begin, KeyIt keys_end) noexce
     level.h_louds_.push_back(0);
     level.h_louds_.push_back(1);
     level.h_outs_.push_back(0);
-    level.h_labels_.push_back(keys_begin[pos]);
+    level.h_labels_.push_back(labels_begin[pos]);
     ++num_nodes_;
   }
 
@@ -103,7 +103,7 @@ void trie<LabelType, Allocator>::insert(KeyIt keys_begin, KeyIt keys_end) noexce
 
   last_key_.resize(key_length);
   for (size_t pos = 0; pos < key_length; pos++) {
-    last_key_[pos] = keys_begin[pos];
+    last_key_[pos] = labels_begin[pos];
   }
 }
 
@@ -157,8 +157,8 @@ void trie<LabelType, Allocator>::build() noexcept(false)
 }
 
 template <typename LabelType, class Allocator>
-template <typename KeyIt, typename OffsetIt, typename OutputIt>
-void trie<LabelType, Allocator>::lookup(KeyIt keys_begin,
+template <typename LabelIt, typename OffsetIt, typename OutputIt>
+void trie<LabelType, Allocator>::lookup(LabelIt labels_begin,
                                         OffsetIt offsets_begin,
                                         OffsetIt offsets_end,
                                         OutputIt outputs_begin,
@@ -171,12 +171,12 @@ void trie<LabelType, Allocator>::lookup(KeyIt keys_begin,
   auto ref_            = this->ref(cuco::experimental::trie_lookup);
 
   trie_lookup_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
-    ref_, keys_begin, offsets_begin, outputs_begin, num_keys);
+    ref_, labels_begin, offsets_begin, outputs_begin, num_keys);
 }
 
-template <typename TrieRef, typename KeyIt, typename OffsetIt, typename OutputIt>
+template <typename TrieRef, typename LabelIt, typename OffsetIt, typename OutputIt>
 __global__ void trie_lookup_kernel(
-  TrieRef ref, KeyIt keys, OffsetIt offsets, OutputIt outputs, size_t num_keys)
+  TrieRef ref, LabelIt keys, OffsetIt offsets, OutputIt outputs, size_t num_keys)
 {
   auto key_id            = cuco::detail::global_thread_id();
   auto const loop_stride = cuco::detail::grid_stride();

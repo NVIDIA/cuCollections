@@ -28,28 +28,28 @@
 
 TEST_CASE("Lookup test", "")
 {
-  using KeyType = int;
+  using LabelType = int;
 
   std::size_t num_keys       = 64 * 1024;
   std::size_t max_key_length = 6;
-  thrust::host_vector<KeyType> keys;
+  thrust::host_vector<LabelType> keys;
   thrust::host_vector<size_t> offsets;
 
   generate_keys(keys, offsets, num_keys, max_key_length);
 
-  cuco::experimental::trie<KeyType> trie;
+  cuco::experimental::trie<LabelType> trie;
 
   {
-    std::vector<std::vector<KeyType>> all_keys;
+    std::vector<std::vector<LabelType>> all_keys;
     for (size_t key_id = 0; key_id < num_keys; key_id++) {
-      std::vector<KeyType> cur_key;
+      std::vector<LabelType> cur_key;
       for (size_t pos = offsets[key_id]; pos < offsets[key_id + 1]; pos++) {
         cur_key.push_back(keys[pos]);
       }
       all_keys.push_back(cur_key);
     }
 
-    sort(all_keys.begin(), all_keys.end(), vectorKeyCompare<KeyType>());
+    sort(all_keys.begin(), all_keys.end(), vectorKeyCompare<LabelType>());
 
     for (auto key : all_keys) {
       trie.insert(key.begin(), key.end());
@@ -60,7 +60,7 @@ TEST_CASE("Lookup test", "")
 
   {
     thrust::device_vector<size_t> lookup_result(num_keys, -1lu);
-    thrust::device_vector<KeyType> device_keys   = keys;
+    thrust::device_vector<LabelType> device_keys = keys;
     thrust::device_vector<size_t> device_offsets = offsets;
 
     trie.lookup(

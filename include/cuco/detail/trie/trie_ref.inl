@@ -19,23 +19,23 @@ class operator_impl<op::trie_lookup_tag, trie_ref<LabelType, Allocator, Operator
   /**
    * @brief Lookup a single key
    *
-   * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to trie's
+   * @tparam LabelIt Device-accessible iterator whose `value_type` can be converted to trie's
    * `LabelType`
    *
-   * @param key Iterator to first character of key
-   * @param length Number of characters in key
+   * @param labels Iterator to first label of key
+   * @param length Number of labels in key
    *
    * @return Index of key if it exists in trie, -1 otherwise
    */
-  template <typename KeyIt>
-  [[nodiscard]] __device__ size_type lookup(KeyIt key, size_type length) const noexcept
+  template <typename LabelIt>
+  [[nodiscard]] __device__ size_type lookup(LabelIt labels, size_type length) const noexcept
   {
     auto const& trie = static_cast<ref_type const&>(*this).trie_;
 
     // Level-by-level search. node_id is updated at each level
     size_type node_id = 0;
     for (size_type cur_depth = 1; cur_depth <= length; cur_depth++) {
-      if (!search_label_in_children(key[cur_depth - 1], node_id, cur_depth)) { return -1lu; }
+      if (!search_label_in_children(labels[cur_depth - 1], node_id, cur_depth)) { return -1lu; }
     }
 
     // Check for terminal node bit that indicates a valid key

@@ -10,8 +10,8 @@ struct valid_key {
   const size_t num_keys_;
 };
 
-template <typename KeyType>
-void generate_keys(thrust::host_vector<KeyType>& keys,
+template <typename LabelType>
+void generate_keys(thrust::host_vector<LabelType>& keys,
                    thrust::host_vector<size_t>& offsets,
                    size_t num_keys,
                    size_t max_key_length)
@@ -28,9 +28,9 @@ void generate_keys(thrust::host_vector<KeyType>& keys,
   thrust::exclusive_scan(offsets.begin(), offsets.end(), offsets.begin());  // in-place scan
 }
 
-template <typename KeyType>
+template <typename LabelType>
 struct vectorKeyCompare {
-  bool operator()(const std::vector<KeyType>& lhs, const std::vector<KeyType>& rhs) const
+  bool operator()(const std::vector<LabelType>& lhs, const std::vector<LabelType>& rhs) const
   {
     for (size_t pos = 0; pos < min(lhs.size(), rhs.size()); pos++) {
       if (lhs[pos] < rhs[pos]) {
@@ -58,11 +58,11 @@ inline std::vector<std::string> read_input_keys(const char* filename, size_t num
   return keys;
 }
 
-template <typename KeyType>
-std::vector<KeyType> split_str_into_ints(const std::string& key)
+template <typename LabelType>
+std::vector<LabelType> split_str_into_ints(const std::string& key)
 {
   std::stringstream ss(key);
-  std::vector<KeyType> tokens;
+  std::vector<LabelType> tokens;
   std::string buf;
 
   while (ss >> buf) {
@@ -71,20 +71,20 @@ std::vector<KeyType> split_str_into_ints(const std::string& key)
   return tokens;
 }
 
-template <typename KeyType>
-std::vector<std::vector<KeyType>> generate_split_keys(const std::vector<std::string>& keys)
+template <typename LabelType>
+std::vector<std::vector<LabelType>> generate_split_keys(const std::vector<std::string>& keys)
 {
-  std::vector<std::vector<KeyType>> split_keys(keys.size());
+  std::vector<std::vector<LabelType>> split_keys(keys.size());
 #pragma omp parallel for
   for (size_t i = 0; i < keys.size(); i++) {
-    split_keys[i] = split_str_into_ints<KeyType>(keys[i]);
+    split_keys[i] = split_str_into_ints<LabelType>(keys[i]);
   }
   return split_keys;
 }
 
-template <typename KeyType>
-void find_pivots(const std::vector<std::vector<KeyType>>& keys,
-                 std::vector<KeyType>& pivot_vals,
+template <typename LabelType>
+void find_pivots(const std::vector<std::vector<LabelType>>& keys,
+                 std::vector<LabelType>& pivot_vals,
                  std::vector<size_t>& pivot_offsets)
 {
   pivot_vals.push_back(keys[0][1]);

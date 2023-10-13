@@ -25,7 +25,7 @@ namespace experimental {
 /**
  * @brief Trie class
  *
- * @tparam label_type type of individual characters of vector keys (eg. char or int)
+ * @tparam label_type type of individual elements of vector keys (eg. char or int)
  * @tparam Allocator Type of allocator used for device storage
  */
 template <typename LabelType, class Allocator = thrust::device_malloc_allocator<std::byte>>
@@ -42,13 +42,13 @@ class trie {
   /**
    * @brief Insert a single key into trie
    *
-   * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to trie's
+   * @tparam LabelIt Device-accessible iterator whose `value_type` can be converted to trie's
    * `LabelType`
-   * @param keys_begin Begin iterator to list of labels of input key
-   * @param keys_end End iterator to list of labels of input key
+   * @param labels_begin Begin iterator to list of labels of input key
+   * @param labels_end End iterator to list of labels of input key
    */
-  template <typename KeyIt>
-  void insert(KeyIt keys_begin, KeyIt keys_end) noexcept;
+  template <typename LabelIt>
+  void insert(LabelIt labels_begin, LabelIt labels_end) noexcept;
 
   /**
    * @brief Build level-by-level trie indexes after inserting all keys
@@ -59,25 +59,25 @@ class trie {
 
   /**
    * @brief For every pair (`offsets_begin[i]`, `offsets_begin[i + 1]`) in the range
-   * `[offsets_begin, offsets_end)`, checks if the key defined by characters in the range
-   * [`keys_begin[offsets_begin[i]]`, `keys_begin[offsets_begin[i + 1]]`) is present in trie.
+   * `[offsets_begin, offsets_end)`, checks if the key defined by labels in the range
+   * [`labels_begin[offsets_begin[i]]`, `labels_begin[offsets_begin[i + 1]]`) is present in trie.
    * Stores the index of key if it exists in trie (-1 otherwise) in `outputs_begin[i]`
    *
-   * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to trie's
+   * @tparam LabelIt Device-accessible iterator whose `value_type` can be converted to trie's
    * `LabelType`
    * @tparam OffsetIt Device-accessible iterator whose `value_type` can be converted to trie's
    * `size_type`
    * @tparam OutputIt Device-accessible iterator whose `value_type` can be constructed from boolean
    * type
    *
-   * @param keys_begin Begin iterator to individual key characters
+   * @param labels_begin Begin iterator to labels list of all keys
    * @param offsets_begin Begin iterator to offsets of key boundaries
    * @param offsets_end End iterator to offsets
    * @param outputs_begin Begin iterator to lookup results
    * @param stream Stream to execute lookup kernel
    */
-  template <typename KeyIt, typename OffsetIt, typename OutputIt>
-  void lookup(KeyIt keys_begin,
+  template <typename LabelIt, typename OffsetIt, typename OutputIt>
+  void lookup(LabelIt labels_begin,
               OffsetIt offsets_begin,
               OffsetIt offsets_end,
               OutputIt outputs_begin,
@@ -193,8 +193,7 @@ class trie {
 
     /// Type of the allocator to (de)allocate labels
     using label_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<LabelType>;
-    ///< Stores individual characters of keys
-    thrust::device_vector<LabelType, label_allocator_type> labels_;
+    thrust::device_vector<LabelType, label_allocator_type> labels_;  ///< Labels at this level
     LabelType* labels_ptr_;  ///< Raw device pointer to labels
 
     std::vector<LabelType> h_labels_;  ///< Host copy of labels, using std::vector for performance
