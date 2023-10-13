@@ -3,6 +3,7 @@
 #include <chrono>
 #include <fstream>
 #include <sstream>
+#include <thrust/host_vector.h>
 
 struct valid_key {
   valid_key(size_t num_keys) : num_keys_(num_keys) {}
@@ -42,6 +43,23 @@ struct vectorKeyCompare {
     return lhs.size() <= rhs.size();
   }
 };
+
+template <typename LabelType>
+std::vector<std::vector<LabelType>> sorted_keys(thrust::host_vector<LabelType>& labels,
+                                                thrust::host_vector<size_t>& offsets)
+{
+  std::vector<std::vector<LabelType>> keys;
+  size_t num_keys = offsets.size() - 1;
+  for (size_t key_id = 0; key_id < num_keys; key_id++) {
+    std::vector<LabelType> cur_key;
+    for (size_t pos = offsets[key_id]; pos < offsets[key_id + 1]; pos++) {
+      cur_key.push_back(labels[pos]);
+    }
+    keys.push_back(cur_key);
+  }
+  sort(keys.begin(), keys.end(), vectorKeyCompare<LabelType>());
+  return keys;
+}
 
 inline std::vector<std::string> read_input_keys(const char* filename, size_t num_keys)
 {

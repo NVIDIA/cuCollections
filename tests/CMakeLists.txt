@@ -110,5 +110,4 @@ ConfigureTest(DYNAMIC_BITSET_TEST
 ###################################################################################################
 # - trie tests ------------------------------------------------------------------------------
 ConfigureTest(TRIE_TEST
-    trie/lookup_test.cu
-    trie/perf_test.cu)
+    trie/lookup_test.cu)
