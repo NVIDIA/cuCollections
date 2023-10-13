@@ -109,6 +109,25 @@ constexpr void dynamic_bitset<Allocator>::test(KeyIt keys_begin,
 
 template <class Allocator>
 template <typename KeyIt, typename OutputIt>
+constexpr void dynamic_bitset<Allocator>::find_next(KeyIt keys_begin,
+                                                    KeyIt keys_end,
+                                                    OutputIt outputs_begin,
+                                                    cuda_stream_ref stream) noexcept
+
+{
+  build();
+  if (n_bits_ == 0) { return; }
+  auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
+  if (num_keys == 0) { return; }
+
+  auto const grid_size = cuco::detail::grid_size(num_keys);
+
+  bitset_find_next_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+    ref(), keys_begin, outputs_begin, num_keys);
+}
+
+template <class Allocator>
+template <typename KeyIt, typename OutputIt>
 constexpr void dynamic_bitset<Allocator>::rank(KeyIt keys_begin,
                                                KeyIt keys_end,
                                                OutputIt outputs_begin,

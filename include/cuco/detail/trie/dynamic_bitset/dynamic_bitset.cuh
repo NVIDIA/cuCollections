@@ -157,6 +157,26 @@ class dynamic_bitset {
                       cuda_stream_ref stream = {}) noexcept;
 
   /**
+   * @brief For any element `keys_begin[i]` in the range `[keys_begin, keys_end)`, stores
+   * position of first set bit including or after position `keys_begin[i]`, to `output_begin[i]`.
+   *
+   * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to bitset's
+   * `size_type`
+   * @tparam OutputIt Device-accessible iterator whose `value_type` can be constructed from bitset's
+   * `size_type`
+   *
+   * @param keys_begin Begin iterator to list of positions to be queried
+   * @param keys_end End iterator to positions list
+   * @param outputs_begin Begin iterator to outputs of find_next operation
+   * @param stream Stream to execute find_next kernel
+   */
+  template <typename KeyIt, typename OutputIt>
+  constexpr void find_next(KeyIt keys_begin,
+                           KeyIt keys_end,
+                           OutputIt outputs_begin,
+                           cuda_stream_ref stream = {}) noexcept;
+
+  /**
    * @brief For any element `keys_begin[i]` in the range `[keys_begin, keys_end)`, stores total
    * count of `1` bits preceeding (but not including) position `keys_begin[i]` to `output_begin[i]`.
    *
