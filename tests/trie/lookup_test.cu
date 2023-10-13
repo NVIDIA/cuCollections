@@ -32,40 +32,23 @@ TEST_CASE("Lookup test", "")
 
   std::size_t num_keys       = 64 * 1024;
   std::size_t max_key_length = 6;
-  thrust::host_vector<LabelType> keys;
+
+  thrust::host_vector<LabelType> labels;
   thrust::host_vector<size_t> offsets;
 
-  generate_keys(keys, offsets, num_keys, max_key_length);
+  generate_labels(labels, offsets, num_keys, max_key_length);
+  auto keys = sorted_keys(labels, offsets);
 
   cuco::experimental::trie<LabelType> trie;
-
-  {
-    std::vector<std::vector<LabelType>> all_keys;
-    for (size_t key_id = 0; key_id < num_keys; key_id++) {
-      std::vector<LabelType> cur_key;
-      for (size_t pos = offsets[key_id]; pos < offsets[key_id + 1]; pos++) {
-        cur_key.push_back(keys[pos]);
-      }
-      all_keys.push_back(cur_key);
-    }
-
-    sort(all_keys.begin(), all_keys.end(), vectorKeyCompare<LabelType>());
-
-    for (auto key : all_keys) {
-      trie.insert(key.begin(), key.end());
-    }
-
-    trie.build();
+  for (auto key : keys) {
+    trie.insert(key.begin(), key.end());
   }
+  trie.build();
 
-  {
-    thrust::device_vector<size_t> lookup_result(num_keys, -1lu);
-    thrust::device_vector<LabelType> device_keys = keys;
-    thrust::device_vector<size_t> device_offsets = offsets;
+  thrust::device_vector<LabelType> d_labels = labels;
+  thrust::device_vector<size_t> d_offsets   = offsets;
+  thrust::device_vector<size_t> result(num_keys, -1lu);
 
-    trie.lookup(
-      device_keys.begin(), device_offsets.begin(), device_offsets.end(), lookup_result.begin());
-
-    REQUIRE(cuco::test::all_of(lookup_result.begin(), lookup_result.end(), valid_key(num_keys)));
-  }
+  trie.lookup(d_labels.begin(), d_offsets.begin(), d_offsets.end(), result.begin());
+  REQUIRE(cuco::test::all_of(result.begin(), result.end(), valid_key(num_keys)));
 }

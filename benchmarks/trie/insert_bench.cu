@@ -42,10 +42,10 @@ void trie_insert(nvbench::state& state)
     thrust::host_vector<LabelType> labels;
     thrust::host_vector<size_t> offsets;
     auto const max_key_length = 6;
-    generate_keys(labels, offsets, num_keys, max_key_length);
+    generate_labels(labels, offsets, num_keys, max_key_length);
     keys = sorted_keys(labels, offsets);
   } else {
-    keys = generate_split_keys<LabelType>(read_input_keys("trie_dataset.txt", num_keys));
+    keys = read_keys<LabelType>("trie_dataset.txt", num_keys);
   }
 
   state.add_element_count(num_keys);

@@ -39,8 +39,8 @@ void trie_lookup(nvbench::state& state)
 
   thrust::host_vector<LabelType> labels;
   thrust::host_vector<size_t> offsets;
-  generate_keys(labels, offsets, num_keys, max_key_length);
 
+  generate_labels(labels, offsets, num_keys, max_key_length);
   auto keys = sorted_keys(labels, offsets);
   for (auto key : keys) {
     trie.insert(key.begin(), key.end());
@@ -50,7 +50,7 @@ void trie_lookup(nvbench::state& state)
   const size_t query_size = num_keys / 10;
   thrust::device_vector<LabelType> inputs(labels.begin(), labels.begin() + offsets[query_size]);
   thrust::device_vector<size_t> d_offsets(offsets.begin(), offsets.begin() + query_size);
-  thrust::device_vector<size_t> outputs(query_size, -1lu);
+  thrust::device_vector<size_t> outputs(query_size);
 
   state.add_element_count(query_size);
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
