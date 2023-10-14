@@ -399,6 +399,17 @@ class static_map {
   template <typename InputIt>
   void insert_or_assign_async(InputIt first, InputIt last, cuda_stream_ref stream = {}) noexcept;
 
+  // TODO docs
+  template <typename InputIt, typename Op>
+  void insert_or_apply(InputIt first, InputIt last, Op op, cuda_stream_ref stream = {}) noexcept;
+
+  // TODO docs
+  template <typename InputIt, typename Op>
+  void insert_or_apply_async(InputIt first,
+                             InputIt last,
+                             Op op,
+                             cuda_stream_ref stream = {}) noexcept;
+
   /**
    * @brief Erases keys in the range `[first, last)`.
    *

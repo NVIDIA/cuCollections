@@ -40,6 +40,12 @@ struct insert_or_assign_tag {
 } inline constexpr insert_or_assign;
 
 /**
+ * @brief `insert_or_apply` operator tag
+ */
+struct insert_or_apply_tag {
+} inline constexpr insert_or_apply;
+
+/**
  * @brief `erase` operator tag
  */
 struct erase_tag {
@@ -56,6 +62,16 @@ struct contains_tag {
  */
 struct find_tag {
 } inline constexpr find;
+
+namespace reduce {
+
+/**
+ * @brief `sum` reduction operator tag
+ */
+struct sum_tag {
+} inline constexpr sum;
+
+}  // namespace reduce
 
 }  // namespace op
 }  // namespace experimental
