@@ -59,11 +59,6 @@ __inline__ void test_insert_or_apply(Map& map, size_type num_keys, size_type num
   thrust::device_vector<mapped_type> d_values(num_unique_keys);
   map.retrieve_all(d_keys.begin(), d_values.begin());
 
-  // TODO remove
-  for (int i = 0; i < num_unique_keys; ++i) {
-    std::cout << d_keys[i] << " " << d_values[i] << std::endl;
-  }
-
   REQUIRE(cuco::test::equal(d_values.begin(),
                             d_values.end(),
                             thrust::make_constant_iterator<mapped_type>(num_keys / num_unique_keys),
@@ -78,10 +73,25 @@ TEMPLATE_TEST_CASE_SIG(
    Value,
    Probe,
    CGSize),
-  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1))
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  constexpr size_type num_keys{10};
-  constexpr size_type num_unique_keys{10};
+  constexpr size_type num_keys{400};
+  constexpr size_type num_unique_keys{100};
 
   using probe =
     std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
@@ -98,7 +108,7 @@ TEMPLATE_TEST_CASE_SIG(
                                             probe,
                                             cuco::cuda_allocator<std::byte>,
                                             cuco::experimental::storage<2>>{
-    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
 
   test_insert_or_apply(map, num_keys, num_unique_keys);
 }

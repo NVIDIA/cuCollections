@@ -491,7 +491,7 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const key       = value.first;
+    auto const key       = thrust::get<0>(thrust::raw_reference_cast(value));
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
     auto probing_iter    = probing_scheme(group, key, storage_ref.window_extent());
@@ -524,8 +524,8 @@ class operator_impl<
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         if (group.thread_rank() == src_lane) {
-          op(&((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
-             value.second);
+          op(((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
+             static_cast<T>(thrust::get<1>(value)));
         }
         group.sync();
         return;
