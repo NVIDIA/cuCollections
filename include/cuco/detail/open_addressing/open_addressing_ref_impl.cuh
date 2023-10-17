@@ -401,13 +401,7 @@ class open_addressing_ref_impl {
         if (eq_res == detail::equal_result::EMPTY or
             cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
                                           this->erased_key_sentinel())) {
-          switch ([&]() {
-            if constexpr (sizeof(value_type) <= 8) {
-              return packed_cas(window_ptr + i, window_slots[i], value);
-            } else {
-              return cas_dependent_write(window_ptr + i, window_slots[i], value);
-            }
-          }()) {
+          switch (this->attempt_insert_stable(window_ptr + i, window_slots[i], value)) {
             case insert_result::SUCCESS: {
               return {iterator{&window_ptr[i]}, true};
             }
@@ -485,11 +479,7 @@ class open_addressing_ref_impl {
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
         auto const status   = [&, target_idx = intra_window_index]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
-          if constexpr (sizeof(value_type) <= 8) {
-            return packed_cas(slot_ptr, window_slots[target_idx], value);
-          } else {
-            return cas_dependent_write(slot_ptr, window_slots[target_idx], value);
-          }
+          return this->attempt_insert_stable(slot_ptr, window_slots[target_idx], value);
         }();
 
         switch (group.shfl(status, src_lane)) {
@@ -1051,6 +1041,35 @@ class open_addressing_ref_impl {
 #else
       return back_to_back_cas(address, expected, desired);
 #endif
+    }
+  }
+
+  /**
+   * @brief Attempts to insert an element into a slot.
+   *
+   * @note Dispatches the correct implementation depending on the container
+   * type and presence of other operator mixins.
+   *
+   * @note `stable` here means that the payload will only be updated once from the sentinel value to
+   * the payload value
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   *
+   * @param address Pointer to the slot in memory
+   * @param expected Element to compare against
+   * @param desired Element to insert
+   *
+   * @return Result of this operation, i.e., success/continue/duplicate
+   */
+  template <typename Value>
+  [[nodiscard]] __device__ insert_result attempt_insert_stable(value_type* address,
+                                                               value_type const& expected,
+                                                               Value const& desired) noexcept
+  {
+    if constexpr (sizeof(value_type) <= 8) {
+      return packed_cas(address, expected, desired);
+    } else {
+      return cas_dependent_write(address, expected, desired);
     }
   }
 
