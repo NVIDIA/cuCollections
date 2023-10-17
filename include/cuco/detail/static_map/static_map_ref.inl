@@ -18,6 +18,8 @@
 
 #include <cuco/operator.hpp>
 
+#include <thrust/tuple.h>
+
 #include <cuda/atomic>
 
 #include <cooperative_groups.h>
@@ -248,7 +250,7 @@ class operator_impl<
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
     ref_type& ref_       = static_cast<ref_type&>(*this);
-    auto const key       = value.first;
+    auto const key       = thrust::get<0>(thrust::raw_reference_cast(value));
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
     auto probing_iter    = probing_scheme(key, storage_ref.window_extent());
@@ -264,7 +266,7 @@ class operator_impl<
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           ref_.impl_.atomic_store(
             &((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
-            value.second);
+            static_cast<T>(thrust::get<1>(value)));
           return;
         }
         if (eq_res == detail::equal_result::EMPTY or
@@ -297,7 +299,7 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const key       = value.first;
+    auto const key       = thrust::get<0>(thrust::raw_reference_cast(value));
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
     auto probing_iter    = probing_scheme(group, key, storage_ref.window_extent());
@@ -332,7 +334,7 @@ class operator_impl<
         if (group.thread_rank() == src_lane) {
           ref_.impl_.atomic_store(
             &((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
-            value.second);
+            static_cast<T>(thrust::get<1>(value)));
         }
         group.sync();
         return;
@@ -377,15 +379,17 @@ class operator_impl<
     ref_type& ref_          = static_cast<ref_type&>(*this);
     auto const expected_key = ref_.impl_.empty_slot_sentinel().first;
 
-    auto old_key      = ref_.impl_.compare_and_swap(&slot->first, expected_key, value.first);
+    auto old_key = ref_.impl_.compare_and_swap(
+      &slot->first, expected_key, static_cast<key_type>(thrust::get<0>(value)));
     auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
 
     // if key success or key was already present in the map
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key) or
-        (ref_.impl_.predicate().equal_to(*old_key_ptr, value.first) ==
+        (ref_.impl_.predicate().equal_to(*old_key_ptr,
+                                         thrust::get<0>(thrust::raw_reference_cast(value))) ==
          detail::equal_result::EQUAL)) {
       // Update payload
-      ref_.impl_.atomic_store(&slot->second, value.second);
+      ref_.impl_.atomic_store(&slot->second, static_cast<T>(thrust::get<1>(value)));
       return true;
     }
     return false;
