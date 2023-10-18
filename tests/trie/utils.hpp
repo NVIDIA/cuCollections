@@ -57,46 +57,6 @@ std::vector<std::vector<LabelType>> sorted_keys(thrust::host_vector<LabelType>& 
   return keys;
 }
 
-template <typename LabelType>
-std::vector<LabelType> split_key_into_labels(const std::string& key)
-{
-  std::stringstream ss(key);
-  std::vector<LabelType> labels;
-  std::string buf;
-
-  while (ss >> buf) {
-    labels.push_back(stoi(buf));
-  }
-  return labels;
-}
-
-template <typename LabelType>
-std::vector<std::vector<LabelType>> generate_split_keys(const std::vector<std::string>& keys)
-{
-  std::vector<std::vector<LabelType>> split_keys(keys.size());
-#pragma omp parallel for
-  for (size_t i = 0; i < keys.size(); i++) {
-    split_keys[i] = split_key_into_labels<LabelType>(keys[i]);
-  }
-  return split_keys;
-}
-
-template <typename LabelType>
-inline std::vector<std::vector<LabelType>> read_keys(const char* filename, size_t num_keys)
-{
-  std::ifstream input_file(filename);
-  if (!input_file.is_open()) {
-    std::cout << "Error opening file: " << filename << std::endl;
-    exit(1);
-  }
-  std::vector<std::string> keys;
-  std::string line;
-  while (keys.size() < num_keys and getline(input_file, line)) {
-    keys.push_back(line);
-  }
-  return generate_split_keys<LabelType>(keys);
-}
-
 }  // namespace trie
 }  // namespace test
 }  // namespace cuco
