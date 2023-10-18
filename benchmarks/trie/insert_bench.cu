@@ -29,12 +29,12 @@ using namespace cuco::utility;
 /**
  * @brief A benchmark evaluating `cuco::experimental::trie::insert` performance
  */
-void trie_insert(nvbench::state& state)
+template <typename LabelType>
+void trie_insert(nvbench::state& state, nvbench::type_list<LabelType>)
 {
   auto const num_keys       = state.get_int64_or_default("NumKeys", 100 * 1000);
   auto const max_key_length = state.get_int64_or_default("MaxKeyLength", 10);
 
-  using LabelType = int;
   cuco::experimental::trie<LabelType> trie;
 
   thrust::host_vector<LabelType> labels;
@@ -54,7 +54,7 @@ void trie_insert(nvbench::state& state)
   });
 }
 
-NVBENCH_BENCH(trie_insert)
+NVBENCH_BENCH_TYPES(trie_insert, NVBENCH_TYPE_AXES(nvbench::type_list<char, int>))
   .set_name("trie_insert")
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumKeys", std::vector<nvbench::int64_t>{100 * 1000, 1000 * 1000})

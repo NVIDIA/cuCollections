@@ -27,10 +27,9 @@
 
 using namespace cuco::utility;
 
-TEST_CASE("Lookup test", "")
+template <typename LabelType>
+void trie_lookup_test()
 {
-  using LabelType = int;
-
   std::size_t num_keys       = 64 * 1024;
   std::size_t max_key_length = 6;
 
@@ -55,4 +54,10 @@ TEST_CASE("Lookup test", "")
 
   trie.lookup(d_labels.begin(), d_offsets.begin(), d_offsets.end(), result.begin());
   REQUIRE(cuco::test::all_of(result.begin(), result.end(), cuco::test::trie::valid_key(num_keys)));
+}
+
+TEST_CASE("Trie lookup", "")
+{
+  trie_lookup_test<int>();
+  trie_lookup_test<char>();
 }

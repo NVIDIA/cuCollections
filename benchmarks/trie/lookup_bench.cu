@@ -29,12 +29,12 @@ using namespace cuco::utility;
 /**
  * @brief A benchmark evaluating `cuco::experimental::trie::lookup` performance
  */
-void trie_lookup(nvbench::state& state)
+template <typename LabelType>
+void trie_lookup(nvbench::state& state, nvbench::type_list<LabelType>)
 {
   auto const num_keys       = state.get_int64_or_default("NumKeys", 100 * 1000);
   auto const max_key_length = state.get_int64_or_default("MaxKeyLength", 10);
 
-  using LabelType = int;
   cuco::experimental::trie<LabelType> trie;
 
   thrust::host_vector<LabelType> labels;
@@ -62,9 +62,8 @@ void trie_lookup(nvbench::state& state)
   });
 }
 
-NVBENCH_BENCH(trie_lookup)
+NVBENCH_BENCH_TYPES(trie_lookup, NVBENCH_TYPE_AXES(nvbench::type_list<char, int>))
   .set_name("trie_lookup")
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumKeys",
-                  std::vector<nvbench::int64_t>{100 * 1000, 1000 * 1000, 10 * 1000 * 1000})
+  .add_int64_axis("NumKeys", std::vector<nvbench::int64_t>{100 * 1000, 1000 * 1000})
   .add_int64_axis("MaxKeyLength", std::vector<nvbench::int64_t>{4, 8, 16});
