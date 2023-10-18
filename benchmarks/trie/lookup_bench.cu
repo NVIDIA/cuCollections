@@ -65,5 +65,5 @@ void trie_lookup(nvbench::state& state, nvbench::type_list<LabelType>)
 NVBENCH_BENCH_TYPES(trie_lookup, NVBENCH_TYPE_AXES(nvbench::type_list<char, int>))
   .set_name("trie_lookup")
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumKeys", std::vector<nvbench::int64_t>{100 * 1000, 1000 * 1000})
-  .add_int64_axis("MaxKeyLength", std::vector<nvbench::int64_t>{4, 8, 16});
+  .add_int64_axis("MaxKeyLength", std::vector<nvbench::int64_t>{4, 8, 16})
+  .add_int64_axis("NumKeys", std::vector<nvbench::int64_t>{100 * 1000, 1000 * 1000});
