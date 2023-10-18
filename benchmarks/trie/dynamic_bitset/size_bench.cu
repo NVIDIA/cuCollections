@@ -50,7 +50,7 @@ void dynamic_bitset_size(nvbench::state& state, nvbench::type_list<Dist>)
 }
 
 NVBENCH_BENCH_TYPES(dynamic_bitset_size,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<distribution::gaussian>))
+                    NVBENCH_TYPE_AXES(nvbench::type_list<distribution::uniform>))
   .set_name("dynamic_bitset_size")
   .set_type_axes_names({"Distribution"})
   .set_max_noise(defaults::MAX_NOISE);
