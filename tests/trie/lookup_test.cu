@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <trie_utils.hpp>
+#include <trie/utils.hpp>
 #include <utils.hpp>
 
 #include <cuco/trie.cuh>

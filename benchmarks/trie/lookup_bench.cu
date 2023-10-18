@@ -17,7 +17,7 @@
 #include <defaults.hpp>
 #include <utils.hpp>
 
-#include <../tests/trie_utils.hpp>
+#include <../tests/trie/utils.hpp>
 #include <cuco/trie.cuh>
 #include <cuco/utility/key_generator.hpp>
 
