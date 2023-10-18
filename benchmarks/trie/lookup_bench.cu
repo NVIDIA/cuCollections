@@ -17,7 +17,7 @@
 #include <defaults.hpp>
 #include <utils.hpp>
 
-#include "../../tests/trie/trie_utils.hpp"
+#include <../tests/trie_utils.hpp>
 #include <cuco/trie.cuh>
 #include <cuco/utility/key_generator.hpp>
 
@@ -42,8 +42,9 @@ void trie_lookup(nvbench::state& state)
 
   distribution::unique lengths_dist;
   distribution::gaussian labels_dist{0.5};
-  generate_labels(labels, offsets, num_keys, max_key_length, lengths_dist, labels_dist);
-  auto keys = sorted_keys(labels, offsets);
+  cuco::test::trie::generate_labels(
+    labels, offsets, num_keys, max_key_length, lengths_dist, labels_dist);
+  auto keys = cuco::test::trie::sorted_keys(labels, offsets);
 
   for (auto key : keys) {
     trie.insert(key.begin(), key.end());

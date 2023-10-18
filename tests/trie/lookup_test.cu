@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <trie_utils.hpp>
 #include <utils.hpp>
 
 #include <cuco/trie.cuh>
@@ -23,8 +24,6 @@
 #include <thrust/scan.h>
 
 #include <catch2/catch_test_macros.hpp>
-
-#include "trie_utils.hpp"
 
 using namespace cuco::utility;
 
@@ -40,8 +39,9 @@ TEST_CASE("Lookup test", "")
 
   distribution::unique lengths_dist;
   distribution::gaussian labels_dist{0.5};
-  generate_labels(labels, offsets, num_keys, max_key_length, lengths_dist, labels_dist);
-  auto keys = sorted_keys(labels, offsets);
+  cuco::test::trie::generate_labels(
+    labels, offsets, num_keys, max_key_length, lengths_dist, labels_dist);
+  auto keys = cuco::test::trie::sorted_keys(labels, offsets);
 
   cuco::experimental::trie<LabelType> trie;
   for (auto key : keys) {
@@ -54,5 +54,5 @@ TEST_CASE("Lookup test", "")
   thrust::device_vector<size_t> result(num_keys, -1lu);
 
   trie.lookup(d_labels.begin(), d_offsets.begin(), d_offsets.end(), result.begin());
-  REQUIRE(cuco::test::all_of(result.begin(), result.end(), valid_key(num_keys)));
+  REQUIRE(cuco::test::all_of(result.begin(), result.end(), cuco::test::trie::valid_key(num_keys)));
 }

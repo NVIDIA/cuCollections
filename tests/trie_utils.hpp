@@ -6,6 +6,10 @@
 #include <sstream>
 #include <thrust/host_vector.h>
 
+namespace cuco {
+namespace test {
+namespace trie {
+
 struct valid_key {
   valid_key(size_t num_keys) : num_keys_(num_keys) {}
   __host__ __device__ bool operator()(size_t x) const { return x < num_keys_; }
@@ -107,3 +111,7 @@ inline std::vector<std::vector<LabelType>> read_keys(const char* filename, size_
   }
   return generate_split_keys<LabelType>(keys);
 }
+
+}  // namespace trie
+}  // namespace test
+}  // namespace cuco
