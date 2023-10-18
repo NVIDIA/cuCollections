@@ -41,21 +41,6 @@ void generate_labels(thrust::host_vector<LabelType>& labels,
 }
 
 template <typename LabelType>
-struct vectorKeyCompare {
-  bool operator()(const std::vector<LabelType>& lhs, const std::vector<LabelType>& rhs) const
-  {
-    for (size_t pos = 0; pos < min(lhs.size(), rhs.size()); pos++) {
-      if (lhs[pos] < rhs[pos]) {
-        return true;
-      } else if (lhs[pos] > rhs[pos]) {
-        return false;
-      }
-    }
-    return lhs.size() <= rhs.size();
-  }
-};
-
-template <typename LabelType>
 std::vector<std::vector<LabelType>> sorted_keys(thrust::host_vector<LabelType>& labels,
                                                 thrust::host_vector<size_t>& offsets)
 {
@@ -68,7 +53,7 @@ std::vector<std::vector<LabelType>> sorted_keys(thrust::host_vector<LabelType>& 
     }
     keys.push_back(cur_key);
   }
-  sort(keys.begin(), keys.end(), vectorKeyCompare<LabelType>());
+  sort(keys.begin(), keys.end());
   return keys;
 }
 
