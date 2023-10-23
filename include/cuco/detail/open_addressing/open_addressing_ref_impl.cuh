@@ -24,6 +24,7 @@
 
 #include <thrust/distance.h>
 #include <thrust/pair.h>
+#include <thrust/tuple.h>
 
 #include <cuda/atomic>
 
@@ -865,9 +866,9 @@ class open_addressing_ref_impl {
     Value const& value) const noexcept
   {
     if constexpr (this->has_payload) {
-      return value.first;
+      return thrust::get<0>(thrust::raw_reference_cast(value));
     } else {
-      return value;
+      return thrust::raw_reference_cast(value);
     }
   }
 
@@ -886,7 +887,7 @@ class open_addressing_ref_impl {
   [[nodiscard]] __host__ __device__ constexpr auto const& extract_payload(
     Value const& value) const noexcept
   {
-    return value.second;
+    return thrust::get<1>(thrust::raw_reference_cast(value));
   }
 
   /**
@@ -952,10 +953,10 @@ class open_addressing_ref_impl {
     auto const expected_key     = expected.first;
     auto const expected_payload = expected.second;
 
-    auto old_key =
-      compare_and_swap(&address->first, expected_key, static_cast<key_type>(desired.first));
+    auto old_key = compare_and_swap(
+      &address->first, expected_key, static_cast<key_type>(thrust::get<0>(desired)));
     auto old_payload = compare_and_swap(
-      &address->second, expected_payload, static_cast<mapped_type>(desired.second));
+      &address->second, expected_payload, static_cast<mapped_type>(thrust::get<1>(desired)));
 
     auto* old_key_ptr     = reinterpret_cast<key_type*>(&old_key);
     auto* old_payload_ptr = reinterpret_cast<mapped_type*>(&old_payload);
@@ -964,7 +965,7 @@ class open_addressing_ref_impl {
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
       while (not cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
         old_payload = compare_and_swap(
-          &address->second, expected_payload, static_cast<mapped_type>(desired.second));
+          &address->second, expected_payload, static_cast<mapped_type>(thrust::get<1>(desired)));
       }
       return insert_result::SUCCESS;
     } else if (cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
@@ -973,7 +974,9 @@ class open_addressing_ref_impl {
 
     // Our key was already present in the slot, so our key is a duplicate
     // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-    if (this->predicate_.equal_to(*old_key_ptr, desired.first) == detail::equal_result::EQUAL) {
+    if (this->predicate_.equal_to(*old_key_ptr,
+                                  thrust::get<0>(thrust::raw_reference_cast(desired))) ==
+        detail::equal_result::EQUAL) {
       return insert_result::DUPLICATE;
     }
 
@@ -999,20 +1002,22 @@ class open_addressing_ref_impl {
 
     auto const expected_key = expected.first;
 
-    auto old_key =
-      compare_and_swap(&address->first, expected_key, static_cast<key_type>(desired.first));
+    auto old_key = compare_and_swap(
+      &address->first, expected_key, static_cast<key_type>(thrust::get<0>(desired)));
 
     auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
 
     // if key success
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
-      atomic_store(&address->second, static_cast<mapped_type>(desired.second));
+      atomic_store(&address->second, static_cast<mapped_type>(thrust::get<1>(desired)));
       return insert_result::SUCCESS;
     }
 
     // Our key was already present in the slot, so our key is a duplicate
     // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-    if (this->predicate_.equal_to(*old_key_ptr, desired.first) == detail::equal_result::EQUAL) {
+    if (this->predicate_.equal_to(*old_key_ptr,
+                                  thrust::get<0>(thrust::raw_reference_cast(desired))) ==
+        detail::equal_result::EQUAL) {
       return insert_result::DUPLICATE;
     }
 

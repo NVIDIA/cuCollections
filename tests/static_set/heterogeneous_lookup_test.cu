@@ -94,11 +94,8 @@ TEMPLATE_TEST_CASE_SIG(
   constexpr std::size_t num      = 100;
   constexpr std::size_t capacity = num * 2;
   auto const probe               = probe_type{custom_hasher{}, custom_hasher{}};
-  auto my_set                    = cuco::experimental::static_set<Key,
-                                               cuco::experimental::extent<std::size_t>,
-                                               cuda::thread_scope_device,
-                                               custom_key_equal,
-                                               probe_type>{
+
+  auto my_set = cuco::experimental::static_set{
     capacity, cuco::empty_key<Key>{sentinel_key}, custom_key_equal{}, probe};
 
   auto insert_keys = thrust::make_transform_iterator(
