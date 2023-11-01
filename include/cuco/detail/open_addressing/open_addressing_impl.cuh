@@ -17,8 +17,8 @@
 #pragma once
 
 #include <cuco/detail/__config>
-#include <cuco/detail/common_functors.cuh>
-#include <cuco/detail/common_kernels.cuh>
+#include <cuco/detail/open_addressing/functors.cuh>
+#include <cuco/detail/open_addressing/kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/extent.cuh>
