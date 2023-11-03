@@ -29,16 +29,50 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
-TEMPLATE_TEST_CASE_SIG("Duplicate keys",
-                       "",
-                       ((typename Key, typename Value), Key, Value),
-                       (int32_t, int32_t),
-                       (int32_t, int64_t),
-                       (int64_t, int32_t),
-                       (int64_t, int64_t))
+using size_type = std::size_t;
+
+TEMPLATE_TEST_CASE_SIG(
+  "static_map duplicate keys",
+  "",
+  ((typename Key, typename Value, cuco::test::probe_sequence Probe, int CGSize),
+   Key,
+   Value,
+   Probe,
+   CGSize),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  constexpr std::size_t num_keys{500'000};
-  cuco::static_map<Key, Value> map{
+  constexpr size_type num_keys{500'000};
+
+  using probe =
+    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                       cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+                       cuco::experimental::double_hashing<CGSize,
+                                                          cuco::murmurhash3_32<Key>,
+                                                          cuco::murmurhash3_32<Key>>>;
+
+  auto map = cuco::experimental::static_map<Key,
+                                            Value,
+                                            cuco::experimental::extent<size_type>,
+                                            cuda::thread_scope_device,
+                                            thrust::equal_to<Key>,
+                                            probe,
+                                            cuco::cuda_allocator<std::byte>,
+                                            cuco::experimental::storage<2>>{
     num_keys * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   thrust::device_vector<Key> d_keys(num_keys);
@@ -68,7 +102,7 @@ TEMPLATE_TEST_CASE_SIG("Duplicate keys",
 
     map.insert(pairs_begin, pairs_begin + num_keys);
 
-    auto const num_entries = map.get_size();
+    auto const num_entries = map.size();
     REQUIRE(num_entries == gold);
 
     auto [key_out_end, value_out_end] =
