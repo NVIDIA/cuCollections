@@ -1050,8 +1050,8 @@ class open_addressing_ref_impl {
    * @note Dispatches the correct implementation depending on the container
    * type and presence of other operator mixins.
    *
-   * @note `stable` here means that the payload will only be updated once from the sentinel value to
-   * the payload value
+   * @note `stable` indicates that the payload will only be updated once from the sentinel value to
+   * the desired value, meaning there can be no ABA situations.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
    *
