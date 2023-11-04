@@ -16,10 +16,8 @@
 
 #include <cuco/static_map.cuh>
 
-#include <thrust/device_vector.h>
-#include <thrust/iterator/zip_iterator.h>
-#include <thrust/sequence.h>
-#include <thrust/tuple.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -36,14 +34,11 @@ TEST_CASE("Rehash", "")
                                      cuco::empty_value<mapped_type>{-1},
                                      cuco::erased_key<key_type>{-2}};
 
-  thrust::device_vector<key_type> d_keys(num_keys);
-  thrust::device_vector<mapped_type> d_values(num_keys);
+  auto keys_begin = thrust::counting_iterator<key_type>(1);
 
-  thrust::sequence(d_keys.begin(), d_keys.end());
-  thrust::sequence(d_values.begin(), d_values.end());
-
-  auto pairs_begin =
-    thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
+  auto pairs_begin = thrust::make_transform_iterator(keys_begin, [] __device__(key_type const& x) {
+    return cuco::pair<key_type, mapped_type>(x, static_cast<mapped_type>(x));
+  });
 
   map.insert(pairs_begin, pairs_begin + num_keys);
 
@@ -53,7 +48,7 @@ TEST_CASE("Rehash", "")
   map.rehash(num_keys * 2);
   REQUIRE(map.size() == num_keys);
 
-  map.erase(d_keys.begin(), d_keys.begin() + num_erased_keys);
+  map.erase(keys_begin, keys_begin + num_erased_keys);
   map.rehash();
   REQUIRE(map.size() == num_keys - num_erased_keys);
 }

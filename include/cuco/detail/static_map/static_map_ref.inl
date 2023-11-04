@@ -173,7 +173,8 @@ class operator_impl<
   using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
   using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
   using key_type = typename base_type::key_type;
-  using value_type = typename base_type::value_type;
+  using value_type  = typename base_type::value_type;
+  using mapped_type = T;
 
   static constexpr auto cg_size     = base_type::cg_size;
   static constexpr auto window_size = base_type::window_size;
@@ -182,14 +183,14 @@ class operator_impl<
   /**
    * @brief Inserts an element.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam ProbeKey Input key type which is convertible to 'key_type'
    *
    * @param value The element to insert
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename Value>
-  __device__ bool insert(Value const& value) noexcept
+  template <typename ProbeKey>
+  __device__ bool insert(cuco::pair<ProbeKey, mapped_type> const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert(value);
@@ -198,16 +199,16 @@ class operator_impl<
   /**
    * @brief Inserts an element.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam ProbeKey Input key type which is convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename Value>
+  template <typename ProbeKey>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
-                         Value const& value) noexcept
+                         cuco::pair<ProbeKey, mapped_type> const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert(group, value);
@@ -227,7 +228,8 @@ class operator_impl<
   using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
   using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
   using key_type = typename base_type::key_type;
-  using value_type = typename base_type::value_type;
+  using value_type  = typename base_type::value_type;
+  using mapped_type = T;
 
   static constexpr auto cg_size     = base_type::cg_size;
   static constexpr auto window_size = base_type::window_size;
@@ -240,17 +242,17 @@ class operator_impl<
    * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, assigns `v`
    * to the mapped_type corresponding to the key `k`.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam ProbeKey Input key type which is convertible to 'key_type'
    *
    * @param value The element to insert
    */
-  template <typename Value>
-  __device__ void insert_or_assign(Value const& value) noexcept
+  template <typename ProbeKey>
+  __device__ void insert_or_assign(cuco::pair<ProbeKey, mapped_type> const& value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
     ref_type& ref_       = static_cast<ref_type&>(*this);
-    auto const key       = thrust::get<0>(thrust::raw_reference_cast(value));
+    auto const key       = value.first;
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
     auto probing_iter    = probing_scheme(key, storage_ref.window_extent());
@@ -266,7 +268,7 @@ class operator_impl<
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           ref_.impl_.atomic_store(
             &((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
-            static_cast<T>(thrust::get<1>(value)));
+            value.second);
           return;
         }
         if (eq_res == detail::equal_result::EMPTY or
@@ -288,18 +290,18 @@ class operator_impl<
    * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, assigns `v`
    * to the mapped_type corresponding to the key `k`.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam ProbeKey Input key type which is convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    */
-  template <typename Value>
+  template <typename ProbeKey>
   __device__ void insert_or_assign(cooperative_groups::thread_block_tile<cg_size> const& group,
-                                   Value const& value) noexcept
+                                   cuco::pair<ProbeKey, mapped_type> const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const key       = thrust::get<0>(thrust::raw_reference_cast(value));
+    auto const key       = value.first;
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
     auto probing_iter    = probing_scheme(group, key, storage_ref.window_extent());
@@ -334,7 +336,7 @@ class operator_impl<
         if (group.thread_rank() == src_lane) {
           ref_.impl_.atomic_store(
             &((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
-            static_cast<T>(thrust::get<1>(value)));
+            value.second);
         }
         group.sync();
         return;
@@ -379,17 +381,16 @@ class operator_impl<
     ref_type& ref_          = static_cast<ref_type&>(*this);
     auto const expected_key = ref_.impl_.empty_slot_sentinel().first;
 
-    auto old_key = ref_.impl_.compare_and_swap(
-      &slot->first, expected_key, static_cast<key_type>(thrust::get<0>(value)));
+    auto old_key =
+      ref_.impl_.compare_and_swap(&slot->first, expected_key, static_cast<key_type>(value.first));
     auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
 
     // if key success or key was already present in the map
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key) or
-        (ref_.impl_.predicate().equal_to(*old_key_ptr,
-                                         thrust::get<0>(thrust::raw_reference_cast(value))) ==
+        (ref_.impl_.predicate().equal_to(*old_key_ptr, value.first) ==
          detail::equal_result::EQUAL)) {
       // Update payload
-      ref_.impl_.atomic_store(&slot->second, static_cast<T>(thrust::get<1>(value)));
+      ref_.impl_.atomic_store(&slot->second, value.second);
       return true;
     }
     return false;
@@ -410,6 +411,7 @@ class operator_impl<
   using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
   using key_type = typename base_type::key_type;
   using value_type     = typename base_type::value_type;
+  using mapped_type    = T;
   using iterator       = typename base_type::iterator;
   using const_iterator = typename base_type::const_iterator;
 
@@ -450,15 +452,16 @@ class operator_impl<
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam ProbeKey Input key type which is convertible to 'key_type'
    *
    * @param value The element to insert
    *
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <typename Value>
-  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
+  template <typename ProbeKey>
+  __device__ thrust::pair<iterator, bool> insert_and_find(
+    cuco::pair<ProbeKey, mapped_type> const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(value);
@@ -471,7 +474,7 @@ class operator_impl<
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam ProbeKey Input key type which is convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
@@ -479,9 +482,10 @@ class operator_impl<
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <typename Value>
+  template <typename ProbeKey>
   __device__ thrust::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
+    cooperative_groups::thread_block_tile<cg_size> const& group,
+    cuco::pair<ProbeKey, mapped_type> const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(group, value);
@@ -510,7 +514,7 @@ class operator_impl<
   /**
    * @brief Erases an element.
    *
-   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
+   * @tparam ProbeKey Input key type which is convertible to 'key_type'
    *
    * @param key The element to erase
    *
@@ -526,7 +530,7 @@ class operator_impl<
   /**
    * @brief Erases an element.
    *
-   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
+   * @tparam ProbeKey Input key type which is convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform group insert
    * @param key The element to erase
@@ -567,7 +571,7 @@ class operator_impl<
    * @note If the probe key `key` was inserted into the container, returns
    * true. Otherwise, returns false.
    *
-   * @tparam ProbeKey Probe key type
+   * @tparam ProbeKey Input key type which is convertible to 'key_type'
    *
    * @param key The key to search for
    *
@@ -587,7 +591,7 @@ class operator_impl<
    * @note If the probe key `key` was inserted into the container, returns
    * true. Otherwise, returns false.
    *
-   * @tparam ProbeKey Probe key type
+   * @tparam ProbeKey Input key type which is convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
@@ -656,7 +660,7 @@ class operator_impl<
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Probe key type
+   * @tparam ProbeKey Input key type which is convertible to 'key_type'
    *
    * @param key The key to search for
    *
@@ -676,7 +680,7 @@ class operator_impl<
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Probe key type
+   * @tparam ProbeKey Input key type which is convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
