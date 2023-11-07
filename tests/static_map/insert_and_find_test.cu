@@ -26,26 +26,31 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
-static constexpr int Iters = 10'000;
+static constexpr int Iters = 10;
 
-template <typename View>
-__global__ void parallel_sum(View v)
+template <typename Ref>
+__global__ void parallel_sum(Ref v)
 {
   for (int i = 0; i < Iters; i++) {
 #if __CUDA_ARCH__ < 700
-    if constexpr (cuco::detail::is_packable<View::value_type>())
+    if constexpr (cuco::detail::is_packable<Ref::value_type>())
 #endif
     {
-      auto [iter, inserted] = v.insert_and_find(thrust::make_pair(i, 1));
+      auto [iter, inserted] = v.insert_and_find(cuco::pair{i, 1});
+      if (inserted) { printf("*** inserted %d\n", int(i)); }
       // for debugging...
       // if (iter->second < 0) {
       //   asm("trap;");
       // }
-      if (!inserted) { iter->second += 1; }
+      if (!inserted) {
+        auto ref =
+          cuda::atomic_ref<typename Ref::mapped_type, cuda::thread_scope_device>{iter->second};
+        ref.fetch_add(1);
+      }
     }
 #if __CUDA_ARCH__ < 700
     else {
-      v.insert(thrust::make_pair(i, gridDim.x * blockDim.x));
+      v.insert(cuco::pair{i, gridDim.x * blockDim.x});
     }
 #endif
   }
@@ -61,11 +66,18 @@ TEMPLATE_TEST_CASE_SIG("Parallel insert-or-update",
 {
   cuco::empty_key<Key> empty_key_sentinel{-1};
   cuco::empty_value<Value> empty_value_sentinel{-1};
-  cuco::static_map<Key, Value> m(10 * Iters, empty_key_sentinel, empty_value_sentinel);
+  auto m = cuco::experimental::static_map{
+    10 * Iters,
+    empty_key_sentinel,
+    empty_value_sentinel,
+    thrust::equal_to<Key>{},
+    cuco::experimental::linear_probing<1, cuco::murmurhash3_32<Key>>{}};
 
-  static constexpr int Blocks  = 1024;
+  static constexpr int Blocks  = 4;
   static constexpr int Threads = 128;
-  parallel_sum<<<Blocks, Threads>>>(m.get_device_mutable_view());
+  printf("\n\n##################\n");
+  parallel_sum<<<Blocks, Threads>>>(
+    m.ref(cuco::experimental::op::insert, cuco::experimental::op::insert_and_find));
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   thrust::device_vector<Key> d_keys(Iters);
@@ -73,6 +85,10 @@ TEMPLATE_TEST_CASE_SIG("Parallel insert-or-update",
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   m.find(d_keys.begin(), d_keys.end(), d_values.begin());
+
+  for (auto const it : d_values) {
+    printf("value: %d\n", int(it));
+  }
 
   REQUIRE(cuco::test::all_of(
     d_values.begin(), d_values.end(), [] __device__(Value v) { return v == Blocks * Threads; }));
