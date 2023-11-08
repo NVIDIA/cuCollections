@@ -26,7 +26,7 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
-static constexpr int Iters = 10;
+static constexpr int Iters = 10'000;
 
 template <typename Ref>
 __global__ void parallel_sum(Ref v)
@@ -37,7 +37,6 @@ __global__ void parallel_sum(Ref v)
 #endif
     {
       auto [iter, inserted] = v.insert_and_find(cuco::pair{i, 1});
-      if (inserted) { printf("*** inserted %d\n", int(i)); }
       // for debugging...
       // if (iter->second < 0) {
       //   asm("trap;");
@@ -73,9 +72,9 @@ TEMPLATE_TEST_CASE_SIG("Parallel insert-or-update",
     thrust::equal_to<Key>{},
     cuco::experimental::linear_probing<1, cuco::murmurhash3_32<Key>>{}};
 
-  static constexpr int Blocks  = 4;
+  static constexpr int Blocks  = 1024;
   static constexpr int Threads = 128;
-  printf("\n\n##################\n");
+
   parallel_sum<<<Blocks, Threads>>>(
     m.ref(cuco::experimental::op::insert, cuco::experimental::op::insert_and_find));
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
@@ -85,10 +84,6 @@ TEMPLATE_TEST_CASE_SIG("Parallel insert-or-update",
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   m.find(d_keys.begin(), d_keys.end(), d_values.begin());
-
-  for (auto const it : d_values) {
-    printf("value: %d\n", int(it));
-  }
 
   REQUIRE(cuco::test::all_of(
     d_values.begin(), d_values.end(), [] __device__(Value v) { return v == Blocks * Threads; }));
