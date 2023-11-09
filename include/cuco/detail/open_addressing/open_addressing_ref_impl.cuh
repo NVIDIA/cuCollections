@@ -405,14 +405,20 @@ class open_addressing_ref_impl {
             if constexpr (sizeof(value_type) <= 8) {
               return packed_cas(window_ptr + i, window_slots[i], value);
             } else {
-              auto const res    = cas_dependent_write(window_ptr + i, window_slots[i], value);
-              using mapped_type = decltype(this->empty_slot_sentinel_.second);
-              auto ref =
-                cuda::atomic<mapped_type, cuda::thread_scope_device>{(window_ptr + i)->second};
-              mapped_type old;
-              do {
-                old = ref.load(cuda::std::memory_order_relaxed);
-              } while (cuco::detail::bitwise_compare(old, window_slots[i].second));
+              auto const expected_payload = window_slots[i].second;
+              auto const res = cas_dependent_write(window_ptr + i, window_slots[i], value);
+              if (res == insert_result::SUCCESS) {
+                using mapped_type = decltype(this->empty_slot_sentinel_.second);
+                auto ref =
+                  cuda::atomic<mapped_type, cuda::thread_scope_device>{(window_ptr + i)->second};
+                mapped_type old;
+                int n = 0;
+                do {
+                  old = ref.load(cuda::std::memory_order_relaxed);
+                  printf(
+                    "old: %d expected_payload: %d n: %d\n", int(old), int(expected_payload), n);
+                } while (cuco::detail::bitwise_compare(old, expected_payload));
+              }
               return res;
             }
           }();
