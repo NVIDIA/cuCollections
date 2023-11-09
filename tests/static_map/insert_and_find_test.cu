@@ -37,6 +37,7 @@ __global__ void parallel_sum(Ref v)
 #endif
     {
       auto [iter, inserted] = v.insert_and_find(cuco::pair{i, 1});
+      if (inserted) { printf("key: %d payload:%d \n", int(iter->first), int(iter->second)); }
       // for debugging...
       // if (iter->second < 0) {
       //   asm("trap;");
