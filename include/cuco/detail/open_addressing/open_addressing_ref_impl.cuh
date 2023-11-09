@@ -401,13 +401,22 @@ class open_addressing_ref_impl {
         if (eq_res == detail::equal_result::EMPTY or
             cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
                                           this->erased_key_sentinel())) {
-          switch ([&]() {
+          auto const res = [&]() {
             if constexpr (sizeof(value_type) <= 8) {
               return packed_cas(window_ptr + i, window_slots[i], value);
             } else {
-              return cas_dependent_write(window_ptr + i, window_slots[i], value);
+              auto const res    = cas_dependent_write(window_ptr + i, window_slots[i], value);
+              using mapped_type = decltype(this->empty_slot_sentinel_.second);
+              auto ref =
+                cuda::atomic<mapped_type, cuda::thread_scope_device>{(window_ptr + i)->second};
+              mapped_type old;
+              do {
+                old = ref.load(cuda::std::memory_order_relaxed);
+              } while (cuco::detail::bitwise_compare(old, window_slots[i].second));
+              return res;
             }
-          }()) {
+          }();
+          switch (res) {
             case insert_result::SUCCESS: {
               return {iterator{&window_ptr[i]}, true};
             }
@@ -1010,13 +1019,7 @@ class open_addressing_ref_impl {
 
     // if key success
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
-      auto ref = cuda::atomic<mapped_type, cuda::thread_scope_system>{address->second};
-      ref.store(static_cast<mapped_type>(thrust::get<1>(desired)), cuda::std::memory_order_relaxed);
-
-      mapped_type old;
-      do {
-        old = ref.load(cuda::std::memory_order_relaxed);
-      } while (cuco::detail::bitwise_compare(old, expected_payload));
+      atomic_store(&address->second, static_cast<mapped_type>(thrust::get<1>(desired)));
 
       return insert_result::SUCCESS;
     }
