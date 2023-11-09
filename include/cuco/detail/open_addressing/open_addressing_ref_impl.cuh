@@ -1000,7 +1000,8 @@ class open_addressing_ref_impl {
   {
     using mapped_type = decltype(this->empty_slot_sentinel_.second);
 
-    auto const expected_key = expected.first;
+    auto const expected_key     = expected.first;
+    auto const expected_payload = expected.second;
 
     auto old_key = compare_and_swap(
       &address->first, expected_key, static_cast<key_type>(thrust::get<0>(desired)));
@@ -1009,7 +1010,14 @@ class open_addressing_ref_impl {
 
     // if key success
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
-      atomic_store(&address->second, static_cast<mapped_type>(thrust::get<1>(desired)));
+      auto ref = cuda::atomic<mapped_type, cuda::thread_scope_system>{address->second};
+      ref.store(static_cast<mapped_type>(thrust::get<1>(desired)), cuda::std::memory_order_relaxed);
+
+      mapped_type old;
+      do {
+        old = ref.load(cuda::std::memory_order_relaxed);
+      } while (cuco::detail::bitwise_compare(old, expected_payload));
+
       return insert_result::SUCCESS;
     }
 
