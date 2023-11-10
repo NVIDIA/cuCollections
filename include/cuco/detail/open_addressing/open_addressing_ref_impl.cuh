@@ -398,18 +398,7 @@ class open_addressing_ref_impl {
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) {
-          if constexpr (sizeof(value_type) > 8) {
-            using mapped_type           = decltype(this->empty_slot_sentinel_.second);
-            auto const expected_payload = this->empty_slot_sentinel_.second;
-            auto ref =
-              cuda::atomic<mapped_type, cuda::thread_scope_device>{(window_ptr + i)->second};
-            mapped_type old;
-            int n = 0;
-            do {
-              old = ref.load(cuda::std::memory_order_relaxed);
-              // printf("old: %d expected_payload: %d n: %d\n", int(old), int(expected_payload), n);
-            } while (cuco::detail::bitwise_compare(old, expected_payload));
-          }
+          this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
           return {iterator{&window_ptr[i]}, false};
         }
         if (eq_res == detail::equal_result::EMPTY or
@@ -420,25 +409,17 @@ class open_addressing_ref_impl {
               return packed_cas(window_ptr + i, window_slots[i], value);
             } else {
               auto const expected_payload = this->empty_slot_sentinel_.second;
-              auto const res    = cas_dependent_write(window_ptr + i, window_slots[i], value);
-              using mapped_type = decltype(this->empty_slot_sentinel_.second);
-              auto ref =
-                cuda::atomic<mapped_type, cuda::thread_scope_device>{(window_ptr + i)->second};
-              mapped_type old;
-              int n = 0;
-              do {
-                old = ref.load(cuda::std::memory_order_relaxed);
-                // printf("old: %d expected_payload: %d n: %d\n", int(old), int(expected_payload),
-                // n);
-              } while (cuco::detail::bitwise_compare(old, expected_payload));
+              auto const res = cas_dependent_write(window_ptr + i, window_slots[i], value);
               return res;
             }
           }();
           switch (res) {
             case insert_result::SUCCESS: {
+              this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
               return {iterator{&window_ptr[i]}, true};
             }
             case insert_result::DUPLICATE: {
+              this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
               return {iterator{&window_ptr[i]}, false};
             }
             default: continue;
@@ -1081,6 +1062,18 @@ class open_addressing_ref_impl {
       return back_to_back_cas(address, expected, desired);
 #endif
     }
+  }
+
+  // TODO docs
+  template <typename T>
+  __device__ void wait_for_payload(T& slot, T const& sentinel) const noexcept
+  {
+    auto ref = cuda::atomic_ref<T, Scope>{slot};
+    T current;
+    // TODO exponential backoff strategy
+    do {
+      current = ref.load(cuda::std::memory_order_relaxed);
+    } while (cuco::detail::bitwise_compare(current, sentinel));
   }
 
   // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
