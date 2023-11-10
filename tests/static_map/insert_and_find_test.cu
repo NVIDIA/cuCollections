@@ -37,7 +37,6 @@ __global__ void parallel_sum(Ref v)
 #endif
     {
       auto [iter, inserted] = v.insert_and_find(cuco::pair{i, 1});
-      if (inserted) { printf("key: %d payload:%d \n", int(iter->first), int(iter->second)); }
       // for debugging...
       // if (iter->second < 0) {
       //   asm("trap;");
@@ -73,7 +72,7 @@ TEMPLATE_TEST_CASE_SIG("Parallel insert-or-update",
     thrust::equal_to<Key>{},
     cuco::experimental::linear_probing<1, cuco::murmurhash3_32<Key>>{}};
 
-  static constexpr int Blocks  = 64;
+  static constexpr int Blocks  = 1024;
   static constexpr int Threads = 128;
 
   parallel_sum<<<Blocks, Threads>>>(
@@ -85,10 +84,6 @@ TEMPLATE_TEST_CASE_SIG("Parallel insert-or-update",
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   m.find(d_keys.begin(), d_keys.end(), d_values.begin());
-
-  for (auto const t : d_values) {
-    printf("### %d\n", int(t));
-  }
 
   REQUIRE(cuco::test::all_of(
     d_values.begin(), d_values.end(), [] __device__(Value v) { return v == Blocks * Threads; }));
