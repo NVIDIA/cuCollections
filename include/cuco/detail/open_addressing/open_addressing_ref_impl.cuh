@@ -398,7 +398,9 @@ class open_addressing_ref_impl {
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) {
-          this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+          if constexpr (has_payload) {
+            this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+          }
           return {iterator{&window_ptr[i]}, false};
         }
         if (eq_res == detail::equal_result::EMPTY or
@@ -415,11 +417,15 @@ class open_addressing_ref_impl {
           }();
           switch (res) {
             case insert_result::SUCCESS: {
-              this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+              if constexpr (has_payload) {
+                this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+              }
               return {iterator{&window_ptr[i]}, true};
             }
             case insert_result::DUPLICATE: {
-              this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+              if constexpr (has_payload) {
+                this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+              }
               return {iterator{&window_ptr[i]}, false};
             }
             default: continue;
