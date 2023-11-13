@@ -385,6 +385,12 @@ class open_addressing_ref_impl {
   __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+#if __CUDA_ARCH__ < 700
+    // Spinning to ensure that the write to the value part took place requires
+    // independent thread scheduling introduced with the Volta architecture.
+    static_assert(cuco::detail::is_packable<value_type>(),
+                  "insert_and_find is not supported for unpackable data on pre-Volta GPUs.");
+#endif
 
     auto const key    = this->extract_key(value);
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
@@ -399,6 +405,7 @@ class open_addressing_ref_impl {
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) {
           if constexpr (has_payload) {
+            // wait to ensure that the write to the value part also took place
             this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
           }
           return {iterator{&window_ptr[i]}, false};
@@ -418,12 +425,14 @@ class open_addressing_ref_impl {
           switch (res) {
             case insert_result::SUCCESS: {
               if constexpr (has_payload) {
+                // wait to ensure that the write to the value part also took place
                 this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
               }
               return {iterator{&window_ptr[i]}, true};
             }
             case insert_result::DUPLICATE: {
               if constexpr (has_payload) {
+                // wait to ensure that the write to the value part also took place
                 this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
               }
               return {iterator{&window_ptr[i]}, false};
@@ -455,6 +464,13 @@ class open_addressing_ref_impl {
   __device__ thrust::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
   {
+#if __CUDA_ARCH__ < 700
+    // Spinning to ensure that the write to the value part took place requires
+    // independent thread scheduling introduced with the Volta architecture.
+    static_assert(cuco::detail::is_packable<value_type>(),
+                  "insert_and_find is not supported for unpackable data on pre-Volta GPUs.");
+#endif
+
     auto const key    = this->extract_key(value);
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
@@ -489,6 +505,12 @@ class open_addressing_ref_impl {
       if (group_finds_equal) {
         auto const src_lane = __ffs(group_finds_equal) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
+        if (group.thread_rank() == src_lane) {
+          if constexpr (has_payload) {
+            // wait to ensure that the write to the value part also took place
+            this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
+          }
+        }
         return {iterator{reinterpret_cast<value_type*>(res)}, false};
       }
 
@@ -508,9 +530,21 @@ class open_addressing_ref_impl {
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: {
+            if (group.thread_rank() == src_lane) {
+              if constexpr (has_payload) {
+                // wait to ensure that the write to the value part also took place
+                this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
+              }
+            }
             return {iterator{reinterpret_cast<value_type*>(res)}, true};
           }
           case insert_result::DUPLICATE: {
+            if (group.thread_rank() == src_lane) {
+              if constexpr (has_payload) {
+                // wait to ensure that the write to the value part also took place
+                this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
+              }
+            }
             return {iterator{reinterpret_cast<value_type*>(res)}, false};
           }
           default: continue;
