@@ -61,7 +61,14 @@ __global__ void parallel_sum(Ref v)
     }
 #if __CUDA_ARCH__ < 700
     else {
-      v.insert(cuco::pair{i, gridDim.x * blockDim.x});
+      auto constexpr cg_size = Ref::cg_size;
+      if constexpr (cg_size == 1) {
+        v.insert(cuco::pair{i, gridDim.x * blockDim.x});
+      } else {
+        auto const tile =
+          cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
+        v.insert(tile, cuco::pair{i, gridDim.x * blockDim.x / cg_size});
+      }
     }
 #endif
   }
