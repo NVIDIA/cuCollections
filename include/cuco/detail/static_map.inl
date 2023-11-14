@@ -221,7 +221,7 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
   auto zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
 
   std::size_t temp_storage_bytes = 0;
-  using temp_allocator_type      = typename std::allocator_traits<Allocator>::rebind_alloc<char>;
+  using temp_allocator_type      = typename std::allocator_traits<Allocator>::template rebind_alloc<char>;
   auto temp_allocator            = temp_allocator_type{slot_allocator_};
   auto d_num_out                 = reinterpret_cast<std::size_t*>(
     std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(std::size_t)));

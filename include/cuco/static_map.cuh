@@ -839,9 +839,9 @@ class static_map {
   using slot_type           = pair_atomic_type;                  ///< Type of hash map slots
   using atomic_ctr_type     = cuda::atomic<std::size_t, Scope>;  ///< Atomic counter type
   using allocator_type      = Allocator;                         ///< Allocator type
-  using slot_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+  using slot_allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<
     pair_atomic_type>;  ///< Type of the allocator to (de)allocate slots
-  using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+  using counter_allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<
     atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
 
 #if !defined(CUCO_HAS_INDEPENDENT_THREADS)
