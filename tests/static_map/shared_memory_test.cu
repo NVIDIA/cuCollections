@@ -74,9 +74,8 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
                        (int64_t, int32_t),
                        (int64_t, int64_t))
 {
-  using MapType                = cuco::static_map<Key, Value>;
-  using DeviceViewType         = typename MapType::device_view;
-  using DeviceViewIteratorType = typename DeviceViewType::iterator;
+  using MapType        = cuco::static_map<Key, Value>;
+  using DeviceViewType = typename MapType::device_view;
 
   constexpr std::size_t number_of_maps  = 1000;
   constexpr std::size_t elements_in_map = 500;
