@@ -19,8 +19,6 @@ on:
   workflow_call:
     inputs:
       per_cuda_compiler_matrix: {type: string, required: true}
-      build_script: {type: string, required: false}
-      test_script: {type: string, required: false}
       devcontainer_version: {type: string, required: true}
 
 jobs:
@@ -35,15 +33,9 @@ jobs:
       matrix:
         include: ${{ fromJSON(inputs.per_cuda_compiler_matrix) }}
     with:
-      devcontainer_version: ${{ inputs.devcontainer_version }}
-      cuda_version: ${{ matrix.cuda }}
-      compiler: ${{ matrix.compiler.name }}
-      compiler_exe: ${{ matrix.compiler.exe }}
-      compiler_version: ${{ matrix.compiler.version }}
-      std: ${{ matrix.std }}
-      gpu_build_archs: ${{ matrix.gpu_build_archs }}
       cpu: ${{ matrix.cpu }}
-      os: ${{ matrix.os }}
-      build_script: ${{ inputs.build_script }}
-      test_script: ${{ inputs.test_script }}
+      test_name: ${{matrix.compiler.name}}${{matrix.compiler.version}}/C++${{matrix.std}}
+      build_script: "./ci/build.sh ${{matrix.compiler.exe}} ${{matrix.std}} ${{matrix.gpu_build_archs}}"
+      test_script:  "./ci/test.sh  ${{matrix.compiler.exe}} ${{matrix.std}} ${{matrix.gpu_build_archs}}"
+      container_image: rapidsai/devcontainers:${{inputs.devcontainer_version}}-cpp-${{matrix.compiler.name}}${{matrix.compiler.version}}-cuda${{matrix.cuda}}-${{matrix.os}}
       run_tests: ${{ contains(matrix.jobs, 'test') && !contains(github.event.head_commit.message, 'skip-tests') }}
