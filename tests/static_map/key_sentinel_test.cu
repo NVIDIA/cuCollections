@@ -29,7 +29,7 @@ __device__ int A[SIZE];
 
 template <typename T>
 struct custom_equals {
-  __device__ bool operator()(T lhs, T rhs) { return A[lhs] == A[rhs]; }
+  __device__ bool operator()(T lhs, T rhs) const { return A[lhs] == A[rhs]; }
 };
 
 TEMPLATE_TEST_CASE_SIG(
@@ -39,11 +39,15 @@ TEMPLATE_TEST_CASE_SIG(
   using Value = T;
 
   constexpr std::size_t num_keys{SIZE};
-  cuco::static_map<Key, Value> map{
-    SIZE * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  auto map = cuco::experimental::static_map{
+    SIZE * 2,
+    cuco::empty_key<Key>{-1},
+    cuco::empty_value<Value>{-1},
+    custom_equals<Key>{},
+    cuco::experimental::linear_probing<1, cuco::default_hash_function<Key>>{}};
 
-  auto m_view = map.get_device_mutable_view();
-  auto view   = map.get_device_view();
+  auto insert_ref = map.ref(cuco::experimental::op::insert);
+  auto find_ref   = map.ref(cuco::experimental::op::find);
 
   int h_A[SIZE];
   for (int i = 0; i < SIZE; i++) {
@@ -60,25 +64,23 @@ TEMPLATE_TEST_CASE_SIG(
   {
     REQUIRE(cuco::test::all_of(pairs_begin,
                                pairs_begin + num_keys,
-                               [m_view] __device__(cuco::pair<Key, Value> const& pair) mutable {
-                                 return m_view.insert(
-                                   pair, cuco::default_hash_function<Key>{}, custom_equals<Key>{});
+                               [insert_ref] __device__(cuco::pair<Key, Value> const& pair) mutable {
+                                 return insert_ref.insert(pair);
                                }));
   }
 
   SECTION(
     "Tests of CG insert: The custom `key_equal` can never be used to compare against sentinel")
   {
-    map.insert(pairs_begin,
-               pairs_begin + num_keys,
-               cuco::default_hash_function<Key>{},
-               custom_equals<Key>{});
+    map.insert(pairs_begin, pairs_begin + num_keys);
     // All keys inserted via custom `key_equal` should be found
-    REQUIRE(cuco::test::all_of(
-      pairs_begin, pairs_begin + num_keys, [view] __device__(cuco::pair<Key, Value> const& pair) {
-        auto const found = view.find(pair.first);
-        return (found != view.end()) and
-               (found->first.load() == pair.first and found->second.load() == pair.second);
-      }));
+    REQUIRE(cuco::test::all_of(pairs_begin,
+                               pairs_begin + num_keys,
+                               [find_ref] __device__(cuco::pair<Key, Value> const& pair) {
+                                 auto const found = find_ref.find(pair.first);
+                                 return (found != find_ref.end()) and
+                                        (found->first == pair.first and
+                                         found->second == pair.second);
+                               }));
   }
 }
