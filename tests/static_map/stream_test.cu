@@ -29,7 +29,7 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
-TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
+TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
                        "",
                        ((typename Key, typename Value), Key, Value),
                        (int32_t, int32_t),
@@ -41,11 +41,14 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
   CUCO_CUDA_TRY(cudaStreamCreate(&stream));
 
   constexpr std::size_t num_keys{500'000};
-  cuco::static_map<Key, Value> map{1'000'000,
-                                   cuco::empty_key<Key>{-1},
-                                   cuco::empty_value<Value>{-1},
-                                   cuco::cuda_allocator<char>{},
-                                   stream};
+  auto map = cuco::experimental::static_map{
+    num_keys * 2,
+    cuco::empty_key<Key>{-1},
+    cuco::empty_value<Value>{-1},
+    thrust::equal_to<Key>{},
+    cuco::experimental::linear_probing<1, cuco::default_hash_function<Key>>{},
+    cuco::cuda_allocator<char>{},
+    stream};
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
@@ -57,16 +60,13 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
     thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
                                     [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
 
-  auto hash_fn  = cuco::default_hash_function<Key>{};
-  auto equal_fn = thrust::equal_to<Value>{};
-
   // bulk function test cases
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
   {
     thrust::device_vector<Value> d_results(num_keys);
 
-    map.insert(pairs_begin, pairs_begin + num_keys, hash_fn, equal_fn, stream);
-    map.find(d_keys.begin(), d_keys.end(), d_results.begin(), hash_fn, equal_fn, stream);
+    map.insert(pairs_begin, pairs_begin + num_keys, stream);
+    map.find(d_keys.begin(), d_keys.end(), d_results.begin(), stream);
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), d_values.begin()));
 
     REQUIRE(cuco::test::all_of(
@@ -80,8 +80,8 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
   {
     thrust::device_vector<bool> d_contained(num_keys);
 
-    map.insert(pairs_begin, pairs_begin + num_keys, hash_fn, equal_fn, stream);
-    map.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), hash_fn, equal_fn, stream);
+    map.insert(pairs_begin, pairs_begin + num_keys, stream);
+    map.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), stream);
 
     REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}, stream));
   }
