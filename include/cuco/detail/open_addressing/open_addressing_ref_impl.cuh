@@ -1104,7 +1104,16 @@ class open_addressing_ref_impl {
     }
   }
 
-  // TODO docs
+  /**
+   * @brief Waits until the slot payload has been updated
+   *
+   * @note The function will return once the slot payload is no longer equal to the sentinel value.
+   *
+   * @tparam T Map slot type
+   *
+   * @param slot The target slot to check payload with
+   * @param sentinel The slot sentinel value
+   */
   template <typename T>
   __device__ void wait_for_payload(T& slot, T const& sentinel) const noexcept
   {
