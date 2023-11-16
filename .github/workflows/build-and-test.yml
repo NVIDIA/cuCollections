@@ -22,65 +22,33 @@ defaults:
 on:
   workflow_call:
     inputs:
-      devcontainer_version: {type: string, required: true}
-      cuda_version: {type: string, required: true}
-      compiler: {type: string, required: true}
-      compiler_exe: {type: string, required: true}
-      compiler_version: {type: string, required: true}
-      std: {type: string, required: true}
-      gpu_build_archs: {type: string, required: true}
       cpu: {type: string, required: true}
-      os: {type: string, required: true}
+      test_name: {type: string, required: false}
       build_script: {type: string, required: false}
       test_script: {type: string, required: false}
+      container_image: {type: string, required: false}
       run_tests: {type: boolean, required: false, default: true}
 
 jobs:
-  devcontainer_image:
-    name: Devcontainer ${{ inputs.os }}/${{ inputs.compiler }}${{ inputs.compiler_version }}
-    runs-on: ubuntu-latest
-    outputs:
-      image_name: ${{ steps.compute-devcontainer-image-name.outputs.name }}
-    steps:
-      - name: Compute devcontainer image name
-        id: compute-devcontainer-image-name
-        run: |
-          COMPILER_SEGMENT=""
-          if [ "${{ inputs.compiler }}" != "cc" ] && [ "${{ inputs.compiler_exe }}" != "c++" ]; then
-            COMPILER_SEGMENT="${{ inputs.compiler }}${{ inputs.compiler_version }}-"
-          fi
-          DEVCONTAINER_IMAGE="rapidsai/devcontainers:${{inputs.devcontainer_version}}-cpp-${COMPILER_SEGMENT}cuda${{inputs.cuda_version}}-${{inputs.os}}"
-          echo "DEVCONTAINER_IMAGE=$DEVCONTAINER_IMAGE" >> $GITHUB_ENV
-          echo "name=$DEVCONTAINER_IMAGE" >> $GITHUB_OUTPUT
-      - name: Check if devcontainer image exists
-        run: |
-          docker buildx imagetools inspect $DEVCONTAINER_IMAGE > /dev/null
-          if [ $? -ne 0 ]; then
-            echo "Error: Docker image $DEVCONTAINER_IMAGE does not exist."
-            exit 1
-          fi
-
   build:
-    needs: devcontainer_image
-    if: inputs.build_script != '' && needs.devcontainer_image.outputs.image_name != ''
-    name: Build ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
+    name: Build ${{inputs.test_name}}
     uses: ./.github/workflows/run-as-coder.yml
     with:
-      name: Build ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
+      name: Build ${{inputs.test_name}}
       runner: linux-${{inputs.cpu}}-cpu16
-      image: ${{ needs.devcontainer_image.outputs.image_name }}
+      image:  ${{ inputs.container_image }}
       command: |
-        ${{ inputs.build_script }} "${{inputs.compiler_exe}}" "${{inputs.std}}" "${{inputs.gpu_build_archs}}"
+        ${{ inputs.build_script }}
 
   test:
-    needs: [devcontainer_image, build]
-    if:  ${{ !cancelled() && ( needs.build.result == 'success' || needs.build.result == 'skipped' ) && inputs.test_script != '' && needs.devcontainer_image.outputs.image_name != '' && inputs.run_tests}}
-    name: Test ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
+    needs: build
+    if:  ${{ !cancelled() && ( needs.build.result == 'success' || needs.build.result == 'skipped' ) && inputs.run_tests}}
+    name: Test ${{inputs.test_name}}
     uses: ./.github/workflows/run-as-coder.yml
     with:
-      name: Test ${{inputs.compiler}}${{inputs.compiler_version}}/C++${{inputs.std}}/SM${{inputs.gpu_build_archs}}
+      name: Test ${{inputs.test_name}}
       runner: linux-${{inputs.cpu}}-gpu-v100-latest-1
-      image: ${{ needs.devcontainer_image.outputs.image_name }}
+      image: ${{inputs.container_image}}
       command: |
         nvidia-smi
-        ${{ inputs.test_script }} "${{inputs.compiler_exe}}" "${{inputs.std}}" "${{inputs.gpu_build_archs}}"
+        ${{ inputs.test_script }}
