@@ -466,8 +466,9 @@ class open_addressing_ref_impl {
 #if __CUDA_ARCH__ < 700
     // Spinning to ensure that the write to the value part took place requires
     // independent thread scheduling introduced with the Volta architecture.
-    static_assert(cuco::detail::is_packable<value_type>(),
-                  "insert_and_find is not supported for unpackable data on pre-Volta GPUs.");
+    static_assert(
+      cuco::detail::is_packable<value_type>(),
+      "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
 #endif
 
     auto const key    = this->extract_key(value);
@@ -510,6 +511,7 @@ class open_addressing_ref_impl {
             this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
           }
         }
+        group.sync();
         return {iterator{reinterpret_cast<value_type*>(res)}, false};
       }
 
@@ -535,6 +537,7 @@ class open_addressing_ref_impl {
                 this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
               }
             }
+            group.sync();
             return {iterator{reinterpret_cast<value_type*>(res)}, true};
           }
           case insert_result::DUPLICATE: {
@@ -544,6 +547,7 @@ class open_addressing_ref_impl {
                 this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
               }
             }
+            group.sync();
             return {iterator{reinterpret_cast<value_type*>(res)}, false};
           }
           default: continue;
