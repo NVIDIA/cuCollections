@@ -389,7 +389,7 @@ class open_addressing_ref_impl {
     // Spinning to ensure that the write to the value part took place requires
     // independent thread scheduling introduced with the Volta architecture.
     static_assert(cuco::detail::is_packable<value_type>(),
-                  "insert_and_find is not supported for unpackable data on pre-Volta GPUs.");
+                  "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
 #endif
 
     auto const key    = this->extract_key(value);
@@ -417,9 +417,7 @@ class open_addressing_ref_impl {
             if constexpr (sizeof(value_type) <= 8) {
               return packed_cas(window_ptr + i, window_slots[i], value);
             } else {
-              auto const expected_payload = this->empty_slot_sentinel_.second;
-              auto const res = cas_dependent_write(window_ptr + i, window_slots[i], value);
-              return res;
+              return cas_dependent_write(window_ptr + i, window_slots[i], value);
             }
           }();
           switch (res) {
@@ -1049,7 +1047,6 @@ class open_addressing_ref_impl {
     using mapped_type = decltype(this->empty_slot_sentinel_.second);
 
     auto const expected_key     = expected.first;
-    auto const expected_payload = expected.second;
 
     auto old_key = compare_and_swap(
       &address->first, expected_key, static_cast<key_type>(thrust::get<0>(desired)));
