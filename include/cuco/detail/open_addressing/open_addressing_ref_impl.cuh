@@ -388,8 +388,9 @@ class open_addressing_ref_impl {
 #if __CUDA_ARCH__ < 700
     // Spinning to ensure that the write to the value part took place requires
     // independent thread scheduling introduced with the Volta architecture.
-    static_assert(cuco::detail::is_packable<value_type>(),
-                  "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
+    static_assert(
+      cuco::detail::is_packable<value_type>(),
+      "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
 #endif
 
     auto const key    = this->extract_key(value);
@@ -1046,7 +1047,7 @@ class open_addressing_ref_impl {
   {
     using mapped_type = decltype(this->empty_slot_sentinel_.second);
 
-    auto const expected_key     = expected.first;
+    auto const expected_key = expected.first;
 
     auto old_key = compare_and_swap(
       &address->first, expected_key, static_cast<key_type>(thrust::get<0>(desired)));
