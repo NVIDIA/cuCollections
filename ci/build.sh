@@ -20,36 +20,41 @@ set -eo pipefail
 cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )";
 
 # Script defaults
+BUILD_TESTS=${BUILD_TESTS:-OFF}
+BUILD_EXAMPLES=${BUILD_EXAMPLES:-OFF}
+BUILD_BENCHMARKS=${BUILD_BENCHMARKS:-OFF}
+CLEAN_BUILD=0 # Re-use existing artifacts by-default
 BUILD_PREFIX=../build # <repo_root>/build
 BUILD_INFIX=local # <repo_root>/build/local
 DEBUG_BUILD=0 # Default build type is Release
-CLEAN_BUILD=0 # Re-use existing artifacts by-default
-HOST_COMPILER=${CXX:-g++} # $CXX if set, otherwise `g++`
-CUDA_COMPILER=${CUDACXX:-nvcc} # $CUDACXX if set, otherwise `nvcc`
-CXX_STANDARD=17
 PARALLEL_LEVEL=${PARALLEL_LEVEL:-$(nproc)} # defaults to number of cores in the system
+CUDA_COMPILER=${CUDACXX:-nvcc} # $CUDACXX if set, otherwise `nvcc`
+HOST_COMPILER=${CXX:-g++} # $CXX if set, otherwise `g++`
 CUDA_ARCHS=native # detect system's GPU architectures
-
-# TODO figure out how to build tests/benchmarks/examples separately
+CXX_STANDARD=17
 
 function usage {
     echo "Usage: $0 [OPTIONS]"
     echo
     echo "Options:"
-    echo "  -v/--verbose: enable shell echo for debugging"
+    echo "  -t/--tests: Build tests"
+    echo "  -e/--examples: Build examples"
+    echo "  -b/--benchmarks: Build benchmarks"
+    echo "  -c/--clean: Clean (re-)build"
     echo "  --prefix: Build directory prefix (Defaults to <repo_root>/build)"
     echo "  -i/--infix: Build directory infix (Defaults to local)"
     echo "  -d/--debug: Debug build"
-    echo "  -c/--clean: Clean (re-)build"
     echo "  -p/--parallel: Build parallelism (Defaults to \$PARALLEL_LEVEL if set, otherwise the system's number of CPU cores)"
     echo "  --cuda: CUDA compiler (Defaults to \$CUDACXX if set, otherwise nvcc)"
     echo "  --cxx: Host compiler (Defaults to \$CXX if set, otherwise g++)"
     echo "  --arch: Target CUDA arches, e.g. \"60-real;70;80-virtual\" (Defaults to the system's native GPU archs)"
     echo "  --std: CUDA/C++ standard (Defaults to 17)"
+    echo "  -v/-verbose/--verbose: Enable shell echo for debugging"
+    echo "  -h/-help/--help: Show this usage message"
     echo
     echo "Examples:"
     echo "  $ PARALLEL_LEVEL=8 CXX=g++-9 $0"
-    echo "  $ $0 --cxx g++-9 -p 8 -i my_build --debug"
+    echo "  $ $0 --cxx g++-9 -t --examples -p 8 -i my_build --debug"
     echo "  $ $0 --cxx g++-8 --prefix /usr/local --arch 80-real -v --cuda /usr/local/bin/nvcc"
     exit 1
 }
@@ -62,16 +67,19 @@ args=("$@")
 echo "Args: ${args[@]}"
 while [ "${#args[@]}" -ne 0 ]; do
     case "${args[0]}" in
-    -v | --verbose) VERBOSE=1; args=("${args[@]:1}");;
+    -t | --tests) BUILD_TESTS=ON; args=("${args[@]:1}");;
+    -e | --examples) BUILD_EXAMPLES=ON; args=("${args[@]:1}");;
+    -b | --benchmarks) BUILD_BENCHMARKS=ON; args=("${args[@]:1}");;
+    -c | --clean) CLEAN_BUILD=1; args=("${args[@]:1}");;
     --prefix) BUILD_PREFIX="${args[1]}"; args=("${args[@]:2}");;
     -i | --infix) BUILD_INFIX="${args[1]}"; args=("${args[@]:2}");;
     -d | --debug) DEBUG_BUILD=1; args=("${args[@]:1}");;
-    -c | --clean) CLEAN_BUILD=1; args=("${args[@]:1}");;
     -p | --parallel)  PARALLEL_LEVEL="${args[1]}";  args=("${args[@]:2}");;
     --cuda) CUDA_COMPILER="${args[1]}"; args=("${args[@]:2}");;
     --cxx)  HOST_COMPILER="${args[1]}"; args=("${args[@]:2}");;
     --arch) CUDA_ARCHS="${args[1]}";    args=("${args[@]:2}");;
     --std)  CXX_STANDARD="${args[1]}";  args=("${args[@]:2}");;
+    -v | -verbose | --verbose) VERBOSE=1; args=("${args[@]:1}");;
     -h | -help | --help) usage ;;
     *) echo "Unrecognized option: ${args[0]}"; usage ;;
     esac
@@ -95,6 +103,13 @@ if [ "$BUILD_INFIX" = "latest" ] || [ -z "$BUILD_INFIX" ]; then
     exit 1
 fi
 
+# If no build target is specified, build all targets
+if [ "$BUILD_TESTS" == "OFF" ] && [ "$BUILD_EXAMPLES" == "OFF" ] && [ "$BUILD_BENCHMARKS" == "OFF" ]; then
+    BUILD_TESTS=ON
+    BUILD_EXAMPLES=ON
+    BUILD_BENCHMARKS=ON
+fi
+
 # Trigger clean (re-)build
 if [ "$CLEAN_BUILD" -eq 1 ]; then
     rm -rf BUILD_DIR
@@ -114,6 +129,7 @@ BUILD_DIR=$(readlink -f "${BUILD_DIR}")
 
 BUILD_TYPE=$( [ "$DEBUG_BUILD" -eq 1 ] && echo "Debug" || echo "Release" )
 
+
 CMAKE_OPTIONS="
     -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
     -DCMAKE_CXX_STANDARD=${CXX_STANDARD} \
@@ -123,6 +139,9 @@ CMAKE_OPTIONS="
     -DCMAKE_CUDA_HOST_COMPILER=${HOST_COMPILER} \
     -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    -DBUILD_TESTS=${BUILD_TESTS} \
+    -DBUILD_EXAMPLES=${BUILD_EXAMPLES} \
+    -DBUILD_BENCHMARKS=${BUILD_BENCHMARKS} \
 "
 
 echo "========================================"
@@ -133,6 +152,10 @@ echo "-- BUILD_DIR: ${BUILD_DIR}"
 echo "-- BUILD_TYPE: ${BUILD_TYPE}"
 echo "-- PARALLEL_LEVEL: ${PARALLEL_LEVEL}"
 echo "-- CUDA_ARCHS: ${CUDA_ARCHS}"
+echo "-- BUILD_TESTS: ${BUILD_TESTS}"
+echo "-- BUILD_EXAMPLES: ${BUILD_EXAMPLES}"
+echo "-- BUILD_BENCHMARKS: ${BUILD_BENCHMARKS}"
+
 
 # configure
 cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS
