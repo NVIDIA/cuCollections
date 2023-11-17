@@ -22,7 +22,8 @@ cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )";
 # Script defaults
 BUILD_PREFIX=../build # <repo_root>/build
 BUILD_INFIX=local # <repo_root>/build/local
-BUILD_TYPE=Release # CMake build type
+DEBUG_BUILD=0 # Default build type is Release
+CLEAN_BUILD=0 # Re-use existing artifacts by-default
 HOST_COMPILER=${CXX:-g++} # $CXX if set, otherwise `g++`
 CUDA_COMPILER=${CUDACXX:-nvcc} # $CUDACXX if set, otherwise `nvcc`
 CXX_STANDARD=17
@@ -38,7 +39,8 @@ function usage {
     echo "  -v/--verbose: enable shell echo for debugging"
     echo "  -prefix: Build directory prefix (Defaults to <repo_root>/build)"
     echo "  -i/-infix: Build directory infix (Defaults to local)"
-    echo "  -t/-type: CMake build type (Defaults to Release)"
+    echo "  -d/-debug: Debug build"
+    echo "  -c/-clean: Clean (re-)build"
     echo "  -cuda: CUDA compiler (Defaults to \$CUDACXX if set, otherwise nvcc)"
     echo "  -cxx: Host compiler (Defaults to \$CXX if set, otherwise g++)"
     echo "  -arch: Target CUDA arches, e.g. \"60-real;70;80-virtual\" (Defaults to the system's native GPU archs)"
@@ -63,7 +65,8 @@ while [ "${#args[@]}" -ne 0 ]; do
     -v | --verbose) VERBOSE=1; args=("${args[@]:1}");;
     -prefix) BUILD_PREFIX="${args[1]}"; args=("${args[@]:2}");;
     -i | -infix) BUILD_INFIX="${args[1]}"; args=("${args[@]:2}");;
-    -t | -type) BUILD_TYPE="${args[1]}"; args=("${args[@]:2}");;
+    -d | -debug) DEBUG_BUILD=1; args=("${args[@]:1}");;
+    -c | -clean) CLEAN_BUILD=1; args=("${args[@]:1}");;
     -cuda) CUDA_COMPILER="${args[1]}"; args=("${args[@]:2}");;
     -cxx)  HOST_COMPILER="${args[1]}"; args=("${args[@]:2}");;
     -arch) CUDA_ARCHS="${args[1]}";    args=("${args[@]:2}");;
@@ -88,13 +91,18 @@ fi
 set -u
 
 if [ "$BUILD_INFIX" = "latest" ] || [ -z "$BUILD_INFIX" ]; then
-    echo "Error: BUILD_INFIX cannot be 'latest'" >&2
+    echo "Error: BUILD_INFIX cannot be empty or 'latest'" >&2
     exit 1
 fi
 
+# Trigger clean (re-)build
+if [ "${CLEAN_BUILD:-0}" -eq 1 ]; then
+    rm -rf BUILD_DIR
+fi
+
 BUILD_DIR="$BUILD_PREFIX/$BUILD_INFIX"
-export BUILD_DIR # TODO remove
 mkdir -p $BUILD_DIR
+export BUILD_DIR # TODO remove
 
 # The most recent build will be symlinked to cuCollections/build/latest
 rm -f $BUILD_PREFIX/latest
@@ -103,6 +111,8 @@ ln -sf $BUILD_DIR $BUILD_PREFIX/latest
 
 # Now that BUILD_DIR exists, use readlink to canonicalize the path:
 BUILD_DIR=$(readlink -f "${BUILD_DIR}")
+
+BUILD_TYPE=$( [ "$DEBUG_BUILD" -eq 1 ] && echo "Debug" || echo "Release" )
 
 CMAKE_OPTIONS="
     -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
@@ -120,6 +130,7 @@ echo "-- START: $(date)"
 echo "-- GIT_SHA: $(git rev-parse HEAD 2>/dev/null || echo 'Not a repository')"
 echo "-- PWD: $(pwd)"
 echo "-- BUILD_DIR: ${BUILD_DIR}"
+echo "-- BUILD_TYPE: ${BUILD_TYPE}"
 echo "-- PARALLEL_LEVEL: ${PARALLEL_LEVEL}"
 echo "-- CUDA_ARCHS: ${CUDA_ARCHS}"
 
