@@ -20,104 +20,124 @@ set -eo pipefail
 cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )";
 
 # Script defaults
-CUDA_COMPILER=nvcc
+BUILD_PREFIX=../build # <repo_root>/build
+BUILD_INFIX=local # <repo_root>/build/local
+BUILD_TYPE=Release # CMake build type
+HOST_COMPILER=${CXX:-g++} # $CXX if set, otherwise `g++`
+CUDA_COMPILER=${CUDACXX:-nvcc} # $CUDACXX if set, otherwise `nvcc`
+CXX_STANDARD=17
+PARALLEL_LEVEL=${PARALLEL_LEVEL:-$(nproc)} # defaults to number of cores in the system
+CUDA_ARCHS=native # detect system's GPU architectures
 
-# Check if the correct number of arguments has been provided
+# TODO figure out how to build tests/benchmarks/examples separately
+
 function usage {
-    echo "Usage: $0 [OPTIONS] <HOST_COMPILER> <CXX_STANDARD> <GPU_ARCHS>"
-    echo "The PARALLEL_LEVEL environment variable controls the amount of build parallelism. Default is the number of cores."
-    echo "Example: PARALLEL_LEVEL=8 $0 g++-8 14 \"70\" "
-    echo "Example: $0 clang++-8 17 \"70;75;80-virtual\" "
-    echo "Possible options: "
-    echo "  -nvcc: path/to/nvcc"
+    echo "Usage: $0 [OPTIONS]"
+    echo
+    echo "Options:"
     echo "  -v/--verbose: enable shell echo for debugging"
+    echo "  -prefix: Build directory prefix (Defaults to <repo_root>/build)"
+    echo "  -i/-infix: Build directory infix (Defaults to local)"
+    echo "  -t/-type: CMake build type (Defaults to Release)"
+    echo "  -cuda: CUDA compiler (Defaults to \$CUDACXX if set, otherwise nvcc)"
+    echo "  -cxx: Host compiler (Defaults to \$CXX if set, otherwise g++)"
+    echo "  -arch: Target CUDA arches, e.g. \"60-real;70;80-virtual\" (Defaults to the system's native GPU archs)"
+    echo "  -std: CUDA/C++ standard (Defaults to 17)"
+    echo "  -p/-par: Build parallelism (Defaults to \$PARALLEL_LEVEL if set, otherwise the system's number of CPU cores)"
+    echo
+    echo "Examples:"
+    echo "  $ PARALLEL_LEVEL=8 CXX=g++-9 $0"
+    echo "  $ $0 -cxx g++-9 -par 8 -i my_build"
+    echo "  $ $0 -cxx g++-8 -std 14 -arch 80-real -v -cuda /usr/local/bin/nvcc"
     exit 1
 }
 
-# Check for extra options
-# While there are more than 3 arguments, parse switches/options
-while [ "$#" -gt 3 ]
-do
-  case "${1}" in
-  -h)     usage ;;
-  -help)  usage ;;
-  --help) usage ;;
-  --verbose)           VERBOSE=1; shift ;;
-  -v)                  VERBOSE=1; shift ;;
-  -nvcc)               CUDA_COMPILER="${2}"; shift 2;;
-  *) usage ;;
-  esac
+# Parse options
+
+# Copy the args into a temporary array, since we will modify them and
+# the parent script may still need them.
+args=("$@")
+echo "Args: ${args[@]}"
+while [ "${#args[@]}" -ne 0 ]; do
+    case "${args[0]}" in
+    -v | --verbose) VERBOSE=1; args=("${args[@]:1}");;
+    -prefix) BUILD_PREFIX="${args[1]}"; args=("${args[@]:2}");;
+    -i | -infix) BUILD_INFIX="${args[1]}"; args=("${args[@]:2}");;
+    -t | -type) BUILD_TYPE="${args[1]}"; args=("${args[@]:2}");;
+    -cuda) CUDA_COMPILER="${args[1]}"; args=("${args[@]:2}");;
+    -cxx)  HOST_COMPILER="${args[1]}"; args=("${args[@]:2}");;
+    -arch) CUDA_ARCHS="${args[1]}";    args=("${args[@]:2}");;
+    -std)  CXX_STANDARD="${args[1]}";  args=("${args[@]:2}");;
+    -p | -par)  PARALLEL_LEVEL="${args[1]}";  args=("${args[@]:2}");;
+    -h | -help | --help) usage ;;
+    *) echo "Unrecognized option: ${args[0]}"; usage ;;
+    esac
 done
+
+# Convert to full paths:
+HOST_COMPILER=$(which ${HOST_COMPILER})
+CUDA_COMPILER=$(which ${CUDA_COMPILER})
+# Make CUDA arch list compatible with cmake
+CUDA_ARCHS=$(echo "$CUDA_ARCHS" | tr ' ,' ';;')
 
 if [ $VERBOSE ]; then
     set -x
 fi
 
-if [ "$#" -ne 3 ]; then
-    echo "Invalid number of arguments"
-    usage
-fi
-
 # Begin processing unsets after option parsing
 set -u
 
-# Assign command line arguments to variables
-readonly HOST_COMPILER=$(which $1)
-readonly CXX_STANDARD=$2
-
-# Replace spaces, commas and semicolons with semicolons for CMake list
-readonly GPU_ARCHS=$(echo $3 | tr ' ,' ';')
-
-readonly PARALLEL_LEVEL=${PARALLEL_LEVEL:=$(nproc)}
-readonly NVCC_VERSION=$($CUDA_COMPILER --version | grep release | awk '{print $6}' | cut -c2-)
-
-if [ -z ${DEVCONTAINER_NAME+x} ]; then
-    BUILD_DIR=../build/local
-else
-    BUILD_DIR=../build/${DEVCONTAINER_NAME}
+if [ "$BUILD_INFIX" = "latest" ] || [ -z "$BUILD_INFIX" ]; then
+    echo "Error: BUILD_INFIX cannot be 'latest'" >&2
+    exit 1
 fi
 
-# The most recent build will always be symlinked to cuCollections/build/latest
+BUILD_DIR="$BUILD_PREFIX/$BUILD_INFIX"
+export BUILD_DIR # TODO remove
 mkdir -p $BUILD_DIR
-rm -f ../build/latest
-ln -sf $BUILD_DIR ../build/latest
-export BUILD_DIR
-echo $BUILD_DIR
+
+# The most recent build will be symlinked to cuCollections/build/latest
+rm -f $BUILD_PREFIX/latest
+ln -sf $BUILD_DIR $BUILD_PREFIX/latest
+
+
+# Now that BUILD_DIR exists, use readlink to canonicalize the path:
+BUILD_DIR=$(readlink -f "${BUILD_DIR}")
 
 CMAKE_OPTIONS="
-    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
     -DCMAKE_CXX_STANDARD=${CXX_STANDARD} \
     -DCMAKE_CUDA_STANDARD=${CXX_STANDARD} \
     -DCMAKE_CXX_COMPILER=${HOST_COMPILER} \
     -DCMAKE_CUDA_COMPILER=${CUDA_COMPILER} \
     -DCMAKE_CUDA_HOST_COMPILER=${HOST_COMPILER} \
-    -DCMAKE_CUDA_ARCHITECTURES=${GPU_ARCHS} \
+    -DCMAKE_CUDA_ARCHITECTURES=${CUDA_ARCHS} \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 "
 
 echo "========================================"
-echo "Begin build"
-echo "pwd=$(pwd)"
-echo "NVCC_VERSION=$NVCC_VERSION"
-echo "HOST_COMPILER=$HOST_COMPILER"
-echo "CXX_STANDARD=$CXX_STANDARD"
-echo "GPU_ARCHS=$GPU_ARCHS"
-echo "PARALLEL_LEVEL=$PARALLEL_LEVEL"
-echo "BUILD_DIR=$BUILD_DIR"
-echo "Current commit is:"
-git log -1 || echo "Not a repository"
+echo "-- START: $(date)"
+echo "-- GIT_SHA: $(git rev-parse HEAD 2>/dev/null || echo 'Not a repository')"
+echo "-- PWD: $(pwd)"
+echo "-- BUILD_DIR: ${BUILD_DIR}"
+echo "-- PARALLEL_LEVEL: ${PARALLEL_LEVEL}"
+echo "-- CUDA_ARCHS: ${CUDA_ARCHS}"
+
+# configure
+cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS
 echo "========================================"
 
-function configure(){
-    cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS
-}
-
-function build(){
+if command -v sccache >/dev/null; then
     source "./sccache_stats.sh" start
-    cmake --build $BUILD_DIR --parallel $PARALLEL_LEVEL
-    echo "Build complete"
-    source "./sccache_stats.sh" end
-}
+fi
 
-configure
-build
+#build
+cmake --build $BUILD_DIR --parallel $PARALLEL_LEVEL
+echo "========================================"
+echo "Build complete"
+
+if command -v sccache >/dev/null; then
+    source "./sccache_stats.sh" end
+else
+    echo "sccache stats: N/A"
+fi
