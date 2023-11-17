@@ -35,7 +35,7 @@ jobs:
     with:
       cpu: ${{ matrix.cpu }}
       test_name: ${{matrix.compiler.name}}${{matrix.compiler.version}}/C++${{matrix.std}}
-      build_script: "./ci/build.sh --cxx ${{matrix.compiler.exe}} --std ${{matrix.std}} --arch ${{matrix.gpu_build_archs}} -i ${{matrix.cpu}}-${{matrix.compiler.name}}${{matrix.compiler.version}}-cuda${{matrix.cuda}}"
-      test_script:  "./ci/test.sh  --cxx ${{matrix.compiler.exe}} --std ${{matrix.std}} --arch ${{matrix.gpu_build_archs}} -i ${{matrix.cpu}}-${{matrix.compiler.name}}${{matrix.compiler.version}}-cuda${{matrix.cuda}}"
+      build_script: "./ci/build.sh --cxx ${{matrix.compiler.exe}} --std ${{matrix.std}} --arch ${{matrix.gpu_build_archs}} --infix ${{matrix.cpu}}-${{matrix.compiler.name}}${{matrix.compiler.version}}-cuda${{matrix.cuda}}"
+      test_script:  "./ci/test.sh --tests --cxx ${{matrix.compiler.exe}} --std ${{matrix.std}} --arch ${{matrix.gpu_build_archs}} --infix ${{matrix.cpu}}-${{matrix.compiler.name}}${{matrix.compiler.version}}-cuda${{matrix.cuda}}"
       container_image: rapidsai/devcontainers:${{inputs.devcontainer_version}}-cpp-${{matrix.compiler.name}}${{matrix.compiler.version}}-cuda${{matrix.cuda}}-${{matrix.os}}
       run_tests: ${{ contains(matrix.jobs, 'test') && !contains(github.event.head_commit.message, 'skip-tests') }}
