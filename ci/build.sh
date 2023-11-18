@@ -16,6 +16,24 @@
 
 set -eo pipefail
 
+ORIGINAL_DIR=$(pwd)
+
+resolve_path() {
+    local input_path=$1
+    # Check if the input is an absolute path
+    if [[ "$input_path" = /* ]]; then
+        echo "$input_path"
+    else
+        # Treat as a relative path or executable name
+        # Check if it's in the PATH
+        if command -v "$input_path" >/dev/null 2>&1; then
+            echo "$input_path"
+        else
+            echo "$ORIGINAL_DIR/$input_path"
+        fi
+    fi
+}
+
 # Ensure the script is being executed in its containing directory
 cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )";
 
@@ -98,12 +116,12 @@ while [ "${#args[@]}" -ne 0 ]; do
     -e | --examples) BUILD_EXAMPLES=ON; args=("${args[@]:1}");;
     -b | --benchmarks) BUILD_BENCHMARKS=ON; args=("${args[@]:1}");;
     -c | --clean) CLEAN_BUILD=1; args=("${args[@]:1}");;
-    --prefix) BUILD_PREFIX="${args[1]}"; args=("${args[@]:2}");;
+    --prefix) BUILD_PREFIX=$(resolve_path "${args[1]}"); args=("${args[@]:2}");;
     -i | --infix) BUILD_INFIX="${args[1]}"; args=("${args[@]:2}");;
     -d | --debug) DEBUG_BUILD=1; args=("${args[@]:1}");;
     -p | --parallel)  PARALLEL_LEVEL="${args[1]}";  args=("${args[@]:2}");;
-    --cuda) CUDA_COMPILER="${args[1]}"; args=("${args[@]:2}");;
-    --cxx)  HOST_COMPILER="${args[1]}"; args=("${args[@]:2}");;
+    --cuda) CUDA_COMPILER=$(resolve_path "${args[1]}"); args=("${args[@]:2}");;
+    --cxx)  HOST_COMPILER=$(resolve_path "${args[1]}"); args=("${args[@]:2}");;
     --arch) CUDA_ARCHS="${args[1]}";    args=("${args[@]:2}");;
     --std)  CXX_STANDARD="${args[1]}";  args=("${args[@]:2}");;
     -v | -verbose | --verbose) VERBOSE=1; args=("${args[@]:1}");;
