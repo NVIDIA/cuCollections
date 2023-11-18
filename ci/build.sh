@@ -34,8 +34,8 @@ CUDA_ARCHS=native # detect system's GPU architectures
 CXX_STANDARD=17
 
 function usage {
+    echo "cuCollections build script"
     echo "Usage: $0 [OPTIONS]"
-    echo
     echo "Options:"
     echo "  -t/--tests: Build tests"
     echo "  -e/--examples: Build examples"
@@ -53,9 +53,37 @@ function usage {
     echo "  -h/-help/--help: Show this usage message"
     echo
     echo "Examples:"
-    echo "  $ PARALLEL_LEVEL=8 CXX=g++-9 $0"
-    echo "  $ $0 --cxx g++-9 -t --examples -p 8 -i my_build --debug"
-    echo "  $ $0 --cxx g++-8 --prefix /usr/local --arch 80-real -v --cuda /usr/local/bin/nvcc"
+    echo "  Basic Build:"
+    echo "    $ $0"
+    echo "    Runs a basic build with default settings, i.e., builds tests, examples, and benchmarks."
+    echo "    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest."
+    echo
+    echo "  Debug Build with Tests and Examples:"
+    echo "    $ CXX=g++-9 $0 -t -e -d"
+    echo "    $ $0 --cxx g++-9 -t -e -d"
+    echo "    Sets the host compiler to g++-9, builds tests and examples, and enables debug mode."
+    echo "    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest."
+    echo
+    echo "  Custom Build Directory with Benchmarks:"
+    echo "    $ BUILD_BENCHMARKS=ON $0 --prefix /custom/build --infix my_build"
+    echo "    $ $0 --prefix /custom/build --infix my_build -b"
+    echo "    Build files will be written to /custom/build/my_build and symlinked to /custom/build/latest."
+    echo
+    echo "  Custom Build Infix Directory:"
+    echo "    $ $0 -i my_build"
+    echo "    Builds with benchmarks in the <repo_root>/build/my_build directory and symlinked to <repo_root>/build/latest."
+    echo
+    echo "  Parallel Build with Specific CUDA Architecture and CUDA Compiler:"
+    echo "    $ PARALLEL_LEVEL=8 $0 --cuda /my_cuda_compiler/nvcc --arch 70;80"
+    echo "    $ $0 -p 8 --cuda /my_cuda_compiler/nvcc --arch 70;80"
+    echo "    Specifies parallel build level of 8 and CUDA architecture 70 and 80 with the specified CUDA compiler."
+    echo "    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest."
+    echo
+    echo "  Verbose Mode for Debugging:"
+    echo "    $ $0 -v --std 17"
+    echo "    Enables verbose mode for detailed build process output and build with C++17 standard."
+    echo "    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest."
+    echo
     exit 1
 }
 
@@ -64,7 +92,6 @@ function usage {
 # Copy the args into a temporary array, since we will modify them and
 # the parent script may still need them.
 args=("$@")
-echo "Args: ${args[@]}"
 while [ "${#args[@]}" -ne 0 ]; do
     case "${args[0]}" in
     -t | --tests) BUILD_TESTS=ON; args=("${args[@]:1}");;
@@ -123,12 +150,10 @@ export BUILD_DIR # TODO remove
 rm -f $BUILD_PREFIX/latest
 ln -sf $BUILD_DIR $BUILD_PREFIX/latest
 
-
 # Now that BUILD_DIR exists, use readlink to canonicalize the path:
 BUILD_DIR=$(readlink -f "${BUILD_DIR}")
 
 BUILD_TYPE=$( [ "$DEBUG_BUILD" -eq 1 ] && echo "Debug" || echo "Release" )
-
 
 CMAKE_OPTIONS="
     -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
@@ -156,9 +181,8 @@ echo "-- BUILD_TESTS: ${BUILD_TESTS}"
 echo "-- BUILD_EXAMPLES: ${BUILD_EXAMPLES}"
 echo "-- BUILD_BENCHMARKS: ${BUILD_BENCHMARKS}"
 
-
 # configure
-cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS
+time cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS
 echo "========================================"
 
 if command -v sccache >/dev/null; then
@@ -166,7 +190,7 @@ if command -v sccache >/dev/null; then
 fi
 
 #build
-cmake --build $BUILD_DIR --parallel $PARALLEL_LEVEL
+time cmake --build $BUILD_DIR --parallel $PARALLEL_LEVEL
 echo "========================================"
 echo "Build complete"
 
