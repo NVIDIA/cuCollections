@@ -28,52 +28,108 @@
 
 static constexpr int Iters = 10'000;
 
-template <typename View>
-__global__ void parallel_sum(View v)
+template <typename Ref>
+__global__ void parallel_sum(Ref v)
 {
   for (int i = 0; i < Iters; i++) {
 #if __CUDA_ARCH__ < 700
-    if constexpr (cuco::detail::is_packable<View::value_type>())
+    if constexpr (cuco::detail::is_packable<Ref::value_type>())
 #endif
     {
-      auto [iter, inserted] = v.insert_and_find(thrust::make_pair(i, 1));
-      // for debugging...
-      // if (iter->second < 0) {
-      //   asm("trap;");
-      // }
-      if (!inserted) { iter->second += 1; }
+      auto constexpr cg_size = Ref::cg_size;
+      if constexpr (cg_size == 1) {
+        auto [iter, inserted] = v.insert_and_find(cuco::pair{i, 1});
+        // for debugging...
+        // if (iter->second < 0) {
+        //   asm("trap;");
+        // }
+        if (!inserted) {
+          auto ref =
+            cuda::atomic_ref<typename Ref::mapped_type, cuda::thread_scope_device>{iter->second};
+          ref.fetch_add(1);
+        }
+      } else {
+        auto const tile =
+          cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
+        auto [iter, inserted] = v.insert_and_find(tile, cuco::pair{i, 1});
+        if (!inserted and tile.thread_rank() == 0) {
+          auto ref =
+            cuda::atomic_ref<typename Ref::mapped_type, cuda::thread_scope_device>{iter->second};
+          ref.fetch_add(1);
+        }
+      }
     }
 #if __CUDA_ARCH__ < 700
     else {
-      v.insert(thrust::make_pair(i, gridDim.x * blockDim.x));
+      auto constexpr cg_size = Ref::cg_size;
+      if constexpr (cg_size == 1) {
+        v.insert(cuco::pair{i, gridDim.x * blockDim.x});
+      } else {
+        auto const tile =
+          cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
+        v.insert(tile, cuco::pair{i, gridDim.x * blockDim.x / cg_size});
+      }
     }
 #endif
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Parallel insert-or-update",
-                       "",
-                       ((typename Key, typename Value), Key, Value),
-                       (int32_t, int32_t),
-                       (int32_t, int64_t),
-                       (int64_t, int32_t),
-                       (int64_t, int64_t))
+TEMPLATE_TEST_CASE_SIG(
+  "static_map insert_and_find tests",
+  "",
+  ((typename Key, typename Value, cuco::test::probe_sequence Probe, int CGSize),
+   Key,
+   Value,
+   Probe,
+   CGSize),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  cuco::empty_key<Key> empty_key_sentinel{-1};
-  cuco::empty_value<Value> empty_value_sentinel{-1};
-  cuco::static_map<Key, Value> m(10 * Iters, empty_key_sentinel, empty_value_sentinel);
+  using probe =
+    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                       cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+                       cuco::experimental::double_hashing<CGSize,
+                                                          cuco::murmurhash3_32<Key>,
+                                                          cuco::murmurhash3_32<Key>>>;
+
+  auto map = cuco::experimental::static_map<Key,
+                                            Value,
+                                            cuco::experimental::extent<std::size_t>,
+                                            cuda::thread_scope_device,
+                                            thrust::equal_to<Key>,
+                                            probe,
+                                            cuco::cuda_allocator<std::byte>,
+                                            cuco::experimental::storage<2>>{
+    10 * Iters, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   static constexpr int Blocks  = 1024;
   static constexpr int Threads = 128;
-  parallel_sum<<<Blocks, Threads>>>(m.get_device_mutable_view());
+
+  parallel_sum<<<Blocks, Threads>>>(
+    map.ref(cuco::experimental::op::insert, cuco::experimental::op::insert_and_find));
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   thrust::device_vector<Key> d_keys(Iters);
   thrust::device_vector<Value> d_values(Iters);
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
-  m.find(d_keys.begin(), d_keys.end(), d_values.begin());
+  map.find(d_keys.begin(), d_keys.end(), d_values.begin());
 
-  REQUIRE(cuco::test::all_of(
-    d_values.begin(), d_values.end(), [] __device__(Value v) { return v == Blocks * Threads; }));
+  REQUIRE(cuco::test::all_of(d_values.begin(), d_values.end(), [] __device__(Value v) {
+    return v == (Blocks * Threads) / CGSize;
+  }));
 }
