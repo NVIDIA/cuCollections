@@ -646,12 +646,12 @@ class open_addressing_ref_impl {
           case insert_result::DUPLICATE: return false;
           default: continue;
         }
-      } else if (group.any(state == detail::equal_result::EMPTY)) {
-        // Key doesn't exist, return false
-        return false;
-      } else {
-        ++probing_iter;
       }
+
+      // Key doesn't exist, return false
+      if (group.any(state == detail::equal_result::EMPTY)) { return false; }
+
+      ++probing_iter;
     }
   }
 
