@@ -50,6 +50,10 @@ struct is_cuda_std_pair_like<
                              cuda::std::false_type> {
 };
 
+template <typename T, typename = void>
+struct is_thrust_pair_like_impl : cuda::std::false_type {
+};
+
 template <typename T>
 struct is_thrust_pair_like_impl<
   T,
