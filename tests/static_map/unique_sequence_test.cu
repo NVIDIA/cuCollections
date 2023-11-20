@@ -31,6 +31,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cuda/functional>
+
 using size_type = int32_t;
 
 template <typename Map>
@@ -43,14 +45,18 @@ __inline__ void test_unique_sequence(Map& map, size_type num_keys)
 
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
 
-  auto keys_begin = d_keys.begin();
-  auto pairs_begin =
-    thrust::make_transform_iterator(thrust::make_counting_iterator<size_type>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
+  auto keys_begin  = d_keys.begin();
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<size_type>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
+      return cuco::pair<Key, Value>{i, i};
+    }));
   thrust::device_vector<bool> d_contained(num_keys);
 
-  auto zip_equal = [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); };
-  auto is_even   = [] __device__(auto const& i) { return i % 2 == 0; };
+  auto zip_equal = cuda::proclaim_return_type<bool>(
+    [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); });
+  auto is_even =
+    cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
 
   SECTION("Non-inserted keys should not be contained.")
   {
@@ -79,12 +85,13 @@ __inline__ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(map.size() == num_keys / 2);
 
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::equal(d_contained.begin(),
-                              d_contained.end(),
-                              thrust::counting_iterator<std::size_t>(0),
-                              [] __device__(auto const& idx_contained, auto const& idx) {
-                                return ((idx % 2) == 0) == idx_contained;
-                              }));
+    REQUIRE(cuco::test::equal(
+      d_contained.begin(),
+      d_contained.end(),
+      thrust::counting_iterator<std::size_t>(0),
+      cuda::proclaim_return_type<bool>([] __device__(auto const& idx_contained, auto const& idx) {
+        return ((idx % 2) == 0) == idx_contained;
+      })));
   }
 
   map.insert(pairs_begin, pairs_begin + num_keys);

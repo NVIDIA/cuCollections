@@ -26,6 +26,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cuda/functional>
+
 static constexpr int Iters = 10'000;
 
 template <typename Ref>
@@ -129,7 +131,8 @@ TEMPLATE_TEST_CASE_SIG(
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   map.find(d_keys.begin(), d_keys.end(), d_values.begin());
 
-  REQUIRE(cuco::test::all_of(d_values.begin(), d_values.end(), [] __device__(Value v) {
-    return v == (Blocks * Threads) / CGSize;
-  }));
+  REQUIRE(cuco::test::all_of(
+    d_values.begin(), d_values.end(), cuda::proclaim_return_type<bool>([] __device__(Value v) {
+      return v == (Blocks * Threads) / CGSize;
+    })));
 }

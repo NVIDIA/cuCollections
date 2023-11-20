@@ -27,6 +27,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cuda/functional>
+
 using size_type = std::size_t;
 
 template <typename Map>
@@ -36,9 +38,11 @@ __inline__ void test_insert_or_assign(Map& map, size_type num_keys)
   using Value = typename Map::mapped_type;
 
   // Insert pairs
-  auto pairs_begin =
-    thrust::make_transform_iterator(thrust::counting_iterator<size_type>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::counting_iterator<size_type>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
+      return cuco::pair<Key, Value>{i, i};
+    }));
 
   auto const initial_size = map.insert(pairs_begin, pairs_begin + num_keys);
   REQUIRE(initial_size == num_keys);  // all keys should be inserted
@@ -58,8 +62,9 @@ __inline__ void test_insert_or_assign(Map& map, size_type num_keys)
   thrust::device_vector<Key> d_values(num_keys);
   map.retrieve_all(d_keys.begin(), d_values.begin());
 
-  auto gold_values_begin = thrust::make_transform_iterator(thrust::counting_iterator<size_type>(0),
-                                                           [] __device__(auto i) { return i * 2; });
+  auto gold_values_begin = thrust::make_transform_iterator(
+    thrust::counting_iterator<size_type>(0),
+    cuda::proclaim_return_type<size_type>([] __device__(auto i) { return i * 2; }));
 
   thrust::sort(thrust::device, d_values.begin(), d_values.end());
   REQUIRE(cuco::test::equal(

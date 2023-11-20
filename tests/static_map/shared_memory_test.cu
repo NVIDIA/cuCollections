@@ -27,6 +27,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cuda/functional>
+
 #include <limits>
 
 template <typename MapType, int CAPACITY>
@@ -126,9 +128,11 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
     auto zip = thrust::make_zip_iterator(
       thrust::make_tuple(d_keys_exist.begin(), d_keys_and_values_correct.begin()));
 
-    REQUIRE(cuco::test::all_of(zip, zip + d_keys_exist.size(), [] __device__(auto const& z) {
-      return thrust::get<0>(z) and thrust::get<1>(z);
-    }));
+    REQUIRE(cuco::test::all_of(zip,
+                               zip + d_keys_exist.size(),
+                               cuda::proclaim_return_type<bool>([] __device__(auto const& z) {
+                                 return thrust::get<0>(z) and thrust::get<1>(z);
+                               })));
   }
 
   SECTION("No key is found before insertion.")

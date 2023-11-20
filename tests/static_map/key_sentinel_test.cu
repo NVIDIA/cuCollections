@@ -24,6 +24,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cuda/functional>
+
 #define SIZE 10
 __device__ int A[SIZE];
 
@@ -55,18 +57,21 @@ TEMPLATE_TEST_CASE_SIG(
   }
   CUCO_CUDA_TRY(cudaMemcpyToSymbol(A, h_A, SIZE * sizeof(int)));
 
-  auto pairs_begin =
-    thrust::make_transform_iterator(thrust::make_counting_iterator<T>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<T>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); }));
 
   SECTION(
     "Tests of non-CG insert: The custom `key_equal` can never be used to compare against sentinel")
   {
-    REQUIRE(cuco::test::all_of(pairs_begin,
-                               pairs_begin + num_keys,
-                               [insert_ref] __device__(cuco::pair<Key, Value> const& pair) mutable {
-                                 return insert_ref.insert(pair);
-                               }));
+    REQUIRE(
+      cuco::test::all_of(pairs_begin,
+                         pairs_begin + num_keys,
+                         cuda::proclaim_return_type<bool>(
+                           [insert_ref] __device__(cuco::pair<Key, Value> const& pair) mutable {
+                             return insert_ref.insert(pair);
+                           })));
   }
 
   SECTION(
@@ -74,13 +79,13 @@ TEMPLATE_TEST_CASE_SIG(
   {
     map.insert(pairs_begin, pairs_begin + num_keys);
     // All keys inserted via custom `key_equal` should be found
-    REQUIRE(cuco::test::all_of(pairs_begin,
-                               pairs_begin + num_keys,
-                               [find_ref] __device__(cuco::pair<Key, Value> const& pair) {
-                                 auto const found = find_ref.find(pair.first);
-                                 return (found != find_ref.end()) and
-                                        (found->first == pair.first and
-                                         found->second == pair.second);
-                               }));
+    REQUIRE(cuco::test::all_of(
+      pairs_begin,
+      pairs_begin + num_keys,
+      cuda::proclaim_return_type<bool>([find_ref] __device__(cuco::pair<Key, Value> const& pair) {
+        auto const found = find_ref.find(pair.first);
+        return (found != find_ref.end()) and
+               (found->first == pair.first and found->second == pair.second);
+      })));
   }
 }

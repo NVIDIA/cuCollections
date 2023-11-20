@@ -29,6 +29,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cuda/functional>
+
 using size_type = std::size_t;
 
 TEMPLATE_TEST_CASE_SIG(
@@ -83,7 +85,8 @@ TEMPLATE_TEST_CASE_SIG(
 
   auto pairs_begin = thrust::make_transform_iterator(
     thrust::make_counting_iterator<int>(0),
-    [] __device__(auto i) { return cuco::pair<Key, Value>(i / 2, i / 2); });
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>(i / 2, i / 2); }));
 
   thrust::device_vector<Value> d_results(num_keys);
   thrust::device_vector<bool> d_contained(num_keys);

@@ -29,6 +29,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cuda/functional>
+
 TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
                        "",
                        ((typename Key, typename Value), Key, Value),
@@ -56,9 +58,10 @@ TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   thrust::sequence(thrust::device, d_values.begin(), d_values.end());
 
-  auto pairs_begin =
-    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<int>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); }));
 
   // bulk function test cases
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
@@ -69,11 +72,12 @@ TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
     map.find(d_keys.begin(), d_keys.end(), d_results.begin(), stream);
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), d_values.begin()));
 
-    REQUIRE(cuco::test::all_of(
-      zip,
-      zip + num_keys,
-      [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); },
-      stream));
+    REQUIRE(cuco::test::all_of(zip,
+                               zip + num_keys,
+                               cuda::proclaim_return_type<bool>([] __device__(auto const& p) {
+                                 return thrust::get<0>(p) == thrust::get<1>(p);
+                               }),
+                               stream));
   }
 
   SECTION("All inserted keys-value pairs should be contained")
