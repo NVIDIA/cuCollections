@@ -102,7 +102,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  constexpr size_type num_keys{400};
+  constexpr size_type num_keys{1'000'000};
 
   using probe =
     std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,

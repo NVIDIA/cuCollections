@@ -384,6 +384,13 @@ class open_addressing_ref_impl {
   __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+#if __CUDA_ARCH__ < 700
+    // Spinning to ensure that the write to the value part took place requires
+    // independent thread scheduling introduced with the Volta architecture.
+    static_assert(
+      cuco::detail::is_packable<value_type>(),
+      "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
+#endif
 
     auto const key    = this->extract_key(value);
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
@@ -396,15 +403,29 @@ class open_addressing_ref_impl {
         auto* window_ptr  = (storage_ref_.data() + *probing_iter)->data();
 
         // If the key is already in the container, return false
-        if (eq_res == detail::equal_result::EQUAL) { return {iterator{&window_ptr[i]}, false}; }
+        if (eq_res == detail::equal_result::EQUAL) {
+          if constexpr (has_payload) {
+            // wait to ensure that the write to the value part also took place
+            this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+          }
+          return {iterator{&window_ptr[i]}, false};
+        }
         if (eq_res == detail::equal_result::EMPTY or
             cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
                                           this->erased_key_sentinel())) {
           switch (this->attempt_insert_stable(window_ptr + i, window_slots[i], value)) {
             case insert_result::SUCCESS: {
+              if constexpr (has_payload) {
+                // wait to ensure that the write to the value part also took place
+                this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+              }
               return {iterator{&window_ptr[i]}, true};
             }
             case insert_result::DUPLICATE: {
+              if constexpr (has_payload) {
+                // wait to ensure that the write to the value part also took place
+                this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+              }
               return {iterator{&window_ptr[i]}, false};
             }
             default: continue;
@@ -434,6 +455,14 @@ class open_addressing_ref_impl {
   __device__ thrust::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
   {
+#if __CUDA_ARCH__ < 700
+    // Spinning to ensure that the write to the value part took place requires
+    // independent thread scheduling introduced with the Volta architecture.
+    static_assert(
+      cuco::detail::is_packable<value_type>(),
+      "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
+#endif
+
     auto const key    = this->extract_key(value);
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
@@ -468,6 +497,13 @@ class open_addressing_ref_impl {
       if (group_finds_equal) {
         auto const src_lane = __ffs(group_finds_equal) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
+        if (group.thread_rank() == src_lane) {
+          if constexpr (has_payload) {
+            // wait to ensure that the write to the value part also took place
+            this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
+          }
+        }
+        group.sync();
         return {iterator{reinterpret_cast<value_type*>(res)}, false};
       }
 
@@ -483,9 +519,23 @@ class open_addressing_ref_impl {
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: {
+            if (group.thread_rank() == src_lane) {
+              if constexpr (has_payload) {
+                // wait to ensure that the write to the value part also took place
+                this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
+              }
+            }
+            group.sync();
             return {iterator{reinterpret_cast<value_type*>(res)}, true};
           }
           case insert_result::DUPLICATE: {
+            if (group.thread_rank() == src_lane) {
+              if constexpr (has_payload) {
+                // wait to ensure that the write to the value part also took place
+                this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
+              }
+            }
+            group.sync();
             return {iterator{reinterpret_cast<value_type*>(res)}, false};
           }
           default: continue;
@@ -584,12 +634,12 @@ class open_addressing_ref_impl {
           case insert_result::DUPLICATE: return false;
           default: continue;
         }
-      } else if (group.any(state == detail::equal_result::EMPTY)) {
-        // Key doesn't exist, return false
-        return false;
-      } else {
-        ++probing_iter;
       }
+
+      // Key doesn't exist, return false
+      if (group.any(state == detail::equal_result::EMPTY)) { return false; }
+
+      ++probing_iter;
     }
   }
 
@@ -1083,14 +1133,35 @@ class open_addressing_ref_impl {
     } else {
       return cas_dependent_write(address, expected, desired);
     }
-  }
 
-  // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
-  value_type empty_slot_sentinel_;  ///< Sentinel value indicating an empty slot
-  detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
-  probing_scheme_type probing_scheme_;                    ///< Probing scheme
-  storage_ref_type storage_ref_;                          ///< Slot storage ref
-};
+    /**
+     * @brief Waits until the slot payload has been updated
+     *
+     * @note The function will return once the slot payload is no longer equal to the sentinel
+     * value.
+     *
+     * @tparam T Map slot type
+     *
+     * @param slot The target slot to check payload with
+     * @param sentinel The slot sentinel value
+     */
+    template <typename T>
+    __device__ void wait_for_payload(T & slot, T const& sentinel) const noexcept
+    {
+      auto ref = cuda::atomic_ref<T, Scope>{slot};
+      T current;
+      // TODO exponential backoff strategy
+      do {
+        current = ref.load(cuda::std::memory_order_relaxed);
+      } while (cuco::detail::bitwise_compare(current, sentinel));
+    }
+
+    // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
+    value_type empty_slot_sentinel_;  ///< Sentinel value indicating an empty slot
+    detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
+    probing_scheme_type probing_scheme_;                    ///< Probing scheme
+    storage_ref_type storage_ref_;                          ///< Slot storage ref
+  };
 
 }  // namespace detail
 }  // namespace experimental

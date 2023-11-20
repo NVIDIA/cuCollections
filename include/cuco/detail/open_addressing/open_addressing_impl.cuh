@@ -559,9 +559,10 @@ class open_addressing_impl {
                                       cuda_stream_ref stream) const
   {
     std::size_t temp_storage_bytes = 0;
-    using temp_allocator_type = typename std::allocator_traits<allocator_type>::rebind_alloc<char>;
-    auto temp_allocator       = temp_allocator_type{this->allocator()};
-    auto d_num_out            = reinterpret_cast<size_type*>(
+    using temp_allocator_type =
+      typename std::allocator_traits<allocator_type>::template rebind_alloc<char>;
+    auto temp_allocator = temp_allocator_type{this->allocator()};
+    auto d_num_out      = reinterpret_cast<size_type*>(
       std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
     CUCO_CUDA_TRY(cub::DeviceSelect::If(nullptr,
                                         temp_storage_bytes,
