@@ -82,8 +82,62 @@ Binaries will be built into:
 - `build/benchmarks/`
 - `build/examples/`
 
-Alternatively, you can use the build script located at 'ci/build.sh'. Calling this script with no arguments will trigger a full build which will be located at 'build/local'.
-For a comprehensive list of all available options along with descriptions, you can use the option 'ci/build.sh -h'.
+### Build Script:
+
+Alternatively, you can use the build script located at `ci/build.sh`. Calling this script with no arguments will trigger a full build which will be located at `build/local`.
+For a comprehensive list of all available options along with descriptions, you can use the option `ci/build.sh -h`:
+
+```
+cuCollections build script
+Usage: ci/build.sh [OPTIONS]
+Options:
+  -t/--tests: Build tests
+  -e/--examples: Build examples
+  -b/--benchmarks: Build benchmarks
+  -c/--clean: Clean (re-)build
+  --prefix: Build directory prefix (Defaults to <repo_root>/build)
+  -i/--infix: Build directory infix (Defaults to local)
+  -d/--debug: Debug build
+  -p/--parallel: Build parallelism (Defaults to $PARALLEL_LEVEL if set, otherwise the system's number of CPU cores)
+  --cuda: CUDA compiler (Defaults to $CUDACXX if set, otherwise nvcc)
+  --cxx: Host compiler (Defaults to $CXX if set, otherwise g++)
+  --arch: Target CUDA arches, e.g. "60-real;70;80-virtual" (Defaults to the system's native GPU archs)
+  --std: CUDA/C++ standard (Defaults to 17)
+  -v/-verbose/--verbose: Enable shell echo for debugging
+  -h/-help/--help: Show this usage message
+
+Examples:
+  Basic Build:
+    $ ci/build.sh
+    Runs a basic build with default settings, i.e., builds tests, examples, and benchmarks.
+    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest.
+
+  Debug Build with Tests and Examples:
+    $ CXX=g++-9 ci/build.sh -t -e -d
+    $ ci/build.sh --cxx g++-9 -t -e -d
+    Sets the host compiler to g++-9, builds tests and examples, and enables debug mode.
+    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest.
+
+  Custom Build Directory with Benchmarks:
+    $ BUILD_BENCHMARKS=ON ci/build.sh --prefix /custom/build --infix my_build
+    $ ci/build.sh --prefix /custom/build --infix my_build -b
+    Build files will be written to /custom/build/my_build and symlinked to /custom/build/latest.
+
+  Custom Build Infix Directory:
+    $ ci/build.sh -i my_build
+    Builds with benchmarks in the <repo_root>/build/my_build directory and symlinked to <repo_root>/build/latest.
+
+  Parallel Build with Specific CUDA Architecture and CUDA Compiler:
+    $ PARALLEL_LEVEL=8 ci/build.sh --cuda /my_cuda_compiler/nvcc --arch 70;80
+    $ ci/build.sh -p 8 --cuda /my_cuda_compiler/nvcc --arch 70;80
+    Specifies parallel build level of 8 and CUDA architecture 70 and 80 with the specified CUDA compiler.
+    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest.
+
+  Verbose Mode for Debugging:
+    $ ci/build.sh -v --std 17
+    Enables verbose mode for detailed build process output and build with C++17 standard.
+    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest.
+```
 
 ## Code Formatting
 By default, `cuCollections` uses [`pre-commit.ci`](https://pre-commit.ci/) along with [`mirrors-clang-format`](https://github.com/pre-commit/mirrors-clang-format) to automatically format the C++/CUDA files in a pull request.
