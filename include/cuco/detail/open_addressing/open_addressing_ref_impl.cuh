@@ -272,7 +272,8 @@ class open_addressing_ref_impl {
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    auto const key    = this->extract_key(value);
+    auto const val    = this->heterogeneous_value(value);
+    auto const key    = this->extract_key(val);
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
@@ -289,7 +290,7 @@ class open_addressing_ref_impl {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
                                  slot_content,
-                                 value)) {
+                                 val)) {
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: return false;
@@ -314,7 +315,8 @@ class open_addressing_ref_impl {
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
                          Value const& value) noexcept
   {
-    auto const key    = this->extract_key(value);
+    auto const val    = this->heterogeneous_value(value);
+    auto const key    = this->extract_key(val);
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
@@ -352,7 +354,7 @@ class open_addressing_ref_impl {
           (group.thread_rank() == src_lane)
             ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
                              window_slots[intra_window_index],
-                             value)
+                             val)
             : insert_result::CONTINUE;
 
         switch (group.shfl(status, src_lane)) {
@@ -392,7 +394,8 @@ class open_addressing_ref_impl {
       "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
 #endif
 
-    auto const key    = this->extract_key(value);
+    auto const val    = this->heterogeneous_value(value);
+    auto const key    = this->extract_key(val);
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
@@ -413,7 +416,7 @@ class open_addressing_ref_impl {
         if (eq_res == detail::equal_result::EMPTY or
             cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
                                           this->erased_key_sentinel())) {
-          switch (this->attempt_insert_stable(window_ptr + i, window_slots[i], value)) {
+          switch (this->attempt_insert_stable(window_ptr + i, window_slots[i], val)) {
             case insert_result::SUCCESS: {
               if constexpr (has_payload) {
                 // wait to ensure that the write to the value part also took place
@@ -463,7 +466,8 @@ class open_addressing_ref_impl {
       "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
 #endif
 
-    auto const key    = this->extract_key(value);
+    auto const val    = this->heterogeneous_value(value);
+    auto const key    = this->extract_key(val);
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
@@ -514,7 +518,7 @@ class open_addressing_ref_impl {
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
         auto const status   = [&, target_idx = intra_window_index]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
-          return this->attempt_insert_stable(slot_ptr, window_slots[target_idx], value);
+          return this->attempt_insert_stable(slot_ptr, window_slots[target_idx], val);
         }();
 
         switch (group.shfl(status, src_lane)) {
@@ -890,7 +894,6 @@ class open_addressing_ref_impl {
     }
   }
 
- private:
   /**
    * @brief Extracts the key from a given value type.
    *
@@ -945,6 +948,37 @@ class open_addressing_ref_impl {
       return {static_cast<key_type>(this->extract_key(value)), this->extract_payload(value)};
     } else {
       return static_cast<value_type>(value);
+    }
+  }
+
+  /**
+   * @brief Converts the given type to the container's native `value_type` while maintaining the
+   * heterogeneous key type.
+   *
+   * @tparam T Input type which is convertible to 'value_type'
+   *
+   * @param value The input value
+   *
+   * @return The converted object
+   */
+  template <typename T>
+  [[nodiscard]] __host__ __device__ constexpr auto heterogeneous_value(
+    T const& value) const noexcept
+  {
+    if constexpr (this->has_payload and not cuda::std::is_same_v<T, value_type>) {
+      using mapped_type = decltype(this->empty_slot_sentinel_.second);
+      if constexpr (cuco::detail::is_cuda_std_pair_like<T>::value) {
+        return cuco::pair{cuda::std::get<0>(value),
+                          static_cast<mapped_type>(cuda::std::get<1>(value))};
+      } else if constexpr (cuco::detail::is_thrust_pair_like<T>::value) {
+        return cuco::pair{thrust::get<0>(value), static_cast<mapped_type>(thrust::get<1>(value))};
+      } else {
+        // hail mary (convert using .first/.second members)
+        return cuco::pair{thrust::raw_reference_cast(value.first),
+                          static_cast<mapped_type>(value.second)};
+      }
+    } else {
+      return thrust::raw_reference_cast(value);
     }
   }
 
