@@ -59,8 +59,7 @@ This will take care of downloading `cuCollections` from GitHub and making the he
 
 `cuCollections` depends on the following libraries:
 
-- [libcu++](https://github.com/NVIDIA/libcudacxx)
-- [CUB](https://github.com/thrust/cub)
+- [CUDA C++ Core Libraries (CCCL)](https://github.com/NVIDIA/cccl)
 
 No action is required from the user to satisfy these dependencies. `cuCollections`'s CMake script is configured to first search the system for these libraries, and if they are not found, to automatically fetch them from GitHub.
 
@@ -75,14 +74,26 @@ To build the tests, benchmarks, and examples:
 cd $CUCO_ROOT
 mkdir -p build
 cd build
-cmake ..
-make
+cmake .. # configure
+make # build
+ctest --test-dir tests # run tests
 ```
 Binaries will be built into:
 - `build/tests/`
-- `build/gbenchmarks/`
+- `build/benchmarks/`
 - `build/examples/`
 
+### Build Script:
+
+Alternatively, you can use the build script located at `ci/build.sh`. Calling this script with no arguments will trigger a full build which will be located at `build/local`.
+
+```bash
+cd $CUCO_ROOT
+ci/build.sh # configure and build
+ctest --test-dir build/local/tests # run tests
+```
+
+For a comprehensive list of all available options along with descriptions and examples, you can use the option `ci/build.sh -h`.
 
 ## Code Formatting
 By default, `cuCollections` uses [`pre-commit.ci`](https://pre-commit.ci/) along with [`mirrors-clang-format`](https://github.com/pre-commit/mirrors-clang-format) to automatically format the C++/CUDA files in a pull request.
