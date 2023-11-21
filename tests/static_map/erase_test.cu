@@ -25,6 +25,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cuda/functional>
+
 using size_type = int32_t;
 
 template <typename Map>
@@ -37,9 +39,11 @@ void test_erase(Map& map, size_type num_keys)
 
   auto keys_begin = thrust::counting_iterator<key_type>(1);
 
-  auto pairs_begin = thrust::make_transform_iterator(keys_begin, [] __device__(key_type const& x) {
-    return cuco::pair<key_type, mapped_type>(x, static_cast<mapped_type>(x));
-  });
+  auto pairs_begin = thrust::make_transform_iterator(
+    keys_begin,
+    cuda::proclaim_return_type<cuco::pair<key_type, mapped_type>>([] __device__(key_type const& x) {
+      return cuco::pair<key_type, mapped_type>(x, static_cast<mapped_type>(x));
+    }));
 
   SECTION("Check basic insert/erase")
   {

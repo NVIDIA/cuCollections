@@ -21,6 +21,8 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <cuda/functional>
+
 TEST_CASE("Rehash", "")
 {
   using key_type    = int;
@@ -36,9 +38,11 @@ TEST_CASE("Rehash", "")
 
   auto keys_begin = thrust::counting_iterator<key_type>(1);
 
-  auto pairs_begin = thrust::make_transform_iterator(keys_begin, [] __device__(key_type const& x) {
-    return cuco::pair<key_type, mapped_type>(x, static_cast<mapped_type>(x));
-  });
+  auto pairs_begin = thrust::make_transform_iterator(
+    keys_begin,
+    cuda::proclaim_return_type<cuco::pair<key_type, mapped_type>>([] __device__(key_type const& x) {
+      return cuco::pair<key_type, mapped_type>(x, static_cast<mapped_type>(x));
+    }));
 
   map.insert(pairs_begin, pairs_begin + num_keys);
 
