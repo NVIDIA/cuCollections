@@ -201,7 +201,7 @@ echo "-- BUILD_EXAMPLES: ${BUILD_EXAMPLES}"
 echo "-- BUILD_BENCHMARKS: ${BUILD_BENCHMARKS}"
 
 # configure
-time cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS
+cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS
 echo "========================================"
 
 if command -v sccache >/dev/null; then
@@ -209,7 +209,7 @@ if command -v sccache >/dev/null; then
 fi
 
 #build
-time cmake --build $BUILD_DIR --parallel $PARALLEL_LEVEL
+cmake --build $BUILD_DIR --parallel $PARALLEL_LEVEL
 echo "========================================"
 echo "Build complete"
 
