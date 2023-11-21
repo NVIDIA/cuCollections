@@ -76,6 +76,16 @@ function usage {
     echo "    Runs a basic build with default settings, i.e., builds tests, examples, and benchmarks."
     echo "    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest."
     echo
+    echo "  Custom Build Infix Directory:"
+    echo "    $ $0 -i my_build"
+    echo "    Build files will be written to the <repo_root>/build/my_build directory and symlinked to <repo_root>/build/latest."
+    echo
+    echo "  Parallel Build with Specific CUDA Architecture and CUDA Compiler:"
+    echo "    $ PARALLEL_LEVEL=8 $0 --cuda /my_cuda_compiler/nvcc --arch 70;80"
+    echo "    $ $0 -p 8 --cuda /my_cuda_compiler/nvcc --arch 70;80"
+    echo "    Specifies parallel build level of 8 and CUDA architecture 70 and 80 with the specified CUDA compiler."
+    echo "    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest."
+    echo
     echo "  Debug Build with Tests and Examples:"
     echo "    $ CXX=g++-9 $0 -t -e -d"
     echo "    $ $0 --cxx g++-9 -t -e -d"
@@ -85,21 +95,12 @@ function usage {
     echo "  Custom Build Directory with Benchmarks:"
     echo "    $ BUILD_BENCHMARKS=ON $0 --prefix /custom/build --infix my_build"
     echo "    $ $0 --prefix /custom/build --infix my_build -b"
+    echo "    Builds benchmarks only."
     echo "    Build files will be written to /custom/build/my_build and symlinked to /custom/build/latest."
-    echo
-    echo "  Custom Build Infix Directory:"
-    echo "    $ $0 -i my_build"
-    echo "    Builds with benchmarks in the <repo_root>/build/my_build directory and symlinked to <repo_root>/build/latest."
-    echo
-    echo "  Parallel Build with Specific CUDA Architecture and CUDA Compiler:"
-    echo "    $ PARALLEL_LEVEL=8 $0 --cuda /my_cuda_compiler/nvcc --arch 70;80"
-    echo "    $ $0 -p 8 --cuda /my_cuda_compiler/nvcc --arch 70;80"
-    echo "    Specifies parallel build level of 8 and CUDA architecture 70 and 80 with the specified CUDA compiler."
-    echo "    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest."
     echo
     echo "  Verbose Mode for Debugging:"
     echo "    $ $0 -v --std 17"
-    echo "    Enables verbose mode for detailed build process output and build with C++17 standard."
+    echo "    Enables verbose mode for detailed output and builds with C++17 standard."
     echo "    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest."
     echo
     exit 1

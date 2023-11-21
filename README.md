@@ -112,6 +112,16 @@ Examples:
     Runs a basic build with default settings, i.e., builds tests, examples, and benchmarks.
     Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest.
 
+  Custom Build Infix Directory:
+    $ ci/build.sh -i my_build
+    Build files will be written the <repo_root>/build/my_build directory and symlinked to <repo_root>/build/latest.
+
+  Parallel Build with Specific CUDA Architecture and CUDA Compiler:
+    $ PARALLEL_LEVEL=8 ci/build.sh --cuda /my_cuda_compiler/nvcc --arch 70;80
+    $ ci/build.sh -p 8 --cuda /my_cuda_compiler/nvcc --arch 70;80
+    Specifies parallel build level of 8 and CUDA architecture 70 and 80 with the specified CUDA compiler.
+    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest.
+
   Debug Build with Tests and Examples:
     $ CXX=g++-9 ci/build.sh -t -e -d
     $ ci/build.sh --cxx g++-9 -t -e -d
@@ -121,21 +131,12 @@ Examples:
   Custom Build Directory with Benchmarks:
     $ BUILD_BENCHMARKS=ON ci/build.sh --prefix /custom/build --infix my_build
     $ ci/build.sh --prefix /custom/build --infix my_build -b
+    Builds benchmarks.
     Build files will be written to /custom/build/my_build and symlinked to /custom/build/latest.
-
-  Custom Build Infix Directory:
-    $ ci/build.sh -i my_build
-    Builds with benchmarks in the <repo_root>/build/my_build directory and symlinked to <repo_root>/build/latest.
-
-  Parallel Build with Specific CUDA Architecture and CUDA Compiler:
-    $ PARALLEL_LEVEL=8 ci/build.sh --cuda /my_cuda_compiler/nvcc --arch 70;80
-    $ ci/build.sh -p 8 --cuda /my_cuda_compiler/nvcc --arch 70;80
-    Specifies parallel build level of 8 and CUDA architecture 70 and 80 with the specified CUDA compiler.
-    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest.
 
   Verbose Mode for Debugging:
     $ ci/build.sh -v --std 17
-    Enables verbose mode for detailed build process output and build with C++17 standard.
+    Enables verbose mode for detailed output and builds with C++17 standard.
     Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest.
 ```
 
