@@ -148,14 +148,14 @@ class operator_impl<op::insert_tag,
   /**
    * @brief Inserts an element.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param value The element to insert
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename ProbeKey>
-  __device__ bool insert(ProbeKey const& value) noexcept
+  template <typename Value>
+  __device__ bool insert(Value const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert(value);
@@ -164,16 +164,16 @@ class operator_impl<op::insert_tag,
   /**
    * @brief Inserts an element.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename ProbeKey>
+  template <typename Value>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
-                         ProbeKey const& value) noexcept
+                         Value const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert(group, value);
@@ -232,15 +232,15 @@ class operator_impl<op::insert_and_find_tag,
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param value The element to insert
    *
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <typename ProbeKey>
-  __device__ thrust::pair<iterator, bool> insert_and_find(ProbeKey const& value) noexcept
+  template <typename Value>
+  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(value);
@@ -253,7 +253,7 @@ class operator_impl<op::insert_and_find_tag,
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
@@ -261,9 +261,9 @@ class operator_impl<op::insert_and_find_tag,
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <typename ProbeKey>
+  template <typename Value>
   __device__ thrust::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& value) noexcept
+    cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(group, value);
