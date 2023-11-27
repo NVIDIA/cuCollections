@@ -148,7 +148,7 @@ class operator_impl<op::insert_tag,
   /**
    * @brief Inserts an element.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param value The element to insert
    *
@@ -164,7 +164,7 @@ class operator_impl<op::insert_tag,
   /**
    * @brief Inserts an element.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -232,7 +232,7 @@ class operator_impl<op::insert_and_find_tag,
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param value The element to insert
    *
@@ -253,7 +253,7 @@ class operator_impl<op::insert_and_find_tag,
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
@@ -290,7 +290,7 @@ class operator_impl<op::erase_tag,
   /**
    * @brief Erases an element.
    *
-   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param key The element to erase
    *
@@ -306,7 +306,7 @@ class operator_impl<op::erase_tag,
   /**
    * @brief Erases an element.
    *
-   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform group erase
    * @param value The element to erase
@@ -345,7 +345,7 @@ class operator_impl<op::contains_tag,
    * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
    * false.
    *
-   * @tparam ProbeKey Probe key type
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param key The key to search for
    *
@@ -364,7 +364,7 @@ class operator_impl<op::contains_tag,
    * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
    * false.
    *
-   * @tparam ProbeKey Probe key type
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
@@ -431,7 +431,7 @@ class operator_impl<op::find_tag,
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Probe key type
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param key The key to search for
    *
@@ -451,7 +451,7 @@ class operator_impl<op::find_tag,
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Probe key type
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for

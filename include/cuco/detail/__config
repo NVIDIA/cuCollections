@@ -25,11 +25,11 @@
 #endif
 
 #if !defined(__CUDACC_RELAXED_CONSTEXPR__)
-#error "Support for relaxed constexpr is required"
+#error "Support for relaxed constexpr is required (nvcc flag --expt-relaxed-constexpr)"
 #endif
 
 #if !defined(__CUDACC_EXTENDED_LAMBDA__)
-#error "Support for extended device lambdas is required"
+#error "Support for extended device lambdas is required (nvcc flag --expt-extended-lambda)"
 #endif
 
 // WAR for libcudacxx/296

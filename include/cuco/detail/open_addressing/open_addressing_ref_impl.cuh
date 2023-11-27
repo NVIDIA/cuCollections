@@ -23,7 +23,6 @@
 #include <cuco/probing_scheme.cuh>
 
 #include <thrust/distance.h>
-#include <thrust/pair.h>
 #include <thrust/tuple.h>
 
 #include <cuda/atomic>
@@ -262,7 +261,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts an element.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param value The element to insert
    *
@@ -273,7 +272,8 @@ class open_addressing_ref_impl {
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    auto const key    = this->extract_key(value);
+    auto const val    = this->heterogeneous_value(value);
+    auto const key    = this->extract_key(val);
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
@@ -290,7 +290,7 @@ class open_addressing_ref_impl {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
                                  slot_content,
-                                 value)) {
+                                 val)) {
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: return false;
@@ -304,7 +304,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts an element.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -315,7 +315,8 @@ class open_addressing_ref_impl {
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
                          Value const& value) noexcept
   {
-    auto const key    = this->extract_key(value);
+    auto const val    = this->heterogeneous_value(value);
+    auto const key    = this->extract_key(val);
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
@@ -353,7 +354,7 @@ class open_addressing_ref_impl {
           (group.thread_rank() == src_lane)
             ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
                              window_slots[intra_window_index],
-                             value)
+                             val)
             : insert_result::CONTINUE;
 
         switch (group.shfl(status, src_lane)) {
@@ -374,7 +375,7 @@ class open_addressing_ref_impl {
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param value The element to insert
    *
@@ -385,8 +386,16 @@ class open_addressing_ref_impl {
   __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+#if __CUDA_ARCH__ < 700
+    // Spinning to ensure that the write to the value part took place requires
+    // independent thread scheduling introduced with the Volta architecture.
+    static_assert(
+      cuco::detail::is_packable<value_type>(),
+      "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
+#endif
 
-    auto const key    = this->extract_key(value);
+    auto const val    = this->heterogeneous_value(value);
+    auto const key    = this->extract_key(val);
     auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
 
     while (true) {
@@ -397,21 +406,29 @@ class open_addressing_ref_impl {
         auto* window_ptr  = (storage_ref_.data() + *probing_iter)->data();
 
         // If the key is already in the container, return false
-        if (eq_res == detail::equal_result::EQUAL) { return {iterator{&window_ptr[i]}, false}; }
+        if (eq_res == detail::equal_result::EQUAL) {
+          if constexpr (has_payload) {
+            // wait to ensure that the write to the value part also took place
+            this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+          }
+          return {iterator{&window_ptr[i]}, false};
+        }
         if (eq_res == detail::equal_result::EMPTY or
             cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
                                           this->erased_key_sentinel())) {
-          switch ([&]() {
-            if constexpr (sizeof(value_type) <= 8) {
-              return packed_cas(window_ptr + i, window_slots[i], value);
-            } else {
-              return cas_dependent_write(window_ptr + i, window_slots[i], value);
-            }
-          }()) {
+          switch (this->attempt_insert_stable(window_ptr + i, window_slots[i], val)) {
             case insert_result::SUCCESS: {
+              if constexpr (has_payload) {
+                // wait to ensure that the write to the value part also took place
+                this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+              }
               return {iterator{&window_ptr[i]}, true};
             }
             case insert_result::DUPLICATE: {
+              if constexpr (has_payload) {
+                // wait to ensure that the write to the value part also took place
+                this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+              }
               return {iterator{&window_ptr[i]}, false};
             }
             default: continue;
@@ -429,7 +446,7 @@ class open_addressing_ref_impl {
    * element that prevented the insertion) and a `bool` denoting whether the insertion took place or
    * not.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
@@ -441,7 +458,16 @@ class open_addressing_ref_impl {
   __device__ thrust::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
   {
-    auto const key    = this->extract_key(value);
+#if __CUDA_ARCH__ < 700
+    // Spinning to ensure that the write to the value part took place requires
+    // independent thread scheduling introduced with the Volta architecture.
+    static_assert(
+      cuco::detail::is_packable<value_type>(),
+      "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
+#endif
+
+    auto const val    = this->heterogeneous_value(value);
+    auto const key    = this->extract_key(val);
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
     while (true) {
@@ -475,6 +501,13 @@ class open_addressing_ref_impl {
       if (group_finds_equal) {
         auto const src_lane = __ffs(group_finds_equal) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
+        if (group.thread_rank() == src_lane) {
+          if constexpr (has_payload) {
+            // wait to ensure that the write to the value part also took place
+            this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
+          }
+        }
+        group.sync();
         return {iterator{reinterpret_cast<value_type*>(res)}, false};
       }
 
@@ -485,18 +518,28 @@ class open_addressing_ref_impl {
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
         auto const status   = [&, target_idx = intra_window_index]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
-          if constexpr (sizeof(value_type) <= 8) {
-            return packed_cas(slot_ptr, window_slots[target_idx], value);
-          } else {
-            return cas_dependent_write(slot_ptr, window_slots[target_idx], value);
-          }
+          return this->attempt_insert_stable(slot_ptr, window_slots[target_idx], val);
         }();
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: {
+            if (group.thread_rank() == src_lane) {
+              if constexpr (has_payload) {
+                // wait to ensure that the write to the value part also took place
+                this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
+              }
+            }
+            group.sync();
             return {iterator{reinterpret_cast<value_type*>(res)}, true};
           }
           case insert_result::DUPLICATE: {
+            if (group.thread_rank() == src_lane) {
+              if constexpr (has_payload) {
+                // wait to ensure that the write to the value part also took place
+                this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
+              }
+            }
+            group.sync();
             return {iterator{reinterpret_cast<value_type*>(res)}, false};
           }
           default: continue;
@@ -510,7 +553,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Erases an element.
    *
-   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param value The element to erase
    *
@@ -550,7 +593,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Erases an element.
    *
-   * @tparam ProbeKey Input type which is implicitly convertible to 'key_type'
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform group erase
    * @param value The element to erase
@@ -610,7 +653,7 @@ class open_addressing_ref_impl {
    * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
    * false.
    *
-   * @tparam ProbeKey Probe key type
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param key The key to search for
    *
@@ -643,7 +686,7 @@ class open_addressing_ref_impl {
    * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
    * false.
    *
-   * @tparam ProbeKey Probe key type
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
@@ -683,7 +726,7 @@ class open_addressing_ref_impl {
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Probe key type
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param key The key to search for
    *
@@ -720,7 +763,7 @@ class open_addressing_ref_impl {
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Probe key type
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
@@ -851,22 +894,20 @@ class open_addressing_ref_impl {
     }
   }
 
- private:
   /**
    * @brief Extracts the key from a given value type.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param value The input value
    *
    * @return The key
    */
   template <typename Value>
-  [[nodiscard]] __host__ __device__ constexpr auto const& extract_key(
-    Value const& value) const noexcept
+  [[nodiscard]] __device__ constexpr auto const& extract_key(Value const& value) const noexcept
   {
     if constexpr (this->has_payload) {
-      return thrust::get<0>(thrust::raw_reference_cast(value));
+      return thrust::raw_reference_cast(value).first;
     } else {
       return thrust::raw_reference_cast(value);
     }
@@ -877,17 +918,65 @@ class open_addressing_ref_impl {
    *
    * @note This function is only available if `this->has_payload == true`
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param value The input value
    *
    * @return The payload
    */
   template <typename Value, typename Enable = std::enable_if_t<has_payload and sizeof(Value)>>
-  [[nodiscard]] __host__ __device__ constexpr auto const& extract_payload(
-    Value const& value) const noexcept
+  [[nodiscard]] __device__ constexpr auto const& extract_payload(Value const& value) const noexcept
   {
-    return thrust::get<1>(thrust::raw_reference_cast(value));
+    return thrust::raw_reference_cast(value).second;
+  }
+
+  /**
+   * @brief Converts the given type to the container's native `value_type`.
+   *
+   * @tparam T Input type which is convertible to 'value_type'
+   *
+   * @param value The input value
+   *
+   * @return The converted object
+   */
+  template <typename T>
+  [[nodiscard]] __device__ constexpr value_type native_value(T const& value) const noexcept
+  {
+    if constexpr (this->has_payload) {
+      return {static_cast<key_type>(this->extract_key(value)), this->extract_payload(value)};
+    } else {
+      return static_cast<value_type>(value);
+    }
+  }
+
+  /**
+   * @brief Converts the given type to the container's native `value_type` while maintaining the
+   * heterogeneous key type.
+   *
+   * @tparam T Input type which is convertible to 'value_type'
+   *
+   * @param value The input value
+   *
+   * @return The converted object
+   */
+  template <typename T>
+  [[nodiscard]] __device__ constexpr auto heterogeneous_value(T const& value) const noexcept
+  {
+    if constexpr (this->has_payload and not cuda::std::is_same_v<T, value_type>) {
+      using mapped_type = decltype(this->empty_slot_sentinel_.second);
+      if constexpr (cuco::detail::is_cuda_std_pair_like<T>::value) {
+        return cuco::pair{cuda::std::get<0>(value),
+                          static_cast<mapped_type>(cuda::std::get<1>(value))};
+      } else if constexpr (cuco::detail::is_thrust_pair_like<T>::value) {
+        return cuco::pair{thrust::get<0>(value), static_cast<mapped_type>(thrust::get<1>(value))};
+      } else {
+        // hail mary (convert using .first/.second members)
+        return cuco::pair{thrust::raw_reference_cast(value.first),
+                          static_cast<mapped_type>(value.second)};
+      }
+    } else {
+      return thrust::raw_reference_cast(value);
+    }
   }
 
   /**
@@ -907,7 +996,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts the specified element with one single CAS operation.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param address Pointer to the slot in memory
    * @param expected Element to compare against
@@ -920,7 +1009,7 @@ class open_addressing_ref_impl {
                                                               value_type const& expected,
                                                               Value const& desired) noexcept
   {
-    auto old      = compare_and_swap(address, expected, static_cast<value_type>(desired));
+    auto old      = compare_and_swap(address, expected, this->native_value(desired));
     auto* old_ptr = reinterpret_cast<value_type*>(&old);
     if (cuco::detail::bitwise_compare(this->extract_key(*old_ptr), this->extract_key(expected))) {
       return insert_result::SUCCESS;
@@ -935,7 +1024,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts the specified element with two back-to-back CAS operations.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param address Pointer to the slot in memory
    * @param expected Element to compare against
@@ -953,10 +1042,9 @@ class open_addressing_ref_impl {
     auto const expected_key     = expected.first;
     auto const expected_payload = expected.second;
 
-    auto old_key = compare_and_swap(
-      &address->first, expected_key, static_cast<key_type>(thrust::get<0>(desired)));
-    auto old_payload = compare_and_swap(
-      &address->second, expected_payload, static_cast<mapped_type>(thrust::get<1>(desired)));
+    auto old_key =
+      compare_and_swap(&address->first, expected_key, static_cast<key_type>(desired.first));
+    auto old_payload = compare_and_swap(&address->second, expected_payload, desired.second);
 
     auto* old_key_ptr     = reinterpret_cast<key_type*>(&old_key);
     auto* old_payload_ptr = reinterpret_cast<mapped_type*>(&old_payload);
@@ -964,8 +1052,7 @@ class open_addressing_ref_impl {
     // if key success
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
       while (not cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
-        old_payload = compare_and_swap(
-          &address->second, expected_payload, static_cast<mapped_type>(thrust::get<1>(desired)));
+        old_payload = compare_and_swap(&address->second, expected_payload, desired.second);
       }
       return insert_result::SUCCESS;
     } else if (cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
@@ -974,9 +1061,7 @@ class open_addressing_ref_impl {
 
     // Our key was already present in the slot, so our key is a duplicate
     // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-    if (this->predicate_.equal_to(*old_key_ptr,
-                                  thrust::get<0>(thrust::raw_reference_cast(desired))) ==
-        detail::equal_result::EQUAL) {
+    if (this->predicate_.equal_to(*old_key_ptr, desired.first) == detail::equal_result::EQUAL) {
       return insert_result::DUPLICATE;
     }
 
@@ -986,7 +1071,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts the specified element with CAS-dependent write operations.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param address Pointer to the slot in memory
    * @param expected Element to compare against
@@ -1002,22 +1087,20 @@ class open_addressing_ref_impl {
 
     auto const expected_key = expected.first;
 
-    auto old_key = compare_and_swap(
-      &address->first, expected_key, static_cast<key_type>(thrust::get<0>(desired)));
+    auto old_key =
+      compare_and_swap(&address->first, expected_key, static_cast<key_type>(desired.first));
 
     auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
 
     // if key success
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
-      atomic_store(&address->second, static_cast<mapped_type>(thrust::get<1>(desired)));
+      atomic_store(&address->second, desired.second);
       return insert_result::SUCCESS;
     }
 
     // Our key was already present in the slot, so our key is a duplicate
     // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-    if (this->predicate_.equal_to(*old_key_ptr,
-                                  thrust::get<0>(thrust::raw_reference_cast(desired))) ==
-        detail::equal_result::EQUAL) {
+    if (this->predicate_.equal_to(*old_key_ptr, desired.first) == detail::equal_result::EQUAL) {
       return insert_result::DUPLICATE;
     }
 
@@ -1030,7 +1113,7 @@ class open_addressing_ref_impl {
    * @note Dispatches the correct implementation depending on the container
    * type and presence of other operator mixins.
    *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param address Pointer to the slot in memory
    * @param expected Element to compare against
@@ -1052,6 +1135,57 @@ class open_addressing_ref_impl {
       return back_to_back_cas(address, expected, desired);
 #endif
     }
+  }
+
+  /**
+   * @brief Attempts to insert an element into a slot.
+   *
+   * @note Dispatches the correct implementation depending on the container
+   * type and presence of other operator mixins.
+   *
+   * @note `stable` indicates that the payload will only be updated once from the sentinel value to
+   * the desired value, meaning there can be no ABA situations.
+   *
+   * @tparam Value Input type which is convertible to 'value_type'
+   *
+   * @param address Pointer to the slot in memory
+   * @param expected Element to compare against
+   * @param desired Element to insert
+   *
+   * @return Result of this operation, i.e., success/continue/duplicate
+   */
+  template <typename Value>
+  [[nodiscard]] __device__ insert_result attempt_insert_stable(value_type* address,
+                                                               value_type const& expected,
+                                                               Value const& desired) noexcept
+  {
+    if constexpr (sizeof(value_type) <= 8) {
+      return packed_cas(address, expected, desired);
+    } else {
+      return cas_dependent_write(address, expected, desired);
+    }
+  }
+
+  /**
+   * @brief Waits until the slot payload has been updated
+   *
+   * @note The function will return once the slot payload is no longer equal to the sentinel
+   * value.
+   *
+   * @tparam T Map slot type
+   *
+   * @param slot The target slot to check payload with
+   * @param sentinel The slot sentinel value
+   */
+  template <typename T>
+  __device__ void wait_for_payload(T& slot, T const& sentinel) const noexcept
+  {
+    auto ref = cuda::atomic_ref<T, Scope>{slot};
+    T current;
+    // TODO exponential backoff strategy
+    do {
+      current = ref.load(cuda::std::memory_order_relaxed);
+    } while (cuco::detail::bitwise_compare(current, sentinel));
   }
 
   // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
