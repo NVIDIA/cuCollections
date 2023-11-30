@@ -242,6 +242,16 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Gets the window extent of the current storage.
+   *
+   * @return The window extent.
+   */
+  [[nodiscard]] __host__ __device__ constexpr extent_type window_extent() const noexcept
+  {
+    return storage_ref_.window_extent();
+  }
+
+  /**
    * @brief Returns a const_iterator to one past the last slot.
    *
    * @return A const_iterator to one past the last slot
