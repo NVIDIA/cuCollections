@@ -131,6 +131,13 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept;
 
   /**
+   * @brief Gets the window extent of the current storage.
+   *
+   * @return The window extent.
+   */
+  [[nodiscard]] __host__ __device__ constexpr extent_type window_extent() const noexcept;
+
+  /**
    * @brief Gets the sentinel value used to represent an empty key slot.
    *
    * @return The sentinel value used to represent an empty key slot

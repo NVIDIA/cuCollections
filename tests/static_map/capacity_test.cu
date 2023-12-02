@@ -73,6 +73,26 @@ TEST_CASE("Static map capacity", "")
 
   constexpr std::size_t num_keys{400};
 
+  SECTION("Static window extent can be evaluated at build time.")
+  {
+    std::size_t constexpr gold_extent = 211;
+
+    using extent_type = cuco::experimental::extent<std::size_t, num_keys>;
+    cuco::experimental::static_map<Key,
+                                   T,
+                                   extent_type,
+                                   cuda::thread_scope_device,
+                                   Equal,
+                                   ProbeT,
+                                   AllocatorT,
+                                   StorageT>
+      map{extent_type{}, cuco::empty_key<Key>{-1}, cuco::empty_value<T>{-1}};
+
+    auto ref               = map.ref(cuco::experimental::insert);
+    auto const num_windows = ref.window_extent();
+    STATIC_REQUIRE(static_cast<std::size_t>(num_windows) == gold_extent);
+  }
+
   SECTION("Dynamic extent is evaluated at run time.")
   {
     auto constexpr gold_capacity = 422;  // 211 x 2
