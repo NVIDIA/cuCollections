@@ -183,6 +183,24 @@ class static_map_ref
   template <typename... NewOperators>
   [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
 
+  /**
+   * @brief Makes a copy of the current device ref using non-owned memory
+   *
+   * This function is intended to be used to create shared memory copies of small static maps,
+   * although global memory can be used as well.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param g The ooperative thread group used to copy the data structure
+   * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
+   * the ownership of the memory
+   *
+   * @return Copy of the current device ref
+   */
+  template <typename CG>
+  [[nodiscard]] __device__ constexpr auto make_copy(
+    CG const& g, window_type* const memory_to_use) const noexcept;
+
  private:
   impl_type impl_;  ///< Static map ref implementation
 

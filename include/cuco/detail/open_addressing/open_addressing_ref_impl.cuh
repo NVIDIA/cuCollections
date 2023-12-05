@@ -281,20 +281,17 @@ class open_addressing_ref_impl {
   /**
    * @brief Makes a copy of the current device ref using non-owned memory
    *
-   * This function is intended to be used to create shared memory copies of small static maps,
-   * although global memory can be used as well.
+   * This function is intended to be used to create shared memory copies of small static data
+   * structures, although global memory can be used as well.
    *
    * @tparam CG The type of the cooperative thread group
    *
    * @param g The ooperative thread group used to copy the data structure
    * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
    * the ownership of the memory
-   *
-   * @return Copy of the current deivce ref
    */
   template <typename CG>
-  [[nodiscard]] __device__ constexpr auto make_copy(CG const& g,
-                                                    window_type* const memory_to_use) noexcept
+  __device__ constexpr void make_copy(CG const& g, window_type* const memory_to_use) const noexcept
   {
     auto const num_windows = static_cast<size_type>(this->window_extent());
 #if defined(CUDA_HAS_CUDA_BARRIER)
@@ -313,18 +310,6 @@ class open_addressing_ref_impl {
     }
     g.sync();
 #endif
-
-    if constexpr (this->has_payload) {
-      return open_addressing_ref_impl{{this->empty_key_sentinel(), this->empty_value_sentinel()},
-                                      this->erased_key_sentinel(),
-                                      this->key_eq(),
-                                      storage_ref_type{this->window_extent(), memory_to_use}};
-    } else {
-      return open_addressing_ref_impl{this->empty_key_sentinel(),
-                                      this->erased_key_sentinel(),
-                                      this->key_eq(),
-                                      storage_ref_type{this->window_extent(), memory_to_use}};
-    }
   }
 
   /**
