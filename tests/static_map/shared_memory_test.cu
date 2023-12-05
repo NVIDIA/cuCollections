@@ -31,14 +31,12 @@
 
 #include <limits>
 
-/*
 template <std::size_t NumWindows, typename Ref>
-__global__ void shared_memory_test_kernel(
-  Ref* maps,
-  typename Ref::key_type const* const insterted_keys,
-  typename Ref::mapped_type const* const inserted_values,
-  bool* const keys_exist,
-  bool* const keys_and_values_correct)
+__global__ void shared_memory_test_kernel(Ref* maps,
+                                          typename Ref::key_type const* const insterted_keys,
+                                          typename Ref::mapped_type const* const inserted_values,
+                                          bool* const keys_exist,
+                                          bool* const keys_and_values_correct)
 {
   // Each block processes one map
   const size_t map_id = blockIdx.x;
@@ -46,10 +44,9 @@ __global__ void shared_memory_test_kernel(
 
   __shared__ typename Ref::window_type sm_buffer[NumWindows];
 
-  auto g = cuco::test::cg::this_thread_block();
-  auto insert_ref =
-    maps[map_id].make_copy(g, sm_buffer);
-  auto find_ref = insert_ref.with(cuco::experimental::op::find);
+  auto g          = cuco::test::cg::this_thread_block();
+  auto insert_ref = maps[map_id].make_copy(g, sm_buffer);
+  auto find_ref   = std::move(insert_ref).with(cuco::experimental::op::find);
 
   for (int i = g.thread_rank(); i < maps[map_id].capacity(); i += g.size()) {
     auto found_pair_it = find_ref.find(insterted_keys[offset + i]);
@@ -82,7 +79,13 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
   constexpr std::size_t map_capacity    = 2 * elements_in_map;
 
   using extent_type = cuco::experimental::extent<std::size_t, map_capacity>;
-  using map_type        = cuco::experimental::static_map<Key, Value, extent_type>;
+  using map_type    = cuco::experimental::static_map<
+    Key,
+    Value,
+    extent_type,
+    cuda::thread_scope_device,
+    thrust::equal_to<Key>,
+    cuco::experimental::linear_probing<1, cuco::default_hash_function<Key>>>;
 
   // one array for all maps, first elements_in_map element belong to map 0, second to map 1 and so
   // on
@@ -103,11 +106,10 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
   thrust::device_vector<bool> d_keys_exist(number_of_maps * elements_in_map);
   thrust::device_vector<bool> d_keys_and_values_correct(number_of_maps * elements_in_map);
 
-    using ref_type = decltype(maps.front()->ref(cuco::experimental::op::insert));
+  using ref_type = decltype(maps.front()->ref(cuco::experimental::op::insert));
 
   SECTION("Keys are all found after insertion.")
   {
-
     auto pairs_begin =
       thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
     std::vector<ref_type> h_refs;
@@ -120,7 +122,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
-    auto constexpr num_windows = h_refs[0].window_extent();
+    auto constexpr num_windows = cuco::experimental::make_window_extent<ref_type>(extent_type{});
 
     shared_memory_test_kernel<static_cast<std::size_t>(num_windows), ref_type>
       <<<number_of_maps, 64>>>(d_refs.data().get(),
@@ -148,7 +150,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
-    auto constexpr num_windows = h_refs[0].window_extent();
+    auto constexpr num_windows = cuco::experimental::make_window_extent<ref_type>(extent_type{});
 
     shared_memory_test_kernel<static_cast<std::size_t>(num_windows), ref_type>
       <<<number_of_maps, 64>>>(d_refs.data().get(),

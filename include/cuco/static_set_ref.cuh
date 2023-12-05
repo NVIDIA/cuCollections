@@ -145,6 +145,13 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept;
 
   /**
+   * @brief Gets the sentinel value used to represent an erased key slot.
+   *
+   * @return The sentinel value used to represent an erased key slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr key_type erased_key_sentinel() const noexcept;
+
+  /**
    * @brief Gets the key comparator.
    *
    * @return The comparator used to compare keys

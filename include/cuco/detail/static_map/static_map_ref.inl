@@ -190,6 +190,20 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+__host__ __device__ constexpr Key
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  erased_key_sentinel() const noexcept
+{
+  return impl_.erased_key_sentinel();
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename... NewOperators>
 auto static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
   NewOperators...) && noexcept
@@ -216,7 +230,7 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
     cuco::empty_value<T>{this->empty_value_sentinel()},
     cuco::erased_key<Key>{this->erased_key_sentinel()},
     this->key_eq(),
-    this->probing_scheme(),
+    this->impl_.probing_scheme(),
     storage_ref_type{this->window_extent(), memory_to_use}};
 }
 
