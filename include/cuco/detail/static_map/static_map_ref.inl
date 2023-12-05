@@ -212,13 +212,12 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
 {
   this->impl_.make_copy(g, memory_to_use);
   return static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>{
-    cuco : empty_key<Key>{this->empty_key_sentinel()},
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
     cuco::empty_value<T>{this->empty_value_sentinel()},
     cuco::erased_key<Key>{this->erased_key_sentinel()},
     this->key_eq(),
     this->probing_scheme(),
-    storage_ref_type{this->window_extent(), memory_to_use}
-  };
+    storage_ref_type{this->window_extent(), memory_to_use}};
 }
 
 namespace detail {

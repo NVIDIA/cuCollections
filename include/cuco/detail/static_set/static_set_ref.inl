@@ -158,8 +158,28 @@ template <typename... NewOperators>
 auto static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
   NewOperators...) && noexcept
 {
-  return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>(
-    std::move(*this));
+  return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
+    std::move(*this)};
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename CG>
+__device__ constexpr auto
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
+  CG const& g, window_type* const memory_to_use) const noexcept
+{
+  this->impl_.make_copy(g, memory_to_use);
+  return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>{
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
+    cuco::erased_key<Key>{this->erased_key_sentinel()},
+    this->key_eq(),
+    this->probing_scheme(),
+    storage_ref_type{this->window_extent(), memory_to_use}};
 }
 
 namespace detail {
