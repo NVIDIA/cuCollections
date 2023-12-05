@@ -212,6 +212,16 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Gets the key comparator.
+   *
+   * @return The comparator used to compare keys
+   */
+  [[nodiscard]] __device__ constexpr key_equal key_eq() const noexcept
+  {
+    return this->predicate().equal_;
+  }
+
+  /**
    * @brief Gets the probing scheme.
    *
    * @return The probing scheme used for the container
@@ -267,6 +277,55 @@ class open_addressing_ref_impl {
    * @return An iterator to one past the last slot
    */
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept { return storage_ref_.end(); }
+
+  /**
+   * @brief Makes a copy of the current device ref using non-owned memory
+   *
+   * This function is intended to be used to create shared memory copies of small static maps,
+   * although global memory can be used as well.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param g The ooperative thread group used to copy the data structure
+   * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
+   * the ownership of the memory
+   *
+   * @return Copy of the current deivce ref
+   */
+  template <typename CG>
+  [[nodiscard]] __device__ constexpr auto make_copy(CG const& g,
+                                                    window_type* const memory_to_use) noexcept
+  {
+    auto const num_windows = static_cast<size_type>(this->window_extent());
+#if defined(CUDA_HAS_CUDA_BARRIER)
+    __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
+    if (g.thread_rank() == 0) { init(&barrier, g.size()); }
+    g.sync();
+
+    cuda::memcpy_async(
+      g, memory_to_use, this->storage_ref().data(), sizeof(window_type) * num_windows, barrier);
+
+    barrier.arrive_and_wait();
+#else
+    window_type const* const windows_ptr = this->storage_ref().data();
+    for (size_type i = g.thread_rank(); i < num_windows; i += g.size()) {
+      memory_to_use[i] = windows_ptr[i];
+    }
+    g.sync();
+#endif
+
+    if constexpr (this->has_payload) {
+      return open_addressing_ref_impl{{this->empty_key_sentinel(), this->empty_value_sentinel()},
+                                      this->erased_key_sentinel(),
+                                      this->key_eq(),
+                                      storage_ref_type{this->window_extent(), memory_to_use}};
+    } else {
+      return open_addressing_ref_impl{this->empty_key_sentinel(),
+                                      this->erased_key_sentinel(),
+                                      this->key_eq(),
+                                      storage_ref_type{this->window_extent(), memory_to_use}};
+    }
+  }
 
   /**
    * @brief Inserts an element.
