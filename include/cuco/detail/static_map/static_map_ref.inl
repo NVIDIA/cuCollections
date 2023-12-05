@@ -108,6 +108,26 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+__host__ __device__ constexpr static_map_ref<Key,
+                                             T,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
+                                             Operators...>::key_equal
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::key_eq()
+  const noexcept
+{
+  return this->impl_.key_eq();
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 __host__ __device__ constexpr auto
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
   const noexcept

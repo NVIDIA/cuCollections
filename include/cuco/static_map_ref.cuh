@@ -167,6 +167,13 @@ class static_map_ref
   [[nodiscard]] __host__ __device__ constexpr mapped_type empty_value_sentinel() const noexcept;
 
   /**
+   * @brief Gets the key comparator.
+   *
+   * @return The comparator used to compare keys
+   */
+  [[nodiscard]] __host__ __device__ constexpr key_equal key_eq() const noexcept;
+
+  /**
    * @brief Creates a reference with new operators from the current object.
    *
    * Note that this function uses move semantics and thus invalidates the current object.

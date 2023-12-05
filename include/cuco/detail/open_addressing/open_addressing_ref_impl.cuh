@@ -216,7 +216,7 @@ class open_addressing_ref_impl {
    *
    * @return The comparator used to compare keys
    */
-  [[nodiscard]] __device__ constexpr key_equal key_eq() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr key_equal key_eq() const noexcept
   {
     return this->predicate().equal_;
   }
