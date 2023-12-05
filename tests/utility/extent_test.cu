@@ -44,13 +44,13 @@ TEMPLATE_TEST_CASE_SIG(
   {
     auto constexpr size = cuco::experimental::extent<SizeType, num>{};
     auto constexpr res  = cuco::experimental::make_window_extent<cg_size, window_size>(size);
-    STATIC_REQUIRE(gold_reference == res.value());
+    STATIC_REQUIRE(gold_reference == static_cast<SizeType>(res));
   }
 
   SECTION("Compute dynamic valid extent at run time.")
   {
     auto const size = cuco::experimental::extent<SizeType>{num};
     auto const res  = cuco::experimental::make_window_extent<cg_size, window_size>(size);
-    REQUIRE(gold_reference == res.value());
+    REQUIRE(gold_reference == static_cast<SizeType>(res));
   }
 }

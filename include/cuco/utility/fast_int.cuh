@@ -52,13 +52,6 @@ struct fast_int {
   }
 
   /**
-   * @brief Get the underlying integer value.
-   *
-   * @return Underlying value
-   */
-  __host__ __device__ constexpr value_type value() const noexcept { return value_; }
-
-  /**
    * @brief Explicit conversion operator to the underlying value type.
    *
    * @return Underlying value

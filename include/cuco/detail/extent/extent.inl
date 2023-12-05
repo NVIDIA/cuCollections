@@ -31,8 +31,7 @@ template <typename SizeType, std::size_t N>
 struct window_extent {
   using value_type = SizeType;  ///< Extent value type
 
-  __host__ __device__ constexpr value_type value() const noexcept { return N; }
-  __host__ __device__ explicit constexpr operator value_type() const noexcept { return value(); }
+  __host__ __device__ explicit constexpr operator value_type() const noexcept { return N; }
 
  private:
   __host__ __device__ explicit constexpr window_extent() noexcept {}
