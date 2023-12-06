@@ -171,7 +171,7 @@ TEMPLATE_TEST_CASE_SIG(
   constexpr size_type gold_capacity = CGSize == 1 ? 422   // 211 x 1 x 2
                                                   : 412;  // 103 x 2 x 2
 
-  // XXX: test static extent on purpose, DO NOT CHANGE
+  // XXX: testing static extent is intended, DO NOT CHANGE
   using extent_type = cuco::experimental::extent<size_type, num_keys>;
   using probe =
     std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
