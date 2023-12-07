@@ -100,7 +100,7 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
 {
   using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
-    cuco::detail::sanitize_hash<size_type>(hash_(probe_key)) % static_cast<size_type>(upper_bound),
+    cuco::detail::sanitize_hash<size_type>(hash_(probe_key)) % upper_bound,
     1,  // step size is 1
     upper_bound};
 }
