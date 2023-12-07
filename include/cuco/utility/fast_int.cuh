@@ -52,6 +52,13 @@ struct fast_int {
   }
 
   /**
+   * @brief Get the underlying integer value.
+   *
+   * @return Underlying value
+   */
+  __host__ __device__ constexpr value_type value() const noexcept { return value_; }
+
+  /**
    * @brief Explicit conversion operator to the underlying value type.
    *
    * @return Underlying value
@@ -141,6 +148,12 @@ struct fast_int {
     if (rhs.magic_ == 0) { return lhs >> rhs.shift_; }  // edge case for value_ == pow2
     auto const mul = (lhs == cuda::std::numeric_limits<T>::max()) ? lhs : lhs + 1;
     return rhs.mulhi(rhs.magic_, mul) >> rhs.shift_;
+  }
+
+  template <typename Rhs>
+  friend __host__ __device__ constexpr value_type operator/(fast_int const& lhs, Rhs rhs) noexcept
+  {
+    return lhs.value() / static_cast<value_type>(rhs);
   }
 
   template <typename Lhs>
