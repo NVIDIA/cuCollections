@@ -35,12 +35,13 @@ template <std::size_t NumWindows, typename Ref>
 __global__ void shared_memory_test_kernel(Ref* maps,
                                           typename Ref::key_type const* const insterted_keys,
                                           typename Ref::mapped_type const* const inserted_values,
+                                          size_t number_of_elements,
                                           bool* const keys_exist,
                                           bool* const keys_and_values_correct)
 {
   // Each block processes one map
   const size_t map_id = blockIdx.x;
-  const size_t offset = map_id * maps[map_id].capacity();
+  const size_t offset = map_id * number_of_elements;
 
   __shared__ typename Ref::window_type sm_buffer[NumWindows];
 
@@ -48,7 +49,7 @@ __global__ void shared_memory_test_kernel(Ref* maps,
   auto insert_ref = maps[map_id].make_copy(g, sm_buffer);
   auto find_ref   = std::move(insert_ref).with(cuco::experimental::op::find);
 
-  for (int i = g.thread_rank(); i < maps[map_id].capacity(); i += g.size()) {
+  for (int i = g.thread_rank(); i < number_of_elements; i += g.size()) {
     auto found_pair_it = find_ref.find(insterted_keys[offset + i]);
 
     if (found_pair_it != find_ref.end()) {
@@ -128,6 +129,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
       <<<number_of_maps, 64>>>(d_refs.data().get(),
                                d_keys.data().get(),
                                d_values.data().get(),
+                               elements_in_map,
                                d_keys_exist.data().get(),
                                d_keys_and_values_correct.data().get());
 
@@ -156,6 +158,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
       <<<number_of_maps, 64>>>(d_refs.data().get(),
                                d_keys.data().get(),
                                d_values.data().get(),
+                               elements_in_map,
                                d_keys_exist.data().get(),
                                d_keys_and_values_correct.data().get());
 
