@@ -83,7 +83,7 @@ add_library(cuco::cuco ALIAS cuco)
 target_include_directories(cuco INTERFACE
     INTERFACE   $<BUILD_INTERFACE:${CUCO_SOURCE_DIR}/include>
                 $<INSTALL_INTERFACE:include>)
-target_link_libraries(cuco INTERFACE libcudacxx::libcudacxx CUDA::toolkit $<BUILD_INTERFACE:CCCL::Thrust>)
+target_link_libraries(cuco INTERFACE CCCL::CCCL CUDA::toolkit)
 target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
 
 ###################################################################################################
