@@ -50,7 +50,8 @@ __inline__ void test_insert_or_assign(Map& map, size_type num_keys)
   // Query pairs have the same keys but different payloads
   auto query_pairs_begin = thrust::make_transform_iterator(
     thrust::counting_iterator<size_type>(0),
-    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i * 2); });
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>(i, i * 2); }));
 
   map.insert_or_assign(query_pairs_begin, query_pairs_begin + num_keys);
 

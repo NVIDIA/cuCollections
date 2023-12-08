@@ -24,6 +24,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cuda/functional>
+
 template <typename Set>
 __inline__ void test_insert_and_find(Set& set, std::size_t num_keys)
 {
@@ -34,8 +36,9 @@ __inline__ void test_insert_and_find(Set& set, std::size_t num_keys)
     if constexpr (cg_size == 1) {
       return thrust::counting_iterator<Key>(0);
     } else {
-      return thrust::make_transform_iterator(thrust::counting_iterator<Key>(0),
-                                             [] __device__(auto i) { return i / cg_size; });
+      return thrust::make_transform_iterator(
+        thrust::counting_iterator<Key>(0),
+        cuda::proclaim_return_type<Key>([] __device__(auto i) { return i / cg_size; }));
     }
   }();
   auto const keys_end = [&]() {
