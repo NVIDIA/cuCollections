@@ -112,15 +112,23 @@ struct strong_type {
  * @tparam SizeType The target type
  * @tparam HashType The input type
  *
+ * @param[in] hash The hash value
+ * @param[in] thread_rank Local thread offset during CG probing
+ *
  * @return Converted hash value
  */
 template <typename SizeType, typename HashType>
-__host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
+__host__ __device__ constexpr SizeType hash_to_index(HashType hash,
+                                                     uint32_t thread_rank = 0) noexcept
 {
-  if constexpr (cuda::std::is_signed_v<SizeType>) {
-    return cuda::std::abs(static_cast<SizeType>(hash));
+  if constexpr (std::is_unsigned_v<SizeType>) {
+    constexpr auto max_size = static_cast<HashType>(cuda::std::numeric_limits<SizeType>::max());
+    return static_cast<SizeType>((hash + thread_rank) & max_size);
   } else {
-    return static_cast<SizeType>(hash);
+    using larger_type =
+      cuda::std::conditional_t<sizeof(HashType) >= sizeof(SizeType), HashType, SizeType>;
+    constexpr auto max_size = static_cast<larger_type>(cuda::std::numeric_limits<SizeType>::max());
+    return static_cast<SizeType>((hash & max_size + thread_rank) & max_size);
   }
 }
 
