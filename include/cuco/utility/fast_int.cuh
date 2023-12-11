@@ -151,9 +151,9 @@ struct fast_int {
   }
 
   template <typename Rhs>
-  friend __host__ __device__ constexpr value_type operator/(fast_int const& lhs, Rhs rhs) noexcept
+  friend __host__ __device__ constexpr auto operator/(fast_int const& lhs, Rhs rhs) noexcept
   {
-    return lhs.value() / static_cast<value_type>(rhs);
+    return lhs.value() / rhs;
   }
 
   template <typename Lhs>
