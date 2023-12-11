@@ -150,6 +150,12 @@ struct fast_int {
     return rhs.mulhi(rhs.magic_, mul) >> rhs.shift_;
   }
 
+  template <typename Rhs>
+  friend __host__ __device__ constexpr auto operator/(fast_int const& lhs, Rhs rhs) noexcept
+  {
+    return lhs.value() / rhs;
+  }
+
   template <typename Lhs>
   friend __host__ __device__ constexpr value_type operator%(Lhs lhs, fast_int const& rhs) noexcept
   {

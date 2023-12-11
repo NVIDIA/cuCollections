@@ -171,6 +171,8 @@ TEMPLATE_TEST_CASE_SIG(
   constexpr size_type gold_capacity = CGSize == 1 ? 422   // 211 x 1 x 2
                                                   : 412;  // 103 x 2 x 2
 
+  // XXX: testing static extent is intended, DO NOT CHANGE
+  using extent_type = cuco::experimental::extent<size_type, num_keys>;
   using probe =
     std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                        cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
@@ -180,13 +182,13 @@ TEMPLATE_TEST_CASE_SIG(
 
   auto map = cuco::experimental::static_map<Key,
                                             Value,
-                                            cuco::experimental::extent<size_type>,
+                                            extent_type,
                                             cuda::thread_scope_device,
                                             thrust::equal_to<Key>,
                                             probe,
                                             cuco::cuda_allocator<std::byte>,
                                             cuco::experimental::storage<2>>{
-    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+    extent_type{}, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   REQUIRE(map.capacity() == gold_capacity);
 

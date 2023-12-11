@@ -40,6 +40,21 @@ struct window_extent {
 
   template <int32_t CGSize_, int32_t WindowSize_, typename SizeType_, std::size_t N_>
   friend auto constexpr make_window_extent(extent<SizeType_, N_> ext);
+
+  template <typename Rhs>
+  friend __host__ __device__ constexpr value_type operator/(window_extent const& lhs,
+                                                            Rhs rhs) noexcept
+  {
+    return lhs.value() / rhs;
+  }
+
+  template <typename Lhs>
+  friend __host__ __device__ constexpr value_type operator%(Lhs lhs,
+                                                            window_extent const& rhs) noexcept
+  {
+    return lhs % rhs.value();
+    ;
+  }
 };
 
 template <typename SizeType>
