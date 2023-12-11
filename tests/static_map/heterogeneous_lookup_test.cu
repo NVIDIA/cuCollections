@@ -116,7 +116,8 @@ TEMPLATE_TEST_CASE_SIG("Heterogeneous lookup",
 
   auto insert_pairs = thrust::make_transform_iterator(
     thrust::counting_iterator<int>(0),
-    [] __device__(auto i) { return cuco::pair<InsertKey, Value>(i, i); });
+    cuda::proclaim_return_type<cuco::pair<InsertKey, Value>>(
+      [] __device__(auto i) { return cuco::pair<InsertKey, Value>(i, i); }));
   auto probe_keys = thrust::make_transform_iterator(
     thrust::counting_iterator<int>(0),
     cuda::proclaim_return_type<ProbeKey>([] __device__(auto i) { return ProbeKey{i}; }));

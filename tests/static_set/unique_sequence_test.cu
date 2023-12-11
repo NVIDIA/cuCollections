@@ -29,6 +29,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cuda/functional>
+
 using size_type = int32_t;
 
 template <typename Set>
@@ -43,8 +45,10 @@ __inline__ void test_unique_sequence(Set& set, size_type num_keys)
   auto keys_begin = d_keys.begin();
   thrust::device_vector<bool> d_contained(num_keys);
 
-  auto zip_equal = [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); };
-  auto is_even   = [] __device__(auto const& i) { return i % 2 == 0; };
+  auto zip_equal = cuda::proclaim_return_type<bool>(
+    [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); });
+  auto is_even =
+    cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
 
   SECTION("Non-inserted keys should not be contained.")
   {
@@ -73,12 +77,13 @@ __inline__ void test_unique_sequence(Set& set, size_type num_keys)
     REQUIRE(set.size() == num_keys / 2);
 
     set.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::equal(d_contained.begin(),
-                              d_contained.end(),
-                              thrust::counting_iterator<std::size_t>(0),
-                              [] __device__(auto const& idx_contained, auto const& idx) {
-                                return ((idx % 2) == 0) == idx_contained;
-                              }));
+    REQUIRE(cuco::test::equal(
+      d_contained.begin(),
+      d_contained.end(),
+      thrust::counting_iterator<std::size_t>(0),
+      cuda::proclaim_return_type<bool>([] __device__(auto const& idx_contained, auto const& idx) {
+        return ((idx % 2) == 0) == idx_contained;
+      })));
   }
 
   set.insert(keys_begin, keys_begin + num_keys);
