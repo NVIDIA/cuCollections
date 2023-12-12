@@ -204,12 +204,14 @@ __global__ void shared_memory_hash_table_kernel(bool* key_found)
 
   auto find_ref             = std::move(insert_ref).with(cuco::experimental::op::find);
   auto const retrieved_pair = find_ref.find(rank);
+  block.sync();
+
   if (retrieved_pair != find_ref.end() && retrieved_pair->second == rank) {
     key_found[index] = true;
   }
 }
 
-TEMPLATE_TEST_CASE("Shared memory slots.", "", int32_t)
+TEMPLATE_TEST_CASE("static map shared memory slots.", "", int32_t)
 {
   constexpr std::size_t N    = 256;
   auto constexpr num_windows = cuco::experimental::make_window_extent<cg_size, window_size>(
@@ -218,6 +220,7 @@ TEMPLATE_TEST_CASE("Shared memory slots.", "", int32_t)
   thrust::device_vector<bool> key_found(N, false);
   shared_memory_hash_table_kernel<TestType, TestType, num_windows.value()>
     <<<8, 32>>>(key_found.data().get());
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
 }
