@@ -173,7 +173,7 @@ template <typename Key, typename Value, std::size_t NumWindows>
 __global__ void shared_memory_hash_table_kernel(bool* key_found)
 {
   using slot_type = cuco::pair<Key, Value>;
-  __shared__ cuco::experimental::window<slot_type, window_size> windows[NumWindows];
+  __shared__ cuco::experimental::window<slot_type, window_size> map[NumWindows];
 
   using extent_type      = cuco::experimental::extent<std::size_t, NumWindows>;
   using storage_ref_type = cuco::experimental::aow_storage_ref<slot_type, window_size, extent_type>;
@@ -188,28 +188,25 @@ __global__ void shared_memory_hash_table_kernel(bool* key_found)
                       cuco::empty_value<Value>{-1},
                       {},
                       {},
-                      storage_ref_type{extent_type{}, windows}};
-  /*
+                      storage_ref_type{extent_type{}, map}};
 
+  namespace cg     = cooperative_groups;
+  auto const block = cg::this_thread_block();
+  // map.initialize(block);
 
-  namespace cg   = cooperative_groups;
-  auto map = map_type::make_from_uninitialized_slots(
-    cg::this_thread_block(), &slots[0], N, cuco::empty_key<K>{-1}, cuco::empty_value<V>{-1});
-
-  auto g            = cg::this_thread_block();
   std::size_t index = threadIdx.x + blockIdx.x * blockDim.x;
-  int rank          = g.thread_rank();
+  auto const rank   = block.thread_rank();
 
   // insert {thread_rank, thread_rank} for each thread in thread-block
-  map.insert(cuco::pair<int, int>(rank, rank));
-  g.sync();
+  auto insert_ref = std::move(raw_ref).with(cuco::experimental::op::insert);
+  insert_ref.insert(slot_type{rank, rank});
+  block.sync();
 
-  auto find_map       = find_map_type(map);
-  auto retrieved_pair = find_map.find(rank);
-  if (retrieved_pair != find_map.end() && retrieved_pair->second == rank) {
+  auto find_ref             = std::move(insert_ref).with(cuco::experimental::op::find);
+  auto const retrieved_pair = find_ref.find(rank);
+  if (retrieved_pair != find_ref.end() && retrieved_pair->second == rank) {
     key_found[index] = true;
   }
-  */
 }
 
 TEMPLATE_TEST_CASE("Shared memory slots.", "", int32_t)
