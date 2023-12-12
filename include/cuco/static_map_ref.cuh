@@ -205,7 +205,7 @@ class static_map_ref
    *
    * @tparam CG The type of the cooperative thread group
    *
-   * @param g The ooperative thread group used to copy the data structure
+   * @param tile The ooperative thread group used to copy the data structure
    * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
    * the ownership of the memory
    *
@@ -213,7 +213,19 @@ class static_map_ref
    */
   template <typename CG>
   [[nodiscard]] __device__ constexpr auto make_copy(
-    CG const& g, window_type* const memory_to_use) const noexcept;
+    CG const& tile, window_type* const memory_to_use) const noexcept;
+
+  /**
+   * @brief Initializes the map storage using the threads in the group `tile`.
+   *
+   * @note This function synchronizes the group `tile`.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param tile The cooperative thread group used to initialize the map
+   */
+  template <typename CG>
+  __device__ constexpr void initialize(CG const& tile) noexcept;
 
  private:
   impl_type impl_;  ///< Static map ref implementation

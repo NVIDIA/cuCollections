@@ -313,6 +313,29 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Initializes the container storage using the threads in the group `tile`.
+   *
+   * @note This function synchronizes the group `tile`.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param tile The cooperative thread group used to initialize the container
+   */
+  template <typename CG>
+  __device__ constexpr void initialize(CG const& tile) noexcept
+  {
+    auto tid = tile.thread_rank();
+    while (tid < static_cast<size_type>(this->window_extent())) {
+#pragma unroll
+      for (auto& slot : this->storage_ref_[tid]) {
+        slot = this->empty_slot_sentinel();
+      }
+      tid += tile.size();
+    }
+    tile.sync();
+  }
+
+  /**
    * @brief Inserts an element.
    *
    * @tparam Value Input type which is convertible to 'value_type'

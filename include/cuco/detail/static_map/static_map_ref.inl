@@ -222,9 +222,9 @@ template <typename Key,
 template <typename CG>
 __device__ constexpr auto
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
-  CG const& g, window_type* const memory_to_use) const noexcept
+  CG const& tile, window_type* const memory_to_use) const noexcept
 {
-  this->impl_.make_copy(g, memory_to_use);
+  this->impl_.make_copy(tile, memory_to_use);
   return static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     cuco::empty_value<T>{this->empty_value_sentinel()},
@@ -232,6 +232,21 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
     this->key_eq(),
     this->impl_.probing_scheme(),
     storage_ref_type{this->window_extent(), memory_to_use}};
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename CG>
+__device__ constexpr void
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::initialize(
+  CG const& tile) noexcept
+{
+  this->impl_.initialize(tile);
 }
 
 namespace detail {
