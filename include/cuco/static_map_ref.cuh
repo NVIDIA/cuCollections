@@ -198,7 +198,7 @@ class static_map_ref
   [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
 
   /**
-   * @brief Makes a copy of the current device ref using non-owned memory
+   * @brief Makes a copy of the current device reference using non-owned memory
    *
    * This function is intended to be used to create shared memory copies of small static maps,
    * although global memory can be used as well.
