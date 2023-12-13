@@ -324,10 +324,12 @@ class open_addressing_ref_impl {
   template <typename CG>
   __device__ constexpr void initialize(CG const& tile) noexcept
   {
-    auto tid = tile.thread_rank();
+    auto tid                = tile.thread_rank();
+    auto* const windows_ptr = this->storage_ref().data();
     while (tid < static_cast<size_type>(this->window_extent())) {
+      auto& window = *(windows_ptr + tid);
 #pragma unroll
-      for (auto& slot : this->storage_ref_[tid]) {
+      for (auto& slot : window) {
         slot = this->empty_slot_sentinel();
       }
       tid += tile.size();
