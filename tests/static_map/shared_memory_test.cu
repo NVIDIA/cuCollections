@@ -169,10 +169,13 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
 auto constexpr cg_size     = 1;
 auto constexpr window_size = 1;
 
-template <typename Key, typename Value, std::size_t NumWindows>
+template <std::size_t NumWindows>
 __global__ void shared_memory_hash_table_kernel(bool* key_found)
 {
+  using Key       = int32_t;
+  using Value     = int32_t;
   using slot_type = cuco::pair<Key, Value>;
+
   __shared__ cuco::experimental::window<slot_type, window_size> map[NumWindows];
 
   using extent_type      = cuco::experimental::extent<std::size_t, NumWindows>;
@@ -211,15 +214,14 @@ __global__ void shared_memory_hash_table_kernel(bool* key_found)
   }
 }
 
-TEMPLATE_TEST_CASE("static map shared memory slots.", "", int32_t)
+TEST_CASE("static map shared memory slots.", "")
 {
   constexpr std::size_t N    = 256;
   auto constexpr num_windows = cuco::experimental::make_window_extent<cg_size, window_size>(
     cuco::experimental::extent<std::size_t, N>{});
 
   thrust::device_vector<bool> key_found(N, false);
-  shared_memory_hash_table_kernel<TestType, TestType, num_windows.value()>
-    <<<8, 32>>>(key_found.data().get());
+  shared_memory_hash_table_kernel<num_windows.value()><<<8, 32>>>(key_found.data().get());
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
