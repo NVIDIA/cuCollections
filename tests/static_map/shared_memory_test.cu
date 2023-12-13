@@ -107,7 +107,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
   thrust::device_vector<bool> d_keys_exist(number_of_maps * elements_in_map);
   thrust::device_vector<bool> d_keys_and_values_correct(number_of_maps * elements_in_map);
 
-  using ref_type = decltype(maps.front()->ref(cuco::experimental::op::insert));
+  using ref_type = typename map_type::ref_type<cuco::experimental::op::insert_tag>;
 
   SECTION("Keys are all found after insertion.")
   {
