@@ -181,6 +181,8 @@ class static_set_ref
    * This function is intended to be used to create shared memory copies of small static sets,
    * although global memory can be used as well.
    *
+   * @note This function synchronizes the group `tile`.
+   *
    * @tparam CG The type of the cooperative thread group
    *
    * @param tile The ooperative thread group used to copy the data structure

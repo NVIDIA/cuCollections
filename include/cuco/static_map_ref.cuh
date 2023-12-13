@@ -203,6 +203,8 @@ class static_map_ref
    * This function is intended to be used to create shared memory copies of small static maps,
    * although global memory can be used as well.
    *
+   * @note This function synchronizes the group `tile`.
+   *
    * @tparam CG The type of the cooperative thread group
    *
    * @param tile The ooperative thread group used to copy the data structure

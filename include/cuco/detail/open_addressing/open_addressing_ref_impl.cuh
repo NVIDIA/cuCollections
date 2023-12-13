@@ -279,7 +279,7 @@ class open_addressing_ref_impl {
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept { return storage_ref_.end(); }
 
   /**
-   * @brief Makes a copy of the current device ref using non-owned memory
+   * @brief Makes a copy of the current device reference using non-owned memory.
    *
    * This function is intended to be used to create shared memory copies of small static data
    * structures, although global memory can be used as well.
@@ -313,7 +313,7 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Initializes the container storage using the threads in the group `tile`.
+   * @brief Initializes the container storage.
    *
    * @note This function synchronizes the group `tile`.
    *
