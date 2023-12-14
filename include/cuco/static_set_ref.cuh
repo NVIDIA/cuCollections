@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/cuda_thread_scope.cuh>
 #include <cuco/detail/open_addressing/open_addressing_ref_impl.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/operator.hpp>
@@ -89,11 +90,13 @@ class static_set_ref
    * @param empty_key_sentinel Sentinel indicating empty key
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr static_set_ref(cuco::empty_key<Key> empty_key_sentinel,
                                                         KeyEqual const& predicate,
                                                         ProbingScheme const& probing_scheme,
+                                                        cuda_thread_scope<Scope> scope,
                                                         StorageRef storage_ref) noexcept;
 
   /**
@@ -103,12 +106,14 @@ class static_set_ref
    * @param erased_key_sentinel Sentinel indicating erased key
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr static_set_ref(cuco::empty_key<Key> empty_key_sentinel,
                                                         cuco::erased_key<Key> erased_key_sentinel,
                                                         KeyEqual const& predicate,
                                                         ProbingScheme const& probing_scheme,
+                                                        cuda_thread_scope<Scope> scope,
                                                         StorageRef storage_ref) noexcept;
 
   /**

@@ -48,7 +48,7 @@ void static_set_insert(nvbench::state& state, nvbench::type_list<Key, Dist>)
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                cuco::experimental::static_set<Key> set{
-                 size, cuco::empty_key<Key>{-1}, {}, {}, {}, {launch.get_stream()}};
+                 size, cuco::empty_key<Key>{-1}, {}, {}, {}, {}, {}, {launch.get_stream()}};
 
                timer.start();
                set.insert(keys.begin(), keys.end(), {launch.get_stream()});

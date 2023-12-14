@@ -40,6 +40,7 @@ __host__ __device__ constexpr static_set_ref<
   Operators...>::static_set_ref(cuco::empty_key<Key> empty_key_sentinel,
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
+                                cuda_thread_scope<Scope>,
                                 StorageRef storage_ref) noexcept
   : impl_{empty_key_sentinel, predicate, probing_scheme, storage_ref}
 {
@@ -61,6 +62,7 @@ __host__ __device__ constexpr static_set_ref<
                                 cuco::erased_key<Key> erased_key_sentinel,
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
+                                cuda_thread_scope<Scope>,
                                 StorageRef storage_ref) noexcept
   : impl_{empty_key_sentinel, erased_key_sentinel, predicate, probing_scheme, storage_ref}
 {
