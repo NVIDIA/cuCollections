@@ -16,13 +16,13 @@
 
 #pragma once
 
-#include <cuco/cuda_thread_scope.cuh>
 #include <cuco/detail/open_addressing/open_addressing_ref_impl.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/operator.hpp>
 #include <cuco/probing_scheme.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/storage.cuh>
+#include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/atomic>
 

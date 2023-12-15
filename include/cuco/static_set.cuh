@@ -17,7 +17,6 @@
 #pragma once
 
 #include <cuco/cuda_stream_ref.hpp>
-#include <cuco/cuda_thread_scope.cuh>
 #include <cuco/detail/open_addressing/open_addressing_impl.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/hash_functions.cuh>
@@ -26,6 +25,7 @@
 #include <cuco/static_set_ref.cuh>
 #include <cuco/storage.cuh>
 #include <cuco/utility/allocator.hpp>
+#include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
 #include <thrust/functional.h>
