@@ -233,6 +233,7 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
     cuco::erased_key<Key>{this->erased_key_sentinel()},
     this->key_eq(),
     this->impl_.probing_scheme(),
+    {},
     storage_ref_type{this->window_extent(), memory_to_use}};
 }
 
