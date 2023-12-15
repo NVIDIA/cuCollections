@@ -129,6 +129,5 @@ template <typename T>
 inline constexpr bool is_window_extent_v = is_window_extent<T>::value;
 
 }  // namespace detail
-
 }  // namespace experimental
 }  // namespace cuco

@@ -150,6 +150,20 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept;
 
   /**
+   * @brief Gets the sentinel value used to represent an erased key slot.
+   *
+   * @return The sentinel value used to represent an erased key slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr key_type erased_key_sentinel() const noexcept;
+
+  /**
+   * @brief Gets the key comparator.
+   *
+   * @return The comparator used to compare keys
+   */
+  [[nodiscard]] __host__ __device__ constexpr key_equal key_eq() const noexcept;
+
+  /**
    * @brief Creates a reference with new operators from the current object.
    *
    * Note that this function uses move semantics and thus invalidates the current object.
@@ -165,6 +179,38 @@ class static_set_ref
    */
   template <typename... NewOperators>
   [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
+
+  /**
+   * @brief Makes a copy of the current device reference using non-owned memory
+   *
+   * This function is intended to be used to create shared memory copies of small static sets,
+   * although global memory can be used as well.
+   *
+   * @note This function synchronizes the group `tile`.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param tile The ooperative thread group used to copy the data structure
+   * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
+   * the ownership of the memory
+   *
+   * @return Copy of the current device ref
+   */
+  template <typename CG>
+  [[nodiscard]] __device__ constexpr auto make_copy(
+    CG const& tile, window_type* const memory_to_use) const noexcept;
+
+  /**
+   * @brief Initializes the set storage using the threads in the group `tile`.
+   *
+   * @note This function synchronizes the group `tile`.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param tile The cooperative thread group used to initialize the set
+   */
+  template <typename CG>
+  __device__ constexpr void initialize(CG const& tile) noexcept;
 
  private:
   impl_type impl_;
