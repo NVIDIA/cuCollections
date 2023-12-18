@@ -83,6 +83,7 @@ class static_set_ref
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr auto window_size =
     storage_ref_type::window_size;  ///< Number of elements handled per window
+  static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
 
   /**
    * @brief Constructs static_set_ref.
@@ -187,18 +188,23 @@ class static_set_ref
    * although global memory can be used as well.
    *
    * @note This function synchronizes the group `tile`.
+   * @note By-default the thread scope of the copy will be the same as the scope of the parent ref.
    *
    * @tparam CG The type of the cooperative thread group
+   * @tparam NewScope The thread scope of the newly created device ref
    *
    * @param tile The ooperative thread group used to copy the data structure
    * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
    * the ownership of the memory
+   * @param scope The thread scope of the newly created device ref
    *
    * @return Copy of the current device ref
    */
-  template <typename CG>
+  template <typename CG, cuda::thread_scope NewScope = thread_scope>
   [[nodiscard]] __device__ constexpr auto make_copy(
-    CG const& tile, window_type* const memory_to_use) const noexcept;
+    CG const& tile,
+    window_type* const memory_to_use,
+    cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
   /**
    * @brief Initializes the set storage using the threads in the group `tile`.
