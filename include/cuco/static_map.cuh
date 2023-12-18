@@ -91,7 +91,7 @@ template <class Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme =
-            cuco::experimental::double_hashing<4,  // CG size
+            cuco::experimental::linear_probing<4,  // CG size
                                                cuco::default_hash_function<Key>>,
           class Allocator = cuco::cuda_allocator<cuco::pair<Key, T>>,
           class Storage   = cuco::experimental::storage<1>>
