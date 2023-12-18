@@ -1,5 +1,5 @@
 # =============================================================================
-# Copyright (c) 2021, NVIDIA CORPORATION.
+# Copyright (c) 2021-2023, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
 # in compliance with the License. You may obtain a copy of the License at
@@ -12,17 +12,10 @@
 # the License.
 # =============================================================================
 
-# Use CPM to find or clone libcudacxx
-function(find_and_configure_libcudacxx)
-    include(${rapids-cmake-dir}/cpm/libcudacxx.cmake)
-
-    set(exports BUILD_EXPORT_SET cuco-exports)
-    if(INSTALL_CUCO)
-      list(APPEND exports INSTALL_EXPORT_SET cuco-exports)
-    endif()
-
-    rapids_cpm_libcudacxx(${exports})
-    set(LIBCUDACXX_INCLUDE_DIR "${libcudacxx_SOURCE_DIR}/include" PARENT_SCOPE)
+# Use CPM to find or clone CCCL
+function(find_and_configure_cccl)
+    include(${rapids-cmake-dir}/cpm/cccl.cmake)
+    rapids_cpm_cccl(INSTALL_EXPORT_SET cuco-exports BUILD_EXPORT_SET cuco-exports)
 endfunction()
 
-find_and_configure_libcudacxx()
+find_and_configure_cccl()
