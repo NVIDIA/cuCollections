@@ -138,14 +138,14 @@ int main(void)
     thrust::equal_to<Key>{},
     cuco::experimental::linear_probing<1, cuco::default_hash_function<Key>>{}};
 
-  // Get a non-owning, mutable reference of the map that allows inserts to pass by value into the
-  // kernel
-  auto device_insert_ref = map.ref(cuco::experimental::op::insert_and_find);
+  // Get a non-owning, mutable reference of the map that allows `insert_and_find` operation to pass
+  // by value into the kernel
+  auto map_ref = map.ref(cuco::experimental::op::insert_and_find);
 
   auto constexpr block_size = 256;
   auto const grid_size      = (num_keys + block_size - 1) / block_size;
-  count_by_key<block_size><<<grid_size, block_size>>>(
-    device_insert_ref, insert_keys.begin(), num_keys, num_unique_keys.data());
+  count_by_key<block_size>
+    <<<grid_size, block_size>>>(map_ref, insert_keys.begin(), num_keys, num_unique_keys.data());
 
   // Retrieve contents of all the non-empty slots in the map
   thrust::device_vector<Key> result_keys(num_unique_keys[0]);
