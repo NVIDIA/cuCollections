@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@
 #include <cuda/functional>
 
 // User-defined key type
-#if !defined(CUCO_HAS_INDEPENDENT_THREADS)
 struct custom_key_type {
   int32_t a;
   int32_t b;
@@ -33,24 +32,6 @@ struct custom_key_type {
   __host__ __device__ custom_key_type() {}
   __host__ __device__ custom_key_type(int32_t x) : a{x}, b{x} {}
 };
-#else
-// Key type larger than 8B only supported for sm_70 and up
-struct custom_key_type {
-  int32_t a;
-  int32_t b;
-  int32_t c;
-
-  __host__ __device__ custom_key_type() {}
-  __host__ __device__ custom_key_type(int32_t x) : a{x}, b{x}, c{x} {}
-
-  // Device equality operator is mandatory due to libcudacxx bug:
-  // https://github.com/NVIDIA/libcudacxx/issues/223
-  __device__ bool operator==(custom_key_type const& other) const
-  {
-    return a == other.a and b == other.b and c == other.c;
-  }
-};
-#endif
 
 // User-defined value type
 struct custom_value_type {
@@ -63,17 +44,12 @@ struct custom_value_type {
 
 // User-defined device hash callable
 struct custom_hash {
-  template <typename key_type>
-  __device__ uint32_t operator()(key_type k)
-  {
-    return k.a;
-  };
+  __device__ uint32_t operator()(custom_key_type const& k) const noexcept { return k.a; };
 };
 
 // User-defined device key equal callable
-struct custom_key_equals {
-  template <typename key_type>
-  __device__ bool operator()(key_type const& lhs, key_type const& rhs)
+struct custom_key_equal {
+  __device__ bool operator()(custom_key_type const& lhs, custom_key_type const& rhs) const noexcept
   {
     return lhs.a == rhs.a;
   }
@@ -91,15 +67,20 @@ int main(void)
   auto pairs_begin = thrust::make_transform_iterator(
     thrust::make_counting_iterator<int32_t>(0),
     cuda::proclaim_return_type<cuco::pair<custom_key_type, custom_value_type>>(
-      [] __device__(auto i) { return cuco::make_pair(custom_key_type{i}, custom_value_type{i}); }));
+      [] __device__(auto i) {
+        return cuco::pair{custom_key_type{i}, custom_value_type{i}};
+      }));
 
   // Construct a map with 100,000 slots using the given empty key/value sentinels. Note the
   // capacity is chosen knowing we will insert 80,000 keys, for an load factor of 80%.
-  cuco::static_map<custom_key_type, custom_value_type> map{
-    100'000, cuco::empty_key{empty_key_sentinel}, cuco::empty_value{empty_value_sentinel}};
+  auto map = cuco::experimental::static_map{cuco::experimental::extent<std::size_t, 100'000>{},
+                                            cuco::empty_key{empty_key_sentinel},
+                                            cuco::empty_value{empty_value_sentinel},
+                                            custom_key_equal{},
+                                            cuco::experimental::linear_probing<1, custom_hash>{}};
 
   // Inserts 80,000 pairs into the map by using the custom hasher and custom equality callable
-  map.insert(pairs_begin, pairs_begin + num_pairs, custom_hash{}, custom_key_equals{});
+  map.insert(pairs_begin, pairs_begin + num_pairs);
 
   // Reproduce inserted keys
   auto insert_keys =
@@ -111,14 +92,14 @@ int main(void)
 
   // Determine if all the inserted keys can be found by using the same hasher and equality
   // function as `insert`. If a key `insert_keys[i]` doesn't exist, `contained[i] == false`.
-  map.contains(
-    insert_keys, insert_keys + num_pairs, contained.begin(), custom_hash{}, custom_key_equals{});
+  map.contains(insert_keys, insert_keys + num_pairs, contained.begin());
   // This will fail due to inconsistent hash and key equal.
   // map.contains(insert_keys, insert_keys + num_pairs, contained.begin());
 
   // All inserted keys are contained
-  assert(
-    thrust::all_of(contained.begin(), contained.end(), [] __device__(auto const& b) { return b; }));
+  auto const all_contained =
+    thrust::all_of(contained.begin(), contained.end(), [] __device__(auto const& b) { return b; });
+  if (all_contained) { std::cout << "Success! Found all values.\n"; }
 
   return 0;
 }
