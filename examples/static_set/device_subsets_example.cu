@@ -169,7 +169,7 @@ int main()
   for (std::size_t i = 0; i < num; ++i) {
     storage_ref_type storage_ref{valid_sizes[i], set_storage.data() + offsets[i]};
     set_refs.emplace_back(
-      ref_type{cuco::empty_key<key_type>{empty_key_sentinel}, {}, {}, storage_ref});
+      ref_type{cuco::empty_key<key_type>{empty_key_sentinel}, {}, {}, {}, storage_ref});
   }
 
   thrust::device_vector<ref_type> d_set_refs(set_refs);

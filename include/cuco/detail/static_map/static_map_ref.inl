@@ -45,6 +45,7 @@ __host__ __device__ constexpr static_map_ref<
                                 cuco::empty_value<T> empty_value_sentinel,
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
+                                cuda_thread_scope<Scope>,
                                 StorageRef storage_ref) noexcept
   : impl_{
       cuco::pair{empty_key_sentinel, empty_value_sentinel}, predicate, probing_scheme, storage_ref}
@@ -70,6 +71,7 @@ __host__ __device__ constexpr static_map_ref<
                                 cuco::erased_key<Key> erased_key_sentinel,
                                 KeyEqual const& predicate,
                                 ProbingScheme const& probing_scheme,
+                                cuda_thread_scope<Scope>,
                                 StorageRef storage_ref) noexcept
   : impl_{cuco::pair{empty_key_sentinel, empty_value_sentinel},
           erased_key_sentinel,
@@ -231,6 +233,7 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
     cuco::erased_key<Key>{this->erased_key_sentinel()},
     this->key_eq(),
     this->impl_.probing_scheme(),
+    {},
     storage_ref_type{this->window_extent(), memory_to_use}};
 }
 

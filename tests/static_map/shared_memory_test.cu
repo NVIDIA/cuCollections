@@ -182,17 +182,13 @@ __global__ void shared_memory_hash_table_kernel(bool* key_found)
   using storage_ref_type = cuco::experimental::aow_storage_ref<slot_type, window_size, extent_type>;
 
   // CTAD doesn't work for container ref types
-  auto raw_ref = cuco::experimental::static_map_ref<
-    Key,
-    Value,
-    cuda::thread_scope_device,
-    thrust::equal_to<Key>,
-    cuco::experimental::linear_probing<cg_size, cuco::default_hash_function<Key>>,
-    storage_ref_type>{cuco::empty_key<Key>{-1},
-                      cuco::empty_value<Value>{-1},
-                      {},
-                      {},
-                      storage_ref_type{extent_type{}, map}};
+  auto raw_ref = cuco::experimental::static_map_ref{
+    cuco::empty_key<Key>{-1},
+    cuco::empty_value<Value>{-1},
+    thrust::equal_to<Key>{},
+    cuco::experimental::linear_probing<cg_size, cuco::default_hash_function<Key>>{},
+    cuco::experimental::thread_scope_block,
+    storage_ref_type{extent_type{}, map}};
 
   auto const block = cooperative_groups::this_thread_block();
   raw_ref.initialize(block);
