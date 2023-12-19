@@ -46,7 +46,7 @@ __global__ void shared_memory_test_kernel(Ref* maps,
   __shared__ typename Ref::window_type sm_buffer[NumWindows];
 
   auto g          = cuco::test::cg::this_thread_block();
-  auto insert_ref = maps[map_id].make_copy(g, sm_buffer);
+  auto insert_ref = maps[map_id].make_copy(g, sm_buffer, cuco::experimental::thread_scope_block);
   auto find_ref   = std::move(insert_ref).with(cuco::experimental::op::find);
 
   for (int i = g.thread_rank(); i < number_of_elements; i += g.size()) {
@@ -181,7 +181,6 @@ __global__ void shared_memory_hash_table_kernel(bool* key_found)
   using extent_type      = cuco::experimental::extent<std::size_t, NumWindows>;
   using storage_ref_type = cuco::experimental::aow_storage_ref<slot_type, window_size, extent_type>;
 
-  // CTAD doesn't work for container ref types
   auto raw_ref = cuco::experimental::static_map_ref{
     cuco::empty_key<Key>{-1},
     cuco::empty_value<Value>{-1},

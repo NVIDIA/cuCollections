@@ -111,7 +111,8 @@ class open_addressing_ref_impl {
 
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr auto window_size =
-    storage_ref_type::window_size;  ///< Number of elements handled per window
+    storage_ref_type::window_size;             ///< Number of elements handled per window
+  static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
   static constexpr auto has_payload =
     not std::is_same_v<key_type, value_type>;  ///< Determines if the container is a key/value or
                                                ///< key-only store
