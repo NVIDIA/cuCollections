@@ -46,7 +46,7 @@ __global__ void shared_memory_test_kernel(Ref* maps,
   __shared__ typename Ref::window_type sm_buffer[NumWindows];
 
   auto g          = cuco::test::cg::this_thread_block();
-  auto insert_ref = maps[map_id].make_copy(g, sm_buffer);
+  auto insert_ref = maps[map_id].make_copy(g, sm_buffer, cuco::experimental::thread_scope_block);
   auto find_ref   = std::move(insert_ref).with(cuco::experimental::op::find);
 
   for (int i = g.thread_rank(); i < number_of_elements; i += g.size()) {
