@@ -64,7 +64,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_contains(
   state.add_element_count(num_keys);
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    map.contains(keys.begin(), keys.end(), result.begin(), {launch.get_stream()});
+    map.contains_async(keys.begin(), keys.end(), result.begin(), {launch.get_stream()});
   });
 }
 
