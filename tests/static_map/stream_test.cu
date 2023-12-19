@@ -47,9 +47,11 @@ TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
     num_keys * 2,
     cuco::empty_key<Key>{-1},
     cuco::empty_value<Value>{-1},
-    thrust::equal_to<Key>{},
+    {},
     cuco::experimental::linear_probing<1, cuco::default_hash_function<Key>>{},
-    cuco::cuda_allocator<char>{},
+    {},
+    {},
+    {},
     stream};
 
   thrust::device_vector<Key> d_keys(num_keys);

@@ -22,6 +22,7 @@
 #include <cuco/probing_scheme.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/storage.cuh>
+#include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/atomic>
 
@@ -101,12 +102,14 @@ class static_map_ref
    * @param empty_value_sentinel Sentinel indicating empty payload
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr static_map_ref(cuco::empty_key<Key> empty_key_sentinel,
                                                         cuco::empty_value<T> empty_value_sentinel,
                                                         KeyEqual const& predicate,
                                                         ProbingScheme const& probing_scheme,
+                                                        cuda_thread_scope<Scope> scope,
                                                         StorageRef storage_ref) noexcept;
 
   /**
@@ -117,6 +120,7 @@ class static_map_ref
    * @param erased_key_sentinel Sentinel indicating erased key
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr static_map_ref(cuco::empty_key<Key> empty_key_sentinel,
@@ -124,6 +128,7 @@ class static_map_ref
                                                         cuco::erased_key<Key> erased_key_sentinel,
                                                         KeyEqual const& predicate,
                                                         ProbingScheme const& probing_scheme,
+                                                        cuda_thread_scope<Scope> scope,
                                                         StorageRef storage_ref) noexcept;
 
   /**

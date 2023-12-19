@@ -101,13 +101,8 @@ TEMPLATE_TEST_CASE_SIG(
     cuco::experimental::linear_probing<CGSize, cuco::default_hash_function<Key>>,
     cuco::experimental::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
-  auto set = cuco::experimental::static_set<Key,
-                                            cuco::experimental::extent<std::size_t>,
-                                            cuda::thread_scope_device,
-                                            thrust::equal_to<Key>,
-                                            probe,
-                                            cuco::cuda_allocator<std::byte>,
-                                            cuco::experimental::storage<2>>{
-    num_keys, cuco::empty_key<Key>{-1}};
+  auto set = cuco::experimental::static_set{
+    num_keys, cuco::empty_key<Key>{-1}, {}, {}, {}, cuco::experimental::storage<2>{}};
+
   test_insert_and_find(set, num_keys);
 }

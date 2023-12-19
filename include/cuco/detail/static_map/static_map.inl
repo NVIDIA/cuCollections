@@ -42,6 +42,8 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
              empty_value<T> empty_value_sentinel,
              KeyEqual const& pred,
              ProbingScheme const& probing_scheme,
+             cuda_thread_scope<Scope>,
+             Storage,
              Allocator const& alloc,
              cuda_stream_ref stream)
   : impl_{std::make_unique<impl_type>(capacity,
@@ -70,6 +72,8 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
              empty_value<T> empty_value_sentinel,
              KeyEqual const& pred,
              ProbingScheme const& probing_scheme,
+             cuda_thread_scope<Scope>,
+             Storage,
              Allocator const& alloc,
              cuda_stream_ref stream)
   : impl_{std::make_unique<impl_type>(n,
@@ -99,6 +103,8 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
              erased_key<Key> erased_key_sentinel,
              KeyEqual const& pred,
              ProbingScheme const& probing_scheme,
+             cuda_thread_scope<Scope>,
+             Storage,
              Allocator const& alloc,
              cuda_stream_ref stream)
   : impl_{std::make_unique<impl_type>(capacity,
@@ -570,12 +576,14 @@ auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
                                     cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
                                     impl_->key_eq(),
                                     impl_->probing_scheme(),
+                                    cuda_thread_scope<Scope>{},
                                     impl_->storage_ref()}
            : ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
                                     cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
                                     cuco::erased_key<key_type>(this->erased_key_sentinel()),
                                     impl_->key_eq(),
                                     impl_->probing_scheme(),
+                                    cuda_thread_scope<Scope>{},
                                     impl_->storage_ref()};
 }
 }  // namespace experimental
