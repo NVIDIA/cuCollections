@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/static_set/functors.cuh>
 #include <cuco/detail/static_set/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
@@ -472,7 +473,7 @@ auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
-  return this->empty_key_sentinel() == this->erased_key_sentinel()
+  return cuco::detail::bitwise_compare(this->empty_key_sentinel(), this->erased_key_sentinel())
            ? ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
                                     impl_->key_eq(),
                                     impl_->probing_scheme(),

@@ -15,6 +15,7 @@
  */
 
 #include <cuco/cuda_stream_ref.hpp>
+#include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/static_map/functors.cuh>
 #include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
@@ -570,7 +571,7 @@ auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
-  return this->empty_key_sentinel() == this->erased_key_sentinel()
+  return cuco::detail::bitwise_compare(this->empty_key_sentinel(), this->erased_key_sentinel())
            ? ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
                                     cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
                                     impl_->key_eq(),
