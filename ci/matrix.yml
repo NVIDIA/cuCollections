@@ -13,8 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cuda_oldest: &cuda_oldest '11.8'
-cuda_newest: &cuda_newest '12.3'
+cuda-oldest: &cuda-oldest '11.8'
+cuda-newest: &cuda-newest '12.3'
+
+gcc-oldest: &gcc-oldest { name: 'gcc', version: '11', exe: 'g++' }
+gcc-newest: &gcc-newest { name: 'gcc', version: '12', exe: 'g++' }
+
+llvm-oldest: &llvm-oldest { name: 'llvm', version: '15', exe: 'clang++' }
+llvm-newest: &llvm-newest { name: 'llvm', version: '16', exe: 'clang++' }
 
 # The GPUs to test on
 # Note: This assumes that the appropriate gpu_build_archs are set to include building for the GPUs listed here
@@ -42,6 +48,7 @@ devcontainer_version: '23.12'
 # Configurations that will run for every PR
 pull_request:
   nvcc:
-    - {cuda: *cuda_oldest, os: 'ubuntu22.04', cpu: 'amd64', compiler: {name: 'gcc', version: '11', exe: 'g++'}, gpu_build_archs: '70', std: [17], jobs: ['build', 'test']}
-    - {cuda: *cuda_newest, os: 'ubuntu22.04', cpu: 'amd64', compiler: {name: 'gcc', version: '12', exe: 'g++'}, gpu_build_archs: '70', std: [17], jobs: ['build', 'test']}
-    - {cuda: *cuda_newest, os: 'ubuntu22.04', cpu: 'arm64', compiler: {name: 'gcc', version: '12', exe: 'g++'}, gpu_build_archs: '60,90', std: [17], jobs: ['build']}
+    - {cuda: *cuda-oldest, os: 'ubuntu22.04', cpu: 'amd64', compiler: *gcc-oldest, gpu_build_archs: '70', std: [17], jobs: ['build', 'test']}
+    - {cuda: *cuda-newest, os: 'ubuntu22.04', cpu: 'amd64', compiler: *gcc-newest, gpu_build_archs: '70', std: [17], jobs: ['build', 'test']}
+    - {cuda: *cuda-newest, os: 'ubuntu22.04', cpu: 'arm64', compiler: *gcc-newest, gpu_build_archs: '60,90', std: [17], jobs: ['build']}
+    - {cuda: *llvm-newest, os: 'ubuntu22.04', cpu: 'amd64', compiler: *llvm-newest, gpu_build_archs: '60,90', std: [17], jobs: ['build']}
