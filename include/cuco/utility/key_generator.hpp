@@ -217,28 +217,16 @@ class key_generator {
     CUCO_EXPECTS(keep_prob >= 0.0 and keep_prob <= 1.0, "Probability needs to be between 0 and 1");
 
     if (keep_prob < 1.0) {
-      size_t num_keys = thrust::distance(begin, end);
+      size_t const num_keys = thrust::distance(begin, end);
 
       thrust::counting_iterator<size_t> seeds(rng_());
 
-      thrust::transform_if(
-        exec_policy,
-        seeds,
-        seeds + num_keys,
-        begin,
-        [num_keys] __host__ __device__(size_t const seed) {
-          RNG rng;
-          thrust::uniform_int_distribution<value_type> non_match_dist{
-            static_cast<value_type>(num_keys), std::numeric_limits<value_type>::max()};
-          rng.seed(seed);
-          return non_match_dist(rng);
-        },
-        [keep_prob] __host__ __device__(size_t const seed) {
-          RNG rng;
-          thrust::uniform_real_distribution<double> rate_dist(0.0, 1.0);
-          rng.seed(seed);
-          return (rate_dist(rng) > keep_prob);
-        });
+      thrust::transform_if(exec_policy,
+                           seeds,
+                           seeds + num_keys,
+                           begin,
+                           dropout_fn<value_type>{num_keys},
+                           dropout_pred{keep_prob});
     }
 
     thrust::shuffle(exec_policy, begin, end, rng_);
@@ -287,6 +275,42 @@ class key_generator {
   }
 
  private:
+  /**
+   * @brief Dropout transform functor
+   *
+   * @tparam T the output data type
+   */
+  template <typename T>
+  struct dropout_fn {
+    __host__ __device__ constexpr dropout_fn(std::size_t num) : num_{num} {}
+    __host__ __device__ constexpr T operator()(std::size_t seed) const noexcept
+    {
+      RNG rng;
+      thrust::uniform_int_distribution<T> non_match_dist{static_cast<T>(num_),
+                                                         std::numeric_limits<T>::max()};
+      rng.seed(seed);
+      return non_match_dist(rng);
+    }
+    std::size_t num_;
+  };
+
+  /**
+   * @brief Dropout predicate functor
+   *
+   * @tparam RNG Pseudo-random number generator
+   */
+  struct dropout_pred {
+    __host__ __device__ constexpr dropout_pred(double keep_prob) : keep_prob_{keep_prob} {}
+    __host__ __device__ constexpr bool operator()(std::size_t seed) const noexcept
+    {
+      RNG rng;
+      thrust::uniform_real_distribution<double> rate_dist{0.0, 1.0};
+      rng.seed(seed);
+      return rate_dist(rng) > keep_prob_;
+    }
+    double keep_prob_;
+  };
+
   RNG rng_;  ///< Random number generator
 };
 
