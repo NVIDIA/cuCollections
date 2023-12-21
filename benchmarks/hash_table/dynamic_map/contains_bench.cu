@@ -18,7 +18,7 @@
 #include <utils.hpp>
 
 #include <cuco/dynamic_map.cuh>
-#include <cuco/utility/key_generator.hpp>
+#include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
 
