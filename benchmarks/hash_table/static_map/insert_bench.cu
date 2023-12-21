@@ -62,6 +62,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
                                                          {},
                                                          {},
                                                          {},
+                                                         {},
+                                                         {},
                                                          {launch.get_stream()}};
 
                timer.start();
