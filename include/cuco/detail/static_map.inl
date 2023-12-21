@@ -443,7 +443,7 @@ __device__
                 "insert_and_find is not supported for unpackable data on pre-Volta GPUs.");
 #endif
 
-  auto current_slot{initial_slot(insert_pair.first, hash)};
+  auto current_slot{this->initial_slot(insert_pair.first, hash)};
 
   while (true) {
     key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
@@ -514,7 +514,7 @@ __device__
 
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
     // have been some other key there, so we keep looking for a slot
-    current_slot = next_slot(current_slot);
+    current_slot = this->next_slot(current_slot);
   }
 }
 

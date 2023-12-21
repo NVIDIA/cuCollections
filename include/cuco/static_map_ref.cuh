@@ -22,6 +22,7 @@
 #include <cuco/probing_scheme.cuh>
 #include <cuco/sentinel.cuh>
 #include <cuco/storage.cuh>
+#include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/atomic>
 
@@ -93,6 +94,7 @@ class static_map_ref
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr auto window_size =
     storage_ref_type::window_size;  ///< Number of elements handled per window
+  static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
 
   /**
    * @brief Constructs static_map_ref.
@@ -101,12 +103,14 @@ class static_map_ref
    * @param empty_value_sentinel Sentinel indicating empty payload
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr static_map_ref(cuco::empty_key<Key> empty_key_sentinel,
                                                         cuco::empty_value<T> empty_value_sentinel,
                                                         KeyEqual const& predicate,
                                                         ProbingScheme const& probing_scheme,
+                                                        cuda_thread_scope<Scope> scope,
                                                         StorageRef storage_ref) noexcept;
 
   /**
@@ -117,6 +121,7 @@ class static_map_ref
    * @param erased_key_sentinel Sentinel indicating erased key
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr static_map_ref(cuco::empty_key<Key> empty_key_sentinel,
@@ -124,6 +129,7 @@ class static_map_ref
                                                         cuco::erased_key<Key> erased_key_sentinel,
                                                         KeyEqual const& predicate,
                                                         ProbingScheme const& probing_scheme,
+                                                        cuda_thread_scope<Scope> scope,
                                                         StorageRef storage_ref) noexcept;
 
   /**
@@ -204,18 +210,23 @@ class static_map_ref
    * although global memory can be used as well.
    *
    * @note This function synchronizes the group `tile`.
+   * @note By-default the thread scope of the copy will be the same as the scope of the parent ref.
    *
    * @tparam CG The type of the cooperative thread group
+   * @tparam NewScope The thread scope of the newly created device ref
    *
    * @param tile The ooperative thread group used to copy the data structure
    * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
    * the ownership of the memory
+   * @param scope The thread scope of the newly created device ref
    *
    * @return Copy of the current device ref
    */
-  template <typename CG>
+  template <typename CG, cuda::thread_scope NewScope = thread_scope>
   [[nodiscard]] __device__ constexpr auto make_copy(
-    CG const& tile, window_type* const memory_to_use) const noexcept;
+    CG const& tile,
+    window_type* const memory_to_use,
+    cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
   /**
    * @brief Initializes the map storage using the threads in the group `tile`.

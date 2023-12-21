@@ -36,7 +36,7 @@
  * the context of a count-by-key operation, i.e. for a histogram over keys.
  *
  * Individual operations like a single insert or find can be performed in device code via the
- * static_map "device_view" types.
+ * "static_map_ref" types.
  *
  * @note This example is for demonstration purposes only. It is not intended to show the most
  * performant way to do the example algorithm.
@@ -47,17 +47,17 @@
  * @brief Inserts keys and counts how often they occur in the input sequence.
  *
  * @tparam BlockSize CUDA block size
- * @tparam Map Type of the map returned from static_map::get_device_mutable_view
+ * @tparam Map Type of the map device reference
  * @tparam KeyIter Input iterator whose value_type convertible to Map::key_type
  * @tparam UniqueIter Output iterator whose value_type is convertible to uint64_t
  *
- * @param[in] map_view View of the map into which inserts will be performed
+ * @param[in] map_ref Reference of the map into which inserts will be performed
  * @param[in] key_begin The beginning of the range of keys to insert
  * @param[in] num_keys The total number of keys and values
  * @param[out] num_unique_keys The total number of distinct keys inserted
  */
 template <int64_t BlockSize, typename Map, typename KeyIter, typename UniqueIter>
-__global__ void count_by_key(Map map_view,
+__global__ void count_by_key(Map map_ref,
                              KeyIter keys,
                              uint64_t num_keys,
                              UniqueIter num_unique_keys)
@@ -71,13 +71,14 @@ __global__ void count_by_key(Map map_view,
   uint64_t thread_unique_keys = 0;
   while (idx < num_keys) {
     // insert key into the map with a count of 1
-    auto [slot, is_new_key] = map_view.insert_and_find({keys[idx], 1});
+    auto [slot, is_new_key] = map_ref.insert_and_find(cuco::pair{keys[idx], 1});
     if (is_new_key) {
       // first occurrence of the key
       thread_unique_keys++;
     } else {
       // key is already in the map -> increment count
-      slot->second.fetch_add(1, cuda::memory_order_relaxed);
+      auto ref = cuda::atomic_ref<uint32_t, cuda::thread_scope_device>{slot->second};
+      ref.fetch_add(1, cuda::memory_order_relaxed);
     }
     idx += loop_stride;
   }
@@ -101,7 +102,7 @@ int main(void)
   // Empty slots are represented by reserved "sentinel" values. These values should be selected such
   // that they never occur in your input data.
   Key constexpr empty_key_sentinel     = static_cast<Key>(-1);
-  Count constexpr empty_value_sentinel = static_cast<Key>(-1);
+  Count constexpr empty_value_sentinel = static_cast<Count>(-1);
 
   // Number of keys to be inserted
   auto constexpr num_keys = 50'000;
@@ -125,23 +126,26 @@ int main(void)
   // Compute capacity based on a 50% load factor
   auto constexpr load_factor = 0.5;
 
-  // If the number of unique keys is known in advance, we can use it to calculate the map capacity
-  std::size_t const capacity = std::ceil((num_keys / key_duplicates) / load_factor);
-  // If we can't give an estimated upper bound on the number of unique keys
-  // we conservatively assume each key in the input is distinct
-  // std::size_t const capacity = std::ceil(num_keys / load_factor);
+  // If the number of elements is known in advance, we can use it to calculate the map capacity
+  std::size_t const num_elements = num_keys / key_duplicates;
 
-  // Constructs a map with "capacity" slots.
-  cuco::static_map<Key, Count> map{
-    capacity, cuco::empty_key{empty_key_sentinel}, cuco::empty_value{empty_value_sentinel}};
+  // Constructs a map with number of elements and desired load factor.
+  auto map = cuco::experimental::static_map{
+    num_elements,
+    load_factor,
+    cuco::empty_key{empty_key_sentinel},
+    cuco::empty_value{empty_value_sentinel},
+    thrust::equal_to<Key>{},
+    cuco::experimental::linear_probing<1, cuco::default_hash_function<Key>>{}};
 
-  // Get a non-owning, mutable view of the map that allows inserts to pass by value into the kernel
-  auto device_insert_view = map.get_device_mutable_view();
+  // Get a non-owning, mutable reference of the map that allows `insert_and_find` operation to pass
+  // by value into the kernel
+  auto map_ref = map.ref(cuco::experimental::op::insert_and_find);
 
   auto constexpr block_size = 256;
   auto const grid_size      = (num_keys + block_size - 1) / block_size;
-  count_by_key<block_size><<<grid_size, block_size>>>(
-    device_insert_view, insert_keys.begin(), num_keys, num_unique_keys.data());
+  count_by_key<block_size>
+    <<<grid_size, block_size>>>(map_ref, insert_keys.begin(), num_keys, num_unique_keys.data());
 
   // Retrieve contents of all the non-empty slots in the map
   thrust::device_vector<Key> result_keys(num_unique_keys[0]);
@@ -149,10 +153,10 @@ int main(void)
   map.retrieve_all(result_keys.begin(), result_counts.begin());
 
   // Check if the number of result keys is correct
-  auto num_keys_check = num_unique_keys[0] == (num_keys / key_duplicates);
+  auto const num_keys_check = num_unique_keys[0] == (num_keys / key_duplicates);
 
   // Iterate over all result counts and verify that they are correct
-  auto counts_check = thrust::all_of(
+  auto const counts_check = thrust::all_of(
     result_counts.begin(), result_counts.end(), [] __host__ __device__(Count const count) {
       return count == key_duplicates;
     });

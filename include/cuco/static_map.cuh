@@ -25,6 +25,7 @@
 #include <cuco/sentinel.cuh>
 #include <cuco/static_map_ref.cuh>
 #include <cuco/utility/allocator.hpp>
+#include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
 #include <thrust/functional.h>
@@ -171,6 +172,8 @@ class static_map {
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the map
    */
@@ -179,6 +182,8 @@ class static_map {
                        empty_value<T> empty_value_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
@@ -210,6 +215,8 @@ class static_map {
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the map
    */
@@ -219,6 +226,8 @@ class static_map {
                        empty_value<T> empty_value_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
@@ -242,6 +251,8 @@ class static_map {
    * @param erased_key_sentinel The reserved key to denote erased slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the map
    */
@@ -251,6 +262,8 @@ class static_map {
                        erased_key<Key> erased_key_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 

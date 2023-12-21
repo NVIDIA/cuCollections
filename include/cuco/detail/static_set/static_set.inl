@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <cuco/cuda_stream_ref.hpp>
+#include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/static_set/functors.cuh>
 #include <cuco/detail/static_set/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
@@ -39,6 +39,8 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   empty_key<Key> empty_key_sentinel,
   KeyEqual const& pred,
   ProbingScheme const& probing_scheme,
+  cuda_thread_scope<Scope>,
+  Storage,
   Allocator const& alloc,
   cuda_stream_ref stream)
   : impl_{std::make_unique<impl_type>(
@@ -59,6 +61,8 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   empty_key<Key> empty_key_sentinel,
   KeyEqual const& pred,
   ProbingScheme const& probing_scheme,
+  cuda_thread_scope<Scope>,
+  Storage,
   Allocator const& alloc,
   cuda_stream_ref stream)
   : impl_{std::make_unique<impl_type>(n,
@@ -85,6 +89,8 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   erased_key<Key> erased_key_sentinel,
   KeyEqual const& pred,
   ProbingScheme const& probing_scheme,
+  cuda_thread_scope<Scope>,
+  Storage,
   Allocator const& alloc,
   cuda_stream_ref stream)
   : impl_{std::make_unique<impl_type>(capacity,
@@ -467,15 +473,17 @@ auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
-  return this->empty_key_sentinel() == this->erased_key_sentinel()
+  return cuco::detail::bitwise_compare(this->empty_key_sentinel(), this->erased_key_sentinel())
            ? ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
                                     impl_->key_eq(),
                                     impl_->probing_scheme(),
+                                    cuda_thread_scope<Scope>{},
                                     impl_->storage_ref()}
            : ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
                                     cuco::erased_key<key_type>(this->erased_key_sentinel()),
                                     impl_->key_eq(),
                                     impl_->probing_scheme(),
+                                    cuda_thread_scope<Scope>{},
                                     impl_->storage_ref()};
 }
 }  // namespace experimental

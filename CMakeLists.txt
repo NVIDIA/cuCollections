@@ -16,7 +16,7 @@
 cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
 if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
-    file(DOWNLOAD https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-23.12/RAPIDS.cmake
+    file(DOWNLOAD https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-24.02/RAPIDS.cmake
          ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
 endif()
 include(${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
@@ -74,8 +74,7 @@ rapids_find_package(
 
 rapids_cpm_init()
 
-include(cmake/thirdparty/get_thrust.cmake)
-include(cmake/thirdparty/get_libcudacxx.cmake)
+include(cmake/thirdparty/get_cccl.cmake)
 
 ###################################################################################################
 # - cuco target   ---------------------------------------------------------------------------------
@@ -84,7 +83,7 @@ add_library(cuco::cuco ALIAS cuco)
 target_include_directories(cuco INTERFACE
     INTERFACE   $<BUILD_INTERFACE:${CUCO_SOURCE_DIR}/include>
                 $<INSTALL_INTERFACE:include>)
-target_link_libraries(cuco INTERFACE libcudacxx::libcudacxx CUDA::toolkit $<BUILD_INTERFACE:cuco::Thrust>)
+target_link_libraries(cuco INTERFACE CCCL::CCCL CUDA::toolkit)
 target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
 
 ###################################################################################################
@@ -128,21 +127,13 @@ structures tailored for efficient use with GPUs.
 
 ]=])
 
-set(code_string
-[=[
-if(NOT TARGET cuco::Thrust)
-thrust_create_target(cuco::Thrust FROM_OPTIONS)
-endif()
-]=])
-
 # build directory cuco-config generation
 rapids_export(
     BUILD cuco
     EXPORT_SET cuco-exports
     GLOBAL_TARGETS cuco
     NAMESPACE cuco::
-    DOCUMENTATION doc_string
-    FINAL_CODE_BLOCK code_string)
+    DOCUMENTATION doc_string)
 
 if(INSTALL_CUCO)
     install(DIRECTORY include/cuco/ DESTINATION include/cuco)

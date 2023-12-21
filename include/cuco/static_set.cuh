@@ -25,6 +25,7 @@
 #include <cuco/static_set_ref.cuh>
 #include <cuco/storage.cuh>
 #include <cuco/utility/allocator.hpp>
+#include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
 #include <thrust/functional.h>
@@ -145,6 +146,8 @@ class static_set {
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the set
    */
@@ -152,6 +155,8 @@ class static_set {
                        empty_key<Key> empty_key_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
@@ -182,6 +187,8 @@ class static_set {
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the set
    */
@@ -190,6 +197,8 @@ class static_set {
                        empty_key<Key> empty_key_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
@@ -212,6 +221,8 @@ class static_set {
    * @param erased_key_sentinel The reserved key to denote erased slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the set
    */
@@ -220,6 +231,8 @@ class static_set {
                        erased_key<Key> erased_key_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
