@@ -87,7 +87,7 @@ constexpr void dynamic_bitset<Allocator>::test(KeyIt keys_begin,
 
   auto const grid_size = cuco::detail::grid_size(num_keys);
 
-  bitset_test_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+  bitset_test_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
     ref(), keys_begin, outputs_begin, num_keys);
 }
 
@@ -104,7 +104,7 @@ constexpr void dynamic_bitset<Allocator>::rank(KeyIt keys_begin,
 
   auto const grid_size = cuco::detail::grid_size(num_keys);
 
-  bitset_rank_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+  bitset_rank_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
     ref(), keys_begin, outputs_begin, num_keys);
 }
 
@@ -122,7 +122,7 @@ constexpr void dynamic_bitset<Allocator>::select(KeyIt keys_begin,
 
   auto const grid_size = cuco::detail::grid_size(num_keys);
 
-  bitset_select_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+  bitset_select_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
     ref(), keys_begin, outputs_begin, num_keys);
 }
 
@@ -145,15 +145,19 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
   auto const bit_counts_begin = thrust::raw_pointer_cast(bit_counts.data());
 
   auto grid_size = cuco::detail::grid_size(num_words);
-  bit_counts_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+  bit_counts_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
     thrust::raw_pointer_cast(words_.data()), bit_counts_begin, num_words, flip_bits);
 
   std::size_t temp_storage_bytes = 0;
   using temp_allocator_type = typename std::allocator_traits<allocator_type>::rebind_alloc<char>;
   auto temp_allocator       = temp_allocator_type{this->allocator_};
 
-  CUCO_CUDA_TRY(cub::DeviceScan::ExclusiveSum(
-    nullptr, temp_storage_bytes, bit_counts_begin, bit_counts_begin, bit_counts_size, stream));
+  CUCO_CUDA_TRY(cub::DeviceScan::ExclusiveSum(nullptr,
+                                              temp_storage_bytes,
+                                              bit_counts_begin,
+                                              bit_counts_begin,
+                                              bit_counts_size,
+                                              stream.get()));
 
   // Allocate temporary storage
   auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
@@ -163,7 +167,7 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
                                               bit_counts_begin,
                                               bit_counts_begin,
                                               bit_counts_size,
-                                              stream));
+                                              stream.get()));
 
   temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
 
@@ -172,25 +176,30 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
   ranks.resize(num_blocks);
 
   grid_size = cuco::detail::grid_size(num_blocks);
-  encode_ranks_from_prefix_bit_counts<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
-    bit_counts_begin,
-    thrust::raw_pointer_cast(ranks.data()),
-    num_words,
-    num_blocks,
-    words_per_block);
+  encode_ranks_from_prefix_bit_counts<<<grid_size,
+                                        cuco::detail::default_block_size(),
+                                        0,
+                                        stream.get()>>>(bit_counts_begin,
+                                                        thrust::raw_pointer_cast(ranks.data()),
+                                                        num_words,
+                                                        num_blocks,
+                                                        words_per_block);
 
   // Step 3. Compute selects
   thrust::device_vector<size_type, size_allocator_type> select_markers(num_blocks,
                                                                        this->allocator_);
   auto const select_markers_begin = thrust::raw_pointer_cast(select_markers.data());
 
-  mark_blocks_with_select_entries<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+  mark_blocks_with_select_entries<<<grid_size,
+                                    cuco::detail::default_block_size(),
+                                    0,
+                                    stream.get()>>>(
     bit_counts_begin, select_markers_begin, num_blocks, words_per_block, bits_per_block);
 
   auto d_sum = reinterpret_cast<size_type*>(thrust::raw_pointer_cast(
     std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type))));
   CUCO_CUDA_TRY(cub::DeviceReduce::Sum(
-    nullptr, temp_storage_bytes, select_markers_begin, d_sum, num_blocks, stream));
+    nullptr, temp_storage_bytes, select_markers_begin, d_sum, num_blocks, stream.get()));
 
   d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
 
@@ -199,12 +208,12 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
                                        select_markers_begin,
                                        d_sum,
                                        num_blocks,
-                                       stream));
+                                       stream.get()));
 
   size_type num_selects{};
   CUCO_CUDA_TRY(
-    cudaMemcpyAsync(&num_selects, d_sum, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
-  stream.synchronize();
+    cudaMemcpyAsync(&num_selects, d_sum, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+  stream.wait();
   std::allocator_traits<temp_allocator_type>::deallocate(
     temp_allocator, thrust::device_ptr<char>{reinterpret_cast<char*>(d_sum)}, sizeof(size_type));
   temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
@@ -220,7 +229,7 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
                                            select_begin,
                                            thrust::make_discard_iterator(),
                                            num_blocks,
-                                           stream));
+                                           stream.get()));
 
   d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
 
@@ -231,7 +240,7 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
                                            select_begin,
                                            thrust::make_discard_iterator(),
                                            num_blocks,
-                                           stream));
+                                           stream.get()));
 
   temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
 }

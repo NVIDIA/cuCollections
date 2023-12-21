@@ -200,7 +200,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt first, InputIt last, cuda_stream_ref stream)
 {
   erase_async(first, last, stream);
-  stream.synchronize();
+  stream.wait();
 }
 
 template <class Key,
@@ -229,7 +229,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
   contains_async(first, last, output_begin, stream);
-  stream.synchronize();
+  stream.wait();
 }
 
 template <class Key,
@@ -263,7 +263,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   cuda_stream_ref stream) const
 {
   contains_if_async(first, last, stencil, pred, output_begin, stream);
-  stream.synchronize();
+  stream.wait();
 }
 
 template <class Key,
@@ -297,7 +297,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
   find_async(first, last, output_begin, stream);
-  stream.synchronize();
+  stream.wait();
 }
 
 template <class Key,
@@ -317,7 +317,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
   static_set_ns::detail::find<cg_size, cuco::detail::default_block_size()>
-    <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+    <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
       first, num_keys, output_begin, ref(op::find));
 }
 
