@@ -56,17 +56,24 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_erase(
 
   state.add_element_count(num_keys);
 
-  state.exec(
-    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      // static map with erase support
-      auto map = cuco::experimental::static_map{
-        size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, cuco::erased_key<Key>{-2}};
-      map.insert(pairs.begin(), pairs.end(), {launch.get_stream()});
+  state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+    // static map with erase support
+    auto map = cuco::experimental::static_map{size,
+                                              cuco::empty_key<Key>{-1},
+                                              cuco::empty_value<Value>{-1},
+                                              cuco::erased_key<Key>{-2},
+                                              {},
+                                              {},
+                                              {},
+                                              {},
+                                              {},
+                                              {launch.get_stream()}};
+    map.insert_async(pairs.begin(), pairs.end(), {launch.get_stream()});
 
-      timer.start();
-      map.erase_async(keys.begin(), keys.end(), {launch.get_stream()});
-      timer.stop();
-    });
+    timer.start();
+    map.erase_async(keys.begin(), keys.end(), {launch.get_stream()});
+    timer.stop();
+  });
 }
 
 template <typename Key, typename Value, typename Dist>
