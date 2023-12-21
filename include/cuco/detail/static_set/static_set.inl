@@ -42,7 +42,7 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   cuda_thread_scope<Scope>,
   Storage,
   Allocator const& alloc,
-  cuda_stream_ref stream)
+  stream_ref stream)
   : impl_{std::make_unique<impl_type>(
       capacity, empty_key_sentinel, empty_key_sentinel, pred, probing_scheme, alloc, stream)}
 {
@@ -64,7 +64,7 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   cuda_thread_scope<Scope>,
   Storage,
   Allocator const& alloc,
-  cuda_stream_ref stream)
+  stream_ref stream)
   : impl_{std::make_unique<impl_type>(n,
                                       desired_load_factor,
                                       empty_key_sentinel,
@@ -92,7 +92,7 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   cuda_thread_scope<Scope>,
   Storage,
   Allocator const& alloc,
-  cuda_stream_ref stream)
+  stream_ref stream)
   : impl_{std::make_unique<impl_type>(capacity,
                                       empty_key_sentinel,
                                       empty_key_sentinel,
@@ -112,7 +112,7 @@ template <class Key,
           class Allocator,
           class Storage>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear(
-  cuda_stream_ref stream) noexcept
+  stream_ref stream) noexcept
 {
   impl_->clear(stream);
 }
@@ -125,7 +125,7 @@ template <class Key,
           class Allocator,
           class Storage>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear_async(
-  cuda_stream_ref stream) noexcept
+  stream_ref stream) noexcept
 {
   impl_->clear_async(stream);
 }
@@ -140,7 +140,7 @@ template <class Key,
 template <typename InputIt>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
-  InputIt first, InputIt last, cuda_stream_ref stream)
+  InputIt first, InputIt last, stream_ref stream)
 {
   return impl_->insert(first, last, ref(op::insert), stream);
 }
@@ -154,7 +154,7 @@ template <class Key,
           class Storage>
 template <typename InputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_async(
-  InputIt first, InputIt last, cuda_stream_ref stream) noexcept
+  InputIt first, InputIt last, stream_ref stream) noexcept
 {
   impl_->insert_async(first, last, ref(op::insert), stream);
 }
@@ -169,7 +169,7 @@ template <class Key,
 template <typename InputIt, typename StencilIt, typename Predicate>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
-  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream)
+  InputIt first, InputIt last, StencilIt stencil, Predicate pred, stream_ref stream)
 {
   return impl_->insert_if(first, last, stencil, pred, ref(op::insert), stream);
 }
@@ -183,7 +183,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if_async(
-  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream) noexcept
+  InputIt first, InputIt last, StencilIt stencil, Predicate pred, stream_ref stream) noexcept
 {
   impl_->insert_if_async(first, last, stencil, pred, ref(op::insert), stream);
 }
@@ -197,7 +197,7 @@ template <class Key,
           class Storage>
 template <typename InputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::erase(
-  InputIt first, InputIt last, cuda_stream_ref stream)
+  InputIt first, InputIt last, stream_ref stream)
 {
   erase_async(first, last, stream);
   stream.wait();
@@ -212,7 +212,7 @@ template <class Key,
           class Storage>
 template <typename InputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::erase_async(
-  InputIt first, InputIt last, cuda_stream_ref stream)
+  InputIt first, InputIt last, stream_ref stream)
 {
   impl_->erase_async(first, last, ref(op::erase), stream);
 }
@@ -226,7 +226,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+  InputIt first, InputIt last, OutputIt output_begin, stream_ref stream) const
 {
   contains_async(first, last, output_begin, stream);
   stream.wait();
@@ -241,7 +241,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_async(
-  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const noexcept
+  InputIt first, InputIt last, OutputIt output_begin, stream_ref stream) const noexcept
 {
   impl_->contains_async(first, last, output_begin, ref(op::contains), stream);
 }
@@ -260,7 +260,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   StencilIt stencil,
   Predicate pred,
   OutputIt output_begin,
-  cuda_stream_ref stream) const
+  stream_ref stream) const
 {
   contains_if_async(first, last, stencil, pred, output_begin, stream);
   stream.wait();
@@ -280,7 +280,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   StencilIt stencil,
   Predicate pred,
   OutputIt output_begin,
-  cuda_stream_ref stream) const noexcept
+  stream_ref stream) const noexcept
 {
   impl_->contains_if_async(first, last, stencil, pred, output_begin, ref(op::contains), stream);
 }
@@ -294,7 +294,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find(
-  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+  InputIt first, InputIt last, OutputIt output_begin, stream_ref stream) const
 {
   find_async(first, last, output_begin, stream);
   stream.wait();
@@ -309,7 +309,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
-  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+  InputIt first, InputIt last, OutputIt output_begin, stream_ref stream) const
 {
   auto const num_keys = cuco::detail::distance(first, last);
   if (num_keys == 0) { return; }
@@ -330,7 +330,7 @@ template <class Key,
           class Storage>
 template <typename OutputIt>
 OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
-  OutputIt output_begin, cuda_stream_ref stream) const
+  OutputIt output_begin, stream_ref stream) const
 {
   auto const begin =
     thrust::make_transform_iterator(thrust::counting_iterator<size_type>{0},
@@ -349,7 +349,7 @@ template <class Key,
           class Allocator,
           class Storage>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
-  cuda_stream_ref stream)
+  stream_ref stream)
 {
   auto const is_filled =
     static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
@@ -364,7 +364,7 @@ template <class Key,
           class Allocator,
           class Storage>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
-  size_type capacity, cuda_stream_ref stream)
+  size_type capacity, stream_ref stream)
 {
   auto const is_filled =
     static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
@@ -380,7 +380,7 @@ template <class Key,
           class Allocator,
           class Storage>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
-  cuda_stream_ref stream)
+  stream_ref stream)
 {
   auto const is_filled =
     static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
@@ -395,7 +395,7 @@ template <class Key,
           class Allocator,
           class Storage>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
-  size_type capacity, cuda_stream_ref stream)
+  size_type capacity, stream_ref stream)
 {
   auto const is_filled =
     static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
@@ -412,7 +412,7 @@ template <class Key,
           class Storage>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
-  cuda_stream_ref stream) const noexcept
+  stream_ref stream) const noexcept
 {
   auto const is_filled =
     static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());

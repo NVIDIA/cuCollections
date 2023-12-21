@@ -22,7 +22,7 @@
 namespace cuco {
 namespace experimental {
 
-using cuda_stream_ref = cuda::stream_ref;
+using stream_ref = cuda::stream_ref;
 
 }  // namespace experimental
 }  // namespace cuco

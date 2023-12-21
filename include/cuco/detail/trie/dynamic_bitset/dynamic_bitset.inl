@@ -78,7 +78,7 @@ template <typename KeyIt, typename OutputIt>
 constexpr void dynamic_bitset<Allocator>::test(KeyIt keys_begin,
                                                KeyIt keys_end,
                                                OutputIt outputs_begin,
-                                               cuda_stream_ref stream) noexcept
+                                               stream_ref stream) noexcept
 
 {
   build();
@@ -96,7 +96,7 @@ template <typename KeyIt, typename OutputIt>
 constexpr void dynamic_bitset<Allocator>::rank(KeyIt keys_begin,
                                                KeyIt keys_end,
                                                OutputIt outputs_begin,
-                                               cuda_stream_ref stream) noexcept
+                                               stream_ref stream) noexcept
 {
   build();
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
@@ -113,7 +113,7 @@ template <typename KeyIt, typename OutputIt>
 constexpr void dynamic_bitset<Allocator>::select(KeyIt keys_begin,
                                                  KeyIt keys_end,
                                                  OutputIt outputs_begin,
-                                                 cuda_stream_ref stream) noexcept
+                                                 stream_ref stream) noexcept
 
 {
   build();
@@ -131,7 +131,7 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
   thrust::device_vector<rank_type, rank_allocator_type>& ranks,
   thrust::device_vector<size_type, size_allocator_type>& selects,
   bool flip_bits,
-  cuda_stream_ref stream)
+  stream_ref stream)
 {
   if (n_bits_ == 0) { return; }
 
@@ -246,7 +246,7 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
 }
 
 template <class Allocator>
-constexpr void dynamic_bitset<Allocator>::build(cuda_stream_ref stream) noexcept
+constexpr void dynamic_bitset<Allocator>::build(stream_ref stream) noexcept
 {
   if (not is_built_) {
     build_ranks_and_selects(ranks_true_, selects_true_, false, stream);   // 1 bits
