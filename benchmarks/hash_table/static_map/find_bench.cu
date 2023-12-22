@@ -53,7 +53,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_find(
     return pair_type(key, {});
   });
 
-  cuco::static_map<Key, Value> map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  auto map =
+    cuco::experimental::static_map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(pairs.begin(), pairs.end());
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);
@@ -62,8 +63,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_find(
 
   state.add_element_count(num_keys);
 
-  state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    map.find(keys.begin(), keys.end(), result.begin(), {}, {}, launch.get_stream());
+  state.exec([&](nvbench::launch& launch) {
+    map.find_async(keys.begin(), keys.end(), result.begin(), {launch.get_stream()});
   });
 }
 
