@@ -21,8 +21,7 @@
 
 #include <cooperative_groups.h>
 
-namespace cuco {
-namespace detail {
+namespace cuco::legacy::detail {
 namespace cg = cooperative_groups;
 
 /**
@@ -578,5 +577,4 @@ __global__ void contains(
   }
 }
 
-}  // namespace detail
-}  // namespace cuco
+}  // namespace cuco::legacy::detail
