@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2023, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 
 #include <cuco/detail/probe_sequence_impl.cuh>
 
-namespace cuco {
+namespace cuco::legacy {
 
 /**
  * @brief Public linear probing scheme class.
@@ -73,4 +73,4 @@ class double_hashing : public detail::probe_sequence_base<CGSize> {
   using impl = detail::double_hashing_impl<Key, Value, Scope, vector_width(), CGSize, Hash1, Hash2>;
 };
 
-}  // namespace cuco
+}  // namespace cuco::legacy

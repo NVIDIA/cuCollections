@@ -102,7 +102,7 @@ TEMPLATE_TEST_CASE("Heterogeneous lookup",
                         Value,
                         cuda::thread_scope_device,
                         cuco::cuda_allocator<char>,
-                        cuco::linear_probing<1, custom_hasher>>
+                        cuco::legacy::linear_probing<1, custom_hasher>>
     map{capacity, cuco::empty_key<Key>{sentinel_key}, cuco::empty_value<Value>{sentinel_value}};
 
   auto insert_pairs = thrust::make_transform_iterator(
