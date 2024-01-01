@@ -116,7 +116,7 @@ class static_set {
                                        storage_ref_type,
                                        Operators...>;  ///< Non-owning container ref type
 
-  static_set(static_set const&) = delete;
+  static_set(static_set const&)            = delete;
   static_set& operator=(static_set const&) = delete;
 
   static_set(static_set&&) = default;  ///< Move constructor

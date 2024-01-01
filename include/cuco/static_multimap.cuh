@@ -165,7 +165,7 @@ class static_multimap {
   using probe_sequence_type =
     detail::probe_sequence<ProbeSequence, Key, Value, Scope>;  ///< Probe scheme type
 
-  static_multimap(static_multimap const&) = delete;
+  static_multimap(static_multimap const&)            = delete;
   static_multimap& operator=(static_multimap const&) = delete;
 
   static_multimap(static_multimap&&) = default;  ///< Move constructor

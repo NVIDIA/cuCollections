@@ -115,7 +115,7 @@ class dynamic_map {
   dynamic_map(dynamic_map&&)      = delete;
 
   dynamic_map& operator=(dynamic_map const&) = delete;
-  dynamic_map& operator=(dynamic_map&&) = delete;
+  dynamic_map& operator=(dynamic_map&&)      = delete;
 
   /**
    * @brief Constructs a dynamically-sized map with the specified initial capacity, growth factor
