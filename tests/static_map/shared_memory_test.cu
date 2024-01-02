@@ -123,7 +123,9 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
-    auto constexpr num_windows = cuco::experimental::make_window_extent<ref_type>(extent_type{});
+    // maybe_unused to silence false positive "variable set but not used" warning
+    [[maybe_unused]] auto constexpr num_windows =
+      cuco::experimental::make_window_extent<ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_windows.value(), ref_type>
       <<<number_of_maps, 64>>>(d_refs.data().get(),
@@ -152,7 +154,9 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
-    auto constexpr num_windows = cuco::experimental::make_window_extent<ref_type>(extent_type{});
+    // maybe_unused to silence false positive "variable set but not used" warning
+    [[maybe_unused]] auto constexpr num_windows =
+      cuco::experimental::make_window_extent<ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_windows.value(), ref_type>
       <<<number_of_maps, 64>>>(d_refs.data().get(),
@@ -211,9 +215,11 @@ __global__ void shared_memory_hash_table_kernel(bool* key_found)
 
 TEST_CASE("static map shared memory slots.", "")
 {
-  constexpr std::size_t N    = 256;
-  auto constexpr num_windows = cuco::experimental::make_window_extent<cg_size, window_size>(
-    cuco::experimental::extent<std::size_t, N>{});
+  constexpr std::size_t N = 256;
+  // maybe_unused to silence false positive "variable set but not used" warning
+  [[maybe_unused]] auto constexpr num_windows =
+    cuco::experimental::make_window_extent<cg_size, window_size>(
+      cuco::experimental::extent<std::size_t, N>{});
 
   thrust::device_vector<bool> key_found(N, false);
   shared_memory_hash_table_kernel<num_windows.value()><<<8, 32>>>(key_found.data().get());
