@@ -13,6 +13,9 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 
 `cuCollections` is still under heavy development. Users should expect breaking changes and refactoring to be common.
 
+### Major Updates
+__01/02/2024__ The legacy `static_map` is moved to `cuco::legacy` namespace.
+
 ## Getting cuCollections
 
 `cuCollections` is header only and can be incorporated manually into your project by downloading the headers and placing them into your source tree.
