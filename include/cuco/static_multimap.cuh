@@ -122,15 +122,15 @@ namespace cuco {
  * @tparam Value Type of the mapped values. Requires `cuco::is_bitwise_comparable_v<Value>`
  * @tparam Scope The scope in which multimap operations will be performed by
  * individual threads
- * @tparam ProbeSequence Probe sequence chosen between `cuco::detail::linear_probing`
- * and `cuco::detail::double_hashing`. (see `detail/probe_sequences.cuh`)
+ * @tparam ProbeSequence Probe sequence chosen between `cuco::legacy::linear_probing`
+ * and `cuco::legacy::double_hashing`. (see `probe_sequences.cuh`)
  * @tparam Allocator Type of allocator used for device storage
  */
 template <typename Key,
           typename Value,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           typename Allocator       = cuco::cuda_allocator<char>,
-          class ProbeSequence      = cuco::double_hashing<8, cuco::default_hash_function<Key>>>
+          class ProbeSequence = cuco::legacy::double_hashing<8, cuco::default_hash_function<Key>>>
 class static_multimap {
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
@@ -142,10 +142,10 @@ class static_multimap {
     "Value type must have unique object representations or have been explicitly declared as safe "
     "for bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Value>.");
 
-  static_assert(
-    std::is_base_of_v<cuco::detail::probe_sequence_base<ProbeSequence::cg_size>, ProbeSequence>,
-    "ProbeSequence must be a specialization of either cuco::double_hashing or "
-    "cuco::linear_probing.");
+  static_assert(std::is_base_of_v<cuco::legacy::detail::probe_sequence_base<ProbeSequence::cg_size>,
+                                  ProbeSequence>,
+                "ProbeSequence must be a specialization of either cuco::legacy::double_hashing or "
+                "cuco::legacy::linear_probing.");
 
  public:
   using value_type         = cuco::pair<Key, Value>;            ///< Type of key/value pairs
@@ -163,7 +163,7 @@ class static_multimap {
   using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
     atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
   using probe_sequence_type =
-    detail::probe_sequence<ProbeSequence, Key, Value, Scope>;  ///< Probe scheme type
+    cuco::legacy::detail::probe_sequence<ProbeSequence, Key, Value, Scope>;  ///< Probe scheme type
 
   static_multimap(static_multimap const&) = delete;
   static_multimap& operator=(static_multimap const&) = delete;
