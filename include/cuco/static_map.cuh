@@ -747,6 +747,8 @@ class static_map {
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;
 
+namespace legacy {
+
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs with unique keys.
@@ -2127,6 +2129,7 @@ class static_map {
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
 };
+}  // namespace legacy
 }  // namespace cuco
 
 #include <cuco/detail/static_map.inl>

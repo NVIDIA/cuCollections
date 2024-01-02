@@ -31,7 +31,7 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
     max_load_factor_(0.60),
     alloc_{alloc}
 {
-  submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
+  submaps_.push_back(std::make_unique<cuco::legacy::static_map<Key, Value, Scope, Allocator>>(
     initial_capacity,
     empty_key<Key>{empty_key_sentinel},
     empty_value<Value>{empty_value_sentinel},
@@ -62,7 +62,7 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
                "The empty key sentinel and erased key sentinel cannot be the same value.",
                std::runtime_error);
 
-  submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
+  submaps_.push_back(std::make_unique<cuco::legacy::static_map<Key, Value, Scope, Allocator>>(
     initial_capacity,
     empty_key<Key>{empty_key_sentinel_},
     empty_value<Value>{empty_value_sentinel_},
@@ -90,7 +90,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n, cudaStrea
     else {
       submap_capacity = capacity_;
       if (erased_key_sentinel_ != empty_key_sentinel_) {
-        submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
+        submaps_.push_back(std::make_unique<cuco::legacy::static_map<Key, Value, Scope, Allocator>>(
           submap_capacity,
           empty_key<Key>{empty_key_sentinel_},
           empty_value<Value>{empty_value_sentinel_},
@@ -98,7 +98,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n, cudaStrea
           alloc_,
           stream));
       } else {
-        submaps_.push_back(std::make_unique<static_map<Key, Value, Scope, Allocator>>(
+        submaps_.push_back(std::make_unique<cuco::legacy::static_map<Key, Value, Scope, Allocator>>(
           submap_capacity,
           empty_key<Key>{empty_key_sentinel_},
           empty_value<Value>{empty_value_sentinel_},
