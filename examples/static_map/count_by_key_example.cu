@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -130,17 +130,16 @@ int main(void)
   std::size_t const num_elements = num_keys / key_duplicates;
 
   // Constructs a map with number of elements and desired load factor.
-  auto map = cuco::experimental::static_map{
-    num_elements,
-    load_factor,
-    cuco::empty_key{empty_key_sentinel},
-    cuco::empty_value{empty_value_sentinel},
-    thrust::equal_to<Key>{},
-    cuco::experimental::linear_probing<1, cuco::default_hash_function<Key>>{}};
+  auto map = cuco::static_map{num_elements,
+                              load_factor,
+                              cuco::empty_key{empty_key_sentinel},
+                              cuco::empty_value{empty_value_sentinel},
+                              thrust::equal_to<Key>{},
+                              cuco::linear_probing<1, cuco::default_hash_function<Key>>{}};
 
   // Get a non-owning, mutable reference of the map that allows `insert_and_find` operation to pass
   // by value into the kernel
-  auto map_ref = map.ref(cuco::experimental::op::insert_and_find);
+  auto map_ref = map.ref(cuco::op::insert_and_find);
 
   auto constexpr block_size = 256;
   auto const grid_size      = (num_keys + block_size - 1) / block_size;
