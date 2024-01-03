@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <cooperative_groups.h>
 
 namespace cuco {
-namespace experimental {
 /**
  * @brief Public linear probing scheme class.
  *
@@ -147,7 +146,6 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   Hash2 hash2_;
 };
 
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/probing_scheme_impl.inl>

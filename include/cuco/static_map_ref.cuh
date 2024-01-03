@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@
 #include <cuda/std/atomic>
 
 namespace cuco {
-namespace experimental {
 
 /**
  * @brief Device non-owning "ref" type that can be used in device code to perform arbitrary
@@ -258,7 +257,6 @@ class static_map_ref
   friend class static_map_ref;
 };
 
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/static_map/static_map_ref.inl>

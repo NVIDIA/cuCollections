@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@
 #include <memory>
 
 namespace cuco {
-namespace experimental {
 
 template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
 constexpr aow_storage<T, WindowSize, Extent, Allocator>::aow_storage(
@@ -201,5 +200,4 @@ aow_storage_ref<T, WindowSize, Extent>::operator[](size_type index) const noexce
     __builtin_assume_aligned(this->data() + index, sizeof(value_type) * window_size));
 }
 
-}  // namespace experimental
 }  // namespace cuco

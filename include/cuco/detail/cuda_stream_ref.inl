@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <cuda_runtime_api.h>
 
 namespace cuco {
-namespace experimental {
 
 [[nodiscard]] inline bool cuda_stream_ref::is_per_thread_default() const noexcept
 {
@@ -46,5 +45,4 @@ inline void cuda_stream_ref::synchronize() const
   CUCO_CUDA_TRY(cudaStreamSynchronize(this->stream_));
 }
 
-}  // namespace experimental
 }  // namespace cuco

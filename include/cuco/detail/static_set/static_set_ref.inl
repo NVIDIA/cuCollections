@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@
 #include <cooperative_groups.h>
 
 namespace cuco {
-namespace experimental {
 
 template <typename Key,
           cuda::thread_scope Scope,
@@ -556,5 +555,4 @@ class operator_impl<op::find_tag,
 };
 
 }  // namespace detail
-}  // namespace experimental
 }  // namespace cuco

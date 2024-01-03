@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 #include <cstdint>
 
 namespace cuco {
-namespace experimental {
 static constexpr std::size_t dynamic_extent = static_cast<std::size_t>(-1);
 
 /**
@@ -174,7 +173,6 @@ template <int32_t CGSize, int32_t WindowSize, typename SizeType, std::size_t N>
 template <int32_t CGSize, int32_t WindowSize, typename SizeType>
 [[nodiscard]] auto constexpr make_window_extent(SizeType size);
 
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/extent/extent.inl>

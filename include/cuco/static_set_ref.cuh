@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@
 #include <memory>
 
 namespace cuco {
-namespace experimental {
 
 /**
  * @brief Device non-owning "ref" type that can be used in device code to perform arbitrary
@@ -235,7 +234,6 @@ class static_set_ref
   friend class static_set_ref;
 };
 
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/static_set/static_set_ref.inl>

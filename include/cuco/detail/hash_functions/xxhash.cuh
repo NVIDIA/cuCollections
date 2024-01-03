@@ -90,7 +90,7 @@ struct XXHash_32 {
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
     return compute_hash(reinterpret_cast<std::byte const*>(&key),
-                        cuco::experimental::extent<std::size_t, sizeof(Key)>{});
+                        cuco::extent<std::size_t, sizeof(Key)>{});
   }
 
   /**
@@ -252,7 +252,7 @@ struct XXHash_64 {
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
     return compute_hash(reinterpret_cast<std::byte const*>(&key),
-                        cuco::experimental::extent<std::size_t, sizeof(Key)>{});
+                        cuco::extent<std::size_t, sizeof(Key)>{});
   }
 
   /**

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@
 #include <type_traits>
 
 namespace cuco {
-namespace experimental {
 
 template <typename SizeType, std::size_t N>
 struct window_extent {
@@ -129,5 +128,4 @@ template <typename T>
 inline constexpr bool is_window_extent_v = is_window_extent<T>::value;
 
 }  // namespace detail
-}  // namespace experimental
 }  // namespace cuco
