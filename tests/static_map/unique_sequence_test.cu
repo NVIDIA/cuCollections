@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -172,22 +172,20 @@ TEMPLATE_TEST_CASE_SIG(
                                                   : 412;  // 103 x 2 x 2
 
   // XXX: testing static extent is intended, DO NOT CHANGE
-  using extent_type = cuco::experimental::extent<size_type, num_keys>;
-  using probe =
-    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
-                       cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-                       cuco::experimental::double_hashing<CGSize,
-                                                          cuco::murmurhash3_32<Key>,
-                                                          cuco::murmurhash3_32<Key>>>;
+  using extent_type = cuco::extent<size_type, num_keys>;
+  using probe       = std::conditional_t<
+    Probe == cuco::test::probe_sequence::linear_probing,
+    cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+    cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
-  auto map = cuco::experimental::static_map<Key,
-                                            Value,
-                                            extent_type,
-                                            cuda::thread_scope_device,
-                                            thrust::equal_to<Key>,
-                                            probe,
-                                            cuco::cuda_allocator<std::byte>,
-                                            cuco::experimental::storage<2>>{
+  auto map = cuco::static_map<Key,
+                              Value,
+                              extent_type,
+                              cuda::thread_scope_device,
+                              thrust::equal_to<Key>,
+                              probe,
+                              cuco::cuda_allocator<std::byte>,
+                              cuco::storage<2>>{
     extent_type{}, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   REQUIRE(map.capacity() == gold_capacity);

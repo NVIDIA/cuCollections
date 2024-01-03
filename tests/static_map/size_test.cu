@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <cuco/static_set.cuh>
+#include <cuco/static_map.cuh>
 
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
@@ -22,22 +22,24 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <cuda/functional>
+
 TEST_CASE("Size computation", "")
 {
   constexpr std::size_t num_keys{400};
 
-  cuco::static_set<int> set{cuco::extent<std::size_t>{400}, cuco::empty_key{-1}};
+  cuco::static_map<int> map{
+    cuco::extent<std::size_t>{400}, cuco::empty_key{-1}, cuco::empty_value{-1}};
 
-  thrust::device_vector<int> d_keys(num_keys);
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<int>(0),
+    cuda::proclaim_return_type<cuco::pair<int, int>>(
+      [] __device__(auto i) { return cuco::pair<int, int>(i, i); }));
 
-  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
+  auto const num_successes = map.insert(pairs_begin, pairs_begin + num_keys);
 
-  auto const num_successes = set.insert(d_keys.begin(), d_keys.end());
+  auto const size = map.size();
 
-  REQUIRE(set.size() == num_keys);
+  REQUIRE(size == num_keys);
   REQUIRE(num_successes == num_keys);
-
-  set.clear();
-
-  REQUIRE(set.size() == 0);
 }

@@ -17,40 +17,35 @@
 #include <utils.hpp>
 
 #include <cuco/extent.cuh>
+#include <cuco/hash_functions.cuh>
+#include <cuco/probing_scheme.cuh>
 
 #include <catch2/catch_template_test_macros.hpp>
 
 TEMPLATE_TEST_CASE_SIG(
-  "Extent tests", "", ((typename SizeType), SizeType), (int32_t), (int64_t), (std::size_t))
+  "Probing scheme tests", "", ((typename SizeType), SizeType), (int32_t), (int64_t), (std::size_t))
 {
   SizeType constexpr num            = 1234;
   SizeType constexpr gold_reference = 314;  // 157 x 2
   auto constexpr cg_size            = 2;
   auto constexpr window_size        = 4;
 
-  SECTION("Static extent must be evaluated at compile time.")
-  {
-    auto const size = cuco::extent<SizeType, num>{};
-    STATIC_REQUIRE(num == size);
-  }
-
-  SECTION("Dynamic extent is evaluated at run time.")
-  {
-    auto const size = cuco::extent(num);
-    REQUIRE(size == num);
-  }
+  auto probe =
+    cuco::double_hashing<cg_size, cuco::murmurhash3_32<SizeType>, cuco::murmurhash3_32<SizeType>>(
+      cuco::murmurhash3_32<SizeType>{}, cuco::murmurhash3_32<SizeType>{});
 
   SECTION("Compute static valid extent at compile time.")
   {
     auto constexpr size = cuco::extent<SizeType, num>{};
-    auto constexpr res  = cuco::make_window_extent<cg_size, window_size>(size);
-    STATIC_REQUIRE(gold_reference == res.value());
+
+    auto constexpr res = probe.template valid_capacity<window_size>(size);
+    STATIC_REQUIRE(gold_reference == res);
   }
 
   SECTION("Compute dynamic valid extent at run time.")
   {
     auto const size = cuco::extent<SizeType>{num};
-    auto const res  = cuco::make_window_extent<cg_size, window_size>(size);
-    REQUIRE(gold_reference == res.value());
+    auto const res  = probe.template valid_capacity<window_size>(size);
+    REQUIRE(gold_reference == res);
   }
 }

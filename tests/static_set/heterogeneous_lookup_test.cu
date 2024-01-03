@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -89,7 +89,7 @@ TEMPLATE_TEST_CASE_SIG(
   using Key        = T;
   using InsertKey  = key_pair<T>;
   using ProbeKey   = key_triplet<T>;
-  using probe_type = cuco::experimental::double_hashing<CGSize, custom_hasher, custom_hasher>;
+  using probe_type = cuco::double_hashing<CGSize, custom_hasher, custom_hasher>;
 
   auto const sentinel_key = Key{-1};
 
@@ -97,8 +97,8 @@ TEMPLATE_TEST_CASE_SIG(
   constexpr std::size_t capacity = num * 2;
   auto const probe               = probe_type{custom_hasher{}, custom_hasher{}};
 
-  auto my_set = cuco::experimental::static_set{
-    capacity, cuco::empty_key<Key>{sentinel_key}, custom_key_equal{}, probe};
+  auto my_set =
+    cuco::static_set{capacity, cuco::empty_key<Key>{sentinel_key}, custom_key_equal{}, probe};
 
   auto insert_keys = thrust::make_transform_iterator(
     thrust::counting_iterator<int>(0),
