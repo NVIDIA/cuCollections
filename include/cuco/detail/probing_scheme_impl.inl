@@ -155,5 +155,4 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
       cg_size),
     upper_bound};  // TODO use fast_int operator
 }
-}  // namespace detail
 }  // namespace cuco
