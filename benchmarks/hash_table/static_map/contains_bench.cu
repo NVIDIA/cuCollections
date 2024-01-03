@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,8 +53,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_contains(
     return pair_type(key, {});
   });
 
-  auto map =
-    cuco::experimental::static_map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  auto map = cuco::static_map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(pairs.begin(), pairs.end());
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);
