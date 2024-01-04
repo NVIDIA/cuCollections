@@ -191,7 +191,7 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
 TEST_CASE("static set shared memory slots.", "")
 {
   constexpr std::size_t N = 256;
-  auto constexpr num_windows =
+  [[maybe_unused]] auto constexpr num_windows =
     cuco::make_window_extent<cg_size, window_size>(cuco::extent<std::size_t, N>{});
 
   thrust::device_vector<bool> key_found(N, false);
