@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -191,9 +191,10 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
 
 TEST_CASE("static set shared memory slots.", "")
 {
-  constexpr std::size_t N    = 256;
-  auto constexpr num_windows = cuco::experimental::make_window_extent<cg_size, window_size>(
-    cuco::experimental::extent<std::size_t, N>{});
+  constexpr std::size_t N = 256;
+  [[maybe_unused]] auto constexpr num_windows =
+    cuco::experimental::make_window_extent<cg_size, window_size>(
+      cuco::experimental::extent<std::size_t, N>{});
 
   thrust::device_vector<bool> key_found(N, false);
   shared_memory_hash_set_kernel<num_windows.value()><<<8, 32>>>(key_found.data().get());
