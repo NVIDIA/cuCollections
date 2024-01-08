@@ -16,9 +16,9 @@
 
 #pragma once
 
-#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/storage/aow_storage_base.cuh>
 #include <cuco/extent.cuh>
+#include <cuco/stream_ref.hpp>
 #include <cuco/utility/allocator.hpp>
 
 #include <cuda/std/array>
@@ -123,7 +123,7 @@ class aow_storage : public detail::aow_storage_base<T, WindowSize, Extent> {
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
    */
-  void initialize(value_type key, cuda_stream_ref stream = {}) noexcept;
+  void initialize(value_type key, stream_ref stream = {}) noexcept;
 
   /**
    * @brief Asynchronously initializes each slot in the AoW storage to contain `key`.
@@ -131,7 +131,7 @@ class aow_storage : public detail::aow_storage_base<T, WindowSize, Extent> {
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
    */
-  void initialize_async(value_type key, cuda_stream_ref stream = {}) noexcept;
+  void initialize_async(value_type key, stream_ref stream = {}) noexcept;
 
  private:
   allocator_type allocator_;            ///< Allocator used to (de)allocate windows
