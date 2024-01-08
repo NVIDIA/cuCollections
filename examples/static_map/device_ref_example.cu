@@ -143,7 +143,7 @@ int main(void)
 
   // Get a non-owning, mutable reference of the map that allows inserts to pass by value into the
   // kernel
-  auto insert_ref = map.ref(cuco::op::insert);
+  auto insert_ref = map.ref(cuco::insert);
 
   // Predicate will only insert even keys
   auto is_even = [] __device__(auto key) { return (key % 2) == 0; };
@@ -164,7 +164,7 @@ int main(void)
 
   // Get a non-owning reference of the map that allows find operations to pass by value into the
   // kernel
-  auto find_ref = map.ref(cuco::op::find);
+  auto find_ref = map.ref(cuco::find);
 
   increment_values<<<grid_size, block_size>>>(find_ref, insert_keys.begin(), num_keys);
 

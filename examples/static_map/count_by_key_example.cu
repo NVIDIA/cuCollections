@@ -139,7 +139,7 @@ int main(void)
 
   // Get a non-owning, mutable reference of the map that allows `insert_and_find` operation to pass
   // by value into the kernel
-  auto map_ref = map.ref(cuco::op::insert_and_find);
+  auto map_ref = map.ref(cuco::insert_and_find);
 
   auto constexpr block_size = 256;
   auto const grid_size      = (num_keys + block_size - 1) / block_size;
