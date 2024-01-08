@@ -16,6 +16,8 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 ### Major Updates
 __01/02/2024__ The legacy `static_map` is moved to `cuco::legacy` namespace.
 
+__01/08/2024__ The `experimental` namespace is deprecated.
+
 ## Getting cuCollections
 
 `cuCollections` is header only and can be incorporated manually into your project by downloading the headers and placing them into your source tree.
@@ -200,18 +202,19 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 `cuco::static_set` is a fixed-size container that stores unique elements in no particular order. See the Doxygen documentation in `static_set.cuh` for more detailed information.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/Pzf6vabz1))
-- [Device-ref APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/sfG3qKqGv))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/fczxbM1h6))
+- [Device-ref APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/aKT1sbcns))
+- [One single storage for multiple sets](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_subsets_example.cu) (see [live example in godbolt](https://godbolt.org/z/rYbfxhf73))
 
 ### `static_map`
 
 `cuco::static_map` is a fixed-size hash table using open addressing with linear probing. See the Doxygen documentation in `static_map.cuh` for more detailed information.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/7jK9od6bx))
-- [Device-ref APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/W338MePdW))
-- [Custom data types, key equality operators and hash functions](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/custom_type_example.cu) (see [live example in godbolt](https://godbolt.org/z/YYb1WE9od))
-- [Key histogram](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/count_by_key_example.cu) (see [live example in godbolt](https://godbolt.org/z/6rz7MYoMe))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/n3x8s19hP))
+- [Device-ref APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/K4oWe46PT))
+- [Custom data types, key equality operators and hash functions](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/custom_type_example.cu) (see [live example in godbolt](https://godbolt.org/z/nbb8Psd8z))
+- [Key histogram](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/count_by_key_example.cu) (see [live example in godbolt](https://godbolt.org/z/P8TW5194T))
 
 ### `static_multimap`
 

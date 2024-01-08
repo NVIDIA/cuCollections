@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -66,11 +66,11 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr std::size_t num_keys{1'200'000'000};
 
-  using extent_type = cuco::experimental::extent<std::size_t>;
-  using probe       = cuco::experimental::double_hashing<CGSize, cuco::default_hash_function<Key>>;
+  using extent_type = cuco::extent<std::size_t>;
+  using probe       = cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>;
 
   try {
-    auto set = cuco::experimental::static_set{num_keys * 2, cuco::empty_key<Key>{-1}, {}, probe{}};
+    auto set = cuco::static_set{num_keys * 2, cuco::empty_key<Key>{-1}, {}, probe{}};
 
     thrust::device_vector<bool> d_contained(num_keys);
     test_unique_sequence(set, d_contained.data().get(), num_keys);

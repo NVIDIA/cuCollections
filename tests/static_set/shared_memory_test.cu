@@ -45,8 +45,8 @@ __global__ void shared_memory_test_kernel(Ref* sets,
   __shared__ typename Ref::window_type sm_buffer[NumWindows];
 
   auto g          = cuco::test::cg::this_thread_block();
-  auto insert_ref = sets[set_id].make_copy(g, sm_buffer, cuco::experimental::thread_scope_block);
-  auto find_ref   = std::move(insert_ref).with(cuco::experimental::op::find);
+  auto insert_ref = sets[set_id].make_copy(g, sm_buffer, cuco::thread_scope_block);
+  auto find_ref   = std::move(insert_ref).with(cuco::op::find);
 
   for (int i = g.thread_rank(); i < number_of_elements; i += g.size()) {
     auto found_it = find_ref.find(insterted_keys[offset + i]);
@@ -71,13 +71,12 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static set", "", ((typename Key), Key), (i
   constexpr std::size_t elements_in_set = 500;
   constexpr std::size_t set_capacity    = 2 * elements_in_set;
 
-  using extent_type = cuco::experimental::extent<std::size_t, set_capacity>;
-  using set_type    = cuco::experimental::static_set<
-    Key,
-    extent_type,
-    cuda::thread_scope_device,
-    thrust::equal_to<Key>,
-    cuco::experimental::linear_probing<1, cuco::default_hash_function<Key>>>;
+  using extent_type = cuco::extent<std::size_t, set_capacity>;
+  using set_type    = cuco::static_set<Key,
+                                    extent_type,
+                                    cuda::thread_scope_device,
+                                    thrust::equal_to<Key>,
+                                    cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
 
   // one array for all sets, first elements_in_set element belong to set 0, second to set 1 and so
   // on
@@ -95,7 +94,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static set", "", ((typename Key), Key), (i
   thrust::device_vector<bool> d_keys_exist(number_of_sets * elements_in_set);
   thrust::device_vector<bool> d_keys_correct(number_of_sets * elements_in_set);
 
-  using ref_type = typename set_type::ref_type<cuco::experimental::op::insert_tag>;
+  using ref_type = typename set_type::ref_type<cuco::op::insert_tag>;
 
   SECTION("Keys are all found after insertion.")
   {
@@ -105,11 +104,11 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static set", "", ((typename Key), Key), (i
 
       set_type* set = sets[set_id].get();
       set->insert(d_keys.begin() + offset, d_keys.begin() + offset + elements_in_set);
-      h_refs.push_back(set->ref(cuco::experimental::op::insert));
+      h_refs.push_back(set->ref(cuco::op::insert));
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
-    auto constexpr num_windows = cuco::experimental::make_window_extent<ref_type>(extent_type{});
+    auto constexpr num_windows = cuco::make_window_extent<ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_windows.value(), ref_type>
       <<<number_of_sets, 64>>>(d_refs.data().get(),
@@ -133,11 +132,11 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static set", "", ((typename Key), Key), (i
   {
     std::vector<ref_type> h_refs;
     for (std::size_t set_id = 0; set_id < number_of_sets; ++set_id) {
-      h_refs.push_back(sets[set_id].get()->ref(cuco::experimental::op::insert));
+      h_refs.push_back(sets[set_id].get()->ref(cuco::op::insert));
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
-    auto constexpr num_windows = cuco::experimental::make_window_extent<ref_type>(extent_type{});
+    auto constexpr num_windows = cuco::make_window_extent<ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_windows.value(), ref_type>
       <<<number_of_sets, 64>>>(d_refs.data().get(),
@@ -159,17 +158,17 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
   using Key       = int32_t;
   using slot_type = Key;
 
-  __shared__ cuco::experimental::window<slot_type, window_size> set[NumWindows];
+  __shared__ cuco::window<slot_type, window_size> set[NumWindows];
 
-  using extent_type      = cuco::experimental::extent<std::size_t, NumWindows>;
-  using storage_ref_type = cuco::experimental::aow_storage_ref<slot_type, window_size, extent_type>;
+  using extent_type      = cuco::extent<std::size_t, NumWindows>;
+  using storage_ref_type = cuco::aow_storage_ref<slot_type, window_size, extent_type>;
 
-  auto raw_ref = cuco::experimental::static_set_ref{
-    cuco::empty_key<Key>{-1},
-    thrust::equal_to<Key>{},
-    cuco::experimental::linear_probing<cg_size, cuco::default_hash_function<Key>>{},
-    cuco::experimental::thread_scope_block,
-    storage_ref_type{extent_type{}, set}};
+  auto raw_ref =
+    cuco::static_set_ref{cuco::empty_key<Key>{-1},
+                         thrust::equal_to<Key>{},
+                         cuco::linear_probing<cg_size, cuco::default_hash_function<Key>>{},
+                         cuco::thread_scope_block,
+                         storage_ref_type{extent_type{}, set}};
 
   auto const block = cooperative_groups::this_thread_block();
   raw_ref.initialize(block);
@@ -178,11 +177,11 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
   auto const rank  = block.thread_rank();
 
   // insert {thread_rank, thread_rank} for each thread in thread-block
-  auto insert_ref = std::move(raw_ref).with(cuco::experimental::op::insert);
+  auto insert_ref = std::move(raw_ref).with(cuco::op::insert);
   insert_ref.insert(rank);
   block.sync();
 
-  auto find_ref           = std::move(insert_ref).with(cuco::experimental::op::find);
+  auto find_ref           = std::move(insert_ref).with(cuco::op::find);
   auto const retrieved_it = find_ref.find(rank);
   block.sync();
 
@@ -193,8 +192,7 @@ TEST_CASE("static set shared memory slots.", "")
 {
   constexpr std::size_t N = 256;
   [[maybe_unused]] auto constexpr num_windows =
-    cuco::experimental::make_window_extent<cg_size, window_size>(
-      cuco::experimental::extent<std::size_t, N>{});
+    cuco::make_window_extent<cg_size, window_size>(cuco::extent<std::size_t, N>{});
 
   thrust::device_vector<bool> key_found(N, false);
   shared_memory_hash_set_kernel<num_windows.value()><<<8, 32>>>(key_found.data().get());

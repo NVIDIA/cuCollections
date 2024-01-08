@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,7 +49,7 @@ __inline__ void test_insert_and_find(Set& set, std::size_t num_keys)
     }
   }();
 
-  auto ref = set.ref(cuco::experimental::op::insert_and_find);
+  auto ref = set.ref(cuco::op::insert_and_find);
 
   REQUIRE(cuco::test::all_of(keys_begin, keys_end, [ref] __device__(Key key) mutable {
     auto [iter, inserted] = [&]() {
@@ -96,13 +96,11 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr std::size_t num_keys{400};
 
-  using probe = std::conditional_t<
-    Probe == cuco::test::probe_sequence::linear_probing,
-    cuco::experimental::linear_probing<CGSize, cuco::default_hash_function<Key>>,
-    cuco::experimental::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
+                                   cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
-  auto set = cuco::experimental::static_set{
-    num_keys, cuco::empty_key<Key>{-1}, {}, {}, {}, cuco::experimental::storage<2>{}};
+  auto set = cuco::static_set{num_keys, cuco::empty_key<Key>{-1}, {}, {}, {}, cuco::storage<2>{}};
 
   test_insert_and_find(set, num_keys);
 }

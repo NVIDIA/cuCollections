@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,6 @@
 #include <type_traits>
 
 namespace cuco {
-namespace experimental {
 /**
  * @brief A GPU-accelerated, unordered, associative container of unique keys.
  *
@@ -81,13 +80,13 @@ namespace experimental {
  * @tparam Storage Slot window storage type
  */
 template <class Key,
-          class Extent             = cuco::experimental::extent<std::size_t>,
+          class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
-          class ProbingScheme      = experimental::double_hashing<4,  // CG size
-                                                             cuco::default_hash_function<Key>>,
+          class ProbingScheme      = cuco::double_hashing<4,  // CG size
+                                                     cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<Key>,
-          class Storage            = cuco::experimental::storage<1>>
+          class Storage            = cuco::storage<1>>
 class static_set {
   using impl_type = detail::
     open_addressing_impl<Key, Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>;
@@ -108,13 +107,12 @@ class static_set {
   using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
 
   template <typename... Operators>
-  using ref_type =
-    cuco::experimental::static_set_ref<key_type,
-                                       thread_scope,
-                                       key_equal,
-                                       probing_scheme_type,
-                                       storage_ref_type,
-                                       Operators...>;  ///< Non-owning container ref type
+  using ref_type = cuco::static_set_ref<key_type,
+                                        thread_scope,
+                                        key_equal,
+                                        probing_scheme_type,
+                                        storage_ref_type,
+                                        Operators...>;  ///< Non-owning container ref type
 
   static_set(static_set const&) = delete;
   static_set& operator=(static_set const&) = delete;
@@ -656,7 +654,6 @@ class static_set {
  private:
   std::unique_ptr<impl_type> impl_;
 };
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/static_set/static_set.inl>

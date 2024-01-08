@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2022, Jonas Hahnfeld, CERN.
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -101,28 +101,25 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  using probe =
-    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
-                       cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-                       cuco::experimental::double_hashing<CGSize,
-                                                          cuco::murmurhash3_32<Key>,
-                                                          cuco::murmurhash3_32<Key>>>;
+  using probe = std::conditional_t<
+    Probe == cuco::test::probe_sequence::linear_probing,
+    cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+    cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
-  auto map = cuco::experimental::static_map<Key,
-                                            Value,
-                                            cuco::experimental::extent<std::size_t>,
-                                            cuda::thread_scope_device,
-                                            thrust::equal_to<Key>,
-                                            probe,
-                                            cuco::cuda_allocator<std::byte>,
-                                            cuco::experimental::storage<2>>{
+  auto map = cuco::static_map<Key,
+                              Value,
+                              cuco::extent<std::size_t>,
+                              cuda::thread_scope_device,
+                              thrust::equal_to<Key>,
+                              probe,
+                              cuco::cuda_allocator<std::byte>,
+                              cuco::storage<2>>{
     10 * Iters, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   static constexpr int Blocks  = 1024;
   static constexpr int Threads = 128;
 
-  parallel_sum<<<Blocks, Threads>>>(
-    map.ref(cuco::experimental::op::insert, cuco::experimental::op::insert_and_find));
+  parallel_sum<<<Blocks, Threads>>>(map.ref(cuco::op::insert, cuco::op::insert_and_find));
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   thrust::device_vector<Key> d_keys(Iters);

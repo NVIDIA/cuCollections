@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 #include <cuco/detail/bitwise_compare.cuh>
 
 namespace cuco {
-namespace experimental {
 namespace static_set_ns {
 namespace detail {
 
@@ -61,5 +60,4 @@ struct slot_is_filled {
 
 }  // namespace detail
 }  // namespace static_set_ns
-}  // namespace experimental
 }  // namespace cuco

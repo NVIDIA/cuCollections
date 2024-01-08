@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,11 +73,11 @@ int main(void)
 
   // Construct a map with 100,000 slots using the given empty key/value sentinels. Note the
   // capacity is chosen knowing we will insert 80,000 keys, for an load factor of 80%.
-  auto map = cuco::experimental::static_map{cuco::experimental::extent<std::size_t, 100'000>{},
-                                            cuco::empty_key{empty_key_sentinel},
-                                            cuco::empty_value{empty_value_sentinel},
-                                            custom_key_equal{},
-                                            cuco::experimental::linear_probing<1, custom_hash>{}};
+  auto map = cuco::static_map{cuco::extent<std::size_t, 100'000>{},
+                              cuco::empty_key{empty_key_sentinel},
+                              cuco::empty_value{empty_value_sentinel},
+                              custom_key_equal{},
+                              cuco::linear_probing<1, custom_hash>{}};
 
   // Inserts 80,000 pairs into the map by using the custom hasher and custom equality callable
   map.insert(pairs_begin, pairs_begin + num_pairs);

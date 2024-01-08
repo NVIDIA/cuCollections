@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,6 @@
 #include <type_traits>
 
 namespace cuco {
-namespace experimental {
 namespace detail {
 
 /// Three-way insert result enum
@@ -89,8 +88,7 @@ class open_addressing_ref_impl {
     "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
   static_assert(
-    std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
-                      ProbingScheme>,
+    std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>, ProbingScheme>,
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
   // TODO: how to re-enable this check?
@@ -1276,5 +1274,4 @@ class open_addressing_ref_impl {
 };
 
 }  // namespace detail
-}  // namespace experimental
 }  // namespace cuco

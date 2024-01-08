@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -135,16 +135,15 @@ int main(void)
   std::size_t const capacity = std::ceil(num_keys / load_factor);
 
   // Constructs a map with "capacity" slots using -1 and -1 as the empty key/value sentinels.
-  auto map = cuco::experimental::static_map{
-    capacity,
-    cuco::empty_key{empty_key_sentinel},
-    cuco::empty_value{empty_value_sentinel},
-    thrust::equal_to<Key>{},
-    cuco::experimental::linear_probing<1, cuco::default_hash_function<Key>>{}};
+  auto map = cuco::static_map{capacity,
+                              cuco::empty_key{empty_key_sentinel},
+                              cuco::empty_value{empty_value_sentinel},
+                              thrust::equal_to<Key>{},
+                              cuco::linear_probing<1, cuco::default_hash_function<Key>>{}};
 
   // Get a non-owning, mutable reference of the map that allows inserts to pass by value into the
   // kernel
-  auto insert_ref = map.ref(cuco::experimental::op::insert);
+  auto insert_ref = map.ref(cuco::insert);
 
   // Predicate will only insert even keys
   auto is_even = [] __device__(auto key) { return (key % 2) == 0; };
@@ -165,7 +164,7 @@ int main(void)
 
   // Get a non-owning reference of the map that allows find operations to pass by value into the
   // kernel
-  auto find_ref = map.ref(cuco::experimental::op::find);
+  auto find_ref = map.ref(cuco::find);
 
   increment_values<<<grid_size, block_size>>>(find_ref, insert_keys.begin(), num_keys);
 

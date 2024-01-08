@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 #include <cuda/std/atomic>  // cuda::thread_scope
 
 namespace cuco {
-namespace experimental {
 
 /**
  * @brief Strongly-typed wrapper for `cuda::thread_scope`.
@@ -42,5 +41,4 @@ inline constexpr auto thread_scope_device = cuda_thread_scope<cuda::thread_scope
 inline constexpr auto thread_scope_block  = cuda_thread_scope<cuda::thread_scope_block>{};
 inline constexpr auto thread_scope_thread = cuda_thread_scope<cuda::thread_scope_thread>{};
 
-}  // namespace experimental
 }  // namespace cuco

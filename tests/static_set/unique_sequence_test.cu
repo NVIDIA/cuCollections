@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -137,13 +137,12 @@ TEMPLATE_TEST_CASE_SIG(
                                                   : 412  // 103 x 2 x 2
     ;
 
-  using probe = std::conditional_t<
-    Probe == cuco::test::probe_sequence::linear_probing,
-    cuco::experimental::linear_probing<CGSize, cuco::default_hash_function<Key>>,
-    cuco::experimental::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
+                                   cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
-  auto set = cuco::experimental::static_set{
-    num_keys, cuco::empty_key<Key>{-1}, {}, probe{}, {}, cuco::experimental::storage<2>{}};
+  auto set =
+    cuco::static_set{num_keys, cuco::empty_key<Key>{-1}, {}, probe{}, {}, cuco::storage<2>{}};
 
   REQUIRE(set.capacity() == gold_capacity);
 

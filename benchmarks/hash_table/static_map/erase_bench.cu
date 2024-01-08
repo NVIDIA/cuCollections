@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,16 +58,16 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_erase(
 
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
     // static map with erase support
-    auto map = cuco::experimental::static_map{size,
-                                              cuco::empty_key<Key>{-1},
-                                              cuco::empty_value<Value>{-1},
-                                              cuco::erased_key<Key>{-2},
-                                              {},
-                                              {},
-                                              {},
-                                              {},
-                                              {},
-                                              {launch.get_stream()}};
+    auto map = cuco::static_map{size,
+                                cuco::empty_key<Key>{-1},
+                                cuco::empty_value<Value>{-1},
+                                cuco::erased_key<Key>{-2},
+                                {},
+                                {},
+                                {},
+                                {},
+                                {},
+                                {launch.get_stream()}};
     map.insert_async(pairs.begin(), pairs.end(), {launch.get_stream()});
 
     timer.start();

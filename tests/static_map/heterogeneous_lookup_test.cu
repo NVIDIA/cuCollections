@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ TEMPLATE_TEST_CASE_SIG("Heterogeneous lookup",
   using Value      = T;
   using InsertKey  = key_pair<T>;
   using ProbeKey   = key_triplet<T>;
-  using probe_type = cuco::experimental::double_hashing<CGSize, custom_hasher, custom_hasher>;
+  using probe_type = cuco::double_hashing<CGSize, custom_hasher, custom_hasher>;
 
   auto const sentinel_key   = Key{-1};
   auto const sentinel_value = Value{-1};
@@ -108,11 +108,11 @@ TEMPLATE_TEST_CASE_SIG("Heterogeneous lookup",
   constexpr std::size_t capacity = num * 2;
   auto const probe               = probe_type{custom_hasher{}, custom_hasher{}};
 
-  auto my_map = cuco::experimental::static_map{capacity,
-                                               cuco::empty_key<Key>{sentinel_key},
-                                               cuco::empty_value{sentinel_value},
-                                               custom_key_equal{},
-                                               probe};
+  auto my_map = cuco::static_map{capacity,
+                                 cuco::empty_key<Key>{sentinel_key},
+                                 cuco::empty_value{sentinel_value},
+                                 custom_key_equal{},
+                                 probe};
 
   auto insert_pairs = thrust::make_transform_iterator(
     thrust::counting_iterator<int>(0),

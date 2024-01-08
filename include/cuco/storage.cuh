@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 #include <cuco/detail/storage/storage.cuh>
 
 namespace cuco {
-namespace experimental {
 
 /**
  * @brief Public storage class.
@@ -46,5 +45,4 @@ class storage {
   using impl = aow_storage<T, window_size, Extent, Allocator>;
 };
 
-}  // namespace experimental
 }  // namespace cuco

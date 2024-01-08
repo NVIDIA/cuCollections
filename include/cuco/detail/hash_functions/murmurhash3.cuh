@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -145,7 +145,7 @@ struct MurmurHash3_32 {
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
     return compute_hash(reinterpret_cast<std::byte const*>(&key),
-                        cuco::experimental::extent<std::size_t, sizeof(Key)>{});
+                        cuco::extent<std::size_t, sizeof(Key)>{});
   }
 
   /**

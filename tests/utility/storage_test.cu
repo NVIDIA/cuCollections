@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,11 +39,9 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
 
   SECTION("Allocate array of pairs with AoS storage.")
   {
-    auto s =
-      cuco::experimental::aow_storage<cuco::pair<Key, Value>,
-                                      window_size,
-                                      cuco::experimental::extent<std::size_t>,
-                                      allocator_type>(cuco::experimental::extent{size}, allocator);
+    auto s = cuco::
+      aow_storage<cuco::pair<Key, Value>, window_size, cuco::extent<std::size_t>, allocator_type>(
+        cuco::extent{size}, allocator);
     auto const num_windows = s.num_windows();
     auto const capacity    = s.capacity();
 
@@ -53,10 +51,9 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
 
   SECTION("Allocate array of pairs with AoS storage with static extent.")
   {
-    using extent_type = cuco::experimental::extent<std::size_t, size>;
-    auto s            = cuco::experimental::
-      aow_storage<cuco::pair<Key, Value>, window_size, extent_type, allocator_type>(extent_type{},
-                                                                                    allocator);
+    using extent_type = cuco::extent<std::size_t, size>;
+    auto s = cuco::aow_storage<cuco::pair<Key, Value>, window_size, extent_type, allocator_type>(
+      extent_type{}, allocator);
     auto const num_windows = s.num_windows();
     auto const capacity    = s.capacity();
 
@@ -66,9 +63,8 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
 
   SECTION("Allocate array of keys with AoS storage.")
   {
-    auto s = cuco::experimental::
-      aow_storage<Key, window_size, cuco::experimental::extent<std::size_t>, allocator_type>(
-        cuco::experimental::extent{size}, allocator);
+    auto s = cuco::aow_storage<Key, window_size, cuco::extent<std::size_t>, allocator_type>(
+      cuco::extent{size}, allocator);
     auto const num_windows = s.num_windows();
     auto const capacity    = s.capacity();
 
@@ -78,9 +74,9 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
 
   SECTION("Allocate array of keys with AoS storage with static extent.")
   {
-    using extent_type = cuco::experimental::extent<std::size_t, size>;
-    auto s = cuco::experimental::aow_storage<Key, window_size, extent_type, allocator_type>(
-      extent_type{}, allocator);
+    using extent_type = cuco::extent<std::size_t, size>;
+    auto s =
+      cuco::aow_storage<Key, window_size, extent_type, allocator_type>(extent_type{}, allocator);
     auto const num_windows = s.num_windows();
     auto const capacity    = s.capacity();
 

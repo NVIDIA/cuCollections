@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,7 +26,6 @@
 #include <memory>
 
 namespace cuco {
-namespace experimental {
 namespace detail {
 /**
  * @brief Device atomic counter storage class.
@@ -36,9 +35,9 @@ namespace detail {
  * @tparam Allocator Type of allocator used for device storage
  */
 template <typename SizeType, cuda::thread_scope Scope, typename Allocator>
-class counter_storage : public storage_base<cuco::experimental::extent<SizeType, 1>> {
+class counter_storage : public storage_base<cuco::extent<SizeType, 1>> {
  public:
-  using storage_base<cuco::experimental::extent<SizeType, 1>>::capacity;  ///< Storage size
+  using storage_base<cuco::extent<SizeType, 1>>::capacity;  ///< Storage size
 
   using size_type      = SizeType;                        ///< Size type
   using value_type     = cuda::atomic<size_type, Scope>;  ///< Type of the counter
@@ -53,8 +52,7 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
    * @param allocator Allocator used for (de)allocating device storage
    */
   explicit constexpr counter_storage(Allocator const& allocator)
-    : storage_base<cuco::experimental::extent<SizeType, 1>>{cuco::experimental::extent<size_type,
-                                                                                       1>{}},
+    : storage_base<cuco::extent<SizeType, 1>>{cuco::extent<size_type, 1>{}},
       allocator_{allocator},
       counter_deleter_{this->capacity(), allocator_},
       counter_{allocator_.allocate(this->capacity()), counter_deleter_}
@@ -110,5 +108,4 @@ class counter_storage : public storage_base<cuco::experimental::extent<SizeType,
 };
 
 }  // namespace detail
-}  // namespace experimental
 }  // namespace cuco

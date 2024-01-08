@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 #include <cuco/detail/utils.cuh>
 
 namespace cuco {
-namespace experimental {
 namespace detail {
 
 /**
@@ -156,5 +155,4 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
       cg_size),
     upper_bound};  // TODO use fast_int operator
 }
-}  // namespace experimental
 }  // namespace cuco

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,10 +31,10 @@ TEST_CASE("Rehash", "")
   constexpr std::size_t num_keys{400};
   constexpr std::size_t num_erased_keys{100};
 
-  cuco::experimental::static_map map{num_keys,
-                                     cuco::empty_key<key_type>{-1},
-                                     cuco::empty_value<mapped_type>{-1},
-                                     cuco::erased_key<key_type>{-2}};
+  cuco::static_map map{num_keys,
+                       cuco::empty_key<key_type>{-1},
+                       cuco::empty_value<mapped_type>{-1},
+                       cuco::erased_key<key_type>{-2}};
 
   auto keys_begin = thrust::counting_iterator<key_type>(1);
 

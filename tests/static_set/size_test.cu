@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,8 +26,7 @@ TEST_CASE("Size computation", "")
 {
   constexpr std::size_t num_keys{400};
 
-  cuco::experimental::static_set<int> set{cuco::experimental::extent<std::size_t>{400},
-                                          cuco::empty_key{-1}};
+  cuco::static_set<int> set{cuco::extent<std::size_t>{400}, cuco::empty_key{-1}};
 
   thrust::device_vector<int> d_keys(num_keys);
 

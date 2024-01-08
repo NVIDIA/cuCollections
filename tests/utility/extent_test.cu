@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,27 +30,27 @@ TEMPLATE_TEST_CASE_SIG(
 
   SECTION("Static extent must be evaluated at compile time.")
   {
-    auto const size = cuco::experimental::extent<SizeType, num>{};
+    auto const size = cuco::extent<SizeType, num>{};
     STATIC_REQUIRE(num == size);
   }
 
   SECTION("Dynamic extent is evaluated at run time.")
   {
-    auto const size = cuco::experimental::extent(num);
+    auto const size = cuco::extent(num);
     REQUIRE(size == num);
   }
 
   SECTION("Compute static valid extent at compile time.")
   {
-    auto constexpr size = cuco::experimental::extent<SizeType, num>{};
-    auto constexpr res  = cuco::experimental::make_window_extent<cg_size, window_size>(size);
+    auto constexpr size = cuco::extent<SizeType, num>{};
+    auto constexpr res  = cuco::make_window_extent<cg_size, window_size>(size);
     STATIC_REQUIRE(gold_reference == res.value());
   }
 
   SECTION("Compute dynamic valid extent at run time.")
   {
-    auto const size = cuco::experimental::extent<SizeType>{num};
-    auto const res  = cuco::experimental::make_window_extent<cg_size, window_size>(size);
+    auto const size = cuco::extent<SizeType>{num};
+    auto const res  = cuco::make_window_extent<cg_size, window_size>(size);
     REQUIRE(gold_reference == res.value());
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,8 +46,8 @@ __global__ void shared_memory_test_kernel(Ref* maps,
   __shared__ typename Ref::window_type sm_buffer[NumWindows];
 
   auto g          = cuco::test::cg::this_thread_block();
-  auto insert_ref = maps[map_id].make_copy(g, sm_buffer, cuco::experimental::thread_scope_block);
-  auto find_ref   = std::move(insert_ref).with(cuco::experimental::op::find);
+  auto insert_ref = maps[map_id].make_copy(g, sm_buffer, cuco::thread_scope_block);
+  auto find_ref   = std::move(insert_ref).with(cuco::op::find);
 
   for (int i = g.thread_rank(); i < number_of_elements; i += g.size()) {
     auto found_pair_it = find_ref.find(insterted_keys[offset + i]);
@@ -79,14 +79,13 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
   constexpr std::size_t elements_in_map = 500;
   constexpr std::size_t map_capacity    = 2 * elements_in_map;
 
-  using extent_type = cuco::experimental::extent<std::size_t, map_capacity>;
-  using map_type    = cuco::experimental::static_map<
-    Key,
-    Value,
-    extent_type,
-    cuda::thread_scope_device,
-    thrust::equal_to<Key>,
-    cuco::experimental::linear_probing<1, cuco::default_hash_function<Key>>>;
+  using extent_type = cuco::extent<std::size_t, map_capacity>;
+  using map_type    = cuco::static_map<Key,
+                                    Value,
+                                    extent_type,
+                                    cuda::thread_scope_device,
+                                    thrust::equal_to<Key>,
+                                    cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
 
   // one array for all maps, first elements_in_map element belong to map 0, second to map 1 and so
   // on
@@ -107,7 +106,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
   thrust::device_vector<bool> d_keys_exist(number_of_maps * elements_in_map);
   thrust::device_vector<bool> d_keys_and_values_correct(number_of_maps * elements_in_map);
 
-  using ref_type = typename map_type::ref_type<cuco::experimental::op::insert_tag>;
+  using ref_type = typename map_type::ref_type<cuco::op::insert_tag>;
 
   SECTION("Keys are all found after insertion.")
   {
@@ -119,13 +118,12 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
 
       map_type* map = maps[map_id].get();
       map->insert(pairs_begin + offset, pairs_begin + offset + elements_in_map);
-      h_refs.push_back(map->ref(cuco::experimental::op::insert));
+      h_refs.push_back(map->ref(cuco::op::insert));
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
     // maybe_unused to silence false positive "variable set but not used" warning
-    [[maybe_unused]] auto constexpr num_windows =
-      cuco::experimental::make_window_extent<ref_type>(extent_type{});
+    [[maybe_unused]] auto constexpr num_windows = cuco::make_window_extent<ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_windows.value(), ref_type>
       <<<number_of_maps, 64>>>(d_refs.data().get(),
@@ -150,13 +148,12 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
   {
     std::vector<ref_type> h_refs;
     for (std::size_t map_id = 0; map_id < number_of_maps; ++map_id) {
-      h_refs.push_back(maps[map_id].get()->ref(cuco::experimental::op::insert));
+      h_refs.push_back(maps[map_id].get()->ref(cuco::op::insert));
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
     // maybe_unused to silence false positive "variable set but not used" warning
-    [[maybe_unused]] auto constexpr num_windows =
-      cuco::experimental::make_window_extent<ref_type>(extent_type{});
+    [[maybe_unused]] auto constexpr num_windows = cuco::make_window_extent<ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_windows.value(), ref_type>
       <<<number_of_maps, 64>>>(d_refs.data().get(),
@@ -180,18 +177,18 @@ __global__ void shared_memory_hash_table_kernel(bool* key_found)
   using Value     = int32_t;
   using slot_type = cuco::pair<Key, Value>;
 
-  __shared__ cuco::experimental::window<slot_type, window_size> map[NumWindows];
+  __shared__ cuco::window<slot_type, window_size> map[NumWindows];
 
-  using extent_type      = cuco::experimental::extent<std::size_t, NumWindows>;
-  using storage_ref_type = cuco::experimental::aow_storage_ref<slot_type, window_size, extent_type>;
+  using extent_type      = cuco::extent<std::size_t, NumWindows>;
+  using storage_ref_type = cuco::aow_storage_ref<slot_type, window_size, extent_type>;
 
-  auto raw_ref = cuco::experimental::static_map_ref{
-    cuco::empty_key<Key>{-1},
-    cuco::empty_value<Value>{-1},
-    thrust::equal_to<Key>{},
-    cuco::experimental::linear_probing<cg_size, cuco::default_hash_function<Key>>{},
-    cuco::experimental::thread_scope_block,
-    storage_ref_type{extent_type{}, map}};
+  auto raw_ref =
+    cuco::static_map_ref{cuco::empty_key<Key>{-1},
+                         cuco::empty_value<Value>{-1},
+                         thrust::equal_to<Key>{},
+                         cuco::linear_probing<cg_size, cuco::default_hash_function<Key>>{},
+                         cuco::thread_scope_block,
+                         storage_ref_type{extent_type{}, map}};
 
   auto const block = cooperative_groups::this_thread_block();
   raw_ref.initialize(block);
@@ -200,11 +197,11 @@ __global__ void shared_memory_hash_table_kernel(bool* key_found)
   auto const rank  = block.thread_rank();
 
   // insert {thread_rank, thread_rank} for each thread in thread-block
-  auto insert_ref = std::move(raw_ref).with(cuco::experimental::op::insert);
+  auto insert_ref = std::move(raw_ref).with(cuco::op::insert);
   insert_ref.insert(slot_type{rank, rank});
   block.sync();
 
-  auto find_ref             = std::move(insert_ref).with(cuco::experimental::op::find);
+  auto find_ref             = std::move(insert_ref).with(cuco::op::find);
   auto const retrieved_pair = find_ref.find(rank);
   block.sync();
 
@@ -218,8 +215,7 @@ TEST_CASE("static map shared memory slots.", "")
   constexpr std::size_t N = 256;
   // maybe_unused to silence false positive "variable set but not used" warning
   [[maybe_unused]] auto constexpr num_windows =
-    cuco::experimental::make_window_extent<cg_size, window_size>(
-      cuco::experimental::extent<std::size_t, N>{});
+    cuco::make_window_extent<cg_size, window_size>(cuco::extent<std::size_t, N>{});
 
   thrust::device_vector<bool> key_found(N, false);
   shared_memory_hash_table_kernel<num_windows.value()><<<8, 32>>>(key_found.data().get());

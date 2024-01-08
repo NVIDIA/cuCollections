@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@
 #include <memory>
 
 namespace cuco {
-namespace experimental {
 
 /// Window type alias
 template <typename T, int32_t WindowSize>
@@ -49,8 +48,8 @@ class aow_storage_ref;
  */
 template <typename T,
           int32_t WindowSize,
-          typename Extent    = cuco::experimental::extent<std::size_t>,
-          typename Allocator = cuco::cuda_allocator<cuco::experimental::window<T, WindowSize>>>
+          typename Extent    = cuco::extent<std::size_t>,
+          typename Allocator = cuco::cuda_allocator<cuco::window<T, WindowSize>>>
 class aow_storage : public detail::aow_storage_base<T, WindowSize, Extent> {
  public:
   using base_type = detail::aow_storage_base<T, WindowSize, Extent>;  ///< AoW base class type
@@ -146,7 +145,7 @@ class aow_storage : public detail::aow_storage_base<T, WindowSize, Extent> {
  * @tparam WindowSize Number of slots in each window
  * @tparam Extent Type of extent denoting storage capacity
  */
-template <typename T, int32_t WindowSize, typename Extent = cuco::experimental::extent<std::size_t>>
+template <typename T, int32_t WindowSize, typename Extent = cuco::extent<std::size_t>>
 class aow_storage_ref : public detail::aow_storage_base<T, WindowSize, Extent> {
  public:
   using base_type = detail::aow_storage_base<T, WindowSize, Extent>;  ///< AoW base class type
@@ -224,7 +223,6 @@ class aow_storage_ref : public detail::aow_storage_base<T, WindowSize, Extent> {
   window_type* windows_;  ///< Pointer to the windows array
 };
 
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/storage/aow_storage.inl>

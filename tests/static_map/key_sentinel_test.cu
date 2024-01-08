@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,15 +41,14 @@ TEMPLATE_TEST_CASE_SIG(
   using Value = T;
 
   constexpr std::size_t num_keys{SIZE};
-  auto map = cuco::experimental::static_map{
-    SIZE * 2,
-    cuco::empty_key<Key>{-1},
-    cuco::empty_value<Value>{-1},
-    custom_equals<Key>{},
-    cuco::experimental::linear_probing<1, cuco::default_hash_function<Key>>{}};
+  auto map = cuco::static_map{SIZE * 2,
+                              cuco::empty_key<Key>{-1},
+                              cuco::empty_value<Value>{-1},
+                              custom_equals<Key>{},
+                              cuco::linear_probing<1, cuco::default_hash_function<Key>>{}};
 
-  auto insert_ref = map.ref(cuco::experimental::op::insert);
-  auto find_ref   = map.ref(cuco::experimental::op::find);
+  auto insert_ref = map.ref(cuco::op::insert);
+  auto find_ref   = map.ref(cuco::op::find);
 
   int h_A[SIZE];
   for (int i = 0; i < SIZE; i++) {

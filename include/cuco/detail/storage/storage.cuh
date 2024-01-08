@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 #include <cuco/aow_storage.cuh>
 
 namespace cuco {
-namespace experimental {
 namespace detail {
 /**
  * @brief Intermediate class internally used by data structures
@@ -62,5 +61,4 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
 };
 
 }  // namespace detail
-}  // namespace experimental
 }  // namespace cuco
