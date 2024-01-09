@@ -77,7 +77,7 @@ key_type constexpr empty_key_sentinel = -1;
  *
  * @param set_refs Pointer to the array of subset objects
  */
-__global__ void insert(ref_type* set_refs)
+static __global__ void insert(ref_type* set_refs)
 {
   namespace cg = cooperative_groups;
 
@@ -102,7 +102,7 @@ __global__ void insert(ref_type* set_refs)
  *
  * @param set_refs Pointer to the array of subset objects
  */
-__global__ void find(ref_type* set_refs)
+static __global__ void find(ref_type* set_refs)
 {
   namespace cg = cooperative_groups;
 

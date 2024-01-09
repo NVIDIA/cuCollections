@@ -27,6 +27,7 @@
 
 namespace cuco {
 namespace detail {
+CUCO_SUPPRESS_KERNEL_WARNINGS
 
 /**
  * @brief Inserts all elements in the range `[first, first + n)` and returns the number of
@@ -61,7 +62,7 @@ template <int32_t CGSize,
           typename Predicate,
           typename AtomicT,
           typename Ref>
-__global__ void insert_if_n(InputIt first,
+CUCO_KERNEL void insert_if_n(InputIt first,
                             cuco::detail::index_type n,
                             StencilIt stencil,
                             Predicate pred,
@@ -127,7 +128,7 @@ template <int32_t CGSize,
           typename StencilIt,
           typename Predicate,
           typename Ref>
-__global__ void insert_if_n(
+CUCO_KERNEL void insert_if_n(
   InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
@@ -162,7 +163,7 @@ __global__ void insert_if_n(
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Ref>
-__global__ void erase(InputIt first, cuco::detail::index_type n, Ref ref)
+CUCO_KERNEL void erase(InputIt first, cuco::detail::index_type n, Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
@@ -212,7 +213,7 @@ template <int32_t CGSize,
           typename Predicate,
           typename OutputIt,
           typename Ref>
-__global__ void contains_if_n(InputIt first,
+CUCO_KERNEL void contains_if_n(InputIt first,
                               cuco::detail::index_type n,
                               StencilIt stencil,
                               Predicate pred,
@@ -267,7 +268,7 @@ __global__ void contains_if_n(InputIt first,
  * @param count Number of filled slots
  */
 template <int32_t BlockSize, typename StorageRef, typename Predicate, typename AtomicT>
-__global__ void size(StorageRef storage, Predicate is_filled, AtomicT* count)
+CUCO_KERNEL void size(StorageRef storage, Predicate is_filled, AtomicT* count)
 {
   using size_type = typename StorageRef::size_type;
 
@@ -293,7 +294,7 @@ __global__ void size(StorageRef storage, Predicate is_filled, AtomicT* count)
 }
 
 template <int32_t BlockSize, typename ContainerRef, typename Predicate>
-__global__ void rehash(typename ContainerRef::storage_ref_type storage_ref,
+CUCO_KERNEL void rehash(typename ContainerRef::storage_ref_type storage_ref,
                        ContainerRef container_ref,
                        Predicate is_filled)
 {

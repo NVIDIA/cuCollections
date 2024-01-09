@@ -17,6 +17,25 @@
 
 #include <cuco/detail/utility/cuda.hpp>
 
+#if defined(CUCO_DISABLE_KERNEL_VISIBILITY_WARNING_SUPPRESSION)
+# define CUCO_SUPPRESS_KERNEL_WARNINGS
+#elif defined(__NVCC__) && (defined(__GNUC__) || defined(__clang__))
+// handle when nvcc is the CUDA compiler and gcc or clang is host
+# define CUCO_SUPPRESS_KERNEL_WARNINGS \
+    _Pragma("nv_diag_suppress 1407")
+    _Pragma("GCC diagnostic ignored \"-Wattributes\"")
+#elif defined(__clang__)
+// handle when clang is the CUDA compiler
+# define CUCO_SUPPRESS_KERNEL_WARNINGS \
+    _Pragma("clang diagnostic ignored \"-Wattributes\"")
+#elif defined(__NVCOMPILER)
+# define CUCO_SUPPRESS_KERNEL_WARNINGS \
+#   pragma diag_suppress attribute_requires_external_linkage
+#endif
+
+#ifndef CUCO_KERNEL
+# define CUCO_KERNEL __attribute__ ((visibility ("hidden"))) __global__
+#endif
 namespace cuco {
 namespace detail {
 

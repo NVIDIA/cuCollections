@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #pragma once
+#include <cuco/detail/utility/cuda.cuh>
 
 #include <cub/block/block_reduce.cuh>
 
@@ -24,6 +25,8 @@
 namespace cuco {
 namespace detail {
 namespace cg = cooperative_groups;
+
+CUCO_SUPPRESS_KERNEL_WARNINGS
 
 /**
  * @brief Inserts all key/value pairs in the range `[first, last)`.
@@ -62,7 +65,7 @@ template <uint32_t block_size,
           typename atomicT,
           typename Hash,
           typename KeyEqual>
-__global__ void insert(InputIt first,
+CUCO_KERNEL void insert(InputIt first,
                        InputIt last,
                        viewT* submap_views,
                        mutableViewT* submap_mutable_views,
@@ -147,7 +150,7 @@ template <uint32_t block_size,
           typename atomicT,
           typename Hash,
           typename KeyEqual>
-__global__ void insert(InputIt first,
+CUCO_KERNEL void insert(InputIt first,
                        InputIt last,
                        viewT* submap_views,
                        mutableViewT* submap_mutable_views,
@@ -225,7 +228,7 @@ template <uint32_t block_size,
           typename atomicT,
           typename Hash,
           typename KeyEqual>
-__global__ void erase(InputIt first,
+CUCO_KERNEL void erase(InputIt first,
                       InputIt last,
                       mutableViewT* submap_mutable_views,
                       atomicT** submap_num_successes,
@@ -296,7 +299,7 @@ template <uint32_t block_size,
           typename atomicT,
           typename Hash,
           typename KeyEqual>
-__global__ void erase(InputIt first,
+CUCO_KERNEL void erase(InputIt first,
                       InputIt last,
                       mutableViewT* submap_mutable_views,
                       atomicT** submap_num_successes,
@@ -368,7 +371,7 @@ template <uint32_t block_size,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void find(InputIt first,
+CUCO_KERNEL void find(InputIt first,
                      InputIt last,
                      OutputIt output_begin,
                      viewT* submap_views,
@@ -443,7 +446,7 @@ template <uint32_t block_size,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void find(InputIt first,
+CUCO_KERNEL void find(InputIt first,
                      InputIt last,
                      OutputIt output_begin,
                      viewT* submap_views,
@@ -514,7 +517,7 @@ template <uint32_t block_size,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void contains(InputIt first,
+CUCO_KERNEL void contains(InputIt first,
                          InputIt last,
                          OutputIt output_begin,
                          viewT* submap_views,
@@ -582,7 +585,7 @@ template <uint32_t block_size,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void contains(InputIt first,
+CUCO_KERNEL void contains(InputIt first,
                          InputIt last,
                          OutputIt output_begin,
                          viewT* submap_views,
