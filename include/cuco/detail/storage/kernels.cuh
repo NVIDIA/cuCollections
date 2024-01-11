@@ -35,8 +35,8 @@ CUCO_SUPPRESS_KERNEL_WARNINGS
  */
 template <typename WindowT>
 CUCO_KERNEL void initialize(WindowT* windows,
-                           cuco::detail::index_type n,
-                           typename WindowT::value_type value)
+                            cuco::detail::index_type n,
+                            typename WindowT::value_type value)
 {
   auto const loop_stride = cuco::detail::grid_stride();
   auto idx               = cuco::detail::global_thread_id();

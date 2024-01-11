@@ -366,11 +366,11 @@ template <uint32_t block_size,
           typename viewT,
           typename KeyEqual>
 CUCO_KERNEL void retrieve(InputIt first,
-                         int64_t n,
-                         OutputIt output_begin,
-                         atomicT* num_matches,
-                         viewT view,
-                         KeyEqual key_equal)
+                          int64_t n,
+                          OutputIt output_begin,
+                          atomicT* num_matches,
+                          viewT view,
+                          KeyEqual key_equal)
 {
   using pair_type = typename viewT::value_type;
 
@@ -479,12 +479,12 @@ template <uint32_t block_size,
           typename viewT,
           typename PairEqual>
 CUCO_KERNEL void pair_retrieve(InputIt first,
-                              int64_t n,
-                              OutputIt1 probe_output_begin,
-                              OutputIt2 contained_output_begin,
-                              atomicT* num_matches,
-                              viewT view,
-                              PairEqual pair_equal)
+                               int64_t n,
+                               OutputIt1 probe_output_begin,
+                               OutputIt2 contained_output_begin,
+                               atomicT* num_matches,
+                               viewT view,
+                               PairEqual pair_equal)
 {
   using pair_type = typename viewT::value_type;
 

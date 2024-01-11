@@ -313,13 +313,13 @@ template <std::size_t block_size,
           typename Hash,
           typename KeyEqual>
 CUCO_KERNEL void insert_if_n(InputIt first,
-                            int64_t n,
-                            atomicT* num_successes,
-                            viewT view,
-                            StencilIt stencil,
-                            Predicate pred,
-                            Hash hash,
-                            KeyEqual key_equal)
+                             int64_t n,
+                             atomicT* num_successes,
+                             viewT view,
+                             StencilIt stencil,
+                             Predicate pred,
+                             Hash hash,
+                             KeyEqual key_equal)
 {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;

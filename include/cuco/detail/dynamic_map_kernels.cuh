@@ -66,14 +66,14 @@ template <uint32_t block_size,
           typename Hash,
           typename KeyEqual>
 CUCO_KERNEL void insert(InputIt first,
-                       InputIt last,
-                       viewT* submap_views,
-                       mutableViewT* submap_mutable_views,
-                       atomicT* num_successes,
-                       uint32_t insert_idx,
-                       uint32_t num_submaps,
-                       Hash hash,
-                       KeyEqual key_equal)
+                        InputIt last,
+                        viewT* submap_views,
+                        mutableViewT* submap_mutable_views,
+                        atomicT* num_successes,
+                        uint32_t insert_idx,
+                        uint32_t num_submaps,
+                        Hash hash,
+                        KeyEqual key_equal)
 {
   using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
@@ -151,14 +151,14 @@ template <uint32_t block_size,
           typename Hash,
           typename KeyEqual>
 CUCO_KERNEL void insert(InputIt first,
-                       InputIt last,
-                       viewT* submap_views,
-                       mutableViewT* submap_mutable_views,
-                       atomicT** submap_num_successes,
-                       uint32_t insert_idx,
-                       uint32_t num_submaps,
-                       Hash hash,
-                       KeyEqual key_equal)
+                        InputIt last,
+                        viewT* submap_views,
+                        mutableViewT* submap_mutable_views,
+                        atomicT** submap_num_successes,
+                        uint32_t insert_idx,
+                        uint32_t num_submaps,
+                        Hash hash,
+                        KeyEqual key_equal)
 {
   using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
@@ -229,12 +229,12 @@ template <uint32_t block_size,
           typename Hash,
           typename KeyEqual>
 CUCO_KERNEL void erase(InputIt first,
-                      InputIt last,
-                      mutableViewT* submap_mutable_views,
-                      atomicT** submap_num_successes,
-                      uint32_t num_submaps,
-                      Hash hash,
-                      KeyEqual key_equal)
+                       InputIt last,
+                       mutableViewT* submap_mutable_views,
+                       atomicT** submap_num_successes,
+                       uint32_t num_submaps,
+                       Hash hash,
+                       KeyEqual key_equal)
 {
   extern __shared__ unsigned long long submap_block_num_successes[];
 
@@ -300,12 +300,12 @@ template <uint32_t block_size,
           typename Hash,
           typename KeyEqual>
 CUCO_KERNEL void erase(InputIt first,
-                      InputIt last,
-                      mutableViewT* submap_mutable_views,
-                      atomicT** submap_num_successes,
-                      uint32_t num_submaps,
-                      Hash hash,
-                      KeyEqual key_equal)
+                       InputIt last,
+                       mutableViewT* submap_mutable_views,
+                       atomicT** submap_num_successes,
+                       uint32_t num_submaps,
+                       Hash hash,
+                       KeyEqual key_equal)
 {
   extern __shared__ unsigned long long submap_block_num_successes[];
 
@@ -372,12 +372,12 @@ template <uint32_t block_size,
           typename Hash,
           typename KeyEqual>
 CUCO_KERNEL void find(InputIt first,
-                     InputIt last,
-                     OutputIt output_begin,
-                     viewT* submap_views,
-                     uint32_t num_submaps,
-                     Hash hash,
-                     KeyEqual key_equal)
+                      InputIt last,
+                      OutputIt output_begin,
+                      viewT* submap_views,
+                      uint32_t num_submaps,
+                      Hash hash,
+                      KeyEqual key_equal)
 {
   auto tid                  = blockDim.x * blockIdx.x + threadIdx.x;
   auto empty_value_sentinel = submap_views[0].get_empty_value_sentinel();
@@ -447,12 +447,12 @@ template <uint32_t block_size,
           typename Hash,
           typename KeyEqual>
 CUCO_KERNEL void find(InputIt first,
-                     InputIt last,
-                     OutputIt output_begin,
-                     viewT* submap_views,
-                     uint32_t num_submaps,
-                     Hash hash,
-                     KeyEqual key_equal)
+                      InputIt last,
+                      OutputIt output_begin,
+                      viewT* submap_views,
+                      uint32_t num_submaps,
+                      Hash hash,
+                      KeyEqual key_equal)
 {
   auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid                  = blockDim.x * blockIdx.x + threadIdx.x;
@@ -518,12 +518,12 @@ template <uint32_t block_size,
           typename Hash,
           typename KeyEqual>
 CUCO_KERNEL void contains(InputIt first,
-                         InputIt last,
-                         OutputIt output_begin,
-                         viewT* submap_views,
-                         uint32_t num_submaps,
-                         Hash hash,
-                         KeyEqual key_equal)
+                          InputIt last,
+                          OutputIt output_begin,
+                          viewT* submap_views,
+                          uint32_t num_submaps,
+                          Hash hash,
+                          KeyEqual key_equal)
 {
   auto tid = blockDim.x * blockIdx.x + threadIdx.x;
   __shared__ bool writeBuffer[block_size];
@@ -586,12 +586,12 @@ template <uint32_t block_size,
           typename Hash,
           typename KeyEqual>
 CUCO_KERNEL void contains(InputIt first,
-                         InputIt last,
-                         OutputIt output_begin,
-                         viewT* submap_views,
-                         uint32_t num_submaps,
-                         Hash hash,
-                         KeyEqual key_equal)
+                          InputIt last,
+                          OutputIt output_begin,
+                          viewT* submap_views,
+                          uint32_t num_submaps,
+                          Hash hash,
+                          KeyEqual key_equal)
 {
   auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
   auto tid     = blockDim.x * blockIdx.x + threadIdx.x;

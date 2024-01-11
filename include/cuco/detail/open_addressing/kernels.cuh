@@ -63,11 +63,11 @@ template <int32_t CGSize,
           typename AtomicT,
           typename Ref>
 CUCO_KERNEL void insert_if_n(InputIt first,
-                            cuco::detail::index_type n,
-                            StencilIt stencil,
-                            Predicate pred,
-                            AtomicT* num_successes,
-                            Ref ref)
+                             cuco::detail::index_type n,
+                             StencilIt stencil,
+                             Predicate pred,
+                             AtomicT* num_successes,
+                             Ref ref)
 {
   using BlockReduce = cub::BlockReduce<typename Ref::size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
@@ -214,11 +214,11 @@ template <int32_t CGSize,
           typename OutputIt,
           typename Ref>
 CUCO_KERNEL void contains_if_n(InputIt first,
-                              cuco::detail::index_type n,
-                              StencilIt stencil,
-                              Predicate pred,
-                              OutputIt output_begin,
-                              Ref ref)
+                               cuco::detail::index_type n,
+                               StencilIt stencil,
+                               Predicate pred,
+                               OutputIt output_begin,
+                               Ref ref)
 {
   namespace cg = cooperative_groups;
 
@@ -295,8 +295,8 @@ CUCO_KERNEL void size(StorageRef storage, Predicate is_filled, AtomicT* count)
 
 template <int32_t BlockSize, typename ContainerRef, typename Predicate>
 CUCO_KERNEL void rehash(typename ContainerRef::storage_ref_type storage_ref,
-                       ContainerRef container_ref,
-                       Predicate is_filled)
+                        ContainerRef container_ref,
+                        Predicate is_filled)
 {
   namespace cg = cooperative_groups;
 

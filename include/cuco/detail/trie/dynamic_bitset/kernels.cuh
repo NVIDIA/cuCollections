@@ -72,9 +72,9 @@ CUCO_KERNEL void bitset_test_kernel(BitsetRef ref,
  */
 template <typename BitsetRef, typename KeyIt, typename OutputIt>
 CUCO_KERNEL void bitset_rank_kernel(BitsetRef ref,
-                                   KeyIt keys,
-                                   OutputIt outputs,
-                                   cuco::detail::index_type num_keys)
+                                    KeyIt keys,
+                                    OutputIt outputs,
+                                    cuco::detail::index_type num_keys)
 {
   auto key_id       = cuco::detail::global_thread_id();
   auto const stride = cuco::detail::grid_stride();
@@ -101,9 +101,9 @@ CUCO_KERNEL void bitset_rank_kernel(BitsetRef ref,
  */
 template <typename BitsetRef, typename KeyIt, typename OutputIt>
 CUCO_KERNEL void bitset_select_kernel(BitsetRef ref,
-                                     KeyIt keys,
-                                     OutputIt outputs,
-                                     cuco::detail::index_type num_keys)
+                                      KeyIt keys,
+                                      OutputIt outputs,
+                                      cuco::detail::index_type num_keys)
 {
   auto key_id       = cuco::detail::global_thread_id();
   auto const stride = cuco::detail::grid_stride();
@@ -127,9 +127,9 @@ CUCO_KERNEL void bitset_select_kernel(BitsetRef ref,
  */
 template <typename WordType, typename SizeType>
 CUCO_KERNEL void bit_counts_kernel(WordType const* words,
-                                  SizeType* bit_counts,
-                                  cuco::detail::index_type num_words,
-                                  bool flip_bits)
+                                   SizeType* bit_counts,
+                                   cuco::detail::index_type num_words,
+                                   bool flip_bits)
 {
   auto word_id      = cuco::detail::global_thread_id();
   auto const stride = cuco::detail::grid_stride();
@@ -159,10 +159,10 @@ CUCO_KERNEL void bit_counts_kernel(WordType const* words,
  */
 template <typename SizeType>
 CUCO_KERNEL void encode_ranks_from_prefix_bit_counts(const SizeType* prefix_bit_counts,
-                                                    rank* ranks,
-                                                    SizeType num_words,
-                                                    SizeType num_blocks,
-                                                    SizeType words_per_block)
+                                                     rank* ranks,
+                                                     SizeType num_words,
+                                                     SizeType num_blocks,
+                                                     SizeType words_per_block)
 {
   auto rank_id      = cuco::detail::global_thread_id();
   auto const stride = cuco::detail::grid_stride();
@@ -202,10 +202,10 @@ CUCO_KERNEL void encode_ranks_from_prefix_bit_counts(const SizeType* prefix_bit_
  */
 template <typename SizeType>
 CUCO_KERNEL void mark_blocks_with_select_entries(SizeType const* prefix_bit_counts,
-                                                SizeType* select_markers,
-                                                SizeType num_blocks,
-                                                SizeType words_per_block,
-                                                SizeType bits_per_block)
+                                                 SizeType* select_markers,
+                                                 SizeType num_blocks,
+                                                 SizeType words_per_block,
+                                                 SizeType bits_per_block)
 {
   auto block_id     = cuco::detail::global_thread_id();
   auto const stride = cuco::detail::grid_stride();
