@@ -67,7 +67,7 @@ __global__ void custom_contains(SetRef set, InputIterator keys, std::size_t n, O
 
   while (idx < n) {
     bool const is_contained = set.contains(tile, *(keys + idx));
-    if (tile.thread_rank == 0) { found[idx] = is_contained; }
+    if (tile.thread_rank() == 0) { found[idx] = is_contained; }
     idx += loop_stride;
   }
 }
