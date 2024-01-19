@@ -30,6 +30,7 @@ namespace cuco {
 namespace static_set_ns {
 namespace detail {
 
+CUCO_SUPPRESS_KERNEL_WARNINGS
 /**
  * @brief Finds the equivalent set elements of all keys in the range `[first, last)`.
  *
@@ -50,7 +51,7 @@ namespace detail {
  * @param ref Non-owning set device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
-__global__ void find(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
+CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
 {
   namespace cg = cooperative_groups;
 
