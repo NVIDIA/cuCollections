@@ -102,7 +102,7 @@ __global__ void insert(ref_type* set_refs)
  *
  * @param set_refs Pointer to the array of subset objects
  */
-static __global__ void find(ref_type* set_refs)
+__global__ void find(ref_type* set_refs)
 {
   namespace cg = cooperative_groups;
 
