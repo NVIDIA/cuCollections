@@ -56,14 +56,18 @@ __global__ void custom_cooperative_insert(SetRef set, InputIterator keys, std::s
 template <typename SetRef, typename InputIterator, typename OutputIterator>
 __global__ void custom_contains(SetRef set, InputIterator keys, std::size_t n, OutputIterator found)
 {
-  int64_t const loop_stride = gridDim.x * blockDim.x;
-  int64_t idx               = blockDim.x * blockIdx.x + threadIdx.x;
+  namespace cg = cooperative_groups;
 
-  auto const tile =
-    cooperative_groups::tiled_partition<SetRef::cg_size>(cooperative_groups::this_thread_block());
+  constexpr auto cg_size = SetRef::cg_size;
+
+  auto tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
+
+  int64_t const loop_stride = gridDim.x * blockDim.x / cg_size;
+  int64_t idx               = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
   while (idx < n) {
-    found[idx] = set.contains(tile, *(keys + idx));
+    bool const is_contained = set.contains(tile, *(keys + idx));
+    if (tile.thread_rank == 0) { found[idx] = is_contained; }
     idx += loop_stride;
   }
 }
