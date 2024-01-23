@@ -186,7 +186,7 @@ class open_addressing_impl {
                alloc}
   {
     CUCO_EXPECTS(desired_load_factor > 0., "Desired occupancy must be larger than zero");
-    CUCO_EXPECTS(desired_load_factor < 1., "Desired occupancy must be smaller than one");
+    CUCO_EXPECTS(desired_load_factor <= 1., "Desired occupancy must be no larger than one");
 
     this->clear_async(stream);
   }

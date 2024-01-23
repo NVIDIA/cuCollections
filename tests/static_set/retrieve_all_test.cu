@@ -71,7 +71,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
   constexpr std::size_t num_keys{400};
-  constexpr double desired_load_factor = 0.5;
+  constexpr double desired_load_factor = 1.;
   auto constexpr gold_capacity         = CGSize == 1 ? 409  // 409 x 1 x 1
                                                      : 422  // 211 x 2 x 1
     ;
