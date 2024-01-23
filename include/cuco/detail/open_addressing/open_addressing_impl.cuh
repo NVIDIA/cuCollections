@@ -178,6 +178,7 @@ class open_addressing_impl {
                                  cuda_stream_ref stream)
     : empty_key_sentinel_{empty_key_sentinel},
       empty_slot_sentinel_{empty_slot_sentinel},
+      erased_key_sentinel_{empty_key_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
       storage_{make_window_extent<open_addressing_impl>(
