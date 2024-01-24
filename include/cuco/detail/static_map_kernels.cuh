@@ -24,6 +24,7 @@
 namespace cuco::legacy::detail {
 namespace cg = cooperative_groups;
 
+CUCO_SUPPRESS_KERNEL_WARNINGS
 /**
  * @brief Initializes each slot in the flat `slots` storage to contain `k` and `v`.
  *
@@ -47,7 +48,7 @@ template <std::size_t block_size,
           typename Key,
           typename Value,
           typename pair_atomic_type>
-__global__ void initialize(pair_atomic_type* const slots, Key k, Value v, int64_t size)
+CUCO_KERNEL void initialize(pair_atomic_type* const slots, Key k, Value v, int64_t size)
 {
   int64_t const loop_stride = gridDim.x * block_size;
   int64_t idx               = block_size * blockIdx.x + threadIdx.x;
@@ -85,7 +86,7 @@ template <std::size_t block_size,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void insert(
+CUCO_KERNEL void insert(
   InputIt first, int64_t n, atomicT* num_successes, viewT view, Hash hash, KeyEqual key_equal)
 {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
@@ -140,7 +141,7 @@ template <std::size_t block_size,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void insert(
+CUCO_KERNEL void insert(
   InputIt first, int64_t n, atomicT* num_successes, viewT view, Hash hash, KeyEqual key_equal)
 {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
@@ -194,7 +195,7 @@ template <std::size_t block_size,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void erase(
+CUCO_KERNEL void erase(
   InputIt first, int64_t n, atomicT* num_successes, viewT view, Hash hash, KeyEqual key_equal)
 {
   using BlockReduce = cub::BlockReduce<std::size_t, block_size>;
@@ -247,7 +248,7 @@ template <std::size_t block_size,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void erase(
+CUCO_KERNEL void erase(
   InputIt first, int64_t n, atomicT* num_successes, viewT view, Hash hash, KeyEqual key_equal)
 {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
@@ -311,14 +312,14 @@ template <std::size_t block_size,
           typename Predicate,
           typename Hash,
           typename KeyEqual>
-__global__ void insert_if_n(InputIt first,
-                            int64_t n,
-                            atomicT* num_successes,
-                            viewT view,
-                            StencilIt stencil,
-                            Predicate pred,
-                            Hash hash,
-                            KeyEqual key_equal)
+CUCO_KERNEL void insert_if_n(InputIt first,
+                             int64_t n,
+                             atomicT* num_successes,
+                             viewT view,
+                             StencilIt stencil,
+                             Predicate pred,
+                             Hash hash,
+                             KeyEqual key_equal)
 {
   typedef cub::BlockReduce<std::size_t, block_size> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
@@ -375,7 +376,7 @@ template <std::size_t block_size,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void find(
+CUCO_KERNEL void find(
   InputIt first, int64_t n, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
   int64_t const loop_stride = gridDim.x * block_size;
@@ -437,7 +438,7 @@ template <std::size_t block_size,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void find(
+CUCO_KERNEL void find(
   InputIt first, int64_t n, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
   auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
@@ -494,7 +495,7 @@ template <std::size_t block_size,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void contains(
+CUCO_KERNEL void contains(
   InputIt first, int64_t n, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
   int64_t const loop_stride = gridDim.x * block_size;
@@ -551,7 +552,7 @@ template <std::size_t block_size,
           typename viewT,
           typename Hash,
           typename KeyEqual>
-__global__ void contains(
+CUCO_KERNEL void contains(
   InputIt first, int64_t n, OutputIt output_begin, viewT view, Hash hash, KeyEqual key_equal)
 {
   auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());

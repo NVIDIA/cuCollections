@@ -100,7 +100,8 @@ TEMPLATE_TEST_CASE_SIG(
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
                                    cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
-  auto set = cuco::static_set{num_keys, cuco::empty_key<Key>{-1}, {}, {}, {}, cuco::storage<2>{}};
+  auto set =
+    cuco::static_set{num_keys, cuco::empty_key<Key>{-1}, {}, probe{}, {}, cuco::storage<2>{}};
 
   test_insert_and_find(set, num_keys);
 }
