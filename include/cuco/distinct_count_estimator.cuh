@@ -51,11 +51,11 @@ class distinct_count_estimator {
                                      Allocator const& alloc               = {},
                                      cuco::cuda_stream_ref stream         = {});
 
-  distinct_count_estimator(distinct_count_estimator const&)            = delete;
+  distinct_count_estimator(distinct_count_estimator const&) = delete;
   distinct_count_estimator& operator=(distinct_count_estimator const&) = delete;
   distinct_count_estimator(distinct_count_estimator&&)                 = default;
-  distinct_count_estimator& operator=(distinct_count_estimator&&)      = default;
-  ~distinct_count_estimator()                                          = default;
+  distinct_count_estimator& operator=(distinct_count_estimator&&) = default;
+  ~distinct_count_estimator()                                     = default;
 
   void clear_async(cuco::cuda_stream_ref stream = {}) noexcept;
 

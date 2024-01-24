@@ -20,5 +20,6 @@
 namespace cuco::detail {
 template <int32_t Precision>
 struct alignas(sizeof(int) * 4) hyperloglog_storage
-  : public cuda::std::array<int, 1ull << Precision> {};
+  : public cuda::std::array<int, 1ull << Precision> {
+};
 }  // namespace cuco::detail

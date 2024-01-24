@@ -55,11 +55,11 @@ class hyperloglog {
     this->clear_async(stream);  // TODO async or sync?
   }
 
-  hyperloglog(hyperloglog const&)            = delete;
+  hyperloglog(hyperloglog const&) = delete;
   hyperloglog& operator=(hyperloglog const&) = delete;
   hyperloglog(hyperloglog&&)                 = default;
-  hyperloglog& operator=(hyperloglog&&)      = default;
-  ~hyperloglog()                             = default;
+  hyperloglog& operator=(hyperloglog&&) = default;
+  ~hyperloglog()                        = default;
 
   void clear_async(cuco::cuda_stream_ref stream) noexcept
   {
