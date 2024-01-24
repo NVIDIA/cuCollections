@@ -150,9 +150,6 @@ class hyperloglog_ref {
     }
     group.sync();
 
-    // a warp
-    auto const tile = cooperative_groups::tiled_partition<32>(group);
-
     fp_type thread_sum = 0;
     int thread_zeroes  = 0;
     for (int i = group.thread_rank(); i < this->storage_.size(); i += group.size()) {
@@ -161,11 +158,12 @@ class hyperloglog_ref {
       thread_zeroes += reg == 0;
     }
 
-    // CG reduce Z and V
+    // warp reduce Z and V
+    auto const warp = cooperative_groups::tiled_partition<32>(group);
     cooperative_groups::reduce_update_async(
-      tile, block_sum, thread_sum, cooperative_groups::plus<fp_type>());
+      warp, block_sum, thread_sum, cooperative_groups::plus<fp_type>());
     cooperative_groups::reduce_update_async(
-      tile, block_zeroes, thread_zeroes, cooperative_groups::plus<int>());
+      warp, block_zeroes, thread_zeroes, cooperative_groups::plus<int>());
     group.sync();
 
     if (group.thread_rank() == 0) {
