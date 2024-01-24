@@ -144,10 +144,9 @@ class hyperloglog_ref {
     __shared__ cuda::atomic<int, cuda::thread_scope_block> block_zeroes;
     __shared__ std::size_t estimate;
 
-    // TODO is this needed?
     if (group.thread_rank() == 0) {
-      block_sum.store(0, cuda::std::memory_order_relaxed);
-      block_zeroes.store(0, cuda::std::memory_order_relaxed);
+      new (&block_sum) decltype(block_sum){0};
+      new (&block_zeroes) decltype(block_zeroes){0};
     }
     group.sync();
 
