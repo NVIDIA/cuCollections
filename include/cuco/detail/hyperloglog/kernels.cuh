@@ -23,16 +23,17 @@
 #include <cooperative_groups.h>
 
 namespace cuco::hyperloglog_ns::detail {
+CUCO_SUPPRESS_KERNEL_WARNINGS
 
 template <class RefType>
-__global__ void clear(RefType ref)
+CUCO_KERNEL void clear(RefType ref)
 {
   auto const block = cooperative_groups::this_thread_block();
   if (block.group_index().x == 0) { ref.clear(block); }
 }
 
 template <class InputIt, class RefType>
-__global__ void add_shmem(InputIt first, cuco::detail::index_type n, RefType ref)
+CUCO_KERNEL void add_shmem(InputIt first, cuco::detail::index_type n, RefType ref)
 {
   using local_ref_type = typename RefType::with_scope<cuda::thread_scope_block>;
 
@@ -56,7 +57,7 @@ __global__ void add_shmem(InputIt first, cuco::detail::index_type n, RefType ref
 }
 
 template <class OtherRefType, class RefType>
-__global__ void merge(OtherRefType other_ref, RefType ref)
+CUCO_KERNEL void merge(OtherRefType other_ref, RefType ref)
 {
   auto const block = cooperative_groups::this_thread_block();
   if (block.group_index().x == 0) { ref.merge(block, other_ref); }
@@ -64,7 +65,7 @@ __global__ void merge(OtherRefType other_ref, RefType ref)
 
 // TODO this kernel currently isn't being used
 template <class RefType>
-__global__ void estimate(std::size_t* cardinality, RefType ref)
+CUCO_KERNEL void estimate(std::size_t* cardinality, RefType ref)
 {
   auto const block = cooperative_groups::this_thread_block();
   if (block.group_index().x == 0) {
