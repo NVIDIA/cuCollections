@@ -35,13 +35,13 @@ class hyperloglog {
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
   static constexpr auto precision    = Precision;
 
-  using allocator_type = Allocator;  ///< Allocator type
-  using storage_type   = detail::hyperloglog_storage<precision>;
-  using storage_allocator_type =
-    typename std::allocator_traits<Allocator>::template rebind_alloc<storage_type>;
-
   template <cuda::thread_scope NewScope = thread_scope>
   using ref_type = hyperloglog_ref<T, Precision, NewScope, Hash>;
+
+  using allocator_type = Allocator;  ///< Allocator type
+  using storage_type   = typename ref_type<>::storage_type;
+  using storage_allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<storage_type>;
 
   constexpr hyperloglog(cuco::cuda_thread_scope<Scope>,
                         Hash const& hash,
@@ -55,11 +55,11 @@ class hyperloglog {
     this->clear_async(stream);  // TODO async or sync?
   }
 
-  hyperloglog(hyperloglog const&) = delete;
+  hyperloglog(hyperloglog const&)            = delete;
   hyperloglog& operator=(hyperloglog const&) = delete;
   hyperloglog(hyperloglog&&)                 = default;
-  hyperloglog& operator=(hyperloglog&&) = default;
-  ~hyperloglog()                        = default;
+  hyperloglog& operator=(hyperloglog&&)      = default;
+  ~hyperloglog()                             = default;
 
   void clear_async(cuco::cuda_stream_ref stream) noexcept
   {

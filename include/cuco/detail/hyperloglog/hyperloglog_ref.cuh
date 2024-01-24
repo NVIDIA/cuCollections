@@ -35,7 +35,7 @@ class hyperloglog_ref {
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
   static constexpr auto precision    = Precision;
 
-  using storage_type = hyperloglog_storage<Precision>;
+  using storage_type = hyperloglog_dense_registers<Precision>;
   template <cuda::thread_scope NewScope>
   using with_scope = hyperloglog_ref<T, Precision, NewScope, Hash>;
 
@@ -49,17 +49,7 @@ class hyperloglog_ref {
   template <class CG>
   __device__ void clear(CG const& group) noexcept
   {
-    for (int i = group.thread_rank(); i < this->storage_.size(); i += group.size()) {
-      this->storage_[i] = 0;
-    }
-
-    // TODO remove test code
-    // int4 constexpr empty{0, 0, 0, 0};
-    // auto vec4 = reinterpret_cast<int4*>(this->storage_.data());
-    // // #pragma unroll 2
-    // for (int i = group.thread_rank(); i < (this->storage_.size() / 4); i += group.size()) {
-    //   vec4[i] = empty;
-    // }
+    this->storage_.clear(group);
   }
 
   __device__ void add(T const& item) noexcept
@@ -70,71 +60,14 @@ class hyperloglog_ref {
     auto const reg               = h & register_mask;
     auto const zeroes            = cuda::std::countl_zero(h | register_mask) + 1;  // __clz
 
-    if constexpr (Scope == cuda::thread_scope_thread) {
-      this->storage_[reg] = max(this->storage_[reg], zeroes);
-    } else if constexpr (Scope == cuda::thread_scope_block) {
-      atomicMax_block(&(this->storage_[reg]), zeroes);
-    } else if constexpr (Scope == cuda::thread_scope_device) {
-      atomicMax(&(this->storage_[reg]), zeroes);
-    } else if constexpr (Scope == cuda::thread_scope_system) {
-      atomicMax_system(&(this->storage_[reg]), zeroes);
-    } else {
-      static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-    }
+    this->storage_.update_max<thread_scope>(reg, zeroes);
   }
 
   template <class CG, cuda::thread_scope OtherScope>
   __device__ void merge(CG const& group,
                         hyperloglog_ref<T, Precision, OtherScope, Hash> const& other) noexcept
   {
-    for (int i = group.thread_rank(); i < this->storage_.size(); i += group.size()) {
-      if constexpr (Scope == cuda::thread_scope_thread) {
-        this->storage_[i] = max(this->storage_[i], other.storage_[i]);
-      } else if constexpr (Scope == cuda::thread_scope_block) {
-        atomicMax_block(this->storage_.data() + i, other.storage_[i]);
-      } else if constexpr (Scope == cuda::thread_scope_device) {
-        atomicMax(this->storage_.data() + i, other.storage_[i]);
-      } else if constexpr (Scope == cuda::thread_scope_system) {
-        atomicMax_system(this->storage_.data() + i, other.storage_[i]);
-      } else {
-        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-      }
-    }
-
-    // TODO remove test code
-    /*
-    auto vec4 = reinterpret_cast<int4 const*>(other.storage_.data());
-    // #pragma unroll 2
-    for (int i = group.thread_rank(); i < (this->storage_.size() / 4); i += group.size()) {
-      auto const items = vec4[i];
-      if constexpr (Scope == cuda::thread_scope_thread) {
-        auto max_vec4  = reinterpret_cast<int4*>(this->storage_.data());
-        auto max_items = max_vec4[i];
-        max_items.x    = max(max_items.x, items.x);
-        max_items.y    = max(max_items.y, items.y);
-        max_items.z    = max(max_items.z, items.z);
-        max_items.w    = max(max_items.w, items.w);
-        max_vec4[i]    = max_items;
-      } else if constexpr (Scope == cuda::thread_scope_block) {
-        atomicMax_block(this->storage_.data() + (i * 4 + 0), items.x);
-        atomicMax_block(this->storage_.data() + (i * 4 + 1), items.y);
-        atomicMax_block(this->storage_.data() + (i * 4 + 2), items.z);
-        atomicMax_block(this->storage_.data() + (i * 4 + 3), items.w);
-      } else if constexpr (Scope == cuda::thread_scope_device) {
-        atomicMax(this->storage_.data() + (i * 4 + 0), items.x);
-        atomicMax(this->storage_.data() + (i * 4 + 1), items.y);
-        atomicMax(this->storage_.data() + (i * 4 + 2), items.z);
-        atomicMax(this->storage_.data() + (i * 4 + 3), items.w);
-      } else if constexpr (Scope == cuda::thread_scope_system) {
-        atomicMax_system(this->storage_.data() + (i * 4 + 0), items.x);
-        atomicMax_system(this->storage_.data() + (i * 4 + 1), items.y);
-        atomicMax_system(this->storage_.data() + (i * 4 + 2), items.z);
-        atomicMax_system(this->storage_.data() + (i * 4 + 3), items.w);
-      } else {
-        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-      }
-    }
-    */
+    this->storage_.merge<thread_scope>(group, other.storage_);
   }
 
   [[nodiscard]] __device__ std::size_t estimate(
