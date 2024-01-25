@@ -29,20 +29,47 @@
 #include <memory>
 
 namespace cuco::detail {
+/**
+ * @brief A GPU-accelerated utility for approximating the number of distinct items in a multiset.
+ *
+ * @note This class implements the HyperLogLog/HyperLogLog++ algorithm:
+ * https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf.
+ * @note The `Precision` parameter can be used to trade runtime/memory footprint for better
+ * accuracy. A higher value corresponds to a more accurate result, however, setting the precision
+ * too high will result in deminishing results.
+ *
+ * @tparam T Type of items to count
+ * @tparam Precision Tuning parameter to trade runtime/memory footprint for better accuracy
+ * @tparam Scope The scope in which operations will be performed by individual threads
+ * @tparam Hash Hash function used to hash items
+ * @tparam Allocator Type of allocator used for device storage
+ */
 template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash, class Allocator>
 class hyperloglog {
  public:
-  static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
-  static constexpr auto precision    = Precision;
+  static constexpr auto thread_scope = Scope;      ///< CUDA thread scope
+  static constexpr auto precision    = Precision;  ///< Precision
 
   template <cuda::thread_scope NewScope = thread_scope>
-  using ref_type = hyperloglog_ref<T, Precision, NewScope, Hash>;
+  using ref_type = hyperloglog_ref<T, Precision, NewScope, Hash>;  ///< Non-owning reference
+                                                                   ///< type
 
-  using allocator_type = Allocator;  ///< Allocator type
-  using storage_type   = typename ref_type<>::storage_type;
-  using storage_allocator_type =
-    typename std::allocator_traits<Allocator>::template rebind_alloc<storage_type>;
+  using allocator_type         = Allocator;                          ///< Allocator type
+  using storage_type           = typename ref_type<>::storage_type;  ///< Storage type
+  using storage_allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<
+    storage_type>;  ///< Storage allocator type
 
+  /**
+   * @brief Constructs a `hyperloglog` host object.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @param hash The hash function used to hash items
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the object
+   */
+  // Doxygen cannot document unnamed parameter for scope, see
+  // https://github.com/doxygen/doxygen/issues/6926
   constexpr hyperloglog(cuco::cuda_thread_scope<Scope>,
                         Hash const& hash,
                         Allocator const& alloc,
@@ -55,24 +82,56 @@ class hyperloglog {
     this->clear_async(stream);  // TODO async or sync?
   }
 
-  hyperloglog(hyperloglog const&)            = delete;
-  hyperloglog& operator=(hyperloglog const&) = delete;
-  hyperloglog(hyperloglog&&)                 = default;
-  hyperloglog& operator=(hyperloglog&&)      = default;
-  ~hyperloglog()                             = default;
+  ~hyperloglog() = default;
 
+  hyperloglog(hyperloglog const&) = delete;
+  hyperloglog& operator=(hyperloglog const&) = delete;
+  hyperloglog(hyperloglog&&)                 = default;  ///< Move constructor
+
+  // TODO this is somehow required to pass the Doxygen check.
+  /**
+   * @brief Copy-assignment operator.
+   *
+   * @return Copy of `*this`
+   */
+  hyperloglog& operator=(hyperloglog&&) = default;
+
+  /**
+   * @brief Asynchronously resets the estimator, i.e., clears the current count estimate.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
   void clear_async(cuco::cuda_stream_ref stream) noexcept
   {
     auto constexpr block_size = 1024;
     cuco::hyperloglog_ns::detail::clear<<<1, block_size, 0, stream>>>(this->ref());
   }
 
+  /**
+   * @brief Resets the estimator, i.e., clears the current count estimate.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `clear_async`.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
   void clear(cuco::cuda_stream_ref stream)
   {
     this->clear_async(stream);
     stream.synchronize();
   }
 
+  /**
+   * @brief Asynchronously adds to be counted items to the estimator.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * T></tt> is `true`
+   *
+   * @param first Beginning of the sequence of items
+   * @param last End of the sequence of items
+   * @param stream CUDA stream this operation is executed in
+   */
   template <class InputIt>
   void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream) noexcept
   {
@@ -83,7 +142,11 @@ class hyperloglog {
 
     int grid_size  = 0;
     int block_size = 0;
-    // TODO check cuda error?
+
+    // We make use of the occupancy calculator here to get the minimum number of blocks which still
+    // saturate the GPU. This reduces the atomic contention on the final register array during the
+    // merge phase.
+    // TODO check cuda error or will it sync the stream??
     cudaOccupancyMaxPotentialBlockSize(
       &grid_size, &block_size, &cuco::hyperloglog_ns::detail::add_shmem<InputIt, ref_type<>>);
 
@@ -91,6 +154,20 @@ class hyperloglog {
       first, num_items, this->ref());
   }
 
+  /**
+   * @brief Adds to be counted items to the estimator.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `add_async`.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * T></tt> is `true`
+   *
+   * @param first Beginning of the sequence of items
+   * @param last End of the sequence of items
+   * @param stream CUDA stream this operation is executed in
+   */
   template <class InputIt>
   void add(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
   {
@@ -98,35 +175,84 @@ class hyperloglog {
     stream.synchronize();
   }
 
+  /**
+   * @brief Asynchronously merges the result of `other` estimator into `*this` estimator.
+   *
+   * @tparam OtherScope Thread scope of `other` estimator
+   * @tparam OtherAllocator Allocator type of `other` estimator
+   *
+   * @param other Other estimator to be merged into `*this`
+   * @param stream CUDA stream this operation is executed in
+   */
   template <cuda::thread_scope OtherScope, class OtherAllocator>
   void merge_async(hyperloglog<T, Precision, OtherScope, Hash, OtherAllocator> const& other,
-                   cuco::cuda_stream_ref stream = {}) noexcept
+                   cuco::cuda_stream_ref stream) noexcept
   {
     this->merge_async(other.ref(), stream);
   }
 
+  /**
+   * @brief Merges the result of `other` estimator into `*this` estimator.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `merge_async`.
+   *
+   * @tparam OtherScope Thread scope of `other` estimator
+   * @tparam OtherAllocator Allocator type of `other` estimator
+   *
+   * @param other Other estimator to be merged into `*this`
+   * @param stream CUDA stream this operation is executed in
+   */
   template <cuda::thread_scope OtherScope, class OtherAllocator>
   void merge(hyperloglog<T, Precision, OtherScope, Hash, OtherAllocator> const& other,
-             cuco::cuda_stream_ref stream = {})
+             cuco::cuda_stream_ref stream)
   {
     this->merge_async(other, stream);
     stream.synchronize();
   }
 
+  /**
+   * @brief Asynchronously merges the result of `other` estimator reference into `*this` estimator.
+   *
+   * @tparam OtherScope Thread scope of `other` estimator
+   *
+   * @param other Other estimator reference to be merged into `*this`
+   * @param stream CUDA stream this operation is executed in
+   */
   template <cuda::thread_scope OtherScope>
-  void merge_async(ref_type<OtherScope> const& other, cuco::cuda_stream_ref stream = {}) noexcept
+  void merge_async(ref_type<OtherScope> const& other, cuco::cuda_stream_ref stream) noexcept
   {
     auto constexpr block_size = 1024;
     cuco::hyperloglog_ns::detail::merge<<<1, block_size, 0, stream>>>(other, this->ref());
   }
 
+  /**
+   * @brief Merges the result of `other` estimator reference into `*this` estimator.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `merge_async`.
+   *
+   * @tparam OtherScope Thread scope of `other` estimator
+   *
+   * @param other Other estimator reference to be merged into `*this`
+   * @param stream CUDA stream this operation is executed in
+   */
   template <cuda::thread_scope OtherScope>
-  void merge(ref_type<OtherScope> const& other, cuco::cuda_stream_ref stream = {})
+  void merge(ref_type<OtherScope> const& other, cuco::cuda_stream_ref stream)
   {
     this->merge_async(other, stream);
     stream.synchronize();
   }
 
+  /**
+   * @brief Compute the estimated distinct items count.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @param stream CUDA stream this operation is executed in
+   *
+   * @return Approximate distinct items count
+   */
   [[nodiscard]] std::size_t estimate(cuco::cuda_stream_ref stream) const
   {
     // TODO remove test code
@@ -167,6 +293,11 @@ class hyperloglog {
     return cuco::hyperloglog_ns::detail::finalizer<Precision>::finalize(sum, zeroes);
   }
 
+  /**
+   * @brief Get device ref.
+   *
+   * @return Device ref object of the current `distinct_count_estimator` host object
+   */
   [[nodiscard]] ref_type<> ref() const noexcept
   {
     return ref_type<>{*(this->storage_.get()), {}, this->hash_};
@@ -185,11 +316,13 @@ class hyperloglog {
     storage_allocator_type& allocator;
   };
 
-  Hash hash_;
-  storage_allocator_type storage_allocator_;
-  storage_deleter storage_deleter_;
-  std::unique_ptr<storage_type, storage_deleter> storage_;
+  Hash hash_;                                               ///< Hash function used to hash items
+  storage_allocator_type storage_allocator_;                ///< Storage allocator
+  storage_deleter storage_deleter_;                         ///< Storage deleter
+  std::unique_ptr<storage_type, storage_deleter> storage_;  ///< Storage
 
+  // Needs to be friends with other instantiations of this class template to have access to their
+  // storage
   template <class T_, int32_t Precision_, cuda::thread_scope Scope_, class Hash_, class Allocator_>
   friend class hyperloglog;
 };

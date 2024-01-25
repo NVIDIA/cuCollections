@@ -28,30 +28,66 @@
 #include <cooperative_groups/reduce.h>
 
 namespace cuco::detail {
+/**
+ * @brief A GPU-accelerated utility for approximating the number of distinct items in a multiset.
+ *
+ * @note This class implements the HyperLogLog/HyperLogLog++ algorithm:
+ * https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf.
+ * @note The `Precision` parameter can be used to trade runtime/memory footprint for better
+ * accuracy. A higher value corresponds to a more accurate result, however, setting the precision
+ * too high will result in deminishing results.
+ *
+ * @tparam T Type of items to count
+ * @tparam Precision Tuning parameter to trade runtime/memory footprint for better accuracy
+ * @tparam Scope The scope in which operations will be performed by individual threads
+ * @tparam Hash Hash function used to hash items
+ */
 template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash>
 class hyperloglog_ref {
  public:
-  using fp_type                      = float;
-  static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
-  static constexpr auto precision    = Precision;
+  using fp_type                      = float;      ///< Floating point type used for reduction
+  static constexpr auto thread_scope = Scope;      ///< CUDA thread scope
+  static constexpr auto precision    = Precision;  ///< Precision
 
-  using storage_type = hyperloglog_dense_registers<Precision>;
+  using storage_type = hyperloglog_dense_registers<Precision>;  ///< Storage type
+
   template <cuda::thread_scope NewScope>
-  using with_scope = hyperloglog_ref<T, Precision, NewScope, Hash>;
+  using with_scope = hyperloglog_ref<T, Precision, NewScope, Hash>;  ///< Ref type with different
+                                                                     ///< thread scope
 
+  /**
+   * @brief Constructs a non-owning `hyperloglog_ref` object.
+   *
+   * @param storage Reference to storage object of type `storage_type`
+   * @param hash The hash function used to hash items
+   */
+  // Doxygen cannot document unnamed parameter for scope, see
+  // https://github.com/doxygen/doxygen/issues/6926
   __host__ __device__ constexpr hyperloglog_ref(storage_type& storage,
-                                                cuco::cuda_thread_scope<Scope> = {},
-                                                Hash const& hash               = {}) noexcept
+                                                cuco::cuda_thread_scope<Scope>,
+                                                Hash const& hash) noexcept
     : hash_{hash}, storage_{storage}
   {
   }
 
+  /**
+   * @brief Resets the estimator, i.e., clears the current count estimate.
+   *
+   * @tparam CG CUDA Cooperative Group type
+   *
+   * @param group CUDA Cooperative group this operation is executed in
+   */
   template <class CG>
   __device__ void clear(CG const& group) noexcept
   {
     this->storage_.clear(group);
   }
 
+  /**
+   * @brief Adds an item to the estimator.
+   *
+   * @param item The item to be counted
+   */
   __device__ void add(T const& item) noexcept
   {
     // static_assert NumBuckets is not too big
@@ -63,6 +99,15 @@ class hyperloglog_ref {
     this->storage_.update_max<thread_scope>(reg, zeroes);
   }
 
+  /**
+   * @brief Merges the result of `other` estimator reference into `*this` estimator reference.
+   *
+   * @tparam CG CUDA Cooperative Group type
+   * @tparam OtherScope Thread scope of `other` estimator
+   *
+   * @param group CUDA Cooperative group this operation is executed in
+   * @param other Other estimator reference to be merged into `*this`
+   */
   template <class CG, cuda::thread_scope OtherScope>
   __device__ void merge(CG const& group,
                         hyperloglog_ref<T, Precision, OtherScope, Hash> const& other) noexcept
@@ -70,6 +115,13 @@ class hyperloglog_ref {
     this->storage_.merge<thread_scope>(group, other.storage_);
   }
 
+  /**
+   * @brief Compute the estimated distinct items count.
+   *
+   * @param group CUDA thread block group this operation is executed in
+   *
+   * @return Approximate distinct items count
+   */
   [[nodiscard]] __device__ std::size_t estimate(
     cooperative_groups::thread_block const& group) const noexcept
   {
@@ -110,8 +162,9 @@ class hyperloglog_ref {
   }
 
  private:
-  Hash hash_;
-  storage_type& storage_;  // TODO is a reference the right choice here??
+  Hash hash_;  ///< Hash function used to hash items
+  // TODO is a reference the right choice here??
+  storage_type& storage_;  ///< Reference to storage object
 
   template <class T_, int32_t Precision_, cuda::thread_scope Scope_, class Hash_>
   friend class hyperloglog_ref;

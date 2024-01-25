@@ -20,12 +20,29 @@
 #include <cuda/std/cmath>
 
 namespace cuco::hyperloglog_ns::detail {
+
+/**
+ * @brief Estimate correction algorithm based on HyperLogLog++.
+ *
+ * @note Variable names correspond to the definitions given in the HLL++ paper:
+ * https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf
+ *
+ * @tparam Precision Tuning parameter to trade accuracy for runtime/memory footprint
+ */
 template <int32_t Precision>
 class finalizer {
   // this minimum number of registers is required by HLL++
   static_assert(Precision >= 4, "Precision must be greater or equal to 4");
 
  public:
+  /**
+   * @brief Compute the bias-corrected cardinality estimate.
+   *
+   * @param z Geometric mean of registers
+   * @param v Number of 0 registers
+   *
+   * @return Bias-corrected cardinality estimate
+   */
   __host__ __device__ static double constexpr finalize(double z, int v) noexcept
   {
     auto e = alpha_mm() / z;
@@ -50,7 +67,7 @@ class finalizer {
   }
 
  private:
-  static auto constexpr m = (1 << Precision);
+  static auto constexpr m = (1 << Precision);  ///< Number of registers
 
   __host__ __device__ static double constexpr alpha_mm() noexcept
   {

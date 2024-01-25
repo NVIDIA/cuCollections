@@ -23,9 +23,25 @@
 
 namespace cuco::detail {
 
+/**
+ * @brief Storage class for `hyperloglog` and `hyperloglog_ref`.
+ *
+ * @note This class implements the dense storage layout from the HyperLogLog++ paper, but uses
+ * 4bytes per register instead of only 6bits. This is required since we need to update registers
+ * atomically.
+ *
+ * @tparam Precision Tuning parameter to trade runtime/memory footprint for better accuracy
+ */
 template <int32_t Precision>
 class hyperloglog_dense_registers {
  public:
+  /**
+   * @brief Clears the storage.
+   *
+   * @tparam CG CUDA Cooperative Group type
+   *
+   * @param group CUDA Cooperative group this operation is executed in
+   */
   template <class CG>
   __device__ void constexpr clear(CG const& group) noexcept
   {
@@ -42,21 +58,49 @@ class hyperloglog_dense_registers {
     // }
   }
 
+  /**
+   * @brief Returns a reference to the element at specified location `i`. No bounds checking is
+   * performed.
+   *
+   * @param i Position of the element to return
+   *
+   * @return Reference to the requested element
+   */
   __host__ __device__ constexpr int& operator[](std::size_t i) noexcept
   {
     return this->registers_[i];
   }
 
+  /**
+   * @brief Returns the element at specified location `i`. No bounds checking is performed.
+   *
+   * @param i Position of the element to return
+   *
+   * @return Requested element
+   */
   __host__ __device__ constexpr int operator[](std::size_t i) const noexcept
   {
     return this->registers_[i];
   }
 
+  /**
+   * @brief Returns the number of elements in the container.
+   *
+   * @return The number of elements in the container
+   */
   __host__ __device__ constexpr std::size_t size() const noexcept
   {
     return this->registers_.size();
   }
 
+  /**
+   * @brief Atomically updates the register at position `i` with `max(reg[i], value)`.
+   *
+   * @tparam Scope CUDA thread scope
+   *
+   * @param i Register index
+   * @param value New value
+   */
   template <cuda::thread_scope Scope>
   __device__ constexpr void update_max(std::size_t i, int value) noexcept
   {
@@ -73,6 +117,15 @@ class hyperloglog_dense_registers {
     }
   }
 
+  /**
+   * @brief Combines the contents of `other` storage into `*this` storage.
+   *
+   * @tparam Scope CUDA thread scope
+   * @tparam CG CUDA Cooperative Group type
+   *
+   * @param group CUDA Cooperative group this operation is executed in
+   * @param other Other storage
+   */
   template <cuda::thread_scope Scope, class CG>
   __device__ void constexpr merge(CG const& group,
                                   hyperloglog_dense_registers const& other) noexcept
@@ -118,6 +171,7 @@ class hyperloglog_dense_registers {
   }
 
  private:
-  alignas(sizeof(int) * 4) cuda::std::array<int, 1ull << Precision> registers_;
+  alignas(sizeof(int) *
+          4) cuda::std::array<int, 1ull << Precision> registers_;  ///< Register array storage
 };
 }  // namespace cuco::detail

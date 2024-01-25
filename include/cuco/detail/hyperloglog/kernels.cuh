@@ -43,7 +43,7 @@ CUCO_KERNEL void add_shmem(InputIt first, cuco::detail::index_type n, RefType re
   auto idx               = cuco::detail::global_thread_id();
   auto const block       = cooperative_groups::this_thread_block();
 
-  local_ref_type local_ref(local_storage);
+  local_ref_type local_ref(local_storage, {}, {});
   local_ref.clear(block);
   block.sync();
 
