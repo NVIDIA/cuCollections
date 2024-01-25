@@ -55,6 +55,7 @@ class hyperloglog {
                                                                    ///< type
 
   using allocator_type         = Allocator;                          ///< Allocator type
+  using value_type             = typename ref_type<>::value_type;    ///< Type of items to count
   using storage_type           = typename ref_type<>::storage_type;  ///< Storage type
   using storage_allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<
     storage_type>;  ///< Storage allocator type

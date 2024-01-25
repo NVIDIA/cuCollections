@@ -49,6 +49,7 @@ class hyperloglog_ref {
   static constexpr auto thread_scope = Scope;      ///< CUDA thread scope
   static constexpr auto precision    = Precision;  ///< Precision
 
+  using value_type   = T;                                       ///< Type of items to count
   using storage_type = hyperloglog_dense_registers<Precision>;  ///< Storage type
 
   template <cuda::thread_scope NewScope>

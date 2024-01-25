@@ -44,6 +44,7 @@ class distinct_count_estimator_ref {
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
   static constexpr auto precision    = impl_type::precision;     ///< Precision
 
+  using value_type   = typename impl_type::value_type;    ///< Type of items to count
   using storage_type = typename impl_type::storage_type;  ///< Storage type
 
   template <cuda::thread_scope NewScope>

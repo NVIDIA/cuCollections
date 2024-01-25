@@ -59,6 +59,7 @@ class distinct_count_estimator {
     cuco::distinct_count_estimator_ref<T, Precision, NewScope, Hash>;  ///< Non-owning reference
                                                                        ///< type
 
+  using value_type     = typename impl_type::value_type;      ///< Type of items to count
   using allocator_type = typename impl_type::allocator_type;  ///< Allocator type
   using storage_type   = typename impl_type::storage_type;    ///< Storage type
 
