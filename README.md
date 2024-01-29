@@ -14,9 +14,11 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 `cuCollections` is still under heavy development. Users should expect breaking changes and refactoring to be common.
 
 ### Major Updates
-__01/02/2024__ The legacy `static_map` is moved to `cuco::legacy` namespace.
 
-__01/08/2024__ The `experimental` namespace is deprecated.
+__01/08/2024__ Deprecated the `experimental` namespace
+
+__01/02/2024__ Moved the legacy `static_map` to `cuco::legacy` namespace
+
 
 ## Getting cuCollections
 
