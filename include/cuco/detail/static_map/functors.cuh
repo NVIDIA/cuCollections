@@ -79,22 +79,6 @@ struct slot_is_filled {
   /**
    * @brief Indicates if the target slot `slot` is filled.
    *
-   * @tparam U Slot content type
-   *
-   * @param slot The slot
-   *
-   * @return `true` if slot is filled
-   */
-  template <typename Slot>
-  __device__ constexpr bool operator()(Slot const& slot) const noexcept
-  {
-    return not(cuco::detail::bitwise_compare(empty_sentinel_, thrust::get<0>(slot)) or
-               cuco::detail::bitwise_compare(erased_sentinel_, thrust::get<0>(slot)));
-  }
-
-  /**
-   * @brief Indicates if the target slot `slot` is filled.
-   *
    * @param slot The slot
    *
    * @return `true` if slot is filled
