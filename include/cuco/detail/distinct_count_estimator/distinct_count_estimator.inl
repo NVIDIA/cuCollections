@@ -18,11 +18,8 @@ namespace cuco {
 
 template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash, class Allocator>
 constexpr distinct_count_estimator<T, Precision, Scope, Hash, Allocator>::distinct_count_estimator(
-  cuco::cuda_thread_scope<Scope> scope,
-  Hash const& hash,
-  Allocator const& alloc,
-  cuco::cuda_stream_ref stream)
-  : impl_{std::make_unique<impl_type>(scope, hash, alloc, stream)}
+  Hash const& hash, Allocator const& alloc, cuco::cuda_stream_ref stream)
+  : impl_{std::make_unique<impl_type>(hash, alloc, stream)}
 {
 }
 

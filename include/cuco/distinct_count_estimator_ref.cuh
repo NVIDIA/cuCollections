@@ -57,13 +57,10 @@ class distinct_count_estimator_ref {
    * @brief Constructs a non-owning `distinct_count_estimator_ref` object.
    *
    * @param storage Reference to storage object of type `storage_type`
-   * @param scope The scope in which operations will be performed
    * @param hash The hash function used to hash items
    */
-  __host__ __device__ constexpr distinct_count_estimator_ref(
-    storage_type& storage,
-    cuco::cuda_thread_scope<Scope> scope = {},
-    Hash const& hash                     = {}) noexcept;
+  __host__ __device__ constexpr distinct_count_estimator_ref(storage_type& storage,
+                                                             Hash const& hash = {}) noexcept;
 
   /**
    * @brief Resets the estimator, i.e., clears the current count estimate.

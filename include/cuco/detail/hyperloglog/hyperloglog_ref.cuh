@@ -62,11 +62,7 @@ class hyperloglog_ref {
    * @param storage Reference to storage object of type `storage_type`
    * @param hash The hash function used to hash items
    */
-  // Doxygen cannot document unnamed parameter for scope, see
-  // https://github.com/doxygen/doxygen/issues/6926
-  __host__ __device__ constexpr hyperloglog_ref(storage_type& storage,
-                                                cuco::cuda_thread_scope<Scope>,
-                                                Hash const& hash) noexcept
+  __host__ __device__ constexpr hyperloglog_ref(storage_type& storage, Hash const& hash) noexcept
     : hash_{hash}, storage_{storage}
   {
   }

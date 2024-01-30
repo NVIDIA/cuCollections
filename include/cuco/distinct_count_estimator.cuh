@@ -69,19 +69,17 @@ class distinct_count_estimator {
    *
    * @note This function synchronizes the given stream.
    *
-   * @param scope The scope in which operations will be performed
    * @param hash The hash function used to hash items
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the object
    */
-  constexpr distinct_count_estimator(cuco::cuda_thread_scope<Scope> scope = {},
-                                     Hash const& hash                     = {},
-                                     Allocator const& alloc               = {},
-                                     cuco::cuda_stream_ref stream         = {});
+  constexpr distinct_count_estimator(Hash const& hash             = {},
+                                     Allocator const& alloc       = {},
+                                     cuco::cuda_stream_ref stream = {});
 
   ~distinct_count_estimator() = default;
 
-  distinct_count_estimator(distinct_count_estimator const&) = delete;
+  distinct_count_estimator(distinct_count_estimator const&)            = delete;
   distinct_count_estimator& operator=(distinct_count_estimator const&) = delete;
   distinct_count_estimator(distinct_count_estimator&&) = default;  ///< Move constructor
 

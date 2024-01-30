@@ -18,10 +18,8 @@ namespace cuco {
 
 template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash>
 __host__ __device__ constexpr distinct_count_estimator_ref<T, Precision, Scope, Hash>::
-  distinct_count_estimator_ref(storage_type& storage,
-                               cuco::cuda_thread_scope<Scope> scope,
-                               Hash const& hash) noexcept
-  : impl_{storage, scope, hash}
+  distinct_count_estimator_ref(storage_type& storage, Hash const& hash) noexcept
+  : impl_{storage, hash}
 {
 }
 

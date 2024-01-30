@@ -69,12 +69,7 @@ class hyperloglog {
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the object
    */
-  // Doxygen cannot document unnamed parameter for scope, see
-  // https://github.com/doxygen/doxygen/issues/6926
-  constexpr hyperloglog(cuco::cuda_thread_scope<Scope>,
-                        Hash const& hash,
-                        Allocator const& alloc,
-                        cuco::cuda_stream_ref stream)
+  constexpr hyperloglog(Hash const& hash, Allocator const& alloc, cuco::cuda_stream_ref stream)
     : hash_{hash},
       storage_allocator_{alloc},
       storage_deleter_{storage_allocator_},
@@ -85,7 +80,7 @@ class hyperloglog {
 
   ~hyperloglog() = default;
 
-  hyperloglog(hyperloglog const&) = delete;
+  hyperloglog(hyperloglog const&)            = delete;
   hyperloglog& operator=(hyperloglog const&) = delete;
   hyperloglog(hyperloglog&&)                 = default;  ///< Move constructor
 
@@ -301,7 +296,7 @@ class hyperloglog {
    */
   [[nodiscard]] ref_type<> ref() const noexcept
   {
-    return ref_type<>{*(this->storage_.get()), {}, this->hash_};
+    return ref_type<>{*(this->storage_.get()), this->hash_};
   }
 
  private:
