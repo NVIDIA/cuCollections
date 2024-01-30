@@ -41,8 +41,7 @@ namespace distribution {
 /**
  * @brief Tag struct representing a random distribution of unique keys.
  */
-struct unique {
-};
+struct unique {};
 
 /**
  * @brief Tag struct representing a uniform distribution.
