@@ -15,8 +15,9 @@
 
 #pragma once
 
-namespace cuco {
-namespace detail {
+#include <cuco/detail/bitwise_compare.cuh>
+
+namespace cuco::open_addressing_ns::detail {
 
 /**
  * @brief Device functor returning the content of the slot indexed by `idx`.
@@ -48,5 +49,49 @@ struct get_slot {
   }
 };
 
-}  // namespace detail
-}  // namespace cuco
+/**
+ * @brief Device functor returning whether the given slot is filled
+ *
+ * @tparam T The slot key type
+ */
+template <typename T, bool has_payload>
+struct slot_is_filled {
+  T empty_sentinel_;   ///< The value of the empty key sentinel
+  T erased_sentinel_;  ///< Key value that represents an erased slot
+
+  /**
+   * @brief Constructs `slot_is_filled` functor with the given sentinels
+   *
+   * @param empty_sentinel Key sentinel indicating an empty slot
+   * @param erased_sentinel Key sentinel indicating an erased slot
+   */
+  explicit constexpr slot_is_filled(T const& empty_sentinel, T const& erased_sentinel) noexcept
+    : empty_sentinel_{empty_sentinel}, erased_sentinel_{erased_sentinel}
+  {
+  }
+
+  /**
+   * @brief Indicates if the target slot `slot` is filled.
+   *
+   * @tparam S The slot type
+   *
+   * @param slot The slot
+   *
+   * @return `true` if slot is filled
+   */
+  template <typename S>
+  __device__ constexpr bool operator()(S const& slot) const noexcept
+  {
+    auto const key = [&]() {
+      if constexpr (has_payload) {
+        return slot.first;
+      } else {
+        return slot;
+      }
+    }();
+    return not(cuco::detail::bitwise_compare(empty_sentinel_, key) or
+               cuco::detail::bitwise_compare(erased_sentinel_, key));
+  }
+};
+
+}  // namespace cuco::open_addressing_ns::detail
