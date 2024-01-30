@@ -99,6 +99,9 @@ class open_addressing_impl {
   using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
   using probing_scheme_type = ProbingScheme;                 ///< Probe scheme type
 
+  /// Determines if the container is a key/value or key-only store
+  static constexpr auto has_payload = not std::is_same_v<key_type, value_type>;
+
   /**
    * @brief Constructs a statically-sized open addressing data structure with the specified initial
    * capacity, sentinel values and CUDA stream.
