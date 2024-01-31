@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <cuco/detail/__config>
 #include <cuco/detail/hyperloglog/finalizer.cuh>
 #include <cuco/detail/hyperloglog/storage.cuh>
 #include <cuco/hash_functions.cuh>
@@ -142,10 +143,27 @@ class hyperloglog_ref {
 
     // warp reduce Z and V
     auto const warp = cooperative_groups::tiled_partition<32>(group);
+#if defined(CUCO_HAS_CG_REDUCE_UPDATE_ASYNC)
     cooperative_groups::reduce_update_async(
       warp, block_sum, thread_sum, cooperative_groups::plus<fp_type>());
     cooperative_groups::reduce_update_async(
       warp, block_zeroes, thread_zeroes, cooperative_groups::plus<int>());
+#elif defined(CUCO_HAS_CG_EXPERIMENTAL_REDUCE_UPDATE_ASYNC)
+    cooperative_groups::experimental::reduce_update_async(
+      warp, block_sum, thread_sum, cooperative_groups::plus<fp_type>());
+    cooperative_groups::experimental::reduce_update_async(
+      warp, block_zeroes, thread_zeroes, cooperative_groups::plus<int>());
+#else
+    auto const warp_sum =
+      cooperative_groups::reduce(warp, thread_sum, cooperative_groups::plus<fp_type>());
+    auto const warp_zeroes =
+      cooperative_groups::reduce(warp, thread_zeroes, cooperative_groups::plus<int>());
+    // TODO warp sync needed?
+    if (warp.thread_rank() == 0) {
+      block_sum.fetch_add(warp_sum, cuda::std::memory_order_relaxed);
+      block_zeroes.fetch_add(warp_zeroes, cuda::std::memory_order_relaxed);
+    }
+#endif
     group.sync();
 
     if (group.thread_rank() == 0) {
