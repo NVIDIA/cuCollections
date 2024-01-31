@@ -330,11 +330,7 @@ template <typename OutputIt>
 OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   OutputIt output_begin, cuda_stream_ref stream) const
 {
-  auto const begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>{0},
-    open_addressing_ns::detail::get_slot<storage_ref_type>(impl_->storage_ref()));
-
-  return impl_->retrieve_all(begin, output_begin, stream);
+  return impl_->retrieve_all(output_begin, stream);
 }
 
 template <class Key,

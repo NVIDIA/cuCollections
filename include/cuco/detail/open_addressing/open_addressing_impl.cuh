@@ -542,20 +542,16 @@ class open_addressing_impl {
    * @note Behavior is undefined if the range beginning at `output_begin` is smaller than the return
    * value of `size()`.
    *
-   * @tparam InputIt Device accessible container slot iterator
    * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
    * convertible from the container's `value_type`
    *
-   * @param begin Beginning of the container slot iterator
    * @param output_begin Beginning output iterator for keys
    * @param stream CUDA stream used for this operation
    *
    * @return Iterator indicating the end of the output
    */
-  template <typename InputIt, typename OutputIt>
-  [[nodiscard]] OutputIt retrieve_all(InputIt begin,
-                                      OutputIt output_begin,
-                                      cuda_stream_ref stream) const
+  template <typename OutputIt>
+  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream) const
   {
     std::size_t temp_storage_bytes = 0;
     using temp_allocator_type =
@@ -563,6 +559,9 @@ class open_addressing_impl {
     auto temp_allocator = temp_allocator_type{this->allocator()};
     auto d_num_out      = reinterpret_cast<size_type*>(
       std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
+    auto const begin = thrust::make_transform_iterator(
+      thrust::counting_iterator<size_type>{0},
+      open_addressing_ns::detail::get_slot<has_payload, storage_ref_type>(this->storage_ref()));
     auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
       this->empty_key_sentinel(), this->erased_key_sentinel()};
     CUCO_CUDA_TRY(cub::DeviceSelect::If(nullptr,
