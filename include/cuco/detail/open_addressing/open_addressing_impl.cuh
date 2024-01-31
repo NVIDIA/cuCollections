@@ -81,6 +81,9 @@ class open_addressing_impl {
     std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>, ProbingScheme>,
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
+  /// Determines if the container is a key/value or key-only store
+  static constexpr auto has_payload = not std::is_same_v<Key, Value>;
+
  public:
   static constexpr auto cg_size      = ProbingScheme::cg_size;  ///< CG size used for probing
   static constexpr auto window_size  = Storage::window_size;    ///< Window size used for probing
@@ -98,9 +101,6 @@ class open_addressing_impl {
 
   using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
   using probing_scheme_type = ProbingScheme;                 ///< Probe scheme type
-
-  /// Determines if the container is a key/value or key-only store
-  static constexpr auto has_payload = not std::is_same_v<key_type, value_type>;
 
   /**
    * @brief Constructs a statically-sized open addressing data structure with the specified initial
