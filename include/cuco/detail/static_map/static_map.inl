@@ -16,7 +16,6 @@
 
 #include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/bitwise_compare.cuh>
-#include <cuco/detail/static_map/functors.cuh>
 #include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
@@ -401,14 +400,9 @@ std::pair<KeyOut, ValueOut>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   KeyOut keys_out, ValueOut values_out, cuda_stream_ref stream) const
 {
-  auto const begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>{0},
-    static_map_ns::detail::get_slot<storage_ref_type>(impl_->storage_ref()));
-  auto const is_filled  = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
-                                                                       this->erased_key_sentinel());
-  auto zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
-  auto const zipped_out_end = impl_->retrieve_all(begin, zipped_out_begin, is_filled, stream);
-  auto const num            = std::distance(zipped_out_begin, zipped_out_end);
+  auto const zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
+  auto const zipped_out_end   = impl_->retrieve_all(zipped_out_begin, stream);
+  auto const num              = std::distance(zipped_out_begin, zipped_out_end);
 
   return std::make_pair(keys_out + num, values_out + num);
 }
@@ -424,9 +418,7 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   cuda_stream_ref stream)
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
-                                                                       this->erased_key_sentinel());
-  this->impl_->rehash(*this, is_filled, stream);
+  this->impl_->rehash(*this, stream);
 }
 
 template <class Key,
@@ -440,10 +432,8 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   size_type capacity, cuda_stream_ref stream)
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
-                                                                       this->erased_key_sentinel());
-  auto const extent    = make_window_extent<static_map>(capacity);
-  this->impl_->rehash(extent, *this, is_filled, stream);
+  auto const extent = make_window_extent<static_map>(capacity);
+  this->impl_->rehash(extent, *this, stream);
 }
 
 template <class Key,
@@ -457,9 +447,7 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   cuda_stream_ref stream)
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
-                                                                       this->erased_key_sentinel());
-  this->impl_->rehash_async(*this, is_filled, stream);
+  this->impl_->rehash_async(*this, stream);
 }
 
 template <class Key,
@@ -473,10 +461,8 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   size_type capacity, cuda_stream_ref stream)
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
-                                                                       this->erased_key_sentinel());
-  auto const extent    = make_window_extent<static_map>(capacity);
-  this->impl_->rehash_async(extent, *this, is_filled, stream);
+  auto const extent = make_window_extent<static_map>(capacity);
+  this->impl_->rehash_async(extent, *this, stream);
 }
 
 template <class Key,
@@ -491,9 +477,7 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cuda_stream_ref stream) const noexcept
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
-                                                                       this->erased_key_sentinel());
-  return impl_->size(is_filled, stream);
+  return impl_->size(stream);
 }
 
 template <class Key,
