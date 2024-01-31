@@ -114,7 +114,7 @@ class open_addressing_ref_impl {
   static constexpr auto window_size =
     storage_ref_type::window_size;             ///< Number of elements handled per window
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
-                                               //
+
   /**
    * @brief Constructs open_addressing_ref_impl.
    *
