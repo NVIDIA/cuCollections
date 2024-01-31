@@ -16,6 +16,7 @@
 #pragma once
 
 #include <cuco/detail/bitwise_compare.cuh>
+#include <cuco/detail/traits.hpp>
 
 namespace cuco::open_addressing_ns::detail {
 
@@ -52,9 +53,10 @@ struct get_slot {
 /**
  * @brief Device functor returning whether the given slot is filled
  *
+ * @tparam HasPayload Flag indicating whether the slot contains a payload
  * @tparam T The slot key type
  */
-template <typename T, bool has_payload>
+template <bool HasPayload, typename T>
 struct slot_is_filled {
   T empty_sentinel_;   ///< The value of the empty key sentinel
   T erased_sentinel_;  ///< Key value that represents an erased slot
@@ -83,8 +85,13 @@ struct slot_is_filled {
   __device__ constexpr bool operator()(S const& slot) const noexcept
   {
     auto const key = [&]() {
-      if constexpr (has_payload) {
-        return slot.first;
+      if constexpr (HasPayload) {
+        // required by thrust zip iterator in `retrieve_all`
+        if constexpr (cuco::detail::is_thrust_pair_like<S>::value) {
+          return thrust::get<0>(slot);
+        } else {
+          return slot.first;
+        }
       } else {
         return slot;
       }

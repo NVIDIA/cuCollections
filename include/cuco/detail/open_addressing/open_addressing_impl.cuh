@@ -545,19 +545,16 @@ class open_addressing_impl {
    * @tparam InputIt Device accessible container slot iterator
    * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
    * convertible from the container's `value_type`
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
    * @param begin Beginning of the container slot iterator
    * @param output_begin Beginning output iterator for keys
-   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
    *
    * @return Iterator indicating the end of the output
    */
-  template <typename InputIt, typename OutputIt, typename Predicate>
+  template <typename InputIt, typename OutputIt>
   [[nodiscard]] OutputIt retrieve_all(InputIt begin,
                                       OutputIt output_begin,
-                                      Predicate const& is_filled,
                                       cuda_stream_ref stream) const
   {
     std::size_t temp_storage_bytes = 0;
@@ -566,6 +563,8 @@ class open_addressing_impl {
     auto temp_allocator = temp_allocator_type{this->allocator()};
     auto d_num_out      = reinterpret_cast<size_type*>(
       std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
+    auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+      this->empty_key_sentinel(), this->erased_key_sentinel()};
     CUCO_CUDA_TRY(cub::DeviceSelect::If(nullptr,
                                         temp_storage_bytes,
                                         begin,
@@ -599,25 +598,23 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Gets the number of elements in the container.
+   * @brief Gets the number of elements in the container
    *
    * @note This function synchronizes the given stream.
    *
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
-   *
-   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used to get the number of inserted elements
    *
    * @return The number of elements in the container
    */
-  template <typename Predicate>
-  [[nodiscard]] size_type size(Predicate const& is_filled, cuda_stream_ref stream) const noexcept
+  [[nodiscard]] size_type size(cuda_stream_ref stream) const noexcept
   {
     auto counter =
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
     auto const grid_size = cuco::detail::grid_size(storage_.num_windows());
+    auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+      this->empty_key_sentinel(), this->erased_key_sentinel()};
 
     // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
     // v2.1.0
@@ -635,17 +632,15 @@ class open_addressing_impl {
    * `rehash_async`.
    *
    * @tparam Container The container type this function operates on
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
    * @param extent The container's new `window_extent` after this operation took place
    * @param container The container to be rehashed
-   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
    */
-  template <typename Container, typename Predicate>
-  void rehash(Container const& container, Predicate const& is_filled, cuda_stream_ref stream)
+  template <typename Container>
+  void rehash(Container const& container, cuda_stream_ref stream)
   {
-    this->rehash_async(container, is_filled, stream);
+    this->rehash_async(container, stream);
     stream.synchronize();
   }
 
@@ -666,20 +661,15 @@ class open_addressing_impl {
    * @note This function is not available if the conatiner's `extent_type` is static.
    *
    * @tparam Container The container type this function operates on
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
    * @param extent The container's new `window_extent` after this operation took place
    * @param container The container to be rehashed
-   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
    */
-  template <typename Container, typename Predicate>
-  void rehash(extent_type extent,
-              Container const& container,
-              Predicate const& is_filled,
-              cuda_stream_ref stream)
+  template <typename Container>
+  void rehash(extent_type extent, Container const& container, cuda_stream_ref stream)
   {
-    this->rehash_async(extent, container, is_filled, stream);
+    this->rehash_async(extent, container, stream);
     stream.synchronize();
   }
 
@@ -687,17 +677,15 @@ class open_addressing_impl {
    * @brief Asynchronously regenerates the container
    *
    * @tparam Container The container type this function operates on
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
    * @param extent The container's new `window_extent` after this operation took place
    * @param container The container to be rehashed
-   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
    */
-  template <typename Container, typename Predicate>
-  void rehash_async(Container const& container, Predicate const& is_filled, cuda_stream_ref stream)
+  template <typename Container>
+  void rehash_async(Container const& container, cuda_stream_ref stream)
   {
-    this->rehash_async(this->storage_.window_extent(), container, is_filled, stream);
+    this->rehash_async(this->storage_.window_extent(), container, stream);
   }
 
   /**
@@ -714,18 +702,13 @@ class open_addressing_impl {
    * @note This function is not available if the conatiner's `extent_type` is static.
    *
    * @tparam Container The container type this function operates on
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
    * @param extent The container's new `window_extent` after this operation took place
    * @param container The container to be rehashed
-   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
    */
-  template <typename Container, typename Predicate>
-  void rehash_async(extent_type extent,
-                    Container const& container,
-                    Predicate const& is_filled,
-                    cuda_stream_ref stream)
+  template <typename Container>
+  void rehash_async(extent_type extent, Container const& container, cuda_stream_ref stream)
   {
     auto const old_storage = std::move(this->storage_);
     new (&storage_) storage_type{extent, this->allocator()};
@@ -737,6 +720,8 @@ class open_addressing_impl {
     auto constexpr block_size = cuco::detail::default_block_size();
     auto constexpr stride     = cuco::detail::default_stride();
     auto const grid_size      = cuco::detail::grid_size(num_windows, 1, stride, block_size);
+    auto const is_filled      = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+      this->empty_key_sentinel(), this->erased_key_sentinel()};
 
     detail::rehash<block_size><<<grid_size, block_size, 0, stream>>>(
       old_storage.ref(), container.ref(op::insert), is_filled);

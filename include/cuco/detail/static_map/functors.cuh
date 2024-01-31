@@ -54,42 +54,6 @@ struct get_slot {
   }
 };
 
-/**
- * @brief Device functor returning whether the input slot indexed by `idx` is filled.
- *
- * @tparam T The slot key type
- * @tparam U The slot value type
- */
-template <typename T, typename U>
-struct slot_is_filled {
-  T empty_sentinel_;   ///< The value of the empty key sentinel
-  T erased_sentinel_;  ///< Key value that represents an erased slot
-
-  /**
-   * @brief Constructs `slot_is_filled` functor with the given sentinels.
-   *
-   * @param empty_sentinel Sentinel indicating empty slot
-   * @param erased_sentinel Sentinel indicating erased slot
-   */
-  explicit constexpr slot_is_filled(T const& empty_sentinel, T const& erased_sentinel) noexcept
-    : empty_sentinel_{empty_sentinel}, erased_sentinel_{erased_sentinel}
-  {
-  }
-
-  /**
-   * @brief Indicates if the target slot `slot` is filled.
-   *
-   * @param slot The slot
-   *
-   * @return `true` if slot is filled
-   */
-  __device__ constexpr bool operator()(cuco::pair<T, U> const& slot) const noexcept
-  {
-    return not(cuco::detail::bitwise_compare(empty_sentinel_, slot.first) or
-               cuco::detail::bitwise_compare(erased_sentinel_, slot.first));
-  }
-};
-
 }  // namespace detail
 }  // namespace static_map_ns
 }  // namespace cuco

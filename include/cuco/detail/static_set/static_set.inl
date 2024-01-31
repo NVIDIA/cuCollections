@@ -15,7 +15,6 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
-#include <cuco/detail/static_set/functors.cuh>
 #include <cuco/detail/static_set/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
@@ -334,10 +333,8 @@ OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   auto const begin = thrust::make_transform_iterator(
     thrust::counting_iterator<size_type>{0},
     open_addressing_ns::detail::get_slot<storage_ref_type>(impl_->storage_ref()));
-  auto const is_filled =
-    static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
 
-  return impl_->retrieve_all(begin, output_begin, is_filled, stream);
+  return impl_->retrieve_all(begin, output_begin, stream);
 }
 
 template <class Key,
@@ -350,9 +347,7 @@ template <class Key,
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   cuda_stream_ref stream)
 {
-  auto const is_filled =
-    static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
-  this->impl_->rehash(*this, is_filled, stream);
+  this->impl_->rehash(*this, stream);
 }
 
 template <class Key,
@@ -365,10 +360,8 @@ template <class Key,
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   size_type capacity, cuda_stream_ref stream)
 {
-  auto const is_filled =
-    static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
   auto const extent = make_window_extent<static_set>(capacity);
-  this->impl_->rehash(extent, *this, is_filled, stream);
+  this->impl_->rehash(extent, *this, stream);
 }
 
 template <class Key,
@@ -381,9 +374,7 @@ template <class Key,
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   cuda_stream_ref stream)
 {
-  auto const is_filled =
-    static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
-  this->impl_->rehash_async(*this, is_filled, stream);
+  this->impl_->rehash_async(*this, stream);
 }
 
 template <class Key,
@@ -396,10 +387,8 @@ template <class Key,
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   size_type capacity, cuda_stream_ref stream)
 {
-  auto const is_filled =
-    static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
   auto const extent = make_window_extent<static_set>(capacity);
-  this->impl_->rehash_async(extent, *this, is_filled, stream);
+  this->impl_->rehash_async(extent, *this, stream);
 }
 
 template <class Key,
@@ -413,9 +402,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cuda_stream_ref stream) const noexcept
 {
-  auto const is_filled =
-    static_set_ns::detail::slot_is_filled(this->empty_key_sentinel(), this->erased_key_sentinel());
-  return impl_->size(is_filled, stream);
+  return impl_->size(stream);
 }
 
 template <class Key,
