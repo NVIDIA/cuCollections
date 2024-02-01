@@ -57,7 +57,7 @@ class finalizer {
       double const h = m * log(static_cast<double>(m) / v);
       // HLL++ is defined only when p < 19, otherwise we need to fallback to HLL.
       // The threshold `2.5 * m` is from the original HLL algorithm.
-      if ((Precision < 19 and h <= thresholds[Precision - 4]) or e <= 2.5 * m) {
+      if ((Precision < 19 and h <= threshold<Precision>()) or e <= 2.5 * m) {
         e = h;
       } else {
         e = bias_corrected_estimate(e);
