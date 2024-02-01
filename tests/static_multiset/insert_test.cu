@@ -18,9 +18,38 @@
 
 #include <cuco/static_multiset.cuh>
 
+#include <thrust/device_vector.h>
+#include <thrust/iterator/constant_iterator.h>
+#include <thrust/iterator/counting_iterator.h>
+
 #include <catch2/catch_template_test_macros.hpp>
 
 using size_type = int32_t;
+
+template <typename Set>
+__inline__ void test_insert(Set& set)
+{
+  using Key = typename Set::key_type;
+
+  auto constexpr num          = 300;
+  auto constexpr multiplicity = 3;
+
+  SECTION("Inserting 300 unique keys should get 300 entries in the multiset")
+  {
+    auto const keys           = thrust::counting_iterator<Key>{0};
+    auto const num_insertions = set.insert(keys, keys + num);
+
+    REQUIRE(num_insertions == num);
+  }
+
+  SECTION("Inserting one key for 300 times should get 300 entries in the multiset")
+  {
+    auto const keys           = thrust::constant_iterator<Key>{0};
+    auto const num_insertions = set.insert(keys, keys + num);
+
+    REQUIRE(num_insertions == num);
+  }
+}
 
 TEMPLATE_TEST_CASE_SIG(
   "static_multiset insert tests",
@@ -47,4 +76,6 @@ TEMPLATE_TEST_CASE_SIG(
     cuco::static_multiset{num_keys, cuco::empty_key<Key>{-1}, {}, probe{}, {}, cuco::storage<2>{}};
 
   REQUIRE(set.capacity() == gold_capacity);
+
+  test_insert(set);
 }
