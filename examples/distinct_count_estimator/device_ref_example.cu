@@ -43,6 +43,10 @@ __global__ void piggyback_kernel(RefType ref, InputIt first, std::size_t n)
   auto idx               = blockDim.x * blockIdx.x + threadIdx.x;
   auto const block       = cooperative_groups::this_thread_block();
 
+  // Initialize the local storage object
+  if (block.thread_rank() == 0) { new (&local_storage) typename local_ref_type::storage_type{}; }
+  block.sync();
+
   // Create the local estimator with the shared memory storage
   local_ref_type local_ref(local_storage, {});
 
