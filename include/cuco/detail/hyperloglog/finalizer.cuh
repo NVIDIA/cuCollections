@@ -17,7 +17,9 @@
 
 #include <cuco/detail/hyperloglog/tuning.cuh>
 
+#include <cstddef>
 #include <cuda/std/cmath>
+#include <cuda/std/limits>
 
 namespace cuco::hyperloglog_ns::detail {
 
@@ -31,6 +33,9 @@ namespace cuco::hyperloglog_ns::detail {
  */
 template <int32_t Precision>
 class finalizer {
+  // Note: Most of the types in this implementation are explicit instead of relying on `auto` to
+  // avoid confusion with the reference implementation.
+
   // this minimum number of registers is required by HLL++
   static_assert(Precision >= 4, "Precision must be greater or equal to 4");
 
@@ -43,11 +48,9 @@ class finalizer {
    *
    * @return Bias-corrected cardinality estimate
    */
-  __host__ __device__ static double constexpr finalize(double z, int v) noexcept
+  __host__ __device__ static std::size_t constexpr finalize(double z, int v) noexcept
   {
     auto e = alpha_mm() / z;
-    // TODO remove test code
-    // printf("raw e: %lf\n", e);
 
     if (v > 0) {
       // Use linear counting for small cardinality estimates.
@@ -68,6 +71,7 @@ class finalizer {
 
  private:
   static auto constexpr m = (1 << Precision);  ///< Number of registers
+  static auto constexpr k = 6;                 ///< Number of interpolation points to consider
 
   __host__ __device__ static double constexpr alpha_mm() noexcept
   {
@@ -90,7 +94,70 @@ class finalizer {
     return e;
   }
 
-  // TODO implement HLL++ bias correction
-  __host__ __device__ static double constexpr bias(double e) noexcept { return e * 0; }
+  __host__ __device__ static double constexpr bias(double e) noexcept
+  {
+    auto const anchor_index = interpolation_anchor_index(e);
+    int const n             = raw_estimate_data<Precision>().size();
+
+    auto low  = cuda::std::max(anchor_index - k + 1, 0);
+    auto high = cuda::std::min(low + k, n);
+    // Keep moving bounds as long as the (exclusive) high bound is closer to the estimate than
+    // the lower (inclusive) bound.
+    while (high < n and distance(e, high) < distance(e, low)) {
+      low += 1;
+      high += 1;
+    }
+
+    auto const& biases = bias_data<Precision>();
+    double bias_sum    = 0.0;
+    for (int i = low; i < high; ++i) {
+      bias_sum += biases[i];
+    }
+
+    return bias_sum / (high - low);
+  }
+
+  __host__ __device__ static double distance(double e, int i) noexcept
+  {
+    auto const diff = e - raw_estimate_data<Precision>()[i];
+    return diff * diff;
+  }
+
+  __host__ __device__ static int interpolation_anchor_index(double e) noexcept
+  {
+    auto const& estimates = raw_estimate_data<Precision>();
+    int left              = 0;
+    int right             = static_cast<int>(estimates.size()) - 1;
+    int mid;
+    int candidate_index = 0;  // Index of the closest element found
+
+    while (left <= right) {
+      mid = left + (right - left) / 2;
+
+      if (estimates[mid] < e) {
+        left = mid + 1;
+      } else if (estimates[mid] > e) {
+        right = mid - 1;
+      } else {
+        // Exact match found, no need to look further
+        return mid;
+      }
+    }
+
+    // At this point, 'left' is the insertion point. We need to compare the elements at 'left' and
+    // 'left - 1' to find the closest one, taking care of boundary conditions.
+
+    // Distance from 'e' to the element at 'left', if within bounds
+    double const dist_lhs = left < static_cast<int>(estimates.size())
+                              ? cuda::std::abs(estimates[left] - e)
+                              : cuda::std::numeric_limits<double>::max();
+    // Distance from 'e' to the element at 'left - 1', if within bounds
+    double const dist_rhs = left - 1 >= 0 ? cuda::std::abs(estimates[left - 1] - e)
+                                          : cuda::std::numeric_limits<double>::max();
+
+    candidate_index = (dist_lhs < dist_rhs) ? left : left - 1;
+
+    return candidate_index;
+  }
 };
 }  // namespace cuco::hyperloglog_ns::detail
