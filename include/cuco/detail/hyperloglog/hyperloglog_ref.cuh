@@ -148,11 +148,6 @@ class hyperloglog_ref {
       warp, block_sum, thread_sum, cooperative_groups::plus<fp_type>());
     cooperative_groups::reduce_update_async(
       warp, block_zeroes, thread_zeroes, cooperative_groups::plus<int>());
-#elif defined(CUCO_HAS_CG_EXPERIMENTAL_REDUCE_UPDATE_ASYNC)
-    cooperative_groups::experimental::reduce_update_async(
-      warp, block_sum, thread_sum, cooperative_groups::plus<fp_type>());
-    cooperative_groups::experimental::reduce_update_async(
-      warp, block_zeroes, thread_zeroes, cooperative_groups::plus<int>());
 #else
     auto const warp_sum =
       cooperative_groups::reduce(warp, thread_sum, cooperative_groups::plus<fp_type>());
