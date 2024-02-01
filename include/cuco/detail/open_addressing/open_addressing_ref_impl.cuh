@@ -73,12 +73,14 @@ struct window_probing_results {
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
  * @tparam StorageRef Storage ref type
+ * @tparam SupportsDuplicateEntries Flag indicating whether duplicate entries are allowed or not
  */
 template <typename Key,
           cuda::thread_scope Scope,
           typename KeyEqual,
           typename ProbingScheme,
-          typename StorageRef>
+          typename StorageRef,
+          bool SupportsDuplicateEntries>
 class open_addressing_ref_impl {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
 
@@ -93,6 +95,9 @@ class open_addressing_ref_impl {
 
   /// Determines if the container is a key/value or key-only store
   static constexpr auto has_payload = not std::is_same_v<Key, typename StorageRef::value_type>;
+
+  /// Flag indicating whether duplicate entries are allowed or not
+  static constexpr auto supports_duplicate_entries = SupportsDuplicateEntries;
 
   // TODO: how to re-enable this check?
   // static_assert(is_window_extent_v<typename StorageRef::extent_type>,
@@ -360,8 +365,10 @@ class open_addressing_ref_impl {
       for (auto& slot_content : window_slots) {
         auto const eq_res = this->predicate_(this->extract_key(slot_content), key);
 
-        // If the key is already in the container, return false
-        if (eq_res == detail::equal_result::EQUAL) { return false; }
+        if constexpr (not supports_duplicate_entries) {
+          // If the key is already in the container, return false
+          if (eq_res == detail::equal_result::EQUAL) { return false; }
+        }
         if (eq_res == detail::equal_result::EMPTY or
             cuco::detail::bitwise_compare(this->extract_key(slot_content),
                                           this->erased_key_sentinel())) {
@@ -369,9 +376,9 @@ class open_addressing_ref_impl {
           switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
                                  slot_content,
                                  val)) {
+            case insert_result::DUPLICATE: [[fallthrough]];
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
-            case insert_result::DUPLICATE: return false;
           }
         }
       }

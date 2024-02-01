@@ -31,8 +31,8 @@ __inline__ void test_insert(Set& set)
 {
   using Key = typename Set::key_type;
 
-  auto constexpr num          = 300;
-  auto constexpr multiplicity = 3;
+  auto constexpr num = 300;
+  // auto constexpr multiplicity = 3;
 
   SECTION("Inserting 300 unique keys should get 300 entries in the multiset")
   {
