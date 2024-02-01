@@ -384,3 +384,5 @@ class static_multiset {
   std::unique_ptr<impl_type> impl_;
 };
 }  // namespace cuco
+
+#include <cuco/detail/static_multiset/static_multiset.inl>
