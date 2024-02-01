@@ -116,7 +116,6 @@ class open_addressing_impl {
    * stream before the object is first used.
    *
    * @param capacity The requested lower-bound size
-   * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_slot_sentinel The reserved slot value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
@@ -124,15 +123,13 @@ class open_addressing_impl {
    * @param stream CUDA stream used to initialize the data structure
    */
   constexpr open_addressing_impl(Extent capacity,
-                                 Key empty_key_sentinel,
                                  Value empty_slot_sentinel,
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
                                  cuda_stream_ref stream) noexcept
-    : empty_key_sentinel_{empty_key_sentinel},
-      empty_slot_sentinel_{empty_slot_sentinel},
-      erased_key_sentinel_{empty_key_sentinel},
+    : empty_slot_sentinel_{empty_slot_sentinel},
+      erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
       probing_scheme_{probing_scheme},
       storage_{make_window_extent<open_addressing_impl>(capacity), alloc}
@@ -164,7 +161,6 @@ class open_addressing_impl {
    * @param n The number of elements to insert
    * @param desired_load_factor The desired load factor of the container, e.g., 0.5 implies a 50%
    * load factor
-   * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_slot_sentinel The reserved slot value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
@@ -173,15 +169,13 @@ class open_addressing_impl {
    */
   constexpr open_addressing_impl(Extent n,
                                  double desired_load_factor,
-                                 Key empty_key_sentinel,
                                  Value empty_slot_sentinel,
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
                                  cuda_stream_ref stream)
-    : empty_key_sentinel_{empty_key_sentinel},
-      empty_slot_sentinel_{empty_slot_sentinel},
-      erased_key_sentinel_{empty_key_sentinel},
+    : empty_slot_sentinel_{empty_slot_sentinel},
+      erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
       probing_scheme_{probing_scheme},
       storage_{make_window_extent<open_addressing_impl>(
@@ -208,7 +202,6 @@ class open_addressing_impl {
    * stream before the object is first used.
    *
    * @param capacity The requested lower-bound size
-   * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_slot_sentinel The reserved slot value for empty slots
    * @param erased_key_sentinel The reserved key value for erased slots
    * @param pred Key equality binary predicate
@@ -217,21 +210,19 @@ class open_addressing_impl {
    * @param stream CUDA stream used to initialize the data structure
    */
   constexpr open_addressing_impl(Extent capacity,
-                                 Key empty_key_sentinel,
                                  Value empty_slot_sentinel,
                                  Key erased_key_sentinel,
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
                                  cuda_stream_ref stream)
-    : empty_key_sentinel_{empty_key_sentinel},
-      empty_slot_sentinel_{empty_slot_sentinel},
+    : empty_slot_sentinel_{empty_slot_sentinel},
       erased_key_sentinel_{erased_key_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
       storage_{make_window_extent<open_addressing_impl>(capacity), alloc}
   {
-    CUCO_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
+    CUCO_EXPECTS(this->empty_key_sentinel() != this->erased_key_sentinel(),
                  "The empty key sentinel and erased key sentinel cannot be the same value.",
                  std::logic_error);
 
@@ -439,7 +430,7 @@ class open_addressing_impl {
   template <typename InputIt, typename Ref>
   void erase_async(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream = {})
   {
-    CUCO_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
+    CUCO_EXPECTS(this->empty_key_sentinel() != this->erased_key_sentinel(),
                  "The empty key sentinel and erased key sentinel cannot be the same value.",
                  std::logic_error);
 
@@ -740,7 +731,7 @@ class open_addressing_impl {
    */
   [[nodiscard]] constexpr key_type empty_key_sentinel() const noexcept
   {
-    return empty_key_sentinel_;
+    return this->extract_key(this->empty_slot_sentinel_);
   }
 
   /**
@@ -784,9 +775,25 @@ class open_addressing_impl {
    */
   [[nodiscard]] constexpr storage_ref_type storage_ref() const noexcept { return storage_.ref(); }
 
+ private:
+  /**
+   * @brief Extracts the key from a given slot.
+   *
+   * @param value The input value
+   *
+   * @return The key
+   */
+  [[nodiscard]] constexpr key_type const& extract_key(value_type const& slot) const noexcept
+  {
+    if constexpr (this->has_payload) {
+      return slot.first;
+    } else {
+      return slot;
+    }
+  }
+
  protected:
   // TODO: cleanup by using equal wrapper as a data member
-  key_type empty_key_sentinel_;         ///< Key value that represents an empty slot
   value_type empty_slot_sentinel_;      ///< Slot value that represents an empty slot
   key_type erased_key_sentinel_;        ///< Key value that represents an erased slot
   key_equal predicate_;                 ///< Key equality binary predicate
