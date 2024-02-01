@@ -43,13 +43,13 @@ __device__ void distinct_count_estimator_ref<T, Precision, Scope, Hash>::merge(
   CG const& group,
   distinct_count_estimator_ref<T, Precision, OtherScope, Hash> const& other) noexcept
 {
-  this->impl_.merge(group, other);
+  this->impl_.merge(group, other.impl_);
 }
 
 template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash>
 __device__ std::size_t distinct_count_estimator_ref<T, Precision, Scope, Hash>::estimate(
   cooperative_groups::thread_block const& group) const noexcept
 {
-  this->impl_.estimate(group);
+  return this->impl_.estimate(group);
 }
 }  // namespace cuco

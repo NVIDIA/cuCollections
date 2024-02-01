@@ -299,6 +299,20 @@ class hyperloglog {
     return ref_type<>{*(this->storage_.get()), this->hash_};
   }
 
+  /**
+   * @brief Get storage ref.
+   *
+   * @return Reference to storage
+   */
+  [[nodiscard]] storage_type& storage_ref() const noexcept { return *(this->storage_.get()); }
+
+  /**
+   * @brief Get hash function.
+   *
+   * @return The hash function
+   */
+  [[nodiscard]] auto hash() const noexcept { return this->hash_; }
+
  private:
   struct storage_deleter {
     using pointer = typename storage_allocator_type::value_type*;

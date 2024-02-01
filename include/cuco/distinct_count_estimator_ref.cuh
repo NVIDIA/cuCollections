@@ -105,6 +105,9 @@ class distinct_count_estimator_ref {
 
  private:
   impl_type impl_;  ///< Implementation object
+
+  template <class T_, int32_t Precision_, cuda::thread_scope Scope_, class Hash_>
+  friend class distinct_count_estimator_ref;
 };
 }  // namespace cuco
 

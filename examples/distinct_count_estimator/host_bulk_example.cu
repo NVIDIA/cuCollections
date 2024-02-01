@@ -21,41 +21,38 @@
 #include <cstddef>
 #include <iostream>
 
-int main()
+/**
+ * @file host_bulk_example.cu
+ * @brief Demonstrates usage of `cuco::distinct_count_estimator` "bulk" host APIs.
+ */
+
+int main(void)
 {
   using T                         = int;
-  std::size_t constexpr num_items = 1ull << 30;  // 4GB
+  constexpr std::size_t num_items = 1ull << 28;  // 1GB
 
   thrust::device_vector<T> items(num_items);
-  // create a vector of distinct items
+
+  // Generate `num_items` distinct items
   thrust::sequence(items.begin(), items.end(), 0);
 
-  cudaEvent_t start, stop;
-  cudaEventCreate(&start);
-  cudaEventCreate(&stop);
-
+  // Initialize the estimator
   cuco::distinct_count_estimator<T> estimator;
-  cudaEventRecord(start);
-  // add all items to the estimator
+
+  // Add all items to the estimator
   estimator.add(items.begin(), items.end());
-  // after the estimator has seen all items, we can calculate the cardinality
+
+  // Adding the same items again will not affect the result
+  estimator.add(items.begin(), items.begin() + num_items / 2);
+
+  // Calculate the cardinality estimate
   std::size_t const estimated_cardinality = estimator.estimate();
-  cudaEventRecord(stop);
-  cudaEventSynchronize(stop);
 
-  float milliseconds = 0;
-  cudaEventElapsedTime(&milliseconds, start, stop);
-  float input_size_gb = num_items * sizeof(T) / 1073741824.0f;
-  float throughput    = input_size_gb / (milliseconds / 1000.0f);
-
-  std::cout << "True cardinality:\t" << num_items << "\nEstimated cardinality:\t"
-            << estimated_cardinality << "\nRelative error:\t"
+  std::cout << "True cardinality: " << num_items
+            << "\nEstimated cardinality: " << estimated_cardinality << "\nRelative error: "
             << abs(static_cast<double>(num_items) - static_cast<double>(estimated_cardinality)) /
                  num_items
-            << "\nData size:\t" << input_size_gb << "GB"
-            << "\nElapsed time:\t" << milliseconds << "ms"
-            << "\nMemory throughput\t" << throughput << "GB/s" << std::endl;
+            << std::endl;
 
-  cudaEventDestroy(start);
-  cudaEventDestroy(stop);
+  return 0;
 }
