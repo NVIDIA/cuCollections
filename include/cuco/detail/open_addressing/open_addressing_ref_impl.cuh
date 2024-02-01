@@ -91,6 +91,9 @@ class open_addressing_ref_impl {
     std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>, ProbingScheme>,
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
+  /// Determines if the container is a key/value or key-only store
+  static constexpr auto has_payload = not std::is_same_v<Key, typename StorageRef::value_type>;
+
   // TODO: how to re-enable this check?
   // static_assert(is_window_extent_v<typename StorageRef::extent_type>,
   // "Extent is not a valid cuco::window_extent");
@@ -111,9 +114,6 @@ class open_addressing_ref_impl {
   static constexpr auto window_size =
     storage_ref_type::window_size;             ///< Number of elements handled per window
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
-  static constexpr auto has_payload =
-    not std::is_same_v<key_type, value_type>;  ///< Determines if the container is a key/value or
-                                               ///< key-only store
 
   /**
    * @brief Constructs open_addressing_ref_impl.
