@@ -238,6 +238,6 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 
 #### Examples:
 - [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/distinct_count_estimator/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/EG7cMssxo))
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/distinct_count_estimator/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/va8eE9dqb))
+- [Device-ref APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/distinct_count_estimator/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/va8eE9dqb))
 
 
