@@ -89,7 +89,7 @@ class hyperloglog_ref {
   __device__ void add(T const& item) noexcept
   {
     // static_assert NumBuckets is not too big
-    auto constexpr register_mask = (1 << Precision) - 1;
+    auto constexpr register_mask = (1ull << Precision) - 1;
     auto const h                 = this->hash_(item);
     auto const reg               = h & register_mask;
     auto const zeroes            = cuda::std::countl_zero(h | register_mask) + 1;  // __clz

@@ -278,10 +278,11 @@ class hyperloglog {
     using fp_type = typename ref_type<>::fp_type;
     fp_type sum   = 0;
     int zeroes    = 0;
+
     // geometric mean computation + count registers with 0s
     for (std::size_t i = 0; i < registers.size(); ++i) {
       auto const reg = registers[i];
-      sum += fp_type{1} / static_cast<fp_type>(1 << reg);
+      sum += fp_type{1} / static_cast<fp_type>(1ull << reg);
       zeroes += reg == 0;
     }
 
