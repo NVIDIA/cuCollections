@@ -93,7 +93,7 @@ TEMPLATE_TEST_CASE_SIG("distinct_count_estimator: unique sequence",
   estimator.add(items.begin(), items.begin() + num_items / 2);
   REQUIRE(estimator.estimate() == estimate);
 
-  // Clearing the estimator shoult reset the estimate
+  // Clearing the estimator should reset the estimate
   estimator.clear();
   REQUIRE(estimator.estimate() == 0);
 
