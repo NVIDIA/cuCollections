@@ -42,7 +42,7 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   Allocator const& alloc,
   cuda_stream_ref stream)
   : impl_{std::make_unique<impl_type>(
-      capacity, empty_key_sentinel, empty_key_sentinel, pred, probing_scheme, alloc, stream)}
+      capacity, empty_key_sentinel, pred, probing_scheme, alloc, stream)}
 {
 }
 
@@ -63,14 +63,8 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   Storage,
   Allocator const& alloc,
   cuda_stream_ref stream)
-  : impl_{std::make_unique<impl_type>(n,
-                                      desired_load_factor,
-                                      empty_key_sentinel,
-                                      empty_key_sentinel,
-                                      pred,
-                                      probing_scheme,
-                                      alloc,
-                                      stream)}
+  : impl_{std::make_unique<impl_type>(
+      n, desired_load_factor, empty_key_sentinel, pred, probing_scheme, alloc, stream)}
 {
 }
 
@@ -91,14 +85,8 @@ constexpr static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   Storage,
   Allocator const& alloc,
   cuda_stream_ref stream)
-  : impl_{std::make_unique<impl_type>(capacity,
-                                      empty_key_sentinel,
-                                      empty_key_sentinel,
-                                      erased_key_sentinel,
-                                      pred,
-                                      probing_scheme,
-                                      alloc,
-                                      stream)}
+  : impl_{std::make_unique<impl_type>(
+      capacity, empty_key_sentinel, erased_key_sentinel, pred, probing_scheme, alloc, stream)}
 {
 }
 
