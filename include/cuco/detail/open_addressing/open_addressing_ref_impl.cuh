@@ -376,7 +376,13 @@ class open_addressing_ref_impl {
           switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
                                  slot_content,
                                  val)) {
-            case insert_result::DUPLICATE: [[fallthrough]];
+            case insert_result::DUPLICATE: {
+              if constexpr (supports_duplicate_entries) {
+                [[fallthrough]];
+              } else {
+                return false;
+              }
+            }
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
           }
@@ -412,8 +418,13 @@ class open_addressing_ref_impl {
           switch (this->predicate_(this->extract_key(window_slots[i]), key)) {
             case detail::equal_result::EMPTY:
               return window_probing_results{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL:
-              return window_probing_results{detail::equal_result::EQUAL, i};
+            case detail::equal_result::EQUAL: {
+              if constexpr (supports_duplicate_entries) {
+                continue;
+              } else {
+                return window_probing_results{detail::equal_result::EQUAL, i};
+              }
+            }
             default: {
               if (cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
                                                 this->erased_key_sentinel())) {
@@ -444,7 +455,13 @@ class open_addressing_ref_impl {
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: return true;
-          case insert_result::DUPLICATE: return false;
+          case insert_result::DUPLICATE: {
+            if constexpr (supports_duplicate_entries) {
+              [[fallthrough]];
+            } else {
+              return false;
+            }
+          }
           default: continue;
         }
       } else {
