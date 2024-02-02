@@ -439,8 +439,10 @@ class open_addressing_ref_impl {
         return window_probing_results{detail::equal_result::UNEQUAL, -1};
       }();
 
-      // If the key is already in the container, return false
-      if (group.any(state == detail::equal_result::EQUAL)) { return false; }
+      if constexpr (not supports_duplicate_entries) {
+        // If the key is already in the container, return false
+        if (group.any(state == detail::equal_result::EQUAL)) { return false; }
+      }
 
       auto const group_contains_available =
         group.ballot(state == detail::equal_result::EMPTY or state == detail::equal_result::ERASED);
