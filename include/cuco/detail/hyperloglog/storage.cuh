@@ -35,6 +35,8 @@ namespace cuco::detail {
 template <int32_t Precision>
 class hyperloglog_dense_registers {
  public:
+  // We use `int` here since this is the smallest type that supports native `atomicMax` on GPUs
+  using register_type = int;  ///< Register array storage
   /**
    * @brief Clears the storage.
    *
@@ -48,14 +50,6 @@ class hyperloglog_dense_registers {
     for (int i = group.thread_rank(); i < this->registers_.size(); i += group.size()) {
       this->registers_[i] = 0;
     }
-
-    // TODO remove test code
-    // int4 constexpr empty{0, 0, 0, 0};
-    // auto vec4 = reinterpret_cast<int4*>(this->storage_.data());
-    // // #pragma unroll 2
-    // for (int i = group.thread_rank(); i < (this->storage_.size() / 4); i += group.size()) {
-    //   vec4[i] = empty;
-    // }
   }
 
   /**
@@ -66,10 +60,7 @@ class hyperloglog_dense_registers {
    *
    * @return Reference to the requested element
    */
-  __host__ __device__ constexpr int& operator[](std::size_t i) noexcept
-  {
-    return this->registers_[i];
-  }
+  __host__ __device__ constexpr int& operator[](int i) noexcept { return this->registers_[i]; }
 
   /**
    * @brief Returns the element at specified location `i`. No bounds checking is performed.
@@ -78,20 +69,14 @@ class hyperloglog_dense_registers {
    *
    * @return Requested element
    */
-  __host__ __device__ constexpr int operator[](std::size_t i) const noexcept
-  {
-    return this->registers_[i];
-  }
+  __host__ __device__ constexpr int operator[](int i) const noexcept { return this->registers_[i]; }
 
   /**
    * @brief Returns the number of elements in the container.
    *
    * @return The number of elements in the container
    */
-  __host__ __device__ constexpr std::size_t size() const noexcept
-  {
-    return this->registers_.size();
-  }
+  __host__ __device__ constexpr int size() const noexcept { return this->registers_.size(); }
 
   /**
    * @brief Atomically updates the register at position `i` with `max(reg[i], value)`.
@@ -102,7 +87,7 @@ class hyperloglog_dense_registers {
    * @param value New value
    */
   template <cuda::thread_scope Scope>
-  __device__ constexpr void update_max(std::size_t i, int value) noexcept
+  __device__ constexpr void update_max(int i, register_type value) noexcept
   {
     if constexpr (Scope == cuda::thread_scope_thread) {
       this->registers_[i] = max(this->registers_[i], value);
@@ -133,45 +118,9 @@ class hyperloglog_dense_registers {
     for (int i = group.thread_rank(); i < this->registers_.size(); i += group.size()) {
       this->update_max<Scope>(i, other.registers_[i]);
     }
-
-    // TODO remove test code
-    /*
-    auto vec4 = reinterpret_cast<int4 const*>(other.storage_.data());
-    // #pragma unroll 2
-    for (int i = group.thread_rank(); i < (this->storage_.size() / 4); i += group.size()) {
-      auto const items = vec4[i];
-      if constexpr (Scope == cuda::thread_scope_thread) {
-        auto max_vec4  = reinterpret_cast<int4*>(this->storage_.data());
-        auto max_items = max_vec4[i];
-        max_items.x    = max(max_items.x, items.x);
-        max_items.y    = max(max_items.y, items.y);
-        max_items.z    = max(max_items.z, items.z);
-        max_items.w    = max(max_items.w, items.w);
-        max_vec4[i]    = max_items;
-      } else if constexpr (Scope == cuda::thread_scope_block) {
-        atomicMax_block(this->storage_.data() + (i * 4 + 0), items.x);
-        atomicMax_block(this->storage_.data() + (i * 4 + 1), items.y);
-        atomicMax_block(this->storage_.data() + (i * 4 + 2), items.z);
-        atomicMax_block(this->storage_.data() + (i * 4 + 3), items.w);
-      } else if constexpr (Scope == cuda::thread_scope_device) {
-        atomicMax(this->storage_.data() + (i * 4 + 0), items.x);
-        atomicMax(this->storage_.data() + (i * 4 + 1), items.y);
-        atomicMax(this->storage_.data() + (i * 4 + 2), items.z);
-        atomicMax(this->storage_.data() + (i * 4 + 3), items.w);
-      } else if constexpr (Scope == cuda::thread_scope_system) {
-        atomicMax_system(this->storage_.data() + (i * 4 + 0), items.x);
-        atomicMax_system(this->storage_.data() + (i * 4 + 1), items.y);
-        atomicMax_system(this->storage_.data() + (i * 4 + 2), items.z);
-        atomicMax_system(this->storage_.data() + (i * 4 + 3), items.w);
-      } else {
-        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-      }
-    }
-    */
   }
 
  private:
-  alignas(sizeof(int) *
-          4) cuda::std::array<int, 1ull << Precision> registers_;  ///< Register array storage
+  cuda::std::array<register_type, 1ull << Precision> registers_;  ///< Register array storage
 };
 }  // namespace cuco::detail
