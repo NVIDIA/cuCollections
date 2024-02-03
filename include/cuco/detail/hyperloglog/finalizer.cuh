@@ -17,9 +17,10 @@
 
 #include <cuco/detail/hyperloglog/tuning.cuh>
 
-#include <cstddef>
 #include <cuda/std/cmath>
 #include <cuda/std/limits>
+
+#include <cstddef>
 
 namespace cuco::hyperloglog_ns::detail {
 

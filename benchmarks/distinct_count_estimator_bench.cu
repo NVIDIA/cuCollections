@@ -26,8 +26,9 @@
 #include <thrust/device_vector.h>
 #include <thrust/iterator/transform_iterator.h>
 
-#include <cstddef>
 #include <cuda/functional>
+
+#include <cstddef>
 
 using namespace cuco::benchmark;
 using namespace cuco::utility;

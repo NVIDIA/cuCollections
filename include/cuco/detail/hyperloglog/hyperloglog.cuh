@@ -75,7 +75,7 @@ class hyperloglog {
       storage_deleter_{storage_allocator_},
       storage_{storage_allocator_.allocate(1ull), storage_deleter_}
   {
-    this->clear_async(stream);  // TODO async or sync?
+    this->clear_async(stream);
   }
 
   ~hyperloglog() = default;
@@ -84,7 +84,6 @@ class hyperloglog {
   hyperloglog& operator=(hyperloglog const&) = delete;
   hyperloglog(hyperloglog&&)                 = default;  ///< Move constructor
 
-  // TODO this is somehow required to pass the Doxygen check.
   /**
    * @brief Copy-assignment operator.
    *

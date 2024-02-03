@@ -22,7 +22,7 @@
 #include <iostream>
 
 /**
- * @file device_reference_example.cu
+ * @file device_ref_example.cu
  * @brief Demonstrates usage of `cuco::distinct_count_estimator` device-side APIs.
  *
  * This example demonstrates how the non-owning reference type `cuco::distinct_count_estimator_ref`

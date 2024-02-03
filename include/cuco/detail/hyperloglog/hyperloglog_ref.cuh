@@ -22,11 +22,12 @@
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
-#include <cstddef>
 #include <cuda/std/bit>
 
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
+
+#include <cstddef>
 
 namespace cuco::detail {
 /**
