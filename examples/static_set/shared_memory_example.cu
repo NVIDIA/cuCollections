@@ -63,7 +63,7 @@ __global__ void shmem_set_kernel(typename SetRef::extent_type window_extent,
   // Next, we want to check if the keys can be found again using the `contains` function.
   // We move the `insert_ref` to a new object that supports `contains` but no longer supports
   // `insert`.
-  auto contains_ref = std::move(insert_ref).with(cuco::contains);
+  auto const contains_ref = std::move(insert_ref).with(cuco::contains);
 
   // Check if all keys can be found
   if (not contains_ref.contains(key)) { printf("ERROR: Key %d not found\n", key); }
