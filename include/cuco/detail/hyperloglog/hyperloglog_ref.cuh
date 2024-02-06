@@ -53,6 +53,7 @@ class hyperloglog_ref {
 
   using value_type   = T;                                       ///< Type of items to count
   using storage_type = hyperloglog_dense_registers<Precision>;  ///< Storage type
+  using hash_type    = Hash;                                    ///< Hash function type
 
   template <cuda::thread_scope NewScope>
   using with_scope = hyperloglog_ref<T, Precision, NewScope, Hash>;  ///< Ref type with different
@@ -173,8 +174,7 @@ class hyperloglog_ref {
   }
 
  private:
-  Hash hash_;  ///< Hash function used to hash items
-  // TODO is a reference the right choice here??
+  hash_type hash_;         ///< Hash function used to hash items
   storage_type& storage_;  ///< Reference to storage object
 
   template <class T_, int32_t Precision_, cuda::thread_scope Scope_, class Hash_>

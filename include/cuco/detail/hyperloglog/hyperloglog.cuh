@@ -16,10 +16,13 @@
 #pragma once
 
 #include <cuco/cuda_stream_ref.hpp>
+#include <cuco/detail/error.hpp>
 #include <cuco/detail/hyperloglog/finalizer.cuh>
 #include <cuco/detail/hyperloglog/hyperloglog_ref.cuh>
 #include <cuco/detail/hyperloglog/kernels.cuh>
 #include <cuco/detail/hyperloglog/storage.cuh>
+#include <cuco/detail/storage/storage_base.cuh>
+#include <cuco/detail/utils.hpp>
 #include <cuco/hash_functions.cuh>
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
@@ -54,11 +57,12 @@ class hyperloglog {
   using ref_type = hyperloglog_ref<T, Precision, NewScope, Hash>;  ///< Non-owning reference
                                                                    ///< type
 
-  using allocator_type         = Allocator;                          ///< Allocator type
-  using value_type             = typename ref_type<>::value_type;    ///< Type of items to count
-  using storage_type           = typename ref_type<>::storage_type;  ///< Storage type
-  using storage_allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<
-    storage_type>;  ///< Storage allocator type
+  using value_type   = typename ref_type<>::value_type;    ///< Type of items to count
+  using storage_type = typename ref_type<>::storage_type;  ///< Storage type
+  using hash_type    = typename ref_type<>::hash_type;     ///< Hash function type
+  using allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<storage_type>;  ///< Allocator
+                                                                                     ///< type
 
   /**
    * @brief Constructs a `hyperloglog` host object.
@@ -71,9 +75,9 @@ class hyperloglog {
    */
   constexpr hyperloglog(Hash const& hash, Allocator const& alloc, cuco::cuda_stream_ref stream)
     : hash_{hash},
-      storage_allocator_{alloc},
-      storage_deleter_{storage_allocator_},
-      storage_{storage_allocator_.allocate(1ull), storage_deleter_}
+      allocator_{alloc},
+      deleter_{1ull, allocator_},
+      storage_{allocator_.allocate(1ull), deleter_}
   {
     this->clear_async(stream);
   }
@@ -128,9 +132,9 @@ class hyperloglog {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream) noexcept
+  void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
   {
-    auto const num_items = cuco::detail::distance(first, last);  // TODO include
+    auto const num_items = cuco::detail::distance(first, last);
     if (num_items == 0) { return; }
 
     // TODO fallback to local memory registers in case they don't fit in shmem
@@ -141,9 +145,8 @@ class hyperloglog {
     // We make use of the occupancy calculator here to get the minimum number of blocks which still
     // saturate the GPU. This reduces the atomic contention on the final register array during the
     // merge phase.
-    // TODO check cuda error or will it sync the stream??
-    cudaOccupancyMaxPotentialBlockSize(
-      &grid_size, &block_size, &cuco::hyperloglog_ns::detail::add_shmem<InputIt, ref_type<>>);
+    CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(
+      &grid_size, &block_size, &cuco::hyperloglog_ns::detail::add_shmem<InputIt, ref_type<>>));
 
     cuco::hyperloglog_ns::detail::add_shmem<<<grid_size, block_size, 0, stream>>>(
       first, num_items, this->ref());
@@ -314,22 +317,10 @@ class hyperloglog {
   [[nodiscard]] auto hash() const noexcept { return this->hash_; }
 
  private:
-  struct storage_deleter {
-    using pointer = typename storage_allocator_type::value_type*;
-
-    storage_deleter(storage_allocator_type& a) : allocator{a} {}
-
-    storage_deleter(storage_deleter const&) = default;
-
-    void operator()(pointer ptr) { allocator.deallocate(ptr, 1); }
-
-    storage_allocator_type& allocator;
-  };
-
-  Hash hash_;                                               ///< Hash function used to hash items
-  storage_allocator_type storage_allocator_;                ///< Storage allocator
-  storage_deleter storage_deleter_;                         ///< Storage deleter
-  std::unique_ptr<storage_type, storage_deleter> storage_;  ///< Storage
+  hash_type hash_;                                       ///< Hash function used to hash items
+  allocator_type allocator_;                             ///< Storage allocator
+  custom_deleter<std::size_t, allocator_type> deleter_;  ///< Storage deleter
+  std::unique_ptr<storage_type, custom_deleter<std::size_t, allocator_type>> storage_;  ///< Storage
 
   // Needs to be friends with other instantiations of this class template to have access to their
   // storage
