@@ -24,10 +24,9 @@
  */
 
 template <class SetRef>
-__global__ void shmem_set_kernel(cuco::empty_key<typename SetRef::key_type> empty_key_sentinel)
+__global__ void shmem_set_kernel(typename SetRef::extent_type window_extent,
+                                 cuco::empty_key<typename SetRef::key_type> empty_key_sentinel)
 {
-  // Get the static extent of the set.
-  auto constexpr window_extent = typename SetRef::extent_type{};
   // We first allocate the shared memory storage for the `set`.
   // The storage is comprised of contiguous windows of slots,
   // which allow for vectorized loads.
@@ -101,7 +100,12 @@ int main(void)
   // This is the type we use in the kernel to wrap a raw shared memory array as a `static_set`.
   using set_ref_type = typename set_type::ref_type<>;
 
+  // Cuco imposes a number of non-trivial contraints on the capacity value.
+  // This function will take the requested capacity (1000) and return the next larger
+  // valid extent.
+  auto constexpr window_extent = cuco::make_window_extent<set_ref_type>(extent_type{});
+
   // Launch the kernel with a single thread block.
-  shmem_set_kernel<set_ref_type><<<1, 128>>>(empty_key_sentinel);
+  shmem_set_kernel<set_ref_type><<<1, 128>>>(window_extent, empty_key_sentinel);
   cudaDeviceSynchronize();
 }
