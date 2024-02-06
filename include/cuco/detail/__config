@@ -51,6 +51,6 @@
 #define CUCO_HAS_INT128
 #endif
 
-#if (__CUDACC_VER_MAJOR__ >= 12)
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 12000)
 #define CUCO_HAS_CG_REDUCE_UPDATE_ASYNC
 #endif
