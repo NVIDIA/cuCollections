@@ -164,6 +164,20 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ constexpr key_equal key_eq() const noexcept;
 
   /**
+   * @brief Returns a const_iterator to one past the last slot.
+   *
+   * @return A const_iterator to one past the last slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept;
+
+  /**
+   * @brief Returns an iterator to one past the last slot.
+   *
+   * @return An iterator to one past the last slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept;
+
+  /**
    * @brief Creates a reference with new operators from the current object.
    *
    * Note that this function uses move semantics and thus invalidates the current object.
