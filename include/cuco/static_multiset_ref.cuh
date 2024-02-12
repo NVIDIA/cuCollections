@@ -64,16 +64,12 @@ class static_multiset_ref
   : public detail::operator_impl<
       Operators,
       static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
-  /// Flag indicating whether duplicate entries are allowed or not
-  static constexpr auto supports_duplicate_entries = true;
+  /// Flag indicating whether duplicate keys are allowed or not
+  static constexpr auto allows_duplicates = true;
 
   /// Implementation type
-  using impl_type = detail::open_addressing_ref_impl<Key,
-                                                     Scope,
-                                                     KeyEqual,
-                                                     ProbingScheme,
-                                                     StorageRef,
-                                                     supports_duplicate_entries>;
+  using impl_type = detail::
+    open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef, allows_duplicates>;
 
  public:
   using key_type            = Key;                                     ///< Key Type

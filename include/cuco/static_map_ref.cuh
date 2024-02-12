@@ -67,16 +67,12 @@ class static_map_ref
   : public detail::operator_impl<
       Operators,
       static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
-  /// Flag indicating whether duplicate entries are allowed or not
-  static constexpr auto supports_duplicate_entries = false;
+  /// Flag indicating whether duplicate keys are allowed or not
+  static constexpr auto allows_duplicates = false;
 
   /// Implementation type
-  using impl_type = detail::open_addressing_ref_impl<Key,
-                                                     Scope,
-                                                     KeyEqual,
-                                                     ProbingScheme,
-                                                     StorageRef,
-                                                     supports_duplicate_entries>;
+  using impl_type = detail::
+    open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef, allows_duplicates>;
 
   static_assert(sizeof(T) <= 8, "Container does not support payload types larger than 8 bytes.");
 

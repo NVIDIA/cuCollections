@@ -73,14 +73,14 @@ struct window_probing_results {
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
  * @tparam StorageRef Storage ref type
- * @tparam SupportsDuplicateEntries Flag indicating whether duplicate entries are allowed or not
+ * @tparam AllowsDuplicates Flag indicating whether duplicate keys are allowed or not
  */
 template <typename Key,
           cuda::thread_scope Scope,
           typename KeyEqual,
           typename ProbingScheme,
           typename StorageRef,
-          bool SupportsDuplicateEntries>
+          bool AllowsDuplicates>
 class open_addressing_ref_impl {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
 
@@ -96,8 +96,8 @@ class open_addressing_ref_impl {
   /// Determines if the container is a key/value or key-only store
   static constexpr auto has_payload = not std::is_same_v<Key, typename StorageRef::value_type>;
 
-  /// Flag indicating whether duplicate entries are allowed or not
-  static constexpr auto supports_duplicate_entries = SupportsDuplicateEntries;
+  /// Flag indicating whether duplicate keys are allowed or not
+  static constexpr auto allows_duplicates = AllowsDuplicates;
 
   // TODO: how to re-enable this check?
   // static_assert(is_window_extent_v<typename StorageRef::extent_type>,
@@ -365,7 +365,7 @@ class open_addressing_ref_impl {
       for (auto& slot_content : window_slots) {
         auto const eq_res = this->predicate_(this->extract_key(slot_content), key);
 
-        if constexpr (not supports_duplicate_entries) {
+        if constexpr (not allows_duplicates) {
           // If the key is already in the container, return false
           if (eq_res == detail::equal_result::EQUAL) { return false; }
         }
@@ -377,7 +377,7 @@ class open_addressing_ref_impl {
                                  slot_content,
                                  val)) {
             case insert_result::DUPLICATE: {
-              if constexpr (supports_duplicate_entries) {
+              if constexpr (allows_duplicates) {
                 [[fallthrough]];
               } else {
                 return false;
@@ -419,7 +419,7 @@ class open_addressing_ref_impl {
             case detail::equal_result::EMPTY:
               return window_probing_results{detail::equal_result::EMPTY, i};
             case detail::equal_result::EQUAL: {
-              if constexpr (supports_duplicate_entries) {
+              if constexpr (allows_duplicates) {
                 continue;
               } else {
                 return window_probing_results{detail::equal_result::EQUAL, i};
@@ -439,7 +439,7 @@ class open_addressing_ref_impl {
         return window_probing_results{detail::equal_result::UNEQUAL, -1};
       }();
 
-      if constexpr (not supports_duplicate_entries) {
+      if constexpr (not allows_duplicates) {
         // If the key is already in the container, return false
         if (group.any(state == detail::equal_result::EQUAL)) { return false; }
       }
@@ -458,7 +458,7 @@ class open_addressing_ref_impl {
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: return true;
           case insert_result::DUPLICATE: {
-            if constexpr (supports_duplicate_entries) {
+            if constexpr (allows_duplicates) {
               [[fallthrough]];
             } else {
               return false;
