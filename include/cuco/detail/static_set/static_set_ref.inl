@@ -111,6 +111,40 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+__host__ __device__ constexpr static_set_ref<Key,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
+                                             Operators...>::const_iterator
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::end() const noexcept
+{
+  return this->impl_.end();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr static_set_ref<Key,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
+                                             Operators...>::iterator
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::end() noexcept
+{
+  return this->impl_.end();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 __host__ __device__ constexpr auto
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
   const noexcept
@@ -287,32 +321,6 @@ class operator_impl<op::insert_and_find_tag,
 
  public:
   /**
-   * @brief Returns a const_iterator to one past the last slot.
-   *
-   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
-   *
-   * @return A const_iterator to one past the last slot
-   */
-  [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
-  {
-    auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.end();
-  }
-
-  /**
-   * @brief Returns an iterator to one past the last slot.
-   *
-   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
-   *
-   * @return An iterator to one past the last slot
-   */
-  [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept
-  {
-    auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.end();
-  }
-
-  /**
    * @brief Inserts the given element into the set.
    *
    * @note This API returns a pair consisting of an iterator to the inserted element (or to the
@@ -486,32 +494,6 @@ class operator_impl<op::find_tag,
   static constexpr auto window_size = base_type::window_size;
 
  public:
-  /**
-   * @brief Returns a const_iterator to one past the last slot.
-   *
-   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
-   *
-   * @return A const_iterator to one past the last slot
-   */
-  [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
-  {
-    auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.end();
-  }
-
-  /**
-   * @brief Returns an iterator to one past the last slot.
-   *
-   * @note This API is available only when `find_tag` or `insert_and_find_tag` is present.
-   *
-   * @return An iterator to one past the last slot
-   */
-  [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept
-  {
-    auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.end();
-  }
-
   /**
    * @brief Finds an element in the set with key equivalent to the probe key.
    *
