@@ -155,7 +155,7 @@ template <typename InputIt, typename StencilIt, typename Predicate>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream)
 {
-  this->insert_if(first, last, stencil, pred, stream);
+  this->insert_if_async(first, last, stencil, pred, stream);
   stream.synchronize();
 }
 

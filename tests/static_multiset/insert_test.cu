@@ -21,8 +21,11 @@
 #include <thrust/device_vector.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+
+#include <cuda/functional>
 
 using size_type = int32_t;
 
@@ -32,7 +35,6 @@ __inline__ void test_insert(Set& set)
   using Key = typename Set::key_type;
 
   auto constexpr num = 300;
-  // auto constexpr multiplicity = 3;
 
   SECTION("Inserting 300 unique keys should get 300 entries in the multiset")
   {
@@ -50,6 +52,27 @@ __inline__ void test_insert(Set& set)
     auto const num_insertions = set.size();
 
     REQUIRE(num_insertions == num);
+  }
+
+  auto const is_even =
+    cuda::proclaim_return_type<bool>([] __device__(size_type const& i) { return i % 2 == 0; });
+
+  SECTION("Inserting all even values between [0, 300) should get 150 entries in the multiset")
+  {
+    auto const keys = thrust::counting_iterator<Key>{0};
+    set.insert_if(keys, keys + num, keys, is_even);
+    auto const num_insertions = set.size();
+
+    REQUIRE(num_insertions == num / 2);
+  }
+
+  SECTION("Conditionally inserting one key for 150 times should get 150 entries in the multiset")
+  {
+    auto const keys = thrust::constant_iterator<Key>{0};
+    set.insert_if(keys, keys + num, thrust::counting_iterator<size_type>{0}, is_even);
+    auto const num_insertions = set.size();
+
+    REQUIRE(num_insertions == num / 2);
   }
 }
 
