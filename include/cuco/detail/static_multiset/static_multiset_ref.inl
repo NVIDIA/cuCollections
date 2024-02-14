@@ -168,6 +168,41 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+__host__ __device__ constexpr static_multiset_ref<Key,
+                                                  Scope,
+                                                  KeyEqual,
+                                                  ProbingScheme,
+                                                  StorageRef,
+                                                  Operators...>::const_iterator
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::end()
+  const noexcept
+{
+  return this->impl_.end();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr static_multiset_ref<Key,
+                                                  Scope,
+                                                  KeyEqual,
+                                                  ProbingScheme,
+                                                  StorageRef,
+                                                  Operators...>::iterator
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::end() noexcept
+{
+  return this->impl_.end();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename... NewOperators>
 auto static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
   NewOperators...) && noexcept
