@@ -123,11 +123,11 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cuda_stream_ref stream)
 {
-  return impl_->insert(first, last, ref(op::insert), stream);
+  this->insert_async(first, last, stream);
+  stream.synchronize();
 }
 
 template <class Key,
@@ -152,11 +152,11 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream)
 {
-  return impl_->insert_if(first, last, stencil, pred, ref(op::insert), stream);
+  this->insert_if(first, last, stencil, pred, stream);
+  stream.synchronize();
 }
 
 template <class Key,
@@ -172,6 +172,20 @@ void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
     InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream) noexcept
 {
   impl_->insert_if_async(first, last, stencil, pred, ref(op::insert), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
+  cuda_stream_ref stream) const noexcept
+{
+  return impl_->size(stream);
 }
 
 template <class Key,

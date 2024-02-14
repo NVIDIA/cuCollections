@@ -36,16 +36,18 @@ __inline__ void test_insert(Set& set)
 
   SECTION("Inserting 300 unique keys should get 300 entries in the multiset")
   {
-    auto const keys           = thrust::counting_iterator<Key>{0};
-    auto const num_insertions = set.insert(keys, keys + num);
+    auto const keys = thrust::counting_iterator<Key>{0};
+    set.insert(keys, keys + num);
+    auto const num_insertions = set.size();
 
     REQUIRE(num_insertions == num);
   }
 
   SECTION("Inserting one key for 300 times should get 300 entries in the multiset")
   {
-    auto const keys           = thrust::constant_iterator<Key>{0};
-    auto const num_insertions = set.insert(keys, keys + num);
+    auto const keys = thrust::constant_iterator<Key>{0};
+    set.insert(keys, keys + num);
+    auto const num_insertions = set.size();
 
     REQUIRE(num_insertions == num);
   }

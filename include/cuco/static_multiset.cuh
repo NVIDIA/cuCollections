@@ -247,8 +247,7 @@ class static_multiset {
   void clear_async(cuda_stream_ref stream = {}) noexcept;
 
   /**
-   * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
-   * insertions.
+   * @brief Inserts all keys in the range `[first, last)`
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `insert_async`.
@@ -261,11 +260,9 @@ class static_multiset {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param stream CUDA stream used for insert
-   *
-   * @return Number of successfully inserted keys
    */
   template <typename InputIt>
-  size_type insert(InputIt first, InputIt last, cuda_stream_ref stream = {});
+  void insert(InputIt first, InputIt last, cuda_stream_ref stream = {});
 
   /**
    * @brief Asynchronously inserts all keys in the range `[first, last)`.
@@ -287,8 +284,8 @@ class static_multiset {
    * true.
    *
    * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
-   * @note This function synchronizes the given stream and returns the number of successful
-   * insertions. For asynchronous execution use `insert_if_async`.
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `insert_if_async`.
    *
    * @tparam InputIt Device accessible random access iterator whose `value_type` is
    * convertible to the container's `value_type`
@@ -303,11 +300,9 @@ class static_multiset {
    * @param pred Predicate to test on every element in the range `[stencil, stencil +
    * std::distance(first, last))`
    * @param stream CUDA stream used for the operation
-   *
-   * @return Number of successfully inserted keys
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
-  size_type insert_if(
+  void insert_if(
     InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream = {});
 
   /**
