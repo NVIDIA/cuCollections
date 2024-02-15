@@ -64,8 +64,12 @@ class static_set_ref
   : public detail::operator_impl<
       Operators,
       static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
-  using impl_type =
-    detail::open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  /// Flag indicating whether duplicate keys are allowed or not
+  static constexpr auto allows_duplicates = false;
+
+  /// Implementation type
+  using impl_type = detail::
+    open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef, allows_duplicates>;
 
  public:
   using key_type            = Key;                                     ///< Key Type
