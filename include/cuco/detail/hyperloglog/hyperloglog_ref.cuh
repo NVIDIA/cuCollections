@@ -23,6 +23,7 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/std/bit>
+#include <cuda/std/utility>
 
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
@@ -90,11 +91,11 @@ class hyperloglog_ref {
    */
   __device__ void add(T const& item) noexcept
   {
-    // static_assert NumBuckets is not too big
-    auto constexpr register_mask = (1ull << Precision) - 1;
-    auto const h                 = this->hash_(item);
-    auto const reg               = h & register_mask;
-    auto const zeroes            = cuda::std::countl_zero(h | register_mask) + 1;  // __clz
+    using hash_value_type = decltype(cuda::std::declval<hash_type>()(cuda::std::declval<T>()));
+    hash_value_type constexpr register_mask = (1ull << Precision) - 1;
+    auto const h                            = this->hash_(item);
+    auto const reg                          = h & register_mask;
+    auto const zeroes = cuda::std::countl_zero(h | register_mask) + 1;  // __clz
 
     this->storage_.update_max<thread_scope>(reg, zeroes);
   }

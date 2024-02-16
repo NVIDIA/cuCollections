@@ -35,18 +35,20 @@ CUCO_KERNEL void clear(RefType ref)
 template <class InputIt, class RefType>
 CUCO_KERNEL void add_shmem(InputIt first, cuco::detail::index_type n, RefType ref)
 {
-  using local_ref_type = typename RefType::with_scope<cuda::thread_scope_block>;
+  using local_ref_type     = typename RefType::with_scope<cuda::thread_scope_block>;
+  using local_storage_type = typename local_ref_type::storage_type;
 
-  __shared__ typename local_ref_type::storage_type local_storage;
+  alignas(16) extern __shared__ char shmem[];
+  local_storage_type* local_storage = reinterpret_cast<local_storage_type*>(shmem);
 
   auto const loop_stride = cuco::detail::grid_stride();
   auto idx               = cuco::detail::global_thread_id();
   auto const block       = cooperative_groups::this_thread_block();
 
-  if (block.thread_rank() == 0) { new (&local_storage) typename local_ref_type::storage_type{}; }
+  if (block.thread_rank() == 0) { new (local_storage) local_storage_type{}; }
   block.sync();
 
-  local_ref_type local_ref(local_storage, {});
+  local_ref_type local_ref(*local_storage, {});
   local_ref.clear(block);
   block.sync();
 
@@ -57,6 +59,18 @@ CUCO_KERNEL void add_shmem(InputIt first, cuco::detail::index_type n, RefType re
   block.sync();
 
   ref.merge(block, local_ref);
+}
+
+template <class InputIt, class RefType>
+CUCO_KERNEL void add_gmem(InputIt first, cuco::detail::index_type n, RefType ref)
+{
+  auto const loop_stride = cuco::detail::grid_stride();
+  auto idx               = cuco::detail::global_thread_id();
+
+  while (idx < n) {
+    ref.add(*(first + idx));
+    idx += loop_stride;
+  }
 }
 
 template <class OtherRefType, class RefType>

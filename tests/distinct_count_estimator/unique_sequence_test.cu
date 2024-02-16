@@ -32,40 +32,28 @@
 TEMPLATE_TEST_CASE_SIG("distinct_count_estimator: unique sequence",
                        "",
                        ((typename T, int32_t Precision, typename Hash), T, Precision, Hash),
-                       (int32_t, 9, cuco::xxhash_32<int32_t>),
-                       (int32_t, 10, cuco::xxhash_32<int32_t>),
-                       (int32_t, 11, cuco::xxhash_32<int32_t>),
-                       (int32_t, 12, cuco::xxhash_32<int32_t>),
-                       (int32_t, 13, cuco::xxhash_32<int32_t>),
                        (int32_t, 9, cuco::xxhash_64<int32_t>),
-                       (int32_t, 10, cuco::xxhash_64<int32_t>),
                        (int32_t, 11, cuco::xxhash_64<int32_t>),
-                       (int32_t, 12, cuco::xxhash_64<int32_t>),
                        (int32_t, 13, cuco::xxhash_64<int32_t>),
-                       (int64_t, 9, cuco::xxhash_32<int64_t>),
-                       (int64_t, 10, cuco::xxhash_32<int64_t>),
-                       (int64_t, 11, cuco::xxhash_32<int64_t>),
-                       (int64_t, 12, cuco::xxhash_32<int64_t>),
-                       (int64_t, 13, cuco::xxhash_32<int64_t>),
+                       (int32_t, 16, cuco::xxhash_64<int32_t>),
+                       (int32_t, 18, cuco::xxhash_64<int32_t>),
+                       (int32_t, 20, cuco::xxhash_64<int32_t>),
                        (int64_t, 9, cuco::xxhash_64<int64_t>),
-                       (int64_t, 10, cuco::xxhash_64<int64_t>),
                        (int64_t, 11, cuco::xxhash_64<int64_t>),
-                       (int64_t, 12, cuco::xxhash_64<int64_t>),
                        (int64_t, 13, cuco::xxhash_64<int64_t>),
-                       (__int128_t, 9, cuco::xxhash_32<__int128_t>),
-                       (__int128_t, 10, cuco::xxhash_32<__int128_t>),
-                       (__int128_t, 11, cuco::xxhash_32<__int128_t>),
-                       (__int128_t, 12, cuco::xxhash_32<__int128_t>),
-                       (__int128_t, 13, cuco::xxhash_32<__int128_t>),
+                       (int64_t, 16, cuco::xxhash_64<int64_t>),
+                       (int64_t, 18, cuco::xxhash_64<int64_t>),
+                       (int64_t, 20, cuco::xxhash_64<int64_t>),
                        (__int128_t, 9, cuco::xxhash_64<__int128_t>),
-                       (__int128_t, 10, cuco::xxhash_64<__int128_t>),
                        (__int128_t, 11, cuco::xxhash_64<__int128_t>),
-                       (__int128_t, 12, cuco::xxhash_64<__int128_t>),
-                       (__int128_t, 13, cuco::xxhash_64<__int128_t>))
+                       (__int128_t, 13, cuco::xxhash_64<__int128_t>),
+                       (__int128_t, 16, cuco::xxhash_64<__int128_t>),
+                       (__int128_t, 18, cuco::xxhash_64<__int128_t>),
+                       (__int128_t, 20, cuco::xxhash_64<__int128_t>))
 {
   // This factor determines the error threshold for passing the test
   // TODO might be too high
-  double constexpr tolerance_factor = 3.0;
+  double constexpr tolerance_factor = 2.5;
   // RSD for a given precision is given by the following formula
   double const relative_standard_deviation =
     1.04 / std::sqrt(static_cast<double>(1ull << Precision));
@@ -80,7 +68,7 @@ TEMPLATE_TEST_CASE_SIG("distinct_count_estimator: unique sequence",
   thrust::sequence(items.begin(), items.end(), 0);
 
   // Initialize the estimator
-  cuco::distinct_count_estimator<T> estimator;
+  cuco::distinct_count_estimator<T, Precision, cuda::thread_scope_device, Hash> estimator;
 
   REQUIRE(estimator.estimate() == 0);
 

@@ -137,19 +137,31 @@ class hyperloglog {
     auto const num_items = cuco::detail::distance(first, last);
     if (num_items == 0) { return; }
 
-    // TODO fallback to local memory registers in case they don't fit in shmem
-
-    int grid_size  = 0;
-    int block_size = 0;
+    int grid_size         = 0;
+    int block_size        = 0;
+    int const shmem_bytes = sizeof(storage_type);
 
     // We make use of the occupancy calculator here to get the minimum number of blocks which still
     // saturate the GPU. This reduces the atomic contention on the final register array during the
     // merge phase.
     CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(
-      &grid_size, &block_size, &cuco::hyperloglog_ns::detail::add_shmem<InputIt, ref_type<>>));
+      &grid_size,
+      &block_size,
+      &cuco::hyperloglog_ns::detail::add_shmem<InputIt, ref_type<>>,
+      shmem_bytes));
 
-    cuco::hyperloglog_ns::detail::add_shmem<<<grid_size, block_size, 0, stream>>>(
-      first, num_items, this->ref());
+    if (grid_size != 0) {  // use shmem codepath
+      cuco::hyperloglog_ns::detail::add_shmem<<<grid_size, block_size, shmem_bytes, stream>>>(
+        first, num_items, this->ref());
+    } else {  // use gmem codepath since there is not enough shmem available
+      block_size = 0;
+      CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(
+        &grid_size, &block_size, &cuco::hyperloglog_ns::detail::add_gmem<InputIt, ref_type<>>));
+      CUCO_EXPECTS(grid_size != 0, "Invalid kernel launch configuration");
+
+      cuco::hyperloglog_ns::detail::add_gmem<<<grid_size, block_size, 0, stream>>>(
+        first, num_items, this->ref());
+    }
   }
 
   /**

@@ -56,15 +56,15 @@ class finalizer {
     if (v > 0) {
       // Use linear counting for small cardinality estimates.
       double const h = m * log(static_cast<double>(m) / v);
-      // HLL++ is defined only when p < 19, otherwise we need to fallback to HLL.
       // The threshold `2.5 * m` is from the original HLL algorithm.
-      if ((Precision < 19 and h <= threshold<Precision>()) or e <= 2.5 * m) {
-        e = h;
-      } else {
-        e = bias_corrected_estimate(e);
+      if (e <= 2.5 * m) { return cuda::std::round(h); }
+
+      if constexpr (Precision < 19) {
+        e = (h <= threshold<Precision>()) ? h : bias_corrected_estimate(e);
       }
     } else {
-      e = bias_corrected_estimate(e);
+      // HLL++ is defined only when p < 19, otherwise we need to fallback to HLL.
+      if constexpr (Precision < 19) { e = bias_corrected_estimate(e); }
     }
 
     return cuda::std::round(e);
@@ -89,10 +89,7 @@ class finalizer {
 
   __host__ __device__ static double constexpr bias_corrected_estimate(double e) noexcept
   {
-    if constexpr (Precision < 19) {
-      if (e < 5.0 * m) { return e - bias(e); }
-    }
-    return e;
+    return (e < 5.0 * m) ? e - bias(e) : e;
   }
 
   __host__ __device__ static double constexpr bias(double e) noexcept
