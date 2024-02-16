@@ -534,6 +534,74 @@ class static_set {
                   cuda_stream_ref stream = {}) const;
 
   /**
+   * @brief Retrieves the matched key in the set corresponding to all probe keys in the range
+   * `[first, last)`
+   *
+   * If key `k = *(first + i)` has match `m` in the set, copies a `cuco::pair{k, m}` to unspecified
+   * locations in `[output_begin, output_end)`. Else, does nothing.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `retrieve_async`.
+   * @note Behavior is undefined if the size of the output range exceeds
+   * `std::distance(output_begin, output_end)`.
+   * @note Behavior is undefined if the given key has multiple matches in the set.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator whose `value_type` can be constructed from
+   * `cuco::pair<ProbeKey, Key>`
+   * @tparam ProbeEqual Binary callable type
+   *
+   * @param first Beginning of the sequence of probe keys
+   * @param last End of the sequence of probe keys
+   * @param output_begin Beginning of the sequence of probe key and set key pairs retrieved for each
+   * probe key
+   * @param probe_equal The binary function to compare set keys and probe keys for equality
+   * @param stream CUDA stream used for retrieve
+   *
+   * @return The iterator indicating the last valid pair in the output
+   */
+  template <typename InputIt, typename OutputIt, typename ProbeEqual = KeyEqual>
+  // TODO: the build will crash if `ProbeEqual` doesn't have a default ctor, is
+  // this an issue?
+  OutputIt retrieve(InputIt first,
+                    InputIt last,
+                    OutputIt output_begin,
+                    ProbeEqual const& probe_equal = ProbeEqual{},
+                    cuda_stream_ref stream        = {}) const;
+
+  /**
+   * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in
+   * the range `[first, last)`
+   *
+   * If key `k = *(first + i)` has match `m` in the set, copies a `cuco::pair{k, m}` to unspecified
+   * locations in `[output_begin, output_end)`. Else, does nothing.
+   *
+   * @note Behavior is undefined if the size of the output range exceeds
+   * `std::distance(output_begin, output_end)`.
+   * @note Behavior is undefined if the given key has multiple matches in the set.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator whose `value_type` can be constructed from
+   * `cuco::pair<ProbeKey, Key>`
+   * @tparam ProbeEqual Binary callable type
+   *
+   * @param first Beginning of the sequence of probe keys
+   * @param last End of the sequence of probe keys
+   * @param output_begin Beginning of the sequence of probe key and set key pairs retrieved for each
+   * probe key
+   * @param probe_equal The binary function to compare set keys and probe keys for equality
+   * @param stream CUDA stream used for retrieve
+   *
+   * @return The iterator indicating the last valid pair in the output
+   */
+  template <typename InputIt, typename OutputIt, typename ProbeEqual = KeyEqual>
+  OutputIt retrieve_async(InputIt first,
+                          InputIt last,
+                          OutputIt output_begin,
+                          ProbeEqual const& probe_equal = ProbeEqual{},
+                          cuda_stream_ref stream        = {}) const;
+
+  /**
    * @brief Retrieves all keys contained in the set.
    *
    * @note This API synchronizes the given stream.
