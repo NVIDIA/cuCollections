@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2023, NVIDIA CORPORATION.
+# Copyright (c) 2018-2024, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -89,6 +89,11 @@ ConfigureTest(STATIC_MAP_TEST
 ConfigureTest(DYNAMIC_MAP_TEST
     dynamic_map/unique_sequence_test.cu
     dynamic_map/erase_test.cu)
+
+###################################################################################################
+# - static_multiset tests -------------------------------------------------------------------------
+ConfigureTest(STATIC_MULTISET_TEST
+    static_multiset/insert_test.cu)
 
 ###################################################################################################
 # - static_multimap tests -------------------------------------------------------------------------
