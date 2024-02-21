@@ -407,8 +407,7 @@ class operator_impl<
             val.second);
           return;
         }
-        if (eq_res == detail::equal_result::EMPTY or
-            cuco::detail::bitwise_compare(slot_content.first, ref_.impl_.erased_key_sentinel())) {
+        if (eq_res == detail::equal_result::AVAILABLE) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           if (attempt_insert_or_assign(
                 (storage_ref.data() + *probing_iter)->data() + intra_window_index, val)) {
@@ -449,18 +448,11 @@ class operator_impl<
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (ref_.impl_.predicate()(window_slots[i].first, key)) {
-            case detail::equal_result::EMPTY:
-              return detail::window_probing_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::AVAILABLE:
+              return detail::window_probing_results{detail::equal_result::AVAILABLE, i};
             case detail::equal_result::EQUAL:
               return detail::window_probing_results{detail::equal_result::EQUAL, i};
-            default: {
-              if (cuco::detail::bitwise_compare(window_slots[i].first,
-                                                ref_.impl_.erased_key_sentinel())) {
-                return window_probing_results{detail::equal_result::ERASED, i};
-              } else {
-                continue;
-              }
-            }
+            default: continue;
           }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -479,8 +471,7 @@ class operator_impl<
         return;
       }
 
-      auto const group_contains_available =
-        group.ballot(state == detail::equal_result::EMPTY or state == detail::equal_result::ERASED);
+      auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status =

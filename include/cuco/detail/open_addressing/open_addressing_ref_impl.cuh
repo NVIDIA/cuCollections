@@ -369,9 +369,7 @@ class open_addressing_ref_impl {
           // If the key is already in the container, return false
           if (eq_res == detail::equal_result::EQUAL) { return false; }
         }
-        if (eq_res == detail::equal_result::EMPTY or
-            cuco::detail::bitwise_compare(this->extract_key(slot_content),
-                                          this->erased_key_sentinel())) {
+        if (eq_res == detail::equal_result::AVAILABLE) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
                                  slot_content,
@@ -416,8 +414,8 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (this->predicate_(this->extract_key(window_slots[i]), key)) {
-            case detail::equal_result::EMPTY:
-              return window_probing_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::AVAILABLE:
+              return window_probing_results{detail::equal_result::AVAILABLE, i};
             case detail::equal_result::EQUAL: {
               if constexpr (allows_duplicates) {
                 continue;
@@ -425,14 +423,7 @@ class open_addressing_ref_impl {
                 return window_probing_results{detail::equal_result::EQUAL, i};
               }
             }
-            default: {
-              if (cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
-                                                this->erased_key_sentinel())) {
-                return window_probing_results{detail::equal_result::ERASED, i};
-              } else {
-                continue;
-              }
-            }
+            default: continue;
           }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -444,8 +435,7 @@ class open_addressing_ref_impl {
         if (group.any(state == detail::equal_result::EQUAL)) { return false; }
       }
 
-      auto const group_contains_available =
-        group.ballot(state == detail::equal_result::EMPTY or state == detail::equal_result::ERASED);
+      auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status =
@@ -517,9 +507,7 @@ class open_addressing_ref_impl {
           }
           return {iterator{&window_ptr[i]}, false};
         }
-        if (eq_res == detail::equal_result::EMPTY or
-            cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
-                                          this->erased_key_sentinel())) {
+        if (eq_res == detail::equal_result::AVAILABLE) {
           switch (this->attempt_insert_stable(window_ptr + i, window_slots[i], val)) {
             case insert_result::SUCCESS: {
               if constexpr (has_payload) {
@@ -580,18 +568,11 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (this->predicate_(this->extract_key(window_slots[i]), key)) {
-            case detail::equal_result::EMPTY:
-              return window_probing_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::AVAILABLE:
+              return window_probing_results{detail::equal_result::AVAILABLE, i};
             case detail::equal_result::EQUAL:
               return window_probing_results{detail::equal_result::EQUAL, i};
-            default: {
-              if (cuco::detail::bitwise_compare(this->extract_key(window_slots[i]),
-                                                this->erased_key_sentinel())) {
-                return window_probing_results{detail::equal_result::ERASED, i};
-              } else {
-                continue;
-              }
-            }
+            default: continue;
           }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -615,8 +596,7 @@ class open_addressing_ref_impl {
         return {iterator{reinterpret_cast<value_type*>(res)}, false};
       }
 
-      auto const group_contains_available =
-        group.ballot(state == detail::equal_result::EMPTY or state == detail::equal_result::ERASED);
+      auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
@@ -677,7 +657,7 @@ class open_addressing_ref_impl {
         auto const eq_res = this->predicate_(this->extract_key(slot_content), key);
 
         // Key doesn't exist, return false
-        if (eq_res == detail::equal_result::EMPTY) { return false; }
+        if (eq_res == detail::equal_result::AVAILABLE) { return false; }
         // Key exists, return true if successfully deleted
         if (eq_res == detail::equal_result::EQUAL) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
@@ -716,8 +696,8 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (this->predicate_(this->extract_key(window_slots[i]), key)) {
-            case detail::equal_result::EMPTY:
-              return window_probing_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::AVAILABLE:
+              return window_probing_results{detail::equal_result::AVAILABLE, i};
             case detail::equal_result::EQUAL:
               return window_probing_results{detail::equal_result::EQUAL, i};
             default: continue;
@@ -745,7 +725,7 @@ class open_addressing_ref_impl {
       }
 
       // Key doesn't exist, return false
-      if (group.any(state == detail::equal_result::EMPTY)) { return false; }
+      if (group.any(state == detail::equal_result::AVAILABLE)) { return false; }
 
       ++probing_iter;
     }
@@ -776,7 +756,7 @@ class open_addressing_ref_impl {
       for (auto& slot_content : window_slots) {
         switch (this->predicate_(this->extract_key(slot_content), key)) {
           case detail::equal_result::UNEQUAL: continue;
-          case detail::equal_result::EMPTY: return false;
+          case detail::equal_result::AVAILABLE: return false;
           case detail::equal_result::EQUAL: return true;
         }
       }
@@ -809,7 +789,7 @@ class open_addressing_ref_impl {
       auto const state = [&]() {
         for (auto& slot : window_slots) {
           switch (this->predicate_(this->extract_key(slot), key)) {
-            case detail::equal_result::EMPTY: return detail::equal_result::EMPTY;
+            case detail::equal_result::AVAILABLE: return detail::equal_result::AVAILABLE;
             case detail::equal_result::EQUAL: return detail::equal_result::EQUAL;
             default: continue;
           }
@@ -818,7 +798,7 @@ class open_addressing_ref_impl {
       }();
 
       if (group.any(state == detail::equal_result::EQUAL)) { return true; }
-      if (group.any(state == detail::equal_result::EMPTY)) { return false; }
+      if (group.any(state == detail::equal_result::AVAILABLE)) { return false; }
 
       ++probing_iter;
     }
@@ -848,7 +828,7 @@ class open_addressing_ref_impl {
 
       for (auto i = 0; i < window_size; ++i) {
         switch (this->predicate_(this->extract_key(window_slots[i]), key)) {
-          case detail::equal_result::EMPTY: {
+          case detail::equal_result::AVAILABLE: {
             return this->end();
           }
           case detail::equal_result::EQUAL: {
@@ -886,8 +866,8 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (this->predicate_(this->extract_key(window_slots[i]), key)) {
-            case detail::equal_result::EMPTY:
-              return window_probing_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::AVAILABLE:
+              return window_probing_results{detail::equal_result::AVAILABLE, i};
             case detail::equal_result::EQUAL:
               return window_probing_results{detail::equal_result::EQUAL, i};
             default: continue;
@@ -908,7 +888,7 @@ class open_addressing_ref_impl {
       }
 
       // Find an empty slot, meaning that the probe key isn't present in the container
-      if (group.any(state == detail::equal_result::EMPTY)) { return this->end(); }
+      if (group.any(state == detail::equal_result::AVAILABLE)) { return this->end(); }
 
       ++probing_iter;
     }
