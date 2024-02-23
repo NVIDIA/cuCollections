@@ -569,18 +569,14 @@ class open_addressing_ref_impl {
       auto const window_slots = storage_ref_[*probing_iter];
 
       auto const [state, intra_window_index] = [&]() {
+        auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < window_size; ++i) {
-          switch (
-            this->predicate_.operator()<is_insert::YES>(this->extract_key(window_slots[i]), key)) {
-            case detail::equal_result::AVAILABLE:
-              return window_probing_results{detail::equal_result::AVAILABLE, i};
-            case detail::equal_result::EQUAL:
-              return window_probing_results{detail::equal_result::EQUAL, i};
-            default: continue;
-          }
+          res =
+            this->predicate_.operator()<is_insert::YES>(this->extract_key(window_slots[i]), key);
+          if (res != detail::equal_result::UNEQUAL) { return window_probing_results{res, i}; }
         }
         // returns dummy index `-1` for UNEQUAL
-        return window_probing_results{detail::equal_result::UNEQUAL, -1};
+        return window_probing_results{res, -1};
       }();
 
       auto* slot_ptr = (storage_ref_.data() + *probing_iter)->data() + intra_window_index;
@@ -699,18 +695,13 @@ class open_addressing_ref_impl {
       auto const window_slots = storage_ref_[*probing_iter];
 
       auto const [state, intra_window_index] = [&]() {
+        auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < window_size; ++i) {
-          switch (
-            this->predicate_.operator()<is_insert::NO>(this->extract_key(window_slots[i]), key)) {
-            case detail::equal_result::EMPTY:
-              return window_probing_results{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL:
-              return window_probing_results{detail::equal_result::EQUAL, i};
-            default: continue;
-          }
+          res = this->predicate_.operator()<is_insert::NO>(this->extract_key(window_slots[i]), key);
+          if (res != detail::equal_result::UNEQUAL) { return window_probing_results{res, i}; }
         }
         // returns dummy index `-1` for UNEQUAL
-        return window_probing_results{detail::equal_result::UNEQUAL, -1};
+        return window_probing_results{res, -1};
       }();
 
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
@@ -793,14 +784,12 @@ class open_addressing_ref_impl {
       auto const window_slots = storage_ref_[*probing_iter];
 
       auto const state = [&]() {
+        auto res = detail::equal_result::UNEQUAL;
         for (auto& slot : window_slots) {
-          switch (this->predicate_.operator()<is_insert::NO>(this->extract_key(slot), key)) {
-            case detail::equal_result::EMPTY: return detail::equal_result::EMPTY;
-            case detail::equal_result::EQUAL: return detail::equal_result::EQUAL;
-            default: continue;
-          }
+          res = this->predicate_.operator()<is_insert::NO>(this->extract_key(slot), key);
+          if (res != detail::equal_result::UNEQUAL) { return res; }
         }
-        return detail::equal_result::UNEQUAL;
+        return res;
       }();
 
       if (group.any(state == detail::equal_result::EQUAL)) { return true; }
@@ -871,18 +860,13 @@ class open_addressing_ref_impl {
       auto const window_slots = storage_ref_[*probing_iter];
 
       auto const [state, intra_window_index] = [&]() {
+        auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < window_size; ++i) {
-          switch (
-            this->predicate_.operator()<is_insert::NO>(this->extract_key(window_slots[i]), key)) {
-            case detail::equal_result::EMPTY:
-              return window_probing_results{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL:
-              return window_probing_results{detail::equal_result::EQUAL, i};
-            default: continue;
-          }
+          res = this->predicate_.operator()<is_insert::NO>(this->extract_key(window_slots[i]), key);
+          if (res != detail::equal_result::UNEQUAL) { return window_probing_results{res, i}; }
         }
         // returns dummy index `-1` for UNEQUAL
-        return window_probing_results{detail::equal_result::UNEQUAL, -1};
+        return window_probing_results{res, -1};
       }();
 
       // Find a match for the probe key, thus return an iterator to the entry

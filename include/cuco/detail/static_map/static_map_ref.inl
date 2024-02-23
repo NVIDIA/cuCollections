@@ -447,17 +447,15 @@ class operator_impl<
       auto const window_slots = storage_ref[*probing_iter];
 
       auto const [state, intra_window_index] = [&]() {
+        auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < window_size; ++i) {
-          switch (ref_.impl_.predicate_.operator()<is_insert::YES>(window_slots[i].first, key)) {
-            case detail::equal_result::AVAILABLE:
-              return detail::window_probing_results{detail::equal_result::AVAILABLE, i};
-            case detail::equal_result::EQUAL:
-              return detail::window_probing_results{detail::equal_result::EQUAL, i};
-            default: continue;
+          res = ref_.impl_.predicate_.operator()<is_insert::YES>(window_slots[i].first, key);
+          if (res != detail::equal_result::UNEQUAL) {
+            return detail::window_probing_results{res, i};
           }
         }
         // returns dummy index `-1` for UNEQUAL
-        return detail::window_probing_results{detail::equal_result::UNEQUAL, -1};
+        return detail::window_probing_results{res, -1};
       }();
 
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
