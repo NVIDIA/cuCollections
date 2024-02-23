@@ -25,7 +25,9 @@ namespace detail {
 /**
  * @brief Enum of equality comparison results.
  */
-enum class equal_result : int32_t { UNEQUAL = 0, AVAILABLE = 1, EQUAL = 2 };
+enum class equal_result : int32_t { UNEQUAL = 0, EMPTY = 1, EQUAL = 2, AVAILABLE = 3 };
+
+enum class is_insert : bool { YES, NO };
 
 /**
  * @brief Key equality wrapper.
@@ -80,6 +82,8 @@ struct equal_wrapper {
    * then performs a equality check with the given `equal_` callable, i.e., `equal_(lhs, rhs)`.
    * @note Container (like set or map) keys MUST be always on the left-hand side.
    *
+   * @tparam IsInsert Flag indicating whether it's an insert equality check or not. Insert probing
+   * stops when it's an empty or erased slot while query probing stops only when it's empty.
    * @tparam LHS Left-hand side Element type
    * @tparam RHS Right-hand side Element type
    *
@@ -88,13 +92,18 @@ struct equal_wrapper {
    *
    * @return Three way equality comparison result
    */
-  template <typename LHS, typename RHS>
+  template <is_insert IsInsert, typename LHS, typename RHS>
   __device__ constexpr equal_result operator()(LHS const& lhs, RHS const& rhs) const noexcept
   {
-    return (cuco::detail::bitwise_compare(lhs, empty_sentinel_) or
-            cuco::detail::bitwise_compare(lhs, erased_sentinel_))
-             ? equal_result::AVAILABLE
-             : this->equal_to(lhs, rhs);
+    if constexpr (IsInsert == is_insert::YES) {
+      return (cuco::detail::bitwise_compare(lhs, empty_sentinel_) or
+              cuco::detail::bitwise_compare(lhs, erased_sentinel_))
+               ? equal_result::AVAILABLE
+               : this->equal_to(lhs, rhs);
+    } else {
+      return cuco::detail::bitwise_compare(lhs, empty_sentinel_) ? equal_result::EMPTY
+                                                                 : this->equal_to(lhs, rhs);
+    }
   }
 };
 
