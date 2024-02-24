@@ -56,6 +56,14 @@ struct contains_tag {
 struct find_tag {
 } inline constexpr find;
 
+/**
+ * @brief `retrieve` operator tag
+ */
+struct retrieve_tag {
+} inline constexpr retrieve;
+
+}  // namespace op
+}  // namespace cuco
 }  // namespace op
 }  // namespace cuco
 
