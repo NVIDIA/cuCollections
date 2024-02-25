@@ -537,8 +537,8 @@ class static_set {
    * @brief Retrieves the matched key in the set corresponding to all probe keys in the range
    * `[first, last)`
    *
-   * If key `k = *(first + i)` has match `m` in the set, copies a `cuco::pair{k, m}` to unspecified
-   * locations in `[output_begin, output_end)`. Else, does nothing.
+   * If key `k = *(first + i)` has a match `m` in the set, copies a `cuco::pair{k, m}` to
+   * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `retrieve_async`.
@@ -570,8 +570,8 @@ class static_set {
    * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in
    * the range `[first, last)`
    *
-   * If key `k = *(first + i)` has match `m` in the set, copies a `cuco::pair{k, m}` to unspecified
-   * locations in `[output_begin, output_end)`. Else, does nothing.
+   * If key `k = *(first + i)` has a match `m` in the set, copies a `cuco::pair{k, m}` to
+   * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
    *
    * @note Behavior is undefined if the size of the output range exceeds
    * `std::distance(output_begin, output_end)`.
@@ -599,8 +599,8 @@ class static_set {
    * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in
    * the range `[first, last)`
    *
-   * If key `k = *(first + i)` has match `m` in the set, copies a `cuco::pair{k, m}` to unspecified
-   * locations in `[output_begin, output_end)`. Else, does nothing.
+   * If key `k = *(first + i)` has a match `m` in the set, copies a `cuco::pair{k, m}` to
+   * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
    *
    * @note Behavior is undefined if the size of the output range exceeds
    * `std::distance(output_begin, output_end)`.
@@ -618,12 +618,12 @@ class static_set {
    * @param output_begin Beginning of the sequence of probe key and set key pairs retrieved for each
    * probe key
    * @param probe_equal The binary function to compare set keys and probe keys for equality
-   * @param probe_hash The binary function to compare set keys and probe keys for equality
+   * @param probe_hash The unary function to hash probe keys
    * @param stream CUDA stream used for retrieve
    *
    * @return The iterator indicating the last valid pair in the output
    */
-  template <typename InputIt, typename OutputIt, typename ProbeEqual = KeyEqual, typename ProbeHash>
+  template <typename InputIt, typename OutputIt, typename ProbeEqual, typename ProbeHash>
   OutputIt retrieve_async(InputIt first,
                           InputIt last,
                           OutputIt output_begin,
