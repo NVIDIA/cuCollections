@@ -64,7 +64,5 @@ struct retrieve_tag {
 
 }  // namespace op
 }  // namespace cuco
-}  // namespace op
-}  // namespace cuco
 
 #include <cuco/detail/operator.inl>
