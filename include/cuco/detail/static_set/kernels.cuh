@@ -89,6 +89,12 @@ CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output
   }
 }
 
+template <int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
+CUCO_KERNEL void retrieve(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
+{
+  // TO BE ADDED
+}
+
 }  // namespace detail
 }  // namespace static_set_ns
 }  // namespace cuco
