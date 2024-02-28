@@ -547,24 +547,25 @@ class static_set {
    * @note Behavior is undefined if the given key has multiple matches in the set.
    *
    * @tparam InputIt Device accessible input iterator
-   * @tparam OutputIt Device accessible output iterator whose `value_type` can be constructed from
-   * `cuco::pair<ProbeKey, Key>`
+   * @tparam OutputIt1 Device accessible output iterator whose `value_type` can be constructed from
+   * `ProbeKey`
+   * @tparam OutputIt2 Device accessible output iterator whose `value_type` can be constructed from
+   * `Key`
    *
    * @param first Beginning of the sequence of probe keys
    * @param last End of the sequence of probe keys
-   * @param output_begin Beginning of the sequence of probe key and set key pairs retrieved for each
-   * probe key
+   * @param output_probe Beginning of the sequence of the probe keys that have a match
+   * @param output_match Beginning of the sequence of the matched keys
    * @param stream CUDA stream used for retrieve
    *
    * @return The iterator indicating the last valid pair in the output
    */
-  template <typename InputIt, typename OutputIt>
-  // TODO: the build will crash if `ProbeEqual` doesn't have a default ctor, is
-  // this an issue?
-  OutputIt retrieve(InputIt first,
-                    InputIt last,
-                    OutputIt output_begin,
-                    cuda_stream_ref stream = {}) const;
+  template <typename InputIt, typename OutputIt1, typename OutputIt2>
+  std::pair<OutputIt1, OutputIt2> retrieve(InputIt first,
+                                           InputIt last,
+                                           OutputIt1 output_probe,
+                                           OutputIt2 output_match,
+                                           cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in
@@ -578,22 +579,25 @@ class static_set {
    * @note Behavior is undefined if the given key has multiple matches in the set.
    *
    * @tparam InputIt Device accessible input iterator
-   * @tparam OutputIt Device accessible output iterator whose `value_type` can be constructed from
-   * `cuco::pair<ProbeKey, Key>`
+   * @tparam OutputIt1 Device accessible output iterator whose `value_type` can be constructed from
+   * `ProbeKey`
+   * @tparam OutputIt2 Device accessible output iterator whose `value_type` can be constructed from
+   * `Key`
    *
    * @param first Beginning of the sequence of probe keys
    * @param last End of the sequence of probe keys
-   * @param output_begin Beginning of the sequence of probe key and set key pairs retrieved for each
-   * probe key
+   * @param output_probe Beginning of the sequence of the probe keys that have a match
+   * @param output_match Beginning of the sequence of the matched keys
    * @param stream CUDA stream used for retrieve
    *
    * @return The iterator indicating the last valid pair in the output
    */
-  template <typename InputIt, typename OutputIt>
-  OutputIt retrieve_async(InputIt first,
-                          InputIt last,
-                          OutputIt output_begin,
-                          cuda_stream_ref stream = {}) const;
+  template <typename InputIt, typename OutputIt1, typename OutputIt2>
+  std::pair<OutputIt1, OutputIt2> retrieve_async(InputIt first,
+                                                 InputIt last,
+                                                 OutputIt1 output_probe,
+                                                 OutputIt2 output_match,
+                                                 cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in

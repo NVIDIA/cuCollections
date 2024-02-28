@@ -19,6 +19,7 @@
 #include <cuco/detail/utility/cuda.cuh>
 
 #include <cub/block/block_reduce.cuh>
+#include <cub/block/block_scan.cuh>
 
 #include <cuda/atomic>
 
@@ -89,10 +90,191 @@ CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output
   }
 }
 
-template <int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
-CUCO_KERNEL void retrieve(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
+template <int32_t BlockSize,
+          typename InputIt,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename AtomicT,
+          typename Ref>
+__device__ void group_retrieve(InputIt first,
+                               cuco::detail::index_type n,
+                               OutputIt1 probe_begin,
+                               OutputIt2 output_begin,
+                               AtomicT* counter,
+                               Ref ref)
 {
-  // TO BE ADDED
+  namespace cg = cooperative_groups;
+
+  auto constexpr tile_size   = Ref::cg_size;
+  auto constexpr window_size = Ref::window_size;
+
+  auto idx          = cuco::detail::global_thread_id() / tile_size;
+  auto const stride = cuco::detail::grid_stride() / tile_size;
+  auto const block  = cg::this_thread_block();
+  auto const tile   = cg::tiled_partition<tile_size>(block);
+
+  /*
+  auto constexpr flushing_tile_size = detail::warp_size / window_size;
+  // random choice to tune
+  auto constexpr flushing_buffer_size = 2 * flushing_tile_size;
+  auto constexpr num_flushing_tiles   = BlockSize / flushing_tile_size;
+  auto constexpr max_matches          = flushing_tile_size / tile_size;
+
+  auto const flushing_tile    = cg::tiled_partition<flushing_tile_size>(block);
+  auto const flushing_tile_id = block.thread_rank() / flushing_tile_size;
+
+  __shared__ cuco::pair<size_type, size_type>
+    flushing_tile_buffer[num_flushing_tiles][flushing_tile_size];
+  // per flushing-tile counter to track number of filled elements
+  __shared__ size_type flushing_counter[num_flushing_tiles];
+
+  if (flushing_tile.thread_rank() == 0) { flushing_counter[flushing_tile_id] = 0; }
+  flushing_tile.sync();  // sync still needed since cg.any doesn't imply a memory barrier
+
+  while (flushing_tile.any(idx < n)) {
+    bool active_flag = idx < n;
+    auto const active_flushing_tile =
+      cg::binary_partition<flushing_tile_size>(flushing_tile, active_flag);
+    if (active_flag) {
+      auto const found = hash_table.find(tile, *(iter + idx));
+      if (tile.thread_rank() == 0 and found != hash_table.end()) {
+        auto const offset = atomicAdd_block(&flushing_counter[flushing_tile_id], 1);
+        flushing_tile_buffer[flushing_tile_id][offset] = cuco::pair{
+          static_cast<size_type>(found->second), static_cast<size_type>(idx)};
+      }
+    }
+
+    flushing_tile.sync();
+    if (flushing_counter[flushing_tile_id] + max_matches > flushing_buffer_size) {
+      flush_buffer(flushing_tile,
+                   flushing_counter[flushing_tile_id],
+                   flushing_tile_buffer[flushing_tile_id],
+                   counter,
+                   build_indices,
+                   probe_indices);
+      flushing_tile.sync();
+      if (flushing_tile.thread_rank() == 0) { flushing_counter[flushing_tile_id] = 0; }
+      flushing_tile.sync();
+    }
+
+    idx += stride;
+  }  // while
+
+  if (flushing_counter[flushing_tile_id] > 0) {
+    flush_buffer(flushing_tile,
+                 flushing_counter[flushing_tile_id],
+                 flushing_tile_buffer[flushing_tile_id],
+                 counter,
+                 build_indices,
+                 probe_indices);
+  }
+  */
+}
+
+template <typename Size,
+          typename ProbeKey,
+          typename Key,
+          typename AtomicT,
+          typename OutputIt1,
+          typename OutputIt2>
+__device__ void flush_buffer(cooperative_groups::thread_block const& block,
+                             Size buffer_size,
+                             cuco::pair<ProbeKey, Key>* buffer,
+                             AtomicT* counter,
+                             OutputIt1 probe_begin,
+                             OutputIt2 output_begin)
+{
+  auto i = block.thread_rank();
+  __shared__ Size offset;
+
+  if (i == 0) { offset = counter->fetch_add(buffer_size, cuda::std::memory_order_relaxed); }
+  block.sync();
+
+  while (i < buffer_size) {
+    *(probe_begin + offset + i)  = buffer[i].first;
+    *(output_begin + offset + i) = buffer[i].second;
+
+    i += block.size();
+  }
+}
+
+template <int32_t BlockSize,
+          typename InputIt,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename AtomicT,
+          typename Ref>
+__device__ void scalar_retrieve(InputIt first,
+                                cuco::detail::index_type n,
+                                OutputIt1 probe_begin,
+                                OutputIt2 output_begin,
+                                AtomicT* counter,
+                                Ref ref)
+{
+  namespace cg = cooperative_groups;
+
+  using size_type = typename Ref::size_type;
+  using ProbeKey  = typename std::iterator_traits<InputIt>::value_type;
+  using Key       = typename Ref::key_type;
+
+  auto idx          = cuco::detail::global_thread_id();
+  auto const stride = cuco::detail::grid_stride();
+  auto const block  = cg::this_thread_block();
+
+  using block_scan = cub::BlockScan<size_type, BlockSize>;
+  __shared__ typename block_scan::TempStorage block_scan_temp_storage;
+
+  auto constexpr buffer_capacity = 2 * BlockSize;
+  __shared__ cuco::pair<ProbeKey, Key> buffer[buffer_capacity];
+  size_type buffer_size = 0;
+
+  while (idx - block.thread_rank() < n) {  // the whole thread block falls into the same iteration
+    auto const found     = idx < n ? ref.find(*(first + idx)) : ref.end();
+    auto const has_match = found != ref.end();
+
+    // Use a whole-block scan to calculate the output location
+    size_type offset;
+    size_type block_count;
+    block_scan(block_scan_temp_storage)
+      .ExclusiveSum(static_cast<size_type>(has_match), offset, block_count);
+
+    if (buffer_size + block_count > buffer_capacity) {
+      flush_buffer(block, buffer_size, buffer, counter, probe_begin, output_begin);
+      block.sync();
+      buffer_size = 0;
+    }
+
+    if (has_match) { buffer[buffer_size + offset] = cuco::pair{*(first + idx), *found}; }
+    buffer_size += block_count;
+    block.sync();
+
+    idx += stride;
+  }  // while
+
+  if (buffer_size > 0) {
+    flush_buffer(block, buffer_size, buffer, counter, probe_begin, output_begin);
+  }
+}
+
+template <int32_t BlockSize,
+          typename InputIt,
+          typename OutputIt1,
+          typename OutputIt2,
+          typename AtomicT,
+          typename Ref>
+CUCO_KERNEL void retrieve(InputIt first,
+                          cuco::detail::index_type n,
+                          OutputIt1 probe_begin,
+                          OutputIt2 output_begin,
+                          AtomicT* counter,
+                          Ref ref)
+{
+  // CG-based retrieve
+  if constexpr (Ref::cg_size != 1) {
+    group_retrieve<BlockSize>(first, n, probe_begin, output_begin, counter, ref);
+  } else {
+    scalar_retrieve<BlockSize>(first, n, probe_begin, output_begin, counter, ref);
+  }
 }
 
 }  // namespace detail
