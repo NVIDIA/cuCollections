@@ -51,17 +51,26 @@ struct my_hasher {
   Pointer _data;
 };
 
+template <typename T>
+void print(T const& tuple)
+{
+  std::cout << "[" << cuda::std::get<0>(tuple) << ", " << cuda::std::get<1>(tuple) << ", "
+            << cuda::std::get<2>(tuple) << ", "
+            << "[" << cuda::std::get<3>(tuple)[0] << ", " << cuda::std::get<3>(tuple)[1] << ", "
+            << cuda::std::get<3>(tuple)[2] << ", " << cuda::std::get<3>(tuple)[3] << "]]\n";
+}
+
 int main(void)
 {
   using Key = cuda::std::tuple<uint32_t, char, bool, cuda::std::array<double, 4UL>>;
-  auto const data =
+  auto const h_data =
     std::vector<Key>{cuda::std::tuple{11u, 'a', true, cuda::std::array{1., 2., 3., 4.}},
                      cuda::std::tuple{11u, 'a', true, cuda::std::array{1., 2., 3., 4.}},
                      cuda::std::tuple{22u, 'b', true, cuda::std::array{5., 6., 7., 8.}},
                      cuda::std::tuple{11u, 'a', true, cuda::std::array{5., 6., 7., 8.}},
                      cuda::std::tuple{11u, 'a', false, cuda::std::array{1., 2., 3., 4.}}};
-  auto const size = data.size();
-  thrust::device_vector<Key> d_data{data};
+  auto const size = h_data.size();
+  thrust::device_vector<Key> d_data{h_data};
 
   using ActualKey = int32_t;
 
@@ -82,14 +91,9 @@ int main(void)
   auto const unique_keys_end = set.retrieve_all(unique_keys.begin());
   auto const num             = std::distance(unique_keys.begin(), unique_keys_end);
 
-  std::cout << "There are " << num << " unique elements:\n";
+  std::cout << "There are " << num << " distinct input elements:\n";
   for (std::size_t i = 0; i < num; ++i) {
-    auto const element = data[unique_keys[i]];
-    std::cout << "[" << cuda::std::get<0>(element) << ", " << cuda::std::get<1>(element) << ", "
-              << cuda::std::get<2>(element) << ", "
-              << "[" << cuda::std::get<3>(element)[0] << ", " << cuda::std::get<3>(element)[1]
-              << ", " << cuda::std::get<3>(element)[2] << ", " << cuda::std::get<3>(element)[3]
-              << "]]\n";
+    print(h_data[unique_keys[i]]);
   }
 
   return 0;
