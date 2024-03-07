@@ -34,12 +34,11 @@
 int main(void)
 {
   auto const data = thrust::device_vector{
-    cuda::std::tuple{11, "I'm a small string", true, cuda::std::array{1., 2., 3., 4.}},
-    cuda::std::tuple{11, "I'm a small string", true, cuda::std::array{1., 2., 3., 4.}},
-    cuda::std::tuple{
-      22, "I'm a loooooooooooooooooooooong string", true, cuda::std::array{5., 6., 7., 8.}},
-    cuda::std::tuple{11, "I'm a small string", true, cuda::std::array{1., 2., 3., 4.}},
-    cuda::std::tuple{11, "I'm a small string", false, cuda::std::array{1., 2., 3., 4.}}};
+    cuda::std::tuple{11, "string", true, cuda::std::array{1., 2., 3., 4.}},
+    cuda::std::tuple{11, "string", true, cuda::std::array{1., 2., 3., 4.}},
+    cuda::std::tuple{22, "I'm a looooooooooooooong string", true, cuda::std::array{5., 6., 7., 8.}},
+    cuda::std::tuple{11, "string", true, cuda::std::array{1., 2., 3., 4.}},
+    cuda::std::tuple{11, "string", false, cuda::std::array{1., 2., 3., 4.}}};
 
   using Key = int32_t;
 
