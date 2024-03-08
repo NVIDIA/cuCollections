@@ -35,17 +35,18 @@
  * due to the high runtime cost of atomic lock tables.
  *
  * Additionally, `cuco` hash tables use open addressing as the hash collision resolution method.
- * This approach requires users to provide a sentinel value that indicates unused slots in the data
- * structure. Note that using a sentinel value as an actual key for insertion or querying is
- * undefined behavior. This can be problematic, especially when the input data type is complex and
- * determining a valid sentinel value is not straightforward.
+ * This approach requires users to provide a sentinel that indicates unused slots in the data
+ * structure. The sentinel value is a reserved value that must be never present in the problem. Note
+ * that inserting or querying a sentinel value is undefined behavior. This can be problematic,
+ * especially when the input data type is complex and determining a valid sentinel value is not
+ * straightforward.
  *
  * This sample code demonstrates a solution to address these issues by using hash set as an
  * indirection mapping table to the original data:
  *  - The keys inserted in the hash table are indices of the original data array.
- *  - Using `-1` as a sentinel value is safe because accessing data[-1] is invalid.
+ *  - Using `-1` as a sentinel value is safe because accessing `data[-1]` is invalid.
  *  - Custom hashers and key equality comparators are required to hash and compare original keys
- * based on indices.
+ *    based on indices.
  */
 
 /**
@@ -60,11 +61,13 @@ struct my_equal {
    * @brief Checks if two keys are identical based on their indices in the
    * original data array
    *
-   * @lhs The left hand side index
+   * @param lhs The left hand side index
+   * @param rhs The right hand side index
+   * @return 'true' if two tuples are indentical
    */
   __device__ constexpr bool operator()(int32_t lhs, int32_t rhs) const
   {
-    // check
+    // Check all 4 elements of a tuple to determine if two tuples are identical
     return cuda::std::get<0>(_data[lhs]) == cuda::std::get<0>(_data[rhs]) and
            cuda::std::get<1>(_data[lhs]) == cuda::std::get<1>(_data[rhs]) and
            cuda::std::get<2>(_data[lhs]) == cuda::std::get<2>(_data[rhs]) and
@@ -74,7 +77,7 @@ struct my_equal {
 };
 
 /**
- * @brief User-defined hash function to hash the original data with an index
+ * @brief User-defined hash function to hash the original data based on its index
  *
  * @tparam T Original key type
  */
@@ -117,15 +120,13 @@ int main(void)
   auto const size = h_data.size();
   thrust::device_vector<Key> d_data{h_data};
 
-  // The actual key type is an index type, `int32_t` is large enough to cover
-  // the input capacity and 4-byte atomic CAS is more efficient than the 8-byte
-  // one.
+  // The actual key type is an index type, `int32_t` is large enough to cover the whole input range
+  // and 4-byte atomic CAS is more efficient than the 8-byte one.
   using ActualKey = int32_t;
-
+  // `-1` is a valid sentinel value since one will never access `data[-1]`
   ActualKey constexpr empty_key_sentinel = -1;
 
   auto const data_ptr = d_data.data().get();
-
   auto set = cuco::static_set{cuco::extent<std::size_t>{size * 2},  // about 50% load factor
                               cuco::empty_key{empty_key_sentinel},
                               my_equal{data_ptr},
@@ -141,6 +142,7 @@ int main(void)
 
   std::cout << "There are " << num << " distinct input elements:\n";
   for (auto i = 0; i < num; ++i) {
+    // Retrieve query output based on indices
     print(h_data[unique_keys[i]]);
   }
 
