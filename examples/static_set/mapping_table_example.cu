@@ -108,9 +108,10 @@ void print(T const& tuple)
 
 int main(void)
 {
-  // The original key type is larger than 8-byte and complex to spell the full type name. In the
-  // meanwhile, it's not obvious to determine a valid sentinel value without instrospecting the data
+  // The original key type is larger than 8-byte and complex to spell the full type name
   using Key = cuda::std::tuple<uint32_t, char, bool, cuda::std::array<double, 4UL>>;
+  // Imagine the array size is huge or the key type is more complex, it becomes impossible to
+  // determine a valid sentinel value without instrospecting the data
   auto const h_data =
     std::vector<Key>{cuda::std::tuple{11u, 'a', true, cuda::std::array{1., 2., 3., 4.}},
                      cuda::std::tuple{11u, 'a', true, cuda::std::array{1., 2., 3., 4.}},
