@@ -73,13 +73,13 @@ TEMPLATE_TEST_CASE_SIG(
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
-  //(int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  //(int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, cuco::test::probe_sequence::double_hashing, 2),
   (int32_t, cuco::test::probe_sequence::linear_probing, 1),
-  //(int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 1))
-//(int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
   constexpr std::size_t num_keys{400};
   constexpr double desired_load_factor = 1.;
