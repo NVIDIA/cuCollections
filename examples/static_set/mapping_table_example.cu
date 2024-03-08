@@ -47,6 +47,9 @@
  *  - Using `-1` as a sentinel value is safe because accessing `data[-1]` is invalid.
  *  - Custom hashers and key equality comparators are required to hash and compare original keys
  *    based on indices.
+ *
+ * @note This example is for demonstration purposes only. It is not intended to show the most
+ * performant way to do the example algorithm.
  */
 
 /**
