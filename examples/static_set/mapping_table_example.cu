@@ -66,7 +66,7 @@ struct my_equal {
    *
    * @param lhs The left hand side index
    * @param rhs The right hand side index
-   * @return 'true' if two tuples are indentical
+   * @return 'true' if two tuples are identical
    */
   __device__ constexpr bool operator()(int32_t lhs, int32_t rhs) const
   {
@@ -89,7 +89,7 @@ struct my_hasher {
   my_hasher(T const* data) : _data{data} {}
   __device__ auto operator()(int32_t index) const
   {
-    // Only hashes the first element of a tuple for demonstrataion purposes
+    // Only hashes the first element of a tuple for demonstration purposes
     return cuda::std::get<0>(_data[index]);
   }
   T const* _data;
@@ -114,7 +114,7 @@ int main(void)
   // The original key type is larger than 8-byte and complex to spell the full type name
   using Key = cuda::std::tuple<uint32_t, char, bool, cuda::std::array<double, 4UL>>;
   // Imagine the array size is huge or the key type is more complex, it becomes impossible to
-  // determine a valid sentinel value without instrospecting the data
+  // determine a valid sentinel value without introspecting the data
   auto const h_data =
     std::vector<Key>{cuda::std::tuple{11u, 'a', true, cuda::std::array{1., 2., 3., 4.}},
                      cuda::std::tuple{11u, 'a', true, cuda::std::array{1., 2., 3., 4.}},
