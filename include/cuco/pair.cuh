@@ -106,20 +106,6 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
   {
   }
 
-  /**
-   * @brief Constructs a pair from the given thrust::pair-like `p`.
-   *
-   * @tparam T Type of the pair to copy from
-   *
-   * @param p The input pair to copy from
-   */
-  template <typename T, std::enable_if_t<detail::is_thrust_pair_like<T>::value>* = nullptr>
-  __host__ __device__ constexpr pair(T const& p)
-    : pair{thrust::get<0>(thrust::raw_reference_cast(p)),
-           thrust::get<1>(thrust::raw_reference_cast(p))}
-  {
-  }
-
   First first;    ///< The first value in the pair
   Second second;  ///< The second value in the pair
 };
