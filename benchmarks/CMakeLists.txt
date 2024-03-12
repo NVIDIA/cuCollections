@@ -84,3 +84,18 @@ ConfigureBench(DYNAMIC_MAP_BENCH
 # - hash function benchmarks ----------------------------------------------------------------------
 ConfigureBench(HASH_BENCH
   hash_bench.cu)
+
+###################################################################################################
+# - dynamic_bitset benchmarks -------------------------------------------------------------------------
+ConfigureBench(DYNAMIC_BITSET_BENCH
+  trie/dynamic_bitset/find_next_bench.cu
+  trie/dynamic_bitset/rank_bench.cu
+  trie/dynamic_bitset/select_bench.cu
+  trie/dynamic_bitset/size_bench.cu
+  trie/dynamic_bitset/test_bench.cu)
+
+###################################################################################################
+# - trie benchmarks -------------------------------------------------------------------------
+ConfigureBench(TRIE_BENCH
+  trie/insert_bench.cu
+  trie/lookup_bench.cu)

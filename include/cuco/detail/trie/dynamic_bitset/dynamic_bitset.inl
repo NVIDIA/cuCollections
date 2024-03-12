@@ -45,6 +45,21 @@ constexpr dynamic_bitset<Allocator>::dynamic_bitset(Allocator const& allocator)
 }
 
 template <class Allocator>
+template <typename WordIt>
+constexpr void dynamic_bitset<Allocator>::insert(WordIt words_begin,
+                                                 WordIt words_end,
+                                                 size_type n_bits)
+{
+  if (n_bits == 0) { return; }
+  size_t num_blocks = (n_bits - 1) / bits_per_block + 1;
+  assert(num_blocks == cuco::detail::distance(words_begin, words_end));
+
+  words_.reserve(num_blocks);
+  words_.insert(words_.end(), words_begin, words_end);
+  n_bits_ = n_bits;
+}
+
+template <class Allocator>
 constexpr void dynamic_bitset<Allocator>::push_back(bool bit) noexcept
 {
   if (n_bits_ % bits_per_block == 0) {
@@ -82,12 +97,32 @@ constexpr void dynamic_bitset<Allocator>::test(KeyIt keys_begin,
 
 {
   build();
+  if (n_bits_ == 0) { return; }
   auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
   if (num_keys == 0) { return; }
 
   auto const grid_size = cuco::detail::grid_size(num_keys);
 
   bitset_test_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+    ref(), keys_begin, outputs_begin, num_keys);
+}
+
+template <class Allocator>
+template <typename KeyIt, typename OutputIt>
+constexpr void dynamic_bitset<Allocator>::find_next(KeyIt keys_begin,
+                                                    KeyIt keys_end,
+                                                    OutputIt outputs_begin,
+                                                    cuda_stream_ref stream) noexcept
+
+{
+  build();
+  if (n_bits_ == 0) { return; }
+  auto const num_keys = cuco::detail::distance(keys_begin, keys_end);
+  if (num_keys == 0) { return; }
+
+  auto const grid_size = cuco::detail::grid_size(num_keys);
+
+  bitset_find_next_kernel<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
     ref(), keys_begin, outputs_begin, num_keys);
 }
 
