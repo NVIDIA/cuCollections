@@ -378,6 +378,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ret
   ProbeHash const& probe_hash,
   cuda_stream_ref stream) const
 {
+  CUCO_FAIL("Unsupported code path: retrieve_async with custom hash/equal");
 }
 
 template <class Key,
