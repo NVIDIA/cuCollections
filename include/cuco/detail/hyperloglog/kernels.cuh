@@ -18,6 +18,8 @@
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
+#include <cuda/std/span>
+
 #include <cstddef>
 
 #include <cooperative_groups.h>
@@ -35,20 +37,16 @@ CUCO_KERNEL void clear(RefType ref)
 template <class InputIt, class RefType>
 CUCO_KERNEL void add_shmem(InputIt first, cuco::detail::index_type n, RefType ref)
 {
-  using local_ref_type     = typename RefType::with_scope<cuda::thread_scope_block>;
-  using local_storage_type = typename local_ref_type::storage_type;
+  using local_ref_type = typename RefType::with_scope<cuda::thread_scope_block>;
 
-  alignas(16) extern __shared__ char shmem[];
-  local_storage_type* local_storage = reinterpret_cast<local_storage_type*>(shmem);
+  // TODO assert alignment
+  extern __shared__ std::byte local_sketch[];
 
   auto const loop_stride = cuco::detail::grid_stride();
   auto idx               = cuco::detail::global_thread_id();
   auto const block       = cooperative_groups::this_thread_block();
 
-  if (block.thread_rank() == 0) { new (local_storage) local_storage_type{}; }
-  block.sync();
-
-  local_ref_type local_ref(*local_storage, {});
+  local_ref_type local_ref(cuda::std::span{local_sketch, ref.sketch_bytes()}, {});
   local_ref.clear(block);
   block.sync();
 

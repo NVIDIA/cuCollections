@@ -98,6 +98,33 @@ template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash, clas
 typename distinct_count_estimator<T, Precision, Scope, Hash, Allocator>::ref_type<>
 distinct_count_estimator<T, Precision, Scope, Hash, Allocator>::ref() const noexcept
 {
-  return ref_type<>{this->impl_->storage_ref(), this->impl_->hash()};
+  return {this->sketch(), this->hash()};
 }
+
+template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash, class Allocator>
+auto distinct_count_estimator<T, Precision, Scope, Hash, Allocator>::hash() const noexcept
+{
+  return this->impl_->hash();
+}
+
+template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash, class Allocator>
+auto distinct_count_estimator<T, Precision, Scope, Hash, Allocator>::sketch() const noexcept
+{
+  return this->impl_->sketch();
+}
+
+template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash, class Allocator>
+constexpr size_t
+distinct_count_estimator<T, Precision, Scope, Hash, Allocator>::sketch_bytes() noexcept
+{
+  return impl_type::sketch_bytes();
+}
+
+template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash, class Allocator>
+constexpr size_t
+distinct_count_estimator<T, Precision, Scope, Hash, Allocator>::sketch_alignment() noexcept
+{
+  return impl_type::sketch();
+}
+
 }  // namespace cuco

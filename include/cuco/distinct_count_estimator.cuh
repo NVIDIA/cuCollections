@@ -61,7 +61,6 @@ class distinct_count_estimator {
 
   using value_type     = typename impl_type::value_type;      ///< Type of items to count
   using allocator_type = typename impl_type::allocator_type;  ///< Allocator type
-  using storage_type   = typename impl_type::storage_type;    ///< Storage type
 
   // TODO enable CTAD
   /**
@@ -211,6 +210,34 @@ class distinct_count_estimator {
    * @return Device ref object of the current `distinct_count_estimator` host object
    */
   [[nodiscard]] ref_type<> ref() const noexcept;
+
+  /**
+   * @brief Get hash function.
+   *
+   * @return The hash function
+   */
+  [[nodiscard]] auto hash() const noexcept;
+
+  /**
+   * @brief Gets the span of the sketch.
+   *
+   * @return The cuda::std::span of the sketch
+   */
+  [[nodiscard]] auto sketch() const noexcept;
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] static constexpr std::size_t sketch_bytes() noexcept;
+
+  /**
+   * @brief Gets the alignment required for the sketch storage.
+   *
+   * @return The required alignment
+   */
+  [[nodiscard]] static constexpr std::size_t sketch_alignment() noexcept;
 
  private:
   std::unique_ptr<impl_type> impl_;  ///< Implementation object

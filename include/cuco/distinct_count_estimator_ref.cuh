@@ -15,11 +15,14 @@
  */
 #pragma once
 
+#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/hyperloglog/hyperloglog_ref.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cooperative_groups.h>
+
+#include <cstddef>
 
 namespace cuco {
 /**
@@ -44,8 +47,7 @@ class distinct_count_estimator_ref {
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
   static constexpr auto precision    = impl_type::precision;     ///< Precision
 
-  using value_type   = typename impl_type::value_type;    ///< Type of items to count
-  using storage_type = typename impl_type::storage_type;  ///< Storage type
+  using value_type = typename impl_type::value_type;  ///< Type of items to count
 
   template <cuda::thread_scope NewScope>
   using with_scope =
@@ -56,10 +58,11 @@ class distinct_count_estimator_ref {
   /**
    * @brief Constructs a non-owning `distinct_count_estimator_ref` object.
    *
-   * @param storage Reference to storage object of type `storage_type`
+   * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
    */
-  __host__ __device__ constexpr distinct_count_estimator_ref(storage_type& storage,
+  template <class U, std::size_t N>
+  __host__ __device__ constexpr distinct_count_estimator_ref(cuda::std::span<U, N> sketch_span,
                                                              Hash const& hash = {}) noexcept;
 
   /**
@@ -73,11 +76,59 @@ class distinct_count_estimator_ref {
   __device__ void clear(CG const& group) noexcept;
 
   /**
+   * @brief Asynchronously resets the estimator, i.e., clears the current count estimate.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  __host__ void clear_async(cuco::cuda_stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief Resets the estimator, i.e., clears the current count estimate.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `clear_async`.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  __host__ void clear(cuco::cuda_stream_ref stream = {});
+
+  /**
    * @brief Adds an item to the estimator.
    *
    * @param item The item to be counted
    */
   __device__ void add(T const& item) noexcept;
+
+  /**
+   * @brief Asynchronously adds to be counted items to the estimator.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * T></tt> is `true`
+   *
+   * @param first Beginning of the sequence of items
+   * @param last End of the sequence of items
+   * @param stream CUDA stream this operation is executed in
+   */
+  template <class InputIt>
+  __host__ void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream = {});
+
+  /**
+   * @brief Adds to be counted items to the estimator.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `add_async`.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * T></tt> is `true`
+   *
+   * @param first Beginning of the sequence of items
+   * @param last End of the sequence of items
+   * @param stream CUDA stream this operation is executed in
+   */
+  template <class InputIt>
+  __host__ void add(InputIt first, InputIt last, cuco::cuda_stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator reference.
@@ -94,6 +145,34 @@ class distinct_count_estimator_ref {
     distinct_count_estimator_ref<T, Precision, OtherScope, Hash> const& other) noexcept;
 
   /**
+   * @brief Asynchronously merges the result of `other` estimator reference into `*this` estimator.
+   *
+   * @tparam OtherScope Thread scope of `other` estimator
+   *
+   * @param other Other estimator reference to be merged into `*this`
+   * @param stream CUDA stream this operation is executed in
+   */
+  template <cuda::thread_scope OtherScope>
+  __host__ void merge_async(
+    distinct_count_estimator_ref<T, Precision, OtherScope, Hash> const& other,
+    cuco::cuda_stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief Merges the result of `other` estimator reference into `*this` estimator.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `merge_async`.
+   *
+   * @tparam OtherScope Thread scope of `other` estimator
+   *
+   * @param other Other estimator reference to be merged into `*this`
+   * @param stream CUDA stream this operation is executed in
+   */
+  template <cuda::thread_scope OtherScope>
+  __host__ void merge(distinct_count_estimator_ref<T, Precision, OtherScope, Hash> const& other,
+                      cuco::cuda_stream_ref stream = {});
+
+  /**
    * @brief Compute the estimated distinct items count.
    *
    * @param group CUDA thread block group this operation is executed in
@@ -102,6 +181,45 @@ class distinct_count_estimator_ref {
    */
   [[nodiscard]] __device__ std::size_t estimate(
     cooperative_groups::thread_block const& group) const noexcept;
+
+  /**
+   * @brief Compute the estimated distinct items count.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @param stream CUDA stream this operation is executed in
+   *
+   * @return Approximate distinct items count
+   */
+  [[nodiscard]] __host__ std::size_t estimate(cuco::cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief Gets the hash function.
+   *
+   * @return The hash function
+   */
+  [[nodiscard]] __host__ __device__ auto hash() const noexcept;
+
+  /**
+   * @brief Gets the span of the sketch.
+   *
+   * @return The cuda::std::span of the sketch
+   */
+  [[nodiscard]] __host__ __device__ auto sketch() const noexcept;
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes() noexcept;
+
+  /**
+   * @brief Gets the alignment required for the sketch storage.
+   *
+   * @return The required alignment
+   */
+  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_alignment() noexcept;
 
  private:
   impl_type impl_;  ///< Implementation object

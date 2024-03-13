@@ -17,14 +17,9 @@
 
 #include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/error.hpp>
-#include <cuco/detail/hyperloglog/finalizer.cuh>
 #include <cuco/detail/hyperloglog/hyperloglog_ref.cuh>
-#include <cuco/detail/hyperloglog/kernels.cuh>
-#include <cuco/detail/hyperloglog/storage.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
-#include <cuco/detail/utils.hpp>
 #include <cuco/hash_functions.cuh>
-#include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cstddef>
@@ -57,12 +52,11 @@ class hyperloglog {
   using ref_type = hyperloglog_ref<T, Precision, NewScope, Hash>;  ///< Non-owning reference
                                                                    ///< type
 
-  using value_type   = typename ref_type<>::value_type;    ///< Type of items to count
-  using storage_type = typename ref_type<>::storage_type;  ///< Storage type
-  using hash_type    = typename ref_type<>::hash_type;     ///< Hash function type
+  using value_type = typename ref_type<>::value_type;  ///< Type of items to count
+  using hash_type  = typename ref_type<>::hash_type;   ///< Hash function type
   using allocator_type =
-    typename std::allocator_traits<Allocator>::template rebind_alloc<storage_type>;  ///< Allocator
-                                                                                     ///< type
+    typename std::allocator_traits<Allocator>::template rebind_alloc<std::byte>;  ///< Allocator
+                                                                                  ///< type
 
   /**
    * @brief Constructs a `hyperloglog` host object.
@@ -74,12 +68,12 @@ class hyperloglog {
    * @param stream CUDA stream used to initialize the object
    */
   constexpr hyperloglog(Hash const& hash, Allocator const& alloc, cuco::cuda_stream_ref stream)
-    : hash_{hash},
-      allocator_{alloc},
-      deleter_{1ull, allocator_},
-      storage_{allocator_.allocate(1ull), deleter_}
+    : allocator_{alloc},
+      deleter_{this->sketch_bytes(), this->allocator_},
+      sketch_{this->allocator_.allocate(this->sketch_bytes()), this->deleter_},
+      ref_{cuda::std::span{this->sketch_.get(), this->sketch_bytes()}, hash}
   {
-    this->clear_async(stream);
+    this->ref_.clear_async(stream);
   }
 
   ~hyperloglog() = default;
@@ -100,11 +94,7 @@ class hyperloglog {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear_async(cuco::cuda_stream_ref stream) noexcept
-  {
-    auto constexpr block_size = 1024;
-    cuco::hyperloglog_ns::detail::clear<<<1, block_size, 0, stream>>>(this->ref());
-  }
+  void clear_async(cuco::cuda_stream_ref stream) noexcept { this->ref_.clear_async(stream); }
 
   /**
    * @brief Resets the estimator, i.e., clears the current count estimate.
@@ -114,11 +104,7 @@ class hyperloglog {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuco::cuda_stream_ref stream)
-  {
-    this->clear_async(stream);
-    stream.synchronize();
-  }
+  void clear(cuco::cuda_stream_ref stream) { this->ref_.clear(stream); }
 
   /**
    * @brief Asynchronously adds to be counted items to the estimator.
@@ -134,34 +120,7 @@ class hyperloglog {
   template <class InputIt>
   void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
   {
-    auto const num_items = cuco::detail::distance(first, last);
-    if (num_items == 0) { return; }
-
-    int grid_size         = 0;
-    int block_size        = 0;
-    int const shmem_bytes = sizeof(storage_type);
-
-    // We make use of the occupancy calculator here to get the minimum number of blocks which still
-    // saturate the GPU. This reduces the atomic contention on the final register array during the
-    // merge phase.
-    CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(
-      &grid_size,
-      &block_size,
-      &cuco::hyperloglog_ns::detail::add_shmem<InputIt, ref_type<>>,
-      shmem_bytes));
-
-    if (grid_size != 0) {  // use shmem codepath
-      cuco::hyperloglog_ns::detail::add_shmem<<<grid_size, block_size, shmem_bytes, stream>>>(
-        first, num_items, this->ref());
-    } else {  // use gmem codepath since there is not enough shmem available
-      block_size = 0;
-      CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(
-        &grid_size, &block_size, &cuco::hyperloglog_ns::detail::add_gmem<InputIt, ref_type<>>));
-      CUCO_EXPECTS(grid_size != 0, "Invalid kernel launch configuration");
-
-      cuco::hyperloglog_ns::detail::add_gmem<<<grid_size, block_size, 0, stream>>>(
-        first, num_items, this->ref());
-    }
+    this->ref_.add_async(first, last, stream);
   }
 
   /**
@@ -181,8 +140,7 @@ class hyperloglog {
   template <class InputIt>
   void add(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
   {
-    this->add_async(first, last, stream);
-    stream.synchronize();
+    this->ref_.add(first, last, stream);
   }
 
   /**
@@ -198,7 +156,7 @@ class hyperloglog {
   void merge_async(hyperloglog<T, Precision, OtherScope, Hash, OtherAllocator> const& other,
                    cuco::cuda_stream_ref stream) noexcept
   {
-    this->merge_async(other.ref(), stream);
+    this->ref_.merge_async(other.ref(), stream);
   }
 
   /**
@@ -217,8 +175,7 @@ class hyperloglog {
   void merge(hyperloglog<T, Precision, OtherScope, Hash, OtherAllocator> const& other,
              cuco::cuda_stream_ref stream)
   {
-    this->merge_async(other, stream);
-    stream.synchronize();
+    this->ref_.merge(other.ref(), stream);
   }
 
   /**
@@ -232,8 +189,7 @@ class hyperloglog {
   template <cuda::thread_scope OtherScope>
   void merge_async(ref_type<OtherScope> const& other, cuco::cuda_stream_ref stream) noexcept
   {
-    auto constexpr block_size = 1024;
-    cuco::hyperloglog_ns::detail::merge<<<1, block_size, 0, stream>>>(other, this->ref());
+    this->ref_.merge_async(other, stream);
   }
 
   /**
@@ -250,8 +206,7 @@ class hyperloglog {
   template <cuda::thread_scope OtherScope>
   void merge(ref_type<OtherScope> const& other, cuco::cuda_stream_ref stream)
   {
-    this->merge_async(other, stream);
-    stream.synchronize();
+    this->ref_.merge(other, stream);
   }
 
   /**
@@ -265,43 +220,7 @@ class hyperloglog {
    */
   [[nodiscard]] std::size_t estimate(cuco::cuda_stream_ref stream) const
   {
-    // TODO remove test code
-    // std::size_t* result;
-    // cudaMallocHost(&result, sizeof(std::size_t));
-
-    // int grid_size  = 0;
-    // int block_size = 0;
-    // // TODO check cuda error?
-    // cudaOccupancyMaxPotentialBlockSize(
-    //   &grid_size, &block_size, &cuco::hyperloglog_ns::detail::estimate<ref_type<>>);
-
-    // cuco::hyperloglog_ns::detail::estimate<<<grid_size, block_size, 0, stream>>>(
-    //   result, this->ref());
-    // stream.synchronize();
-
-    // return *result;
-
-    // TODO this function currently copies the registers to the host and then finalizes the result;
-    // move computation to device? Edit: host computation is faster -.-
-    storage_type registers;
-    // TODO check if storage is host accessible
-    CUCO_CUDA_TRY(cudaMemcpyAsync(
-      &registers, this->storage_.get(), sizeof(storage_type), cudaMemcpyDeviceToHost, stream));
-    stream.synchronize();
-
-    using fp_type = typename ref_type<>::fp_type;
-    fp_type sum   = 0;
-    int zeroes    = 0;
-
-    // geometric mean computation + count registers with 0s
-    for (int i = 0; i < registers.size(); ++i) {
-      auto const reg = registers[i];
-      sum += fp_type{1} / static_cast<fp_type>(1ull << reg);
-      zeroes += reg == 0;
-    }
-
-    // pass intermediate result to finalizer for bias correction, etc.
-    return cuco::hyperloglog_ns::detail::finalizer<Precision>::finalize(sum, zeroes);
+    return this->ref_.estimate(stream);
   }
 
   /**
@@ -309,30 +228,48 @@ class hyperloglog {
    *
    * @return Device ref object of the current `distinct_count_estimator` host object
    */
-  [[nodiscard]] ref_type<> ref() const noexcept
-  {
-    return ref_type<>{*(this->storage_.get()), this->hash_};
-  }
-
-  /**
-   * @brief Get storage ref.
-   *
-   * @return Reference to storage
-   */
-  [[nodiscard]] storage_type& storage_ref() const noexcept { return *(this->storage_.get()); }
+  [[nodiscard]] ref_type<> ref() const noexcept { return this->ref_; }
 
   /**
    * @brief Get hash function.
    *
    * @return The hash function
    */
-  [[nodiscard]] auto hash() const noexcept { return this->hash_; }
+  [[nodiscard]] auto hash() const noexcept { return this->ref_.hash(); }
+
+  /**
+   * @brief Gets the span of the sketch.
+   *
+   * @return The cuda::std::span of the sketch
+   */
+  [[nodiscard]] auto sketch() const noexcept { return this->ref_.sketch(); }
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] constexpr std::size_t sketch_bytes() const noexcept
+  {
+    return ref_type<>::sketch_bytes();
+  }
+
+  /**
+   * @brief Gets the alignment required for the sketch storage.
+   *
+   * @return The required alignment
+   */
+  [[nodiscard]] static constexpr std::size_t sketch_alignment() noexcept
+  {
+    return ref_type<>::sketch_alignment();
+  }
 
  private:
-  hash_type hash_;                                       ///< Hash function used to hash items
   allocator_type allocator_;                             ///< Storage allocator
   custom_deleter<std::size_t, allocator_type> deleter_;  ///< Storage deleter
-  std::unique_ptr<storage_type, custom_deleter<std::size_t, allocator_type>> storage_;  ///< Storage
+  std::unique_ptr<std::byte, custom_deleter<std::size_t, allocator_type>>
+    sketch_;        ///< Sketch storage
+  ref_type<> ref_;  //< Ref type
 
   // Needs to be friends with other instantiations of this class template to have access to their
   // storage

@@ -15,14 +15,20 @@
  */
 #pragma once
 
+#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/__config>
+#include <cuco/detail/error.hpp>
 #include <cuco/detail/hyperloglog/finalizer.cuh>
-#include <cuco/detail/hyperloglog/storage.cuh>
+#include <cuco/detail/hyperloglog/kernels.cuh>
+#include <cuco/detail/utils.hpp>
 #include <cuco/hash_functions.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
+#include <thrust/host_vector.h>
+
 #include <cuda/std/bit>
+#include <cuda/std/span>
 #include <cuda/std/utility>
 
 #include <cooperative_groups.h>
@@ -31,6 +37,7 @@
 #include <cstddef>
 
 namespace cuco::detail {
+
 /**
  * @brief A GPU-accelerated utility for approximating the number of distinct items in a multiset.
  *
@@ -47,14 +54,15 @@ namespace cuco::detail {
  */
 template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash>
 class hyperloglog_ref {
+  using register_type = int;  ///< Register array storage
+  // We use `int` here since this is the smallest type that supports native `atomicMax` on GPUs
+  using fp_type = float;  ///< Floating point type used for reduction
  public:
-  using fp_type                      = float;      ///< Floating point type used for reduction
   static constexpr auto thread_scope = Scope;      ///< CUDA thread scope
   static constexpr auto precision    = Precision;  ///< Precision
 
-  using value_type   = T;                                       ///< Type of items to count
-  using storage_type = hyperloglog_dense_registers<Precision>;  ///< Storage type
-  using hash_type    = Hash;                                    ///< Hash function type
+  using value_type = T;     ///< Type of items to count
+  using hash_type  = Hash;  ///< Hash function type
 
   template <cuda::thread_scope NewScope>
   using with_scope = hyperloglog_ref<T, Precision, NewScope, Hash>;  ///< Ref type with different
@@ -63,12 +71,17 @@ class hyperloglog_ref {
   /**
    * @brief Constructs a non-owning `hyperloglog_ref` object.
    *
-   * @param storage Reference to storage object of type `storage_type`
+   * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
    */
-  __host__ __device__ constexpr hyperloglog_ref(storage_type& storage, Hash const& hash) noexcept
-    : hash_{hash}, storage_{storage}
+  template <class U, std::size_t N>
+  __host__ __device__ constexpr hyperloglog_ref(cuda::std::span<U, N> sketch_span,
+                                                Hash const& hash) noexcept
+    : hash_{hash},
+      sketch_{reinterpret_cast<register_type*>(sketch_span.data()),
+              this->sketch_bytes() / sizeof(register_type)}
   {
+    // TODO check size and alignment
   }
 
   /**
@@ -81,7 +94,34 @@ class hyperloglog_ref {
   template <class CG>
   __device__ void clear(CG const& group) noexcept
   {
-    this->storage_.clear(group);
+    for (int i = group.thread_rank(); i < this->sketch_.size(); i += group.size()) {
+      this->sketch_[i] = 0;
+    }
+  }
+
+  /**
+   * @brief Resets the estimator, i.e., clears the current count estimate.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `clear_async`.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  __host__ void clear(cuco::cuda_stream_ref stream)
+  {
+    this->clear_async(stream);
+    stream.synchronize();
+  }
+
+  /**
+   * @brief Asynchronously resets the estimator, i.e., clears the current count estimate.
+   *
+   * @param stream CUDA stream this operation is executed in
+   */
+  __host__ void clear_async(cuco::cuda_stream_ref stream) noexcept
+  {
+    auto constexpr block_size = 1024;
+    cuco::hyperloglog_ns::detail::clear<<<1, block_size, 0, stream>>>(*this);
   }
 
   /**
@@ -97,7 +137,83 @@ class hyperloglog_ref {
     auto const reg                          = h & register_mask;
     auto const zeroes = cuda::std::countl_zero(h | register_mask) + 1;  // __clz
 
-    this->storage_.update_max<thread_scope>(reg, zeroes);
+    this->update_max(reg, zeroes);
+  }
+
+  /**
+   * @brief Asynchronously adds to be counted items to the estimator.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * T></tt> is `true`
+   *
+   * @param first Beginning of the sequence of items
+   * @param last End of the sequence of items
+   * @param stream CUDA stream this operation is executed in
+   */
+  template <class InputIt>
+  __host__ void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
+  {
+    auto const num_items = cuco::detail::distance(first, last);
+    if (num_items == 0) { return; }
+
+    int grid_size         = 0;
+    int block_size        = 0;
+    int const shmem_bytes = sketch_bytes();
+
+    // TODO specialize for is_continuous_iterator -> use memcpy_async
+
+    // try expanding shmem partition beyond 48KB if necessary
+    bool const fits_shmem =
+      cudaSuccess ==
+      cudaFuncSetAttribute(cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_ref>,
+                           cudaFuncAttributeMaxDynamicSharedMemorySize,
+                           shmem_bytes);
+
+    // We make use of the occupancy calculator to get the minimum number of blocks which still
+    // saturates the GPU. This reduces the shmem initialization overhead and atomic contention on
+    // the final register array during the merge phase.
+    if (fits_shmem) {  // use shmem codepath
+      CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(
+        &grid_size,
+        &block_size,
+        &cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_ref>,
+        shmem_bytes));
+
+      cuco::hyperloglog_ns::detail::add_shmem<<<grid_size, block_size, shmem_bytes, stream>>>(
+        first, num_items, *this);
+    } else {  // use gmem codepath since there is not enough shmem available
+      block_size = 0;
+      CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(
+        &grid_size,
+        &block_size,
+        &cuco::hyperloglog_ns::detail::add_gmem<InputIt, hyperloglog_ref>));
+      CUCO_EXPECTS(grid_size != 0, "Invalid kernel launch configuration");
+
+      cuco::hyperloglog_ns::detail::add_gmem<<<grid_size, block_size, 0, stream>>>(
+        first, num_items, *this);
+    }
+  }
+
+  /**
+   * @brief Adds to be counted items to the estimator.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `add_async`.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * T></tt> is `true`
+   *
+   * @param first Beginning of the sequence of items
+   * @param last End of the sequence of items
+   * @param stream CUDA stream this operation is executed in
+   */
+  template <class InputIt>
+  __host__ void add(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
+  {
+    this->add_async(first, last, stream);
+    stream.synchronize();
   }
 
   /**
@@ -113,7 +229,44 @@ class hyperloglog_ref {
   __device__ void merge(CG const& group,
                         hyperloglog_ref<T, Precision, OtherScope, Hash> const& other) noexcept
   {
-    this->storage_.merge<thread_scope>(group, other.storage_);
+    for (int i = group.thread_rank(); i < this->sketch_.size(); i += group.size()) {
+      this->update_max(i, other.sketch_[i]);
+    }
+  }
+
+  /**
+   * @brief Asynchronously merges the result of `other` estimator reference into `*this` estimator.
+   *
+   * @tparam OtherScope Thread scope of `other` estimator
+   *
+   * @param other Other estimator reference to be merged into `*this`
+   * @param stream CUDA stream this operation is executed in
+   */
+  template <cuda::thread_scope OtherScope>
+  __host__ void merge_async(hyperloglog_ref<T, Precision, OtherScope, Hash> const& other,
+                            cuco::cuda_stream_ref stream) noexcept
+  {
+    auto constexpr block_size = 1024;
+    cuco::hyperloglog_ns::detail::merge<<<1, block_size, 0, stream>>>(other, *this);
+  }
+
+  /**
+   * @brief Merges the result of `other` estimator reference into `*this` estimator.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `merge_async`.
+   *
+   * @tparam OtherScope Thread scope of `other` estimator
+   *
+   * @param other Other estimator reference to be merged into `*this`
+   * @param stream CUDA stream this operation is executed in
+   */
+  template <cuda::thread_scope OtherScope>
+  __host__ void merge(hyperloglog_ref<T, Precision, OtherScope, Hash> const& other,
+                      cuco::cuda_stream_ref stream)
+  {
+    this->merge_async(other, stream);
+    stream.synchronize();
   }
 
   /**
@@ -138,8 +291,8 @@ class hyperloglog_ref {
 
     fp_type thread_sum = 0;
     int thread_zeroes  = 0;
-    for (int i = group.thread_rank(); i < this->storage_.size(); i += group.size()) {
-      auto const reg = this->storage_[i];
+    for (int i = group.thread_rank(); i < this->sketch_.size(); i += group.size()) {
+      auto const reg = this->sketch_[i];
       thread_sum += fp_type{1} / static_cast<fp_type>(1 << reg);
       thread_zeroes += reg == 0;
     }
@@ -174,9 +327,102 @@ class hyperloglog_ref {
     return estimate;
   }
 
+  /**
+   * @brief Compute the estimated distinct items count.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @param stream CUDA stream this operation is executed in
+   *
+   * @return Approximate distinct items count
+   */
+  [[nodiscard]] __host__ std::size_t estimate(cuco::cuda_stream_ref stream) const
+  {
+    auto const num_regs = 1ull << Precision;
+    thrust::host_vector<register_type> host_sketch(num_regs);
+
+    // TODO check if storage is host accessible
+    CUCO_CUDA_TRY(cudaMemcpyAsync(host_sketch.data(),
+                                  this->sketch_.data(),
+                                  sizeof(register_type) * num_regs,
+                                  cudaMemcpyDeviceToHost,
+                                  stream));
+    stream.synchronize();
+
+    fp_type sum = 0;
+    int zeroes  = 0;
+
+    // geometric mean computation + count registers with 0s
+    for (auto const reg : host_sketch) {
+      sum += fp_type{1} / static_cast<fp_type>(1ull << reg);
+      zeroes += reg == 0;
+    }
+
+    // pass intermediate result to finalizer for bias correction, etc.
+    return cuco::hyperloglog_ns::detail::finalizer<Precision>::finalize(sum, zeroes);
+  }
+
+  /**
+   * @brief Gets the hash function.
+   *
+   * @return The hash function
+   */
+  [[nodiscard]] __host__ __device__ auto hash() const noexcept { return this->hash_; }
+
+  /**
+   * @brief Gets the span of the sketch.
+   *
+   * @return The cuda::std::span of the sketch
+   */
+  [[nodiscard]] __host__ __device__ auto sketch() const noexcept { return this->sketch_; }
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes() noexcept
+  {
+    return (1ull << Precision) * sizeof(register_type);
+  }
+
+  /**
+   * @brief Gets the alignment required for the sketch storage.
+   *
+   * @return The required alignment
+   */
+  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_alignment() noexcept
+  {
+    return alignof(register_type);
+  }
+
  private:
-  hash_type hash_;         ///< Hash function used to hash items
-  storage_type& storage_;  ///< Reference to storage object
+  /**
+   * @brief Atomically updates the register at position `i` with `max(reg[i], value)`.
+   *
+   * @tparam Scope CUDA thread scope
+   *
+   * @param i Register index
+   * @param value New value
+   */
+  __device__ constexpr void update_max(int i, register_type value) noexcept
+  {
+    if constexpr (Scope == cuda::thread_scope_thread) {
+      this->sketch_[i] = max(this->sketch_[i], value);
+    } else if constexpr (Scope == cuda::thread_scope_block) {
+      atomicMax_block(&(this->sketch_[i]), value);
+    } else if constexpr (Scope == cuda::thread_scope_device) {
+      atomicMax(&(this->sketch_[i]), value);
+    } else if constexpr (Scope == cuda::thread_scope_system) {
+      atomicMax_system(&(this->sketch_[i]), value);
+    } else {
+      static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
+    }
+  }
+
+  hash_type hash_;  ///< Hash function used to hash items
+  cuda::std::span<register_type, sketch_bytes() / sizeof(register_type)>
+    sketch_;  ///< HLL sketch storage
 
   template <class T_, int32_t Precision_, cuda::thread_scope Scope_, class Hash_>
   friend class hyperloglog_ref;
