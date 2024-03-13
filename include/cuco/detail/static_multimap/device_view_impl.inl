@@ -470,9 +470,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    *
    * A given CUDA Cooperative Group, `g`, loads `num_outputs` key-value pairs from `output_buffer`
    * and writes them into global memory in a coalesced fashion. CG-wide `memcpy_sync` is used if
-   * `CUCO_HAS_CG_MEMCPY_ASYNC` is defined and `thrust::is_contiguous_iterator_v<OutputIt>`
-   * returns true. All threads of `g` must be active due to implicit CG-wide synchronization
-   * during flushing.
+   * `thrust::is_contiguous_iterator_v<OutputIt>` returns true. All threads of `g` must be active
+   * due to implicit CG-wide synchronization during flushing.
    *
    * @tparam CG Cooperative Group type
    * @tparam atomicT Type of atomic storage
@@ -498,13 +497,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     }
     offset = g.shfl(offset, 0);
 
-#if defined(CUCO_HAS_CG_MEMCPY_ASYNC)
-    constexpr bool uses_memcpy_async = thrust::is_contiguous_iterator_v<OutputIt>;
-#else
-    constexpr bool uses_memcpy_async = false;
-#endif  // end CUCO_HAS_CG_MEMCPY_ASYNC
-
-    if constexpr (uses_memcpy_async) {
+    if constexpr (thrust::is_contiguous_iterator_v<OutputIt>) {
 #if defined(CUCO_HAS_CUDA_BARRIER)
       cooperative_groups::memcpy_async(
         g,
@@ -517,9 +510,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
                                        output_buffer,
                                        sizeof(value_type) * num_outputs);
 #endif  // end CUCO_HAS_CUDA_BARRIER
-    }
-
-    if constexpr (not uses_memcpy_async) {
+    } else {
       for (auto index = lane_id; index < num_outputs; index += g.size()) {
         *(output_begin + offset + index) = output_buffer[index];
       }
