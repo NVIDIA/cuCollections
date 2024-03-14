@@ -155,8 +155,10 @@ __device__ void group_retrieve(InputIt first,
   auto constexpr num_flushing_tiles   = BlockSize / flushing_tile_size;
   auto constexpr max_matches          = flushing_tile_size / tile_size;
 
+  static_assert(flushing_tile_size > 0);
+
   auto const flushing_tile    = cg::tiled_partition<flushing_tile_size>(block);
-  auto const flushing_tile_id = block.thread_rank() / flushing_tile_size;
+  auto const flushing_tile_id = flushing_tile.meta_group_rank();
 
   __shared__ cuco::pair<ProbeKey, Key> flushing_tile_buffer[num_flushing_tiles][flushing_tile_size];
 
