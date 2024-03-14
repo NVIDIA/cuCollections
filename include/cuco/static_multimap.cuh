@@ -795,9 +795,8 @@ class static_multimap {
      *
      * A given CUDA Cooperative Group, `g`, loads `num_outputs` key-value pairs from `output_buffer`
      * and writes them into global memory in a coalesced fashion. CG-wide `memcpy_sync` is used if
-     * `CUCO_HAS_CG_MEMCPY_ASYNC` is defined and `thrust::is_contiguous_iterator_v<OutputIt>`
-     * returns true. All threads of `g` must be active due to implicit CG-wide synchronization
-     * during flushing.
+     * `thrust::is_contiguous_iterator_v<OutputIt>` returns true. All threads of `g` must be active
+     * due to implicit CG-wide synchronization during flushing.
      *
      * @tparam CG Cooperative Group type
      * @tparam atomicT Type of atomic storage
