@@ -103,13 +103,13 @@ __device__ void flush_buffer(CG const& tile,
                              OutputIt1 output_probe,
                              OutputIt2 output_match)
 {
-  Size offset;
   auto i = tile.thread_rank();
 
 #if defined(CUCO_HAS_CG_INVOKE_ONE)
-  offset = cooperative_groups::invoke_one_broadcast(
+  auto const offset = cooperative_groups::invoke_one_broadcast(
     tile, [&]() { return counter->fetch_add(buffer_size, cuda::std::memory_order_relaxed); });
 #else
+  Size offset;
   if (i == 0) { offset = counter->fetch_add(buffer_size, cuda::std::memory_order_relaxed); }
   offset = tile.shfl(offset, 0);
 #endif
