@@ -91,16 +91,15 @@ CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output
 }
 
 template <typename CG,
-          typename Size,  // have to do this due to https://github.com/NVIDIA/cccl/issues/1523
+          typename Size,
           typename ProbeKey,
           typename Key,
-          typename AtomicT,
           typename OutputIt1,
           typename OutputIt2>
 __device__ void flush_buffer(CG const& tile,
                              Size buffer_size,
                              cuco::pair<ProbeKey, Key>* buffer,
-                             AtomicT* counter,
+                             cuda::atomic<Size, cuda::thread_scope_device>* counter,
                              OutputIt1 output_probe,
                              OutputIt2 output_match)
 {
@@ -230,16 +229,11 @@ __device__ void group_retrieve(InputIt first,
   }
 }
 
-template <typename Size,
-          typename ProbeKey,
-          typename Key,
-          typename AtomicT,
-          typename OutputIt1,
-          typename OutputIt2>
+template <typename Size, typename ProbeKey, typename Key, typename OutputIt1, typename OutputIt2>
 __device__ void flush_buffer(cooperative_groups::thread_block const& block,
                              Size buffer_size,
                              cuco::pair<ProbeKey, Key>* buffer,
-                             AtomicT* counter,
+                             cuda::atomic<Size, cuda::thread_scope_device>* counter,
                              OutputIt1 output_probe,
                              OutputIt2 output_match)
 {
