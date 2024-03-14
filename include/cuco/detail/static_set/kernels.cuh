@@ -180,14 +180,14 @@ __device__ void group_retrieve(InputIt first,
         cg::invoke_one(tile, [&]() {
           auto const offset =
             flushing_counter[flushing_tile_id].fetch_add(1, cuda::std::memory_order_relaxed);
-          flushing_tile_buffer[flushing_tile_id][offset] = cuco::pair{*(first + idx), *found};
+          flushing_tile_buffer[flushing_tile_id][offset] = {*(first + idx), *found};
         });
       }
 #else
       if (tile.thread_rank() == 0 and found != ref.end()) {
         auto const offset =
           flushing_counter[flushing_tile_id].fetch_add(1, cuda::std::memory_order_relaxed);
-        flushing_tile_buffer[flushing_tile_id][offset] = cuco::pair{*(first + idx), *found};
+        flushing_tile_buffer[flushing_tile_id][offset] = {*(first + idx), *found};
       }
 #endif
     }
@@ -302,7 +302,7 @@ __device__ void scalar_retrieve(InputIt first,
       buffer_size = 0;
     }
 
-    if (has_match) { buffer[buffer_size + offset] = cuco::pair{*(first + idx), *found}; }
+    if (has_match) { buffer[buffer_size + offset] = {*(first + idx), *found}; }
     buffer_size += block_count;
     block.sync();
 
