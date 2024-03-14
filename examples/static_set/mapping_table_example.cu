@@ -27,12 +27,12 @@
  *
  * @brief Demonstrates how to use hash set as a lookup table of the original data
  *
- * `cuco` hash tables such as `cuco::static_set` or `cuco::static_map` currently support only 4/8
- * byte keys. This limitation arises because `cuco` hash tables rely on atomic Compare-And-Swap
- * (CAS) operations for key insertions (or queries), and the hardware natively supports only 4-byte
- * and 8-byte CAS. To enable support for larger keys, one approach is to implement atomic lock
- * tables at the software level. However, this approach would lead to a notable performance decrease
- * due to the high runtime cost of atomic lock tables.
+ * `cuco` hash tables such as `cuco::static_set` or `cuco::static_map` support only 4/8 byte keys.
+ * This limitation arises because `cuco` hash tables rely on atomic Compare-And-Swap (CAS)
+ * operations for key insertions (or queries), and the hardware natively supports only 4-byte and
+ * 8-byte CAS. To enable support for larger keys, one approach is to implement atomic lock tables at
+ * the software level. However, this approach would lead to a notable performance decrease due to
+ * the high runtime cost of atomic lock tables.
  *
  * Additionally, `cuco` hash tables use open addressing as the hash collision resolution method.
  * This approach requires users to provide a sentinel that indicates unused slots in the data
