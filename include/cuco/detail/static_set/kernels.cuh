@@ -159,13 +159,18 @@ __device__ void group_retrieve(InputIt first,
   auto const flushing_tile_id = block.thread_rank() / flushing_tile_size;
 
   __shared__ cuco::pair<ProbeKey, Key> flushing_tile_buffer[num_flushing_tiles][flushing_tile_size];
+
+  using atomic_counter_type = cuda::atomic<size_type, cuda::thread_scope_block>;
   // per flushing-tile counter to track number of filled elements
-  __shared__ cuda::atomic<size_type, cuda::thread_scope_block> flushing_counter[num_flushing_tiles];
+  __shared__ atomic_counter_type flushing_counter[num_flushing_tiles];
 
 #if defined(CUCO_HAS_CG_INVOKE_ONE)
-  cg::invoke_one(flushing_tile, [&]() { flushing_counter[flushing_tile_id] = 0; });
+  cg::invoke_one(flushing_tile,
+                 [&]() { new (&flushing_counter[flushing_tile_id]) atomic_counter_type{0}; });
 #else
-  if (flushing_tile.thread_rank() == 0) { flushing_counter[flushing_tile_id] = 0; }
+  if (flushing_tile.thread_rank() == 0) {
+    new (&flushing_counter[flushing_tile_id]) atomic_counter_type{0};
+  }
 #endif
   flushing_tile.sync();  // sync still needed since cg.any doesn't imply a memory barrier
 
