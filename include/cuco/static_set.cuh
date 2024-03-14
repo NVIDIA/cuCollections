@@ -31,6 +31,7 @@
 #include <thrust/functional.h>
 
 #include <cuda/atomic>
+#include <cuda/std/utility>
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
@@ -561,11 +562,11 @@ class static_set {
    * @return The iterator indicating the last valid pair in the output
    */
   template <typename InputIt, typename OutputIt1, typename OutputIt2>
-  std::pair<OutputIt1, OutputIt2> retrieve(InputIt first,
-                                           InputIt last,
-                                           OutputIt1 output_probe,
-                                           OutputIt2 output_match,
-                                           cuda_stream_ref stream = {}) const;
+  cuda::std::pair<OutputIt1, OutputIt2> retrieve(InputIt first,
+                                                 InputIt last,
+                                                 OutputIt1 output_probe,
+                                                 OutputIt2 output_match,
+                                                 cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in
@@ -593,11 +594,11 @@ class static_set {
    * @return The iterator indicating the last valid pair in the output
    */
   template <typename InputIt, typename OutputIt1, typename OutputIt2>
-  std::pair<OutputIt1, OutputIt2> retrieve_async(InputIt first,
-                                                 InputIt last,
-                                                 OutputIt1 output_probe,
-                                                 OutputIt2 output_match,
-                                                 cuda_stream_ref stream = {}) const;
+  cuda::std::pair<OutputIt1, OutputIt2> retrieve_async(InputIt first,
+                                                       InputIt last,
+                                                       OutputIt1 output_probe,
+                                                       OutputIt2 output_match,
+                                                       cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in
