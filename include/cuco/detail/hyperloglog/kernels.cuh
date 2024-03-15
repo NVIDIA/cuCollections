@@ -49,12 +49,14 @@ CUCO_KERNEL void add_shmem_vectorized(typename RefType::value_type const* first,
 
   auto const loop_stride = cuco::detail::grid_stride();
   auto idx               = cuco::detail::global_thread_id();
+  auto const grid        = cooperative_groups::this_grid();
   auto const block       = cooperative_groups::this_thread_block();
 
   local_ref_type local_ref(cuda::std::span{local_sketch, ref.sketch_bytes()}, {});
   local_ref.clear(block);
   block.sync();
 
+  // each thread processes VectorSize-many items per iteration
   vector_type vec;
   while (idx < n / VectorSize) {
     vec = *reinterpret_cast<vector_type*>(
@@ -64,8 +66,13 @@ CUCO_KERNEL void add_shmem_vectorized(typename RefType::value_type const* first,
     }
     idx += loop_stride;
   }
-  auto const remainder = n % VectorSize;
-  if (idx >= n / VectorSize and idx < n / VectorSize + remainder) { local_ref.add(*(first + idx)); }
+  // a single thread processes the remaining items
+  cooperative_groups::invoke_one(grid, [&]() {
+    auto const remainder = n % VectorSize;
+    for (int i = 0; i < remainder; ++i) {
+      local_ref.add(*(first + n - i - 1));
+    }
+  });
   block.sync();
 
   ref.merge(block, local_ref);
