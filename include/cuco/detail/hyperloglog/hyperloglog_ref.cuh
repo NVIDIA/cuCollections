@@ -202,7 +202,8 @@ class hyperloglog_ref {
       CUCO_CUDA_TRY(
         cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream));
     } else {
-      kernel = (void const*)cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_ref>;
+      kernel = reinterpret_cast<void const*>(
+        cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_ref>);
       void* kernel_args[] = {(void*)(&first), (void*)(&num_items), reinterpret_cast<void*>(this)};
       if (this->try_reserve_shmem(kernel, shmem_bytes)) {
         CUCO_CUDA_TRY(
@@ -213,10 +214,12 @@ class hyperloglog_ref {
       } else {
         // Computes sketch directly in global memory. (Fallback path in case there is not enough
         // shared memory avalable)
-        kernel = (void const*)cuco::hyperloglog_ns::detail::add_gmem<InputIt, hyperloglog_ref>;
+        kernel = reinterpret_cast<void const*>(
+          cuco::hyperloglog_ns::detail::add_gmem<InputIt, hyperloglog_ref>);
 
-        CUCO_CUDA_TRY(
-          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream));
+        CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, 0));
+
+        CUCO_CUDA_TRY(cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, 0, stream));
       }
     }
   }
@@ -448,7 +451,7 @@ class hyperloglog_ref {
   }
 
   /**
-   * @brief Try expanding the shmem partition for a given kernel beyond 48KB is necessary.
+   * @brief Try expanding the shmem partition for a given kernel beyond 48KB if necessary.
    *
    * @tparam Kernel Type of kernel function
    *
