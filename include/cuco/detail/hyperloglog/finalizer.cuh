@@ -60,7 +60,7 @@ class finalizer {
       if (e <= 2.5 * m) { return cuda::std::round(h); }
 
       if constexpr (Precision < 19) {
-        e = (h <= threshold<Precision>()) ? h : bias_corrected_estimate(e);
+        e = (h <= threshold(Precision)) ? h : bias_corrected_estimate(e);
       }
     } else {
       // HLL++ is defined only when p < 19, otherwise we need to fallback to HLL.
@@ -95,7 +95,7 @@ class finalizer {
   __host__ __device__ static double constexpr bias(double e) noexcept
   {
     auto const anchor_index = interpolation_anchor_index(e);
-    int const n             = raw_estimate_data<Precision>().size();
+    int const n             = raw_estimate_data_size(Precision);
 
     auto low  = cuda::std::max(anchor_index - k + 1, 0);
     auto high = cuda::std::min(low + k, n);
@@ -106,8 +106,8 @@ class finalizer {
       high += 1;
     }
 
-    auto const& biases = bias_data<Precision>();
-    double bias_sum    = 0.0;
+    auto biases     = bias_data(Precision);
+    double bias_sum = 0.0;
     for (int i = low; i < high; ++i) {
       bias_sum += biases[i];
     }
@@ -117,15 +117,16 @@ class finalizer {
 
   __host__ __device__ static double distance(double e, int i) noexcept
   {
-    auto const diff = e - raw_estimate_data<Precision>()[i];
+    auto const diff = e - raw_estimate_data(Precision)[i];
     return diff * diff;
   }
 
   __host__ __device__ static int interpolation_anchor_index(double e) noexcept
   {
-    auto const& estimates = raw_estimate_data<Precision>();
-    int left              = 0;
-    int right             = static_cast<int>(estimates.size()) - 1;
+    auto estimates = raw_estimate_data(Precision);
+    int const n    = raw_estimate_data_size(Precision);
+    int left       = 0;
+    int right      = static_cast<int>(n) - 1;
     int mid;
     int candidate_index = 0;  // Index of the closest element found
 
@@ -146,9 +147,8 @@ class finalizer {
     // 'left - 1' to find the closest one, taking care of boundary conditions.
 
     // Distance from 'e' to the element at 'left', if within bounds
-    double const dist_lhs = left < static_cast<int>(estimates.size())
-                              ? cuda::std::abs(estimates[left] - e)
-                              : cuda::std::numeric_limits<double>::max();
+    double const dist_lhs = left < static_cast<int>(n) ? cuda::std::abs(estimates[left] - e)
+                                                       : cuda::std::numeric_limits<double>::max();
     // Distance from 'e' to the element at 'left - 1', if within bounds
     double const dist_rhs = left - 1 >= 0 ? cuda::std::abs(estimates[left - 1] - e)
                                           : cuda::std::numeric_limits<double>::max();
