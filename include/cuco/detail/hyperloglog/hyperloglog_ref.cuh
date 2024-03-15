@@ -166,9 +166,10 @@ class hyperloglog_ref {
     // In case the input iterator represents a contiguous memory segment we can employ efficient
     // vectorized loads
     if constexpr (thrust::is_contiguous_iterator_v<InputIt>) {
-      auto const ptr = thrust::raw_pointer_cast(&first[0]);
+      auto const ptr                  = thrust::raw_pointer_cast(&first[0]);
+      auto constexpr max_vector_bytes = 32;
       auto const alignment =
-        1 << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(ptr) | 16);
+        1 << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(ptr) | max_vector_bytes);
       auto const vector_size = alignment / sizeof(value_type);
 
       switch (vector_size) {
@@ -183,6 +184,10 @@ class hyperloglog_ref {
         case 8:
           kernel = reinterpret_cast<void const*>(
             cuco::hyperloglog_ns::detail::add_shmem_vectorized<8, hyperloglog_ref>);
+          break;
+        case 16:
+          kernel = reinterpret_cast<void const*>(
+            cuco::hyperloglog_ns::detail::add_shmem_vectorized<16, hyperloglog_ref>);
           break;
       };
     }
