@@ -26,6 +26,7 @@
 #include <cuco/utility/traits.hpp>
 
 #include <thrust/host_vector.h>
+#include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <cuda/std/bit>
 #include <cuda/std/span>
@@ -160,38 +161,63 @@ class hyperloglog_ref {
     int grid_size         = 0;
     int block_size        = 0;
     int const shmem_bytes = sketch_bytes();
+    void const* kernel    = nullptr;
 
-    // TODO specialize for is_continuous_iterator -> use memcpy_async
+    // In case the input iterator represents a contiguous memory segment we can employ efficient
+    // vectorized loads
+    if constexpr (thrust::is_contiguous_iterator_v<InputIt>) {
+      auto const ptr = thrust::raw_pointer_cast(&first[0]);
+      auto const alignment =
+        1 << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(ptr) | 16);
+      auto const vector_size = alignment / sizeof(value_type);
 
-    // try expanding shmem partition beyond 48KB if necessary
-    bool const fits_shmem =
-      cudaSuccess ==
-      cudaFuncSetAttribute(cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_ref>,
-                           cudaFuncAttributeMaxDynamicSharedMemorySize,
-                           shmem_bytes);
+      switch (vector_size) {
+        case 2:
+          kernel = reinterpret_cast<void const*>(
+            cuco::hyperloglog_ns::detail::add_shmem_vectorized<2, hyperloglog_ref>);
+          break;
+        case 4:
+          kernel = reinterpret_cast<void const*>(
+            cuco::hyperloglog_ns::detail::add_shmem_vectorized<4, hyperloglog_ref>);
+          break;
+        case 8:
+          kernel = reinterpret_cast<void const*>(
+            cuco::hyperloglog_ns::detail::add_shmem_vectorized<8, hyperloglog_ref>);
+          break;
+      };
+    }
 
-    // We make use of the occupancy calculator to get the minimum number of blocks which still
-    // saturates the GPU. This reduces the shmem initialization overhead and atomic contention on
-    // the final register array during the merge phase.
-    if (fits_shmem) {  // use shmem codepath
-      CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(
-        &grid_size,
-        &block_size,
-        &cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_ref>,
-        shmem_bytes));
+    if (kernel != nullptr and this->try_reserve_shmem(kernel, shmem_bytes)) {
+      // We make use of the occupancy calculator to get the minimum number of blocks which still
+      // saturates the GPU. This reduces the shmem initialization overhead and atomic contention on
+      // the final register array during the merge phase.
+      CUCO_CUDA_TRY(
+        cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, shmem_bytes));
 
-      cuco::hyperloglog_ns::detail::add_shmem<<<grid_size, block_size, shmem_bytes, stream>>>(
-        first, num_items, *this);
-    } else {  // use gmem codepath since there is not enough shmem available
-      block_size = 0;
-      CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(
-        &grid_size,
-        &block_size,
-        &cuco::hyperloglog_ns::detail::add_gmem<InputIt, hyperloglog_ref>));
-      CUCO_EXPECTS(grid_size != 0, "Invalid kernel launch configuration");
+      auto const ptr      = thrust::raw_pointer_cast(&first[0]);
+      void* kernel_args[] = {
+        (void*)(&ptr),  // TODO can't use reinterpret_cast since it can't cast away const
+        (void*)(&num_items),
+        reinterpret_cast<void*>(this)};
+      CUCO_CUDA_TRY(
+        cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream));
+    } else {
+      kernel = (void const*)cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_ref>;
+      void* kernel_args[] = {(void*)(&first), (void*)(&num_items), reinterpret_cast<void*>(this)};
+      if (this->try_reserve_shmem(kernel, shmem_bytes)) {
+        CUCO_CUDA_TRY(
+          cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, shmem_bytes));
 
-      cuco::hyperloglog_ns::detail::add_gmem<<<grid_size, block_size, 0, stream>>>(
-        first, num_items, *this);
+        CUCO_CUDA_TRY(
+          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream));
+      } else {
+        // Computes sketch directly in global memory. (Fallback path in case there is not enough
+        // shared memory avalable)
+        kernel = (void const*)cuco::hyperloglog_ns::detail::add_gmem<InputIt, hyperloglog_ref>;
+
+        CUCO_CUDA_TRY(
+          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream));
+      }
     }
   }
 
@@ -235,7 +261,8 @@ class hyperloglog_ref {
   }
 
   /**
-   * @brief Asynchronously merges the result of `other` estimator reference into `*this` estimator.
+   * @brief Asynchronously merges the result of `other` estimator reference into `*this`
+   * estimator.
    *
    * @tparam OtherScope Thread scope of `other` estimator
    *
@@ -418,6 +445,25 @@ class hyperloglog_ref {
     } else {
       static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
     }
+  }
+
+  /**
+   * @brief Try expanding the shmem partition for a given kernel beyond 48KB is necessary.
+   *
+   * @tparam Kernel Type of kernel function
+   *
+   * @param kernel The kernel function
+   * @param shmem_bytes Number of requested dynamic shared memory bytes
+   *
+   * @returns True iff kernel configuration is succesful
+   */
+  template <typename Kernel>
+  [[nodiscard]] __host__ constexpr bool try_reserve_shmem(Kernel kernel,
+                                                          int shmem_bytes) const noexcept
+  {
+    return cudaSuccess == cudaFuncSetAttribute(reinterpret_cast<void const*>(kernel),
+                                               cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                               shmem_bytes);
   }
 
   hash_type hash_;  ///< Hash function used to hash items

@@ -18,6 +18,7 @@
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
+#include <cuda/std/array>
 #include <cuda/std/span>
 
 #include <cstddef>
@@ -32,6 +33,42 @@ CUCO_KERNEL void clear(RefType ref)
 {
   auto const block = cooperative_groups::this_thread_block();
   if (block.group_index().x == 0) { ref.clear(block); }
+}
+
+template <int32_t VectorSize, class RefType>
+CUCO_KERNEL void add_shmem_vectorized(typename RefType::value_type const* first,
+                                      cuco::detail::index_type n,
+                                      RefType ref)
+{
+  using value_type     = typename RefType::value_type;
+  using vector_type    = cuda::std::array<value_type, VectorSize>;
+  using local_ref_type = typename RefType::with_scope<cuda::thread_scope_block>;
+
+  // TODO assert alignment
+  extern __shared__ std::byte local_sketch[];
+
+  auto const loop_stride = cuco::detail::grid_stride();
+  auto idx               = cuco::detail::global_thread_id();
+  auto const block       = cooperative_groups::this_thread_block();
+
+  local_ref_type local_ref(cuda::std::span{local_sketch, ref.sketch_bytes()}, {});
+  local_ref.clear(block);
+  block.sync();
+
+  vector_type vec;
+  while (idx < n / VectorSize) {
+    vec = *reinterpret_cast<vector_type*>(
+      __builtin_assume_aligned(first + idx * VectorSize, sizeof(vector_type)));
+    for (auto const& i : vec) {
+      local_ref.add(i);
+    }
+    idx += loop_stride;
+  }
+  auto const remainder = n % VectorSize;
+  if (idx >= n / VectorSize and idx < n / VectorSize + remainder) { local_ref.add(*(first + idx)); }
+  block.sync();
+
+  ref.merge(block, local_ref);
 }
 
 template <class InputIt, class RefType>
