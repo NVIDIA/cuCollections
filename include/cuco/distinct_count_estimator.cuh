@@ -32,9 +32,6 @@ namespace cuco {
  *
  * @note This implementation is based on the HyperLogLog++ algorithm:
  * https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf.
- * @note The `Precision` parameter can be used to trade runtime/memory footprint for better
- * accuracy. A higher value corresponds to a more accurate result, however, setting the precision
- * too high will result in deminishing returns.
  *
  * @tparam T Type of items to count
  * @tparam Precision Tuning parameter to trade runtime/memory footprint for better accuracy
@@ -43,21 +40,18 @@ namespace cuco {
  * @tparam Allocator Type of allocator used for device storage
  */
 template <class T,
-          int32_t Precision        = 11,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class Hash               = cuco::xxhash_64<T>,
           class Allocator          = cuco::cuda_allocator<std::byte>>
 class distinct_count_estimator {
-  using impl_type = detail::hyperloglog<T, Precision, Scope, Hash, Allocator>;
+  using impl_type = detail::hyperloglog<T, Scope, Hash, Allocator>;
 
  public:
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
-  static constexpr auto precision    = impl_type::precision;     ///< Precision
 
   template <cuda::thread_scope NewScope = thread_scope>
-  using ref_type =
-    cuco::distinct_count_estimator_ref<T, Precision, NewScope, Hash>;  ///< Non-owning reference
-                                                                       ///< type
+  using ref_type = cuco::distinct_count_estimator_ref<T, NewScope, Hash>;  ///< Non-owning reference
+                                                                           ///< type
 
   using value_type     = typename impl_type::value_type;      ///< Type of items to count
   using allocator_type = typename impl_type::allocator_type;  ///< Allocator type
@@ -68,13 +62,15 @@ class distinct_count_estimator {
    *
    * @note This function synchronizes the given stream.
    *
+   * @param max_sketch_size_kb Maximum sketch size in KB
    * @param hash The hash function used to hash items
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the object
    */
-  constexpr distinct_count_estimator(Hash const& hash             = {},
-                                     Allocator const& alloc       = {},
-                                     cuco::cuda_stream_ref stream = {});
+  constexpr distinct_count_estimator(std::size_t max_sketch_size_kb = 32,
+                                     Hash const& hash               = {},
+                                     Allocator const& alloc         = {},
+                                     cuco::cuda_stream_ref stream   = {});
 
   ~distinct_count_estimator() = default;
 
@@ -148,9 +144,8 @@ class distinct_count_estimator {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope, class OtherAllocator>
-  void merge_async(
-    distinct_count_estimator<T, Precision, OtherScope, Hash, OtherAllocator> const& other,
-    cuco::cuda_stream_ref stream = {}) noexcept;
+  void merge_async(distinct_count_estimator<T, OtherScope, Hash, OtherAllocator> const& other,
+                   cuco::cuda_stream_ref stream = {}) noexcept;
 
   /**
    * @brief Merges the result of `other` estimator into `*this` estimator.
@@ -165,7 +160,7 @@ class distinct_count_estimator {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope, class OtherAllocator>
-  void merge(distinct_count_estimator<T, Precision, OtherScope, Hash, OtherAllocator> const& other,
+  void merge(distinct_count_estimator<T, OtherScope, Hash, OtherAllocator> const& other,
              cuco::cuda_stream_ref stream = {});
 
   /**
@@ -223,14 +218,23 @@ class distinct_count_estimator {
    *
    * @return The cuda::std::span of the sketch
    */
-  [[nodiscard]] auto sketch() const noexcept;
+  [[nodiscard]] cuda::std::span<std::byte> sketch() const noexcept;
 
   /**
    * @brief Gets the number of bytes required for the sketch storage.
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] static constexpr std::size_t sketch_bytes() noexcept;
+  [[nodiscard]] constexpr std::size_t sketch_bytes() const noexcept;
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param max_sketch_size_kb Upper bound sketch size in KB
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] static constexpr std::size_t sketch_bytes(std::size_t max_sketch_size_kb) noexcept;
 
   /**
    * @brief Gets the alignment required for the sketch storage.

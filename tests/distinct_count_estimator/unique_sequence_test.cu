@@ -32,24 +32,9 @@
 TEMPLATE_TEST_CASE_SIG("distinct_count_estimator: unique sequence",
                        "",
                        ((typename T, int32_t Precision, typename Hash), T, Precision, Hash),
-                       (int32_t, 9, cuco::xxhash_64<int32_t>),
-                       (int32_t, 11, cuco::xxhash_64<int32_t>),
-                       (int32_t, 13, cuco::xxhash_64<int32_t>),
-                       (int32_t, 16, cuco::xxhash_64<int32_t>),
-                       (int32_t, 18, cuco::xxhash_64<int32_t>),
-                       (int32_t, 20, cuco::xxhash_64<int32_t>),
-                       (int64_t, 9, cuco::xxhash_64<int64_t>),
-                       (int64_t, 11, cuco::xxhash_64<int64_t>),
-                       (int64_t, 13, cuco::xxhash_64<int64_t>),
-                       (int64_t, 16, cuco::xxhash_64<int64_t>),
-                       (int64_t, 18, cuco::xxhash_64<int64_t>),
-                       (int64_t, 20, cuco::xxhash_64<int64_t>),
-                       (__int128_t, 9, cuco::xxhash_64<__int128_t>),
-                       (__int128_t, 11, cuco::xxhash_64<__int128_t>),
-                       (__int128_t, 13, cuco::xxhash_64<__int128_t>),
-                       (__int128_t, 16, cuco::xxhash_64<__int128_t>),
-                       (__int128_t, 18, cuco::xxhash_64<__int128_t>),
-                       (__int128_t, 20, cuco::xxhash_64<__int128_t>))
+                       (int32_t, cuco::xxhash_64<int32_t>),
+                       (int64_t, cuco::xxhash_64<int64_t>),
+                       (__int128_t, cuco::xxhash_64<__int128_t>))
 {
   // This factor determines the error threshold for passing the test
   // TODO might be too high
@@ -59,6 +44,8 @@ TEMPLATE_TEST_CASE_SIG("distinct_count_estimator: unique sequence",
     1.04 / std::sqrt(static_cast<double>(1ull << Precision));
 
   auto num_items_pow2 = GENERATE(25, 26, 28);
+  auto sketch_size_kb = GENERATE(2, 8, 32, 256, 1024, 4096);
+  INFO("sketch_size_kb=" << sketch_size_kb);
   INFO("num_items=2^" << num_items_pow2);
   auto num_items = 1ull << num_items_pow2;
 
@@ -68,7 +55,7 @@ TEMPLATE_TEST_CASE_SIG("distinct_count_estimator: unique sequence",
   thrust::sequence(items.begin(), items.end(), 0);
 
   // Initialize the estimator
-  cuco::distinct_count_estimator<T, Precision, cuda::thread_scope_device, Hash> estimator;
+  cuco::distinct_count_estimator<T, cuda::thread_scope_device, Hash> estimator(sketch_size_kb);
 
   REQUIRE(estimator.estimate() == 0);
 

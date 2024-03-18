@@ -56,7 +56,8 @@ void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<Esti
 {
   using T = typename Estimator::value_type;
 
-  auto const num_items = state.get_int64("NumInputs");
+  auto const num_items      = state.get_int64("NumInputs");
+  auto const sketch_size_kb = state.get_int64("SketchSizeKB");
 
   thrust::device_vector<T> items(num_items);
 
@@ -66,7 +67,7 @@ void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<Esti
   state.add_element_count(num_items);
   state.add_global_memory_reads<T>(num_items, "InputSize");
 
-  Estimator estimator;
+  Estimator estimator(sketch_size_kb);
   estimator.add(items.begin(), items.end());
 
   double estimated_cardinality  = estimator.estimate();
@@ -99,7 +100,8 @@ void distinct_count_estimator_add(nvbench::state& state, nvbench::type_list<Esti
 {
   using T = typename Estimator::value_type;
 
-  auto const num_items = state.get_int64("NumInputs");
+  auto const num_items      = state.get_int64("NumInputs");
+  auto const sketch_size_kb = state.get_int64("SketchSizeKB");
 
   thrust::device_vector<T> items(num_items);
 
@@ -109,7 +111,7 @@ void distinct_count_estimator_add(nvbench::state& state, nvbench::type_list<Esti
   state.add_element_count(num_items);
   state.add_global_memory_reads<T>(num_items, "InputSize");
 
-  Estimator estimator;
+  Estimator estimator(sketch_size_kb);
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
     estimator.clear_async({launch.get_stream()});
 
@@ -119,21 +121,16 @@ void distinct_count_estimator_add(nvbench::state& state, nvbench::type_list<Esti
   });
 }
 
-using ESTIMATOR_RANGE = nvbench::type_list<cuco::distinct_count_estimator<nvbench::int32_t, 10>,
-                                           cuco::distinct_count_estimator<nvbench::int32_t, 11>,
-                                           cuco::distinct_count_estimator<nvbench::int32_t, 12>,
-                                           cuco::distinct_count_estimator<nvbench::int64_t, 10>,
-                                           cuco::distinct_count_estimator<nvbench::int64_t, 11>,
-                                           cuco::distinct_count_estimator<nvbench::int64_t, 12>,
-                                           cuco::distinct_count_estimator<__int128_t, 10>,
-                                           cuco::distinct_count_estimator<__int128_t, 11>,
-                                           cuco::distinct_count_estimator<__int128_t, 12>>;
+using ESTIMATOR_RANGE = nvbench::type_list<cuco::distinct_count_estimator<nvbench::int32_t>,
+                                           cuco::distinct_count_estimator<nvbench::int64_t>,
+                                           cuco::distinct_count_estimator<__int128_t>>;
 
 NVBENCH_BENCH_TYPES(distinct_count_estimator_e2e,
                     NVBENCH_TYPE_AXES(ESTIMATOR_RANGE, nvbench::type_list<distribution::unique>))
   .set_name("distinct_count_estimator_e2e")
   .set_type_axes_names({"Estimator", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
+  .add_int64_axis("SketchSizeKB", {8, 16, 32})
   .set_max_noise(defaults::MAX_NOISE);
 
 NVBENCH_BENCH_TYPES(distinct_count_estimator_add,
@@ -141,4 +138,5 @@ NVBENCH_BENCH_TYPES(distinct_count_estimator_add,
   .set_name("distinct_count_estimator::add_async")
   .set_type_axes_names({"Estimator", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
+  .add_int64_axis("SketchSizeKB", {8, 16, 32})
   .set_max_noise(defaults::MAX_NOISE);

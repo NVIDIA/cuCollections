@@ -32,25 +32,20 @@ namespace cuco::detail {
  *
  * @note This class implements the HyperLogLog/HyperLogLog++ algorithm:
  * https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf.
- * @note The `Precision` parameter can be used to trade runtime/memory footprint for better
- * accuracy. A higher value corresponds to a more accurate result, however, setting the precision
- * too high will result in deminishing results.
  *
  * @tparam T Type of items to count
- * @tparam Precision Tuning parameter to trade runtime/memory footprint for better accuracy
  * @tparam Scope The scope in which operations will be performed by individual threads
  * @tparam Hash Hash function used to hash items
  * @tparam Allocator Type of allocator used for device storage
  */
-template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash, class Allocator>
+template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 class hyperloglog {
  public:
-  static constexpr auto thread_scope = Scope;      ///< CUDA thread scope
-  static constexpr auto precision    = Precision;  ///< Precision
+  static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
   template <cuda::thread_scope NewScope = thread_scope>
-  using ref_type = hyperloglog_ref<T, Precision, NewScope, Hash>;  ///< Non-owning reference
-                                                                   ///< type
+  using ref_type = hyperloglog_ref<T, NewScope, Hash>;  ///< Non-owning reference
+                                                        ///< type
 
   using value_type = typename ref_type<>::value_type;  ///< Type of items to count
   using hash_type  = typename ref_type<>::hash_type;   ///< Hash function type
@@ -63,15 +58,19 @@ class hyperloglog {
    *
    * @note This function synchronizes the given stream.
    *
+   * @param max_sketch_size_kb Maximum sketch size in KB
    * @param hash The hash function used to hash items
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the object
    */
-  constexpr hyperloglog(Hash const& hash, Allocator const& alloc, cuco::cuda_stream_ref stream)
+  constexpr hyperloglog(std::size_t max_sketch_size_kb,
+                        Hash const& hash,
+                        Allocator const& alloc,
+                        cuco::cuda_stream_ref stream)
     : allocator_{alloc},
-      deleter_{this->sketch_bytes(), this->allocator_},
-      sketch_{this->allocator_.allocate(this->sketch_bytes()), this->deleter_},
-      ref_{cuda::std::span{this->sketch_.get(), this->sketch_bytes()}, hash}
+      deleter_{this->sketch_bytes(max_sketch_size_kb), this->allocator_},
+      sketch_{this->allocator_.allocate(this->sketch_bytes(max_sketch_size_kb)), this->deleter_},
+      ref_{cuda::std::span{this->sketch_.get(), this->sketch_bytes(max_sketch_size_kb)}, hash}
   {
     this->ref_.clear_async(stream);
   }
@@ -153,7 +152,7 @@ class hyperloglog {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope, class OtherAllocator>
-  void merge_async(hyperloglog<T, Precision, OtherScope, Hash, OtherAllocator> const& other,
+  void merge_async(hyperloglog<T, OtherScope, Hash, OtherAllocator> const& other,
                    cuco::cuda_stream_ref stream) noexcept
   {
     this->ref_.merge_async(other.ref(), stream);
@@ -172,7 +171,7 @@ class hyperloglog {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope, class OtherAllocator>
-  void merge(hyperloglog<T, Precision, OtherScope, Hash, OtherAllocator> const& other,
+  void merge(hyperloglog<T, OtherScope, Hash, OtherAllocator> const& other,
              cuco::cuda_stream_ref stream)
   {
     this->ref_.merge(other.ref(), stream);
@@ -242,7 +241,7 @@ class hyperloglog {
    *
    * @return The cuda::std::span of the sketch
    */
-  [[nodiscard]] auto sketch() const noexcept { return this->ref_.sketch(); }
+  [[nodiscard]] cuda::std::span<std::byte> sketch() const noexcept { return this->ref_.sketch(); }
 
   /**
    * @brief Gets the number of bytes required for the sketch storage.
@@ -251,7 +250,19 @@ class hyperloglog {
    */
   [[nodiscard]] constexpr std::size_t sketch_bytes() const noexcept
   {
-    return ref_type<>::sketch_bytes();
+    return this->ref_.sketch_bytes();
+  }
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param max_sketch_size_kb Upper bound sketch size in KB
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] static constexpr std::size_t sketch_bytes(std::size_t max_sketch_size_kb) noexcept
+  {
+    return ref_type<>::sketch_bytes(max_sketch_size_kb);
   }
 
   /**
@@ -273,7 +284,7 @@ class hyperloglog {
 
   // Needs to be friends with other instantiations of this class template to have access to their
   // storage
-  template <class T_, int32_t Precision_, cuda::thread_scope Scope_, class Hash_, class Allocator_>
+  template <class T_, cuda::thread_scope Scope_, class Hash_, class Allocator_>
   friend class hyperloglog;
 };
 }  // namespace cuco::detail

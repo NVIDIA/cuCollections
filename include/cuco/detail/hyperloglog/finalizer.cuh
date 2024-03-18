@@ -30,17 +30,24 @@ namespace cuco::hyperloglog_ns::detail {
  * @note Variable names correspond to the definitions given in the HLL++ paper:
  * https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf
  *
- * @tparam Precision Tuning parameter to trade accuracy for runtime/memory footprint
  */
-template <int32_t Precision>
 class finalizer {
   // Note: Most of the types in this implementation are explicit instead of relying on `auto` to
   // avoid confusion with the reference implementation.
 
-  // this minimum number of registers is required by HLL++
-  static_assert(Precision >= 4, "Precision must be greater or equal to 4");
-
  public:
+  /**
+   * @brief Contructs an HLL finalizer object.
+   *
+   * @throws Iff precision vale is not supported
+   *
+   * @param precision HLL precision parameter
+   */
+  __host__ __device__ constexpr finalizer(int precision) : precision_{precision}, m_{1 << precision}
+  {
+    // TODO check if precision >= 4
+  }
+
   /**
    * @brief Compute the bias-corrected cardinality estimate.
    *
@@ -49,53 +56,50 @@ class finalizer {
    *
    * @return Bias-corrected cardinality estimate
    */
-  __host__ __device__ static std::size_t constexpr finalize(double z, int v) noexcept
+  __host__ __device__ constexpr std::size_t operator()(double z, int v) const noexcept
   {
     auto e = alpha_mm() / z;
 
     if (v > 0) {
       // Use linear counting for small cardinality estimates.
-      double const h = m * log(static_cast<double>(m) / v);
+      double const h = this->m_ * log(static_cast<double>(this->m_) / v);
       // The threshold `2.5 * m` is from the original HLL algorithm.
-      if (e <= 2.5 * m) { return cuda::std::round(h); }
+      if (e <= 2.5 * this->m_) { return cuda::std::round(h); }
 
-      if constexpr (Precision < 19) {
-        e = (h <= threshold(Precision)) ? h : bias_corrected_estimate(e);
+      if (this->precision_ < 19) {
+        e = (h <= threshold(this->precision_)) ? h : bias_corrected_estimate(e);
       }
     } else {
       // HLL++ is defined only when p < 19, otherwise we need to fallback to HLL.
-      if constexpr (Precision < 19) { e = bias_corrected_estimate(e); }
+      if (this->precision_ < 19) { e = bias_corrected_estimate(e); }
     }
 
     return cuda::std::round(e);
   }
 
  private:
-  static auto constexpr m = (1 << Precision);  ///< Number of registers
-  static auto constexpr k = 6;                 ///< Number of interpolation points to consider
-
-  __host__ __device__ static double constexpr alpha_mm() noexcept
+  __host__ __device__ constexpr double alpha_mm() const noexcept
   {
-    if constexpr (m == 16) {
-      return 0.673 * m * m;
-    } else if constexpr (m == 32) {
-      return 0.697 * m * m;
-    } else if constexpr (m == 64) {
-      return 0.709 * m * m;
+    if (this->m_ == 16) {
+      return 0.673 * this->m_ * this->m_;
+    } else if (this->m_ == 32) {
+      return 0.697 * this->m_ * this->m_;
+    } else if (this->m_ == 64) {
+      return 0.709 * this->m_ * this->m_;
     } else {
-      return (0.7213 / (1.0 + 1.079 / m)) * m * m;
+      return (0.7213 / (1.0 + 1.079 / this->m_)) * this->m_ * this->m_;
     }
   }
 
-  __host__ __device__ static double constexpr bias_corrected_estimate(double e) noexcept
+  __host__ __device__ constexpr double bias_corrected_estimate(double e) const noexcept
   {
-    return (e < 5.0 * m) ? e - bias(e) : e;
+    return (e < 5.0 * this->m_) ? e - bias(e) : e;
   }
 
-  __host__ __device__ static double constexpr bias(double e) noexcept
+  __host__ __device__ constexpr double bias(double e) const noexcept
   {
     auto const anchor_index = interpolation_anchor_index(e);
-    int const n             = raw_estimate_data_size(Precision);
+    int const n             = raw_estimate_data_size(this->precision_);
 
     auto low  = cuda::std::max(anchor_index - k + 1, 0);
     auto high = cuda::std::min(low + k, n);
@@ -106,7 +110,7 @@ class finalizer {
       high += 1;
     }
 
-    auto biases     = bias_data(Precision);
+    auto biases     = bias_data(this->precision_);
     double bias_sum = 0.0;
     for (int i = low; i < high; ++i) {
       bias_sum += biases[i];
@@ -115,19 +119,19 @@ class finalizer {
     return bias_sum / (high - low);
   }
 
-  __host__ __device__ static double distance(double e, int i) noexcept
+  __host__ __device__ constexpr double distance(double e, int i) const noexcept
   {
-    auto const diff = e - raw_estimate_data(Precision)[i];
+    auto const diff = e - raw_estimate_data(this->precision_)[i];
     return diff * diff;
   }
 
-  __host__ __device__ static int interpolation_anchor_index(double e) noexcept
+  __host__ __device__ constexpr int interpolation_anchor_index(double e) const noexcept
   {
-    auto estimates = raw_estimate_data(Precision);
-    int const n    = raw_estimate_data_size(Precision);
-    int left       = 0;
-    int right      = static_cast<int>(n) - 1;
-    int mid;
+    auto estimates      = raw_estimate_data(this->precision_);
+    int const n         = raw_estimate_data_size(this->precision_);
+    int left            = 0;
+    int right           = static_cast<int>(n) - 1;
+    int mid             = -1;
     int candidate_index = 0;  // Index of the closest element found
 
     while (left <= right) {
@@ -157,5 +161,9 @@ class finalizer {
 
     return candidate_index;
   }
+
+  static constexpr auto k = 6;  ///< Number of interpolation points to consider
+  int precision_;
+  int m_;
 };
 }  // namespace cuco::hyperloglog_ns::detail

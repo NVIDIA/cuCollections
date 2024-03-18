@@ -37,15 +37,14 @@ __global__ void piggyback_kernel(RefType ref, InputIt first, std::size_t n)
   using local_ref_type = typename RefType::with_scope<cuda::thread_scope_block>;
 
   // Shared memory storage for the block-local estimator
-  alignas(local_ref_type::sketch_alignment())
-    __shared__ std::byte local_sketch[local_ref_type::sketch_bytes()];
+  extern __shared__ std::byte local_sketch[];
 
   auto const loop_stride = gridDim.x * blockDim.x;
   auto idx               = blockDim.x * blockIdx.x + threadIdx.x;
   auto const block       = cooperative_groups::this_thread_block();
 
   // Create the local estimator with the shared memory storage
-  local_ref_type local_ref(cuda::std::span{local_sketch, local_ref_type::sketch_bytes()}, {});
+  local_ref_type local_ref(cuda::std::span{local_sketch, ref.sketch_bytes()});
 
   // Initialize the local estimator
   local_ref.clear(block);
@@ -103,8 +102,11 @@ int main(void)
   // Clear the estimator so it can be reused
   estimator.clear();
 
+  // Number of dynamic shared memory bytes required to store a CTA-local sketch
+  auto const sketch_bytes = estimator.sketch_bytes();
+
   // Call the custom kernel and pass a non-owning reference to the estimator to the GPU
-  piggyback_kernel<<<10, 512>>>(estimator.ref(), items.begin(), num_items);
+  piggyback_kernel<<<10, 512, sketch_bytes>>>(estimator.ref(), items.begin(), num_items);
 
   // Calculate the cardinality estimate from the custom kernel
   std::size_t const estimated_cardinality_custom = estimator.estimate();

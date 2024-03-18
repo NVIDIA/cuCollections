@@ -30,29 +30,23 @@ namespace cuco {
  *
  * @note This implementation is based on the HyperLogLog++ algorithm:
  * https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf.
- * @note The `Precision` parameter can be used to trade runtime/memory footprint for better
- * accuracy. A higher value corresponds to a more accurate result, however, setting the precision
- * too high will result in deminishing results.
  *
  * @tparam T Type of items to count
- * @tparam Precision Tuning parameter to trade runtime/memory footprint for better accuracy
  * @tparam Scope The scope in which operations will be performed by individual threads
  * @tparam Hash Hash function used to hash items
  */
-template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash>
+template <class T, cuda::thread_scope Scope, class Hash>
 class distinct_count_estimator_ref {
-  using impl_type = detail::hyperloglog_ref<T, Precision, Scope, Hash>;
+  using impl_type = detail::hyperloglog_ref<T, Scope, Hash>;
 
  public:
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
-  static constexpr auto precision    = impl_type::precision;     ///< Precision
 
   using value_type = typename impl_type::value_type;  ///< Type of items to count
 
   template <cuda::thread_scope NewScope>
-  using with_scope =
-    distinct_count_estimator_ref<T, Precision, NewScope, Hash>;  ///< Ref type with different thread
-                                                                 ///< scope
+  using with_scope = distinct_count_estimator_ref<T, NewScope, Hash>;  ///< Ref type with different
+                                                                       ///< thread scope
 
   // TODO let storage_type be inferred?
   /**
@@ -61,9 +55,8 @@ class distinct_count_estimator_ref {
    * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
    */
-  template <class U, std::size_t N>
-  __host__ __device__ constexpr distinct_count_estimator_ref(cuda::std::span<U, N> sketch_span,
-                                                             Hash const& hash = {}) noexcept;
+  __host__ __device__ constexpr distinct_count_estimator_ref(cuda::std::span<std::byte> sketch_span,
+                                                             Hash const& hash = {});
 
   /**
    * @brief Resets the estimator, i.e., clears the current count estimate.
@@ -140,9 +133,8 @@ class distinct_count_estimator_ref {
    * @param other Other estimator reference to be merged into `*this`
    */
   template <class CG, cuda::thread_scope OtherScope>
-  __device__ void merge(
-    CG const& group,
-    distinct_count_estimator_ref<T, Precision, OtherScope, Hash> const& other) noexcept;
+  __device__ void merge(CG const& group,
+                        distinct_count_estimator_ref<T, OtherScope, Hash> const& other) noexcept;
 
   /**
    * @brief Asynchronously merges the result of `other` estimator reference into `*this` estimator.
@@ -153,9 +145,8 @@ class distinct_count_estimator_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ void merge_async(
-    distinct_count_estimator_ref<T, Precision, OtherScope, Hash> const& other,
-    cuco::cuda_stream_ref stream = {}) noexcept;
+  __host__ void merge_async(distinct_count_estimator_ref<T, OtherScope, Hash> const& other,
+                            cuco::cuda_stream_ref stream = {}) noexcept;
 
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator.
@@ -169,7 +160,7 @@ class distinct_count_estimator_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ void merge(distinct_count_estimator_ref<T, Precision, OtherScope, Hash> const& other,
+  __host__ void merge(distinct_count_estimator_ref<T, OtherScope, Hash> const& other,
                       cuco::cuda_stream_ref stream = {});
 
   /**
@@ -205,14 +196,24 @@ class distinct_count_estimator_ref {
    *
    * @return The cuda::std::span of the sketch
    */
-  [[nodiscard]] __host__ __device__ auto sketch() const noexcept;
+  [[nodiscard]] __host__ __device__ cuda::std::span<std::byte> sketch() const noexcept;
 
   /**
    * @brief Gets the number of bytes required for the sketch storage.
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes() noexcept;
+  [[nodiscard]] __host__ __device__ constexpr std::size_t sketch_bytes() const noexcept;
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param max_sketch_size_kb Upper bound sketch size in KB
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
+    std::size_t max_sketch_size_kb) noexcept;
 
   /**
    * @brief Gets the alignment required for the sketch storage.
@@ -224,7 +225,7 @@ class distinct_count_estimator_ref {
  private:
   impl_type impl_;  ///< Implementation object
 
-  template <class T_, int32_t Precision_, cuda::thread_scope Scope_, class Hash_>
+  template <class T_, cuda::thread_scope Scope_, class Hash_>
   friend class distinct_count_estimator_ref;
 };
 }  // namespace cuco

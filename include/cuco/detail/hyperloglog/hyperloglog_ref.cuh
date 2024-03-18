@@ -44,30 +44,25 @@ namespace cuco::detail {
  *
  * @note This class implements the HyperLogLog/HyperLogLog++ algorithm:
  * https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf.
- * @note The `Precision` parameter can be used to trade runtime/memory footprint for better
- * accuracy. A higher value corresponds to a more accurate result, however, setting the precision
- * too high will result in deminishing results.
  *
  * @tparam T Type of items to count
- * @tparam Precision Tuning parameter to trade runtime/memory footprint for better accuracy
  * @tparam Scope The scope in which operations will be performed by individual threads
  * @tparam Hash Hash function used to hash items
  */
-template <class T, int32_t Precision, cuda::thread_scope Scope, class Hash>
+template <class T, cuda::thread_scope Scope, class Hash>
 class hyperloglog_ref {
   using register_type = int;  ///< Register array storage
   // We use `int` here since this is the smallest type that supports native `atomicMax` on GPUs
   using fp_type = float;  ///< Floating point type used for reduction
  public:
-  static constexpr auto thread_scope = Scope;      ///< CUDA thread scope
-  static constexpr auto precision    = Precision;  ///< Precision
+  static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
   using value_type = T;     ///< Type of items to count
   using hash_type  = Hash;  ///< Hash function type
 
   template <cuda::thread_scope NewScope>
-  using with_scope = hyperloglog_ref<T, Precision, NewScope, Hash>;  ///< Ref type with different
-                                                                     ///< thread scope
+  using with_scope = hyperloglog_ref<T, NewScope, Hash>;  ///< Ref type with different
+                                                          ///< thread scope
 
   /**
    * @brief Constructs a non-owning `hyperloglog_ref` object.
@@ -75,10 +70,11 @@ class hyperloglog_ref {
    * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
    */
-  template <class U, std::size_t N>
-  __host__ __device__ constexpr hyperloglog_ref(cuda::std::span<U, N> sketch_span,
-                                                Hash const& hash) noexcept
+  __host__ __device__ constexpr hyperloglog_ref(cuda::std::span<std::byte> sketch_span,
+                                                Hash const& hash)
     : hash_{hash},
+      precision_{cuda::std::countr_zero(this->sketch_bytes(sketch_span.size() / 1024) /
+                                        sizeof(register_type))},
       sketch_{reinterpret_cast<register_type*>(sketch_span.data()),
               this->sketch_bytes() / sizeof(register_type)}
   {
@@ -133,10 +129,10 @@ class hyperloglog_ref {
   __device__ void add(T const& item) noexcept
   {
     using hash_value_type = decltype(cuda::std::declval<hash_type>()(cuda::std::declval<T>()));
-    hash_value_type constexpr register_mask = (1ull << Precision) - 1;
-    auto const h                            = this->hash_(item);
-    auto const reg                          = h & register_mask;
-    auto const zeroes = cuda::std::countl_zero(h | register_mask) + 1;  // __clz
+    hash_value_type const register_mask = (1ull << this->precision_) - 1;
+    auto const h                        = this->hash_(item);
+    auto const reg                      = h & register_mask;
+    auto const zeroes                   = cuda::std::countl_zero(h | register_mask) + 1;  // __clz
 
     this->update_max(reg, zeroes);
   }
@@ -260,9 +256,12 @@ class hyperloglog_ref {
    * @param other Other estimator reference to be merged into `*this`
    */
   template <class CG, cuda::thread_scope OtherScope>
-  __device__ void merge(CG const& group,
-                        hyperloglog_ref<T, Precision, OtherScope, Hash> const& other) noexcept
+  __device__ void merge(CG const& group, hyperloglog_ref<T, OtherScope, Hash> const& other) noexcept
   {
+    if (other.precision_ != this->precision_) {
+      __trap();  // TODO check if this hurts performance
+    }
+
     for (int i = group.thread_rank(); i < this->sketch_.size(); i += group.size()) {
       this->update_max(i, other.sketch_[i]);
     }
@@ -278,7 +277,7 @@ class hyperloglog_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ void merge_async(hyperloglog_ref<T, Precision, OtherScope, Hash> const& other,
+  __host__ void merge_async(hyperloglog_ref<T, OtherScope, Hash> const& other,
                             cuco::cuda_stream_ref stream) noexcept
   {
     auto constexpr block_size = 1024;
@@ -297,7 +296,7 @@ class hyperloglog_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ void merge(hyperloglog_ref<T, Precision, OtherScope, Hash> const& other,
+  __host__ void merge(hyperloglog_ref<T, OtherScope, Hash> const& other,
                       cuco::cuda_stream_ref stream)
   {
     this->merge_async(other, stream);
@@ -353,9 +352,10 @@ class hyperloglog_ref {
     group.sync();
 
     if (group.thread_rank() == 0) {
-      auto const z = block_sum.load(cuda::std::memory_order_relaxed);
-      auto const v = block_zeroes.load(cuda::std::memory_order_relaxed);
-      estimate     = cuco::hyperloglog_ns::detail::finalizer<Precision>::finalize(z, v);
+      auto const z        = block_sum.load(cuda::std::memory_order_relaxed);
+      auto const v        = block_zeroes.load(cuda::std::memory_order_relaxed);
+      auto const finalize = cuco::hyperloglog_ns::detail::finalizer(this->precision_);
+      estimate            = finalize(z, v);
     }
     group.sync();
 
@@ -373,7 +373,7 @@ class hyperloglog_ref {
    */
   [[nodiscard]] __host__ std::size_t estimate(cuco::cuda_stream_ref stream) const
   {
-    auto const num_regs = 1ull << Precision;
+    auto const num_regs = 1ull << this->precision_;
     thrust::host_vector<register_type> host_sketch(num_regs);
 
     // TODO check if storage is host accessible
@@ -393,8 +393,10 @@ class hyperloglog_ref {
       zeroes += reg == 0;
     }
 
+    auto const finalize = cuco::hyperloglog_ns::detail::finalizer(this->precision_);
+
     // pass intermediate result to finalizer for bias correction, etc.
-    return cuco::hyperloglog_ns::detail::finalizer<Precision>::finalize(sum, zeroes);
+    return finalize(sum, zeroes);
   }
 
   /**
@@ -409,16 +411,33 @@ class hyperloglog_ref {
    *
    * @return The cuda::std::span of the sketch
    */
-  [[nodiscard]] __host__ __device__ auto sketch() const noexcept { return this->sketch_; }
+  [[nodiscard]] __host__ __device__ cuda::std::span<std::byte> sketch() const noexcept
+  {
+    return cuda::std::span<std::byte>(reinterpret_cast<std::byte*>(this->sketch_.data()),
+                                      this->sketch_bytes());
+  }
 
   /**
    * @brief Gets the number of bytes required for the sketch storage.
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes() noexcept
+  [[nodiscard]] __host__ __device__ std::size_t sketch_bytes() const noexcept
   {
-    return (1ull << Precision) * sizeof(register_type);
+    return (1ull << this->precision_) * sizeof(register_type);
+  }
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param max_sketch_size_kb Upper bound sketch size in KB
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
+    std::size_t max_sketch_size_kb) noexcept
+  {
+    return cuda::std::bit_floor(max_sketch_size_kb * 1024);
   }
 
   /**
@@ -474,11 +493,11 @@ class hyperloglog_ref {
                                                shmem_bytes);
   }
 
-  hash_type hash_;  ///< Hash function used to hash items
-  cuda::std::span<register_type, sketch_bytes() / sizeof(register_type)>
-    sketch_;  ///< HLL sketch storage
+  hash_type hash_;                         ///< Hash function used to hash items
+  int32_t precision_;                      ///< HLL precision parameter
+  cuda::std::span<register_type> sketch_;  ///< HLL sketch storage
 
-  template <class T_, int32_t Precision_, cuda::thread_scope Scope_, class Hash_>
+  template <class T_, cuda::thread_scope Scope_, class Hash_>
   friend class hyperloglog_ref;
 };
 }  // namespace cuco::detail
