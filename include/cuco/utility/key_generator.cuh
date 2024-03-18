@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 #pragma once
 
 #include <cuco/detail/error.hpp>
-#include <cuco/detail/utils.cuh>
+#include <cuco/detail/utility/strong_type.cuh>
 
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
