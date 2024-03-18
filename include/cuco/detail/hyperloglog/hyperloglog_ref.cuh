@@ -54,6 +54,8 @@ class hyperloglog_ref {
   using register_type = int;  ///< Register array storage
   // We use `int` here since this is the smallest type that supports native `atomicMax` on GPUs
   using fp_type = float;  ///< Floating point type used for reduction
+  using hash_value_type =
+    decltype(cuda::std::declval<Hash>()(cuda::std::declval<T>()));  ///< Hash value type
  public:
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
@@ -75,6 +77,7 @@ class hyperloglog_ref {
     : hash_{hash},
       precision_{cuda::std::countr_zero(this->sketch_bytes(sketch_span.size() / 1024) /
                                         sizeof(register_type))},
+      register_mask_{(1ull << this->precision_) - 1},
       sketch_{reinterpret_cast<register_type*>(sketch_span.data()),
               this->sketch_bytes() / sizeof(register_type)}
   {
@@ -128,11 +131,9 @@ class hyperloglog_ref {
    */
   __device__ void add(T const& item) noexcept
   {
-    using hash_value_type = decltype(cuda::std::declval<hash_type>()(cuda::std::declval<T>()));
-    hash_value_type const register_mask = (1ull << this->precision_) - 1;
-    auto const h                        = this->hash_(item);
-    auto const reg                      = h & register_mask;
-    auto const zeroes                   = cuda::std::countl_zero(h | register_mask) + 1;  // __clz
+    auto const h      = this->hash_(item);
+    auto const reg    = h & this->register_mask_;
+    auto const zeroes = cuda::std::countl_zero(h | this->register_mask_) + 1;  // __clz
 
     this->update_max(reg, zeroes);
   }
@@ -495,6 +496,7 @@ class hyperloglog_ref {
 
   hash_type hash_;                         ///< Hash function used to hash items
   int32_t precision_;                      ///< HLL precision parameter
+  hash_value_type register_mask_;          ///< Mask used to separate register index from count
   cuda::std::span<register_type> sketch_;  ///< HLL sketch storage
 
   template <class T_, cuda::thread_scope Scope_, class Hash_>
