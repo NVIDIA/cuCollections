@@ -314,6 +314,80 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename OutputIt1, typename OutputIt2>
+cuda::std::pair<OutputIt1, OutputIt2>
+static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
+  InputIt first,
+  InputIt last,
+  OutputIt1 output_probe,
+  OutputIt2 output_match,
+  cuda_stream_ref stream) const
+{
+  auto res = this->retrieve_async(first, last, output_probe, output_match, stream);
+  stream.synchronize();
+  return res;
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename OutputIt1, typename OutputIt2>
+cuda::std::pair<OutputIt1, OutputIt2>
+static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_async(
+  InputIt first,
+  InputIt last,
+  OutputIt1 output_probe,
+  OutputIt2 output_match,
+  cuda_stream_ref stream) const
+{
+  auto const num_keys = cuco::detail::distance(first, last);
+  if (num_keys == 0) { return {output_probe, output_match}; }
+
+  auto counter =
+    detail::counter_storage<size_type, thread_scope, allocator_type>{this->impl_->allocator()};
+  counter.reset(stream);
+
+  auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+  static_set_ns::detail::retrieve<cuco::detail::default_block_size()>
+    <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+      first, num_keys, output_probe, output_match, counter.data(), ref(op::find));
+
+  auto const count = counter.load_to_host(stream);
+  return {output_probe + count, output_match + count};
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename OutputIt, typename ProbeEqual, typename ProbeHash>
+OutputIt
+static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_async(
+  InputIt first,
+  InputIt last,
+  OutputIt output_begin,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
+  cuda_stream_ref stream) const
+{
+  CUCO_FAIL("Unsupported code path: retrieve_async with custom hash/equal");
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename OutputIt>
 OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   OutputIt output_begin, cuda_stream_ref stream) const

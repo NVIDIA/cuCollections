@@ -36,6 +36,9 @@ _Pragma("GCC diagnostic ignored \"-Wattributes\"")
 namespace cuco {
 namespace detail {
 
+/// CUDA warp size
+__device__ constexpr int32_t warp_size() noexcept { return 32; }
+
 /**
  * @brief Returns the global thread index in a 1D scalar grid
  *
