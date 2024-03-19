@@ -611,6 +611,8 @@ class static_set {
    * `std::distance(output_begin, output_end)`.
    * @note Behavior is undefined if the given key has multiple matches in the set.
    *
+   * @throw This API will always throw since it's not implemented.
+   *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator whose `value_type` can be constructed from
    * `cuco::pair<ProbeKey, Key>`
