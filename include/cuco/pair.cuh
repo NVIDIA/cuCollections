@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@
 
 #pragma once
 
-#include <cuco/detail/traits.hpp>
-#include <cuco/detail/utils.cuh>
+#include <cuco/detail/pair/helpers.cuh>
+#include <cuco/detail/pair/traits.hpp>
 
+#include <cuda/std/tuple>
 #include <thrust/device_reference.h>
 #include <thrust/tuple.h>
 
-#include <cuda/std/tuple>
 #include <tuple>
 #include <type_traits>
 
