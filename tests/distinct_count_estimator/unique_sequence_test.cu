@@ -31,23 +31,25 @@
 
 TEMPLATE_TEST_CASE_SIG("distinct_count_estimator: unique sequence",
                        "",
-                       ((typename T, int32_t Precision, typename Hash), T, Precision, Hash),
+                       ((typename T, typename Hash), T, Hash),
                        (int32_t, cuco::xxhash_64<int32_t>),
                        (int64_t, cuco::xxhash_64<int64_t>),
                        (__int128_t, cuco::xxhash_64<__int128_t>))
 {
+  auto num_items_pow2 = GENERATE(25, 26, 28);
+  auto hll_precision  = GENERATE(8, 10, 12, 13, 18, 20);
+  auto sketch_size_kb = 4 * (1ull << hll_precision) / 1024;
+  INFO("hll_precision=" << hll_precision);
+  INFO("sketch_size_kb=" << sketch_size_kb);
+  INFO("num_items=2^" << num_items_pow2);
+  auto num_items = 1ull << num_items_pow2;
+
   // This factor determines the error threshold for passing the test
   // TODO might be too high
   double constexpr tolerance_factor = 2.5;
   // RSD for a given precision is given by the following formula
   double const relative_standard_deviation =
-    1.04 / std::sqrt(static_cast<double>(1ull << Precision));
-
-  auto num_items_pow2 = GENERATE(25, 26, 28);
-  auto sketch_size_kb = GENERATE(2, 8, 32, 256, 1024, 4096);
-  INFO("sketch_size_kb=" << sketch_size_kb);
-  INFO("num_items=2^" << num_items_pow2);
-  auto num_items = 1ull << num_items_pow2;
+    1.04 / std::sqrt(static_cast<double>(1ull << hll_precision));
 
   thrust::device_vector<T> items(num_items);
 
