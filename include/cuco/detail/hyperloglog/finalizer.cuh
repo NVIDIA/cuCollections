@@ -78,12 +78,11 @@ class finalizer {
  private:
   __host__ __device__ constexpr double alpha_mm() const noexcept
   {
-    double const m2 = this->m_ * this->m_;
     switch (this->m_) {
-      case 16: return 0.673 * m2;
-      case 32: return 0.697 * m2;
-      case 64: return 0.709 * m2;
-      default: return (0.7213 / (1.0 + 1.079 / this->m_)) * m2;
+      case 16: return 0.673 * this->m_ * this->m_;
+      case 32: return 0.697 * this->m_ * this->m_;
+      case 64: return 0.709 * this->m_ * this->m_;
+      default: return (0.7213 / (1.0 + 1.079 / this->m_)) * this->m_ * this->m_;
     }
   }
 
