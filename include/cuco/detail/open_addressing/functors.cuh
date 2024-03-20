@@ -16,7 +16,7 @@
 #pragma once
 
 #include <cuco/detail/bitwise_compare.cuh>
-#include <cuco/detail/traits.hpp>
+#include <cuco/detail/pair/traits.hpp>
 
 namespace cuco::open_addressing_ns::detail {
 

@@ -62,6 +62,7 @@ ConfigureTest(STATIC_SET_TEST
     static_set/heterogeneous_lookup_test.cu
     static_set/insert_and_find_test.cu
     static_set/large_input_test.cu
+    static_set/retrieve_test.cu
     static_set/retrieve_all_test.cu
     static_set/rehash_test.cu
     static_set/size_test.cu
