@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,9 @@
 
 #pragma once
 
-#include <cuco/detail/utils.cuh>
+#include <cuco/detail/utility/strong_type.cuh>
 
 namespace cuco {
-inline namespace sentinel {
-
 /**
  * @brief A strong type wrapper used to denote the empty key sentinel.
  *
@@ -65,6 +63,4 @@ struct erased_key : public cuco::detail::strong_type<T> {
    */
   __host__ __device__ explicit constexpr erased_key(T v) : cuco::detail::strong_type<T>(v) {}
 };
-
-}  // namespace sentinel
 }  // namespace cuco

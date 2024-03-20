@@ -18,7 +18,7 @@
 
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/pair/helpers.cuh>
-#include <cuco/detail/utils.cuh>
+#include <cuco/detail/utility/strong_type.cuh>
 
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
