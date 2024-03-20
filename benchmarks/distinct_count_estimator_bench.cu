@@ -48,6 +48,31 @@ template <typename InputIt>
   return set.size();
 }
 
+template <class Estimator, class Dist>
+[[nodiscard]] double relative_error(nvbench::state& state, std::size_t num_samples = 5)
+{
+  using T = typename Estimator::value_type;
+
+  auto const num_items      = state.get_int64("NumInputs");
+  auto const sketch_size_kb = state.get_int64("SketchSizeKB");
+
+  thrust::device_vector<T> items(num_items);
+
+  key_generator gen;
+  Estimator estimator{cuco::sketch_size_kb(sketch_size_kb)};
+  double error_sum = 0;
+  for (std::size_t i = 0; i < num_samples; ++i) {
+    gen.generate(dist_from_state<Dist>(state), items.begin(), items.end());
+    estimator.add(items.begin(), items.end());
+    double estimated_cardinality = estimator.estimate();
+    double true_cardinality      = exact_distinct_count(items.begin(), num_items);
+    error_sum += abs(true_cardinality - estimated_cardinality) / true_cardinality;
+    estimator.clear();
+  }
+
+  return error_sum / num_samples;
+}
+
 /**
  * @brief A benchmark evaluating `cuco::distinct_count_estimator` end-to-end performance
  */
@@ -59,36 +84,31 @@ void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<Esti
   auto const num_items      = state.get_int64("NumInputs");
   auto const sketch_size_kb = state.get_int64("SketchSizeKB");
 
+  state.add_element_count(num_items);
+  state.add_global_memory_reads<T>(num_items, "InputSize");
+
+  auto const err = relative_error<Estimator, Dist>(state);
+  auto& summ     = state.add_summary("MeanRelativeError");
+  summ.set_string("hint", "MRelErr");
+  summ.set_string("short_name", "MeanRelativeError");
+  summ.set_string("description", "Mean relatve approximation error.");
+  summ.set_float64("value", err);
+
   thrust::device_vector<T> items(num_items);
 
   key_generator gen;
   gen.generate(dist_from_state<Dist>(state), items.begin(), items.end());
 
-  state.add_element_count(num_items);
-  state.add_global_memory_reads<T>(num_items, "InputSize");
-
   Estimator estimator{cuco::sketch_size_kb(sketch_size_kb)};
-  estimator.add(items.begin(), items.end());
-
-  double estimated_cardinality  = estimator.estimate();
-  double const true_cardinality = exact_distinct_count(items.begin(), num_items);
-  auto const relative_error     = abs(true_cardinality - estimated_cardinality) / true_cardinality;
-
-  auto& summ = state.add_summary("RelativeError");
-  summ.set_string("hint", "RelErr");
-  summ.set_string("short_name", "RelativeError");
-  summ.set_string("description", "Relatve approximation error.");
-  summ.set_float64("value", relative_error);
-
-  estimator.clear();
+  std::size_t estimated_cardinality = 0;
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               estimator.clear_async({launch.get_stream()});
-
                timer.start();
                estimator.add_async(items.begin(), items.end(), {launch.get_stream()});
                estimated_cardinality = estimator.estimate({launch.get_stream()});
                timer.stop();
+
+               estimator.clear_async({launch.get_stream()});
              });
 }
 
@@ -113,11 +133,11 @@ void distinct_count_estimator_add(nvbench::state& state, nvbench::type_list<Esti
 
   Estimator estimator{cuco::sketch_size_kb(sketch_size_kb)};
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-    estimator.clear_async({launch.get_stream()});
-
     timer.start();
     estimator.add_async(items.begin(), items.end(), {launch.get_stream()});
     timer.stop();
+
+    estimator.clear_async({launch.get_stream()});
   });
 }
 
