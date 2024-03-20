@@ -51,9 +51,11 @@ class distinct_count_estimator_ref {
   using with_scope = distinct_count_estimator_ref<T, NewScope, Hash>;  ///< Ref type with different
                                                                        ///< thread scope
 
-  // TODO let storage_type be inferred?
   /**
    * @brief Constructs a non-owning `distinct_count_estimator_ref` object.
+   *
+   * @throw If sketch size < 0.0625KB or 64B
+   * @throw If sketch storage has insufficient alignment
    *
    * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
@@ -129,6 +131,8 @@ class distinct_count_estimator_ref {
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator reference.
    *
+   * @throw If this->sketch_bytes() != other.sketch_bytes()
+   *
    * @tparam CG CUDA Cooperative Group type
    * @tparam OtherScope Thread scope of `other` estimator
    *
@@ -137,10 +141,12 @@ class distinct_count_estimator_ref {
    */
   template <class CG, cuda::thread_scope OtherScope>
   __device__ void merge(CG const& group,
-                        distinct_count_estimator_ref<T, OtherScope, Hash> const& other) noexcept;
+                        distinct_count_estimator_ref<T, OtherScope, Hash> const& other);
 
   /**
    * @brief Asynchronously merges the result of `other` estimator reference into `*this` estimator.
+   *
+   * @throw If this->sketch_bytes() != other.sketch_bytes()
    *
    * @tparam OtherScope Thread scope of `other` estimator
    *
@@ -149,10 +155,12 @@ class distinct_count_estimator_ref {
    */
   template <cuda::thread_scope OtherScope>
   __host__ void merge_async(distinct_count_estimator_ref<T, OtherScope, Hash> const& other,
-                            cuco::cuda_stream_ref stream = {}) noexcept;
+                            cuco::cuda_stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator.
+   *
+   * @throw If this->sketch_bytes() != other.sketch_bytes()
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `merge_async`.

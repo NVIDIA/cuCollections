@@ -62,6 +62,9 @@ class distinct_count_estimator {
    *
    * @note This function synchronizes the given stream.
    *
+   * @throw If sketch size < 0.0625KB or 64B
+   * @throw If sketch storage has insufficient alignment
+   *
    * @param sketch_size_kb Maximum sketch size in KB
    * @param hash The hash function used to hash items
    * @param alloc Allocator used for allocating device storage
@@ -137,6 +140,8 @@ class distinct_count_estimator {
   /**
    * @brief Asynchronously merges the result of `other` estimator into `*this` estimator.
    *
+   * @throw If this->sketch_bytes() != other.sketch_bytes()
+   *
    * @tparam OtherScope Thread scope of `other` estimator
    * @tparam OtherAllocator Allocator type of `other` estimator
    *
@@ -145,13 +150,15 @@ class distinct_count_estimator {
    */
   template <cuda::thread_scope OtherScope, class OtherAllocator>
   void merge_async(distinct_count_estimator<T, OtherScope, Hash, OtherAllocator> const& other,
-                   cuco::cuda_stream_ref stream = {}) noexcept;
+                   cuco::cuda_stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator into `*this` estimator.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `merge_async`.
+   *
+   * @throw If this->sketch_bytes() != other.sketch_bytes()
    *
    * @tparam OtherScope Thread scope of `other` estimator
    * @tparam OtherAllocator Allocator type of `other` estimator
@@ -166,19 +173,23 @@ class distinct_count_estimator {
   /**
    * @brief Asynchronously merges the result of `other` estimator reference into `*this` estimator.
    *
+   * @throw If this->sketch_bytes() != other.sketch_bytes()
+   *
    * @tparam OtherScope Thread scope of `other` estimator
    *
    * @param other Other estimator reference to be merged into `*this`
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  void merge_async(ref_type<OtherScope> const& other, cuco::cuda_stream_ref stream = {}) noexcept;
+  void merge_async(ref_type<OtherScope> const& other, cuco::cuda_stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `merge_async`.
+   *
+   * @throw If this->sketch_bytes() != other.sketch_bytes()
    *
    * @tparam OtherScope Thread scope of `other` estimator
    *

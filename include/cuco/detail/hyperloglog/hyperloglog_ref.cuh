@@ -70,6 +70,9 @@ class hyperloglog_ref {
   /**
    * @brief Constructs a non-owning `hyperloglog_ref` object.
    *
+   * @throw If sketch size < 0.0625KB or 64B
+   * @throw If sketch storage has insufficient alignment
+   *
    * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
    */
@@ -83,7 +86,24 @@ class hyperloglog_ref {
       sketch_{reinterpret_cast<register_type*>(sketch_span.data()),
               this->sketch_bytes() / sizeof(register_type)}
   {
-    // TODO check size and alignment
+    auto const alignment =
+      1ull << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(sketch_span.data()));
+
+    if (alignment < sketch_alignment()) {
+#ifdef __CUDA_ARCH__
+      __trap();
+#else
+      CUCO_FAIL("Insufficient sketch alignment", std::runtime_error);
+#endif
+    }
+
+    if (this->precision_ < 4) {
+#ifdef __CUDA_ARCH__
+      __trap();
+#else
+      CUCO_FAIL("Minimum required sketch size is 0.0625KB or 64B", std::runtime_error);
+#endif
+    }
   }
 
   /**
@@ -252,6 +272,8 @@ class hyperloglog_ref {
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator reference.
    *
+   * @throw If this->sketch_bytes() != other.sketch_bytes()
+   *
    * @tparam CG CUDA Cooperative Group type
    * @tparam OtherScope Thread scope of `other` estimator
    *
@@ -259,11 +281,9 @@ class hyperloglog_ref {
    * @param other Other estimator reference to be merged into `*this`
    */
   template <class CG, cuda::thread_scope OtherScope>
-  __device__ void merge(CG const& group, hyperloglog_ref<T, OtherScope, Hash> const& other) noexcept
+  __device__ void merge(CG const& group, hyperloglog_ref<T, OtherScope, Hash> const& other)
   {
-    if (other.precision_ != this->precision_) {
-      __trap();  // TODO check if this hurts performance
-    }
+    if (other.precision_ != this->precision_) { __trap(); }
 
     for (int i = group.thread_rank(); i < this->sketch_.size(); i += group.size()) {
       this->update_max(i, other.sketch_[i]);
@@ -274,6 +294,8 @@ class hyperloglog_ref {
    * @brief Asynchronously merges the result of `other` estimator reference into `*this`
    * estimator.
    *
+   * @throw If this->sketch_bytes() != other.sketch_bytes()
+   *
    * @tparam OtherScope Thread scope of `other` estimator
    *
    * @param other Other estimator reference to be merged into `*this`
@@ -281,8 +303,11 @@ class hyperloglog_ref {
    */
   template <cuda::thread_scope OtherScope>
   __host__ void merge_async(hyperloglog_ref<T, OtherScope, Hash> const& other,
-                            cuco::cuda_stream_ref stream) noexcept
+                            cuco::cuda_stream_ref stream)
   {
+    CUCO_EXPECTS(other.precision == this->precision_,
+                 "Cannot merge estimators with different sketch sizes",
+                 std::runtime_error);
     auto constexpr block_size = 1024;
     cuco::hyperloglog_ns::detail::merge<<<1, block_size, 0, stream>>>(other, *this);
   }
@@ -292,6 +317,8 @@ class hyperloglog_ref {
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `merge_async`.
+   *
+   * @throw If this->sketch_bytes() != other.sketch_bytes()
    *
    * @tparam OtherScope Thread scope of `other` estimator
    *
