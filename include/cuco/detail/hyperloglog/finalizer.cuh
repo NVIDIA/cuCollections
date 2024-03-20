@@ -29,6 +29,7 @@ namespace cuco::hyperloglog_ns::detail {
  *
  * @note Variable names correspond to the definitions given in the HLL++ paper:
  * https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf
+ * @note Previcion must be >= 4.
  *
  */
 class finalizer {
@@ -39,13 +40,10 @@ class finalizer {
   /**
    * @brief Contructs an HLL finalizer object.
    *
-   * @throws Iff precision vale is not supported
-   *
    * @param precision HLL precision parameter
    */
   __host__ __device__ constexpr finalizer(int precision) : precision_{precision}, m_{1 << precision}
   {
-    // TODO check if precision >= 4
   }
 
   /**
@@ -58,7 +56,7 @@ class finalizer {
    */
   __host__ __device__ constexpr std::size_t operator()(double z, int v) const noexcept
   {
-    auto e = alpha_mm() / z;
+    double e = this->alpha_mm() / z;
 
     if (v > 0) {
       // Use linear counting for small cardinality estimates.
@@ -67,11 +65,11 @@ class finalizer {
       if (e <= 2.5 * this->m_) { return cuda::std::round(h); }
 
       if (this->precision_ < 19) {
-        e = (h <= threshold(this->precision_)) ? h : bias_corrected_estimate(e);
+        e = (h <= threshold(this->precision_)) ? h : this->bias_corrected_estimate(e);
       }
     } else {
       // HLL++ is defined only when p < 19, otherwise we need to fallback to HLL.
-      if (this->precision_ < 19) { e = bias_corrected_estimate(e); }
+      if (this->precision_ < 19) { e = this->bias_corrected_estimate(e); }
     }
 
     return cuda::std::round(e);
@@ -80,32 +78,30 @@ class finalizer {
  private:
   __host__ __device__ constexpr double alpha_mm() const noexcept
   {
-    if (this->m_ == 16) {
-      return 0.673 * this->m_ * this->m_;
-    } else if (this->m_ == 32) {
-      return 0.697 * this->m_ * this->m_;
-    } else if (this->m_ == 64) {
-      return 0.709 * this->m_ * this->m_;
-    } else {
-      return (0.7213 / (1.0 + 1.079 / this->m_)) * this->m_ * this->m_;
+    double const m2 = this->m_ * this->m_;
+    switch (this->m_) {
+      case 16: return 0.673 * m2;
+      case 32: return 0.697 * m2;
+      case 64: return 0.709 * m2;
+      default: return (0.7213 / (1.0 + 1.079 / this->m_)) * m2;
     }
   }
 
   __host__ __device__ constexpr double bias_corrected_estimate(double e) const noexcept
   {
-    return (e < 5.0 * this->m_) ? e - bias(e) : e;
+    return (e < 5.0 * this->m_) ? e - this->bias(e) : e;
   }
 
   __host__ __device__ constexpr double bias(double e) const noexcept
   {
-    auto const anchor_index = interpolation_anchor_index(e);
+    auto const anchor_index = this->interpolation_anchor_index(e);
     int const n             = raw_estimate_data_size(this->precision_);
 
     auto low  = cuda::std::max(anchor_index - k + 1, 0);
     auto high = cuda::std::min(low + k, n);
     // Keep moving bounds as long as the (exclusive) high bound is closer to the estimate than
     // the lower (inclusive) bound.
-    while (high < n and distance(e, high) < distance(e, low)) {
+    while (high < n and this->distance(e, high) < this->distance(e, low)) {
       low += 1;
       high += 1;
     }
