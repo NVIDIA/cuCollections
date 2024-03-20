@@ -69,10 +69,10 @@ __global__ void piggyback_kernel(RefType ref, InputIt first, std::size_t n)
   block.sync();
 
   // We can also compute the local estimate on the device
-  auto const local_estimate = local_ref.estimate(block);
+  // auto const local_estimate = local_ref.estimate(block);
   if (block.thread_rank() == 0) {
     // The local estimate should approximately be `num_items`/`gridDim.x`
-    printf("Estimate for block %d = %llu\n", blockIdx.x, local_estimate);
+    // printf("Estimate for block %d = %llu\n", blockIdx.x, local_estimate);
   }
 
   // In the end, we merge the shared memory estimator into the global estimator which gives us the
@@ -80,10 +80,40 @@ __global__ void piggyback_kernel(RefType ref, InputIt first, std::size_t n)
   ref.merge(block, local_ref);
 }
 
+template <typename Ref, typename InputIt, typename OutputIt>
+__global__ void device_estimate_kernel(cuco::sketch_size_kb sketch_size_kb,
+                                       InputIt in,
+                                       size_t n,
+                                       OutputIt out)
+{
+  extern __shared__ std::byte local_sketch[];
+
+  auto const block = cooperative_groups::this_thread_block();
+
+  // only a single block computes the estimate
+  if (block.group_index().x == 0) {
+    Ref estimator(cuda::std::span(local_sketch, Ref::sketch_bytes(sketch_size_kb)));
+
+    estimator.clear(block);
+    block.sync();
+
+    for (int i = block.thread_rank(); i < n; i += block.num_threads()) {
+      estimator.add(*(in + i));
+    }
+    block.sync();
+    // we can compute the final estimate on the device and return the result to the host
+    auto const estimate = estimator.estimate(block);
+
+    if (block.thread_rank() == 0) { *out = estimate; }
+  }
+}
+
 int main(void)
 {
   using T                         = int;
+  using estimator_type            = cuco::distinct_count_estimator<T>;
   constexpr std::size_t num_items = 1ull << 28;  // 1GB
+  auto const sketch_size_kb       = 32_KB;
 
   thrust::device_vector<T> items(num_items);
 
@@ -91,7 +121,7 @@ int main(void)
   thrust::sequence(items.begin(), items.end(), 0);
 
   // Initialize the estimator
-  cuco::distinct_count_estimator<T> estimator;
+  estimator_type estimator(sketch_size_kb);
 
   // Add all items to the estimator
   estimator.add(items.begin(), items.end());
@@ -111,7 +141,14 @@ int main(void)
   // Calculate the cardinality estimate from the custom kernel
   std::size_t const estimated_cardinality_custom = estimator.estimate();
 
-  if (estimated_cardinality_bulk == estimated_cardinality_custom) {
+  thrust::device_vector<std::size_t> device_estimate(1);
+  device_estimate_kernel<typename estimator_type::ref_type<cuda::thread_scope_block>>
+    <<<1, 512, sketch_bytes>>>(sketch_size_kb, items.begin(), num_items, device_estimate.begin());
+
+  std::size_t const estimated_cardinality_device = device_estimate[0];
+
+  if (estimated_cardinality_custom == estimated_cardinality_bulk and
+      estimated_cardinality_device == estimated_cardinality_bulk) {
     std::cout << "Success! Cardinality estimates are identical" << std::endl;
   }
 
