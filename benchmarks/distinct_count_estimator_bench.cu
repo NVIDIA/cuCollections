@@ -158,5 +158,5 @@ NVBENCH_BENCH_TYPES(distinct_count_estimator_add,
   .set_name("distinct_count_estimator::add_async")
   .set_type_axes_names({"Estimator", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
-  .add_int64_axis("SketchSizeKB", {8, 16, 32})
+  .add_int64_axis("SketchSizeKB", {8, 16, 32, 256})  // 256KB uses gmem fallback kernel
   .set_max_noise(defaults::MAX_NOISE);
