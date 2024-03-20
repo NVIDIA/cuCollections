@@ -177,11 +177,11 @@ class distinct_count_estimator {
    *
    * @tparam OtherScope Thread scope of `other` estimator
    *
-   * @param other Other estimator reference to be merged into `*this`
+   * @param other_ref Other estimator reference to be merged into `*this`
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  void merge_async(ref_type<OtherScope> const& other, cuco::cuda_stream_ref stream = {});
+  void merge_async(ref_type<OtherScope> const& other_ref, cuco::cuda_stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator.
@@ -193,11 +193,11 @@ class distinct_count_estimator {
    *
    * @tparam OtherScope Thread scope of `other` estimator
    *
-   * @param other Other estimator reference to be merged into `*this`
+   * @param other_ref Other estimator reference to be merged into `*this`
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  void merge(ref_type<OtherScope> const& other, cuco::cuda_stream_ref stream = {});
+  void merge(ref_type<OtherScope> const& other_ref, cuco::cuda_stream_ref stream = {});
 
   /**
    * @brief Compute the estimated distinct items count.

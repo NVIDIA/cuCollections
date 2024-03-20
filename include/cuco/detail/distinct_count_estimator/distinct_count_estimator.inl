@@ -77,17 +77,17 @@ void distinct_count_estimator<T, Scope, Hash, Allocator>::merge(
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 template <cuda::thread_scope OtherScope>
 void distinct_count_estimator<T, Scope, Hash, Allocator>::merge_async(
-  ref_type<OtherScope> const& other, cuco::cuda_stream_ref stream)
+  ref_type<OtherScope> const& other_ref, cuco::cuda_stream_ref stream)
 {
-  this->impl_->merge_async(other, stream);
+  this->impl_->merge_async(other_ref, stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 template <cuda::thread_scope OtherScope>
-void distinct_count_estimator<T, Scope, Hash, Allocator>::merge(ref_type<OtherScope> const& other,
-                                                                cuco::cuda_stream_ref stream)
+void distinct_count_estimator<T, Scope, Hash, Allocator>::merge(
+  ref_type<OtherScope> const& other_ref, cuco::cuda_stream_ref stream)
 {
-  this->impl_->merge(other, stream);
+  this->impl_->merge(other_ref, stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
