@@ -49,7 +49,7 @@ template <typename InputIt>
 }
 
 template <class Estimator, class Dist>
-[[nodiscard]] double relative_error(nvbench::state& state, std::size_t num_samples = 5)
+[[nodiscard]] double relative_error(nvbench::state& state, std::size_t num_samples)
 {
   using T = typename Estimator::value_type;
 
@@ -87,8 +87,9 @@ void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<Esti
   state.add_element_count(num_items);
   state.add_global_memory_reads<T>(num_items, "InputSize");
 
-  auto const err = relative_error<Estimator, Dist>(state);
-  auto& summ     = state.add_summary("MeanRelativeError");
+  auto const err_samples = (cuda::std::is_same_v<Dist, distribution::unique>) ? 1 : 5;
+  auto const err         = relative_error<Estimator, Dist>(state, err_samples);
+  auto& summ             = state.add_summary("MeanRelativeError");
   summ.set_string("hint", "MRelErr");
   summ.set_string("short_name", "MeanRelativeError");
   summ.set_string("description", "Mean relatve approximation error.");
@@ -146,17 +147,19 @@ using ESTIMATOR_RANGE = nvbench::type_list<cuco::distinct_count_estimator<nvbenc
                                            cuco::distinct_count_estimator<__int128_t>>;
 
 NVBENCH_BENCH_TYPES(distinct_count_estimator_e2e,
-                    NVBENCH_TYPE_AXES(ESTIMATOR_RANGE, nvbench::type_list<distribution::unique>))
+                    NVBENCH_TYPE_AXES(ESTIMATOR_RANGE, nvbench::type_list<distribution::uniform>))
   .set_name("distinct_count_estimator_e2e")
   .set_type_axes_names({"Estimator", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
-  .add_int64_axis("SketchSizeKB", {8, 16, 32})
+  .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})  // 256KB uses gmem fallback kernel
+  .add_int64_axis("Multiplicity", {1})
   .set_max_noise(defaults::MAX_NOISE);
 
 NVBENCH_BENCH_TYPES(distinct_count_estimator_add,
-                    NVBENCH_TYPE_AXES(ESTIMATOR_RANGE, nvbench::type_list<distribution::unique>))
+                    NVBENCH_TYPE_AXES(ESTIMATOR_RANGE, nvbench::type_list<distribution::uniform>))
   .set_name("distinct_count_estimator::add_async")
   .set_type_axes_names({"Estimator", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
-  .add_int64_axis("SketchSizeKB", {8, 16, 32, 256})  // 256KB uses gmem fallback kernel
+  .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})
+  .add_int64_axis("Multiplicity", {1})
   .set_max_noise(defaults::MAX_NOISE);
