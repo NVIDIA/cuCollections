@@ -411,7 +411,7 @@ class hyperloglog_ref {
     CUCO_CUDA_TRY(cudaMemcpyAsync(host_sketch.data(),
                                   this->sketch_.data(),
                                   sizeof(register_type) * num_regs,
-                                  cudaMemcpyDeviceToHost,
+                                  cudaMemcpyDefault,
                                   stream));
     stream.synchronize();
 
