@@ -433,14 +433,14 @@ class hyperloglog_ref {
   /**
    * @brief Gets the number of bytes required for the sketch storage.
    *
-   * @param max_sketch_size_kb Upper bound sketch size in KB
+   * @param sketch_size_kb Upper bound sketch size in KB
    *
    * @return The number of bytes required for the sketch
    */
   [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
-    cuco::sketch_size_kb max_sketch_size_kb) noexcept
+    cuco::sketch_size_kb sketch_size_kb) noexcept
   {
-    return cuda::std::bit_floor(static_cast<std::size_t>(max_sketch_size_kb * 1024));
+    return cuda::std::bit_floor(static_cast<std::size_t>(sketch_size_kb * 1024));
   }
 
   /**

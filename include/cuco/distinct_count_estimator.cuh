@@ -62,15 +62,15 @@ class distinct_count_estimator {
    *
    * @note This function synchronizes the given stream.
    *
-   * @param max_sketch_size_kb Maximum sketch size in KB
+   * @param sketch_size_kb Maximum sketch size in KB
    * @param hash The hash function used to hash items
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the object
    */
-  constexpr distinct_count_estimator(cuco::sketch_size_kb max_sketch_size_kb = 32_KB,
-                                     Hash const& hash                        = {},
-                                     Allocator const& alloc                  = {},
-                                     cuco::cuda_stream_ref stream            = {});
+  constexpr distinct_count_estimator(cuco::sketch_size_kb sketch_size_kb = 32_KB,
+                                     Hash const& hash                    = {},
+                                     Allocator const& alloc              = {},
+                                     cuco::cuda_stream_ref stream        = {});
 
   ~distinct_count_estimator() = default;
 
@@ -230,12 +230,12 @@ class distinct_count_estimator {
   /**
    * @brief Gets the number of bytes required for the sketch storage.
    *
-   * @param max_sketch_size_kb Upper bound sketch size in KB
+   * @param sketch_size_kb Upper bound sketch size in KB
    *
    * @return The number of bytes required for the sketch
    */
   [[nodiscard]] static constexpr std::size_t sketch_bytes(
-    cuco::sketch_size_kb max_sketch_size_kb) noexcept;
+    cuco::sketch_size_kb sketch_size_kb) noexcept;
 
   /**
    * @brief Gets the alignment required for the sketch storage.

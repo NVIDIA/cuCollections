@@ -59,19 +59,19 @@ class hyperloglog {
    *
    * @note This function synchronizes the given stream.
    *
-   * @param max_sketch_size_kb Maximum sketch size in KB
+   * @param sketch_size_kb Maximum sketch size in KB
    * @param hash The hash function used to hash items
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the object
    */
-  constexpr hyperloglog(cuco::sketch_size_kb max_sketch_size_kb,
+  constexpr hyperloglog(cuco::sketch_size_kb sketch_size_kb,
                         Hash const& hash,
                         Allocator const& alloc,
                         cuco::cuda_stream_ref stream)
     : allocator_{alloc},
-      deleter_{sketch_bytes(max_sketch_size_kb), this->allocator_},
-      sketch_{this->allocator_.allocate(sketch_bytes(max_sketch_size_kb)), this->deleter_},
-      ref_{cuda::std::span{this->sketch_.get(), sketch_bytes(max_sketch_size_kb)}, hash}
+      deleter_{sketch_bytes(sketch_size_kb), this->allocator_},
+      sketch_{this->allocator_.allocate(sketch_bytes(sketch_size_kb)), this->deleter_},
+      ref_{cuda::std::span{this->sketch_.get(), sketch_bytes(sketch_size_kb)}, hash}
   {
     this->ref_.clear_async(stream);
   }
@@ -257,14 +257,14 @@ class hyperloglog {
   /**
    * @brief Gets the number of bytes required for the sketch storage.
    *
-   * @param max_sketch_size_kb Upper bound sketch size in KB
+   * @param sketch_size_kb Upper bound sketch size in KB
    *
    * @return The number of bytes required for the sketch
    */
   [[nodiscard]] static constexpr std::size_t sketch_bytes(
-    cuco::sketch_size_kb max_sketch_size_kb) noexcept
+    cuco::sketch_size_kb sketch_size_kb) noexcept
   {
-    return ref_type<>::sketch_bytes(max_sketch_size_kb);
+    return ref_type<>::sketch_bytes(sketch_size_kb);
   }
 
   /**

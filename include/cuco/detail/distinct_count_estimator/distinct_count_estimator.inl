@@ -18,11 +18,11 @@ namespace cuco {
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 constexpr distinct_count_estimator<T, Scope, Hash, Allocator>::distinct_count_estimator(
-  cuco::sketch_size_kb max_sketch_size_kb,
+  cuco::sketch_size_kb sketch_size_kb,
   Hash const& hash,
   Allocator const& alloc,
   cuco::cuda_stream_ref stream)
-  : impl_{std::make_unique<impl_type>(max_sketch_size_kb, hash, alloc, stream)}
+  : impl_{std::make_unique<impl_type>(sketch_size_kb, hash, alloc, stream)}
 {
 }
 
@@ -125,9 +125,9 @@ constexpr size_t distinct_count_estimator<T, Scope, Hash, Allocator>::sketch_byt
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 constexpr size_t distinct_count_estimator<T, Scope, Hash, Allocator>::sketch_bytes(
-  cuco::sketch_size_kb max_sketch_size_kb) noexcept
+  cuco::sketch_size_kb sketch_size_kb) noexcept
 {
-  return impl_type::sketch_bytes(max_sketch_size_kb);
+  return impl_type::sketch_bytes(sketch_size_kb);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
