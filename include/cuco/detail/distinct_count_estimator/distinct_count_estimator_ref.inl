@@ -129,7 +129,8 @@ distinct_count_estimator_ref<T, Scope, Hash>::sketch_bytes() const noexcept
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ __device__ constexpr std::size_t
-distinct_count_estimator_ref<T, Scope, Hash>::sketch_bytes(std::size_t max_sketch_size_kb) noexcept
+distinct_count_estimator_ref<T, Scope, Hash>::sketch_bytes(
+  cuco::sketch_size_kb max_sketch_size_kb) noexcept
 {
   return impl_type::sketch_bytes(max_sketch_size_kb);
 }

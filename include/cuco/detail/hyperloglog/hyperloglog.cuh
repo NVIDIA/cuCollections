@@ -20,6 +20,7 @@
 #include <cuco/detail/hyperloglog/hyperloglog_ref.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/hash_functions.cuh>
+#include <cuco/sketch_size.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cstddef>
@@ -63,14 +64,14 @@ class hyperloglog {
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the object
    */
-  constexpr hyperloglog(std::size_t max_sketch_size_kb,
+  constexpr hyperloglog(cuco::sketch_size_kb max_sketch_size_kb,
                         Hash const& hash,
                         Allocator const& alloc,
                         cuco::cuda_stream_ref stream)
     : allocator_{alloc},
-      deleter_{this->sketch_bytes(max_sketch_size_kb), this->allocator_},
-      sketch_{this->allocator_.allocate(this->sketch_bytes(max_sketch_size_kb)), this->deleter_},
-      ref_{cuda::std::span{this->sketch_.get(), this->sketch_bytes(max_sketch_size_kb)}, hash}
+      deleter_{sketch_bytes(max_sketch_size_kb), this->allocator_},
+      sketch_{this->allocator_.allocate(sketch_bytes(max_sketch_size_kb)), this->deleter_},
+      ref_{cuda::std::span{this->sketch_.get(), sketch_bytes(max_sketch_size_kb)}, hash}
   {
     this->ref_.clear_async(stream);
   }
@@ -260,7 +261,8 @@ class hyperloglog {
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] static constexpr std::size_t sketch_bytes(std::size_t max_sketch_size_kb) noexcept
+  [[nodiscard]] static constexpr std::size_t sketch_bytes(
+    cuco::sketch_size_kb max_sketch_size_kb) noexcept
   {
     return ref_type<>::sketch_bytes(max_sketch_size_kb);
   }

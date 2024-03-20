@@ -19,6 +19,7 @@
 #include <cuco/detail/hyperloglog/hyperloglog.cuh>
 #include <cuco/distinct_count_estimator_ref.cuh>
 #include <cuco/hash_functions.cuh>
+#include <cuco/sketch_size.hpp>
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
@@ -34,7 +35,6 @@ namespace cuco {
  * https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf.
  *
  * @tparam T Type of items to count
- * @tparam Precision Tuning parameter to trade runtime/memory footprint for better accuracy
  * @tparam Scope The scope in which operations will be performed by individual threads
  * @tparam Hash Hash function used to hash items
  * @tparam Allocator Type of allocator used for device storage
@@ -67,10 +67,10 @@ class distinct_count_estimator {
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the object
    */
-  constexpr distinct_count_estimator(std::size_t max_sketch_size_kb = 32,
-                                     Hash const& hash               = {},
-                                     Allocator const& alloc         = {},
-                                     cuco::cuda_stream_ref stream   = {});
+  constexpr distinct_count_estimator(cuco::sketch_size_kb max_sketch_size_kb = 32_KB,
+                                     Hash const& hash                        = {},
+                                     Allocator const& alloc                  = {},
+                                     cuco::cuda_stream_ref stream            = {});
 
   ~distinct_count_estimator() = default;
 
@@ -234,7 +234,8 @@ class distinct_count_estimator {
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] static constexpr std::size_t sketch_bytes(std::size_t max_sketch_size_kb) noexcept;
+  [[nodiscard]] static constexpr std::size_t sketch_bytes(
+    cuco::sketch_size_kb max_sketch_size_kb) noexcept;
 
   /**
    * @brief Gets the alignment required for the sketch storage.

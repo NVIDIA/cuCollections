@@ -18,6 +18,7 @@
 #include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/hyperloglog/hyperloglog_ref.cuh>
 #include <cuco/hash_functions.cuh>
+#include <cuco/sketch_size.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cooperative_groups.h>
@@ -35,7 +36,9 @@ namespace cuco {
  * @tparam Scope The scope in which operations will be performed by individual threads
  * @tparam Hash Hash function used to hash items
  */
-template <class T, cuda::thread_scope Scope, class Hash>
+template <class T,
+          cuda::thread_scope Scope = cuda::thread_scope_device,
+          class Hash               = cuco::xxhash_64<T>>
 class distinct_count_estimator_ref {
   using impl_type = detail::hyperloglog_ref<T, Scope, Hash>;
 
@@ -213,7 +216,7 @@ class distinct_count_estimator_ref {
    * @return The number of bytes required for the sketch
    */
   [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
-    std::size_t max_sketch_size_kb) noexcept;
+    cuco::sketch_size_kb max_sketch_size_kb) noexcept;
 
   /**
    * @brief Gets the alignment required for the sketch storage.

@@ -25,7 +25,6 @@
  * @file host_bulk_example.cu
  * @brief Demonstrates usage of `cuco::distinct_count_estimator` "bulk" host APIs.
  */
-
 int main(void)
 {
   using T                         = int;

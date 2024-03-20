@@ -22,6 +22,7 @@
 #include <cuco/detail/hyperloglog/kernels.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/hash_functions.cuh>
+#include <cuco/sketch_size.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
@@ -75,8 +76,9 @@ class hyperloglog_ref {
   __host__ __device__ constexpr hyperloglog_ref(cuda::std::span<std::byte> sketch_span,
                                                 Hash const& hash)
     : hash_{hash},
-      precision_{cuda::std::countr_zero(this->sketch_bytes(sketch_span.size() / 1024) /
-                                        sizeof(register_type))},
+      precision_{cuda::std::countr_zero(
+        sketch_bytes(cuco::sketch_size_kb(static_cast<double>(sketch_span.size() / 1024))) /
+        sizeof(register_type))},
       register_mask_{(1ull << this->precision_) - 1},
       sketch_{reinterpret_cast<register_type*>(sketch_span.data()),
               this->sketch_bytes() / sizeof(register_type)}
@@ -436,9 +438,9 @@ class hyperloglog_ref {
    * @return The number of bytes required for the sketch
    */
   [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
-    std::size_t max_sketch_size_kb) noexcept
+    cuco::sketch_size_kb max_sketch_size_kb) noexcept
   {
-    return cuda::std::bit_floor(max_sketch_size_kb * 1024);
+    return cuda::std::bit_floor(static_cast<std::size_t>(max_sketch_size_kb * 1024));
   }
 
   /**

@@ -57,7 +57,8 @@ TEMPLATE_TEST_CASE_SIG("distinct_count_estimator: unique sequence",
   thrust::sequence(items.begin(), items.end(), 0);
 
   // Initialize the estimator
-  cuco::distinct_count_estimator<T, cuda::thread_scope_device, Hash> estimator(sketch_size_kb);
+  cuco::distinct_count_estimator<T, cuda::thread_scope_device, Hash> estimator{
+    cuco::sketch_size_kb(sketch_size_kb)};
 
   REQUIRE(estimator.estimate() == 0);
 

@@ -67,7 +67,7 @@ void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<Esti
   state.add_element_count(num_items);
   state.add_global_memory_reads<T>(num_items, "InputSize");
 
-  Estimator estimator(sketch_size_kb);
+  Estimator estimator(cuco::sketch_size_kb(sketch_size_kb));
   estimator.add(items.begin(), items.end());
 
   double estimated_cardinality  = estimator.estimate();
