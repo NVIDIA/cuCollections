@@ -52,7 +52,6 @@ namespace cuco::detail {
  */
 template <class T, cuda::thread_scope Scope, class Hash>
 class hyperloglog_ref {
-  using register_type = int;  ///< Register array storage
   // We use `int` here since this is the smallest type that supports native `atomicMax` on GPUs
   using fp_type = double;  ///< Floating point type used for reduction
   using hash_value_type =
@@ -60,8 +59,9 @@ class hyperloglog_ref {
  public:
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
-  using value_type = T;     ///< Type of items to count
-  using hash_type  = Hash;  ///< Hash function type
+  using value_type    = T;     ///< Type of items to count
+  using hash_type     = Hash;  ///< Hash function type
+  using register_type = int;   ///< HLL register type
 
   template <cuda::thread_scope NewScope>
   using with_scope = hyperloglog_ref<T, NewScope, Hash>;  ///< Ref type with different

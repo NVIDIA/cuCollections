@@ -48,11 +48,12 @@ class hyperloglog {
   using ref_type = hyperloglog_ref<T, NewScope, Hash>;  ///< Non-owning reference
                                                         ///< type
 
-  using value_type = typename ref_type<>::value_type;  ///< Type of items to count
-  using hash_type  = typename ref_type<>::hash_type;   ///< Hash function type
+  using value_type    = typename ref_type<>::value_type;     ///< Type of items to count
+  using hash_type     = typename ref_type<>::hash_type;      ///< Hash function type
+  using register_type = typename ref_type<>::register_type;  ///< HLL register type
   using allocator_type =
-    typename std::allocator_traits<Allocator>::template rebind_alloc<std::byte>;  ///< Allocator
-                                                                                  ///< type
+    typename std::allocator_traits<Allocator>::template rebind_alloc<register_type>;  ///< Allocator
+                                                                                      ///< type
 
   /**
    * @brief Constructs a `hyperloglog` host object.
@@ -72,9 +73,12 @@ class hyperloglog {
                         Allocator const& alloc,
                         cuco::cuda_stream_ref stream)
     : allocator_{alloc},
-      deleter_{sketch_bytes(sketch_size_kb), this->allocator_},
-      sketch_{this->allocator_.allocate(sketch_bytes(sketch_size_kb)), this->deleter_},
-      ref_{cuda::std::span{this->sketch_.get(), sketch_bytes(sketch_size_kb)}, hash}
+      deleter_{sketch_bytes(sketch_size_kb) / sizeof(register_type), this->allocator_},
+      sketch_{this->allocator_.allocate(sketch_bytes(sketch_size_kb) / sizeof(register_type)),
+              this->deleter_},
+      ref_{cuda::std::span{reinterpret_cast<std::byte*>(this->sketch_.get()),
+                           sketch_bytes(sketch_size_kb)},
+           hash}
   {
     this->ref_.clear_async(stream);
   }
@@ -291,7 +295,7 @@ class hyperloglog {
  private:
   allocator_type allocator_;                             ///< Storage allocator
   custom_deleter<std::size_t, allocator_type> deleter_;  ///< Storage deleter
-  std::unique_ptr<std::byte, custom_deleter<std::size_t, allocator_type>>
+  std::unique_ptr<register_type, custom_deleter<std::size_t, allocator_type>>
     sketch_;        ///< Sketch storage
   ref_type<> ref_;  //< Ref type
 
