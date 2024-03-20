@@ -39,6 +39,14 @@ __global__ void piggyback_kernel(RefType ref, InputIt first, std::size_t n)
   // Shared memory storage for the block-local estimator
   extern __shared__ std::byte local_sketch[];
 
+  // The following check is optional since the base address of dynamic shared memory is guaranteed
+  // to meet the alignment requirements
+  /*
+  auto const alignment =
+    1ull << cuda::std::countr_zero(reinterpret_cast<std::uintptr_t>(local_sketch));
+  assert(alignment >= local_ref_type::sketch_alignment());
+  */
+
   auto const loop_stride = gridDim.x * blockDim.x;
   auto idx               = blockDim.x * blockIdx.x + threadIdx.x;
   auto const block       = cooperative_groups::this_thread_block();
