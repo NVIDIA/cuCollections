@@ -54,7 +54,7 @@ template <class T, cuda::thread_scope Scope, class Hash>
 class hyperloglog_ref {
   using register_type = int;  ///< Register array storage
   // We use `int` here since this is the smallest type that supports native `atomicMax` on GPUs
-  using fp_type = float;  ///< Floating point type used for reduction
+  using fp_type = double;  ///< Floating point type used for reduction
   using hash_value_type =
     decltype(cuda::std::declval<Hash>()(cuda::std::declval<T>()));  ///< Hash value type
  public:
@@ -374,6 +374,7 @@ class hyperloglog_ref {
     auto const warp_zeroes =
       cooperative_groups::reduce(warp, thread_zeroes, cooperative_groups::plus<int>());
     // TODO warp sync needed?
+    // TODO use invoke_one
     if (warp.thread_rank() == 0) {
       block_sum.fetch_add(warp_sum, cuda::std::memory_order_relaxed);
       block_zeroes.fetch_add(warp_zeroes, cuda::std::memory_order_relaxed);
