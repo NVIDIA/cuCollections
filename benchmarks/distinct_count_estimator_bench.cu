@@ -76,10 +76,10 @@ template <class Estimator, class Dist>
 /**
  * @brief A benchmark evaluating `cuco::distinct_count_estimator` end-to-end performance
  */
-template <typename Estimator, typename Dist>
-void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<Estimator, Dist>)
+template <typename T, typename Dist>
+void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
 {
-  using T = typename Estimator::value_type;
+  using estimator_type = cuco::distinct_count_estimator<T>;
 
   auto const num_items      = state.get_int64("NumInputs");
   auto const sketch_size_kb = state.get_int64("SketchSizeKB");
@@ -88,7 +88,7 @@ void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<Esti
   state.add_global_memory_reads<T>(num_items, "InputSize");
 
   auto const err_samples = (cuda::std::is_same_v<Dist, distribution::unique>) ? 1 : 5;
-  auto const err         = relative_error<Estimator, Dist>(state, err_samples);
+  auto const err         = relative_error<estimator_type, Dist>(state, err_samples);
   auto& summ             = state.add_summary("MeanRelativeError");
   summ.set_string("hint", "MRelErr");
   summ.set_string("short_name", "MeanRelativeError");
@@ -100,7 +100,7 @@ void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<Esti
   key_generator gen;
   gen.generate(dist_from_state<Dist>(state), items.begin(), items.end());
 
-  Estimator estimator{cuco::sketch_size_kb(sketch_size_kb)};
+  estimator_type estimator{cuco::sketch_size_kb(sketch_size_kb)};
   std::size_t estimated_cardinality = 0;
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
@@ -116,10 +116,10 @@ void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<Esti
 /**
  * @brief A benchmark evaluating `cuco::distinct_count_estimator::add` performance
  */
-template <typename Estimator, typename Dist>
-void distinct_count_estimator_add(nvbench::state& state, nvbench::type_list<Estimator, Dist>)
+template <typename T, typename Dist>
+void distinct_count_estimator_add(nvbench::state& state, nvbench::type_list<T, Dist>)
 {
-  using T = typename Estimator::value_type;
+  using estimator_type = cuco::distinct_count_estimator<T>;
 
   auto const num_items      = state.get_int64("NumInputs");
   auto const sketch_size_kb = state.get_int64("SketchSizeKB");
@@ -132,7 +132,7 @@ void distinct_count_estimator_add(nvbench::state& state, nvbench::type_list<Esti
   state.add_element_count(num_items);
   state.add_global_memory_reads<T>(num_items, "InputSize");
 
-  Estimator estimator{cuco::sketch_size_kb(sketch_size_kb)};
+  estimator_type estimator{cuco::sketch_size_kb(sketch_size_kb)};
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
     timer.start();
     estimator.add_async(items.begin(), items.end(), {launch.get_stream()});
@@ -142,12 +142,10 @@ void distinct_count_estimator_add(nvbench::state& state, nvbench::type_list<Esti
   });
 }
 
-using ESTIMATOR_RANGE = nvbench::type_list<cuco::distinct_count_estimator<nvbench::int32_t>,
-                                           cuco::distinct_count_estimator<nvbench::int64_t>,
-                                           cuco::distinct_count_estimator<__int128_t>>;
+using TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t, __int128_t>;
 
 NVBENCH_BENCH_TYPES(distinct_count_estimator_e2e,
-                    NVBENCH_TYPE_AXES(ESTIMATOR_RANGE, nvbench::type_list<distribution::uniform>))
+                    NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
   .set_name("distinct_count_estimator_e2e")
   .set_type_axes_names({"Estimator", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
@@ -156,7 +154,7 @@ NVBENCH_BENCH_TYPES(distinct_count_estimator_e2e,
   .set_max_noise(defaults::MAX_NOISE);
 
 NVBENCH_BENCH_TYPES(distinct_count_estimator_add,
-                    NVBENCH_TYPE_AXES(ESTIMATOR_RANGE, nvbench::type_list<distribution::uniform>))
+                    NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
   .set_name("distinct_count_estimator::add_async")
   .set_type_axes_names({"Estimator", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
