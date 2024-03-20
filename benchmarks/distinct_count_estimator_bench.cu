@@ -147,7 +147,7 @@ using TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t, __int1
 NVBENCH_BENCH_TYPES(distinct_count_estimator_e2e,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
   .set_name("distinct_count_estimator_e2e")
-  .set_type_axes_names({"Estimator", "Distribution"})
+  .set_type_axes_names({"T", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
   .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})  // 256KB uses gmem fallback kernel
   .add_int64_axis("Multiplicity", {1})
@@ -156,7 +156,7 @@ NVBENCH_BENCH_TYPES(distinct_count_estimator_e2e,
 NVBENCH_BENCH_TYPES(distinct_count_estimator_add,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
   .set_name("distinct_count_estimator::add_async")
-  .set_type_axes_names({"Estimator", "Distribution"})
+  .set_type_axes_names({"T", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
   .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})
   .add_int64_axis("Multiplicity", {1})
