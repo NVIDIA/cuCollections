@@ -26,51 +26,51 @@ __host__
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class CG>
-__device__ void distinct_count_estimator_ref<T, Scope, Hash>::clear(CG const& group) noexcept
+__device__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::clear(
+  CG const& group) noexcept
 {
   this->impl_.clear(group);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
-__host__ void distinct_count_estimator_ref<T, Scope, Hash>::clear_async(
+__host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::clear_async(
   cuco::cuda_stream_ref stream) noexcept
 {
   this->impl_.clear_async(stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
-__host__ void distinct_count_estimator_ref<T, Scope, Hash>::clear(cuco::cuda_stream_ref stream)
+__host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::clear(
+  cuco::cuda_stream_ref stream)
 {
   this->impl_.clear(stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
-__device__ void distinct_count_estimator_ref<T, Scope, Hash>::add(T const& item) noexcept
+__device__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::add(T const& item) noexcept
 {
   this->impl_.add(item);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class InputIt>
-__host__ void distinct_count_estimator_ref<T, Scope, Hash>::add_async(InputIt first,
-                                                                      InputIt last,
-                                                                      cuco::cuda_stream_ref stream)
+__host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::add_async(
+  InputIt first, InputIt last, cuco::cuda_stream_ref stream)
 {
   this->impl_.add_async(first, last, stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class InputIt>
-__host__ void distinct_count_estimator_ref<T, Scope, Hash>::add(InputIt first,
-                                                                InputIt last,
-                                                                cuco::cuda_stream_ref stream)
+__host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::add(
+  InputIt first, InputIt last, cuco::cuda_stream_ref stream)
 {
   this->impl_.add(first, last, stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class CG, cuda::thread_scope OtherScope>
-__device__ void distinct_count_estimator_ref<T, Scope, Hash>::merge(
+__device__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::merge(
   CG const& group, distinct_count_estimator_ref<T, OtherScope, Hash> const& other)
 {
   this->impl_.merge(group, other.impl_);
@@ -78,7 +78,7 @@ __device__ void distinct_count_estimator_ref<T, Scope, Hash>::merge(
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <cuda::thread_scope OtherScope>
-__host__ void distinct_count_estimator_ref<T, Scope, Hash>::merge_async(
+__host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::merge_async(
   distinct_count_estimator_ref<T, OtherScope, Hash> const& other, cuco::cuda_stream_ref stream)
 {
   this->impl_.merge_async(other, stream);
@@ -86,7 +86,7 @@ __host__ void distinct_count_estimator_ref<T, Scope, Hash>::merge_async(
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <cuda::thread_scope OtherScope>
-__host__ void distinct_count_estimator_ref<T, Scope, Hash>::merge(
+__host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::merge(
   distinct_count_estimator_ref<T, OtherScope, Hash> const& other, cuco::cuda_stream_ref stream)
 {
   this->impl_.merge(other, stream);
@@ -100,21 +100,21 @@ __device__ std::size_t distinct_count_estimator_ref<T, Scope, Hash>::estimate(
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
-__host__ std::size_t distinct_count_estimator_ref<T, Scope, Hash>::estimate(
+__host__ constexpr std::size_t distinct_count_estimator_ref<T, Scope, Hash>::estimate(
   cuco::cuda_stream_ref stream) const
 {
   return this->impl_.estimate(stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
-__host__ __device__ auto distinct_count_estimator_ref<T, Scope, Hash>::hash_function()
+__host__ __device__ constexpr auto distinct_count_estimator_ref<T, Scope, Hash>::hash_function()
   const noexcept
 {
   return this->impl_.hash_function();
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
-__host__ __device__ cuda::std::span<std::byte>
+__host__ __device__ constexpr cuda::std::span<std::byte>
 distinct_count_estimator_ref<T, Scope, Hash>::sketch() const noexcept
 {
   return this->impl_.sketch();

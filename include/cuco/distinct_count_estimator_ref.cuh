@@ -73,14 +73,14 @@ class distinct_count_estimator_ref {
    * @param group CUDA Cooperative group this operation is executed in
    */
   template <class CG>
-  __device__ void clear(CG const& group) noexcept;
+  __device__ constexpr void clear(CG const& group) noexcept;
 
   /**
    * @brief Asynchronously resets the estimator, i.e., clears the current count estimate.
    *
    * @param stream CUDA stream this operation is executed in
    */
-  __host__ void clear_async(cuco::cuda_stream_ref stream = {}) noexcept;
+  __host__ constexpr void clear_async(cuco::cuda_stream_ref stream = {}) noexcept;
 
   /**
    * @brief Resets the estimator, i.e., clears the current count estimate.
@@ -90,14 +90,14 @@ class distinct_count_estimator_ref {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  __host__ void clear(cuco::cuda_stream_ref stream = {});
+  __host__ constexpr void clear(cuco::cuda_stream_ref stream = {});
 
   /**
    * @brief Adds an item to the estimator.
    *
    * @param item The item to be counted
    */
-  __device__ void add(T const& item) noexcept;
+  __device__ constexpr void add(T const& item) noexcept;
 
   /**
    * @brief Asynchronously adds to be counted items to the estimator.
@@ -111,7 +111,7 @@ class distinct_count_estimator_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  __host__ void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream = {});
+  __host__ constexpr void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream = {});
 
   /**
    * @brief Adds to be counted items to the estimator.
@@ -128,7 +128,7 @@ class distinct_count_estimator_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  __host__ void add(InputIt first, InputIt last, cuco::cuda_stream_ref stream = {});
+  __host__ constexpr void add(InputIt first, InputIt last, cuco::cuda_stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator reference.
@@ -142,8 +142,8 @@ class distinct_count_estimator_ref {
    * @param other Other estimator reference to be merged into `*this`
    */
   template <class CG, cuda::thread_scope OtherScope>
-  __device__ void merge(CG const& group,
-                        distinct_count_estimator_ref<T, OtherScope, Hash> const& other);
+  __device__ constexpr void merge(CG const& group,
+                                  distinct_count_estimator_ref<T, OtherScope, Hash> const& other);
 
   /**
    * @brief Asynchronously merges the result of `other` estimator reference into `*this` estimator.
@@ -156,8 +156,9 @@ class distinct_count_estimator_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ void merge_async(distinct_count_estimator_ref<T, OtherScope, Hash> const& other,
-                            cuco::cuda_stream_ref stream = {});
+  __host__ constexpr void merge_async(
+    distinct_count_estimator_ref<T, OtherScope, Hash> const& other,
+    cuco::cuda_stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator.
@@ -173,8 +174,8 @@ class distinct_count_estimator_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ void merge(distinct_count_estimator_ref<T, OtherScope, Hash> const& other,
-                      cuco::cuda_stream_ref stream = {});
+  __host__ constexpr void merge(distinct_count_estimator_ref<T, OtherScope, Hash> const& other,
+                                cuco::cuda_stream_ref stream = {});
 
   /**
    * @brief Compute the estimated distinct items count.
@@ -195,21 +196,21 @@ class distinct_count_estimator_ref {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] __host__ std::size_t estimate(cuco::cuda_stream_ref stream = {}) const;
+  [[nodiscard]] __host__ constexpr std::size_t estimate(cuco::cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Gets the hash function.
    *
    * @return The hash function
    */
-  [[nodiscard]] __host__ __device__ auto hash_function() const noexcept;
+  [[nodiscard]] __host__ __device__ constexpr auto hash_function() const noexcept;
 
   /**
    * @brief Gets the span of the sketch.
    *
    * @return The cuda::std::span of the sketch
    */
-  [[nodiscard]] __host__ __device__ cuda::std::span<std::byte> sketch() const noexcept;
+  [[nodiscard]] __host__ __device__ constexpr cuda::std::span<std::byte> sketch() const noexcept;
 
   /**
    * @brief Gets the number of bytes required for the sketch storage.

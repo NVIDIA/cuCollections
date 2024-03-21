@@ -107,7 +107,7 @@ class hyperloglog_ref {
    * @param group CUDA Cooperative group this operation is executed in
    */
   template <class CG>
-  __device__ void clear(CG const& group) noexcept
+  __device__ constexpr void clear(CG const& group) noexcept
   {
     for (int i = group.thread_rank(); i < this->sketch_.size(); i += group.size()) {
       new (&(this->sketch_[i])) register_type{};
@@ -122,7 +122,7 @@ class hyperloglog_ref {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  __host__ void clear(cuco::cuda_stream_ref stream)
+  __host__ constexpr void clear(cuco::cuda_stream_ref stream)
   {
     this->clear_async(stream);
     stream.synchronize();
@@ -133,7 +133,7 @@ class hyperloglog_ref {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  __host__ void clear_async(cuco::cuda_stream_ref stream) noexcept
+  __host__ constexpr void clear_async(cuco::cuda_stream_ref stream) noexcept
   {
     auto constexpr block_size = 1024;
     cuco::hyperloglog_ns::detail::clear<<<1, block_size, 0, stream>>>(*this);
@@ -144,7 +144,7 @@ class hyperloglog_ref {
    *
    * @param item The item to be counted
    */
-  __device__ void add(T const& item) noexcept
+  __device__ constexpr void add(T const& item) noexcept
   {
     auto const h      = this->hash_(item);
     auto const reg    = h & this->register_mask_;
@@ -165,7 +165,7 @@ class hyperloglog_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  __host__ void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
+  __host__ constexpr void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
   {
     auto const num_items = cuco::detail::distance(first, last);
     if (num_items == 0) { return; }
@@ -256,7 +256,7 @@ class hyperloglog_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  __host__ void add(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
+  __host__ constexpr void add(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
   {
     this->add_async(first, last, stream);
     stream.synchronize();
@@ -274,7 +274,8 @@ class hyperloglog_ref {
    * @param other Other estimator reference to be merged into `*this`
    */
   template <class CG, cuda::thread_scope OtherScope>
-  __device__ void merge(CG const& group, hyperloglog_ref<T, OtherScope, Hash> const& other)
+  __device__ constexpr void merge(CG const& group,
+                                  hyperloglog_ref<T, OtherScope, Hash> const& other)
   {
     // TODO find a better way to do error handling in device code
     // if (other.precision_ != this->precision_) { __trap(); }
@@ -296,8 +297,8 @@ class hyperloglog_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ void merge_async(hyperloglog_ref<T, OtherScope, Hash> const& other,
-                            cuco::cuda_stream_ref stream)
+  __host__ constexpr void merge_async(hyperloglog_ref<T, OtherScope, Hash> const& other,
+                                      cuco::cuda_stream_ref stream)
   {
     CUCO_EXPECTS(other.precision == this->precision_,
                  "Cannot merge estimators with different sketch sizes",
@@ -320,8 +321,8 @@ class hyperloglog_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ void merge(hyperloglog_ref<T, OtherScope, Hash> const& other,
-                      cuco::cuda_stream_ref stream)
+  __host__ constexpr void merge(hyperloglog_ref<T, OtherScope, Hash> const& other,
+                                cuco::cuda_stream_ref stream)
   {
     this->merge_async(other, stream);
     stream.synchronize();
@@ -396,7 +397,7 @@ class hyperloglog_ref {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] __host__ std::size_t estimate(cuco::cuda_stream_ref stream) const
+  [[nodiscard]] __host__ constexpr std::size_t estimate(cuco::cuda_stream_ref stream) const
   {
     auto const num_regs = 1ull << this->precision_;
     std::vector<register_type> host_sketch(num_regs);
@@ -429,14 +430,17 @@ class hyperloglog_ref {
    *
    * @return The hash function
    */
-  [[nodiscard]] __host__ __device__ auto hash_function() const noexcept { return this->hash_; }
+  [[nodiscard]] __host__ __device__ constexpr auto hash_function() const noexcept
+  {
+    return this->hash_;
+  }
 
   /**
    * @brief Gets the span of the sketch.
    *
    * @return The cuda::std::span of the sketch
    */
-  [[nodiscard]] __host__ __device__ cuda::std::span<std::byte> sketch() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr cuda::std::span<std::byte> sketch() const noexcept
   {
     return cuda::std::span<std::byte>(reinterpret_cast<std::byte*>(this->sketch_.data()),
                                       this->sketch_bytes());
@@ -447,7 +451,7 @@ class hyperloglog_ref {
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] __host__ __device__ std::size_t sketch_bytes() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr std::size_t sketch_bytes() const noexcept
   {
     return (1ull << this->precision_) * sizeof(register_type);
   }
