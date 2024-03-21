@@ -118,9 +118,15 @@ CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output
         auto const tile  = cg::tiled_partition<CGSize>(block);
         auto const found = ref.find(tile, key);
 
+#if defined(CUCO_HAS_CG_INVOKE_ONE)
+        cg::invoke_one(tile, [&]() {
+          *(output_begin + idx) = found == ref.end() ? ref.empty_value_sentinel() : (*found).second;
+        });
+#else
         if (tile.thread_rank() == 0) {
           *(output_begin + idx) = found == ref.end() ? ref.empty_value_sentinel() : (*found).second;
         }
+#endif
       }
     }
     idx += loop_stride;
