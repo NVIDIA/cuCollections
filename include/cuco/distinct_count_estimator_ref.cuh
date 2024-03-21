@@ -55,8 +55,9 @@ class distinct_count_estimator_ref {
   /**
    * @brief Constructs a non-owning `distinct_count_estimator_ref` object.
    *
-   * @throw If sketch size < 0.0625KB or 64B
-   * @throw If sketch storage has insufficient alignment
+   * @throw If sketch size < 0.0625KB or 64B. Throws if called from host; UB if called from device.
+   * @throw If sketch storage has insufficient alignment. Throws if called from host; UB if called
+   * from device.
    *
    * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
@@ -132,7 +133,7 @@ class distinct_count_estimator_ref {
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator reference.
    *
-   * @throw If this->sketch_bytes() != other.sketch_bytes()
+   * @throw If this->sketch_bytes() != other.sketch_bytes() then behavior is undefined
    *
    * @tparam CG CUDA Cooperative Group type
    * @tparam OtherScope Thread scope of `other` estimator

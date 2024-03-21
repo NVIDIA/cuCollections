@@ -35,6 +35,7 @@
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
 
+#include <algorithm>  // there is no <cuda/std/algorithm>
 #include <cstddef>
 #include <vector>
 
@@ -70,8 +71,9 @@ class hyperloglog_ref {
   /**
    * @brief Constructs a non-owning `hyperloglog_ref` object.
    *
-   * @throw If sketch size < 0.0625KB or 64B
-   * @throw If sketch storage has insufficient alignment
+   * @throw If sketch size < 0.0625KB or 64B. Throws if called from host; UB if called from device.
+   * @throw If sketch storage has insufficient alignment. Throws if called from host; UB if called.
+   * from device.
    *
    * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
@@ -86,24 +88,15 @@ class hyperloglog_ref {
       sketch_{reinterpret_cast<register_type*>(sketch_span.data()),
               this->sketch_bytes() / sizeof(register_type)}
   {
+#ifndef __CUDA_ARCH__
     auto const alignment =
       1ull << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(sketch_span.data()));
+    CUCO_EXPECTS(
+      alignment >= sketch_alignment(), "Insufficient sketch alignment", std::runtime_error);
 
-    if (alignment < sketch_alignment()) {
-#ifdef __CUDA_ARCH__
-      __trap();
-#else
-      CUCO_FAIL("Insufficient sketch alignment", std::runtime_error);
+    CUCO_EXPECTS(
+      this->precision_ >= 4, "Minimum required sketch size is 0.0625KB or 64B", std::runtime_error);
 #endif
-    }
-
-    if (this->precision_ < 4) {
-#ifdef __CUDA_ARCH__
-      __trap();
-#else
-      CUCO_FAIL("Minimum required sketch size is 0.0625KB or 64B", std::runtime_error);
-#endif
-    }
   }
 
   /**
@@ -272,7 +265,7 @@ class hyperloglog_ref {
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator reference.
    *
-   * @throw If this->sketch_bytes() != other.sketch_bytes()
+   * @throw If this->sketch_bytes() != other.sketch_bytes() then behavior is undefined
    *
    * @tparam CG CUDA Cooperative Group type
    * @tparam OtherScope Thread scope of `other` estimator
@@ -283,7 +276,8 @@ class hyperloglog_ref {
   template <class CG, cuda::thread_scope OtherScope>
   __device__ void merge(CG const& group, hyperloglog_ref<T, OtherScope, Hash> const& other)
   {
-    if (other.precision_ != this->precision_) { __trap(); }
+    // TODO find a better way to do error handling in device code
+    // if (other.precision_ != this->precision_) { __trap(); }
 
     for (int i = group.thread_rank(); i < this->sketch_.size(); i += group.size()) {
       this->update_max(i, other.sketch_[i]);
@@ -468,7 +462,9 @@ class hyperloglog_ref {
   [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
     cuco::sketch_size_kb sketch_size_kb) noexcept
   {
-    return cuda::std::bit_floor(static_cast<std::size_t>(sketch_size_kb * 1024));
+    // minimum precision is 4 or 64 bytes
+    return std::max(static_cast<std::size_t>(sizeof(register_type) * 1ull << 4),
+                    cuda::std::bit_floor(static_cast<std::size_t>(sketch_size_kb * 1024)));
   }
 
   /**
