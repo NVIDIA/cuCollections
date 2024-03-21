@@ -82,7 +82,6 @@ class distinct_count_estimator {
   distinct_count_estimator& operator=(distinct_count_estimator const&) = delete;
   distinct_count_estimator(distinct_count_estimator&&) = default;  ///< Move constructor
 
-  // TODO this is somehow required to pass the Doxygen check.
   /**
    * @brief Copy-assignment operator.
    *
