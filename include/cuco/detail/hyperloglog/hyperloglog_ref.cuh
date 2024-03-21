@@ -26,7 +26,6 @@
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
-#include <thrust/host_vector.h>
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <cuda/std/bit>
@@ -37,6 +36,7 @@
 #include <cooperative_groups/reduce.h>
 
 #include <cstddef>
+#include <vector>
 
 namespace cuco::detail {
 
@@ -405,7 +405,7 @@ class hyperloglog_ref {
   [[nodiscard]] __host__ std::size_t estimate(cuco::cuda_stream_ref stream) const
   {
     auto const num_regs = 1ull << this->precision_;
-    thrust::host_vector<register_type> host_sketch(num_regs);
+    std::vector<register_type> host_sketch(num_regs);
 
     // TODO check if storage is host accessible
     CUCO_CUDA_TRY(cudaMemcpyAsync(host_sketch.data(),
