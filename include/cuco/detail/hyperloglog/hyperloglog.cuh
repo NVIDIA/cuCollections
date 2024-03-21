@@ -73,9 +73,9 @@ class hyperloglog {
                         Allocator const& alloc,
                         cuco::cuda_stream_ref stream)
     : allocator_{alloc},
-      deleter_{sketch_bytes(sketch_size_kb) / sizeof(register_type), this->allocator_},
-      sketch_{this->allocator_.allocate(sketch_bytes(sketch_size_kb) / sizeof(register_type)),
-              this->deleter_},
+      sketch_{
+        this->allocator_.allocate(sketch_bytes(sketch_size_kb) / sizeof(register_type)),
+        custom_deleter{sketch_bytes(sketch_size_kb) / sizeof(register_type), this->allocator_}},
       ref_{cuda::std::span{reinterpret_cast<std::byte*>(this->sketch_.get()),
                            sketch_bytes(sketch_size_kb)},
            hash}
@@ -293,8 +293,7 @@ class hyperloglog {
   }
 
  private:
-  allocator_type allocator_;                             ///< Storage allocator
-  custom_deleter<std::size_t, allocator_type> deleter_;  ///< Storage deleter
+  allocator_type allocator_;  ///< Storage allocator
   std::unique_ptr<register_type, custom_deleter<std::size_t, allocator_type>>
     sketch_;        ///< Sketch storage
   ref_type<> ref_;  //< Ref type
