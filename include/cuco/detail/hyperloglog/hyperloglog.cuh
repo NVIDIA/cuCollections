@@ -20,7 +20,7 @@
 #include <cuco/detail/hyperloglog/hyperloglog_ref.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/hash_functions.cuh>
-#include <cuco/sketch_size.hpp>
+#include <cuco/sketch_size.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cstddef>

@@ -18,7 +18,7 @@
 #include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/hyperloglog/hyperloglog_ref.cuh>
 #include <cuco/hash_functions.cuh>
-#include <cuco/sketch_size.hpp>
+#include <cuco/sketch_size.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cooperative_groups.h>
