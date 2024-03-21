@@ -117,7 +117,7 @@ class hyperloglog_ref {
   __device__ void clear(CG const& group) noexcept
   {
     for (int i = group.thread_rank(); i < this->sketch_.size(); i += group.size()) {
-      this->sketch_[i] = 0;
+      new (&(this->sketch_[i])) register_type{};
     }
   }
 
