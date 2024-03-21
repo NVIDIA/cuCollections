@@ -107,9 +107,10 @@ __host__ std::size_t distinct_count_estimator_ref<T, Scope, Hash>::estimate(
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
-__host__ __device__ auto distinct_count_estimator_ref<T, Scope, Hash>::hash() const noexcept
+__host__ __device__ auto distinct_count_estimator_ref<T, Scope, Hash>::hash_function()
+  const noexcept
 {
-  return this->impl_.hash();
+  return this->impl_.hash_function();
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>

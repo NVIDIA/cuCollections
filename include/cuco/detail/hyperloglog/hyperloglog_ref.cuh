@@ -60,7 +60,7 @@ class hyperloglog_ref {
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
   using value_type    = T;     ///< Type of items to count
-  using hash_type     = Hash;  ///< Hash function type
+  using hasher        = Hash;  ///< Hash function type
   using register_type = int;   ///< HLL register type
 
   template <cuda::thread_scope NewScope>
@@ -435,7 +435,7 @@ class hyperloglog_ref {
    *
    * @return The hash function
    */
-  [[nodiscard]] __host__ __device__ auto hash() const noexcept { return this->hash_; }
+  [[nodiscard]] __host__ __device__ auto hash_function() const noexcept { return this->hash_; }
 
   /**
    * @brief Gets the span of the sketch.
@@ -524,7 +524,7 @@ class hyperloglog_ref {
                                                shmem_bytes);
   }
 
-  hash_type hash_;                         ///< Hash function used to hash items
+  hasher hash_;                            ///< Hash function used to hash items
   int32_t precision_;                      ///< HLL precision parameter
   hash_value_type register_mask_;          ///< Mask used to separate register index from count
   cuda::std::span<register_type> sketch_;  ///< HLL sketch storage

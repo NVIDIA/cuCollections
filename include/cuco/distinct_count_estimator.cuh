@@ -54,6 +54,7 @@ class distinct_count_estimator {
                                                                            ///< type
 
   using value_type     = typename impl_type::value_type;      ///< Type of items to count
+  using hasher         = typename impl_type::hasher;          ///< Type of hash function
   using allocator_type = typename impl_type::allocator_type;  ///< Allocator type
 
   // TODO enable CTAD
@@ -222,7 +223,7 @@ class distinct_count_estimator {
    *
    * @return The hash function
    */
-  [[nodiscard]] auto hash() const noexcept;
+  [[nodiscard]] auto hash_function() const noexcept;
 
   /**
    * @brief Gets the span of the sketch.

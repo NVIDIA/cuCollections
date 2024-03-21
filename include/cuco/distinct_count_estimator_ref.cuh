@@ -46,6 +46,7 @@ class distinct_count_estimator_ref {
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
 
   using value_type = typename impl_type::value_type;  ///< Type of items to count
+  using hasher     = typename impl_type::hasher;      ///< Type of hash function
 
   template <cuda::thread_scope NewScope>
   using with_scope = distinct_count_estimator_ref<T, NewScope, Hash>;  ///< Ref type with different
@@ -200,7 +201,7 @@ class distinct_count_estimator_ref {
    *
    * @return The hash function
    */
-  [[nodiscard]] __host__ __device__ auto hash() const noexcept;
+  [[nodiscard]] __host__ __device__ auto hash_function() const noexcept;
 
   /**
    * @brief Gets the span of the sketch.

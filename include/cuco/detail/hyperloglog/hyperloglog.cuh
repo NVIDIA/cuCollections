@@ -49,7 +49,7 @@ class hyperloglog {
                                                         ///< type
 
   using value_type    = typename ref_type<>::value_type;     ///< Type of items to count
-  using hash_type     = typename ref_type<>::hash_type;      ///< Hash function type
+  using hasher        = typename ref_type<>::hasher;         ///< Hash function type
   using register_type = typename ref_type<>::register_type;  ///< HLL register type
   using allocator_type =
     typename std::allocator_traits<Allocator>::template rebind_alloc<register_type>;  ///< Allocator
@@ -250,7 +250,7 @@ class hyperloglog {
    *
    * @return The hash function
    */
-  [[nodiscard]] auto hash() const noexcept { return this->ref_.hash(); }
+  [[nodiscard]] auto hash_function() const noexcept { return this->ref_.hash_function(); }
 
   /**
    * @brief Gets the span of the sketch.

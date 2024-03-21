@@ -101,13 +101,13 @@ template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 typename distinct_count_estimator<T, Scope, Hash, Allocator>::ref_type<>
 distinct_count_estimator<T, Scope, Hash, Allocator>::ref() const noexcept
 {
-  return {this->sketch(), this->hash()};
+  return {this->sketch(), this->hash_function()};
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
-auto distinct_count_estimator<T, Scope, Hash, Allocator>::hash() const noexcept
+auto distinct_count_estimator<T, Scope, Hash, Allocator>::hash_function() const noexcept
 {
-  return this->impl_->hash();
+  return this->impl_->hash_function();
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
