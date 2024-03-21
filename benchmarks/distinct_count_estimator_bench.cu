@@ -28,6 +28,7 @@
 
 #include <cuda/functional>
 
+#include <cmath>
 #include <cstddef>
 
 using namespace cuco::benchmark;
@@ -66,7 +67,7 @@ template <class Estimator, class Dist>
     estimator.add(items.begin(), items.end());
     double estimated_cardinality = estimator.estimate();
     double true_cardinality      = exact_distinct_count(items.begin(), num_items);
-    error_sum += abs(true_cardinality - estimated_cardinality) / true_cardinality;
+    error_sum += std::abs(true_cardinality - estimated_cardinality) / true_cardinality;
     estimator.clear();
   }
 

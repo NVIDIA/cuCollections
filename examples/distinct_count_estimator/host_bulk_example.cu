@@ -18,6 +18,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/sequence.h>
 
+#include <cmath>
 #include <cstddef>
 #include <iostream>
 
@@ -49,7 +50,8 @@ int main(void)
 
   std::cout << "True cardinality: " << num_items
             << "\nEstimated cardinality: " << estimated_cardinality << "\nRelative error: "
-            << abs(static_cast<double>(num_items) - static_cast<double>(estimated_cardinality)) /
+            << std::abs(static_cast<double>(num_items) -
+                        static_cast<double>(estimated_cardinality)) /
                  num_items
             << std::endl;
 
