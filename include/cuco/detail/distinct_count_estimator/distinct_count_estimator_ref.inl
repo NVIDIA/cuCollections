@@ -137,6 +137,14 @@ distinct_count_estimator_ref<T, Scope, Hash>::sketch_bytes(
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ __device__ constexpr std::size_t
+distinct_count_estimator_ref<T, Scope, Hash>::sketch_bytes(
+  cuco::standard_deviation standard_deviation) noexcept
+{
+  return impl_type::sketch_bytes(standard_deviation);
+}
+
+template <class T, cuda::thread_scope Scope, class Hash>
+__host__ __device__ constexpr std::size_t
 distinct_count_estimator_ref<T, Scope, Hash>::sketch_alignment() noexcept
 {
   return impl_type::sketch_alignment();

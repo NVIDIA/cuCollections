@@ -27,6 +27,16 @@ constexpr distinct_count_estimator<T, Scope, Hash, Allocator>::distinct_count_es
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
+constexpr distinct_count_estimator<T, Scope, Hash, Allocator>::distinct_count_estimator(
+  cuco::standard_deviation standard_deviation,
+  Hash const& hash,
+  Allocator const& alloc,
+  cuco::cuda_stream_ref stream)
+  : impl_{std::make_unique<impl_type>(standard_deviation, hash, alloc, stream)}
+{
+}
+
+template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::clear_async(
   cuco::cuda_stream_ref stream) noexcept
 {
@@ -128,6 +138,13 @@ constexpr size_t distinct_count_estimator<T, Scope, Hash, Allocator>::sketch_byt
   cuco::sketch_size_kb sketch_size_kb) noexcept
 {
   return impl_type::sketch_bytes(sketch_size_kb);
+}
+
+template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
+constexpr size_t distinct_count_estimator<T, Scope, Hash, Allocator>::sketch_bytes(
+  cuco::standard_deviation standard_deviation) noexcept
+{
+  return impl_type::sketch_bytes(standard_deviation);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>

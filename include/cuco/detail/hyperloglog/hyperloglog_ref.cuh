@@ -23,6 +23,7 @@
 #include <cuco/detail/utils.hpp>
 #include <cuco/hash_functions.cuh>
 #include <cuco/sketch_size.cuh>
+#include <cuco/standard_deviation.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
@@ -71,7 +72,8 @@ class hyperloglog_ref {
   /**
    * @brief Constructs a non-owning `hyperloglog_ref` object.
    *
-   * @throw If sketch size < 0.0625KB or 64B. Throws if called from host; UB if called from device.
+   * @throw If sketch size < 0.0625KB or 64B or standard deviation > 0.2765. Throws if called from
+   * host; UB if called from device.
    * @throw If sketch storage has insufficient alignment. Throws if called from host; UB if called.
    * from device.
    *
@@ -469,6 +471,31 @@ class hyperloglog_ref {
     // minimum precision is 4 or 64 bytes
     return std::max(static_cast<std::size_t>(sizeof(register_type) * 1ull << 4),
                     cuda::std::bit_floor(static_cast<std::size_t>(sketch_size_kb * 1024)));
+  }
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param standard_deviation Upper bound standard deviation for approximation error
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
+    cuco::standard_deviation standard_deviation) noexcept
+  {
+    // implementation taken from
+    // https://github.com/apache/spark/blob/6a27789ad7d59cd133653a49be0bb49729542abe/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/util/HyperLogLogPlusPlusHelper.scala#L43
+
+    //  minimum precision is 4 or 64 bytes
+    auto const precision = std::max(
+      static_cast<int32_t>(4),
+      static_cast<int32_t>(
+        cuda::std::ceil(2.0 * cuda::std::log(1.106 / standard_deviation) / cuda::std::log(2.0))));
+
+    // inverse of this function (ommitting the minimum precision constraint) is
+    // standard_deviation = 1.106 / exp((precision * log(2.0)) / 2.0)
+
+    return sizeof(register_type) * (1ull << precision);
   }
 
   /**

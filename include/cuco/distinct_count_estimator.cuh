@@ -20,6 +20,7 @@
 #include <cuco/distinct_count_estimator_ref.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/sketch_size.cuh>
+#include <cuco/standard_deviation.cuh>
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
@@ -63,9 +64,6 @@ class distinct_count_estimator {
    *
    * @note This function synchronizes the given stream.
    *
-   * @throw If sketch size < 0.0625KB or 64B
-   * @throw If sketch storage has insufficient alignment
-   *
    * @param sketch_size_kb Maximum sketch size in KB
    * @param hash The hash function used to hash items
    * @param alloc Allocator used for allocating device storage
@@ -75,6 +73,21 @@ class distinct_count_estimator {
                                      Hash const& hash                    = {},
                                      Allocator const& alloc              = {},
                                      cuco::cuda_stream_ref stream        = {});
+
+  /**
+   * @brief Constructs a `distinct_count_estimator` host object.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @param standard_deviation Desired standard deviation for the approximation error
+   * @param hash The hash function used to hash items
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the object
+   */
+  constexpr distinct_count_estimator(cuco::standard_deviation standard_deviation,
+                                     Hash const& hash             = {},
+                                     Allocator const& alloc       = {},
+                                     cuco::cuda_stream_ref stream = {});
 
   ~distinct_count_estimator() = default;
 
@@ -249,6 +262,16 @@ class distinct_count_estimator {
    */
   [[nodiscard]] static constexpr std::size_t sketch_bytes(
     cuco::sketch_size_kb sketch_size_kb) noexcept;
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param standard_deviation Upper bound standard deviation for approximation error
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] static constexpr std::size_t sketch_bytes(
+    cuco::standard_deviation standard_deviation) noexcept;
 
   /**
    * @brief Gets the alignment required for the sketch storage.

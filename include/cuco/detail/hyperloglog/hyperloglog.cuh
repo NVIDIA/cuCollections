@@ -21,6 +21,7 @@
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/sketch_size.cuh>
+#include <cuco/standard_deviation.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cstddef>
@@ -55,13 +56,34 @@ class hyperloglog {
     typename std::allocator_traits<Allocator>::template rebind_alloc<register_type>;  ///< Allocator
                                                                                       ///< type
 
+ private:
   /**
    * @brief Constructs a `hyperloglog` host object.
    *
    * @note This function synchronizes the given stream.
    *
-   * @throw If sketch size < 0.0625KB or 64B
-   * @throw If sketch storage has insufficient alignment
+   * @param sketch_size_b Sketch size in bytes
+   * @param hash The hash function used to hash items
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the object
+   */
+  constexpr hyperloglog(std::size_t sketch_size_b,
+                        Hash const& hash,
+                        Allocator const& alloc,
+                        cuco::cuda_stream_ref stream)
+    : allocator_{alloc},
+      sketch_{this->allocator_.allocate(sketch_size_b / sizeof(register_type)),
+              custom_deleter{sketch_size_b / sizeof(register_type), this->allocator_}},
+      ref_{cuda::std::span{reinterpret_cast<std::byte*>(this->sketch_.get()), sketch_size_b}, hash}
+  {
+    this->ref_.clear_async(stream);
+  }
+
+ public:
+  /**
+   * @brief Constructs a `hyperloglog` host object.
+   *
+   * @note This function synchronizes the given stream.
    *
    * @param sketch_size_kb Maximum sketch size in KB
    * @param hash The hash function used to hash items
@@ -72,15 +94,26 @@ class hyperloglog {
                         Hash const& hash,
                         Allocator const& alloc,
                         cuco::cuda_stream_ref stream)
-    : allocator_{alloc},
-      sketch_{
-        this->allocator_.allocate(sketch_bytes(sketch_size_kb) / sizeof(register_type)),
-        custom_deleter{sketch_bytes(sketch_size_kb) / sizeof(register_type), this->allocator_}},
-      ref_{cuda::std::span{reinterpret_cast<std::byte*>(this->sketch_.get()),
-                           sketch_bytes(sketch_size_kb)},
-           hash}
+    : hyperloglog{sketch_bytes(sketch_size_kb), hash, alloc, stream}
   {
-    this->ref_.clear_async(stream);
+  }
+
+  /**
+   * @brief Constructs a `hyperloglog` host object.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @param standard_deviation Desired standard deviation for the approximation error
+   * @param hash The hash function used to hash items
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the object
+   */
+  constexpr hyperloglog(cuco::standard_deviation standard_deviation,
+                        Hash const& hash,
+                        Allocator const& alloc,
+                        cuco::cuda_stream_ref stream)
+    : hyperloglog{sketch_bytes(standard_deviation), hash, alloc, stream}
+  {
   }
 
   ~hyperloglog() = default;
@@ -286,6 +319,19 @@ class hyperloglog {
     cuco::sketch_size_kb sketch_size_kb) noexcept
   {
     return ref_type<>::sketch_bytes(sketch_size_kb);
+  }
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param standard_deviation Upper bound standard deviation for approximation error
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] static constexpr std::size_t sketch_bytes(
+    cuco::standard_deviation standard_deviation) noexcept
+  {
+    return ref_type<>::sketch_bytes(standard_deviation);
   }
 
   /**

@@ -55,7 +55,8 @@ class distinct_count_estimator_ref {
   /**
    * @brief Constructs a non-owning `distinct_count_estimator_ref` object.
    *
-   * @throw If sketch size < 0.0625KB or 64B. Throws if called from host; UB if called from device.
+   * @throw If sketch size < 0.0625KB or 64B or standard deviation > 0.2765. Throws if called from
+   * host; UB if called from device.
    * @throw If sketch storage has insufficient alignment. Throws if called from host; UB if called
    * from device.
    *
@@ -228,6 +229,16 @@ class distinct_count_estimator_ref {
    */
   [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
     cuco::sketch_size_kb sketch_size_kb) noexcept;
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param standard_deviation Upper bound standard deviation for approximation error
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
+    cuco::standard_deviation standard_deviation) noexcept;
 
   /**
    * @brief Gets the alignment required for the sketch storage.

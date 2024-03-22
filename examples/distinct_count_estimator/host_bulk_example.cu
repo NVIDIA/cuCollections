@@ -36,8 +36,12 @@ int main(void)
   // Generate `num_items` distinct items
   thrust::sequence(items.begin(), items.end(), 0);
 
+  // We define the desired standard deviation of the approximation error
+  // 0.0122197 is the default value and corresponds to a 32KB sketch size
+  auto const sd = cuco::standard_deviation{0.0122197};
+
   // Initialize the estimator
-  cuco::distinct_count_estimator<T> estimator;
+  cuco::distinct_count_estimator<T> estimator{sd};
 
   // Add all items to the estimator
   estimator.add(items.begin(), items.end());
