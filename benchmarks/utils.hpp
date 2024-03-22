@@ -21,8 +21,6 @@
 
 #include <nvbench/nvbench.cuh>
 
-#include <cuda/std/atomic>  // thread_scope
-
 namespace cuco::benchmark {
 
 template <typename Dist>
