@@ -84,7 +84,7 @@ class hyperloglog_ref {
                                                 Hash const& hash)
     : hash_{hash},
       precision_{cuda::std::countr_zero(
-        sketch_bytes(cuco::sketch_size_kb(static_cast<double>(sketch_span.size() / 1024))) /
+        sketch_bytes(cuco::sketch_size_kb(static_cast<double>(sketch_span.size() / 1024.0))) /
         sizeof(register_type))},
       register_mask_{(1ull << this->precision_) - 1},
       sketch_{reinterpret_cast<register_type*>(sketch_span.data()),
@@ -152,6 +152,10 @@ class hyperloglog_ref {
     auto const reg    = h & this->register_mask_;
     auto const zeroes = cuda::std::countl_zero(h | this->register_mask_) + 1;  // __clz
 
+    // reversed order (same one as Spark uses)
+    // auto const reg    = h >> ((sizeof(hash_value_type) * 8) - this->precision_);
+    // auto const zeroes = cuda::std::countl_zero(h << this->precision_) + 1;
+
     this->update_max(reg, zeroes);
   }
 
@@ -207,19 +211,21 @@ class hyperloglog_ref {
     }
 
     if (kernel != nullptr and this->try_reserve_shmem(kernel, shmem_bytes)) {
-      // We make use of the occupancy calculator to get the minimum number of blocks which still
-      // saturates the GPU. This reduces the shmem initialization overhead and atomic contention on
-      // the final register array during the merge phase.
-      CUCO_CUDA_TRY(
-        cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, shmem_bytes));
+      if constexpr (thrust::is_contiguous_iterator_v<InputIt>) {
+        // We make use of the occupancy calculator to get the minimum number of blocks which still
+        // saturates the GPU. This reduces the shmem initialization overhead and atomic contention
+        // on the final register array during the merge phase.
+        CUCO_CUDA_TRY(
+          cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, shmem_bytes));
 
-      auto const ptr      = thrust::raw_pointer_cast(&first[0]);
-      void* kernel_args[] = {
-        (void*)(&ptr),  // TODO can't use reinterpret_cast since it can't cast away const
-        (void*)(&num_items),
-        reinterpret_cast<void*>(this)};
-      CUCO_CUDA_TRY(
-        cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream));
+        auto const ptr      = thrust::raw_pointer_cast(&first[0]);
+        void* kernel_args[] = {
+          (void*)(&ptr),  // TODO can't use reinterpret_cast since it can't cast away const
+          (void*)(&num_items),
+          reinterpret_cast<void*>(this)};
+        CUCO_CUDA_TRY(
+          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream));
+      }
     } else {
       kernel = reinterpret_cast<void const*>(
         cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_ref>);
