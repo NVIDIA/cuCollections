@@ -53,10 +53,9 @@ int main(void)
   std::size_t const estimated_cardinality = estimator.estimate();
 
   std::cout << "True cardinality: " << num_items
-            << "\nEstimated cardinality: " << estimated_cardinality << "\nRelative error: "
-            << std::abs(static_cast<double>(num_items) -
-                        static_cast<double>(estimated_cardinality)) /
-                 num_items
+            << "\nEstimated cardinality: " << estimated_cardinality << "\nError: "
+            << std::abs(
+                 static_cast<double>(estimated_cardinality) / static_cast<double>(num_items) - 1.0)
             << std::endl;
 
   return 0;

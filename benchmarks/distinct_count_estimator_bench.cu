@@ -67,7 +67,7 @@ template <class Estimator, class Dist>
     estimator.add(items.begin(), items.end());
     double estimated_cardinality = estimator.estimate();
     double true_cardinality      = exact_distinct_count(items.begin(), num_items);
-    error_sum += std::abs(true_cardinality - estimated_cardinality) / true_cardinality;
+    error_sum += std::abs(estimated_cardinality / true_cardinality - 1.0);
     estimator.clear();
   }
 
