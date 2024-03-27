@@ -50,3 +50,7 @@
 #if defined(__SIZEOF_INT128__)
 #define CUCO_HAS_INT128
 #endif
+
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 12000)
+#define CUCO_HAS_CG_REDUCE_UPDATE_ASYNC
+#endif
