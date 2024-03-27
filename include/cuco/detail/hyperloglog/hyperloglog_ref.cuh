@@ -308,7 +308,7 @@ class hyperloglog_ref {
   __host__ constexpr void merge_async(hyperloglog_ref<T, OtherScope, Hash> const& other,
                                       cuco::cuda_stream_ref stream)
   {
-    CUCO_EXPECTS(other.precision == this->precision_,
+    CUCO_EXPECTS(other.precision_ == this->precision_,
                  "Cannot merge estimators with different sketch sizes",
                  std::runtime_error);
     auto constexpr block_size = 1024;
