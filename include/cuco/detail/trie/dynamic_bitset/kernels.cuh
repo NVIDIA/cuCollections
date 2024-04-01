@@ -57,6 +57,35 @@ CUCO_KERNEL void bitset_test_kernel(BitsetRef ref,
 }
 
 /*
+ * @brief Compute position of next set bit for a range of keys
+ *
+ * @tparam BitsetRef Bitset reference type
+ * @tparam KeyIt Device-accessible iterator whose `value_type` can be converted to bitset's
+ * `size_type`
+ * @tparam OutputIt Device-accessible iterator whose `value_type` can be constructed from bitset's
+ * `size_type`
+ *
+ * @param ref Bitset ref
+ * @param keys Begin iterator to keys
+ * @param outputs Begin iterator to outputs
+ * @param num_keys Number of input keys
+ */
+template <typename BitsetRef, typename KeyIt, typename OutputIt>
+__global__ void bitset_find_next_kernel(BitsetRef ref,
+                                        KeyIt keys,
+                                        OutputIt outputs,
+                                        cuco::detail::index_type num_keys)
+{
+  auto key_id       = cuco::detail::global_thread_id();
+  auto const stride = cuco::detail::grid_stride();
+
+  while (key_id < num_keys) {
+    outputs[key_id] = ref.find_next(keys[key_id]);
+    key_id += stride;
+  }
+}
+
+/*
  * @brief Gather rank values for a range of keys
  *
  * @tparam BitsetRef Bitset reference type

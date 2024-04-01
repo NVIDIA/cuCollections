@@ -34,12 +34,13 @@ endif()
 ###################################################################################################
 function(ConfigureTest TEST_NAME)
     add_executable(${TEST_NAME} ${ARGN})
-    target_link_libraries(${TEST_NAME} PRIVATE Catch2::Catch2WithMain cuco CUDA::cudart)
+    target_link_options(${TEST_NAME} PRIVATE -fopenmp)
+    target_link_libraries(${TEST_NAME} PRIVATE Catch2::Catch2WithMain cuco CUDA::cudart Threads::Threads)
     target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     set_target_properties(${TEST_NAME} PROPERTIES
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     target_compile_options(${TEST_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)
+      --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage -fopenmp)
     catch_discover_tests(${TEST_NAME} EXTRA_ARGS --allow-running-no-tests)
 endfunction(ConfigureTest)
 
@@ -110,8 +111,13 @@ ConfigureTest(STATIC_MULTIMAP_TEST
 ###################################################################################################
 # - dynamic_bitset tests --------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_BITSET_TEST
-    dynamic_bitset/find_next_test.cu
-    dynamic_bitset/get_test.cu
-    dynamic_bitset/rank_test.cu
-    dynamic_bitset/select_test.cu
-    dynamic_bitset/size_test.cu)
+    trie/dynamic_bitset/find_next_test.cu
+    trie/dynamic_bitset/get_test.cu
+    trie/dynamic_bitset/rank_test.cu
+    trie/dynamic_bitset/select_test.cu
+    trie/dynamic_bitset/size_test.cu)
+
+###################################################################################################
+# - trie tests ------------------------------------------------------------------------------
+ConfigureTest(TRIE_TEST
+    trie/lookup_test.cu)
