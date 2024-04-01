@@ -104,9 +104,9 @@ template <typename T>
 void print(T const& tuple)
 {
   std::cout << "[" << cuda::std::get<0>(tuple) << ", " << cuda::std::get<1>(tuple) << ", "
-            << cuda::std::get<2>(tuple) << ", "
-            << "[" << cuda::std::get<3>(tuple)[0] << ", " << cuda::std::get<3>(tuple)[1] << ", "
-            << cuda::std::get<3>(tuple)[2] << ", " << cuda::std::get<3>(tuple)[3] << "]]\n";
+            << cuda::std::get<2>(tuple) << ", " << "[" << cuda::std::get<3>(tuple)[0] << ", "
+            << cuda::std::get<3>(tuple)[1] << ", " << cuda::std::get<3>(tuple)[2] << ", "
+            << cuda::std::get<3>(tuple)[3] << "]]\n";
 }
 
 int main(void)

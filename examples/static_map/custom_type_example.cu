@@ -67,9 +67,7 @@ int main(void)
   auto pairs_begin = thrust::make_transform_iterator(
     thrust::make_counting_iterator<int32_t>(0),
     cuda::proclaim_return_type<cuco::pair<custom_key_type, custom_value_type>>(
-      [] __device__(auto i) {
-        return cuco::pair{custom_key_type{i}, custom_value_type{i}};
-      }));
+      [] __device__(auto i) { return cuco::pair{custom_key_type{i}, custom_value_type{i}}; }));
 
   // Construct a map with 100,000 slots using the given empty key/value sentinels. Note the
   // capacity is chosen knowing we will insert 80,000 keys, for an load factor of 80%.

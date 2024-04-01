@@ -72,17 +72,13 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_pairs),
                     insert_keys.begin(),
-                    [] __device__(auto i) {
-                      return Key{i, i};
-                    });
+                    [] __device__(auto i) { return Key{i, i}; });
 
   thrust::transform(thrust::device,
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_pairs),
                     insert_values.begin(),
-                    [] __device__(auto i) {
-                      return Value{i, i};
-                    });
+                    [] __device__(auto i) { return Value{i, i}; });
 
   auto pair_begin =
     thrust::make_zip_iterator(thrust::make_tuple(insert_keys.begin(), insert_values.begin()));
@@ -135,9 +131,7 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
                       thrust::counting_iterator<int>(0),
                       thrust::counting_iterator<int>(num),
                       query_key_begin,
-                      [] __device__(auto i) {
-                        return Key{i, i};
-                      });
+                      [] __device__(auto i) { return Key{i, i}; });
 
     auto count = map.count(query_key_begin, query_key_begin + num, stream, key_pair_equals{});
     REQUIRE(count == num_pairs);
@@ -177,9 +171,7 @@ __inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
                       thrust::counting_iterator<int>(0),
                       thrust::counting_iterator<int>(num),
                       query_key_begin,
-                      [] __device__(auto i) {
-                        return Key{i, i};
-                      });
+                      [] __device__(auto i) { return Key{i, i}; });
 
     auto count_outer =
       map.count_outer(query_key_begin, query_key_begin + num, stream, key_pair_equals{});

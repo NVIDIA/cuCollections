@@ -126,12 +126,12 @@ TEST_CASE("Static set capacity", "")
 
     using probe = cuco::linear_probing<2, cuco::default_hash_function<Key>>;
     auto set    = cuco::static_set<Key,
-                                cuco::extent<std::size_t>,
-                                cuda::thread_scope_device,
-                                Equal,
-                                probe,
-                                AllocatorT,
-                                StorageT>{num_keys, cuco::empty_key<Key>{-1}};
+                                   cuco::extent<std::size_t>,
+                                   cuda::thread_scope_device,
+                                   Equal,
+                                   probe,
+                                   AllocatorT,
+                                   StorageT>{num_keys, cuco::empty_key<Key>{-1}};
 
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);

@@ -73,10 +73,10 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static set", "", ((typename Key), Key), (i
 
   using extent_type = cuco::extent<std::size_t, set_capacity>;
   using set_type    = cuco::static_set<Key,
-                                    extent_type,
-                                    cuda::thread_scope_device,
-                                    thrust::equal_to<Key>,
-                                    cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
+                                       extent_type,
+                                       cuda::thread_scope_device,
+                                       thrust::equal_to<Key>,
+                                       cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
 
   // one array for all sets, first elements_in_set element belong to set 0, second to set 1 and so
   // on

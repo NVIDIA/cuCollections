@@ -85,7 +85,7 @@ template <class Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme      = cuco::double_hashing<4,  // CG size
-                                                     cuco::default_hash_function<Key>>,
+                                                          cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<Key>,
           class Storage            = cuco::storage<1>>
 class static_set {

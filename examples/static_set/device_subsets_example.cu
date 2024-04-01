@@ -59,10 +59,10 @@ using storage_type = cuco::aow_storage<key_type, window_size>;
 /// Lightweight non-owning storage ref type
 using storage_ref_type = typename storage_type::ref_type;
 using ref_type         = cuco::static_set_ref<key_type,
-                                      cuda::thread_scope_device,
-                                      thrust::equal_to<key_type>,
-                                      probing_scheme_type,
-                                      storage_ref_type>;  ///< Set ref type
+                                              cuda::thread_scope_device,
+                                              thrust::equal_to<key_type>,
+                                              probing_scheme_type,
+                                              storage_ref_type>;  ///< Set ref type
 
 /// Sample data to insert and query
 __device__ constexpr std::array<key_type, N> data = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19};

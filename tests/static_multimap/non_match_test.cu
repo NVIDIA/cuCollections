@@ -135,9 +135,7 @@ TEMPLATE_TEST_CASE_SIG(
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_keys),
                     d_pairs.begin(),
-                    [] __device__(auto i) {
-                      return cuco::pair<Key, Value>{i / 2, i};
-                    });
+                    [] __device__(auto i) { return cuco::pair<Key, Value>{i / 2, i}; });
 
   using probe =
     std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
