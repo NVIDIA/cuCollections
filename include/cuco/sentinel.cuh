@@ -21,46 +21,16 @@
 namespace cuco {
 /**
  * @brief A strong type wrapper used to denote the empty key sentinel.
- *
- * @tparam T Type of the key values
  */
-template <typename T>
-struct empty_key : public cuco::detail::strong_type<T> {
-  /**
-   * @brief Constructs an empty key sentinel with the given `v`.
-   *
-   * @param v The empty key sentinel value
-   */
-  __host__ __device__ explicit constexpr empty_key(T v) : cuco::detail::strong_type<T>(v) {}
-};
+CUCO_DEFINE_TEMPLATE_STRONG_TYPE(empty_key);
 
 /**
  * @brief A strong type wrapper used to denote the empty value sentinel.
- *
- * @tparam T Type of the mapped values
  */
-template <typename T>
-struct empty_value : public cuco::detail::strong_type<T> {
-  /**
-   * @brief Constructs an empty value sentinel with the given `v`.
-   *
-   * @param v The empty value sentinel value
-   */
-  __host__ __device__ explicit constexpr empty_value(T v) : cuco::detail::strong_type<T>(v) {}
-};
+CUCO_DEFINE_TEMPLATE_STRONG_TYPE(empty_value);
 
 /**
  * @brief A strong type wrapper used to denote the erased key sentinel.
- *
- * @tparam T Type of the key values
  */
-template <typename T>
-struct erased_key : public cuco::detail::strong_type<T> {
-  /**
-   * @brief Constructs an erased key sentinel with the given `v`.
-   *
-   * @param v The erased key sentinel value
-   */
-  __host__ __device__ explicit constexpr erased_key(T v) : cuco::detail::strong_type<T>(v) {}
-};
+CUCO_DEFINE_TEMPLATE_STRONG_TYPE(erased_key);
 }  // namespace cuco
