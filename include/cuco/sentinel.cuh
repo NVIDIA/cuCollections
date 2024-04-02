@@ -20,17 +20,17 @@
 
 namespace cuco {
 /**
- * @brief A strong type wrapper used to denote the empty key sentinel.
+ * @brief A strong type wrapper `cuco::empty_key<Key>` used to denote the empty key sentinel.
  */
 CUCO_DEFINE_TEMPLATE_STRONG_TYPE(empty_key);
 
 /**
- * @brief A strong type wrapper used to denote the empty value sentinel.
+ * @brief A strong type wrapper `cuco::empty_value<T>` used to denote the empty value sentinel.
  */
 CUCO_DEFINE_TEMPLATE_STRONG_TYPE(empty_value);
 
 /**
- * @brief A strong type wrapper used to denote the erased key sentinel.
+ * @brief A strong type wrapper `cuco::erased_key<Key>` used to denote the erased key sentinel.
  */
 CUCO_DEFINE_TEMPLATE_STRONG_TYPE(erased_key);
 }  // namespace cuco
