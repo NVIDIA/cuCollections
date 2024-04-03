@@ -19,8 +19,7 @@
 #include <cuco/detail/hyperloglog/hyperloglog.cuh>
 #include <cuco/distinct_count_estimator_ref.cuh>
 #include <cuco/hash_functions.cuh>
-#include <cuco/sketch_size.cuh>
-#include <cuco/standard_deviation.cuh>
+#include <cuco/types.cuh>
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 

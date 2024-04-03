@@ -22,8 +22,7 @@
 #include <cuco/detail/hyperloglog/kernels.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/hash_functions.cuh>
-#include <cuco/sketch_size.cuh>
-#include <cuco/standard_deviation.cuh>
+#include <cuco/types.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
