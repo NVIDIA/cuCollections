@@ -24,37 +24,37 @@ inline namespace op {
  * @brief `insert` operator tag
  */
 struct insert_tag {
-} inline constexpr insert;
+} inline constexpr insert;  ///< `cuco::insert` operator
 
 /**
  * @brief `insert_and_find` operator tag
  */
 struct insert_and_find_tag {
-} inline constexpr insert_and_find;
+} inline constexpr insert_and_find;  ///< `cuco::insert_and_find` operator
 
 /**
  * @brief `insert_or_assign` operator tag
  */
 struct insert_or_assign_tag {
-} inline constexpr insert_or_assign;
+} inline constexpr insert_or_assign;  ///< `cuco::insert_or_assign` operator
 
 /**
  * @brief `erase` operator tag
  */
 struct erase_tag {
-} inline constexpr erase;
+} inline constexpr erase;  ///< `cuco::erase` operator
 
 /**
  * @brief `contains` operator tag
  */
 struct contains_tag {
-} inline constexpr contains;
+} inline constexpr contains;  ///< `cuco::contains` operator
 
 /**
  * @brief `find` operator tag
  */
 struct find_tag {
-} inline constexpr find;
+} inline constexpr find;  ///< `cuco::find` operator
 
 }  // namespace op
 }  // namespace cuco

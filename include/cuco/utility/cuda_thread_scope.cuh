@@ -36,9 +36,13 @@ struct cuda_thread_scope {
 };
 
 // alias definitions
-inline constexpr auto thread_scope_system = cuda_thread_scope<cuda::thread_scope_system>{};
-inline constexpr auto thread_scope_device = cuda_thread_scope<cuda::thread_scope_device>{};
-inline constexpr auto thread_scope_block  = cuda_thread_scope<cuda::thread_scope_block>{};
-inline constexpr auto thread_scope_thread = cuda_thread_scope<cuda::thread_scope_thread>{};
+inline constexpr auto thread_scope_system =
+  cuda_thread_scope<cuda::thread_scope_system>{};  ///< `cuco::thread_scope_system`
+inline constexpr auto thread_scope_device =
+  cuda_thread_scope<cuda::thread_scope_device>{};  ///< `cuco::thread_scope_device`
+inline constexpr auto thread_scope_block =
+  cuda_thread_scope<cuda::thread_scope_block>{};  ///< `cuco::thread_scope_block`
+inline constexpr auto thread_scope_thread =
+  cuda_thread_scope<cuda::thread_scope_thread>{};  ///< `cuco::thread_scope_thread`
 
 }  // namespace cuco

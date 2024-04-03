@@ -46,7 +46,8 @@ struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_represen
   : std::true_type {};
 
 template <typename T>
-inline constexpr bool is_bitwise_comparable_v = is_bitwise_comparable<T>::value;
+inline constexpr bool is_bitwise_comparable_v =
+  is_bitwise_comparable<T>::value;  ///< Shortcut definition
 
 /**
  * @brief Declares that a type `Type` is bitwise comparable.
@@ -59,9 +60,11 @@ inline constexpr bool is_bitwise_comparable_v = is_bitwise_comparable<T>::value;
   }
 
 template <bool value, typename... Args>
-inline constexpr bool dependent_bool_value = value;
+inline constexpr bool dependent_bool_value = value;  ///< Unpacked dependent bool value
 
 template <typename... Args>
-inline constexpr bool dependent_false = dependent_bool_value<false, Args...>;
+inline constexpr bool dependent_false =
+  dependent_bool_value<false, Args...>;  ///< Emits a `false` value which is dependent on the given
+                                         ///< argument types
 
 }  // namespace cuco
