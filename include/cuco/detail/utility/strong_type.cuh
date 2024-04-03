@@ -21,8 +21,9 @@ namespace cuco::detail {
  * @brief A strong type wrapper
  *
  * @tparam T Type of the value
+ *
  */
-template <typename T>
+template <class T>
 struct strong_type {
   /**
    * @brief Constructs a strong type
@@ -42,3 +43,23 @@ struct strong_type {
 };
 
 }  // namespace cuco::detail
+
+/**
+ * @brief Convenience wrapper for defining a strong type
+ */
+#define CUCO_DEFINE_STRONG_TYPE(Name, Type)                 \
+  struct Name : public cuco::detail::strong_type<Type> {    \
+    __host__ __device__ explicit constexpr Name(Type value) \
+      : cuco::detail::strong_type<Type>(value)              \
+    {                                                       \
+    }                                                       \
+  };
+
+/**
+ * @brief Convenience wrapper for defining a templated strong type
+ */
+#define CUCO_DEFINE_TEMPLATE_STRONG_TYPE(Name)                                                    \
+  template <typename T>                                                                           \
+  struct Name : public cuco::detail::strong_type<T> {                                             \
+    __host__ __device__ explicit constexpr Name(T value) : cuco::detail::strong_type<T>(value) {} \
+  };
