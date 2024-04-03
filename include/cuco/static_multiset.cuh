@@ -21,9 +21,9 @@
 #include <cuco/extent.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/probing_scheme.cuh>
-#include <cuco/sentinel.cuh>
 #include <cuco/static_multiset_ref.cuh>
 #include <cuco/storage.cuh>
+#include <cuco/types.cuh>
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>

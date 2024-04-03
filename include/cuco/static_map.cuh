@@ -22,8 +22,8 @@
 #include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/pair.cuh>
-#include <cuco/sentinel.cuh>
 #include <cuco/static_map_ref.cuh>
+#include <cuco/types.cuh>
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>

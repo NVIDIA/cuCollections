@@ -20,7 +20,7 @@
 #include <cuco/detail/prime.hpp>
 #include <cuco/hash_functions.cuh>
 #include <cuco/probe_sequences.cuh>
-#include <cuco/sentinel.cuh>
+#include <cuco/types.cuh>
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/traits.hpp>
 
