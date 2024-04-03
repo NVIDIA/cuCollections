@@ -45,7 +45,6 @@ TEMPLATE_TEST_CASE_SIG("distinct_count_estimator: unique sequence",
   auto num_items = 1ull << num_items_pow2;
 
   // This factor determines the error threshold for passing the test
-  // TODO might be too high
   double constexpr tolerance_factor = 2.5;
   // RSD for a given precision is given by the following formula
   double const relative_standard_deviation =
@@ -76,7 +75,7 @@ TEMPLATE_TEST_CASE_SIG("distinct_count_estimator: unique sequence",
   REQUIRE(estimator.estimate() == 0);
 
   double const relative_error =
-    std::abs(static_cast<double>(num_items) - static_cast<double>(estimate)) / num_items;
+    std::abs((static_cast<double>(estimate) / static_cast<double>(num_items)) - 1.0);
 
   // Check if the error is acceptable
   REQUIRE(relative_error < tolerance_factor * relative_standard_deviation);
