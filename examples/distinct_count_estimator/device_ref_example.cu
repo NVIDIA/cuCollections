@@ -31,7 +31,7 @@
  */
 
 template <class RefType, class InputIt>
-__global__ void piggyback_kernel(RefType ref, InputIt first, std::size_t n)
+__global__ void fused_kernel(RefType ref, InputIt first, std::size_t n)
 {
   // Transform the reference type (with device scope) to a reference type with block scope
   using local_ref_type = typename RefType::with_scope<cuda::thread_scope_block>;
@@ -67,7 +67,7 @@ __global__ void piggyback_kernel(RefType ref, InputIt first, std::size_t n)
     /*
     Here we can add some custom workload that takes the input `item`.
 
-    The idea is that cardinality estimation can be fused/piggy-backed with any other workload that
+    The idea is that cardinality estimation can be fused with any other workload that
     traverses the data. Since `local_ref.add` can run close to the SOL of the DRAM bandwidth, we get
     the estimate "for free" while performing other computations over the data.
     */
@@ -144,7 +144,7 @@ int main(void)
   auto const sketch_bytes = estimator.sketch_bytes();
 
   // Call the custom kernel and pass a non-owning reference to the estimator to the GPU
-  piggyback_kernel<<<10, 512, sketch_bytes>>>(estimator.ref(), items.begin(), num_items);
+  fused_kernel<<<10, 512, sketch_bytes>>>(estimator.ref(), items.begin(), num_items);
 
   // Calculate the cardinality estimate from the custom kernel
   std::size_t const estimated_cardinality_custom = estimator.estimate();
