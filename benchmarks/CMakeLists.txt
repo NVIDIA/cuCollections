@@ -84,3 +84,8 @@ ConfigureBench(DYNAMIC_MAP_BENCH
 # - hash function benchmarks ----------------------------------------------------------------------
 ConfigureBench(HASH_BENCH
   hash_bench.cu)
+
+###################################################################################################
+# - distinct_count_estimator benchmarks -----------------------------------------------------------
+ConfigureBench(DISTINCT_COUNT_ESTIMATOR_BENCH
+  distinct_count_estimator_bench.cu)

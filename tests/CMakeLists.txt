@@ -115,3 +115,10 @@ ConfigureTest(DYNAMIC_BITSET_TEST
     dynamic_bitset/rank_test.cu
     dynamic_bitset/select_test.cu
     dynamic_bitset/size_test.cu)
+
+###################################################################################################
+# - distinct_count_estimator ----------------------------------------------------------------------
+ConfigureTest(DISTINCT_COUNT_ESTIMATOR_TEST
+    distinct_count_estimator/unique_sequence_test.cu
+    distinct_count_estimator/spark_parity_test.cu
+    distinct_count_estimator/device_ref_test.cu)
