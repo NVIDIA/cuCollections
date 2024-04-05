@@ -61,9 +61,12 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_query(
     size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(pairs.begin(), pairs.end());
 
+  auto const output_size = map.count_outer(keys.begin(), keys.end());
+  thrust::device_vector<pair_type> output(output_size);
+
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    auto count = map.count_outer(keys.begin(), keys.end(), launch.get_stream());
-    map.retrieve_outer(keys.begin(), keys.end(), pairs.begin(), launch.get_stream());
+    auto const count = map.count_outer(keys.begin(), keys.end(), launch.get_stream());
+    map.retrieve_outer(keys.begin(), keys.end(), output.begin(), launch.get_stream());
   });
 }
 
