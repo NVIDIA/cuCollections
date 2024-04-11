@@ -225,7 +225,7 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 `cuco::static_multimap` is a fixed-size hash table that supports storing equivalent keys. It uses double hashing by default and supports switching to linear probing. See the Doxygen documentation in `static_multimap.cuh` for more detailed information.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_multimap/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/PrbqG6ae4))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_multimap/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/nx97W4f7q))
 
 ### `dynamic_map`
 
