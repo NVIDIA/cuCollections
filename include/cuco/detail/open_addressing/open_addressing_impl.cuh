@@ -270,21 +270,8 @@ class open_addressing_impl {
   template <typename InputIt, typename Ref>
   size_type insert(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream)
   {
-    auto const num_keys = cuco::detail::distance(first, last);
-    if (num_keys == 0) { return 0; }
-
-    auto counter =
-      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
-    counter.reset(stream);
-
-    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
-
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
-        first, num_keys, always_true, thrust::identity{}, counter.data(), container_ref);
-
-    return counter.load_to_host(stream);
+    return this->insert_if(first, last, always_true, thrust::identity{}, container_ref, stream);
   }
 
   /**
@@ -303,15 +290,8 @@ class open_addressing_impl {
   template <typename InputIt, typename Ref>
   void insert_async(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream) noexcept
   {
-    auto const num_keys = cuco::detail::distance(first, last);
-    if (num_keys == 0) { return; }
-
-    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
-
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
-        first, num_keys, always_true, thrust::identity{}, container_ref);
+    this->insert_if_async(first, last, always_true, thrust::identity{}, container_ref, stream);
   }
 
   /**
@@ -465,15 +445,9 @@ class open_addressing_impl {
                       Ref container_ref,
                       cuda_stream_ref stream) const noexcept
   {
-    auto const num_keys = cuco::detail::distance(first, last);
-    if (num_keys == 0) { return; }
-
-    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
-
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
-        first, num_keys, always_true, thrust::identity{}, output_begin, container_ref);
+    this->contains_if_async(
+      first, last, always_true, thrust::identity{}, output_begin, container_ref, stream);
   }
 
   /**
