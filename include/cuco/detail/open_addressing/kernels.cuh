@@ -15,10 +15,12 @@
  */
 #pragma once
 
+#include <cuco/aow_storage.cuh>
 #include <cuco/detail/utility/cuda.cuh>
+#include <cuco/operator.hpp>
+#include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cub/block/block_reduce.cuh>
-
 #include <cuda/atomic>
 
 #include <cooperative_groups.h>
@@ -26,6 +28,7 @@
 #include <iterator>
 
 namespace cuco {
+namespace open_addressing_ns {
 namespace detail {
 CUCO_SUPPRESS_KERNEL_WARNINGS
 
@@ -206,7 +209,8 @@ CUCO_KERNEL void erase(InputIt first, cuco::detail::index_type n, Ref ref)
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize,
+template <bool uses_shared_memory,
+          int32_t CGSize,
           int32_t BlockSize,
           typename InputIt,
           typename StencilIt,
@@ -227,6 +231,17 @@ CUCO_KERNEL void contains_if_n(InputIt first,
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
+  using window_type = typename Ref::window_type;
+  extern __shared__ window_type shm_buffer[];
+
+  auto const hash_table = [&]() {
+    if constexpr (uses_shared_memory) {
+      auto insert_ref = ref.make_copy(block, &shm_buffer[0], cuco::thread_scope_block);
+      return std::move(insert_ref).with(cuco::op::contains);
+    }
+    if constexpr (not uses_shared_memory) { return ref; }
+  }();
+
   __shared__ bool output_buffer[BlockSize / CGSize];
 
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
@@ -239,7 +254,7 @@ CUCO_KERNEL void contains_if_n(InputIt first,
          * synchronizing before writing back to global, we no longer rely on L1, preventing the
          * increase in sector stores from L2 to global and improving performance.
          */
-        output_buffer[thread_idx] = pred(*(stencil + idx)) ? ref.contains(key) : false;
+        output_buffer[thread_idx] = pred(*(stencil + idx)) ? hash_table.contains(key) : false;
       }
       block.sync();
       if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
@@ -247,7 +262,7 @@ CUCO_KERNEL void contains_if_n(InputIt first,
       auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
       if (idx < n) {
         typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
-        auto const found = pred(*(stencil + idx)) ? ref.contains(tile, key) : false;
+        auto const found = pred(*(stencil + idx)) ? hash_table.contains(tile, key) : false;
         if (tile.thread_rank() == 0) { *(output_begin + idx) = found; }
       }
     }
@@ -341,4 +356,5 @@ CUCO_KERNEL void rehash(typename ContainerRef::storage_ref_type storage_ref,
 }
 
 }  // namespace detail
+}  // namespace open_addressing_ns
 }  // namespace cuco
