@@ -1853,7 +1853,7 @@ class static_map {
                                             pair_atomic_type* const memory_to_use,
                                             device_view source_device_view) noexcept
     {
-#if defined(CUDA_HAS_CUDA_BARRIER)
+#if defined(CUCO_HAS_CUDA_BARRIER)
       __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
       if (g.thread_rank() == 0) { init(&barrier, g.size()); }
       g.sync();
