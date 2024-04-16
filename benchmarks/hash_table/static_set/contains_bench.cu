@@ -80,3 +80,45 @@ NVBENCH_BENCH_TYPES(static_set_contains,
   .set_name("static_set_constains_unique_capacity")
   .set_type_axes_names({"Key", "Distribution"})
   .add_int64_axis("NumInputs", defaults::N_RANGE_CACHE);
+
+/**
+ * @brief A benchmark evaluating `cuco::static_set::contains` performance
+ */
+template <typename Key, typename Dist>
+void static_set_contains_shm(nvbench::state& state, nvbench::type_list<Key, Dist>)
+{
+  auto const num_keys    = 800;
+  auto const occupancy   = 0.5;
+  auto const output_size = state.get_int64_or_default("NumOutputs", defaults::MATCHING_RATE);
+
+  std::size_t const size = num_keys / occupancy;
+
+  thrust::device_vector<Key> keys(num_keys);
+
+  key_generator gen;
+  gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
+
+  cuco::static_set<Key> set{size, cuco::empty_key<Key>{-1}};
+  set.insert(keys.begin(), keys.end());
+
+  thrust::device_vector<Key> probe_keys(output_size);
+  gen.generate(dist_from_state<Dist>(state), probe_keys.begin(), probe_keys.end());
+
+  thrust::device_vector<bool> result(output_size);
+  std::cout << "####### output_size: " << output_size << "\n";
+
+  state.add_element_count(output_size);
+
+  state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
+    set.contains(probe_keys.begin(), probe_keys.end(), result.begin(), {launch.get_stream()});
+  });
+
+  cudaDeviceSynchronize();
+}
+
+NVBENCH_BENCH_TYPES(static_set_contains_shm,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      nvbench::type_list<distribution::unique>))
+  .set_name("static_set_constains_shared_memory")
+  .set_type_axes_names({"Key", "Distribution"})
+  .add_int64_axis("NumOutputs", defaults::N_RANGE_CACHE);

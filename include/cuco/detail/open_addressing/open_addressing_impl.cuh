@@ -448,7 +448,7 @@ class open_addressing_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto const grid_size   = cuco::detail::grid_size(num_keys, cg_size);
+    auto const grid_size   = cuco::detail::grid_size(num_keys, cg_size, 1, 1024);
     auto const always_true = thrust::constant_iterator<bool>{true};
 
     auto const bytes =
