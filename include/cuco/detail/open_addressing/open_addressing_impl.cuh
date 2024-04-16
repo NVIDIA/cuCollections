@@ -456,13 +456,11 @@ class open_addressing_impl {
 
     if (bytes >= 48000) {
       open_addressing_ns::detail::contains_if_n<false, cg_size, cuco::detail::default_block_size()>
-        <<<grid_size,
-           cuco::detail::default_block_size(),
-           sizeof(typename storage_ref_type::window_type),
-           stream>>>(first, num_keys, always_true, thrust::identity{}, output_begin, container_ref);
+        <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+          first, num_keys, always_true, thrust::identity{}, output_begin, container_ref);
     } else {
       open_addressing_ns::detail::contains_if_n<true, cg_size, cuco::detail::default_block_size()>
-        <<<grid_size, cuco::detail::default_block_size(), bytes, stream>>>(
+        <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
           first, num_keys, always_true, thrust::identity{}, output_begin, container_ref);
     }
   }

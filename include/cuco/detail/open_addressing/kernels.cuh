@@ -232,7 +232,7 @@ CUCO_KERNEL void contains_if_n(InputIt first,
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   using window_type = typename Ref::window_type;
-  extern __shared__ window_type shm_buffer[];
+  __shared__ window_type shm_buffer[48000 / sizeof(window_type)];
 
   auto const hash_table = [&]() {
     if constexpr (uses_shared_memory) {
