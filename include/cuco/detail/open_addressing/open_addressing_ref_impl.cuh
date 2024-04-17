@@ -26,6 +26,9 @@
 #include <thrust/tuple.h>
 
 #include <cuda/atomic>
+#if defined(CUCO_HAS_CUDA_BARRIER)
+#include <cuda/barrier>
+#endif
 
 #include <cooperative_groups.h>
 
@@ -295,10 +298,10 @@ class open_addressing_ref_impl {
    * the ownership of the memory
    */
   template <typename CG>
-  __device__ constexpr void make_copy(CG const& g, window_type* const memory_to_use) const noexcept
+  __device__ void make_copy(CG const& g, window_type* const memory_to_use) const noexcept
   {
     auto const num_windows = static_cast<size_type>(this->window_extent());
-#if defined(CUDA_HAS_CUDA_BARRIER)
+#if defined(CUCO_HAS_CUDA_BARRIER)
     __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
     if (g.thread_rank() == 0) { init(&barrier, g.size()); }
     g.sync();
