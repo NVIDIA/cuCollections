@@ -541,8 +541,7 @@ class static_set {
    * If key `k = *(first + i)` has a match `m` in the set, copies a `cuco::pair{k, m}` to
    * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
    *
-   * @note This function synchronizes the given stream. For asynchronous execution use
-   * `retrieve_async`.
+   * @note This function synchronizes the given stream.
    * @note Behavior is undefined if the size of the output range exceeds
    * `std::distance(output_begin, output_end)`.
    * @note Behavior is undefined if the given key has multiple matches in the set.
@@ -579,38 +578,6 @@ class static_set {
    * `std::distance(output_begin, output_end)`.
    * @note Behavior is undefined if the given key has multiple matches in the set.
    *
-   * @tparam InputIt Device accessible input iterator
-   * @tparam OutputIt1 Device accessible output iterator whose `value_type` can be constructed from
-   * `ProbeKey`
-   * @tparam OutputIt2 Device accessible output iterator whose `value_type` can be constructed from
-   * `Key`
-   *
-   * @param first Beginning of the sequence of probe keys
-   * @param last End of the sequence of probe keys
-   * @param output_probe Beginning of the sequence of the probe keys that have a match
-   * @param output_match Beginning of the sequence of the matched keys
-   * @param stream CUDA stream used for retrieve
-   *
-   * @return The iterator indicating the last valid pair in the output
-   */
-  template <typename InputIt, typename OutputIt1, typename OutputIt2>
-  cuda::std::pair<OutputIt1, OutputIt2> retrieve_async(InputIt first,
-                                                       InputIt last,
-                                                       OutputIt1 output_probe,
-                                                       OutputIt2 output_match,
-                                                       cuda_stream_ref stream = {}) const;
-
-  /**
-   * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in
-   * the range `[first, last)`
-   *
-   * If key `k = *(first + i)` has a match `m` in the set, copies a `cuco::pair{k, m}` to
-   * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
-   *
-   * @note Behavior is undefined if the size of the output range exceeds
-   * `std::distance(output_begin, output_end)`.
-   * @note Behavior is undefined if the given key has multiple matches in the set.
-   *
    * @throw This API will always throw since it's not implemented.
    *
    * @tparam InputIt Device accessible input iterator
@@ -631,12 +598,12 @@ class static_set {
    * @return The iterator indicating the last valid pair in the output
    */
   template <typename InputIt, typename OutputIt, typename ProbeEqual, typename ProbeHash>
-  OutputIt retrieve_async(InputIt first,
-                          InputIt last,
-                          OutputIt output_begin,
-                          ProbeEqual const& probe_equal = ProbeEqual{},
-                          ProbeHash const& probe_hash   = ProbeHash{},
-                          cuda_stream_ref stream        = {}) const;
+  OutputIt retrieve(InputIt first,
+                    InputIt last,
+                    OutputIt output_begin,
+                    ProbeEqual const& probe_equal = ProbeEqual{},
+                    ProbeHash const& probe_hash   = ProbeHash{},
+                    cuda_stream_ref stream        = {}) const;
 
   /**
    * @brief Retrieves all keys contained in the set.
