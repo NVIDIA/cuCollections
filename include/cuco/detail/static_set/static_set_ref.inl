@@ -239,6 +239,31 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+template <typename NewKeyEqual, typename NewHash>
+__host__ __device__ constexpr auto
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
+  NewKeyEqual const& key_equal, NewHash const& hash) const noexcept
+{
+  auto probing_scheme = this->impl_.probing_scheme().make_copy(hash);
+  return static_set_ref<Key,
+                        Scope,
+                        NewKeyEqual,
+                        decltype(probing_scheme),
+                        StorageRef,
+                        Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
+                                      // cuco::erased_key<Key>{this->erased_key_sentinel()},
+                                      key_equal,
+                                      probing_scheme,
+                                      {},
+                                      this->impl_.storage_ref()};
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename CG>
 __device__ constexpr void
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::initialize(

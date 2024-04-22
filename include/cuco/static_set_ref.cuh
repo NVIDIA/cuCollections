@@ -224,6 +224,21 @@ class static_set_ref
     cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
   /**
+   * @brief Makes a copy of the current device reference with given hash and key comparator
+   *
+   * @tparam NewKeyEqual The new key equal type
+   * @tparam NewHash The new hasher type
+   *
+   * @param key_equal New key comparator
+   * @param hash New hasher
+   *
+   * @return Copy of the current device ref
+   */
+  template <typename NewKeyEqual, typename NewHash>
+  [[nodiscard]] __host__ __device__ constexpr auto make_copy(NewKeyEqual const& key_equal,
+                                                             NewHash const& hash) const noexcept;
+
+  /**
    * @brief Initializes the set storage using the threads in the group `tile`.
    *
    * @note This function synchronizes the group `tile`.
