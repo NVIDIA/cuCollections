@@ -333,6 +333,44 @@ class static_multiset {
                        cuda_stream_ref stream = {}) noexcept;
 
   /**
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the multiset.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `contains_async`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void contains(InputIt first,
+                InputIt last,
+                OutputIt output_begin,
+                cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
+   * the multiset.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void contains_async(InputIt first,
+                      InputIt last,
+                      OutputIt output_begin,
+                      cuda_stream_ref stream = {}) const noexcept;
+
+  /**
    * @brief Gets the number of elements in the container.
    *
    * @note This function synchronizes the given stream.
