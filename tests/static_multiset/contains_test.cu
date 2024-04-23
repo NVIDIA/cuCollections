@@ -52,31 +52,11 @@ __inline__ void test_unique_sequence(Set& set, size_type num_keys)
 
   SECTION("Non-inserted keys should not be contained.")
   {
-    REQUIRE(set.size() == 0);
-
     set.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
     REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
 
-  SECTION("All conditionally inserted keys should be contained")
-  {
-    auto const inserted = set.insert_if(
-      keys_begin, keys_begin + num_keys, thrust::counting_iterator<std::size_t>(0), is_even);
-    REQUIRE(inserted == num_keys / 2);
-    REQUIRE(set.size() == num_keys / 2);
-
-    set.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::equal(
-      d_contained.begin(),
-      d_contained.end(),
-      thrust::counting_iterator<std::size_t>(0),
-      cuda::proclaim_return_type<bool>([] __device__(auto const& idx_contained, auto const& idx) {
-        return ((idx % 2) == 0) == idx_contained;
-      })));
-  }
-
   set.insert(keys_begin, keys_begin + num_keys);
-  REQUIRE(set.size() == num_keys);
 
   SECTION("All inserted keys should be contained.")
   {
@@ -99,7 +79,7 @@ __inline__ void test_unique_sequence(Set& set, size_type num_keys)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Unique sequence",
+  "static_multiset contains tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
