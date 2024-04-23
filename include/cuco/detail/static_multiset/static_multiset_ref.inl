@@ -267,5 +267,65 @@ class operator_impl<
   }
 };
 
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::contains_tag,
+  static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type =
+    static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type   = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief Indicates whether the probe key `key` was inserted into the container.
+   *
+   * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
+   * false.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   *
+   * @param key The key to search for
+   *
+   * @return A boolean indicating whether the probe key is present
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.contains(key);
+  }
+
+  /**
+   * @brief Indicates whether the probe key `key` was inserted into the container.
+   *
+   * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
+   * false.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   *
+   * @param group The Cooperative Group used to perform group contains
+   * @param key The key to search for
+   *
+   * @return A boolean indicating whether the probe key is present
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ bool contains(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.contains(group, key);
+  }
+};
+
 }  // namespace detail
 }  // namespace cuco
