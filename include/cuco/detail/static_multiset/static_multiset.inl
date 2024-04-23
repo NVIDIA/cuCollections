@@ -15,6 +15,7 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
+#include <cuco/detail/static_set/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
 #include <cuco/operator.hpp>
@@ -172,6 +173,42 @@ void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
     InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream) noexcept
 {
   impl_->insert_if_async(first, last, stencil, pred, ref(op::insert), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename OutputIt>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find(
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+{
+  find_async(first, last, output_begin, stream);
+  stream.synchronize();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename OutputIt>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+{
+  auto const num_keys = cuco::detail::distance(first, last);
+  if (num_keys == 0) { return; }
+
+  auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+  static_set_ns::detail::find<cg_size, cuco::detail::default_block_size()>
+    <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+      first, num_keys, output_begin, ref(op::find));
 }
 
 template <class Key,
