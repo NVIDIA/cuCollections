@@ -499,6 +499,39 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the container
+   *
+   * @tparam Input Device accessible input iterator
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <typename InputIt, typename Ref>
+  [[nodiscard]] size_type count(InputIt first,
+                                InputIt last,
+                                Ref container_ref,
+                                cuda_stream_ref stream = {}) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return 0; }
+
+    auto counter =
+      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
+    counter.reset(stream);
+
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::count<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+        first, num_keys, counter.data(), container_ref);
+
+    return counter.load_to_host(stream);
+  }
+
+  /**
    * @brief Retrieves all keys contained in the container.
    *
    * @note This API synchronizes the given stream.
