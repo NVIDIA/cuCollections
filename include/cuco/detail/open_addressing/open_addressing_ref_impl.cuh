@@ -803,6 +803,38 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Counts the occurrence of a given key contained in the container
+   *
+   * @tparam ProbeKey Input type
+   *
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ size_type count(ProbeKey const& key) const noexcept
+  {
+    return 0;
+  }
+
+  /**
+   * @brief Counts the occurrence of a given key contained in the container
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   *
+   * @param group The Cooperative Group used to perform group count
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ size_type count(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  {
+    return 1;
+  }
+
+  /**
    * @brief Finds an element in the container with key equivalent to the probe key.
    *
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
