@@ -292,16 +292,14 @@ CUCO_KERNEL void count(InputIt first, cuco::detail::index_type n, AtomicT* count
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};
-    /*
+    auto const key = *(first + idx);
     if constexpr (CGSize == 1) {
-      if (ref.insert(insert_element)) { thread_num_successes++; };
+      thread_count += ref.count(key);
     } else {
       auto const tile =
         cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-      if (ref.insert(tile, insert_element) && tile.thread_rank() == 0) { thread_num_successes++; }
+      thread_count += ref.count(tile, key);
     }
-    */
     idx += loop_stride;
   }
 
