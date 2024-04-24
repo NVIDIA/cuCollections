@@ -51,6 +51,12 @@ struct contains_tag {
 } inline constexpr contains;  ///< `cuco::contains` operator
 
 /**
+ * @brief `count` operator tag
+ */
+struct count_tag {
+} inline constexpr count;  ///< `cuco::contains` operator
+
+/**
  * @brief `find` operator tag
  */
 struct find_tag {
