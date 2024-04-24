@@ -814,7 +814,27 @@ class open_addressing_ref_impl {
   template <typename ProbeKey>
   [[nodiscard]] __device__ size_type count(ProbeKey const& key) const noexcept
   {
-    return 0;
+    if constexpr (not allows_duplicates) {
+      return static_cast<size_type>(this->contains(key));
+    } else {
+      auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
+      size_type count   = 0;
+
+      while (true) {
+        // TODO atomic_ref::load if insert operator is present
+        auto const window_slots = storage_ref_[*probing_iter];
+
+        for (auto& slot_content : window_slots) {
+          switch (
+            this->predicate_.operator()<is_insert::NO>(this->extract_key(slot_content), key)) {
+            case detail::equal_result::EMPTY: return count;
+            case detail::equal_result::EQUAL: ++count; break;
+            default: continue;
+          }
+        }
+        ++probing_iter;
+      }
+    }
   }
 
   /**
@@ -831,7 +851,28 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ size_type count(
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
-    return 1;
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
+    size_type count   = 0;
+
+    while (true) {
+      auto const window_slots = storage_ref_[*probing_iter];
+
+      auto const state = [&]() {
+        auto res = detail::equal_result::UNEQUAL;
+        for (auto& slot : window_slots) {
+          res = this->predicate_.operator()<is_insert::NO>(this->extract_key(slot), key);
+          if (res != detail::equal_result::UNEQUAL) { return res; }
+        }
+        return res;
+      }();
+
+      switch (state) {
+        case detail::equal_result::EMPTY: return count;
+        case detail::equal_result::EQUAL: ++count; break;
+        default: continue;
+      }
+      ++probing_iter;
+    }
   }
 
   /**
