@@ -56,7 +56,8 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @return Copy of the current probing method
    */
   template <typename NewHash>
-  [[nodiscard]] __host__ __device__ constexpr auto make_copy(NewHash const& hash) const noexcept;
+  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(
+    NewHash const& hash) const noexcept;
 
   /**
    * @brief Operator to return a probing iterator
@@ -134,9 +135,9 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @return Copy of the current probing method
    */
   template <typename NewHash1, typename NewHash2 = NewHash1>
-  [[nodiscard]] __host__ __device__ constexpr auto make_copy(NewHash1 const& hash1,
-                                                             NewHash2 const& hash2 = {
-                                                               1}) const noexcept;
+  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(NewHash1 const& hash1,
+                                                                      NewHash2 const& hash2 = {
+                                                                        1}) const noexcept;
 
   /**
    * @brief Operator to return a probing iterator

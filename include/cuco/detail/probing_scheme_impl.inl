@@ -94,7 +94,7 @@ __host__ __device__ constexpr linear_probing<CGSize, Hash>::linear_probing(Hash 
 
 template <int32_t CGSize, typename Hash>
 template <typename NewHash>
-__host__ __device__ constexpr auto linear_probing<CGSize, Hash>::make_copy(
+__host__ __device__ constexpr auto linear_probing<CGSize, Hash>::with_hash_function(
   NewHash const& hash) const noexcept
 {
   return linear_probing<cg_size, NewHash>{hash};
@@ -135,7 +135,7 @@ __host__ __device__ constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashi
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
 template <typename NewHash1, typename NewHash2>
-__host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::make_copy(
+__host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::with_hash_function(
   NewHash1 const& hash1, NewHash2 const& hash2) const noexcept
 {
   return double_hashing<cg_size, NewHash1, NewHash2>{hash1, hash2};
