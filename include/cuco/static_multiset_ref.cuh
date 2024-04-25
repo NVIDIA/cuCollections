@@ -201,19 +201,30 @@ class static_multiset_ref
   [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
 
   /**
-   * @brief Makes a copy of the current device reference with given hash and key comparator
+   * @brief Makes a copy of the current device reference with given key comparator
    *
    * @tparam NewKeyEqual The new key equal type
-   * @tparam NewHash The new hasher type
    *
    * @param key_equal New key comparator
+   *
+   * @return Copy of the current device ref
+   */
+  template <typename NewKeyEqual>
+  [[nodiscard]] __host__ __device__ constexpr auto with_key_eq(
+    NewKeyEqual const& key_equal) const noexcept;
+
+  /**
+   * @brief Makes a copy of the current device reference with given hasher
+   *
+   * @tparam NewHash The new hasher type
+   *
    * @param hash New hasher
    *
    * @return Copy of the current device ref
    */
-  template <typename NewKeyEqual, typename NewHash>
-  [[nodiscard]] __host__ __device__ constexpr auto make_copy(NewKeyEqual const& key_equal,
-                                                             NewHash const& hash) const noexcept;
+  template <typename NewHash>
+  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(
+    NewHash const& hash) const noexcept;
 
  private:
   impl_type impl_;
