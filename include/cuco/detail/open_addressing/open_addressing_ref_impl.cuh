@@ -303,7 +303,12 @@ class open_addressing_ref_impl {
     auto const num_windows = static_cast<size_type>(this->window_extent());
 #if defined(CUCO_HAS_CUDA_BARRIER)
     __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
+
+#if defined(CUCO_HAS_CG_INVOKE_ONE)
+    cooperative_groups::invoke_one(g, [&]() { init(&barrier, g.size()); });
+#else
     if (g.thread_rank() == 0) { init(&barrier, g.size()); }
+#endif
     g.sync();
 
     cuda::memcpy_async(
