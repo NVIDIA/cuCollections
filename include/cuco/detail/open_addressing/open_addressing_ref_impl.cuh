@@ -285,8 +285,10 @@ class open_addressing_ref_impl {
    */
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept { return storage_ref_.end(); }
 
+#if defined(CUCO_HAS_CUDA_BARRIER)
 // Disables `barrier` initialization warning.
 #pragma nv_diag_suppress static_var_with_dynamic_init
+#endif
 
   /**
    * @brief Makes a copy of the current device reference using non-owned memory.
