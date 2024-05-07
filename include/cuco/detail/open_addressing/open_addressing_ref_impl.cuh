@@ -285,7 +285,7 @@ class open_addressing_ref_impl {
    */
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept { return storage_ref_.end(); }
 
-  // Disables `barrier` initialization warning.
+// Disables `barrier` initialization warning.
 #pragma nv_diag_suppress static_var_with_dynamic_init
 
   /**
