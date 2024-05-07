@@ -367,7 +367,7 @@ class open_addressing_ref_impl {
 
       for (auto& slot_content : window_slots) {
         auto const eq_res =
-          this->predicate_.operator()<is_insert::YES>(this->extract_key(slot_content), key);
+          this->predicate_.operator()<is_insert::YES>(key, this->extract_key(slot_content));
 
         if constexpr (not allows_duplicates) {
           // If the key is already in the container, return false
@@ -418,7 +418,7 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         for (auto i = 0; i < window_size; ++i) {
           switch (
-            this->predicate_.operator()<is_insert::YES>(this->extract_key(window_slots[i]), key)) {
+            this->predicate_.operator()<is_insert::YES>(key, this->extract_key(window_slots[i]))) {
             case detail::equal_result::AVAILABLE:
               return window_probing_results{detail::equal_result::AVAILABLE, i};
             case detail::equal_result::EQUAL: {
@@ -502,7 +502,7 @@ class open_addressing_ref_impl {
 
       for (auto i = 0; i < window_size; ++i) {
         auto const eq_res =
-          this->predicate_.operator()<is_insert::YES>(this->extract_key(window_slots[i]), key);
+          this->predicate_.operator()<is_insert::YES>(key, this->extract_key(window_slots[i]));
         auto* window_ptr = (storage_ref_.data() + *probing_iter)->data();
 
         // If the key is already in the container, return false
@@ -575,7 +575,7 @@ class open_addressing_ref_impl {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < window_size; ++i) {
           res =
-            this->predicate_.operator()<is_insert::YES>(this->extract_key(window_slots[i]), key);
+            this->predicate_.operator()<is_insert::YES>(key, this->extract_key(window_slots[i]));
           if (res != detail::equal_result::UNEQUAL) { return window_probing_results{res, i}; }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -658,7 +658,7 @@ class open_addressing_ref_impl {
 
       for (auto& slot_content : window_slots) {
         auto const eq_res =
-          this->predicate_.operator()<is_insert::NO>(this->extract_key(slot_content), key);
+          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content));
 
         // Key doesn't exist, return false
         if (eq_res == detail::equal_result::EMPTY) { return false; }
@@ -700,7 +700,7 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < window_size; ++i) {
-          res = this->predicate_.operator()<is_insert::NO>(this->extract_key(window_slots[i]), key);
+          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(window_slots[i]));
           if (res != detail::equal_result::UNEQUAL) { return window_probing_results{res, i}; }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -754,7 +754,7 @@ class open_addressing_ref_impl {
       auto const window_slots = storage_ref_[*probing_iter];
 
       for (auto& slot_content : window_slots) {
-        switch (this->predicate_.operator()<is_insert::NO>(this->extract_key(slot_content), key)) {
+        switch (this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content))) {
           case detail::equal_result::UNEQUAL: continue;
           case detail::equal_result::EMPTY: return false;
           case detail::equal_result::EQUAL: return true;
@@ -789,7 +789,7 @@ class open_addressing_ref_impl {
       auto const state = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto& slot : window_slots) {
-          res = this->predicate_.operator()<is_insert::NO>(this->extract_key(slot), key);
+          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
           if (res != detail::equal_result::UNEQUAL) { return res; }
         }
         return res;
@@ -826,7 +826,7 @@ class open_addressing_ref_impl {
 
       for (auto i = 0; i < window_size; ++i) {
         switch (
-          this->predicate_.operator()<is_insert::NO>(this->extract_key(window_slots[i]), key)) {
+          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(window_slots[i]))) {
           case detail::equal_result::EMPTY: {
             return this->end();
           }
@@ -865,7 +865,7 @@ class open_addressing_ref_impl {
       auto const [state, intra_window_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < window_size; ++i) {
-          res = this->predicate_.operator()<is_insert::NO>(this->extract_key(window_slots[i]), key);
+          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(window_slots[i]));
           if (res != detail::equal_result::UNEQUAL) { return window_probing_results{res, i}; }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -1093,7 +1093,7 @@ class open_addressing_ref_impl {
     if (cuco::detail::bitwise_compare(this->extract_key(*old_ptr), this->extract_key(expected))) {
       return insert_result::SUCCESS;
     } else {
-      return this->predicate_.equal_to(this->extract_key(*old_ptr), this->extract_key(desired)) ==
+      return this->predicate_.equal_to(this->extract_key(desired), this->extract_key(*old_ptr)) ==
                  detail::equal_result::EQUAL
                ? insert_result::DUPLICATE
                : insert_result::CONTINUE;
@@ -1140,7 +1140,7 @@ class open_addressing_ref_impl {
 
     // Our key was already present in the slot, so our key is a duplicate
     // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-    if (this->predicate_.equal_to(*old_key_ptr, desired.first) == detail::equal_result::EQUAL) {
+    if (this->predicate_.equal_to(desired.first, *old_key_ptr) == detail::equal_result::EQUAL) {
       return insert_result::DUPLICATE;
     }
 
@@ -1179,7 +1179,7 @@ class open_addressing_ref_impl {
 
     // Our key was already present in the slot, so our key is a duplicate
     // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-    if (this->predicate_.equal_to(*old_key_ptr, desired.first) == detail::equal_result::EQUAL) {
+    if (this->predicate_.equal_to(desired.first, *old_key_ptr) == detail::equal_result::EQUAL) {
       return insert_result::DUPLICATE;
     }
 
