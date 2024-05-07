@@ -76,10 +76,10 @@ struct custom_hasher {
 
 // User-defined device key equality
 struct custom_key_equal {
-  template <typename SlotKey, typename InputKey>
-  __device__ bool operator()(SlotKey const& lhs, InputKey const& rhs) const
+  template <typename InsertKey, typename SlotKey>
+  __device__ bool operator()(InsertKey const& lhs, SlotKey const& rhs) const
   {
-    return lhs == rhs.a;
+    return lhs.a == rhs;
   }
 };
 

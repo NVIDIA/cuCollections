@@ -102,8 +102,8 @@ struct slot_is_filled {
         return slot;
       }
     }();
-    return not(cuco::detail::bitwise_compare(empty_sentinel_, key) or
-               cuco::detail::bitwise_compare(erased_sentinel_, key));
+    return not(cuco::detail::bitwise_compare(key, empty_sentinel_) or
+               cuco::detail::bitwise_compare(key, erased_sentinel_));
   }
 };
 
