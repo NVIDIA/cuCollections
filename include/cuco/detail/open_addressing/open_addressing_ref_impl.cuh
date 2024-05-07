@@ -302,9 +302,11 @@ class open_addressing_ref_impl {
   {
     auto const num_windows = static_cast<size_type>(this->window_extent());
 #if defined(CUCO_HAS_CUDA_BARRIER)
+#pragma nv_diagnostic push
 // Disables `barrier` initialization warning.
 #pragma nv_diag_suppress static_var_with_dynamic_init
     __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
+#pragma nv_diagnostic pop
     if (g.thread_rank() == 0) { init(&barrier, g.size()); }
     g.sync();
 
