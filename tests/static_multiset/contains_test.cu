@@ -18,6 +18,7 @@
 
 #include <cuco/static_multiset.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/distance.h>
 #include <thrust/functional.h>
@@ -29,12 +30,10 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
-#include <cuda/functional>
-
 using size_type = int32_t;
 
 template <typename Set>
-__inline__ void test_unique_sequence(Set& set, size_type num_keys)
+void test_unique_sequence(Set& set, size_type num_keys)
 {
   using Key = typename Set::key_type;
 

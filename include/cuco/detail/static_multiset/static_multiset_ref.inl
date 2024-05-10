@@ -332,9 +332,6 @@ class operator_impl<
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
-   * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
-   * false.
-   *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
    * @param key The key to search for
@@ -350,9 +347,6 @@ class operator_impl<
 
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
-   *
-   * @note If the probe key `key` was inserted into the container, returns `true`. Otherwise,
-   * returns `false`.
    *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
