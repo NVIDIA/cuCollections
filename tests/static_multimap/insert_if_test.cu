@@ -27,7 +27,7 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 template <typename Key, typename Map, typename PairIt, typename KeyIt>
-__inline__ void test_insert_if(Map& map, PairIt pair_begin, KeyIt key_begin, std::size_t size)
+void test_insert_if(Map& map, PairIt pair_begin, KeyIt key_begin, std::size_t size)
 {
   // 50% insertion
   auto pred_lambda = [] __device__(Key k) { return k % 2 == 0; };

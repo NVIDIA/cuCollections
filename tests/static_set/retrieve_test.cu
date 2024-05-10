@@ -32,7 +32,7 @@
 static constexpr int key_sentinel = -1;
 
 template <typename Set>
-__inline__ void test_unique_sequence(Set& set, std::size_t num_keys)
+void test_unique_sequence(Set& set, std::size_t num_keys)
 {
   using Key = typename Set::key_type;
 
