@@ -308,8 +308,8 @@ class operator_impl<
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
-   * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
-   * false.
+   * @note If the probe key `key` was inserted into the container, returns `true`. Otherwise, returns
+   * `false`.
    *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
