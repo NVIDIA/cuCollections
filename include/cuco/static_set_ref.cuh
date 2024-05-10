@@ -199,6 +199,32 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
 
   /**
+   * @brief Makes a copy of the current device reference with given key comparator
+   *
+   * @tparam NewKeyEqual The new key equal type
+   *
+   * @param key_equal New key comparator
+   *
+   * @return Copy of the current device ref
+   */
+  template <typename NewKeyEqual>
+  [[nodiscard]] __host__ __device__ constexpr auto with_key_eq(
+    NewKeyEqual const& key_equal) const noexcept;
+
+  /**
+   * @brief Makes a copy of the current device reference with given hasher
+   *
+   * @tparam NewHash The new hasher type
+   *
+   * @param hash New hasher
+   *
+   * @return Copy of the current device ref
+   */
+  template <typename NewHash>
+  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(
+    NewHash const& hash) const noexcept;
+
+  /**
    * @brief Makes a copy of the current device reference using non-owned memory
    *
    * This function is intended to be used to create shared memory copies of small static sets,
