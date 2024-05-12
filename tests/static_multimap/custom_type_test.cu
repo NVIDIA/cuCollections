@@ -58,7 +58,7 @@ struct value_pair {
 };
 
 template <typename Map>
-__inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
+void test_custom_key_value_type(Map& map, std::size_t num_pairs)
 {
   using Key   = key_pair;
   using Value = value_pair;

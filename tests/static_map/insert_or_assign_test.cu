@@ -32,7 +32,7 @@
 using size_type = std::size_t;
 
 template <typename Map>
-__inline__ void test_insert_or_assign(Map& map, size_type num_keys)
+void test_insert_or_assign(Map& map, size_type num_keys)
 {
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;
