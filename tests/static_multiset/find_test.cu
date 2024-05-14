@@ -31,7 +31,7 @@
 using size_type = int32_t;
 
 template <typename Set>
-__inline__ void test_unique_sequence(Set& set, size_type num_keys)
+void test_unique_sequence(Set& set, size_type num_keys)
 {
   using Key = typename Set::key_type;
 
