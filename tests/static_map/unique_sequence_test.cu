@@ -36,7 +36,7 @@
 using size_type = int32_t;
 
 template <typename Map>
-__inline__ void test_unique_sequence(Map& map, size_type num_keys)
+void test_unique_sequence(Map& map, size_type num_keys)
 {
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;

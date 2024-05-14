@@ -27,7 +27,7 @@
 #include <cuda/functional>
 
 template <typename Set>
-__inline__ void test_insert_and_find(Set& set, std::size_t num_keys)
+void test_insert_and_find(Set& set, std::size_t num_keys)
 {
   using Key                     = typename Set::key_type;
   static auto constexpr cg_size = Set::cg_size;

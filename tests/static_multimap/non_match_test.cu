@@ -29,7 +29,7 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 template <typename Key, typename Value, typename Map, typename PairIt, typename KeyIt>
-__inline__ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, std::size_t num_keys)
+void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, std::size_t num_keys)
 {
   map.insert(pair_begin, pair_begin + num_keys);
 
