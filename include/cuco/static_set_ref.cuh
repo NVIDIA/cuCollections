@@ -199,6 +199,22 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
 
   /**
+   * @brief Creates a reference with new operators from the current object
+   *
+   * @warning Using two or more reference objects to the same container but with
+   * a different operator set at the same time results in undefined behavior.
+   *
+   * @tparam NewOperators List of `cuco::op::*_tag` types
+   *
+   * @param ops List of operators, e.g., `cuco::insert`
+   *
+   * @return `*this` with `NewOperators...`
+   */
+  template <typename... NewOperators>
+  [[nodiscard]] __host__ __device__ constexpr auto with_operators(
+    NewOperators... ops) const noexcept;
+
+  /**
    * @brief Makes a copy of the current device reference with given key comparator
    *
    * @tparam NewKeyEqual The new key equal type

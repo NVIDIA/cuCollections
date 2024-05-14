@@ -50,7 +50,7 @@ __global__ void shmem_set_kernel(typename SetRef::extent_type window_extent,
   // (in this case `insert`). This invalidates the old `set` object (move semantics).
   // With this guard we can make sure that users don't mix operations that are not
   // safe to use in a concurrent setup.
-  auto insert_ref = std::move(set).with(cuco::insert);
+  auto insert_ref = set.with_operators(cuco::insert);
 
   // Each thread inserts its thread id into the set.
   typename SetRef::key_type const key = block.thread_rank();
@@ -63,7 +63,7 @@ __global__ void shmem_set_kernel(typename SetRef::extent_type window_extent,
   // Next, we want to check if the keys can be found again using the `contains` function.
   // We move the `insert_ref` to a new object that supports `contains` but no longer supports
   // `insert`.
-  auto const contains_ref = std::move(insert_ref).with(cuco::contains);
+  auto const contains_ref = insert_ref.with_operators(cuco::contains);
 
   // Check if all keys can be found
   if (not contains_ref.contains(key)) { printf("ERROR: Key %d not found\n", key); }

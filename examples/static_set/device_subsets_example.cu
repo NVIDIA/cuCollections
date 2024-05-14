@@ -86,7 +86,7 @@ __global__ void insert(ref_type* set_refs)
   auto const idx = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
   auto raw_set_ref    = *(set_refs + idx);
-  auto insert_set_ref = std::move(raw_set_ref).with(cuco::insert);
+  auto insert_set_ref = raw_set_ref.with_operators(cuco::insert);
 
   // Insert `N` elemtns into the set with CG insert
   for (int i = 0; i < N; i++) {
@@ -110,7 +110,7 @@ __global__ void find(ref_type* set_refs)
   auto const idx  = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
   auto raw_set_ref  = *(set_refs + idx);
-  auto find_set_ref = std::move(raw_set_ref).with(cuco::find);
+  auto find_set_ref = raw_set_ref.with_operators(cuco::find);
 
   // Result denoting if any of the inserted data is not found
   __shared__ int result;
