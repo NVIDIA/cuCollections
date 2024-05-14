@@ -211,6 +211,49 @@ auto static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operat
     std::move(*this)};
 }
 
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename NewKeyEqual>
+__host__ __device__ constexpr auto
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_key_eq(
+  NewKeyEqual const& key_equal) const noexcept
+{
+  return static_multiset_ref<Key, Scope, NewKeyEqual, ProbingScheme, StorageRef, Operators...>{
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
+    key_equal,
+    this->impl_.probing_scheme(),
+    {},
+    this->impl_.storage_ref()};
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename NewHash>
+__host__ __device__ constexpr auto
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  with_hash_function(NewHash const& hash) const noexcept
+{
+  auto const probing_scheme = this->impl_.probing_scheme().with_hash_function(hash);
+  return static_multiset_ref<Key,
+                             Scope,
+                             KeyEqual,
+                             decltype(probing_scheme),
+                             StorageRef,
+                             Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
+                                           this->impl_.key_eq(),
+                                           probing_scheme,
+                                           {},
+                                           this->impl_.storage_ref()};
+}
+
 namespace detail {
 
 template <typename Key,
@@ -264,6 +307,60 @@ class operator_impl<
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert(group, value);
+  }
+};
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::contains_tag,
+  static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type =
+    static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type   = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief Indicates whether the probe key `key` was inserted into the container.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   *
+   * @param key The key to search for
+   *
+   * @return A boolean indicating whether the probe key is present
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.contains(key);
+  }
+
+  /**
+   * @brief Indicates whether the probe key `key` was inserted into the container.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   *
+   * @param group The Cooperative Group used to perform group contains
+   * @param key The key to search for
+   *
+   * @return A boolean indicating whether the probe key is present
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ bool contains(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.contains(group, key);
   }
 };
 

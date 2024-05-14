@@ -61,8 +61,8 @@ namespace cuco {
  * construction.
  *
  * @note Allows constant time concurrent modify or lookup operations from threads in device code.
- * @note cuCollections data structures always place the slot keys on the left-hand side when
- * invoking the key comparison predicate, i.e., `pred(slot_key, query_key)`. Order-sensitive
+ * @note cuCollections data structures always place the slot keys on the right-hand side when
+ * invoking the key comparison predicate, i.e., `pred(query_key, slot_key)`. Order-sensitive
  * `KeyEqual` should be used with caution.
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.

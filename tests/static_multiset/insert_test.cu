@@ -30,7 +30,7 @@
 using size_type = int32_t;
 
 template <typename Set>
-__inline__ void test_insert(Set& set)
+void test_insert(Set& set)
 {
   using Key = typename Set::key_type;
 
