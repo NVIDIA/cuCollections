@@ -60,6 +60,7 @@ __global__ void shmem_set_kernel(typename SetRef::extent_type window_extent,
   // Next, we want to check if the keys can be found again using the `contains` function. We create
   // a new non-owning object based on the `insert_ref` that supports `contains` but no longer
   // supports `insert`.
+  // CAVEAT: concurrent use of `insert_ref` and `contains_ref` is undefined behavior.
   auto const contains_ref = insert_ref.with_operators(cuco::contains);
 
   // Check if all keys can be found
