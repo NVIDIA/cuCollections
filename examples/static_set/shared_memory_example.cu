@@ -45,12 +45,9 @@ __global__ void shmem_set_kernel(typename SetRef::extent_type window_extent,
   // Synchronize the block to make sure initialization has finished.
   block.sync();
 
-  // The `set` object does not come with any functionality.
-  // We first have to transform it into an object that supports the function we need
-  // (in this case `insert`). This invalidates the old `set` object (move semantics).
-  // With this guard we can make sure that users don't mix operations that are not
-  // safe to use in a concurrent setup.
-  auto insert_ref = std::move(set).with(cuco::insert);
+  // The `set` object does not come with any functionality. We first have to transform it into an
+  // object that supports the function we need (in this case `insert`).
+  auto insert_ref = set.with_operators(cuco::insert);
 
   // Each thread inserts its thread id into the set.
   typename SetRef::key_type const key = block.thread_rank();
@@ -60,10 +57,11 @@ __global__ void shmem_set_kernel(typename SetRef::extent_type window_extent,
 
   // Synchronize the cta to make sure all insert operations have finished.
   block.sync();
-  // Next, we want to check if the keys can be found again using the `contains` function.
-  // We move the `insert_ref` to a new object that supports `contains` but no longer supports
-  // `insert`.
-  auto const contains_ref = std::move(insert_ref).with(cuco::contains);
+  // Next, we want to check if the keys can be found again using the `contains` function. We create
+  // a new non-owning object based on the `insert_ref` that supports `contains` but no longer
+  // supports `insert`.
+  // CAVEAT: concurrent use of `insert_ref` and `contains_ref` is undefined behavior.
+  auto const contains_ref = insert_ref.with_operators(cuco::contains);
 
   // Check if all keys can be found
   if (not contains_ref.contains(key)) { printf("ERROR: Key %d not found\n", key); }
