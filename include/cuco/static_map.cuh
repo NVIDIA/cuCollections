@@ -569,8 +569,7 @@ class static_map {
    *
    * @note This function synchronizes the given stream. For asynchronous execution use `find_async`.
    * @note If the key `*(first + i)` has a matched `element` in the map, copies the payload of
-   * `element` to
-   * `(output_begin + i)`. Else, copies the empty value sentinel.
+   * `element` to `(output_begin + i)`. Else, copies the empty value sentinel.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator assignable from the map's `mapped_type`
@@ -588,8 +587,7 @@ class static_map {
    * equivalent to the query key.
    *
    * @note If the key `*(first + i)` has a matched `element` in the map, copies the payload of
-   * `element` to
-   * `(output_begin + i)`. Else, copies the empty value sentinel.
+   * `element` to `(output_begin + i)`. Else, copies the empty value sentinel.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator assignable from the map's `mapped_type`
