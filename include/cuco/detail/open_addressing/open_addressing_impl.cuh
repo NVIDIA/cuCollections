@@ -499,6 +499,37 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief For all keys in the range `[first, last)`, asynchronously finds
+   * a match with its key equivalent to the query key.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of matches retrieved for each key
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt, typename Ref>
+  void find_async(InputIt first,
+                  InputIt last,
+                  OutputIt output_begin,
+                  Ref container_ref,
+                  cuda_stream_ref stream) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::find<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+        first, num_keys, output_begin, container_ref);
+  }
+
+  /**
    * @brief Retrieves all keys contained in the container.
    *
    * @note This API synchronizes the given stream.

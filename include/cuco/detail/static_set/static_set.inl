@@ -297,14 +297,7 @@ template <typename InputIt, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
-  auto const num_keys = cuco::detail::distance(first, last);
-  if (num_keys == 0) { return; }
-
-  auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
-
-  static_set_ns::detail::find<cg_size, cuco::detail::default_block_size()>
-    <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
-      first, num_keys, output_begin, ref(op::find));
+  impl_->find_async(first, last, output_begin, ref(op::find), stream);
 }
 
 template <class Key,
