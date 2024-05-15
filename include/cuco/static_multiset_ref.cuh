@@ -186,6 +186,8 @@ class static_multiset_ref
   /**
    * @brief Creates a reference with new operators from the current object.
    *
+   * @deprecated This function is deprecated. Use the new `with_operators` instead.
+   *
    * Note that this function uses move semantics and thus invalidates the current object.
    *
    * @warning Using two or more reference objects to the same container but with
