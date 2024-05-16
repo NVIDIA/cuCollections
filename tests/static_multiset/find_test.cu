@@ -18,6 +18,7 @@
 
 #include <cuco/static_multiset.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/constant_iterator.h>
@@ -25,8 +26,6 @@
 #include <thrust/transform.h>
 
 #include <catch2/catch_template_test_macros.hpp>
-
-#include <cuda/functional>
 
 using size_type = int32_t;
 
