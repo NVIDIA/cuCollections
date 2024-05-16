@@ -95,6 +95,7 @@ ConfigureTest(DYNAMIC_MAP_TEST
 # - static_multiset tests -------------------------------------------------------------------------
 ConfigureTest(STATIC_MULTISET_TEST
     static_multiset/contains_test.cu
+    static_multiset/find_test.cu
     static_multiset/insert_test.cu)
 
 ###################################################################################################

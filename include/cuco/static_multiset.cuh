@@ -435,6 +435,46 @@ class static_multiset {
                          cuda_stream_ref stream = {}) const noexcept;
 
   /**
+   * @brief For all keys in the range `[first, last)`, finds an element with key equivalent to the
+   * query key.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use `find_async`.
+   * @note If the key `*(first + i)` has a matched `element` in the multiset, copies `element` to
+   * `(output_begin + i)`. Else, copies the empty key sentinel.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from the set's `key_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of elements retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void find(InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief For all keys in the range `[first, last)`, asynchronously finds an element with key
+   * equivalent to the query key.
+   *
+   * @note If the key `*(first + i)` has a matched `element` in the multiset, copies `element` to
+   * `(output_begin + i)`. Else, copies the empty key sentinel.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from the set's `key_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of elements retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void find_async(InputIt first,
+                  InputIt last,
+                  OutputIt output_begin,
+                  cuda_stream_ref stream = {}) const;
+
+  /**
    * @brief Gets the number of elements in the container.
    *
    * @note This function synchronizes the given stream.
