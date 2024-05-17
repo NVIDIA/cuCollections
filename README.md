@@ -206,8 +206,8 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 #### Examples:
 - [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/fczxbM1h6))
 - [Device-ref APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/zcnGqfdMW))
-- [One single storage for multiple sets](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_subsets_example.cu) (see [live example in godbolt](https://godbolt.org/z/rYbfxhf73))
-- [Using shared memory as storage](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/shared_memory_example.cu) (see [live example in godbolt](https://godbolt.org/z/q5GaW3qYY))
+- [One single storage for multiple sets](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_subsets_example.cu) (see [live example in godbolt](https://godbolt.org/z/P9s4fKscj))
+- [Using shared memory as storage](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/shared_memory_example.cu) (see [live example in godbolt](https://godbolt.org/z/4dq58efc8))
 - [Using set as mapping table to handle large keys or indeterministic sentinels](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/mapping_table_example.cu) (see [live example in godbolt](https://godbolt.org/z/E1e3j86E4))
 
 ### `static_map`

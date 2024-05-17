@@ -40,7 +40,7 @@ struct pair_equal {
 };
 
 template <typename Key, typename Value, typename Map, typename PairIt>
-__inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num_pairs)
+void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num_pairs)
 {
   map.insert(pair_begin, pair_begin + num_pairs);
   CUCO_CUDA_TRY(cudaStreamSynchronize(0));

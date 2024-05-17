@@ -30,7 +30,7 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 template <typename Map>
-__inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
+void test_multiplicity_two(Map& map, std::size_t num_items)
 {
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;

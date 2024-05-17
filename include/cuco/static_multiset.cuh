@@ -56,8 +56,8 @@ namespace cuco {
  * construction.
  *
  * @note Allows constant time concurrent modify or lookup operations from threads in device code.
- * @note cuCollections data structures always place the slot keys on the left-hand side when
- * invoking the key comparison predicate, i.e., `pred(slot_key, query_key)`. Order-sensitive
+ * @note cuCollections data structures always place the slot keys on the right-hand side when
+ * invoking the key comparison predicate, i.e., `pred(query_key, slot_key)`. Order-sensitive
  * `KeyEqual` should be used with caution.
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
@@ -82,7 +82,7 @@ template <class Key,
           class ProbingScheme      = cuco::double_hashing<4,  // CG size
                                                      cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<Key>,
-          class Storage            = cuco::storage<1>>
+          class Storage            = cuco::storage<2>>
 class static_multiset {
   using impl_type = detail::
     open_addressing_impl<Key, Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>;
@@ -331,6 +331,148 @@ class static_multiset {
                        StencilIt stencil,
                        Predicate pred,
                        cuda_stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the multiset.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `contains_async`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void contains(InputIt first,
+                InputIt last,
+                OutputIt output_begin,
+                cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
+   * the multiset.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void contains_async(InputIt first,
+                      InputIt last,
+                      OutputIt output_begin,
+                      cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the multiset if
+   * `pred` of the corresponding stencil returns `true`.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
+   * indicating if the key `*(first + i)` is present in the multiset. If `pred( *(stencil + i) )` is
+   * `false`, stores `false` to `(output_begin + i)`.
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `contains_if_async`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+  void contains_if(InputIt first,
+                   InputIt last,
+                   StencilIt stencil,
+                   Predicate pred,
+                   OutputIt output_begin,
+                   cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
+   * the multiset if `pred` of the corresponding stencil returns `true`.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
+   * indicating if the key `*(first + i)` is present in the multiset. If `pred( *(stencil + i) )` is
+   * `false`, stores `false` to `(output_begin + i)`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+  void contains_if_async(InputIt first,
+                         InputIt last,
+                         StencilIt stencil,
+                         Predicate pred,
+                         OutputIt output_begin,
+                         cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief For all keys in the range `[first, last)`, finds an element with key equivalent to the
+   * query key.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use `find_async`.
+   * @note If the key `*(first + i)` has a matched `element` in the multiset, copies `element` to
+   * `(output_begin + i)`. Else, copies the empty key sentinel.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from the set's `key_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of elements retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void find(InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief For all keys in the range `[first, last)`, asynchronously finds an element with key
+   * equivalent to the query key.
+   *
+   * @note If the key `*(first + i)` has a matched `element` in the multiset, copies `element` to
+   * `(output_begin + i)`. Else, copies the empty key sentinel.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from the set's `key_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of elements retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void find_async(InputIt first,
+                  InputIt last,
+                  OutputIt output_begin,
+                  cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset

@@ -25,9 +25,7 @@
 
 #include <cooperative_groups.h>
 
-namespace cuco {
-namespace static_map_ns {
-namespace detail {
+namespace cuco::static_map_ns::detail {
 CUCO_SUPPRESS_KERNEL_WARNINGS
 
 /**
@@ -67,66 +65,4 @@ CUCO_KERNEL void insert_or_assign(InputIt first, cuco::detail::index_type n, Ref
   }
 }
 
-/**
- * @brief Finds the equivalent map elements of all keys in the range `[first, first + n)`.
- *
- * @note If the key `*(first + i)` has a match in the container, copies the payload of its matched
- * element to `(output_begin + i)`. Else, copies the empty value sentinel. Uses the CUDA Cooperative
- * Groups API to leverage groups of multiple threads to find each key. This provides a significant
- * boost in throughput compared to the non Cooperative Group `find` at moderate to high load
- * factors.
- *
- * @tparam CGSize Number of threads in each CG
- * @tparam BlockSize The size of the thread block
- * @tparam InputIt Device accessible input iterator
- * @tparam OutputIt Device accessible output iterator assignable from the map's `mapped_type`
- * @tparam Ref Type of non-owning device ref allowing access to storage
- *
- * @param first Beginning of the sequence of keys
- * @param n Number of keys to query
- * @param output_begin Beginning of the sequence of matched payloads retrieved for each key
- * @param ref Non-owning map device ref used to access the slot storage
- */
-template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
-CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
-{
-  namespace cg = cooperative_groups;
-
-  auto const block       = cg::this_thread_block();
-  auto const thread_idx  = block.thread_rank();
-  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
-  auto idx               = cuco::detail::global_thread_id() / CGSize;
-
-  __shared__ typename Ref::mapped_type output_buffer[BlockSize / CGSize];
-
-  while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
-    if (idx < n) {
-      typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
-      if constexpr (CGSize == 1) {
-        auto const found = ref.find(key);
-        /*
-         * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased
-         * sector stores from L2 to global memory. By writing results to shared memory and then
-         * synchronizing before writing back to global, we no longer rely on L1, preventing the
-         * increase in sector stores from L2 to global and improving performance.
-         */
-        output_buffer[thread_idx] =
-          found == ref.end() ? ref.empty_value_sentinel() : (*found).second;
-        block.sync();
-        *(output_begin + idx) = output_buffer[thread_idx];
-      } else {
-        auto const tile  = cg::tiled_partition<CGSize>(block);
-        auto const found = ref.find(tile, key);
-
-        if (tile.thread_rank() == 0) {
-          *(output_begin + idx) = found == ref.end() ? ref.empty_value_sentinel() : (*found).second;
-        }
-      }
-    }
-    idx += loop_stride;
-  }
-}
-
-}  // namespace detail
-}  // namespace static_map_ns
-}  // namespace cuco
+}  // namespace cuco::static_map_ns::detail

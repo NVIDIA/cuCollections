@@ -216,6 +216,64 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+template <typename... NewOperators>
+__host__ __device__ constexpr auto
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_operators(
+  NewOperators...) const noexcept
+{
+  return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
+    this->key_eq(),
+    this->impl_.probing_scheme(),
+    {},
+    this->impl_.storage_ref()};
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename NewKeyEqual>
+__host__ __device__ constexpr auto
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_key_eq(
+  NewKeyEqual const& key_equal) const noexcept
+{
+  return static_set_ref<Key, Scope, NewKeyEqual, ProbingScheme, StorageRef, Operators...>{
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
+    key_equal,
+    this->impl_.probing_scheme(),
+    {},
+    this->impl_.storage_ref()};
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename NewHash>
+__host__ __device__ constexpr auto
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_hash_function(
+  NewHash const& hash) const noexcept
+{
+  auto const probing_scheme = this->impl_.probing_scheme().with_hash_function(hash);
+  return static_set_ref<Key, Scope, KeyEqual, decltype(probing_scheme), StorageRef, Operators...>{
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
+    this->impl_.key_eq(),
+    probing_scheme,
+    {},
+    this->impl_.storage_ref()};
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename CG, cuda::thread_scope NewScope>
 __device__ constexpr auto
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(

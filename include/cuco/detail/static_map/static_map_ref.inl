@@ -259,6 +259,32 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+template <typename... NewOperators>
+__host__ __device__ auto constexpr static_map_ref<Key,
+                                                  T,
+                                                  Scope,
+                                                  KeyEqual,
+                                                  ProbingScheme,
+                                                  StorageRef,
+                                                  Operators...>::with_operators(NewOperators...)
+  const noexcept
+{
+  return static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
+    cuco::empty_value<T>{this->empty_value_sentinel()},
+    this->key_eq(),
+    this->impl_.probing_scheme(),
+    {},
+    this->impl_.storage_ref()};
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename CG, cuda::thread_scope NewScope>
 __device__ constexpr auto
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
@@ -398,7 +424,7 @@ class operator_impl<
 
       for (auto& slot_content : window_slots) {
         auto const eq_res =
-          ref_.impl_.predicate_.operator()<is_insert::YES>(slot_content.first, key);
+          ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
@@ -449,7 +475,7 @@ class operator_impl<
       auto const [state, intra_window_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < window_size; ++i) {
-          res = ref_.impl_.predicate_.operator()<is_insert::YES>(window_slots[i].first, key);
+          res = ref_.impl_.predicate_.operator()<is_insert::YES>(key, window_slots[i].first);
           if (res != detail::equal_result::UNEQUAL) {
             return detail::window_probing_results{res, i};
           }
@@ -514,7 +540,7 @@ class operator_impl<
 
     // if key success or key was already present in the map
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key) or
-        (ref_.impl_.predicate().equal_to(*old_key_ptr, value.first) ==
+        (ref_.impl_.predicate().equal_to(value.first, *old_key_ptr) ==
          detail::equal_result::EQUAL)) {
       // Update payload
       ref_.impl_.atomic_store(&slot->second, value.second);
