@@ -865,16 +865,14 @@ class open_addressing_ref_impl {
         auto res = detail::equal_result::UNEQUAL;
         for (auto& slot : window_slots) {
           res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
-          if (res != detail::equal_result::UNEQUAL) { return res; }
+          if (res == detail::equal_result::EMPTY) { return res; }
+          count += static_cast<size_type>(res);
         }
         return res;
       }();
 
-      switch (state) {
-        case detail::equal_result::EMPTY: return count;
-        case detail::equal_result::EQUAL: ++count; break;
-        default: continue;
-      }
+      if (group.any(state == detail::equal_result::EMPTY)) { return count; }
+
       ++probing_iter;
     }
   }
