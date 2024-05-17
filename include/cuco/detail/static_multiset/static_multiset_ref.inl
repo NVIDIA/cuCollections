@@ -478,7 +478,7 @@ class operator_impl<
   template <typename ProbeKey>
   __device__ size_type count(ProbeKey const& key) const noexcept
   {
-    ref_type& ref_ = static_cast<ref_type&>(*this);
+    auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.count(key);
   }
 
@@ -496,7 +496,7 @@ class operator_impl<
   __device__ size_type count(cooperative_groups::thread_block_tile<cg_size> const& group,
                              ProbeKey const& key) const noexcept
   {
-    auto& ref_ = static_cast<ref_type&>(*this);
+    auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.count(group, key);
   }
 };
