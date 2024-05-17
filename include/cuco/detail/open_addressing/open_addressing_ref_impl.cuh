@@ -830,7 +830,7 @@ class open_addressing_ref_impl {
 
         for (auto& slot_content : window_slots) {
           switch (
-            this->predicate_.operator()<is_insert::NO>(this->extract_key(slot_content), key)) {
+            this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content))) {
             case detail::equal_result::EMPTY: return count;
             case detail::equal_result::EQUAL: ++count; break;
             default: continue;
@@ -864,7 +864,7 @@ class open_addressing_ref_impl {
       auto const state = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto& slot : window_slots) {
-          res = this->predicate_.operator()<is_insert::NO>(this->extract_key(slot), key);
+          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
           if (res != detail::equal_result::UNEQUAL) { return res; }
         }
         return res;
