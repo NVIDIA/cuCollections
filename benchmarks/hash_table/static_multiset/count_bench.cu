@@ -29,7 +29,7 @@ using namespace cuco::benchmark;
 using namespace cuco::utility;
 
 template <typename Key, typename Dist>
-void static_multimap_count(nvbench::state& state, nvbench::type_list<Key, Dist>)
+void static_multiset_count(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
   auto const num_keys      = state.get_int64_or_default("NumInputs", defaults::N);
   auto const occupancy     = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
@@ -53,26 +53,26 @@ void static_multimap_count(nvbench::state& state, nvbench::type_list<Key, Dist>)
   });
 }
 
-NVBENCH_BENCH_TYPES(static_multimap_count,
+NVBENCH_BENCH_TYPES(static_multiset_count,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       nvbench::type_list<distribution::uniform>))
-  .set_name("static_multimap_count_uniform_occupancy")
+  .set_name("static_multiset_count_uniform_occupancy")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
 
-NVBENCH_BENCH_TYPES(static_multimap_count,
+NVBENCH_BENCH_TYPES(static_multiset_count,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       nvbench::type_list<distribution::uniform>))
-  .set_name("static_multimap_count_uniform_matching_rate")
+  .set_name("static_multiset_count_uniform_matching_rate")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE);
 
-NVBENCH_BENCH_TYPES(static_multimap_count,
+NVBENCH_BENCH_TYPES(static_multiset_count,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       nvbench::type_list<distribution::uniform>))
-  .set_name("static_multimap_count_uniform_multiplicity")
+  .set_name("static_multiset_count_uniform_multiplicity")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
