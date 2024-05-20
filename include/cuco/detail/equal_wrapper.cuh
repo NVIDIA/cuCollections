@@ -24,9 +24,8 @@ namespace detail {
 
 /**
  * @brief Enum of equality comparison results
- *
- * @note ENUM VALUE MATTERS, DO NOT CHANGE
  */
+// ENUM VALUE MATTERS, DO NOT CHANGE
 enum class equal_result : int32_t { UNEQUAL = 0, EQUAL = 1, EMPTY = 2, AVAILABLE = 3 };
 
 enum class is_insert : bool { YES, NO };
