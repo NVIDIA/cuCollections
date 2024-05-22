@@ -513,7 +513,7 @@ class open_addressing_ref_impl {
         if (eq_res == detail::equal_result::EQUAL) {
           if constexpr (has_payload) {
             // wait to ensure that the write to the value part also took place
-            this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+            this->wait_for_payload((window_ptr + i)->second, this->empty_value_sentinel());
           }
           return {iterator{&window_ptr[i]}, false};
         }
@@ -522,14 +522,14 @@ class open_addressing_ref_impl {
             case insert_result::SUCCESS: {
               if constexpr (has_payload) {
                 // wait to ensure that the write to the value part also took place
-                this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+                this->wait_for_payload((window_ptr + i)->second, this->empty_value_sentinel());
               }
               return {iterator{&window_ptr[i]}, true};
             }
             case insert_result::DUPLICATE: {
               if constexpr (has_payload) {
                 // wait to ensure that the write to the value part also took place
-                this->wait_for_payload((window_ptr + i)->second, this->empty_slot_sentinel_.second);
+                this->wait_for_payload((window_ptr + i)->second, this->empty_value_sentinel());
               }
               return {iterator{&window_ptr[i]}, false};
             }
@@ -596,7 +596,7 @@ class open_addressing_ref_impl {
         if (group.thread_rank() == src_lane) {
           if constexpr (has_payload) {
             // wait to ensure that the write to the value part also took place
-            this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
+            this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
           }
         }
         group.sync();
@@ -617,7 +617,7 @@ class open_addressing_ref_impl {
             if (group.thread_rank() == src_lane) {
               if constexpr (has_payload) {
                 // wait to ensure that the write to the value part also took place
-                this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
+                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
               }
             }
             group.sync();
@@ -627,7 +627,7 @@ class open_addressing_ref_impl {
             if (group.thread_rank() == src_lane) {
               if constexpr (has_payload) {
                 // wait to ensure that the write to the value part also took place
-                this->wait_for_payload(slot_ptr->second, this->empty_slot_sentinel_.second);
+                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
               }
             }
             group.sync();
@@ -1046,7 +1046,7 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ constexpr auto heterogeneous_value(T const& value) const noexcept
   {
     if constexpr (this->has_payload and not cuda::std::is_same_v<T, value_type>) {
-      using mapped_type = decltype(this->empty_slot_sentinel_.second);
+      using mapped_type = decltype(this->empty_value_sentinel());
       if constexpr (cuco::detail::is_cuda_std_pair_like<T>::value) {
         return cuco::pair{cuda::std::get<0>(value),
                           static_cast<mapped_type>(cuda::std::get<1>(value))};
@@ -1070,7 +1070,7 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ constexpr value_type const erased_slot_sentinel() const noexcept
   {
     if constexpr (this->has_payload) {
-      return cuco::pair{this->erased_key_sentinel(), this->empty_slot_sentinel().second};
+      return cuco::pair{this->erased_key_sentinel(), this->empty_value_sentinel()};
     } else {
       return this->erased_key_sentinel();
     }
@@ -1120,7 +1120,7 @@ class open_addressing_ref_impl {
                                                                     value_type const& expected,
                                                                     Value const& desired) noexcept
   {
-    using mapped_type = decltype(this->empty_slot_sentinel_.second);
+    using mapped_type = decltype(this->empty_value_sentinel());
 
     auto const expected_key     = expected.first;
     auto const expected_payload = expected.second;
@@ -1166,7 +1166,7 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(
     value_type* address, value_type const& expected, Value const& desired) noexcept
   {
-    using mapped_type = decltype(this->empty_slot_sentinel_.second);
+    using mapped_type = decltype(this->empty_value_sentinel());
 
     auto const expected_key = expected.first;
 
