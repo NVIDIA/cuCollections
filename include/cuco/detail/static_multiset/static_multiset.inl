@@ -305,8 +305,10 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   ProbeHash const& probe_hash,
   cuda_stream_ref stream) const noexcept
 {
-  return impl_->count(
-    first, last, ref(op::count).with_key_eq(probe_key_equal).with_hash(probe_hash), stream);
+  return impl_->count(first,
+                      last,
+                      ref(op::count).with_key_eq(probe_key_equal).with_hash_function(probe_hash),
+                      stream);
 }
 
 template <class Key,
@@ -325,8 +327,10 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   ProbeHash const& probe_hash,
   cuda_stream_ref stream) const noexcept
 {
-  return impl_->count(
-    first, last, ref(op::count).with_key_eq(probe_key_equal).with_hash(probe_hash), stream);
+  return impl_->count(first,
+                      last,
+                      ref(op::count).with_key_eq(probe_key_equal).with_hash_function(probe_hash),
+                      stream);
 }
 
 template <class Key,

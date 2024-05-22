@@ -354,7 +354,7 @@ CUCO_KERNEL void count(InputIt first, cuco::detail::index_type n, AtomicT* count
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    auto const key = *(first + idx);
+    typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
     if constexpr (CGSize == 1) {
       thread_count += ref.count(key);
     } else {
