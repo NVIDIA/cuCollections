@@ -807,6 +807,77 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Counts the occurrence of a given key contained in the container
+   *
+   * @tparam ProbeKey Input type
+   *
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ size_type count(ProbeKey const& key) const noexcept
+  {
+    if constexpr (not allows_duplicates) {
+      return static_cast<size_type>(this->contains(key));
+    } else {
+      auto probing_iter = probing_scheme_(key, storage_ref_.window_extent());
+      size_type count   = 0;
+
+      while (true) {
+        // TODO atomic_ref::load if insert operator is present
+        auto const window_slots = storage_ref_[*probing_iter];
+
+        for (auto& slot_content : window_slots) {
+          switch (
+            this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content))) {
+            case detail::equal_result::EMPTY: return count;
+            case detail::equal_result::EQUAL: ++count; break;
+            default: continue;
+          }
+        }
+        ++probing_iter;
+      }
+    }
+  }
+
+  /**
+   * @brief Counts the occurrence of a given key contained in the container
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   *
+   * @param group The Cooperative Group used to perform group count
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ size_type count(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  {
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
+    size_type count   = 0;
+
+    while (true) {
+      auto const window_slots = storage_ref_[*probing_iter];
+
+      auto const state = [&]() {
+        auto res = detail::equal_result::UNEQUAL;
+        for (auto& slot : window_slots) {
+          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
+          if (res == detail::equal_result::EMPTY) { return res; }
+          count += static_cast<size_type>(res);
+        }
+        return res;
+      }();
+
+      if (group.any(state == detail::equal_result::EMPTY)) { return count; }
+
+      ++probing_iter;
+    }
+  }
+
+  /**
    * @brief Finds an element in the container with key equivalent to the probe key.
    *
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to

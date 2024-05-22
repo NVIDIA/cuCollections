@@ -330,6 +330,46 @@ CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output
 }
 
 /**
+ * @brief Counts the occurrences of keys in `[first, last)` contained in the container
+ *
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIt Device accessible input iterator
+ * @tparam AtomicT Atomic counter type
+ * @tparam Ref Type of non-owning device container ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param count Number of matches
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
+template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename AtomicT, typename Ref>
+CUCO_KERNEL void count(InputIt first, cuco::detail::index_type n, AtomicT* count, Ref ref)
+{
+  using BlockReduce = cub::BlockReduce<typename Ref::size_type, BlockSize>;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  typename Ref::size_type thread_count = 0;
+
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
+
+  while (idx < n) {
+    auto const key = *(first + idx);
+    if constexpr (CGSize == 1) {
+      thread_count += ref.count(key);
+    } else {
+      auto const tile =
+        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+      thread_count += ref.count(tile, key);
+    }
+    idx += loop_stride;
+  }
+
+  auto const block_count = BlockReduce(temp_storage).Sum(thread_count);
+  if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
+}
+
+/**
  * @brief Calculates the number of filled slots for the given window storage.
  *
  * @tparam BlockSize Number of threads in each block

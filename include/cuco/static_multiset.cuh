@@ -475,6 +475,20 @@ class static_multiset {
                   cuda_stream_ref stream = {}) const;
 
   /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
+   *
+   * @tparam Input Device accessible input iterator
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <typename InputIt>
+  size_type count(InputIt first, InputIt last, cuda_stream_ref stream = {}) const noexcept;
+
+  /**
    * @brief Gets the number of elements in the container.
    *
    * @note This function synchronizes the given stream.
