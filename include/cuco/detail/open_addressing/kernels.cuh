@@ -330,29 +330,17 @@ CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output
 }
 
 /**
- * @brief Inserts all elements in the range `[first, first + n)` and returns the number of
- * successful insertions if `pred` of the corresponding stencil returns true.
- *
- * @note If multiple elements in `[first, first + n)` compare equal, it is unspecified which element
- * is inserted.
- * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+ * @brief Counts the occurrences of keys in `[first, last)` contained in the container
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
- * @tparam InputIt Device accessible input iterator whose `value_type` is
- * convertible to the `value_type` of the data structure
- * @tparam StencilIt Device accessible random access iterator whose value_type is
- * convertible to Predicate's argument type
- * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
- * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+ * @tparam InputIt Device accessible input iterator
  * @tparam AtomicT Atomic counter type
  * @tparam Ref Type of non-owning device container ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
- * @param stencil Beginning of the stencil sequence
- * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
- * @param num_successes Number of successful inserted elements
+ * @param count Number of matches
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename AtomicT, typename Ref>
@@ -377,8 +365,6 @@ CUCO_KERNEL void count(InputIt first, cuco::detail::index_type n, AtomicT* count
     idx += loop_stride;
   }
 
-  // compute number of successfully inserted elements for each block
-  // and atomically add to the grand total
   auto const block_count = BlockReduce(temp_storage).Sum(thread_count);
   if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
 }
