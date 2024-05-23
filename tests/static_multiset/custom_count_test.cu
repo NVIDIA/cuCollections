@@ -72,6 +72,13 @@ void test_custom_count(Set& set, size_type num_keys)
     REQUIRE(count == 0);
   }
 
+  SECTION("Outer count of empty set should be the same as input size.")
+  {
+    auto const count =
+      set.count_outer(query_begin, query_begin + num_keys, custom_key_eq{}, custom_hash{});
+    REQUIRE(count == num_keys);
+  }
+
   auto const iter = thrust::counting_iterator<Key>{0};
   set.insert(iter, iter + num_keys);
 
@@ -80,6 +87,31 @@ void test_custom_count(Set& set, size_type num_keys)
     auto const count =
       set.count(query_begin, query_begin + num_keys, custom_key_eq{}, custom_hash{});
     REQUIRE(count == num_keys);
+  }
+
+  SECTION("Outer count of n unique keys should be n.")
+  {
+    auto const count =
+      set.count_outer(query_begin, query_begin + num_keys, custom_key_eq{}, custom_hash{});
+    REQUIRE(count == num_keys);
+  }
+
+  set.clear();  // reset the set
+  auto const constants = thrust::constant_iterator<Key>{1};
+  set.insert(constants, constants + num_keys);  // inser the same value `num_keys` times
+
+  SECTION("Count of a key whose multiplicity equals n should be n.")
+  {
+    auto const count =
+      set.count(query_begin, query_begin + num_keys, custom_key_eq{}, custom_hash{});
+    REQUIRE(count == num_keys);
+  }
+
+  SECTION("Outer count of a key whose multiplicity equals n should be n + input_size - 1.")
+  {
+    auto const count =
+      set.count_outer(query_begin, query_begin + num_keys, custom_key_eq{}, custom_hash{});
+    REQUIRE(count == 2 * num_keys - 1);
   }
 }
 

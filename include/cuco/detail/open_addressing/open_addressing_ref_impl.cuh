@@ -809,7 +809,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Counts the occurrence of a given key contained in the container
    *
-   * @tparam ProbeKey Input type
+   * @tparam ProbeKey Prob key type
    *
    * @param key The key to count for
    *
@@ -844,7 +844,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Counts the occurrence of a given key contained in the container
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Prob key type
    *
    * @param group The Cooperative Group used to perform group count
    * @param key The key to count for
@@ -855,26 +855,28 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ size_type count(
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
-    size_type count   = 0;
+    auto constexpr is_outer = false;
+    return this->count<is_outer>(group, key);
+  }
 
-    while (true) {
-      auto const window_slots = storage_ref_[*probing_iter];
-
-      auto const state = [&]() {
-        auto res = detail::equal_result::UNEQUAL;
-        for (auto& slot : window_slots) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
-          if (res == detail::equal_result::EMPTY) { return res; }
-          count += static_cast<size_type>(res);
-        }
-        return res;
-      }();
-
-      if (group.any(state == detail::equal_result::EMPTY)) { return count; }
-
-      ++probing_iter;
-    }
+  /**
+   * @brief Counts the occurrence of a given key contained in the container
+   *
+   * @note If a given key has no matches, its occurrence is 1.
+   *
+   * @tparam ProbeKey Prob key type
+   *
+   * @param group The Cooperative Group used to perform group count
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ size_type count_outer(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  {
+    auto constexpr is_outer = true;
+    return this->count<is_outer>(group, key);
   }
 
   /**
@@ -1347,6 +1349,51 @@ class open_addressing_ref_impl {
   detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
   probing_scheme_type probing_scheme_;                    ///< Probing scheme
   storage_ref_type storage_ref_;                          ///< Slot storage ref
+
+ private:
+  /**
+   * @brief Counts the occurrence of a given key contained in the container
+   *
+   * @note If `IsOuter` is `true`, the occurrence of a non-match key is 1. Else, it's 0.
+   *
+   * @tparam IsOuter Flag indicating whether it's an outer count or not
+   * @tparam ProbeKey Prob key type
+   *
+   * @param group The Cooperative Group used to perform group count
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <bool IsOuter, typename ProbeKey>
+  [[nodiscard]] __device__ size_type count(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  {
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
+    size_type count   = 0;
+
+    while (true) {
+      auto const window_slots = storage_ref_[*probing_iter];
+
+      auto const state = [&]() {
+        auto res = detail::equal_result::UNEQUAL;
+        for (auto& slot : window_slots) {
+          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
+          if (res == detail::equal_result::EMPTY) { return res; }
+          count += static_cast<size_type>(res);
+        }
+        return res;
+      }();
+
+      if (group.any(state == detail::equal_result::EMPTY)) {
+        if constexpr (IsOuter) {
+          if (group.all(count == 0) and group.thread_rank() == 0) { ++count; }
+        }
+        return count;
+      }
+
+      ++probing_iter;
+    }
+  }
 };
 
 }  // namespace detail

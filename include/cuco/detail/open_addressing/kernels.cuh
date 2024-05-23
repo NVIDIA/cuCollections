@@ -332,6 +332,7 @@ CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output
 /**
  * @brief Counts the occurrences of keys in `[first, last)` contained in the container
  *
+ * @tparam IsOuter Flag indicating whether it's an outer count or not
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIt Device accessible input iterator
@@ -343,9 +344,16 @@ CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output
  * @param count Number of matches
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename AtomicT, typename Ref>
+template <bool IsOuter,
+          int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIt,
+          typename AtomicT,
+          typename Ref>
 CUCO_KERNEL void count(InputIt first, cuco::detail::index_type n, AtomicT* count, Ref ref)
 {
+  typename Ref::size_type constexpr outer_min_count = 1;
+
   using BlockReduce = cub::BlockReduce<typename Ref::size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
   typename Ref::size_type thread_count = 0;
@@ -356,11 +364,19 @@ CUCO_KERNEL void count(InputIt first, cuco::detail::index_type n, AtomicT* count
   while (idx < n) {
     typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
     if constexpr (CGSize == 1) {
-      thread_count += ref.count(key);
+      if constexpr (IsOuter) {
+        thread_count += max(ref.count(key), outer_min_count);
+      } else {
+        thread_count += ref.count(key);
+      }
     } else {
       auto const tile =
         cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-      thread_count += ref.count(tile, key);
+      if constexpr (IsOuter) {
+        thread_count += ref.count_outer(tile, key);
+      } else {
+        thread_count += ref.count(tile, key);
+      }
     }
     idx += loop_stride;
   }
