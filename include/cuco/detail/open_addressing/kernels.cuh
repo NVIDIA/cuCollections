@@ -352,11 +352,13 @@ template <bool IsOuter,
           typename Ref>
 CUCO_KERNEL void count(InputIt first, cuco::detail::index_type n, AtomicT* count, Ref ref)
 {
-  typename Ref::size_type constexpr outer_min_count = 1;
+  using size_type = typename Ref::size_type;
 
-  using BlockReduce = cub::BlockReduce<typename Ref::size_type, BlockSize>;
+  size_type constexpr outer_min_count = 1;
+
+  using BlockReduce = cub::BlockReduce<size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
-  typename Ref::size_type thread_count = 0;
+  size_type thread_count = 0;
 
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
@@ -373,7 +375,9 @@ CUCO_KERNEL void count(InputIt first, cuco::detail::index_type n, AtomicT* count
       auto const tile =
         cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
       if constexpr (IsOuter) {
-        thread_count += ref.count_outer(tile, key);
+        auto temp_count = ref.count(tile, key);
+        if (tile.all(temp_count == 0) and tile.thread_rank() == 0) { ++temp_count; }
+        thread_count += temp_count;
       } else {
         thread_count += ref.count(tile, key);
       }

@@ -499,27 +499,6 @@ class operator_impl<
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.count(group, key);
   }
-
-  /**
-   * @brief Counts the occurrence of a given key contained in the multiset
-   *
-   * @note If the given key has no match, the first rank of the group will
-   * return 1, other threads will return 0.
-   *
-   * @tparam ProbeKey Probe key type
-   *
-   * @param group The Cooperative Group used to perform group count
-   * @param key The key to count for
-   *
-   * @return Number of occurrences found by the current thread
-   */
-  template <typename ProbeKey>
-  __device__ size_type count_outer(cooperative_groups::thread_block_tile<cg_size> const& group,
-                                   ProbeKey const& key) const noexcept
-  {
-    auto const& ref_ = static_cast<ref_type const&>(*this);
-    return ref_.impl_.count_outer(group, key);
-  }
 };
 
 }  // namespace detail
