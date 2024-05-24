@@ -267,12 +267,12 @@ template <int32_t BlockSize,
           typename OutputIt2,
           typename AtomicT,
           typename Ref>
-CUCO_KERNEL void retrieve(InputIt first,
-                          cuco::detail::index_type n,
-                          OutputIt1 output_probe,
-                          OutputIt2 output_match,
-                          AtomicT* counter,
-                          Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void retrieve(InputIt first,
+                                                       cuco::detail::index_type n,
+                                                       OutputIt1 output_probe,
+                                                       OutputIt2 output_match,
+                                                       AtomicT* counter,
+                                                       Ref ref)
 {
   // Scalar retrieve without using CG
   if constexpr (Ref::cg_size == 1) {

@@ -61,12 +61,12 @@ template <int32_t CGSize,
           typename Predicate,
           typename AtomicT,
           typename Ref>
-CUCO_KERNEL void insert_if_n(InputIt first,
-                             cuco::detail::index_type n,
-                             StencilIt stencil,
-                             Predicate pred,
-                             AtomicT* num_successes,
-                             Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void insert_if_n(InputIt first,
+                                                          cuco::detail::index_type n,
+                                                          StencilIt stencil,
+                                                          Predicate pred,
+                                                          AtomicT* num_successes,
+                                                          Ref ref)
 {
   using BlockReduce = cub::BlockReduce<typename Ref::size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
@@ -127,7 +127,7 @@ template <int32_t CGSize,
           typename StencilIt,
           typename Predicate,
           typename Ref>
-CUCO_KERNEL void insert_if_n(
+CUCO_KERNEL __launch_bounds__(BlockSize) void insert_if_n(
   InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
@@ -162,7 +162,9 @@ CUCO_KERNEL void insert_if_n(
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Ref>
-CUCO_KERNEL void erase(InputIt first, cuco::detail::index_type n, Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void erase(InputIt first,
+                                                    cuco::detail::index_type n,
+                                                    Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
@@ -212,12 +214,12 @@ template <int32_t CGSize,
           typename Predicate,
           typename OutputIt,
           typename Ref>
-CUCO_KERNEL void contains_if_n(InputIt first,
-                               cuco::detail::index_type n,
-                               StencilIt stencil,
-                               Predicate pred,
-                               OutputIt output_begin,
-                               Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
+                                                            cuco::detail::index_type n,
+                                                            StencilIt stencil,
+                                                            Predicate pred,
+                                                            OutputIt output_begin,
+                                                            Ref ref)
 {
   namespace cg = cooperative_groups;
 
@@ -274,7 +276,10 @@ CUCO_KERNEL void contains_if_n(InputIt first,
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
-CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
+                                                   cuco::detail::index_type n,
+                                                   OutputIt output_begin,
+                                                   Ref ref)
 {
   namespace cg = cooperative_groups;
 
@@ -342,7 +347,9 @@ CUCO_KERNEL void find(InputIt first, cuco::detail::index_type n, OutputIt output
  * @param count Number of filled slots
  */
 template <int32_t BlockSize, typename StorageRef, typename Predicate, typename AtomicT>
-CUCO_KERNEL void size(StorageRef storage, Predicate is_filled, AtomicT* count)
+CUCO_KERNEL __launch_bounds__(BlockSize) void size(StorageRef storage,
+                                                   Predicate is_filled,
+                                                   AtomicT* count)
 {
   using size_type = typename StorageRef::size_type;
 
@@ -368,9 +375,10 @@ CUCO_KERNEL void size(StorageRef storage, Predicate is_filled, AtomicT* count)
 }
 
 template <int32_t BlockSize, typename ContainerRef, typename Predicate>
-CUCO_KERNEL void rehash(typename ContainerRef::storage_ref_type storage_ref,
-                        ContainerRef container_ref,
-                        Predicate is_filled)
+CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
+  typename ContainerRef::storage_ref_type storage_ref,
+  ContainerRef container_ref,
+  Predicate is_filled)
 {
   namespace cg = cooperative_groups;
 
