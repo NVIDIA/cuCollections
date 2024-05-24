@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#include <defaults.hpp>
-#include <utils.hpp>
+#include <benchmark_defaults.hpp>
+#include <benchmark_utils.hpp>
 
 #include <cuco/distinct_count_estimator.cuh>
 #include <cuco/static_set.cuh>
@@ -23,10 +23,9 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/iterator/transform_iterator.h>
-
-#include <cuda/functional>
 
 #include <cmath>
 #include <cstddef>

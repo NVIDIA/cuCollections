@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/distinct_count_estimator.cuh>
 #include <cuco/hash_functions.cuh>

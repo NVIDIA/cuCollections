@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
@@ -28,8 +29,6 @@
 #include <thrust/tuple.h>
 
 #include <catch2/catch_template_test_macros.hpp>
-
-#include <cuda/functional>
 
 TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
                        "",

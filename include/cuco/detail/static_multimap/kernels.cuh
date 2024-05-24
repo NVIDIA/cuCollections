@@ -18,11 +18,9 @@
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/pair.cuh>
 
-#include <thrust/type_traits/is_contiguous_iterator.h>
-
 #include <cub/block/block_reduce.cuh>
-
 #include <cuda/std/atomic>
+#include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <iterator>
 

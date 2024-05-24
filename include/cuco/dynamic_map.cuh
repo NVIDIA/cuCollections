@@ -21,10 +21,9 @@
 #include <cuco/static_map.cuh>
 #include <cuco/types.cuh>
 
+#include <cuda/std/atomic>
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
-
-#include <cuda/std/atomic>
 
 #include <cstddef>
 #include <memory>

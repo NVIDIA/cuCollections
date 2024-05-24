@@ -26,11 +26,10 @@
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
-#include <thrust/type_traits/is_contiguous_iterator.h>
-
 #include <cuda/std/bit>
 #include <cuda/std/span>
 #include <cuda/std/utility>
+#include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>

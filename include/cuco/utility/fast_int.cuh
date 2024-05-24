@@ -18,10 +18,11 @@
 
 #include <cuco/detail/__config>
 
-#include <cstdint>
 #include <cuda/std/bit>
 #include <cuda/std/limits>
 #include <cuda/std/type_traits>
+
+#include <cstdint>
 
 namespace cuco::utility {
 
