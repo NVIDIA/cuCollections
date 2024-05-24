@@ -501,7 +501,7 @@ class operator_impl<
   }
 
   /**
-   * @brief Counts the occurrence of a given key contained in multiset
+   * @brief Counts the occurrence of a given key contained in the multiset
    *
    * @note If the given key has no match, the first rank of the group will
    * return 1, other threads will return 0.
