@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <defaults.hpp>
+#include <benchmark_defaults.hpp>
 
 #include <cuco/hash_functions.cuh>
 

@@ -21,9 +21,9 @@
 #include <cuda/std/array>
 #include <cuda/std/span>
 
-#include <cstddef>
-
 #include <cooperative_groups.h>
+
+#include <cstddef>
 
 namespace cuco::hyperloglog_ns::detail {
 CUCO_SUPPRESS_KERNEL_WARNINGS

@@ -17,13 +17,12 @@
 #include <cuco/static_set_ref.cuh>
 #include <cuco/storage.cuh>
 
+#include <cuda/std/array>
 #include <thrust/device_vector.h>
 #include <thrust/reduce.h>
 #include <thrust/scan.h>
 
 #include <cooperative_groups.h>
-
-#include <cuda/std/array>
 
 #include <algorithm>
 #include <cstddef>

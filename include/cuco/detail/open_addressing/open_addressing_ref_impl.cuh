@@ -22,10 +22,9 @@
 #include <cuco/pair.cuh>
 #include <cuco/probing_scheme.cuh>
 
+#include <cuda/atomic>
 #include <thrust/distance.h>
 #include <thrust/tuple.h>
-
-#include <cuda/atomic>
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
 #endif

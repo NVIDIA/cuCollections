@@ -17,7 +17,6 @@
 #include <cuco/detail/utility/cuda.cuh>
 
 #include <cub/block/block_reduce.cuh>
-
 #include <cuda/std/atomic>
 
 #include <cooperative_groups.h>

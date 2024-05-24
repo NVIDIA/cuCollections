@@ -19,13 +19,11 @@
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
 
-#include <thrust/device_vector.h>
-#include <thrust/iterator/discard_iterator.h>
-
 #include <cub/device/device_scan.cuh>
 #include <cub/device/device_select.cuh>
-
 #include <cuda/std/bit>
+#include <thrust/device_vector.h>
+#include <thrust/iterator/discard_iterator.h>
 
 namespace cuco {
 namespace experimental {

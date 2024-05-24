@@ -17,11 +17,10 @@
 
 #include <cuco/detail/bitwise_compare.cuh>
 
-#include <thrust/tuple.h>
-
 #include <cuda/std/bit>
 #include <cuda/std/cmath>
 #include <cuda/std/type_traits>
+#include <thrust/tuple.h>
 
 namespace cuco {
 namespace detail {
