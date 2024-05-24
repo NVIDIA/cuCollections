@@ -19,10 +19,9 @@
 
 #include <cuco/cuda_stream_ref.hpp>
 
+#include <cuda/std/array>
 #include <thrust/device_malloc_allocator.h>
 #include <thrust/device_vector.h>
-
-#include <cuda/std/array>
 
 #include <climits>
 #include <cstddef>

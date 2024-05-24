@@ -27,13 +27,11 @@
 #include <cuco/storage.cuh>
 #include <cuco/utility/traits.hpp>
 
+#include <cub/device/device_select.cuh>
+#include <cuda/atomic>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
-
-#include <cub/device/device_select.cuh>
-
-#include <cuda/atomic>
 
 #include <cmath>
 

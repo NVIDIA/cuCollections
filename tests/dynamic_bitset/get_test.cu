@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
-#include <catch2/catch_test_macros.hpp>
+#include <test_utils.hpp>
+
 #include <cuco/detail/trie/dynamic_bitset/dynamic_bitset.cuh>
+
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/sequence.h>
-#include <utils.hpp>
+
+#include <catch2/catch_test_macros.hpp>
 
 template <class BitsetRef, typename size_type, typename OutputIt>
 __global__ void test_kernel(BitsetRef ref, size_type num_elements, OutputIt output)

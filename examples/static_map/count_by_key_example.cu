@@ -16,13 +16,11 @@
 
 #include <cuco/static_map.cuh>
 
+#include <cub/block/block_reduce.cuh>
+#include <cuda/std/atomic>
 #include <thrust/device_vector.h>
 #include <thrust/logical.h>
 #include <thrust/transform.h>
-
-#include <cub/block/block_reduce.cuh>
-
-#include <cuda/std/atomic>
 
 #include <cmath>
 #include <cstddef>

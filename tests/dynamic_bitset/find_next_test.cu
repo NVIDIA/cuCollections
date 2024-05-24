@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/detail/trie/dynamic_bitset/dynamic_bitset.cuh>
 
