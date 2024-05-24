@@ -75,18 +75,20 @@ IncludeBlocks: Regroup
 IncludeCategories:
   - Regex:           '^"' # quoted includes
     Priority:        1
-  - Regex:           '^<(benchmarks|tests)/' # benchmark includes
+  - Regex:           '^<(benchmark_defaults|benchmark_utils|test_utils)' # benchmark/test includes
     Priority:        2
   - Regex:           '^<cuco/' # cuco includes
     Priority:        3
-  - Regex:           '^<(thrust|cub|cuda)/' # CCCL includes
+  - Regex:           '^<nvbench/' # nvbench includes
     Priority:        4
-  - Regex:           '^<(cooperative_groups|cuda.h|cuda_runtime|device_types|math_constants|nvtx3)' # CUDA includes
+  - Regex:           '^<(thrust|cub|cuda)/' # CCCL includes
     Priority:        5
-  - Regex:           '^<.*\..*' # other system includes (e.g. with a '.')
+  - Regex:           '^<(cooperative_groups|cuda.h|cuda_runtime|device_types|math_constants|nvtx3)' # CUDA includes
     Priority:        6
-  - Regex:           '^<[^.]+' # STL includes (no '.')
+  - Regex:           '^<.*\..*' # other system includes (e.g. with a '.')
     Priority:        7
+  - Regex:           '^<[^.]+' # STL includes (no '.')
+    Priority:        8
 IndentCaseLabels: true
 IndentPPDirectives: None
 IndentWidth:     2

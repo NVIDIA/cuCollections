@@ -24,9 +24,8 @@
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/traits.hpp>
 
-#include <thrust/functional.h>
-
 #include <cuda/std/atomic>
+#include <thrust/functional.h>
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>

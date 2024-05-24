@@ -30,9 +30,10 @@
 #include <thrust/transform.h>
 #include <thrust/type_traits/is_execution_policy.h>
 
+#include <time.h>
+
 #include <cstdint>
 #include <iterator>
-#include <time.h>
 #include <type_traits>
 
 namespace cuco::utility {

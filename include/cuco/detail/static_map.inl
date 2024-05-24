@@ -19,11 +19,10 @@
 #include <cuco/detail/utils.cuh>
 #include <cuco/detail/utils.hpp>
 
+#include <cub/device/device_select.cuh>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/tuple.h>
-
-#include <cub/device/device_select.cuh>
 
 namespace cuco::legacy {
 

@@ -16,12 +16,11 @@
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/functional>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
 #include <catch2/catch_test_macros.hpp>
-
-#include <cuda/functional>
 
 TEST_CASE("Rehash", "")
 {

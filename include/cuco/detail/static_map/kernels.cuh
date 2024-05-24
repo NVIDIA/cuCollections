@@ -19,11 +19,11 @@
 #include <cuco/detail/utility/cuda.cuh>
 
 #include <cub/block/block_reduce.cuh>
-
 #include <cuda/atomic>
-#include <iterator>
 
 #include <cooperative_groups.h>
+
+#include <iterator>
 
 namespace cuco::static_map_ns::detail {
 CUCO_SUPPRESS_KERNEL_WARNINGS

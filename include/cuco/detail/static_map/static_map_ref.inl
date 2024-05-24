@@ -18,9 +18,8 @@
 
 #include <cuco/operator.hpp>
 
-#include <thrust/tuple.h>
-
 #include <cuda/atomic>
+#include <thrust/tuple.h>
 
 #include <cooperative_groups.h>
 

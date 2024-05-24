@@ -28,10 +28,9 @@
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
-#include <thrust/functional.h>
-
 #include <cuda/atomic>
 #include <cuda/std/utility>
+#include <thrust/functional.h>
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>

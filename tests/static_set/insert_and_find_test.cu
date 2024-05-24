@@ -14,17 +14,16 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/functional>
 #include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
-
-#include <cuda/functional>
 
 template <typename Set>
 void test_insert_and_find(Set& set, std::size_t num_keys)
