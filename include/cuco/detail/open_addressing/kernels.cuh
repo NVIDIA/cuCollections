@@ -337,6 +337,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
 /**
  * @brief Counts the occurrences of keys in `[first, last)` contained in the container
  *
+ * @tparam IsOuter Flag indicating whether it's an outer count or not
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIt Device accessible input iterator
@@ -348,24 +349,46 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
  * @param count Number of matches
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename AtomicT, typename Ref>
-CUCO_KERNEL void count(InputIt first, cuco::detail::index_type n, AtomicT* count, Ref ref)
+template <bool IsOuter,
+          int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIt,
+          typename AtomicT,
+          typename Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
+                                                    cuco::detail::index_type n,
+                                                    AtomicT* count,
+                                                    Ref ref)
 {
-  using BlockReduce = cub::BlockReduce<typename Ref::size_type, BlockSize>;
+  using size_type = typename Ref::size_type;
+
+  size_type constexpr outer_min_count = 1;
+
+  using BlockReduce = cub::BlockReduce<size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
-  typename Ref::size_type thread_count = 0;
+  size_type thread_count = 0;
 
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    auto const key = *(first + idx);
+    typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
     if constexpr (CGSize == 1) {
-      thread_count += ref.count(key);
+      if constexpr (IsOuter) {
+        thread_count += max(ref.count(key), outer_min_count);
+      } else {
+        thread_count += ref.count(key);
+      }
     } else {
       auto const tile =
         cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-      thread_count += ref.count(tile, key);
+      if constexpr (IsOuter) {
+        auto temp_count = ref.count(tile, key);
+        if (tile.all(temp_count == 0) and tile.thread_rank() == 0) { ++temp_count; }
+        thread_count += temp_count;
+      } else {
+        thread_count += ref.count(tile, key);
+      }
     }
     idx += loop_stride;
   }

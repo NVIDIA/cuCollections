@@ -476,6 +476,8 @@ class static_multiset {
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
    *
+   * @note This function synchronizes the given stream.
+   *
    * @tparam Input Device accessible input iterator
    *
    * @param first Beginning of the sequence of keys to count
@@ -486,6 +488,56 @@ class static_multiset {
    */
   template <typename InputIt>
   size_type count(InputIt first, InputIt last, cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @tparam Input Device accessible input iterator
+   * @tparam ProbeKeyEqual Binary callable
+   * @tparam ProbeHash Unary hash callable
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param probe_key_equal Binary callable to compare two keys for equality
+   * @param probe_hash Unary callable to hash a given key
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash>
+  size_type count(InputIt first,
+                  InputIt last,
+                  ProbeKeyEqual const& probe_key_equal,
+                  ProbeHash const& probe_hash,
+                  cuda_stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
+   *
+   * @note This function synchronizes the given stream.
+   * @note If a given key has no matches, its occurrence is 1.
+   *
+   * @tparam Input Device accessible input iterator
+   * @tparam ProbeKeyEqual Binary callable
+   * @tparam ProbeHash Unary hash callable
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param probe_key_equal Binary callable to compare two keys for equality
+   * @param probe_hash Unary callable to hash a given key
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)` where keys have no matches
+   * are considered to have a single occurrence.
+   */
+  template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash>
+  size_type count_outer(InputIt first,
+                        InputIt last,
+                        ProbeKeyEqual const& probe_key_equal,
+                        ProbeHash const& probe_hash,
+                        cuda_stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Gets the number of elements in the container.

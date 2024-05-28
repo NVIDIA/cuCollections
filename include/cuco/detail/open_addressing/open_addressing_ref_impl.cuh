@@ -808,7 +808,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Counts the occurrence of a given key contained in the container
    *
-   * @tparam ProbeKey Input type
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to count for
    *
@@ -843,7 +843,7 @@ class open_addressing_ref_impl {
   /**
    * @brief Counts the occurrence of a given key contained in the container
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform group count
    * @param key The key to count for
@@ -871,7 +871,6 @@ class open_addressing_ref_impl {
       }();
 
       if (group.any(state == detail::equal_result::EMPTY)) { return count; }
-
       ++probing_iter;
     }
   }

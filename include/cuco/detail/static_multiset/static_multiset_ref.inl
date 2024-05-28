@@ -485,7 +485,7 @@ class operator_impl<
   /**
    * @brief Counts the occurrence of a given key contained in multiset
    *
-   * @tparam ProbeKey Input type
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform group count
    * @param key The key to count for
