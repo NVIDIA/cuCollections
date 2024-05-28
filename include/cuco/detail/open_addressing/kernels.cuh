@@ -350,7 +350,10 @@ template <bool IsOuter,
           typename InputIt,
           typename AtomicT,
           typename Ref>
-CUCO_KERNEL void count(InputIt first, cuco::detail::index_type n, AtomicT* count, Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
+                                                    cuco::detail::index_type n,
+                                                    AtomicT* count,
+                                                    Ref ref)
 {
   using size_type = typename Ref::size_type;
 
