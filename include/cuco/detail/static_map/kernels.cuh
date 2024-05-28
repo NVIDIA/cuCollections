@@ -47,7 +47,9 @@ CUCO_SUPPRESS_KERNEL_WARNINGS
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Ref>
-CUCO_KERNEL void insert_or_assign(InputIt first, cuco::detail::index_type n, Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
+                                                               cuco::detail::index_type n,
+                                                               Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
