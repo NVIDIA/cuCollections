@@ -257,6 +257,28 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
 }
 
 /**
+ * @brief Helper to determine the buffer type for the find kernel
+ *
+ * @tparam Container Container type
+ */
+template <typename Container, typename = void>
+struct find_buffer {
+  using type = typename Container::key_type;  ///< Buffer type
+};
+
+/**
+ * @brief Helper to determine the buffer type for the find kernel
+ *
+ * @note Specialization if `mapped_type` exists
+ *
+ * @tparam Container Container type
+ */
+template <typename Container>
+struct find_buffer<Container, cuda::std::void_t<typename Container::mapped_type>> {
+  using type = typename Container::mapped_type;  ///< Buffer type
+};
+
+/**
  * @brief Finds the equivalent container elements of all keys in the range `[first, first + n)`.
  *
  * @note If the key `*(first + i)` has a match in the container, copies the match to `(output_begin
@@ -288,7 +310,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
-  using output_type = typename std::iterator_traits<OutputIt>::value_type;
+  using output_type = typename find_buffer<Ref>::type;
   __shared__ output_type output_buffer[BlockSize / CGSize];
 
   auto constexpr has_payload = not std::is_same_v<typename Ref::key_type, typename Ref::value_type>;
