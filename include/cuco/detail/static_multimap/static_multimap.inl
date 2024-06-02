@@ -16,6 +16,8 @@
 
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.cuh>
+#include <cuco/pair.cuh>
+#include <cuco/types.cuh>
 
 #include <thrust/count.h>
 #include <thrust/execution_policy.h>
@@ -590,6 +592,24 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::count
 {
   constexpr bool is_outer = false;
   return impl_.count<uses_vector_load(), is_outer>(g, k, key_equal);
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
+template <typename KeyEqual>
+__device__ __forceinline__
+  typename static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::const_iterator
+  static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::find(
+    cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+    Key const& k,
+    KeyEqual key_equal) noexcept
+{
+  constexpr bool is_outer         = false;
+  constexpr bool uses_vector_load = false;
+  return impl_.find<uses_vector_load, is_outer>(g, k, key_equal);
 }
 
 template <typename Key,

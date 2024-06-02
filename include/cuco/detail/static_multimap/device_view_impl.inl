@@ -789,6 +789,42 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   }
 
   /**
+   * @brief Find the first iterator that matches the given key using scalar loads.
+   *
+   * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
+   * @tparam is_outer Boolean flag indicating whether outer join is peformed
+   * @tparam CG Cooperative Group type
+   * @tparam KeyEqual Binary callable type
+   * @param g The Cooperative Group used to perform the count operation
+   * @param k The key to search for
+   * @param key_equal The binary callable used to compare two keys
+   * for equality
+   * @return Iterator to the first element that matches the given key if found, empty slot
+   * otherwise
+   */
+  template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
+  __device__ __forceinline__ std::enable_if_t<not uses_vector_load, const_iterator> find(
+    CG const& g, Key const& k, KeyEqual key_equal) noexcept
+  {
+    auto current_slot = initial_slot(g, k);
+
+    while (true) {
+      value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
+      auto const& current_key  = slot_contents.first;
+
+      auto const slot_is_empty =
+        detail::bitwise_compare(current_key, this->get_empty_key_sentinel());
+
+      if (g.any(slot_is_empty)) { return current_slot; }
+      auto const equals = not slot_is_empty and key_equal(current_key, k);
+
+      if (g.any(equals)) { return current_slot; }
+
+      current_slot = next_slot(current_slot);
+    }
+  }
+
+  /**
    * @brief Counts the occurrence of a given key/value pair contained in multimap using vector
    * loads.
    *
