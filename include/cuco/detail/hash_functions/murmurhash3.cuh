@@ -20,7 +20,6 @@
 #include <cuco/extent.cuh>
 
 #include <cuda/std/array>
-#include <thrust/pair.h>
 
 #include <cstddef>
 #include <cstdint>
@@ -211,16 +210,19 @@ struct MurmurHash3_32 {
 };
 
 template <typename Key>
-struct MurmurHash3_128 {
+struct MurmurHash3_x64_128 {
   using argument_type = Key;  ///< The type of the values taken as argument
   using result_type = cuda::std::array<std::uint64_t, 2>;  ///< The type of the hash values produced
 
   /**
-   * @brief Constructs a MurmurHash3_128 hash function with the given `seed`.
+   * @brief Constructs a MurmurHash3_x64_128 hash function with the given `seed`.
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr MurmurHash3_128(std::uint64_t seed = 0) : fmix64_{0}, seed_{seed} {}
+  __host__ __device__ constexpr MurmurHash3_x64_128(std::uint64_t seed = 0)
+    : fmix64_{0}, seed_{seed}
+  {
+  }
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
@@ -247,8 +249,8 @@ struct MurmurHash3_128 {
   constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
                                                          Extent size) const noexcept
   {
-    uint32_t const BLOCK_SIZE = 16;
-    auto const nblocks        = size / BLOCK_SIZE;
+    constexpr std::uint32_t block_size = 16;
+    auto const nblocks                 = size / block_size;
 
     std::uint64_t h1           = seed_;
     std::uint64_t h2           = seed_;
@@ -256,7 +258,7 @@ struct MurmurHash3_128 {
     constexpr std::uint64_t c2 = 0x4cf5ad432745937fUL;
     //----------
     // body
-    for (std::remove_const_t<decltype(nblocks)> i = 0; size >= BLOCK_SIZE && i < nblocks; i++) {
+    for (std::remove_const_t<decltype(nblocks)> i = 0; size >= block_size && i < nblocks; i++) {
       std::uint64_t k1 = load_chunk<std::uint64_t>(bytes, 2 * i);
       std::uint64_t k2 = load_chunk<std::uint64_t>(bytes, 2 * i + 1);
 
@@ -282,8 +284,8 @@ struct MurmurHash3_128 {
     // tail
     std::uint64_t k1 = 0;
     std::uint64_t k2 = 0;
-    auto const tail  = reinterpret_cast<uint8_t const*>(bytes) + nblocks * BLOCK_SIZE;
-    switch (size & (BLOCK_SIZE - 1)) {
+    auto const tail  = reinterpret_cast<uint8_t const*>(bytes) + nblocks * block_size;
+    switch (size & (block_size - 1)) {
       case 15: k2 ^= static_cast<std::uint64_t>(tail[14]) << 48;
       case 14: k2 ^= static_cast<std::uint64_t>(tail[13]) << 40;
       case 13: k2 ^= static_cast<std::uint64_t>(tail[12]) << 32;
