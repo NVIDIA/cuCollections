@@ -175,6 +175,84 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   Hash2 hash2_;
 };
 
+/**
+ * @brief Public perfect probing scheme class.
+ *
+ * @note Perfect hash functions guarantee no collisions. User is responsible for supplying a perfect
+ * hash
+ *
+ * @note User must ensure that the Hash function in combination with the input key set actually
+ * forma a perfect hash function
+ *
+ * @note User must ensure that the maximum hash values is smaller than the map's capacity
+ *
+ * @note `Hash` should be callable object type.
+ *
+ * @tparam CGSize Size of CUDA Cooperative Groups
+ * @tparam Hash Unary callable type
+ */
+template <int32_t CGSize, typename Hash>
+class perfect_probing : private detail::probing_scheme_base<CGSize> {
+ public:
+  using probing_scheme_base_type =
+    detail::probing_scheme_base<CGSize>;  ///< The base probe scheme type
+  using probing_scheme_base_type::cg_size;
+
+  /**
+   *@brief Constructs perfect probing scheme with the hasher callable.
+   *
+   * @param hash Hasher
+   */
+  __host__ __device__ constexpr perfect_probing(Hash const& hash = {});
+
+  /**
+   *@brief Makes a copy of the current probing method with the given hasher
+   *
+   * @tparam NewHash New hasher type
+   *
+   * @param hash Hasher
+   *
+   * @return Copy of the current probing method
+   */
+  template <typename NewHash>
+  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(
+    NewHash const& hash) const noexcept;
+
+  /**
+   * @brief Operator to return a probing iterator
+   *
+   * @tparam ProbeKey Type of probing key
+   * @tparam Extent Type of extent
+   *
+   * @param probe_key The probing key
+   * @param upper_bound Upper bound of the iteration
+   * @return An iterator whose value_type is convertible to slot index type
+   */
+  template <typename ProbeKey, typename Extent>
+  __host__ __device__ constexpr auto operator()(ProbeKey const& probe_key,
+                                                Extent upper_bound) const noexcept;
+
+  /**
+   * @brief Operator to return a CG-based probing iterator
+   *
+   * @tparam ProbeKey Type of probing key
+   * @tparam Extent Type of extent
+   *
+   * @param g the Cooperative Group to generate probing iterator
+   * @param probe_key The probing key
+   * @param upper_bound Upper bound of the iteration
+   * @return An iterator whose value_type is convertible to slot index type
+   */
+  template <typename ProbeKey, typename Extent>
+  __host__ __device__ constexpr auto operator()(
+    cooperative_groups::thread_block_tile<cg_size> const& g,
+    ProbeKey const& probe_key,
+    Extent upper_bound) const noexcept;
+
+ private:
+  Hash hash_;
+};
+
 }  // namespace cuco
 
 #include <cuco/detail/probing_scheme_impl.inl>
