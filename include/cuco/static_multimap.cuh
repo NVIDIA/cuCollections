@@ -971,11 +971,12 @@ class static_multimap {
     __device__ __forceinline__ const_iterator
     find(cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
          Key const& k, KeyEqual key_equal = KeyEqual{}) noexcept;
-    //      {
-    //   constexpr bool is_outer = false;
-    //   constexpr bool uses_vector_load = false;
-    //   return impl_.find<uses_vector_load, is_outer>(g, k, key_equal);
-    // }
+
+    template <typename KeyEqual = thrust::equal_to<key_type>>
+    __device__ __forceinline__ const_iterator next_iterator(
+        cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+        Key const& k, const_iterator current_iterator,
+        KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
      * @brief Counts the occurrence of a given key contained in multimap.

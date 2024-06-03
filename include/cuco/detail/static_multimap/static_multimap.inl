@@ -618,6 +618,26 @@ template <typename Key,
           typename Allocator,
           class ProbeSequence>
 template <typename KeyEqual>
+__device__ __forceinline__
+  typename static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::const_iterator
+  static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::next_iterator(
+    cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+    Key const& k,
+    typename static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::
+      const_iterator current_iterator,
+    KeyEqual key_equal) noexcept
+{
+  constexpr bool is_outer         = false;
+  constexpr bool uses_vector_load = false;
+  return impl_.next_iterator<uses_vector_load, is_outer>(g, k, current_iterator, key_equal);
+}
+
+template <typename Key,
+          typename Value,
+          cuda::thread_scope Scope,
+          typename Allocator,
+          class ProbeSequence>
+template <typename KeyEqual>
 __device__ __forceinline__ std::size_t
 static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::count_outer(
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
