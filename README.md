@@ -191,7 +191,7 @@ class example_class {
 ### Doxygen style check
 `cuCollections` also uses Doxygen as a documentation linter. To check the Doxygen style locally, run
 ```bash
-./ci/checks/doxygen.sh
+./ci/pre-commit/doxygen.sh
 ```
 
 
