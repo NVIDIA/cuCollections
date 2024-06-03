@@ -830,19 +830,6 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   __device__ __forceinline__ std::enable_if_t<not uses_vector_load, const_iterator> next_iterator(
     CG const& g, Key const& k, const_iterator current_iterator, KeyEqual key_equal) noexcept
   {
-    // auto current_slot = next_slot(current_iterator);
-    // while (true) {
-    //   auto slot_contents      = *reinterpret_cast<value_type const*>(current_slot);
-    //   auto const& current_key = slot_contents.first;
-    //   auto const slot_is_empty =
-    //     detail::bitwise_compare(current_key, this->get_empty_key_sentinel());
-    //   if (g.any(slot_is_empty)) { return current_slot; }
-    //   // if (slot_is_empty) { return current_slot; }
-    //   auto const equals = not slot_is_empty and key_equal(current_key, k);
-    //   if (equals) { return current_slot; }
-
-    //   current_slot = next_slot(current_slot);
-    // }
     return next_slot(current_iterator);
   }
 

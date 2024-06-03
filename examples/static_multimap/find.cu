@@ -29,9 +29,12 @@
 
 namespace cg = cooperative_groups;
 
+// This is actually a count kernel by utilizing self-defined cuco multimap api
+// that returns iterator and next_iterator
 template <typename MapViewT, typename InputIt, uint32_t tile_size = TILE_SIZE>
 __global__ void find(MapViewT multi_map, InputIt first, int n,
                      int *num_matches) {
+  // Similar stuff as cuco device-side count does
   auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
   int64_t const loop_stride = gridDim.x * blockDim.x / tile_size;
   int64_t idx = (blockDim.x * blockIdx.x + threadIdx.x) / tile_size;
@@ -48,18 +51,6 @@ __global__ void find(MapViewT multi_map, InputIt first, int n,
           current_key, multi_map.get_empty_key_sentinel());
       auto const equals =
           not slot_is_empty and cuco::detail::bitwise_compare(current_key, key);
-
-      // if (!tile.any(equals)) {
-      //   printf(
-      //       "idx: %ld, empty: %d, key: %d, current_key: %d, equals: %d, "
-      //       "contains: %d\n",
-      //       idx, slot_is_empty, key, current_key, equals,
-      //       multi_map.contains(tile, key));
-      //   // printf(
-      //   //     "idx: %ld, key: %d, current_key: %d, equals: %d, "
-      //   //     "contains: %d\n",
-      //   //     idx, key, current_key, equals, multi_map.contains(tile, key));
-      // }
 
       atomicAdd(num_matches, equals);
       if (tile.any(slot_is_empty)) {
@@ -85,11 +76,6 @@ __global__ void count(MapViewT multi_map, InputIt first, int n,
     auto key = static_cast<int>(first[idx]);
     auto count = multi_map.count(tile, key);
     atomicAdd(num_matches, count);
-    // if (tile.thread_rank() == 0) {
-    //   // printf("hiiii here, key: %d, idx is %ld\n", current_key, idx);
-    //   atomicAdd(num_matches, count);
-    // }
-    // printf("after: idx is %ld\n", idx);
     idx += loop_stride;
   }
 }
@@ -119,8 +105,6 @@ __global__ void count_official(MapViewT multi_map, InputIt first, int n,
       BlockReduce(temp_storage).Sum(thread_num_matches);
   if (threadIdx.x == 0) {
     atomicAdd(num_matches, block_num_matches);
-    // num_matches->fetch_add(block_num_matches,
-    // cuda::std::memory_order_relaxed);
   }
 }
 
@@ -145,6 +129,7 @@ int main(void) {
   // Constructs a multimap with 100,000 slots using -1 and -1 as the empty
   // key/value sentinels. Note the capacity is chosen knowing we will insert
   // 50,000 keys, for an load factor of 50%.
+
   // cuco::default_hash_function<key_type>
   // cuco::static_multimap<key_type, value_type, cuda::thread_scope_device,
   //                       cuco::cuda_allocator<char>,
@@ -167,6 +152,8 @@ int main(void) {
 
   // Create a sequence of pairs. Each key has two matches.
   // E.g., {{0,0}, {1,1}, ... {0,25'000}, {1, 25'001}, ...}
+  // For each key between 0-24999, there will be two pairs with the same key,
+  // but different values
   thrust::transform(
       thrust::make_counting_iterator<int>(0),
       thrust::make_counting_iterator<int>(pairs.size()), pairs.begin(),
@@ -186,6 +173,10 @@ int main(void) {
   find<<<grid_size, block_size>>>(device_view, keys_to_find.begin(), N,
                                   num_matches);
   // find<<<32, 32>>>(device_view, pairs.data().get(), N, num_matches);
+
+  // All of the following printing should be 50,000
+  // Issue is that find kernel is not working correctly by returning way fewer
+  // matches
   cudaDeviceSynchronize();
   int *num_matches_host;
   num_matches_host = (int *)malloc(sizeof(int));
