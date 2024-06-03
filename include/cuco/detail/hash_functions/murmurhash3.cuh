@@ -269,8 +269,8 @@ struct MurmurHash3_x64_128 {
 
     std::uint64_t h1           = seed_;
     std::uint64_t h2           = seed_;
-    constexpr std::uint64_t c1 = 0x87c37b91114253d5UL;
-    constexpr std::uint64_t c2 = 0x4cf5ad432745937fUL;
+    constexpr std::uint64_t c1 = 0x87c37b91114253d5ull;
+    constexpr std::uint64_t c2 = 0x4cf5ad432745937full;
     //----------
     // body
     for (std::remove_const_t<decltype(nblocks)> i = 0; size >= block_size && i < nblocks; i++) {

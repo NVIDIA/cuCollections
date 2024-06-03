@@ -203,41 +203,41 @@ __global__ void check_murmurhash3_128_result_kernel(OutputIter result)
   int i = 0;
 
   result[i++] = check_hash_result<cuco::murmurhash3_x64_128<int32_t>, uint64_t>(
-    0, 0, {14961230494313510588, 6383328099726337777});
+    0, 0, {14961230494313510588ull, 6383328099726337777ull});
   result[i++] = check_hash_result<cuco::murmurhash3_x64_128<int32_t>, uint64_t>(
-    9, 0, {1779292183511753683, 16298496441448380334});
+    9, 0, {1779292183511753683ull, 16298496441448380334ull});
   result[i++] = check_hash_result<cuco::murmurhash3_x64_128<int32_t>, uint64_t>(
-    42, 0, {2913627637088662735, 16344193523890567190});
+    42, 0, {2913627637088662735ull, 16344193523890567190ull});
   result[i++] = check_hash_result<cuco::murmurhash3_x64_128<int32_t>, uint64_t>(
-    42, 42, {2248879576374326886, 18006515275339376488});
+    42, 42, {2248879576374326886ull, 18006515275339376488ull});
   result[i++] =
     check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int32_t, 2>>, uint64_t>(
-      {2, 2}, 0, {12221386834995143465, 6690950894782946573});
+      {2, 2}, 0, {12221386834995143465ull, 6690950894782946573ull});
   result[i++] =
     check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int32_t, 3>>, uint64_t>(
-      {1, 4, 9}, 42, {299140022350411792, 9891903873182035274});
+      {1, 4, 9}, 42, {299140022350411792ull, 9891903873182035274ull});
   result[i++] =
     check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int32_t, 4>>, uint64_t>(
-      {42, 64, 108, 1024}, 63, {4333511168876981289, 4659486988434316416});
+      {42, 64, 108, 1024}, 63, {4333511168876981289ull, 4659486988434316416ull});
   result[i++] =
     check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int32_t, 16>>, uint64_t>(
       {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
       1024,
-      {3302412811061286680, 7070355726356610672});
+      {3302412811061286680ull, 7070355726356610672ull});
   result[i++] =
     check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int64_t, 2>>, uint64_t>(
-      {2, 2}, 0, {8554944597931919519, 14938998000509429729});
+      {2, 2}, 0, {8554944597931919519ull, 14938998000509429729ull});
   result[i++] =
     check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int64_t, 3>>, uint64_t>(
-      {1, 4, 9}, 42, {13442629947720186435, 7061727494178573325});
+      {1, 4, 9}, 42, {13442629947720186435ull, 7061727494178573325ull});
   result[i++] =
     check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int64_t, 4>>, uint64_t>(
-      {42, 64, 108, 1024}, 63, {8786399719555989948, 14954183901757012458});
+      {42, 64, 108, 1024}, 63, {8786399719555989948ull, 14954183901757012458ull});
   result[i++] =
     check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int64_t, 16>>, uint64_t>(
       {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
       1024,
-      {15409921801541329777, 10546487400963404004});
+      {15409921801541329777ull, 10546487400963404004ull});
 }
 
 TEST_CASE("Test cuco::murmurhash3_x64_128", "")
@@ -248,33 +248,33 @@ TEST_CASE("Test cuco::murmurhash3_x64_128", "")
   SECTION("Check if host-generated hash values match the reference implementation.")
   {
     CHECK(check_hash_result<cuco::murmurhash3_x64_128<int32_t>, uint64_t>(
-      0, 0, {14961230494313510588, 6383328099726337777}));
+      0, 0, {14961230494313510588ull, 6383328099726337777ull}));
     CHECK(check_hash_result<cuco::murmurhash3_x64_128<int32_t>, uint64_t>(
-      9, 0, {1779292183511753683, 16298496441448380334}));
+      9, 0, {1779292183511753683ull, 16298496441448380334ull}));
     CHECK(check_hash_result<cuco::murmurhash3_x64_128<int32_t>, uint64_t>(
-      42, 0, {2913627637088662735, 16344193523890567190}));
+      42, 0, {2913627637088662735ull, 16344193523890567190ull}));
     CHECK(check_hash_result<cuco::murmurhash3_x64_128<int32_t>, uint64_t>(
-      42, 42, {2248879576374326886, 18006515275339376488}));
+      42, 42, {2248879576374326886ull, 18006515275339376488ull}));
     CHECK(check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int32_t, 2>>, uint64_t>(
-      {2, 2}, 0, {12221386834995143465, 6690950894782946573}));
+      {2, 2}, 0, {12221386834995143465ull, 6690950894782946573ull}));
     CHECK(check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int32_t, 3>>, uint64_t>(
-      {1, 4, 9}, 42, {299140022350411792, 9891903873182035274}));
+      {1, 4, 9}, 42, {299140022350411792ull, 9891903873182035274ull}));
     CHECK(check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int32_t, 4>>, uint64_t>(
-      {42, 64, 108, 1024}, 63, {4333511168876981289, 4659486988434316416}));
+      {42, 64, 108, 1024}, 63, {4333511168876981289ull, 4659486988434316416ull}));
     CHECK(check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int32_t, 16>>, uint64_t>(
       {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
       1024,
-      {3302412811061286680, 7070355726356610672}));
+      {3302412811061286680ull, 7070355726356610672ull}));
     CHECK(check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int64_t, 2>>, uint64_t>(
-      {2, 2}, 0, {8554944597931919519, 14938998000509429729}));
+      {2, 2}, 0, {8554944597931919519ull, 14938998000509429729ull}));
     CHECK(check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int64_t, 3>>, uint64_t>(
-      {1, 4, 9}, 42, {13442629947720186435, 7061727494178573325}));
+      {1, 4, 9}, 42, {13442629947720186435ull, 7061727494178573325ull}));
     CHECK(check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int64_t, 4>>, uint64_t>(
-      {42, 64, 108, 1024}, 63, {8786399719555989948, 14954183901757012458}));
+      {42, 64, 108, 1024}, 63, {8786399719555989948ull, 14954183901757012458ull}));
     CHECK(check_hash_result<cuco::murmurhash3_x64_128<cuda::std::array<int64_t, 16>>, uint64_t>(
       {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
       1024,
-      {15409921801541329777, 10546487400963404004}));
+      {15409921801541329777ull, 10546487400963404004ull}));
   }
 
   SECTION("Check if device-generated hash values match the reference implementation.")
