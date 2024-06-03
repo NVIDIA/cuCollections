@@ -209,6 +209,21 @@ struct MurmurHash3_32 {
   std::uint32_t seed_;
 };
 
+/**
+ * @brief A `MurmurHash3_x64_128` hash function to hash the given argument on host and device.
+ *
+ * MurmurHash3_x64_128 implementation from
+ * https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp
+ * -----------------------------------------------------------------------------
+ * MurmurHash3 was written by Austin Appleby, and is placed in the public domain. The author
+ * hereby disclaims copyright to this source code.
+ *
+ * Note - The x86 and x64 versions do _not_ produce the same results, as the algorithms are
+ * optimized for their respective platforms. You can still compile and run any of them on any
+ * platform, but your performance with the non-native version will be less than optimal.
+ *
+ * @tparam Key The type of the values to hash
+ */
 template <typename Key>
 struct MurmurHash3_x64_128 {
   using argument_type = Key;  ///< The type of the values taken as argument
