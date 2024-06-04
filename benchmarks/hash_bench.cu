@@ -38,6 +38,20 @@ struct large_key {
   int32_t data_[Words];
 };
 
+template <typename T>
+constexpr __host__ __device__ void hash_result_aggregate(T& agg, T hash_val)
+{
+  agg += hash_val;
+}
+
+template <>
+constexpr __host__ __device__ void hash_result_aggregate(cuda::std::array<uint64_t, 2>& agg,
+                                                         cuda::std::array<uint64_t, 2> hash_val)
+{
+  agg[0] += hash_val[0];
+  agg[1] += hash_val[1];
+}
+
 template <int32_t BlockSize, typename Hasher, typename OutputIt>
 __global__ void hash_bench_kernel(Hasher hash,
                                   cuco::detail::index_type n,
@@ -47,12 +61,12 @@ __global__ void hash_bench_kernel(Hasher hash,
   cuco::detail::index_type const gid         = BlockSize * blockIdx.x + threadIdx.x;
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
   cuco::detail::index_type idx               = gid;
-  typename Hasher::result_type agg           = 0;
+  typename Hasher::result_type agg           = {};
 
   while (idx < n) {
     typename Hasher::argument_type key(idx);
     for (int32_t i = 0; i < 100; ++i) {  // execute hash func 100 times
-      agg += hash(key);
+      hash_result_aggregate(agg, hash(key));
     }
     idx += loop_stride;
   }
@@ -94,7 +108,10 @@ NVBENCH_BENCH_TYPES(
                                        cuco::xxhash_64<nvbench::int64_t>,
                                        cuco::xxhash_64<large_key<32>>,
                                        cuco::murmurhash3_fmix_32<nvbench::int32_t>,
-                                       cuco::murmurhash3_fmix_64<nvbench::int64_t>>))
+                                       cuco::murmurhash3_fmix_64<nvbench::int64_t>,
+                                       cuco::murmurhash3_x64_128<nvbench::int32_t>,
+                                       cuco::murmurhash3_x64_128<nvbench::int64_t>,
+                                       cuco::murmurhash3_x64_128<large_key<32>>>))
   .set_name("hash_function_eval")
   .set_type_axes_names({"Hash"})
   .set_max_noise(cuco::benchmark::defaults::MAX_NOISE);
