@@ -249,6 +249,63 @@ class perfect_probing : private detail::probing_scheme_base<CGSize> {
     ProbeKey const& probe_key,
     Extent upper_bound) const noexcept;
 
+  /**
+   * @brief Perfect probing iterator class.
+   *
+   * @tparam Extent Type of Extent
+   */
+  template <typename Extent>
+  class probing_iterator {
+   public:
+    using extent_type = Extent;                            ///< Extent type
+    using size_type   = typename extent_type::value_type;  ///< Size type
+
+    /**
+     * @brief Constructs an probing iterator
+     *
+     * @param start Iteration starting point
+     * @param upper_bound Upper bound of the iteration
+     */
+    __host__ __device__ constexpr probing_iterator(size_type start,
+                                                   extent_type upper_bound) noexcept
+      : curr_index_{start}, upper_bound_{upper_bound}
+    {
+    }
+
+    /**
+     * @brief Dereference operator
+     *
+     * @return Current slot index
+     */
+    __host__ __device__ constexpr auto operator*() const noexcept { return curr_index_; }
+
+    /**
+     * @brief Prefix increment operator
+     *
+     * @return Current iterator
+     */
+    __host__ __device__ constexpr auto operator++() noexcept
+    {
+      curr_index_ = upper_bound_ + 1;
+      return *this;
+    }
+
+    /**
+     * @brief Postfix increment operator
+     *
+     * @return Old iterator before increment
+     */
+    __host__ __device__ constexpr auto operator++(int32_t) noexcept
+    {
+      auto temp = *this;
+      ++(*this);
+      return temp;
+    }
+
+   private:
+    size_type curr_index_;
+    extent_type upper_bound_;
+  };  // class probing_iterator
  private:
   Hash hash_;
 };

@@ -27,7 +27,7 @@ namespace detail {
  * @tparam Extent Type of Extent
  */
 template <typename Extent>
-class probing_iterator {
+class default_probing_iterator {
  public:
   using extent_type = Extent;                            ///< Extent type
   using size_type   = typename extent_type::value_type;  ///< Size type
@@ -39,9 +39,9 @@ class probing_iterator {
    * @param step_size Double hashing step size
    * @param upper_bound Upper bound of the iteration
    */
-  __host__ __device__ constexpr probing_iterator(size_type start,
-                                                 size_type step_size,
-                                                 extent_type upper_bound) noexcept
+  __host__ __device__ constexpr default_probing_iterator(size_type start,
+                                                         size_type step_size,
+                                                         extent_type upper_bound) noexcept
     : curr_index_{start}, step_size_{step_size}, upper_bound_{upper_bound}
   {
     // TODO: revise this API when introducing quadratic probing into cuco
@@ -106,7 +106,7 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
 {
   using size_type = typename Extent::value_type;
-  return detail::probing_iterator<Extent>{
+  return detail::default_probing_iterator<Extent>{
     cuco::detail::sanitize_hash<size_type>(hash_(probe_key)) % upper_bound,
     1,  // step size is 1
     upper_bound};
@@ -120,7 +120,7 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
   Extent upper_bound) const noexcept
 {
   using size_type = typename Extent::value_type;
-  return detail::probing_iterator<Extent>{
+  return detail::default_probing_iterator<Extent>{
     cuco::detail::sanitize_hash<size_type>(hash_(probe_key) + g.thread_rank()) % upper_bound,
     cg_size,
     upper_bound};
@@ -147,7 +147,7 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
 {
   using size_type = typename Extent::value_type;
-  return detail::probing_iterator<Extent>{
+  return detail::default_probing_iterator<Extent>{
     cuco::detail::sanitize_hash<size_type>(hash1_(probe_key)) % upper_bound,
     max(size_type{1},
         cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) %
@@ -163,7 +163,7 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
   Extent upper_bound) const noexcept
 {
   using size_type = typename Extent::value_type;
-  return detail::probing_iterator<Extent>{
+  return detail::default_probing_iterator<Extent>{
     cuco::detail::sanitize_hash<size_type>(hash1_(probe_key) + g.thread_rank()) % upper_bound,
     static_cast<size_type>(
       (cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) % (upper_bound / cg_size - 1) +
@@ -171,4 +171,42 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
       cg_size),
     upper_bound};  // TODO use fast_int operator
 }
+
+template <int32_t CGSize, typename Hash>
+__host__ __device__ constexpr perfect_probing<CGSize, Hash>::perfect_probing(Hash const& hash)
+  : hash_{hash}
+{
+}
+
+template <int32_t CGSize, typename Hash>
+template <typename NewHash>
+__host__ __device__ constexpr auto perfect_probing<CGSize, Hash>::with_hash_function(
+  NewHash const& hash) const noexcept
+{
+  return perfect_probing<cg_size, NewHash>{hash};
+}
+
+template <int32_t CGSize, typename Hash>
+template <typename ProbeKey, typename Extent>
+__host__ __device__ constexpr auto perfect_probing<CGSize, Hash>::operator()(
+  ProbeKey const& probe_key, Extent upper_bound) const noexcept
+{
+  using size_type = typename Extent::value_type;
+  return cuco::perfect_probing<CGSize, Hash>::probing_iterator<Extent>{
+    cuco::detail::sanitize_hash<size_type>(hash_(probe_key)) % upper_bound, upper_bound};
+}
+
+template <int32_t CGSize, typename Hash>
+template <typename ProbeKey, typename Extent>
+__host__ __device__ constexpr auto perfect_probing<CGSize, Hash>::operator()(
+  cooperative_groups::thread_block_tile<cg_size> const& g,
+  ProbeKey const& probe_key,
+  Extent upper_bound) const noexcept
+{
+  using size_type = typename Extent::value_type;
+  return cuco::perfect_probing<CGSize, Hash>::probing_iterator<Extent>{
+    cuco::detail::sanitize_hash<size_type>(hash_(probe_key) + g.thread_rank()) % upper_bound,
+    upper_bound};
+}
+
 }  // namespace cuco
