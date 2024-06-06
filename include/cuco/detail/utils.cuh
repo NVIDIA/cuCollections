@@ -17,6 +17,7 @@
 
 #include <cuco/detail/bitwise_compare.cuh>
 
+#include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/cmath>
 #include <cuda/std/type_traits>
@@ -80,24 +81,6 @@ struct slot_is_filled {
     return not cuco::detail::bitwise_compare(thrust::get<0>(s), empty_key_sentinel_);
   }
 };
-
-/**
- * @brief Converts a given hash value into a valid (positive) size type.
- *
- * @tparam SizeType The target type
- * @tparam HashType The input type
- *
- * @return Converted hash value
- */
-template <typename SizeType, typename HashType>
-__host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
-{
-  if constexpr (cuda::std::is_signed_v<SizeType>) {
-    return cuda::std::abs(static_cast<SizeType>(hash));
-  } else {
-    return static_cast<SizeType>(hash);
-  }
-}
 
 }  // namespace detail
 }  // namespace cuco

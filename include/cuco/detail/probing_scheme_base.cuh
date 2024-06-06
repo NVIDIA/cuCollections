@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <cuco/detail/__config>
+
 #include <cstdint>
 
 namespace cuco {
@@ -30,6 +32,34 @@ namespace detail {
  */
 template <int32_t CGSize>
 class probing_scheme_base {
+ private:
+  template <typename SizeType, typename HashType>
+  __host__ __device__ constexpr SizeType sanitize_hash_positive(HashType hash) const noexcept
+  {
+    if constexpr (cuda::std::is_signed_v<SizeType>) {
+      return cuda::std::abs(static_cast<SizeType>(hash));
+    } else {
+      return static_cast<SizeType>(hash);
+    }
+  }
+
+ protected:
+  template <typename SizeType, typename HashType>
+  __host__ __device__ constexpr SizeType sanitize_hash(HashType hash) const noexcept
+  {
+    if constexpr (cuda::std::is_same_v<HashType, cuda::std::array<std::uint64_t, 2>>) {
+#if !defined(CUCO_HAS_INT128)
+      static_assert(false,
+                    "CUCO_HAS_INT128 undefined. Need unsigned __int128 type when sanitizing "
+                    "cuda::std::array<std::uint64_t, 2>");
+#endif
+      unsigned __int128 ret{};
+      memcpy(&ret, &hash, sizeof(unsigned __int128));
+      return sanitize_hash_positive<SizeType>(static_cast<SizeType>(ret));
+    } else
+      return sanitize_hash_positive<SizeType>(hash);
+  }
+
  public:
   /**
    * @brief The size of the CUDA cooperative thread group.

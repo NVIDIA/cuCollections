@@ -107,7 +107,7 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
 {
   using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
-    cuco::detail::sanitize_hash<size_type>(hash_(probe_key)) % upper_bound,
+    probing_scheme_base_type::template sanitize_hash<size_type>(hash_(probe_key)) % upper_bound,
     1,  // step size is 1
     upper_bound};
 }
@@ -121,7 +121,10 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
 {
   using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
-    cuco::detail::sanitize_hash<size_type>(hash_(probe_key) + g.thread_rank()) % upper_bound,
+    probing_scheme_base_type::template sanitize_hash<size_type>(
+      probing_scheme_base_type::template sanitize_hash<size_type>(hash_(probe_key)) +
+      g.thread_rank()) %
+      upper_bound,
     cg_size,
     upper_bound};
 }
@@ -148,9 +151,9 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
 {
   using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
-    cuco::detail::sanitize_hash<size_type>(hash1_(probe_key)) % upper_bound,
+    probing_scheme_base_type::template sanitize_hash<size_type>(hash1_(probe_key)) % upper_bound,
     max(size_type{1},
-        cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) %
+        probing_scheme_base_type::template sanitize_hash<size_type>(hash2_(probe_key)) %
           upper_bound),  // step size in range [1, prime - 1]
     upper_bound};
 }
@@ -164,9 +167,13 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
 {
   using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
-    cuco::detail::sanitize_hash<size_type>(hash1_(probe_key) + g.thread_rank()) % upper_bound,
+    probing_scheme_base_type::template sanitize_hash<size_type>(
+      probing_scheme_base_type::template sanitize_hash<size_type>(hash1_(probe_key)) +
+      g.thread_rank()) %
+      upper_bound,
     static_cast<size_type>(
-      (cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) % (upper_bound / cg_size - 1) +
+      (probing_scheme_base_type::template sanitize_hash<size_type>(hash2_(probe_key)) %
+         (upper_bound / cg_size - 1) +
        1) *
       cg_size),
     upper_bound};  // TODO use fast_int operator
