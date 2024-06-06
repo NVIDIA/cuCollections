@@ -369,14 +369,7 @@ class open_addressing_ref_impl {
       auto const window_slots = storage_ref_[*probing_iter];
 
       for (auto& slot_content : window_slots) {
-        auto const eq_res =
-          this->predicate_.operator()<is_insert::YES>(key, this->extract_key(slot_content));
-
-        if constexpr (not allows_duplicates) {
-          // If the key is already in the container, return false
-          if (eq_res == detail::equal_result::EQUAL) { return false; }
-        }
-        if (eq_res == detail::equal_result::AVAILABLE) {
+        if constexpr (is_perfect_hashing<decltype(probing_scheme_)>::value) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
                                  slot_content,
@@ -390,6 +383,31 @@ class open_addressing_ref_impl {
             }
             case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
+          }
+        } else {
+          auto const eq_res =
+            this->predicate_.operator()<is_insert::YES>(key, this->extract_key(slot_content));
+
+          if constexpr (not allows_duplicates) {
+            // If the key is already in the container, return false
+            if (eq_res == detail::equal_result::EQUAL) { return false; }
+          }
+          if (eq_res == detail::equal_result::AVAILABLE) {
+            auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+            switch (
+              attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+                             slot_content,
+                             val)) {
+              case insert_result::DUPLICATE: {
+                if constexpr (allows_duplicates) {
+                  [[fallthrough]];
+                } else {
+                  return false;
+                }
+              }
+              case insert_result::CONTINUE: continue;
+              case insert_result::SUCCESS: return true;
+            }
           }
         }
       }
@@ -1208,14 +1226,21 @@ class open_addressing_ref_impl {
                                                         value_type const& expected,
                                                         Value const& desired) noexcept
   {
-    if constexpr (sizeof(value_type) <= 8) {
-      return packed_cas(address, expected, desired);
+    if constexpr (is_perfect_hashing<decltype(probing_scheme_)>::value) {
+      // Do it without atomics.
+      *address = *desired;
+      return insert_result::SUCCESS;  // Perfect probing guarantees success
     } else {
+      // Default: use atomics
+      if constexpr (sizeof(value_type) <= 8) {
+        return packed_cas(address, expected, desired);
+      } else {
 #if (_CUDA_ARCH__ < 700)
-      return cas_dependent_write(address, expected, desired);
+        return cas_dependent_write(address, expected, desired);
 #else
-      return back_to_back_cas(address, expected, desired);
+        return back_to_back_cas(address, expected, desired);
 #endif
+      }
     }
   }
 
@@ -1241,41 +1266,47 @@ class open_addressing_ref_impl {
                                                                value_type const& expected,
                                                                Value const& desired) noexcept
   {
-    if constexpr (sizeof(value_type) <= 8) {
-      return packed_cas(address, expected, desired);
+    if constexpr (is_perfect_hashing<decltype(probing_scheme_)>::value) {
+      // Do it without atomics.
+      *address = *desired;
+      return insert_result::SUCCESS;  // Perfect probing guarantees success
     } else {
-      return cas_dependent_write(address, expected, desired);
+      // Default: Use atomics.
+      if constexpr (sizeof(value_type) <= 8) {
+        return packed_cas(address, expected, desired);
+      } else {
+        return cas_dependent_write(address, expected, desired);
+      }
     }
-  }
 
-  /**
-   * @brief Waits until the slot payload has been updated
-   *
-   * @note The function will return once the slot payload is no longer equal to the sentinel
-   * value.
-   *
-   * @tparam T Map slot type
-   *
-   * @param slot The target slot to check payload with
-   * @param sentinel The slot sentinel value
-   */
-  template <typename T>
-  __device__ void wait_for_payload(T& slot, T const& sentinel) const noexcept
-  {
-    auto ref = cuda::atomic_ref<T, Scope>{slot};
-    T current;
-    // TODO exponential backoff strategy
-    do {
-      current = ref.load(cuda::std::memory_order_relaxed);
-    } while (cuco::detail::bitwise_compare(current, sentinel));
-  }
+    /**
+     * @brief Waits until the slot payload has been updated
+     *
+     * @note The function will return once the slot payload is no longer equal to the sentinel
+     * value.
+     *
+     * @tparam T Map slot type
+     *
+     * @param slot The target slot to check payload with
+     * @param sentinel The slot sentinel value
+     */
+    template <typename T>
+    __device__ void wait_for_payload(T & slot, T const& sentinel) const noexcept
+    {
+      auto ref = cuda::atomic_ref<T, Scope>{slot};
+      T current;
+      // TODO exponential backoff strategy
+      do {
+        current = ref.load(cuda::std::memory_order_relaxed);
+      } while (cuco::detail::bitwise_compare(current, sentinel));
+    }
 
-  // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
-  value_type empty_slot_sentinel_;  ///< Sentinel value indicating an empty slot
-  detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
-  probing_scheme_type probing_scheme_;                    ///< Probing scheme
-  storage_ref_type storage_ref_;                          ///< Slot storage ref
-};
+    // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
+    value_type empty_slot_sentinel_;  ///< Sentinel value indicating an empty slot
+    detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
+    probing_scheme_type probing_scheme_;                    ///< Probing scheme
+    storage_ref_type storage_ref_;                          ///< Slot storage ref
+  };
 
 }  // namespace detail
 }  // namespace cuco

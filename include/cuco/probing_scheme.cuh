@@ -18,6 +18,8 @@
 
 #include <cuco/detail/probing_scheme_base.cuh>
 
+#include <cuda/std/type_traits>
+
 #include <cooperative_groups.h>
 
 namespace cuco {
@@ -176,6 +178,21 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
 };
 
 /**
+ * @brief wrapper to test if a probing scheme is perfect
+ * @tparam T is a probing scheme that does not have a method "is_perfect".
+ **/
+template <typename T, typename = void>
+struct is_perfect_hashing : cuda::std::false_type {};
+
+/**
+ * @brief wrapper to test if a probing scheme is perfect
+ * @tparam T is a probing scheme that does have a method "is_perfect".
+ **/
+template <typename T>
+struct is_perfect_hashing<T, cuda::std::void_t<decltype(std::declval<T>().is_perfect())>>
+  : cuda::std::true_type {};
+
+/**
  * @brief Public perfect probing scheme class.
  *
  * @note Perfect hash functions guarantee no collisions. User is responsible for supplying a perfect
@@ -197,6 +214,7 @@ class perfect_probing : private detail::probing_scheme_base<CGSize> {
   using probing_scheme_base_type =
     detail::probing_scheme_base<CGSize>;  ///< The base probe scheme type
   using probing_scheme_base_type::cg_size;
+  static bool constexpr is_perfect_hashing = true;
 
   /**
    *@brief Constructs perfect probing scheme with the hasher callable.
