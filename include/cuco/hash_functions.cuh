@@ -68,6 +68,52 @@ template <typename Key>
 using xxhash_64 = detail::XXHash_64<Key>;
 
 /**
+<<<<<<< HEAD
+=======
+ * @brief The 32-bit integer finalizer function of `IdentityHash` to hash the given argument on host
+ * and device.
+ *
+ * @throw Key type must be 4 bytes in size
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using identityhash_32 = detail::IdentityHash_32<Key>;
+
+/**
+ * @brief The 64-bit integer finalizer function of `IdentityHash` to hash the given argument on host
+ * and device.
+ *
+ * @throw Key type must be 8 bytes in size
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using identityhash_64 = detail::IdentityHash_64<Key>;
+
+/**
+ * @brief The 32-bit integer finalizer function of `SigBitHash` to hash the given argument on host
+ * and device.
+ *
+ * @throw Key type must be 4 bytes in size
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using sigbithash_32 = detail::SigBitHash_32<Key>;
+
+/**
+ * @brief The 64-bit integer finalizer function of `SigBitHash` to hash the given argument on host
+ * and device.
+ *
+ * @throw Key type must be 8 bytes in size
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using sigbithash_64 = detail::SigBitHash_64<Key>;
+
+/**
  * @brief Default hash function.
  *
  * @tparam Key The type of the values to hash
