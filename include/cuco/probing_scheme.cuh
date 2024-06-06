@@ -306,9 +306,13 @@ class perfect_probing : private detail::probing_scheme_base<CGSize> {
      */
     __host__ __device__ constexpr auto operator++() noexcept
     {
+<<<<<<< HEAD
       // TODO: This is still getting called, and should never really be used
       curr_index_ = (curr_index_ + 1) % upper_bound_;
       // curr_index_ = 0;
+=======
+      curr_index_ = upper_bound_ + 1;
+>>>>>>> bd989b2 (Forgot to commit)
       return *this;
     }
 
