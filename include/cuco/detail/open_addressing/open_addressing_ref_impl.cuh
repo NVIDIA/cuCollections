@@ -522,35 +522,46 @@ class open_addressing_ref_impl {
       auto const window_slots = storage_ref_[*probing_iter];
 
       for (auto i = 0; i < window_size; ++i) {
-        auto const eq_res =
-          this->predicate_.operator()<is_insert::YES>(key, this->extract_key(window_slots[i]));
-        auto* window_ptr = (storage_ref_.data() + *probing_iter)->data();
-
-        // If the key is already in the container, return false
-        if (eq_res == detail::equal_result::EQUAL) {
+        if constexpr (is_perfect_hashing<decltype(probing_scheme_)>::value) {
+          // Perfect hashing always succeeds
+          this->attempt_insert_stable(window_ptr + i, window_slots[i], val);
           if constexpr (has_payload) {
             // wait to ensure that the write to the value part also took place
             this->wait_for_payload((window_ptr + i)->second, this->empty_value_sentinel());
           }
-          return {iterator{&window_ptr[i]}, false};
-        }
-        if (eq_res == detail::equal_result::AVAILABLE) {
-          switch (this->attempt_insert_stable(window_ptr + i, window_slots[i], val)) {
-            case insert_result::SUCCESS: {
-              if constexpr (has_payload) {
-                // wait to ensure that the write to the value part also took place
-                this->wait_for_payload((window_ptr + i)->second, this->empty_value_sentinel());
-              }
-              return {iterator{&window_ptr[i]}, true};
+          return {iterator{&window_ptr[i]}, true};
+        } else {
+          // Default behavior: eq check
+          auto const eq_res =
+            this->predicate_.operator()<is_insert::YES>(key, this->extract_key(window_slots[i]));
+          auto* window_ptr = (storage_ref_.data() + *probing_iter)->data();
+
+          // If the key is already in the container, return false
+          if (eq_res == detail::equal_result::EQUAL) {
+            if constexpr (has_payload) {
+              // wait to ensure that the write to the value part also took place
+              this->wait_for_payload((window_ptr + i)->second, this->empty_value_sentinel());
             }
-            case insert_result::DUPLICATE: {
-              if constexpr (has_payload) {
-                // wait to ensure that the write to the value part also took place
-                this->wait_for_payload((window_ptr + i)->second, this->empty_value_sentinel());
+            return {iterator{&window_ptr[i]}, false};
+          }
+          if (eq_res == detail::equal_result::AVAILABLE) {
+            switch (this->attempt_insert_stable(window_ptr + i, window_slots[i], val)) {
+              case insert_result::SUCCESS: {
+                if constexpr (has_payload) {
+                  // wait to ensure that the write to the value part also took place
+                  this->wait_for_payload((window_ptr + i)->second, this->empty_value_sentinel());
+                }
+                return {iterator{&window_ptr[i]}, true};
               }
-              return {iterator{&window_ptr[i]}, false};
+              case insert_result::DUPLICATE: {
+                if constexpr (has_payload) {
+                  // wait to ensure that the write to the value part also took place
+                  this->wait_for_payload((window_ptr + i)->second, this->empty_value_sentinel());
+                }
+                return {iterator{&window_ptr[i]}, false};
+              }
+              default: continue;
             }
-            default: continue;
           }
         }
       }
@@ -775,10 +786,16 @@ class open_addressing_ref_impl {
       auto const window_slots = storage_ref_[*probing_iter];
 
       for (auto& slot_content : window_slots) {
-        switch (this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content))) {
-          case detail::equal_result::UNEQUAL: continue;
-          case detail::equal_result::EMPTY: return false;
-          case detail::equal_result::EQUAL: return true;
+        if constexpr (is_perfect_hashing<decltype(probing_scheme_)>::value) {
+          // Perfect hashing only needs to compare to sentinel
+          return !(this->extract_key(slot_content) ^ empty_slot_sentinel_);
+        } else {
+          switch (
+            this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content))) {
+            case detail::equal_result::UNEQUAL: continue;
+            case detail::equal_result::EMPTY: return false;
+            case detail::equal_result::EQUAL: return true;
+          }
         }
       }
       ++probing_iter;
@@ -846,15 +863,20 @@ class open_addressing_ref_impl {
       auto const window_slots = storage_ref_[*probing_iter];
 
       for (auto i = 0; i < window_size; ++i) {
-        switch (
-          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(window_slots[i]))) {
-          case detail::equal_result::EMPTY: {
-            return this->end();
+        if constexpr (is_perfect_hashing<decltype(probing_scheme_)>::value) {
+          // Perfect hashing only needs to compare to sentinel
+          return !(this->extract_key(slot_content) ^ empty_slot_sentinel_);
+        } else {
+          switch (
+            this->predicate_.operator()<is_insert::NO>(key, this->extract_key(window_slots[i]))) {
+            case detail::equal_result::EMPTY: {
+              return this->end();
+            }
+            case detail::equal_result::EQUAL: {
+              return const_iterator{&(*(storage_ref_.data() + *probing_iter))[i]};
+            }
+            default: continue;
           }
-          case detail::equal_result::EQUAL: {
-            return const_iterator{&(*(storage_ref_.data() + *probing_iter))[i]};
-          }
-          default: continue;
         }
       }
       ++probing_iter;
