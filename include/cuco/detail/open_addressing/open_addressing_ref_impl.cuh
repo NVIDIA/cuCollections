@@ -524,6 +524,7 @@ class open_addressing_ref_impl {
       for (auto i = 0; i < window_size; ++i) {
         if constexpr (is_perfect_hashing<decltype(probing_scheme_)>::value) {
           // Perfect hashing always succeeds
+          auto* window_ptr = (storage_ref_.data() + *probing_iter)->data();
           this->attempt_insert_stable(window_ptr + i, window_slots[i], val);
           if constexpr (has_payload) {
             // wait to ensure that the write to the value part also took place
@@ -865,7 +866,11 @@ class open_addressing_ref_impl {
       for (auto i = 0; i < window_size; ++i) {
         if constexpr (is_perfect_hashing<decltype(probing_scheme_)>::value) {
           // Perfect hashing only needs to compare to sentinel
-          return !(this->extract_key(slot_content) ^ empty_slot_sentinel_);
+          if (this->extract_key(window_slots[i]) ^ empty_slot_sentinel_) {
+            return this->end();
+          } else {
+            return const_iterator{&(*(storage_ref_.data() + *probing_iter))[i]};
+          }
         } else {
           switch (
             this->predicate_.operator()<is_insert::NO>(key, this->extract_key(window_slots[i]))) {
@@ -1300,35 +1305,36 @@ class open_addressing_ref_impl {
         return cas_dependent_write(address, expected, desired);
       }
     }
+  }
 
-    /**
-     * @brief Waits until the slot payload has been updated
-     *
-     * @note The function will return once the slot payload is no longer equal to the sentinel
-     * value.
-     *
-     * @tparam T Map slot type
-     *
-     * @param slot The target slot to check payload with
-     * @param sentinel The slot sentinel value
-     */
-    template <typename T>
-    __device__ void wait_for_payload(T & slot, T const& sentinel) const noexcept
-    {
-      auto ref = cuda::atomic_ref<T, Scope>{slot};
-      T current;
-      // TODO exponential backoff strategy
-      do {
-        current = ref.load(cuda::std::memory_order_relaxed);
-      } while (cuco::detail::bitwise_compare(current, sentinel));
-    }
+  /**
+   * @brief Waits until the slot payload has been updated
+   *
+   * @note The function will return once the slot payload is no longer equal to the sentinel
+   * value.
+   *
+   * @tparam T Map slot type
+   *
+   * @param slot The target slot to check payload with
+   * @param sentinel The slot sentinel value
+   */
+  template <typename T>
+  __device__ void wait_for_payload(T& slot, T const& sentinel) const noexcept
+  {
+    auto ref = cuda::atomic_ref<T, Scope>{slot};
+    T current;
+    // TODO exponential backoff strategy
+    do {
+      current = ref.load(cuda::std::memory_order_relaxed);
+    } while (cuco::detail::bitwise_compare(current, sentinel));
+  }
 
-    // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
-    value_type empty_slot_sentinel_;  ///< Sentinel value indicating an empty slot
-    detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
-    probing_scheme_type probing_scheme_;                    ///< Probing scheme
-    storage_ref_type storage_ref_;                          ///< Slot storage ref
-  };
+  // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
+  value_type empty_slot_sentinel_;  ///< Sentinel value indicating an empty slot
+  detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
+  probing_scheme_type probing_scheme_;                    ///< Probing scheme
+  storage_ref_type storage_ref_;                          ///< Slot storage ref
+};
 
 }  // namespace detail
 }  // namespace cuco
