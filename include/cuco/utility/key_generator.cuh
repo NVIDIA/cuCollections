@@ -441,8 +441,8 @@ std::pair<thrust::device_vector<cuda::std::span<std::byte>>, thrust::device_vect
 generate_random_byte_sequences(std::size_t n_sequences,
                                std::size_t min_sequence_length,
                                std::size_t max_sequence_length,
-                               cudaStream_t stream = 0,
-                               std::size_t seed    = 0)
+                               std::size_t seed    = 0,
+                               cudaStream_t stream = 0)
 {
   CUCO_EXPECTS(max_sequence_length > 0, "Maximum sequence lengths cannot be 0");
   CUCO_EXPECTS(min_sequence_length > 0, "Minimum sequence lengths cannot be 0");
