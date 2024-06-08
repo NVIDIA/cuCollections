@@ -430,8 +430,8 @@ class key_generator {
  * @param n_sequences Number of byte sequences to generate
  * @param min_sequence_length Minimum sequence length
  * @param max_sequence_length Maximum sequence length
- * @param stream CUDA stream in which this operation is executed in
  * @param seed Random seed
+ * @param stream CUDA stream in which this operation is executed in
  *
  * @return A pair consisting of (1) a vector of spans pointing to each sequence and (2) a byte
  * vector holding the actual data
