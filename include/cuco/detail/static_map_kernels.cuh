@@ -443,7 +443,10 @@ CUCO_KERNEL void find(
   auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
   int64_t const loop_stride = gridDim.x * block_size / tile_size;
   int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
+#pragma nv_diagnostic push
+#pragma nv_diag_suppress static_var_with_dynamic_init
   __shared__ Value writeBuffer[block_size / tile_size];
+#pragma nv_diagnostic pop
 
   while (idx < n) {
     auto key   = *(first + idx);
