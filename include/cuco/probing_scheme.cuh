@@ -214,7 +214,7 @@ class perfect_probing : private detail::probing_scheme_base<CGSize> {
   using probing_scheme_base_type =
     detail::probing_scheme_base<CGSize>;  ///< The base probe scheme type
   using probing_scheme_base_type::cg_size;
-  static bool constexpr is_perfect_hashing = true;
+  static bool constexpr is_perfect() { return true; }
 
   /**
    *@brief Constructs perfect probing scheme with the hasher callable.
@@ -304,7 +304,9 @@ class perfect_probing : private detail::probing_scheme_base<CGSize> {
      */
     __host__ __device__ constexpr auto operator++() noexcept
     {
-      curr_index_ = upper_bound_ + 1;
+      // TODO: This is still getting called, and should never really be used
+      curr_index_ = (curr_index_ + 1) % upper_bound_;
+      // curr_index_ = 0;
       return *this;
     }
 

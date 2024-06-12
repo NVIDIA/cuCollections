@@ -1255,7 +1255,7 @@ class open_addressing_ref_impl {
   {
     if constexpr (is_perfect_hashing<decltype(probing_scheme_)>::value) {
       // Do it without atomics.
-      *address = *desired;
+      *address = desired;
       return insert_result::SUCCESS;  // Perfect probing guarantees success
     } else {
       // Default: use atomics

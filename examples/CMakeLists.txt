@@ -34,6 +34,7 @@ endfunction(ConfigureExample)
 ###################################################################################################
 
 ConfigureExample(STATIC_SET_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_set/host_bulk_example.cu")
+ConfigureExample(STATIC_SET_HOST_BULK_PERFECT_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_set/host_bulk_perfect_example.cu")
 ConfigureExample(STATIC_SET_DEVICE_REF_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_set/device_ref_example.cu")
 ConfigureExample(STATIC_SET_DEVICE_SUBSETS_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_set/device_subsets_example.cu")
 ConfigureExample(STATIC_SET_SHARED_MEMORY_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_set/shared_memory_example.cu")

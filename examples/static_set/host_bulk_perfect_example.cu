@@ -52,8 +52,8 @@ int main(void)
                    cuco::extent<std::size_t>,
                    cuda::thread_scope_device,
                    thrust::equal_to<Key>,
-                   cuco::double_hashing<4,  // CG size
-                                        cuco::default_hash_function<Key>>>
+                   cuco::perfect_probing<4,  // CG size
+                                         cuco::default_hash_function<Key>>>
     set{capacity, cuco::empty_key{empty_key_sentinel}};
 
   // Create a sequence of keys {0, 1, 2, .., i}

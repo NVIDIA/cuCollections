@@ -57,6 +57,18 @@ ConfigureBench(STATIC_SET_BENCH
   hash_table/static_set/rehash_bench.cu)
 
 ###################################################################################################
+# - static_set_perfect benchmarks -------------------------------------------------------------------------
+ConfigureBench(STATIC_SET_PERFECT_BENCH
+  hash_table/static_set_perfect/contains_bench.cu
+  hash_table/static_set_perfect/find_bench.cu
+  hash_table/static_set_perfect/insert_bench.cu
+  hash_table/static_set_perfect/retrieve_all_bench.cu
+  hash_table/static_set_perfect/size_bench.cu
+  hash_table/static_set_perfect/rehash_bench.cu)
+
+
+
+###################################################################################################
 # - static_map benchmarks -------------------------------------------------------------------------
 ConfigureBench(STATIC_MAP_BENCH
   hash_table/static_map/insert_bench.cu
