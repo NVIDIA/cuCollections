@@ -445,6 +445,7 @@ CUCO_KERNEL void find(
   int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 #pragma nv_diagnostic push
 #pragma nv_diag_suppress static_var_with_dynamic_init
+// Get rid of a false-positive build warning with ARM
   __shared__ Value writeBuffer[block_size / tile_size];
 #pragma nv_diagnostic pop
 
