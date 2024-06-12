@@ -82,5 +82,54 @@ struct slot_is_filled {
   }
 };
 
+template <typename SizeType, typename HashType>
+__host__ __device__ constexpr SizeType to_positive(HashType hash)
+{
+  if constexpr (cuda::std::is_signed_v<SizeType>) {
+    return cuda::std::abs(static_cast<SizeType>(hash));
+  } else {
+    return static_cast<SizeType>(hash);
+  }
+}
+
+/**
+ * @brief Converts a given hash value into a valid (positive) size type.
+ *
+ * @tparam SizeType The target type
+ * @tparam HashType The input type
+ *
+ * @return Converted hash value
+ */
+template <typename SizeType, typename HashType>
+__host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
+{
+  if constexpr (cuda::std::is_same_v<HashType, cuda::std::array<std::uint64_t, 2>>) {
+#if !defined(CUCO_HAS_INT128)
+    static_assert(false,
+                  "CUCO_HAS_INT128 undefined. Need unsigned __int128 type when sanitizing "
+                  "cuda::std::array<std::uint64_t, 2>");
+#endif
+    unsigned __int128 ret{};
+    memcpy(&ret, &hash, sizeof(unsigned __int128));
+    return to_positive<SizeType>(static_cast<SizeType>(ret));
+  } else {
+    return to_positive<SizeType>(hash);
+  }
+}
+
+/**
+ * @brief Converts a given hash value and cg_rank, into a valid (positive) size type.
+ *
+ * @tparam SizeType The target type
+ * @tparam HashType The input type
+ *
+ * @return Converted hash value
+ */
+template <typename SizeType, typename HashType>
+__host__ __device__ constexpr SizeType sanitize_hash(HashType hash, std::uint32_t cg_rank) noexcept
+{
+  return sanitize_hash<SizeType>(sanitize_hash<SizeType>(hash) + cg_rank);
+}
+
 }  // namespace detail
 }  // namespace cuco
