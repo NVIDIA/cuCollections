@@ -20,10 +20,15 @@
 #include <cuco/detail/pair/helpers.cuh>
 #include <cuco/detail/utility/strong_type.cuh>
 
+#include <cuda/functional>
+#include <cuda/std/span>
+#include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/iterator_traits.h>
 #include <thrust/random.h>
+#include <thrust/reduce.h>
+#include <thrust/scan.h>
 #include <thrust/sequence.h>
 #include <thrust/shuffle.h>
 #include <thrust/system/detail/generic/select_system.h>
@@ -34,6 +39,7 @@
 
 #include <cstdint>
 #include <iterator>
+#include <tuple>
 #include <type_traits>
 
 namespace cuco::utility {
@@ -413,5 +419,91 @@ class key_generator {
  private:
   RNG rng_;  ///< Random number generator
 };
+
+/**
+ * @brief Generates sequences of random byte strings with random lengths
+ *
+ * @tparam RNG Pseudo-random number generator
+ *
+ * @throws If the minimum/maximum sequence lengths are implausible
+ *
+ * @param n_sequences Number of byte sequences to generate
+ * @param min_sequence_length Minimum sequence length
+ * @param max_sequence_length Maximum sequence length
+ * @param seed Random seed
+ * @param stream CUDA stream in which this operation is executed in
+ *
+ * @return A pair consisting of (1) a vector of spans pointing to each sequence and (2) a byte
+ * vector holding the actual data
+ */
+template <typename RNG = thrust::default_random_engine>
+std::pair<thrust::device_vector<cuda::std::span<std::byte>>, thrust::device_vector<std::byte>>
+generate_random_byte_sequences(std::size_t n_sequences,
+                               std::size_t min_sequence_length,
+                               std::size_t max_sequence_length,
+                               std::size_t seed    = 0,
+                               cudaStream_t stream = 0)
+{
+  CUCO_EXPECTS(max_sequence_length > 0, "Maximum sequence lengths cannot be 0");
+  CUCO_EXPECTS(min_sequence_length > 0, "Minimum sequence lengths cannot be 0");
+  CUCO_EXPECTS(min_sequence_length <= max_sequence_length,
+               "Maximum sequence lengths cannot be smaller than minimum sequence length");
+
+  auto const exec_pol = thrust::cuda::par.on(stream);
+  // holds the (random) length of each sequence
+  thrust::device_vector<std::size_t> lengths(n_sequences);
+
+  // generate random lengths
+  thrust::transform(exec_pol,
+                    thrust::counting_iterator<std::size_t>(0),
+                    thrust::counting_iterator<std::size_t>(lengths.size()),
+                    lengths.begin(),
+                    cuda::proclaim_return_type<std::size_t>(
+                      [min_sequence_length, max_sequence_length, seed] __device__(std::size_t idx) {
+                        RNG rng;
+                        thrust::uniform_int_distribution<std::size_t> offset_distribution{
+                          min_sequence_length, max_sequence_length};
+                        rng.seed(seed + idx);
+                        return offset_distribution(rng);
+                      }));
+
+  // holds the pointer offset for each sequence
+  thrust::device_vector<std::size_t> offsets(n_sequences);
+  // use prefix sum to get the start offset for each sequence
+  thrust::exclusive_scan(exec_pol, lengths.begin(), lengths.end(), offsets.begin());
+
+  // the total number of bytes required to store the sequences
+  auto const n_bytes = thrust::reduce(exec_pol, lengths.begin(), lengths.end());
+  // the byte vector holding the actual sequence data
+  thrust::device_vector<std::byte> bytes(n_bytes);
+
+  auto offsets_and_lengths =
+    thrust::make_zip_iterator(thrust::make_tuple(offsets.begin(), lengths.begin()));
+  thrust::device_vector<cuda::std::span<std::byte>> sequences(n_sequences);
+  // create the span object for each sequence
+  thrust::transform(
+    exec_pol,
+    offsets_and_lengths,
+    offsets_and_lengths + n_sequences,
+    sequences.begin(),
+    cuda::proclaim_return_type<cuda::std::span<std::byte>>(
+      [bytes_ptr = thrust::raw_pointer_cast(bytes.data())] __device__(auto const& seq) {
+        return cuda::std::span<std::byte>{bytes_ptr + thrust::get<0>(seq), thrust::get<1>(seq)};
+      }));
+
+  // fill the byte buffer with random data
+  thrust::transform(exec_pol,
+                    thrust::counting_iterator<std::size_t>(0),
+                    thrust::counting_iterator<std::size_t>(bytes.size()),
+                    bytes.begin(),
+                    cuda::proclaim_return_type<std::byte>([seed] __device__(std::size_t idx) {
+                      RNG rng;
+                      thrust::uniform_int_distribution<int> byte_distribution{0, 255};
+                      rng.seed(seed + idx);
+                      return static_cast<std::byte>(byte_distribution(rng));
+                    }));
+
+  return {std::move(sequences), std::move(bytes)};
+}
 
 }  // namespace cuco::utility
