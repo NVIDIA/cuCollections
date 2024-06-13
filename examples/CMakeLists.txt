@@ -33,6 +33,7 @@ endfunction(ConfigureExample)
 ### Example sources ###############################################################################
 ###################################################################################################
 
+ConfigureExample(IDENTITY_HASH_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/other/identity_test.cu")
 ConfigureExample(STATIC_SET_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_set/host_bulk_example.cu")
 ConfigureExample(STATIC_SET_HOST_BULK_PERFECT_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_set/host_bulk_perfect_example.cu")
 ConfigureExample(STATIC_SET_DEVICE_REF_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_set/device_ref_example.cu")
