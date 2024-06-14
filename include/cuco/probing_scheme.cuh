@@ -192,7 +192,6 @@ template <typename T>
 struct is_perfect_hashing<T, cuda::std::void_t<decltype(std::declval<T>().is_perfect())>>
   : cuda::std::true_type {};
 
-
 /**
  * @brief Public perfect probing scheme class.
  *

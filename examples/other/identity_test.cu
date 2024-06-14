@@ -1,7 +1,9 @@
 
-#include <cstdint>
 #include <cuco/hash_functions.cuh>
+
 #include <cuda_runtime.h>
+
+#include <cstdint>
 #include <iostream>
 #include <limits>
 #include <random>
