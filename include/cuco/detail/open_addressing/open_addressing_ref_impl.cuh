@@ -963,6 +963,106 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Executes a callback on every element in the container with key equivalent to the probe
+   key.
+   *
+   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
+   * `key` to the callback.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   + @tparam Callback Callback functor or lambda
+   *
+   * @param key The key to search for
+   * @param callback Function to call on every element found
+   */
+  template <class ProbeKey, class Callback>
+  __device__ void for_each(ProbeKey const& key, Callback callback) const noexcept
+  {
+    static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+    auto probing_iter = this->probing_scheme_(key, this->storage_ref_.window_extent());
+
+    while (true) {
+      // TODO atomic_ref::load if insert operator is present
+      auto const window_slots = this->storage_ref_[*probing_iter];
+
+      for (auto i = 0; i < window_size; ++i) {
+        switch (
+          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(window_slots[i]))) {
+          case detail::equal_result::EMPTY: {
+            return;
+          }
+          case detail::equal_result::EQUAL: {
+            callback(const_iterator{&(*(this->storage_ref_.data() + *probing_iter))[i]});
+            if constexpr (allows_duplicates) {
+              continue;
+            } else {
+              return;
+            }
+          }
+          default: continue;
+        }
+      }
+      ++probing_iter;
+    }
+  }
+
+  /**
+   * @brief Executes a callback on every element in the container with key equivalent to the probe
+   key.
+   *
+   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
+   * `key` to the callback.
+   *
+   * @note This function uses cooperative group semantics, meaning that any thread may call the
+   * callback if it finds a matching element. If multiple elements are found within the same group,
+   * each thread with a match will call the callback with its associated element.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   + @tparam Callback Callback functor or lambda
+   *
+   * @param group The Cooperative Group used to perform this operation
+   * @param key The key to search for
+   * @param callback Function to call on every element found
+   */
+  template <class ProbeKey, class Callback>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+                           ProbeKey const& key,
+                           Callback callback) const noexcept
+  {
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
+
+    while (true) {
+      auto const window_slots = storage_ref_[*probing_iter];
+
+      auto const [state, intra_window_index] = [&]() {
+        auto res = detail::equal_result::UNEQUAL;
+        for (auto i = 0; i < window_size; ++i) {
+          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(window_slots[i]));
+          if (res != detail::equal_result::UNEQUAL) { return window_probing_results{res, i}; }
+        }
+        // returns dummy index `-1` for UNEQUAL
+        return window_probing_results{res, -1};
+      }();
+
+      // Find a match for the probe key, thus call the callback with an iterator to the entry
+      auto const equal = state == detail::equal_result::EQUAL;
+      if (equal) {
+        callback(const_iterator{&(*(storage_ref_.data() + *probing_iter))[intra_window_index]});
+      }
+
+      if constexpr (not allows_duplicates) {
+        if (group.any(equal)) { return; }
+      }
+
+      // Find an empty slot, meaning that the probe key isn't present in the container
+      auto const empty = state == detail::equal_result::EMPTY;
+      if (group.any(empty)) { return; }
+
+      ++probing_iter;
+    }
+  }
+
+  /**
    * @brief Compares the content of the address `address` (old value) with the `expected` value and,
    * only if they are the same, sets the content of `address` to `desired`.
    *
