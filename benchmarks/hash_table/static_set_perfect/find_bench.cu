@@ -25,6 +25,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
+#include <hash_table/static_set_perfect/static_set_perfect_defaults.hpp>
+
 using namespace cuco::benchmark;
 using namespace cuco::utility;
 
@@ -34,11 +36,11 @@ using namespace cuco::utility;
 template <typename Key, typename Dist>
 void static_set_find(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
-  auto const num_keys      = state.get_int64_or_default("NumInputs", defaults::N);
   auto const occupancy     = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
   auto const matching_rate = state.get_float64_or_default("MatchingRate", defaults::MATCHING_RATE);
-
-  std::size_t const size = num_keys / occupancy;
+  auto const size          = perfect_static_set::defaults::CAPACITY;
+  auto const default_num_keys = (std::uint64_t)size * occupancy;
+  auto const num_keys         = state.get_int64_or_default("NumInputs", default_num_keys);
 
   thrust::device_vector<Key> keys(num_keys);
 
@@ -49,8 +51,7 @@ void static_set_find(nvbench::state& state, nvbench::type_list<Key, Dist>)
                    cuco::extent<std::size_t>,
                    cuda::thread_scope_device,
                    thrust::equal_to<Key>,
-                   cuco::perfect_probing<4,  // CG size
-                                         cuco::default_hash_function<Key>>>
+                   perfect_static_set::defaults::PROBER<Key>>
     set{size, cuco::empty_key<Key>{-1}};
 
   set.insert(keys.begin(), keys.end());

@@ -24,22 +24,26 @@
 
 #include <thrust/device_vector.h>
 
+#include <hash_table/static_set_perfect/static_set_perfect_defaults.hpp>
+
+using namespace cuco::benchmark;
+using namespace cuco::utility;
+
 /**
  * @brief A benchmark evaluating `cuco::static_set::rehash` performance
  */
 template <typename Key, typename Dist>
 void static_set_rehash(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
-  std::size_t const capacity = state.get_int64_or_default("Capacity", cuco::benchmark::defaults::N);
-  auto const occupancy =
-    state.get_float64_or_default("Occupancy", cuco::benchmark::defaults::OCCUPANCY);
+  std::size_t const capacity = perfect_static_set::defaults::CAPACITY;
+  auto const occupancy       = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
 
   std::size_t const num_keys = capacity * occupancy;
 
   thrust::device_vector<Key> keys(num_keys);  // slots per second
 
-  cuco::utility::key_generator gen;
-  gen.generate(cuco::benchmark::dist_from_state<Dist>(state), keys.begin(), keys.end());
+  key_generator gen;
+  gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   state.add_element_count(capacity);
 
@@ -47,8 +51,7 @@ void static_set_rehash(nvbench::state& state, nvbench::type_list<Key, Dist>)
                    cuco::extent<std::size_t>,
                    cuda::thread_scope_device,
                    thrust::equal_to<Key>,
-                   cuco::perfect_probing<4,  // CG size
-                                         cuco::default_hash_function<Key>>>
+                   perfect_static_set::defaults::PROBER<Key>>
     set{capacity, cuco::empty_key<Key>{-1}};
 
   set.insert(keys.begin(), keys.end());
@@ -58,9 +61,9 @@ void static_set_rehash(nvbench::state& state, nvbench::type_list<Key, Dist>)
 }
 
 NVBENCH_BENCH_TYPES(static_set_rehash,
-                    NVBENCH_TYPE_AXES(cuco::benchmark::defaults::KEY_TYPE_RANGE,
-                                      nvbench::type_list<cuco::utility::distribution::unique>))
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      nvbench::type_list<distribution::unique>))
   .set_name("static_set_rehash_unique_occupancy")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(cuco::benchmark::defaults::MAX_NOISE)
-  .add_float64_axis("Occupancy", cuco::benchmark::defaults::OCCUPANCY_RANGE);
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);

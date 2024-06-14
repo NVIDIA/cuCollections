@@ -16,9 +16,11 @@
 
 #pragma once
 
-#include <cassert>
 #include <cub/cub.cuh>
+
 #include <cuda_runtime.h>
+
+#include <cassert>
 #include <iostream>
 
 namespace cuco::detail {
@@ -36,13 +38,15 @@ template <typename T>
 struct AndOrPair {
   __device__ AndOrPair(T and_value, T or_value) : and_value(and_value), or_value(or_value) {}
   __device__ AndOrPair(T other) : and_value(other), or_value(other) {}
-  __device__ AndOrPair() = default;
   __device__ AndOrPair& operator=(T const& other)
   {
     and_value = other;
     or_value  = other;
     return *this;
   }
+
+  // Default constructor definition
+  __device__ AndOrPair() : and_value(T()), or_value(T()) {}
 
   T and_value;
   T or_value;
