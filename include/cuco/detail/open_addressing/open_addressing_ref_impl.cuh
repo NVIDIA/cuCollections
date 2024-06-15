@@ -964,7 +964,7 @@ class open_addressing_ref_impl {
 
   /**
    * @brief Executes a callback on every element in the container with key equivalent to the probe
-   key.
+   * key.
    *
    * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
    * `key` to the callback.
@@ -1008,7 +1008,7 @@ class open_addressing_ref_impl {
 
   /**
    * @brief Executes a callback on every element in the container with key equivalent to the probe
-   key.
+   * key.
    *
    * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
    * `key` to the callback.
