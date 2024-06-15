@@ -22,6 +22,8 @@
 
 #include <cooperative_groups.h>
 
+#include <utility>
+
 namespace cuco {
 
 template <typename Key,
@@ -481,11 +483,11 @@ class operator_impl<
    * @param callback Function to call on every element found
    */
   template <class ProbeKey, class Callback>
-  __device__ void for_each(ProbeKey const& key, Callback callback) const noexcept
+  __device__ void for_each(ProbeKey const& key, Callback&& callback) const noexcept
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.for_each(key, callback);
+    ref_.impl_.for_each(key, std::forward<Callback>(callback));
   }
 
   /**
@@ -509,11 +511,11 @@ class operator_impl<
   template <class ProbeKey, class Callback>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
                            ProbeKey const& key,
-                           Callback callback) const noexcept
+                           Callback&& callback) const noexcept
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.for_each(group, key, callback);
+    ref_.impl_.for_each(group, key, std::forward<Callback>(callback));
   }
 };
 

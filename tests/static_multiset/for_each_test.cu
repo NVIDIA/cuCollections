@@ -72,6 +72,7 @@ CUCO_KERNEL void for_each_check_cooperative(Ref ref,
     ref.for_each(tile, key, [&] __device__(auto const it) {
       if (ref.key_eq()(key, *it)) { thread_matches++; }
     });
+    tile.sync();
     auto const tile_matches =
       cooperative_groups::reduce(tile, thread_matches, cooperative_groups::plus<std::size_t>());
     if (tile_matches != multiplicity and tile.thread_rank() == 0) {

@@ -976,7 +976,7 @@ class open_addressing_ref_impl {
    * @param callback Function to call on every element found
    */
   template <class ProbeKey, class Callback>
-  __device__ void for_each(ProbeKey const& key, Callback callback) const noexcept
+  __device__ void for_each(ProbeKey const& key, Callback&& callback) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter = this->probing_scheme_(key, this->storage_ref_.window_extent());
@@ -1027,7 +1027,7 @@ class open_addressing_ref_impl {
   template <class ProbeKey, class Callback>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
                            ProbeKey const& key,
-                           Callback callback) const noexcept
+                           Callback&& callback) const noexcept
   {
     auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
 
