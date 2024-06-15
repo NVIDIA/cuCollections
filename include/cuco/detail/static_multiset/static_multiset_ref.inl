@@ -460,13 +460,8 @@ class operator_impl<
   using base_type = static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
   using ref_type =
     static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
-  using key_type       = typename base_type::key_type;
-  using value_type     = typename base_type::value_type;
-  using iterator       = typename base_type::iterator;
-  using const_iterator = typename base_type::const_iterator;
 
-  static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto cg_size = base_type::cg_size;
 
  public:
   /**
