@@ -467,7 +467,19 @@ class operator_impl<
   static constexpr auto window_size = base_type::window_size;
 
  public:
-  // TODO docs
+  /**
+   * @brief Executes a callback on every element in the container with key equivalent to the probe
+   * key.
+   *
+   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
+   * `key` to the callback.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   + @tparam Callback Callback functor or lambda
+   *
+   * @param key The key to search for
+   * @param callback Function to call on every element found
+   */
   template <class ProbeKey, class Callback>
   __device__ void for_each(ProbeKey const& key, Callback callback) const noexcept
   {
@@ -476,7 +488,24 @@ class operator_impl<
     ref_.impl_.for_each(key, callback);
   }
 
-  // TODO docs
+  /**
+   * @brief Executes a callback on every element in the container with key equivalent to the probe
+   * key.
+   *
+   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
+   * `key` to the callback.
+   *
+   * @note This function uses cooperative group semantics, meaning that any thread may call the
+   * callback if it finds a matching element. If multiple elements are found within the same group,
+   * each thread with a match will call the callback with its associated element.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   + @tparam Callback Callback functor or lambda
+   *
+   * @param group The Cooperative Group used to perform this operation
+   * @param key The key to search for
+   * @param callback Function to call on every element found
+   */
   template <class ProbeKey, class Callback>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
                            ProbeKey const& key,
