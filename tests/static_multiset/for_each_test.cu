@@ -130,7 +130,6 @@ TEMPLATE_TEST_CASE_SIG(
   }
 
   // test CG for_each
-
   for_each_check_cooperative<<<grid_size, block_size>>>(
     set.ref(cuco::for_each), unique_keys_begin, num_unique_keys, key_multiplicity, error_counter);
 
