@@ -355,4 +355,206 @@ struct MurmurHash3_x64_128 {
   MurmurHash3_fmix64<std::uint64_t> fmix64_;
   std::uint64_t seed_;
 };
+
+/**
+ * @brief A `MurmurHash3_x86_128` hash function to hash the given argument on host and device.
+ *
+ * MurmurHash3_x86_128 implementation from
+ * https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp
+ * -----------------------------------------------------------------------------
+ * MurmurHash3 was written by Austin Appleby, and is placed in the public domain. The author
+ * hereby disclaims copyright to this source code.
+ *
+ * Note - The x86 and x64 versions do _not_ produce the same results, as the algorithms are
+ * optimized for their respective platforms. You can still compile and run any of them on any
+ * platform, but your performance with the non-native version will be less than optimal.
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+struct MurmurHash3_x86_128 {
+  using argument_type = Key;  ///< The type of the values taken as argument
+  using result_type = cuda::std::array<std::uint32_t, 4>;  ///< The type of the hash values produced
+
+  /**
+   * @brief Constructs a MurmurHash3_x86_128 hash function with the given `seed`.
+   *
+   * @param seed A custom number to randomize the resulting hash value
+   */
+  __host__ __device__ constexpr MurmurHash3_x86_128(std::uint32_t seed = 0)
+    : fmix32_{0}, seed_{seed}
+  {
+  }
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @param key The input argument to hash
+   * @return The resulting hash value for `key`
+   */
+  constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
+  {
+    return compute_hash(reinterpret_cast<std::byte const*>(&key),
+                        cuco::extent<std::size_t, sizeof(Key)>{});
+  }
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @tparam Extent The extent type
+   *
+   * @param bytes The input argument to hash
+   * @param size The extent of the data in bytes
+   * @return The resulting hash value
+   */
+  template <typename Extent>
+  constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
+                                                         Extent size) const noexcept
+  {
+    constexpr std::uint32_t block_size = 16;
+    auto const nblocks                 = size / block_size;
+
+    std::uint32_t h1 = seed_;
+    std::uint32_t h2 = seed_;
+    std::uint32_t h3 = seed_;
+    std::uint32_t h4 = seed_;
+
+    constexpr std::uint32_t c1 = 0x239b961b;
+    constexpr std::uint32_t c2 = 0xab0e9789;
+    constexpr std::uint32_t c3 = 0x38b34ae5;
+    constexpr std::uint32_t c4 = 0xa1e38b93;
+    //----------
+    // body
+    for (std::remove_const_t<decltype(nblocks)> i = 0; size >= block_size && i < nblocks; i++) {
+      std::uint32_t k1 = load_chunk<std::uint32_t>(bytes, 4 * i);
+      std::uint32_t k2 = load_chunk<std::uint32_t>(bytes, 4 * i + 1);
+      std::uint32_t k3 = load_chunk<std::uint32_t>(bytes, 4 * i + 2);
+      std::uint32_t k4 = load_chunk<std::uint32_t>(bytes, 4 * i + 3);
+
+      k1 *= c1;
+      k1 = rotl32(k1, 15);
+      k1 *= c2;
+      h1 ^= k1;
+
+      h1 = rotl32(h1, 19);
+      h1 += h2;
+      h1 = h1 * 5 + 0x561ccd1b;
+
+      k2 *= c2;
+      k2 = rotl32(k2, 16);
+      k2 *= c3;
+      h2 ^= k2;
+
+      h2 = rotl32(h2, 17);
+      h2 += h3;
+      h2 = h2 * 5 + 0x0bcaa747;
+
+      k3 *= c3;
+      k3 = rotl32(k3, 17);
+      k3 *= c4;
+      h3 ^= k3;
+
+      h3 = rotl32(h3, 15);
+      h3 += h4;
+      h3 = h3 * 5 + 0x96cd1c35;
+
+      k4 *= c4;
+      k4 = rotl32(k4, 18);
+      k4 *= c1;
+      h4 ^= k4;
+
+      h4 = rotl32(h4, 13);
+      h4 += h1;
+      h4 = h4 * 5 + 0x32ac3b17;
+    }
+    //----------
+    // tail
+    std::uint32_t k1 = 0;
+    std::uint32_t k2 = 0;
+    std::uint32_t k3 = 0;
+    std::uint32_t k4 = 0;
+
+    auto const tail = reinterpret_cast<uint8_t const*>(bytes) + nblocks * block_size;
+    switch (size & (block_size - 1)) {
+      case 15: k4 ^= static_cast<std::uint32_t>(tail[14]) << 16; [[fallthrough]];
+      case 14: k4 ^= static_cast<std::uint32_t>(tail[13]) << 8; [[fallthrough]];
+      case 13:
+        k4 ^= static_cast<std::uint32_t>(tail[12]) << 0;
+        k4 *= c4;
+        k4 = rotl32(k4, 18);
+        k4 *= c1;
+        h4 ^= k4;
+        [[fallthrough]];
+
+      case 12: k3 ^= static_cast<std::uint32_t>(tail[11]) << 24; [[fallthrough]];
+      case 11: k3 ^= static_cast<std::uint32_t>(tail[10]) << 16; [[fallthrough]];
+      case 10: k3 ^= static_cast<std::uint32_t>(tail[9]) << 8; [[fallthrough]];
+      case 9:
+        k3 ^= static_cast<std::uint32_t>(tail[8]) << 0;
+        k3 *= c3;
+        k3 = rotl32(k3, 17);
+        k3 *= c4;
+        h3 ^= k3;
+        [[fallthrough]];
+
+      case 8: k2 ^= static_cast<std::uint32_t>(tail[7]) << 24; [[fallthrough]];
+      case 7: k2 ^= static_cast<std::uint32_t>(tail[6]) << 16; [[fallthrough]];
+      case 6: k2 ^= static_cast<std::uint32_t>(tail[5]) << 8; [[fallthrough]];
+      case 5:
+        k2 ^= static_cast<std::uint32_t>(tail[4]) << 0;
+        k2 *= c2;
+        k2 = rotl32(k2, 16);
+        k2 *= c3;
+        h2 ^= k2;
+        [[fallthrough]];
+
+      case 4: k1 ^= static_cast<std::uint32_t>(tail[3]) << 24; [[fallthrough]];
+      case 3: k1 ^= static_cast<std::uint32_t>(tail[2]) << 16; [[fallthrough]];
+      case 2: k1 ^= static_cast<std::uint32_t>(tail[1]) << 8; [[fallthrough]];
+      case 1:
+        k1 ^= static_cast<std::uint32_t>(tail[0]) << 0;
+        k1 *= c1;
+        k1 = rotl32(k1, 15);
+        k1 *= c2;
+        h1 ^= k1;
+    };
+    //----------
+    // finalization
+    h1 ^= size;
+    h2 ^= size;
+    h3 ^= size;
+    h4 ^= size;
+
+    h1 += h2;
+    h1 += h3;
+    h1 += h4;
+    h2 += h1;
+    h3 += h1;
+    h4 += h1;
+
+    h1 = fmix32_(h1);
+    h2 = fmix32_(h2);
+    h3 = fmix32_(h3);
+    h4 = fmix32_(h4);
+
+    h1 += h2;
+    h1 += h3;
+    h1 += h4;
+    h2 += h1;
+    h3 += h1;
+    h4 += h1;
+
+    return {h1, h2, h3, h4};
+  }
+
+ private:
+  constexpr __host__ __device__ std::uint32_t rotl32(std::uint32_t x, std::int8_t r) const noexcept
+  {
+    return (x << r) | (x >> (32 - r));
+  }
+
+  MurmurHash3_fmix32<std::uint32_t> fmix32_;
+  std::uint32_t seed_;
+};
+
 }  //  namespace cuco::detail
