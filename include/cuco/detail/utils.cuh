@@ -123,14 +123,14 @@ __host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
 /**
  * @brief Converts a given hash value and cg_rank, into a valid (positive) size type.
  *
+ * @tparam CG Cooperative group type
  * @tparam SizeType The target type
  * @tparam HashType The input type
- * @tparam CG Cooperative group type
  *
  * @return Converted hash value
  */
-template <typename SizeType, typename HashType, typename CG>
-__host__ __device__ constexpr SizeType sanitize_hash(HashType hash, CG group) noexcept
+template <typename CG, typename SizeType, typename HashType>
+__device__ constexpr SizeType sanitize_hash(CG const& group, HashType hash) noexcept
 {
   auto const base_hash = sanitize_hash<SizeType>(hash);
   auto const max_size  = cuda::std::numeric_limits<SizeType>::max();

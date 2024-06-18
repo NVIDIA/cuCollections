@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <cuco/detail/__config>
-
 #include <cstdint>
 
 namespace cuco {

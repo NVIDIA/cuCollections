@@ -120,8 +120,9 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
   Extent upper_bound) const noexcept
 {
   using size_type = typename Extent::value_type;
+  using cg_type   = cooperative_groups::thread_block_tile<cg_size>;
   return detail::probing_iterator<Extent>{
-    cuco::detail::sanitize_hash<size_type>(hash_(probe_key), g) % upper_bound,
+    cuco::detail::sanitize_hash<cg_type, size_type>(g, hash_(probe_key)) % upper_bound,
     cg_size,
     upper_bound};
 }
@@ -163,8 +164,9 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
   Extent upper_bound) const noexcept
 {
   using size_type = typename Extent::value_type;
+  using cg_type   = cooperative_groups::thread_block_tile<cg_size>;
   return detail::probing_iterator<Extent>{
-    cuco::detail::sanitize_hash<size_type>(hash1_(probe_key), g) % upper_bound,
+    cuco::detail::sanitize_hash<cg_type, size_type>(g, hash1_(probe_key)) % upper_bound,
     static_cast<size_type>(
       (cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) % (upper_bound / cg_size - 1) +
        1) *
