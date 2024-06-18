@@ -48,6 +48,64 @@ __host__ __device__ bool check_hash_result(typename Hash::argument_type const& k
   return (h(key) == expected);
 }
 
+__host__ __device__ bool check_hash_result(typename Hash::argument_type const& key,
+                                           typename Hash::result_type expected) noexcept
+{
+  return (h(key) == expected);
+}
+
+template <typename OutputIter>
+__global__ void check_identity_hash_result_kernel(OutputIter result)
+{
+  int i = 0;
+
+  result[i++] = check_hash_result<cuco::identityhash<signed char>>(SCHAR_MIN, SCHAR_MIN);
+  result[i++] = check_hash_result<cuco::identityhash<signed char>>(SCHAR_MAX, SCHAR_MAX);
+
+  result[i++] = check_hash_result<cuco::identityhash<int32_t>>(INT32_MIN, INT32_MIN);
+  result[i++] = check_hash_result<cuco::identityhash<int32_t>>(INT32_MAX, INT32_MAX);
+
+  result[i++] = check_hash_result<cuco::identityhash<int64_t>>(INT64_MIN, INT64_MIN);
+  result[i++] = check_hash_result<cuco::identityhash<int64_t>>(INT64_MAX, INT64_MAX);
+
+#if defined(CUCO_HAS_INT128)
+  result[i++] = check_hash_result<cuco::identityhash<__int128>>(INT64_MAX + 1, INT64_MAX + 1);
+#endif
+
+  result[i++] = check_hash_result<cuco::identityhash<large_key<32>>>(123456789, 123456789);
+}
+
+TEST_CASE("Test cuco::identityhash", "")
+{
+  SECTION("Check if host-generated hash values match the reference implementation.")
+  {
+    CHECK(result[i++] = check_hash_result<cuco::identityhash<signed char>>(SCHAR_MIN, SCHAR_MIN));
+    CHECK(result[i++] = check_hash_result<cuco::identityhash<signed char>>(SCHAR_MAX, SCHAR_MAX));
+
+    CHECK(result[i++] = check_hash_result<cuco::identityhash<int32_t>>(INT32_MIN, INT32_MIN));
+    CHECK(result[i++] = check_hash_result<cuco::identityhash<int32_t>>(INT32_MAX, INT32_MAX));
+
+    CHECK(result[i++] = check_hash_result<cuco::identityhash<int64_t>>(INT64_MIN, INT64_MIN));
+    CHECK(result[i++] = check_hash_result<cuco::identityhash<int64_t>>(INT64_MAX, INT64_MAX));
+
+#if defined(CUCO_HAS_INT128)
+    CHECK(result[i++] =
+            check_hash_result<cuco::identityhash<__int128>>(INT64_MAX + 1, INT64_MAX + 1));
+#endif
+
+    CHECK(result[i++] =
+      check_hash_result(result<cuco::identityhash<large_key<32>>>(123456789, 123456789));
+  }
+  SECTION("Check if device-generated hash values match the reference implementation.")
+  {
+    thrust::device_vector<bool> CHECK(result(10));
+
+    check_identity_hash_result_kernel<<<1, 1>>>(result.begin());
+
+    CHECK(cuco::test::all_of(result.begin(), result.end(), [] __device__(bool v) { return v; }));
+  }
+}
+
 template <typename OutputIter>
 __global__ void check_hash_result_kernel_64(OutputIter result)
 {
