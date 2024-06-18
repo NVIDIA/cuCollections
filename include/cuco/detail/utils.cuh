@@ -20,8 +20,11 @@
 #include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/cmath>
+#include <cuda/std/limits>
 #include <cuda/std/type_traits>
 #include <thrust/tuple.h>
+
+#include <cstddef>
 
 namespace cuco {
 namespace detail {
@@ -122,13 +125,19 @@ __host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
  *
  * @tparam SizeType The target type
  * @tparam HashType The input type
+ * @tparam CG Cooperative group type
  *
  * @return Converted hash value
  */
-template <typename SizeType, typename HashType>
-__host__ __device__ constexpr SizeType sanitize_hash(HashType hash, std::uint32_t cg_rank) noexcept
+template <typename SizeType, typename HashType, typename CG>
+__host__ __device__ constexpr SizeType sanitize_hash(HashType hash, CG group) noexcept
 {
-  return sanitize_hash<SizeType>(sanitize_hash<SizeType>(hash) + cg_rank);
+  auto const base_hash = sanitize_hash<SizeType>(hash);
+  auto const max_size  = cuda::std::numeric_limits<SizeType>::max();
+  auto const cg_rank   = static_cast<SizeType>(group.thread_rank());
+
+  if (base_hash > (max_size - cg_rank)) return cg_rank - (max_size - base_hash);
+  return base_hash + cg_rank;
 }
 
 }  // namespace detail
