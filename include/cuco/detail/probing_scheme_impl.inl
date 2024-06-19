@@ -165,10 +165,9 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
   using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
     cuco::detail::sanitize_hash<size_type>(g, hash1_(probe_key)) % upper_bound,
-    static_cast<size_type>(
-      (cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) % (upper_bound / cg_size - 1) +
-       1) *
-      cg_size),
+    static_cast<size_type>((cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) %
+                            ((upper_bound / cg_size - 1) + 1)) *
+                           cg_size),
     upper_bound};  // TODO use fast_int operator
 }
 }  // namespace cuco
