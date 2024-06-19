@@ -136,7 +136,7 @@ __device__ constexpr SizeType sanitize_hash(CG const& group, HashType hash) noex
   auto const max_size  = cuda::std::numeric_limits<SizeType>::max();
   auto const cg_rank   = static_cast<SizeType>(group.thread_rank());
 
-  if (base_hash > (max_size - cg_rank)) return cg_rank - (max_size - base_hash);
+  if (base_hash > (max_size - cg_rank)) { return cg_rank - (max_size - base_hash); }
   return base_hash + cg_rank;
 }
 
