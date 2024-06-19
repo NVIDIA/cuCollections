@@ -20,10 +20,10 @@
 #include <cuco/extent.cuh>
 
 #include <cuda/std/array>
+#include <cuda/std/type_traits>
 
 #include <cstddef>
 #include <cstdint>
-#include <type_traits>
 
 namespace cuco::detail {
 
@@ -170,7 +170,7 @@ struct MurmurHash3_32 {
     constexpr std::uint32_t c2 = 0x1b873593;
     //----------
     // body
-    for (std::remove_const_t<decltype(nblocks)> i = 0; size >= 4 && i < nblocks; i++) {
+    for (cuda::std::remove_const_t<decltype(nblocks)> i = 0; size >= 4 && i < nblocks; i++) {
       std::uint32_t k1 = load_chunk<std::uint32_t>(bytes, i);
       k1 *= c1;
       k1 = rotl32(k1, 15);
@@ -273,7 +273,8 @@ struct MurmurHash3_x64_128 {
     constexpr std::uint64_t c2 = 0x4cf5ad432745937full;
     //----------
     // body
-    for (std::remove_const_t<decltype(nblocks)> i = 0; size >= block_size && i < nblocks; i++) {
+    for (cuda::std::remove_const_t<decltype(nblocks)> i = 0; size >= block_size && i < nblocks;
+         i++) {
       std::uint64_t k1 = load_chunk<std::uint64_t>(bytes, 2 * i);
       std::uint64_t k2 = load_chunk<std::uint64_t>(bytes, 2 * i + 1);
 
@@ -425,7 +426,8 @@ struct MurmurHash3_x86_128 {
     constexpr std::uint32_t c4 = 0xa1e38b93;
     //----------
     // body
-    for (std::remove_const_t<decltype(nblocks)> i = 0; size >= block_size && i < nblocks; i++) {
+    for (cuda::std::remove_const_t<decltype(nblocks)> i = 0; size >= block_size && i < nblocks;
+         i++) {
       std::uint32_t k1 = load_chunk<std::uint32_t>(bytes, 4 * i);
       std::uint32_t k2 = load_chunk<std::uint32_t>(bytes, 4 * i + 1);
       std::uint32_t k3 = load_chunk<std::uint32_t>(bytes, 4 * i + 2);
