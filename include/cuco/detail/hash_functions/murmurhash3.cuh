@@ -348,11 +348,6 @@ struct MurmurHash3_x64_128 {
   }
 
  private:
-  constexpr __host__ __device__ std::uint64_t rotl64(std::uint64_t x, std::int8_t r) const noexcept
-  {
-    return (x << r) | (x >> (64 - r));
-  }
-
   MurmurHash3_fmix64<std::uint64_t> fmix64_;
   std::uint64_t seed_;
 };
@@ -550,11 +545,6 @@ struct MurmurHash3_x86_128 {
   }
 
  private:
-  constexpr __host__ __device__ std::uint32_t rotl32(std::uint32_t x, std::int8_t r) const noexcept
-  {
-    return (x << r) | (x >> (32 - r));
-  }
-
   MurmurHash3_fmix32<std::uint32_t> fmix32_;
   std::uint32_t seed_;
 };
