@@ -238,6 +238,43 @@ __global__ void check_murmurhash3_128_result_kernel(OutputIter result)
       {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
       1024,
       {15409921801541329777ull, 10546487400963404004ull});
+
+  result[i++] = check_hash_result<cuco::murmurhash3_x86_128<int32_t>, uint32_t>(
+    0, 0, {3422973727, 2656139328, 2656139328, 2656139328});
+  result[i++] = check_hash_result<cuco::murmurhash3_x86_128<int32_t>, uint32_t>(
+    9, 0, {2808089785, 314604614, 314604614, 314604614});
+  result[i++] = check_hash_result<cuco::murmurhash3_x86_128<int32_t>, uint32_t>(
+    42, 0, {3611919118, 1962256489, 1962256489, 1962256489});
+  result[i++] = check_hash_result<cuco::murmurhash3_x86_128<int32_t>, uint32_t>(
+    42, 42, {3399017053, 732469929, 732469929, 732469929});
+  result[i++] =
+    check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int32_t, 2>>, uint32_t>(
+      {2, 2}, 0, {1234494082, 1431451587, 431049201, 431049201});
+  result[i++] =
+    check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int32_t, 3>>, uint32_t>(
+      {1, 4, 9}, 42, {2516796247, 2757675829, 778406919, 2453259553});
+  result[i++] =
+    check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int32_t, 4>>, uint32_t>(
+      {42, 64, 108, 1024}, 63, {2686265656, 591236665, 3797082165, 2731908938});
+  result[i++] =
+    check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int32_t, 16>>, uint32_t>(
+      {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+      1024,
+      {3918256832, 4205523739, 1707810111, 1625952473});
+  result[i++] =
+    check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int64_t, 2>>, uint32_t>(
+      {2, 2}, 0, {3811075945, 727160712, 3510740342, 235225510});
+  result[i++] =
+    check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int64_t, 3>>, uint32_t>(
+      {1, 4, 9}, 42, {2817194959, 206796677, 3391242768, 248681098});
+  result[i++] =
+    check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int64_t, 4>>, uint32_t>(
+      {42, 64, 108, 1024}, 63, {2335912146, 1566515912, 760710030, 452077451});
+  result[i++] =
+    check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int64_t, 16>>, uint32_t>(
+      {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+      1024,
+      {1101169764, 1758958147, 2406511780, 2903571412});
 }
 
 TEST_CASE("Test cuco::murmurhash3_x64_128", "")
@@ -275,11 +312,40 @@ TEST_CASE("Test cuco::murmurhash3_x64_128", "")
       {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
       1024,
       {15409921801541329777ull, 10546487400963404004ull}));
+
+    CHECK(check_hash_result<cuco::murmurhash3_x86_128<int32_t>, uint32_t>(
+      0, 0, {3422973727, 2656139328, 2656139328, 2656139328}));
+    CHECK(check_hash_result<cuco::murmurhash3_x86_128<int32_t>, uint32_t>(
+      9, 0, {2808089785, 314604614, 314604614, 314604614}));
+    CHECK(check_hash_result<cuco::murmurhash3_x86_128<int32_t>, uint32_t>(
+      42, 0, {3611919118, 1962256489, 1962256489, 1962256489}));
+    CHECK(check_hash_result<cuco::murmurhash3_x86_128<int32_t>, uint32_t>(
+      42, 42, {3399017053, 732469929, 732469929, 732469929}));
+    CHECK(check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int32_t, 2>>, uint32_t>(
+      {2, 2}, 0, {1234494082, 1431451587, 431049201, 431049201}));
+    CHECK(check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int32_t, 3>>, uint32_t>(
+      {1, 4, 9}, 42, {2516796247, 2757675829, 778406919, 2453259553}));
+    CHECK(check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int32_t, 4>>, uint32_t>(
+      {42, 64, 108, 1024}, 63, {2686265656, 591236665, 3797082165, 2731908938}));
+    CHECK(check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int32_t, 16>>, uint32_t>(
+      {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+      1024,
+      {3918256832, 4205523739, 1707810111, 1625952473}));
+    CHECK(check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int64_t, 2>>, uint32_t>(
+      {2, 2}, 0, {3811075945, 727160712, 3510740342, 235225510}));
+    CHECK(check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int64_t, 3>>, uint32_t>(
+      {1, 4, 9}, 42, {2817194959, 206796677, 3391242768, 248681098}));
+    CHECK(check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int64_t, 4>>, uint32_t>(
+      {42, 64, 108, 1024}, 63, {2335912146, 1566515912, 760710030, 452077451}));
+    CHECK(check_hash_result<cuco::murmurhash3_x86_128<cuda::std::array<int64_t, 16>>, uint32_t>(
+      {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
+      1024,
+      {1101169764, 1758958147, 2406511780, 2903571412}));
   }
 
   SECTION("Check if device-generated hash values match the reference implementation.")
   {
-    thrust::device_vector<bool> result(12, true);
+    thrust::device_vector<bool> result(24, true);
 
     check_murmurhash3_128_result_kernel<<<1, 1>>>(result.begin());
 

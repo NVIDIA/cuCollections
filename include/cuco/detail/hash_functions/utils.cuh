@@ -27,4 +27,14 @@ constexpr __host__ __device__ T load_chunk(U const* const data, Extent index) no
   return chunk;
 }
 
+constexpr __host__ __device__ std::uint32_t rotl32(std::uint32_t x, std::int8_t r) noexcept
+{
+  return (x << r) | (x >> (32 - r));
+}
+
+constexpr __host__ __device__ std::uint64_t rotl64(std::uint64_t x, std::int8_t r) noexcept
+{
+  return (x << r) | (x >> (64 - r));
+}
+
 };  // namespace cuco::detail
