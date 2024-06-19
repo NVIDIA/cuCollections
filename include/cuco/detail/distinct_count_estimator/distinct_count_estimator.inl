@@ -53,7 +53,7 @@ constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::clear(
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 template <class InputIt>
 constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::add_async(
-  InputIt first, InputIt last, cuco::cuda_stream_ref stream) noexcept
+  InputIt first, InputIt last, cuco::cuda_stream_ref stream)
 {
   this->impl_->add_async(first, last, stream);
 }
