@@ -32,8 +32,8 @@
 namespace cuco {
 
 template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
-constexpr aow_storage<T, WindowSize, Extent, Allocator>::aow_storage(
-  Extent size, Allocator const& allocator) noexcept
+constexpr aow_storage<T, WindowSize, Extent, Allocator>::aow_storage(Extent size,
+                                                                     Allocator const& allocator)
   : detail::aow_storage_base<T, WindowSize, Extent>{size},
     allocator_{allocator},
     window_deleter_{capacity(), allocator_},
@@ -64,7 +64,7 @@ aow_storage<T, WindowSize, Extent, Allocator>::ref() const noexcept
 
 template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
 void aow_storage<T, WindowSize, Extent, Allocator>::initialize(value_type key,
-                                                               cuda_stream_ref stream) noexcept
+                                                               cuda_stream_ref stream)
 {
   this->initialize_async(key, stream);
   stream.synchronize();

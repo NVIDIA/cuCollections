@@ -81,7 +81,7 @@ class aow_storage : public detail::aow_storage_base<T, WindowSize, Extent> {
    * @param size Number of windows to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
-  explicit constexpr aow_storage(Extent size, Allocator const& allocator = {}) noexcept;
+  explicit constexpr aow_storage(Extent size, Allocator const& allocator = {});
 
   aow_storage(aow_storage&&) = default;  ///< Move constructor
   /**
@@ -122,7 +122,7 @@ class aow_storage : public detail::aow_storage_base<T, WindowSize, Extent> {
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
    */
-  void initialize(value_type key, cuda_stream_ref stream = {}) noexcept;
+  void initialize(value_type key, cuda_stream_ref stream = {});
 
   /**
    * @brief Asynchronously initializes each slot in the AoW storage to contain `key`.
