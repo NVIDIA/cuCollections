@@ -123,13 +123,13 @@ __host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
 /**
  * @brief Converts a given hash value and cg_rank, into a valid (positive) size type.
  *
- * @tparam CG Cooperative group type
  * @tparam SizeType The target type
+ * @tparam CG Cooperative group type
  * @tparam HashType The input type
  *
  * @return Converted hash value
  */
-template <typename CG, typename SizeType, typename HashType>
+template <typename SizeType, typename CG, typename HashType>
 __device__ constexpr SizeType sanitize_hash(CG const& group, HashType hash) noexcept
 {
   auto const base_hash = sanitize_hash<SizeType>(hash);
