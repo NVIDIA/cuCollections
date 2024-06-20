@@ -98,7 +98,7 @@ template <class Key,
           class Allocator,
           class Storage>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear(
-  cuda_stream_ref stream) noexcept
+  cuda_stream_ref stream)
 {
   impl_->clear(stream);
 }
@@ -429,7 +429,7 @@ template <class Key,
           class Storage>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
-  cuda_stream_ref stream) const noexcept
+  cuda_stream_ref stream) const
 {
   return impl_->size(stream);
 }

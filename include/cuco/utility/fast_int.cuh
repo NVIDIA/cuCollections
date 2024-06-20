@@ -152,6 +152,12 @@ struct fast_int {
   }
 
   template <typename Rhs>
+  friend __host__ __device__ constexpr auto operator-(fast_int const& lhs, Rhs rhs) noexcept
+  {
+    return lhs.value() - rhs;
+  }
+
+  template <typename Rhs>
   friend __host__ __device__ constexpr auto operator/(fast_int const& lhs, Rhs rhs) noexcept
   {
     return lhs.value() / rhs;
