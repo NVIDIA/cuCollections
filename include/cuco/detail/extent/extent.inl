@@ -41,6 +41,13 @@ struct window_extent {
   friend auto constexpr make_window_extent(extent<SizeType_, N_> ext);
 
   template <typename Rhs>
+  friend __host__ __device__ constexpr value_type operator-(window_extent const& lhs,
+                                                            Rhs rhs) noexcept
+  {
+    return lhs.value() - rhs;
+  }
+
+  template <typename Rhs>
   friend __host__ __device__ constexpr value_type operator/(window_extent const& lhs,
                                                             Rhs rhs) noexcept
   {
