@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_map.cuh>
 
@@ -25,11 +25,10 @@
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/tuple.h>
 
-#include <cstdint>
-
-#include <iostream>
-
 #include <catch2/catch_template_test_macros.hpp>
+
+#include <cstdint>
+#include <iostream>
 
 using size_type = std::size_t;
 
@@ -38,31 +37,28 @@ __inline__ void test_insert_or_apply(Map& map, size_type num_keys, size_type num
 {
   REQUIRE((num_keys % num_unique_keys) == 0);
 
-  using key_type    = typename Map::key_type;
-  using mapped_type = typename Map::mapped_type;
+  using Key   = typename Map::key_type;
+  using Value = typename Map::mapped_type;
 
-  auto keys_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<key_type>(0),
-    [num_unique_keys] __host__ __device__(key_type const& x) -> key_type {
-      return x % num_unique_keys;
-    });
+  // Insert pairs
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::counting_iterator<size_type>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>([num_unique_keys] __device__(auto i) {
+      return cuco::pair<Key, Value>{i % num_unique_keys, 1};
+    }));
 
-  auto values_begin = thrust::make_constant_iterator<mapped_type>(1);
-
-  auto pairs_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_begin, values_begin));
-
-  map.insert_or_apply(pairs_begin, pairs_begin + num_keys, cuco::experimental::op::reduce::sum);
+  map.insert_or_apply(pairs_begin, pairs_begin + num_keys, cuco::op::reduce::sum);
 
   REQUIRE(map.size() == num_unique_keys);
 
-  thrust::device_vector<key_type> d_keys(num_unique_keys);
-  thrust::device_vector<mapped_type> d_values(num_unique_keys);
+  thrust::device_vector<Key> d_keys(num_unique_keys);
+  thrust::device_vector<Value> d_values(num_unique_keys);
   map.retrieve_all(d_keys.begin(), d_values.begin());
 
   REQUIRE(cuco::test::equal(d_values.begin(),
                             d_values.end(),
-                            thrust::make_constant_iterator<mapped_type>(num_keys / num_unique_keys),
-                            thrust::equal_to<mapped_type>{}));
+                            thrust::make_constant_iterator<Value>(num_keys / num_unique_keys),
+                            thrust::equal_to<Value>{}));
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -93,21 +89,19 @@ TEMPLATE_TEST_CASE_SIG(
   constexpr size_type num_keys{400};
   constexpr size_type num_unique_keys{100};
 
-  using probe =
-    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
-                       cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-                       cuco::experimental::double_hashing<CGSize,
-                                                          cuco::murmurhash3_32<Key>,
-                                                          cuco::murmurhash3_32<Key>>>;
+  using probe = std::conditional_t<
+    Probe == cuco::test::probe_sequence::linear_probing,
+    cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+    cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
-  auto map = cuco::experimental::static_map<Key,
-                                            Value,
-                                            cuco::experimental::extent<size_type>,
-                                            cuda::thread_scope_device,
-                                            thrust::equal_to<Key>,
-                                            probe,
-                                            cuco::cuda_allocator<std::byte>,
-                                            cuco::experimental::storage<2>>{
+  auto map = cuco::static_map<Key,
+                              Value,
+                              cuco::extent<size_type>,
+                              cuda::thread_scope_device,
+                              thrust::equal_to<Key>,
+                              probe,
+                              cuco::cuda_allocator<std::byte>,
+                              cuco::storage<2>>{
     num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
 
   test_insert_or_apply(map, num_keys, num_unique_keys);

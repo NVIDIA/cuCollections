@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include <defaults.hpp>
-#include <utils.hpp>
+#include <benchmark_defaults.hpp>
+#include <benchmark_utils.hpp>
 
 #include <cuco/static_map.cuh>
-#include <cuco/utility/key_generator.hpp>
+#include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
 
@@ -55,14 +55,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert_or_appl
 
   state.add_element_count(num_keys);
 
-  cuco::experimental::static_map map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+  cuco::static_map map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
 
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
     map.clear_async({launch.get_stream()});
 
     timer.start();
     map.insert_or_apply_async(
-      pairs.begin(), pairs.end(), cuco::experimental::op::reduce::sum, {launch.get_stream()});
+      pairs.begin(), pairs.end(), cuco::op::reduce::sum, {launch.get_stream()});
     timer.stop();
   });
 }

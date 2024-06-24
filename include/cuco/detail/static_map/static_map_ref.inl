@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/operator.hpp>
 
 #include <cuda/atomic>
@@ -586,8 +587,10 @@ class operator_impl<
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    ref_type& ref_       = static_cast<ref_type&>(*this);
-    auto const key       = thrust::get<0>(value);
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+
+    auto const val       = ref_.impl_.heterogeneous_value(value);
+    auto const key       = ref_.impl_.extract_key(val);
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
     auto probing_iter    = probing_scheme(key, storage_ref.window_extent());
@@ -596,17 +599,17 @@ class operator_impl<
       auto const window_slots = storage_ref[*probing_iter];
 
       for (auto& slot_content : window_slots) {
-        auto const eq_res = ref_.impl_.predicate()(slot_content.first, key);
+        auto const eq_res =
+          ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           op(((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
-             static_cast<T>(thrust::get<1>(value)));
+             val.second);
           return;
         }
-        if (eq_res == detail::equal_result::EMPTY or
-            cuco::detail::bitwise_compare(slot_content.first, ref_.impl_.erased_key_sentinel())) {
+        if (eq_res == detail::equal_result::AVAILABLE) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
           if (attempt_insert_or_apply(
                 (storage_ref.data() + *probing_iter)->data() + intra_window_index, value, op)) {
@@ -619,8 +622,7 @@ class operator_impl<
   }
 
   template <typename Value>
-  __device__ void insert_or_apply(Value const& value,
-                                  cuco::experimental::op::reduce::sum_tag) noexcept
+  __device__ void insert_or_apply(Value const& value, cuco::op::reduce::sum_tag) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     ref_.insert_or_apply(value, [](T& slot, T const& payload) {
@@ -648,7 +650,8 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const key       = thrust::get<0>(thrust::raw_reference_cast(value));
+    auto const val       = ref_.impl_.heterogeneous_value(value);
+    auto const key       = ref_.impl_.extract_key(val);
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
     auto probing_iter    = probing_scheme(group, key, storage_ref.window_extent());
@@ -657,24 +660,15 @@ class operator_impl<
       auto const window_slots = storage_ref[*probing_iter];
 
       auto const [state, intra_window_index] = [&]() {
+        auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < window_size; ++i) {
-          switch (ref_.impl_.predicate()(window_slots[i].first, key)) {
-            case detail::equal_result::EMPTY:
-              return detail::window_probing_results{detail::equal_result::EMPTY, i};
-            case detail::equal_result::EQUAL:
-              return detail::window_probing_results{detail::equal_result::EQUAL, i};
-            default: {
-              if (cuco::detail::bitwise_compare(window_slots[i].first,
-                                                ref_.impl_.erased_key_sentinel())) {
-                return window_probing_results{detail::equal_result::ERASED, i};
-              } else {
-                continue;
-              }
-            }
+          res = ref_.impl_.predicate_.operator()<is_insert::YES>(key, window_slots[i].first);
+          if (res != detail::equal_result::UNEQUAL) {
+            return detail::window_probing_results{res, i};
           }
         }
         // returns dummy index `-1` for UNEQUAL
-        return detail::window_probing_results{detail::equal_result::UNEQUAL, -1};
+        return detail::window_probing_results{res, -1};
       }();
 
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
@@ -682,14 +676,13 @@ class operator_impl<
         auto const src_lane = __ffs(group_contains_equal) - 1;
         if (group.thread_rank() == src_lane) {
           op(((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
-             static_cast<T>(thrust::get<1>(value)));
+             val.second);
         }
         group.sync();
         return;
       }
 
-      auto const group_contains_available =
-        group.ballot(state == detail::equal_result::EMPTY or state == detail::equal_result::ERASED);
+      auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status =
@@ -709,7 +702,7 @@ class operator_impl<
   template <typename Value>
   __device__ void insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
                                   Value const& value,
-                                  cuco::experimental::op::reduce::sum_tag) noexcept
+                                  cuco::op::reduce::sum_tag) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     ref_.insert_or_apply(group, value, [](T& slot, T const& payload) {
@@ -742,17 +735,16 @@ class operator_impl<
     ref_type& ref_          = static_cast<ref_type&>(*this);
     auto const expected_key = ref_.impl_.empty_slot_sentinel().first;
 
-    auto old_key = ref_.impl_.compare_and_swap(
-      &slot->first, expected_key, static_cast<key_type>(thrust::get<0>(value)));
+    auto old_key =
+      ref_.impl_.compare_and_swap(&slot->first, expected_key, static_cast<key_type>(value.first));
     auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
 
     // if key success or key was already present in the map
     if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key) or
-        (ref_.impl_.predicate().equal_to(*old_key_ptr,
-                                         thrust::get<0>(thrust::raw_reference_cast(value))) ==
+        (ref_.impl_.predicate().equal_to(value.first, *old_key_ptr) ==
          detail::equal_result::EQUAL)) {
       // Update payload
-      op(slot->second, static_cast<T>(thrust::get<1>(value)));
+      op(slot->second, value.second);
       return true;
     }
     return false;
