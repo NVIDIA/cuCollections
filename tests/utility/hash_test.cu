@@ -48,6 +48,7 @@ __host__ __device__ bool check_hash_result(typename Hash::argument_type const& k
   return (h(key) == expected);
 }
 
+// Overload for hash functions without a seed
 template <typename Hash>
 __host__ __device__ bool check_hash_result(typename Hash::argument_type const& key,
                                            typename Hash::result_type expected) noexcept
@@ -78,7 +79,7 @@ __global__ void check_identity_hash_result_kernel(OutputIter result)
 
 TEST_CASE("Test cuco::identityhash", "")
 {
-  SECTION("Check if host-generated hash values match the reference implementation.")
+  SECTION("Check if host-generated hash values match the identity function.")
   {
     CHECK(check_hash_result<cuco::identityhash<signed char>>(SCHAR_MIN, SCHAR_MIN));
     CHECK(check_hash_result<cuco::identityhash<signed char>>(SCHAR_MAX, SCHAR_MAX));
@@ -94,7 +95,7 @@ TEST_CASE("Test cuco::identityhash", "")
                                                           (__int128)INT64_MAX + 1));
 #endif
   }
-  SECTION("Check if device-generated hash values match the reference implementation.")
+  SECTION("Check if device-generated hash values match the identity function.")
   {
     thrust::device_vector<bool> result(7, true);
 
