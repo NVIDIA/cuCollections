@@ -240,7 +240,7 @@ class static_set {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuda_stream_ref stream = {}) noexcept;
+  void clear(cuda_stream_ref stream = {});
 
   /**
    * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
@@ -687,7 +687,7 @@ class static_set {
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const noexcept;
+  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Gets the maximum number of elements the hash set can hold.
