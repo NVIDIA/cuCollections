@@ -21,7 +21,13 @@
 namespace cuco::detail {
 
 /**
- * @brief An Identity hash function to hash the given argument on host and device.
+ * @brief An Identity hash function to hash the given argument on host and device
+.*
+ * @note IdentityHash is perfect iff hash_table_capacity >= |input set|
+ *
+ * @note IdentityHash is only intended to be used perfectly.
+ *
+ * @note Perfect hashes are deterministic, and thus do not need seeds.
  *
  * -----------------------------------------------------------------------------
  *
@@ -33,17 +39,6 @@ struct IdentityHash {
   using result_type   = Key;  ///< The type of the hash values produced
 
   /**
-   * @brief Constructs a IdentityHash hash function.
-   *
-   * @note IdentityHash is perfect iff hash_table_capacity >= |input set|
-   *
-   * @note IdentityHash is only intended to be used perfectly.
-   *
-   * @note Perfect hashes are deterministic, and thus do not need seeds.
-   */
-  __host__ __device__ constexpr IdentityHash() : {}
-
-  /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
    *
    * @param key The input argument to hash
@@ -51,8 +46,11 @@ struct IdentityHash {
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
-    return thrust::identity<Key>(key);
+    return idfunct_(key);
   }
+
+ private:
+  thrust::identity<Key> idfunct_;
 };  // Identity hash
 
 }  //  namespace cuco::detail
