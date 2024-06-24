@@ -53,7 +53,8 @@ ConfigureTest(UTILITY_TEST
     utility/extent_test.cu
     utility/storage_test.cu
     utility/fast_int_test.cu
-    utility/hash_test.cu)
+    utility/hash_test.cu
+    utility/probing_scheme_test.cu)
 
 ###################################################################################################
 # - static_set tests ------------------------------------------------------------------------------
@@ -76,6 +77,7 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/custom_type_test.cu
     static_map/duplicate_keys_test.cu
     static_map/erase_test.cu
+    static_map/hash_test.cu
     static_map/heterogeneous_lookup_test.cu
     static_map/insert_and_find_test.cu
     static_map/insert_or_assign_test.cu

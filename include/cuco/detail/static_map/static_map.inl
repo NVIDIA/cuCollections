@@ -123,7 +123,7 @@ template <class Key,
           class Allocator,
           class Storage>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear(
-  cuda_stream_ref stream) noexcept
+  cuda_stream_ref stream)
 {
   impl_->clear(stream);
 }
@@ -215,7 +215,7 @@ template <class Key,
           class Storage>
 template <typename InputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
-  insert_or_assign(InputIt first, InputIt last, cuda_stream_ref stream) noexcept
+  insert_or_assign(InputIt first, InputIt last, cuda_stream_ref stream)
 {
   return this->insert_or_assign_async(first, last, stream);
   stream.synchronize();
@@ -465,7 +465,7 @@ template <class Key,
           class Storage>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
-  cuda_stream_ref stream) const noexcept
+  cuda_stream_ref stream) const
 {
   return impl_->size(stream);
 }

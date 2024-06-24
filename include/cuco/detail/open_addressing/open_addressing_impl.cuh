@@ -125,7 +125,7 @@ class open_addressing_impl {
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
-                                 cuda_stream_ref stream) noexcept
+                                 cuda_stream_ref stream)
     : empty_slot_sentinel_{empty_slot_sentinel},
       erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
@@ -233,7 +233,7 @@ class open_addressing_impl {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuda_stream_ref stream) noexcept { storage_.initialize(empty_slot_sentinel_, stream); }
+  void clear(cuda_stream_ref stream) { storage_.initialize(empty_slot_sentinel_, stream); }
 
   /**
    * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
@@ -645,7 +645,7 @@ class open_addressing_impl {
    *
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cuda_stream_ref stream) const noexcept
+  [[nodiscard]] size_type size(cuda_stream_ref stream) const
   {
     auto counter =
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
