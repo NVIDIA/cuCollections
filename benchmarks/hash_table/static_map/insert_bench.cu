@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include <defaults.hpp>
-#include <utils.hpp>
+#include <benchmark_defaults.hpp>
+#include <benchmark_utils.hpp>
 
 #include <cuco/static_map.cuh>
-#include <cuco/utility/key_generator.hpp>
+#include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
 
@@ -54,15 +54,21 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
 
   state.add_element_count(num_keys);
 
-  state.exec(
-    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      cuco::static_map<Key, Value> map{
-        size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, {}, launch.get_stream()};
+  state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+    auto map = cuco::static_map{size,
+                                cuco::empty_key<Key>{-1},
+                                cuco::empty_value<Value>{-1},
+                                {},
+                                {},
+                                {},
+                                {},
+                                {},
+                                {launch.get_stream()}};
 
-      timer.start();
-      map.insert(pairs.begin(), pairs.end(), {}, {}, launch.get_stream());
-      timer.stop();
-    });
+    timer.start();
+    map.insert_async(pairs.begin(), pairs.end(), {launch.get_stream()});
+    timer.stop();
+  });
 }
 
 template <typename Key, typename Value, typename Dist>

@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include <defaults.hpp>
-#include <utils.hpp>
+#include <benchmark_defaults.hpp>
+#include <benchmark_utils.hpp>
 
 #include <cuco/static_multimap.cuh>
-#include <cuco/utility/key_generator.hpp>
+#include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
 

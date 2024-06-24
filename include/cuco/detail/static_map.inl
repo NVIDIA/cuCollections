@@ -19,13 +19,12 @@
 #include <cuco/detail/utils.cuh>
 #include <cuco/detail/utils.hpp>
 
+#include <cub/device/device_select.cuh>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/tuple.h>
 
-#include <cub/device/device_select.cuh>
-
-namespace cuco {
+namespace cuco::legacy {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
@@ -216,14 +215,16 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
   static_assert(sizeof(pair_atomic_type) == sizeof(value_type));
   auto slots_begin = reinterpret_cast<value_type*>(slots_);
 
-  auto begin  = thrust::make_transform_iterator(slots_begin, detail::slot_to_tuple<Key, Value>{});
-  auto filled = detail::slot_is_filled<Key>{get_empty_key_sentinel()};
+  auto begin =
+    thrust::make_transform_iterator(slots_begin, cuco::detail::slot_to_tuple<Key, Value>{});
+  auto filled           = cuco::detail::slot_is_filled<Key>{get_empty_key_sentinel()};
   auto zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
 
   std::size_t temp_storage_bytes = 0;
-  using temp_allocator_type      = typename std::allocator_traits<Allocator>::rebind_alloc<char>;
-  auto temp_allocator            = temp_allocator_type{slot_allocator_};
-  auto d_num_out                 = reinterpret_cast<std::size_t*>(
+  using temp_allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<char>;
+  auto temp_allocator = temp_allocator_type{slot_allocator_};
+  auto d_num_out      = reinterpret_cast<std::size_t*>(
     std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(std::size_t)));
   cub::DeviceSelect::If(nullptr,
                         temp_storage_bytes,
@@ -393,8 +394,8 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_available =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel()) or
-      detail::bitwise_compare(existing_key, this->get_erased_key_sentinel());
+      cuco::detail::bitwise_compare(existing_key, this->get_empty_key_sentinel()) or
+      cuco::detail::bitwise_compare(existing_key, this->get_erased_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
     if (not slot_is_available and key_equal(existing_key, insert_pair.first)) { return false; }
@@ -442,15 +443,15 @@ __device__
                 "insert_and_find is not supported for unpackable data on pre-Volta GPUs.");
 #endif
 
-  auto current_slot{initial_slot(insert_pair.first, hash)};
+  auto current_slot{this->initial_slot(insert_pair.first, hash)};
 
   while (true) {
     key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_available =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel()) or
-      detail::bitwise_compare(existing_key, this->get_erased_key_sentinel());
+      cuco::detail::bitwise_compare(existing_key, this->get_empty_key_sentinel()) or
+      cuco::detail::bitwise_compare(existing_key, this->get_erased_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
     if (not slot_is_available and key_equal(existing_key, insert_pair.first)) {
@@ -459,8 +460,8 @@ __device__
       if constexpr (not cuco::detail::is_packable<value_type>()) {
         auto& slot_value       = current_slot->second;
         auto const empty_value = this->get_empty_value_sentinel();
-        while (
-          detail::bitwise_compare(slot_value.load(cuda::std::memory_order_relaxed), empty_value)) {
+        while (cuco::detail::bitwise_compare(slot_value.load(cuda::std::memory_order_relaxed),
+                                             empty_value)) {
           // spin
         }
       }
@@ -501,8 +502,8 @@ __device__
         if constexpr (not cuco::detail::is_packable<value_type>()) {
           auto& slot_value       = current_slot->second;
           auto const empty_value = this->get_empty_value_sentinel();
-          while (detail::bitwise_compare(slot_value.load(cuda::std::memory_order_relaxed),
-                                         empty_value)) {
+          while (cuco::detail::bitwise_compare(slot_value.load(cuda::std::memory_order_relaxed),
+                                               empty_value)) {
             // spin
           }
         }
@@ -513,7 +514,7 @@ __device__
 
     // if we couldn't insert the key, but it wasn't a duplicate, then there must
     // have been some other key there, so we keep looking for a slot
-    current_slot = next_slot(current_slot);
+    current_slot = this->next_slot(current_slot);
   }
 }
 
@@ -530,8 +531,8 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as the
     // sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_available =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel()) or
-      detail::bitwise_compare(existing_key, this->get_erased_key_sentinel());
+      cuco::detail::bitwise_compare(existing_key, this->get_empty_key_sentinel()) or
+      cuco::detail::bitwise_compare(existing_key, this->get_erased_key_sentinel());
 
     // the key we are trying to insert is already in the map, so we return with failure to insert
     if (g.any(not slot_is_available and key_equal(existing_key, insert_pair.first))) {
@@ -600,7 +601,9 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     auto existing_value      = slot_contents.second;
 
     // Key doesn't exist, return false
-    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) { return false; }
+    if (cuco::detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
+      return false;
+    }
 
     // Key exists, return true if successfully deleted
     if (key_equal(existing_key, k)) {
@@ -645,7 +648,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     auto existing_value      = slot_contents.second;
 
     auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+      cuco::detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     auto const exists = g.ballot(not slot_is_empty and key_equal(existing_key, k));
 
@@ -697,7 +700,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     // Key doesn't exist, return end()
-    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
+    if (cuco::detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
       return this->end();
     }
 
@@ -720,7 +723,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
     // Key doesn't exist, return end()
-    if (detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
+    if (cuco::detail::bitwise_compare(existing_key, this->get_empty_key_sentinel())) {
       return this->end();
     }
 
@@ -747,7 +750,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
     // the sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+      cuco::detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads,
     // so we return an iterator to the entry
@@ -785,7 +788,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
     // the sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+      cuco::detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
     // the entry
@@ -819,7 +822,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
 
-    if (detail::bitwise_compare(existing_key, this->empty_key_sentinel_)) { return false; }
+    if (cuco::detail::bitwise_compare(existing_key, this->empty_key_sentinel_)) { return false; }
 
     if (key_equal(existing_key, k)) { return true; }
 
@@ -843,7 +846,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::contains(CG const& g,
     // The user provide `key_equal` can never be used to compare against `empty_key_sentinel` as
     // the sentinel is not a valid key value. Therefore, first check for the sentinel
     auto const slot_is_empty =
-      detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
+      cuco::detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
 
     // the key we were searching for was found by one of the threads, so we return an iterator to
     // the entry
@@ -857,4 +860,4 @@ static_map<Key, Value, Scope, Allocator>::device_view::contains(CG const& g,
     current_slot = next_slot(g, current_slot);
   }
 }
-}  // namespace cuco
+}  // namespace cuco::legacy

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_multimap.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
@@ -100,14 +101,16 @@ TEMPLATE_TEST_CASE("Heterogeneous lookup",
                         Value,
                         cuda::thread_scope_device,
                         cuco::cuda_allocator<char>,
-                        cuco::linear_probing<1, custom_hasher>>
+                        cuco::legacy::linear_probing<1, custom_hasher>>
     map{capacity, cuco::empty_key<Key>{sentinel_key}, cuco::empty_value<Value>{sentinel_value}};
 
-  auto insert_pairs =
-    thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
-  auto probe_keys = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
-                                                    [] __device__(auto i) { return ProbeKey(i); });
+  auto insert_pairs = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); }));
+  auto probe_keys = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0),
+    cuda::proclaim_return_type<ProbeKey>([] __device__(auto i) { return ProbeKey(i); }));
 
   SECTION("All inserted keys-value pairs should be contained")
   {

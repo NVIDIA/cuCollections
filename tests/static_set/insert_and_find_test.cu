@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/functional>
 #include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
@@ -25,7 +26,7 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 template <typename Set>
-__inline__ void test_insert_and_find(Set& set, std::size_t num_keys)
+void test_insert_and_find(Set& set, std::size_t num_keys)
 {
   using Key                     = typename Set::key_type;
   static auto constexpr cg_size = Set::cg_size;
@@ -34,8 +35,9 @@ __inline__ void test_insert_and_find(Set& set, std::size_t num_keys)
     if constexpr (cg_size == 1) {
       return thrust::counting_iterator<Key>(0);
     } else {
-      return thrust::make_transform_iterator(thrust::counting_iterator<Key>(0),
-                                             [] __device__(auto i) { return i / cg_size; });
+      return thrust::make_transform_iterator(
+        thrust::counting_iterator<Key>(0),
+        cuda::proclaim_return_type<Key>([] __device__(auto i) { return i / cg_size; }));
     }
   }();
   auto const keys_end = [&]() {
@@ -46,7 +48,7 @@ __inline__ void test_insert_and_find(Set& set, std::size_t num_keys)
     }
   }();
 
-  auto ref = set.ref(cuco::experimental::op::insert_and_find);
+  auto ref = set.ref(cuco::op::insert_and_find);
 
   REQUIRE(cuco::test::all_of(keys_begin, keys_end, [ref] __device__(Key key) mutable {
     auto [iter, inserted] = [&]() {
@@ -93,18 +95,12 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr std::size_t num_keys{400};
 
-  using probe = std::conditional_t<
-    Probe == cuco::test::probe_sequence::linear_probing,
-    cuco::experimental::linear_probing<CGSize, cuco::default_hash_function<Key>>,
-    cuco::experimental::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
+                                   cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
-  auto set = cuco::experimental::static_set<Key,
-                                            cuco::experimental::extent<std::size_t>,
-                                            cuda::thread_scope_device,
-                                            thrust::equal_to<Key>,
-                                            probe,
-                                            cuco::cuda_allocator<std::byte>,
-                                            cuco::experimental::storage<2>>{
-    num_keys, cuco::empty_key<Key>{-1}};
+  auto set =
+    cuco::static_set{num_keys, cuco::empty_key<Key>{-1}, {}, probe{}, {}, cuco::storage<2>{}};
+
   test_insert_and_find(set, num_keys);
 }

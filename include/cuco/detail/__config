@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,11 +25,11 @@
 #endif
 
 #if !defined(__CUDACC_RELAXED_CONSTEXPR__)
-#error "Support for relaxed constexpr is required"
+#error "Support for relaxed constexpr is required (nvcc flag --expt-relaxed-constexpr)"
 #endif
 
 #if !defined(__CUDACC_EXTENDED_LAMBDA__)
-#error "Support for extended device lambdas is required"
+#error "Support for extended device lambdas is required (nvcc flag --expt-extended-lambda)"
 #endif
 
 // WAR for libcudacxx/296
@@ -39,8 +39,8 @@
 #define CUCO_HAS_CUDA_BARRIER
 #endif
 
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11010)
-#define CUCO_HAS_CG_MEMCPY_ASYNC
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 12010)
+#define CUCO_HAS_CG_INVOKE_ONE
 #endif
 
 #if (CUCO_CUDA_MINIMUM_ARCH >= 700)
@@ -49,4 +49,8 @@
 
 #if defined(__SIZEOF_INT128__)
 #define CUCO_HAS_INT128
+#endif
+
+#if defined(CUDART_VERSION) && (CUDART_VERSION >= 12000)
+#define CUCO_HAS_CG_REDUCE_UPDATE_ASYNC
 #endif

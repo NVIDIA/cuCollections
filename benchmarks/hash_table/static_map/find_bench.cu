@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include <defaults.hpp>
-#include <utils.hpp>
+#include <benchmark_defaults.hpp>
+#include <benchmark_utils.hpp>
 
 #include <cuco/static_map.cuh>
-#include <cuco/utility/key_generator.hpp>
+#include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
 
@@ -53,7 +53,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_find(
     return pair_type(key, {});
   });
 
-  cuco::static_map<Key, Value> map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  auto map = cuco::static_map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(pairs.begin(), pairs.end());
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);
@@ -62,8 +62,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_find(
 
   state.add_element_count(num_keys);
 
-  state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    map.find(keys.begin(), keys.end(), result.begin(), {}, {}, launch.get_stream());
+  state.exec([&](nvbench::launch& launch) {
+    map.find_async(keys.begin(), keys.end(), result.begin(), {launch.get_stream()});
   });
 }
 

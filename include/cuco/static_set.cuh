@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,15 +21,16 @@
 #include <cuco/extent.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/probing_scheme.cuh>
-#include <cuco/sentinel.cuh>
 #include <cuco/static_set_ref.cuh>
 #include <cuco/storage.cuh>
+#include <cuco/types.cuh>
 #include <cuco/utility/allocator.hpp>
+#include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
-#include <thrust/functional.h>
-
 #include <cuda/atomic>
+#include <cuda/std/utility>
+#include <thrust/functional.h>
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
@@ -39,7 +40,6 @@
 #include <type_traits>
 
 namespace cuco {
-namespace experimental {
 /**
  * @brief A GPU-accelerated, unordered, associative container of unique keys.
  *
@@ -60,8 +60,8 @@ namespace experimental {
  * construction.
  *
  * @note Allows constant time concurrent modify or lookup operations from threads in device code.
- * @note cuCollections data structures always place the slot keys on the left-hand side when
- * invoking the key comparison predicate, i.e., `pred(slot_key, query_key)`. Order-sensitive
+ * @note cuCollections data structures always place the slot keys on the right-hand side when
+ * invoking the key comparison predicate, i.e., `pred(query_key, slot_key)`. Order-sensitive
  * `KeyEqual` should be used with caution.
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
@@ -80,13 +80,13 @@ namespace experimental {
  * @tparam Storage Slot window storage type
  */
 template <class Key,
-          class Extent             = cuco::experimental::extent<std::size_t>,
+          class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
-          class ProbingScheme      = experimental::double_hashing<4,  // CG size
-                                                             cuco::default_hash_function<Key>>,
+          class ProbingScheme      = cuco::double_hashing<4,  // CG size
+                                                     cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<Key>,
-          class Storage            = cuco::experimental::storage<1>>
+          class Storage            = cuco::storage<1>>
 class static_set {
   using impl_type = detail::
     open_addressing_impl<Key, Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>;
@@ -107,15 +107,14 @@ class static_set {
   using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
 
   template <typename... Operators>
-  using ref_type =
-    cuco::experimental::static_set_ref<key_type,
-                                       thread_scope,
-                                       key_equal,
-                                       probing_scheme_type,
-                                       storage_ref_type,
-                                       Operators...>;  ///< Non-owning container ref type
+  using ref_type = cuco::static_set_ref<key_type,
+                                        thread_scope,
+                                        key_equal,
+                                        probing_scheme_type,
+                                        storage_ref_type,
+                                        Operators...>;  ///< Non-owning container ref type
 
-  static_set(static_set const&) = delete;
+  static_set(static_set const&)            = delete;
   static_set& operator=(static_set const&) = delete;
 
   static_set(static_set&&) = default;  ///< Move constructor
@@ -123,7 +122,7 @@ class static_set {
   /**
    * @brief Replaces the contents of the container with another container.
    *
-   * @return Reference of the current map object
+   * @return Reference of the current set object
    */
   static_set& operator=(static_set&&) = default;
   ~static_set()                       = default;
@@ -134,7 +133,7 @@ class static_set {
    *
    * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
    * window size and it is computed via the `make_window_extent` factory. Insert operations will not
-   * automatically grow the set. Attempting to insert more unique keys than the capacity of the map
+   * automatically grow the set. Attempting to insert more unique keys than the capacity of the set
    * results in undefined behavior.
    *
    * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
@@ -145,6 +144,8 @@ class static_set {
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the set
    */
@@ -152,11 +153,13 @@ class static_set {
                        empty_key<Key> empty_key_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
   /**
-   * @brief Constructs a statically-sized map with the number of elements to insert `n`, the desired
+   * @brief Constructs a statically-sized set with the number of elements to insert `n`, the desired
    * load factor, etc
    *
    * @note This constructor helps users create a set based on the number of elements to insert and
@@ -182,6 +185,8 @@ class static_set {
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the set
    */
@@ -190,6 +195,8 @@ class static_set {
                        empty_key<Key> empty_key_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
@@ -199,7 +206,7 @@ class static_set {
    *
    * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
    * window size and it is computed via the `make_window_extent` factory. Insert operations will not
-   * automatically grow the set. Attempting to insert more unique keys than the capacity of the map
+   * automatically grow the set. Attempting to insert more unique keys than the capacity of the set
    * results in undefined behavior.
    *
    * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
@@ -212,6 +219,8 @@ class static_set {
    * @param erased_key_sentinel The reserved key to denote erased slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the set
    */
@@ -220,6 +229,8 @@ class static_set {
                        erased_key<Key> erased_key_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
@@ -229,7 +240,7 @@ class static_set {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuda_stream_ref stream = {}) noexcept;
+  void clear(cuda_stream_ref stream = {});
 
   /**
    * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
@@ -523,6 +534,77 @@ class static_set {
                   cuda_stream_ref stream = {}) const;
 
   /**
+   * @brief Retrieves the matched key in the set corresponding to all probe keys in the range
+   * `[first, last)`
+   *
+   * If key `k = *(first + i)` has a match `m` in the set, copies a `cuco::pair{k, m}` to
+   * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
+   *
+   * @note This function synchronizes the given stream.
+   * @note Behavior is undefined if the size of the output range exceeds
+   * `std::distance(output_begin, output_end)`.
+   * @note Behavior is undefined if the given key has multiple matches in the set.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt1 Device accessible output iterator whose `value_type` can be constructed from
+   * `ProbeKey`
+   * @tparam OutputIt2 Device accessible output iterator whose `value_type` can be constructed from
+   * `Key`
+   *
+   * @param first Beginning of the sequence of probe keys
+   * @param last End of the sequence of probe keys
+   * @param output_probe Beginning of the sequence of the probe keys that have a match
+   * @param output_match Beginning of the sequence of the matched keys
+   * @param stream CUDA stream used for retrieve
+   *
+   * @return The iterator indicating the last valid pair in the output
+   */
+  template <typename InputIt, typename OutputIt1, typename OutputIt2>
+  cuda::std::pair<OutputIt1, OutputIt2> retrieve(InputIt first,
+                                                 InputIt last,
+                                                 OutputIt1 output_probe,
+                                                 OutputIt2 output_match,
+                                                 cuda_stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in
+   * the range `[first, last)`
+   *
+   * If key `k = *(first + i)` has a match `m` in the set, copies a `cuco::pair{k, m}` to
+   * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
+   *
+   * @note Behavior is undefined if the size of the output range exceeds
+   * `std::distance(output_begin, output_end)`.
+   * @note Behavior is undefined if the given key has multiple matches in the set.
+   *
+   * @throw This API will always throw since it's not implemented.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator whose `value_type` can be constructed from
+   * `cuco::pair<ProbeKey, Key>`
+   * @tparam ProbeEqual Binary callable equal type
+   * @tparam ProbeHash Unary callable hasher type that can be constructed from
+   * an integer value
+   *
+   * @param first Beginning of the sequence of probe keys
+   * @param last End of the sequence of probe keys
+   * @param output_begin Beginning of the sequence of probe key and set key pairs retrieved for each
+   * probe key
+   * @param probe_equal The binary function to compare set keys and probe keys for equality
+   * @param probe_hash The unary function to hash probe keys
+   * @param stream CUDA stream used for retrieve
+   *
+   * @return The iterator indicating the last valid pair in the output
+   */
+  template <typename InputIt, typename OutputIt, typename ProbeEqual, typename ProbeHash>
+  OutputIt retrieve(InputIt first,
+                    InputIt last,
+                    OutputIt output_begin,
+                    ProbeEqual const& probe_equal = ProbeEqual{},
+                    ProbeHash const& probe_hash   = ProbeHash{},
+                    cuda_stream_ref stream        = {}) const;
+
+  /**
    * @brief Retrieves all keys contained in the set.
    *
    * @note This API synchronizes the given stream.
@@ -605,12 +687,12 @@ class static_set {
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const noexcept;
+  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const;
 
   /**
-   * @brief Gets the maximum number of elements the hash map can hold.
+   * @brief Gets the maximum number of elements the hash set can hold.
    *
-   * @return The maximum number of elements the hash map can hold
+   * @return The maximum number of elements the hash set can hold
    */
   [[nodiscard]] constexpr auto capacity() const noexcept;
 
@@ -643,7 +725,6 @@ class static_set {
  private:
   std::unique_ptr<impl_type> impl_;
 };
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/static_set/static_set.inl>

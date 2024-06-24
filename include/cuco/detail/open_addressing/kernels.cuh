@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,16 +18,15 @@
 #include <cuco/detail/utility/cuda.cuh>
 
 #include <cub/block/block_reduce.cuh>
-
 #include <cuda/atomic>
+#include <cuda/functional>
 
 #include <cooperative_groups.h>
 
 #include <iterator>
 
-namespace cuco {
-namespace experimental {
-namespace detail {
+namespace cuco::detail {
+CUCO_SUPPRESS_KERNEL_WARNINGS
 
 /**
  * @brief Inserts all elements in the range `[first, first + n)` and returns the number of
@@ -62,12 +61,12 @@ template <int32_t CGSize,
           typename Predicate,
           typename AtomicT,
           typename Ref>
-__global__ void insert_if_n(InputIt first,
-                            cuco::detail::index_type n,
-                            StencilIt stencil,
-                            Predicate pred,
-                            AtomicT* num_successes,
-                            Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void insert_if_n(InputIt first,
+                                                          cuco::detail::index_type n,
+                                                          StencilIt stencil,
+                                                          Predicate pred,
+                                                          AtomicT* num_successes,
+                                                          Ref ref)
 {
   using BlockReduce = cub::BlockReduce<typename Ref::size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
@@ -128,7 +127,7 @@ template <int32_t CGSize,
           typename StencilIt,
           typename Predicate,
           typename Ref>
-__global__ void insert_if_n(
+CUCO_KERNEL __launch_bounds__(BlockSize) void insert_if_n(
   InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
@@ -163,7 +162,9 @@ __global__ void insert_if_n(
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Ref>
-__global__ void erase(InputIt first, cuco::detail::index_type n, Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void erase(InputIt first,
+                                                    cuco::detail::index_type n,
+                                                    Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
@@ -213,12 +214,12 @@ template <int32_t CGSize,
           typename Predicate,
           typename OutputIt,
           typename Ref>
-__global__ void contains_if_n(InputIt first,
-                              cuco::detail::index_type n,
-                              StencilIt stencil,
-                              Predicate pred,
-                              OutputIt output_begin,
-                              Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
+                                                            cuco::detail::index_type n,
+                                                            StencilIt stencil,
+                                                            Predicate pred,
+                                                            OutputIt output_begin,
+                                                            Ref ref)
 {
   namespace cg = cooperative_groups;
 
@@ -256,6 +257,106 @@ __global__ void contains_if_n(InputIt first,
 }
 
 /**
+ * @brief Helper to determine the buffer type for the find kernel
+ *
+ * @tparam Container Container type
+ */
+template <typename Container, typename = void>
+struct find_buffer {
+  using type = typename Container::key_type;  ///< Buffer type
+};
+
+/**
+ * @brief Helper to determine the buffer type for the find kernel
+ *
+ * @note Specialization if `mapped_type` exists
+ *
+ * @tparam Container Container type
+ */
+template <typename Container>
+struct find_buffer<Container, cuda::std::void_t<typename Container::mapped_type>> {
+  using type = typename Container::mapped_type;  ///< Buffer type
+};
+
+/**
+ * @brief Finds the equivalent container elements of all keys in the range `[first, first + n)`.
+ *
+ * @note If the key `*(first + i)` has a match in the container, copies the match to `(output_begin
+ * + i)`. Else, copies the empty sentinel. Uses the CUDA Cooperative Groups API to leverage groups
+ * of multiple threads to find each key. This provides a significant boost in throughput compared to
+ * the non Cooperative Group `find` at moderate to high load factors.
+ *
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize The size of the thread block
+ * @tparam InputIt Device accessible input iterator
+ * @tparam OutputIt Device accessible output iterator
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of keys
+ * @param n Number of keys to query
+ * @param output_begin Beginning of the sequence of matched payloads retrieved for each key
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
+template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
+                                                   cuco::detail::index_type n,
+                                                   OutputIt output_begin,
+                                                   Ref ref)
+{
+  namespace cg = cooperative_groups;
+
+  auto const block       = cg::this_thread_block();
+  auto const thread_idx  = block.thread_rank();
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
+
+  using output_type = typename find_buffer<Ref>::type;
+  __shared__ output_type output_buffer[BlockSize / CGSize];
+
+  auto constexpr has_payload = not std::is_same_v<typename Ref::key_type, typename Ref::value_type>;
+
+  auto const sentinel = [&]() {
+    if constexpr (has_payload) {
+      return ref.empty_value_sentinel();
+    } else {
+      return ref.empty_key_sentinel();
+    }
+  }();
+
+  auto output = cuda::proclaim_return_type<output_type>([&] __device__(auto found) {
+    if constexpr (has_payload) {
+      return found == ref.end() ? sentinel : found->second;
+    } else {
+      return found == ref.end() ? sentinel : *found;
+    }
+  });
+
+  while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
+    if (idx < n) {
+      typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+      if constexpr (CGSize == 1) {
+        auto const found = ref.find(key);
+        /*
+         * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased
+         * sector stores from L2 to global memory. By writing results to shared memory and then
+         * synchronizing before writing back to global, we no longer rely on L1, preventing the
+         * increase in sector stores from L2 to global and improving performance.
+         */
+        output_buffer[thread_idx] = output(found);
+        block.sync();
+        *(output_begin + idx) = output_buffer[thread_idx];
+      } else {
+        auto const tile  = cg::tiled_partition<CGSize>(block);
+        auto const found = ref.find(tile, key);
+
+        if (tile.thread_rank() == 0) { *(output_begin + idx) = output(found); }
+      }
+    }
+    idx += loop_stride;
+  }
+}
+
+/**
  * @brief Calculates the number of filled slots for the given window storage.
  *
  * @tparam BlockSize Number of threads in each block
@@ -268,7 +369,9 @@ __global__ void contains_if_n(InputIt first,
  * @param count Number of filled slots
  */
 template <int32_t BlockSize, typename StorageRef, typename Predicate, typename AtomicT>
-__global__ void size(StorageRef storage, Predicate is_filled, AtomicT* count)
+CUCO_KERNEL __launch_bounds__(BlockSize) void size(StorageRef storage,
+                                                   Predicate is_filled,
+                                                   AtomicT* count)
 {
   using size_type = typename StorageRef::size_type;
 
@@ -294,9 +397,10 @@ __global__ void size(StorageRef storage, Predicate is_filled, AtomicT* count)
 }
 
 template <int32_t BlockSize, typename ContainerRef, typename Predicate>
-__global__ void rehash(typename ContainerRef::storage_ref_type storage_ref,
-                       ContainerRef container_ref,
-                       Predicate is_filled)
+CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
+  typename ContainerRef::storage_ref_type storage_ref,
+  ContainerRef container_ref,
+  Predicate is_filled)
 {
   namespace cg = cooperative_groups;
 
@@ -340,6 +444,4 @@ __global__ void rehash(typename ContainerRef::storage_ref_type storage_ref,
   }
 }
 
-}  // namespace detail
-}  // namespace experimental
-}  // namespace cuco
+}  // namespace cuco::detail

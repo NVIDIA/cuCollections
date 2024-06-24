@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_multimap.cuh>
 
@@ -30,7 +30,7 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 template <typename Map>
-__inline__ void test_multiplicity_two(Map& map, std::size_t num_items)
+void test_multiplicity_two(Map& map, std::size_t num_items)
 {
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;
@@ -161,9 +161,10 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr std::size_t num_items{4};
 
-  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
-                                   cuco::linear_probing<1, cuco::default_hash_function<Key>>,
-                                   cuco::double_hashing<8, cuco::default_hash_function<Key>>>;
+  using probe =
+    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                       cuco::legacy::linear_probing<1, cuco::default_hash_function<Key>>,
+                       cuco::legacy::double_hashing<8, cuco::default_hash_function<Key>>>;
 
   cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
     map{5, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};

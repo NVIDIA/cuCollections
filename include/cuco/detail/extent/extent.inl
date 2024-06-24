@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@
 #include <type_traits>
 
 namespace cuco {
-namespace experimental {
 
 template <typename SizeType, std::size_t N>
 struct window_extent {
@@ -40,6 +39,28 @@ struct window_extent {
 
   template <int32_t CGSize_, int32_t WindowSize_, typename SizeType_, std::size_t N_>
   friend auto constexpr make_window_extent(extent<SizeType_, N_> ext);
+
+  template <typename Rhs>
+  friend __host__ __device__ constexpr value_type operator-(window_extent const& lhs,
+                                                            Rhs rhs) noexcept
+  {
+    return lhs.value() - rhs;
+  }
+
+  template <typename Rhs>
+  friend __host__ __device__ constexpr value_type operator/(window_extent const& lhs,
+                                                            Rhs rhs) noexcept
+  {
+    return lhs.value() / rhs;
+  }
+
+  template <typename Lhs>
+  friend __host__ __device__ constexpr value_type operator%(Lhs lhs,
+                                                            window_extent const& rhs) noexcept
+  {
+    return lhs % rhs.value();
+    ;
+  }
 };
 
 template <typename SizeType>
@@ -103,17 +124,13 @@ template <int32_t CGSize, int32_t WindowSize, typename SizeType>
 namespace detail {
 
 template <typename...>
-struct is_window_extent : std::false_type {
-};
+struct is_window_extent : std::false_type {};
 
 template <typename SizeType, std::size_t N>
-struct is_window_extent<window_extent<SizeType, N>> : std::true_type {
-};
+struct is_window_extent<window_extent<SizeType, N>> : std::true_type {};
 
 template <typename T>
 inline constexpr bool is_window_extent_v = is_window_extent<T>::value;
 
 }  // namespace detail
-
-}  // namespace experimental
 }  // namespace cuco

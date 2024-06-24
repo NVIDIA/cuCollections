@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,9 @@
 #include <cstddef>
 
 namespace cuco {
-namespace experimental {
 namespace detail {
+
+CUCO_SUPPRESS_KERNEL_WARNINGS
 
 /**
  * @brief Initializes each slot in the window storage to contain `value`.
@@ -33,9 +34,9 @@ namespace detail {
  * @param value Value to which all values in `slots` are initialized
  */
 template <typename WindowT>
-__global__ void initialize(WindowT* windows,
-                           cuco::detail::index_type n,
-                           typename WindowT::value_type value)
+CUCO_KERNEL void initialize(WindowT* windows,
+                            cuco::detail::index_type n,
+                            typename WindowT::value_type value)
 {
   auto const loop_stride = cuco::detail::grid_stride();
   auto idx               = cuco::detail::global_thread_id();
@@ -51,5 +52,4 @@ __global__ void initialize(WindowT* windows,
 }
 
 }  // namespace detail
-}  // namespace experimental
 }  // namespace cuco

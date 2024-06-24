@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
@@ -72,12 +73,12 @@ struct custom_hasher {
   };
 };
 
-// User-defined device key equality
+// User-defined device key equality, Slot key always on the right-hand side
 struct custom_key_equal {
-  template <typename SlotKey, typename InputKey>
-  __device__ bool operator()(SlotKey const& lhs, InputKey const& rhs) const
+  template <typename InputKey, typename SlotKey>
+  __device__ bool operator()(InputKey const& lhs, SlotKey const& rhs) const
   {
-    return lhs == rhs.a;
+    return lhs.a == rhs;
   }
 };
 
@@ -97,7 +98,7 @@ TEMPLATE_TEST_CASE_SIG("Heterogeneous lookup",
   using Value      = T;
   using InsertKey  = key_pair<T>;
   using ProbeKey   = key_triplet<T>;
-  using probe_type = cuco::experimental::double_hashing<CGSize, custom_hasher, custom_hasher>;
+  using probe_type = cuco::double_hashing<CGSize, custom_hasher, custom_hasher>;
 
   auto const sentinel_key   = Key{-1};
   auto const sentinel_value = Value{-1};
@@ -106,17 +107,19 @@ TEMPLATE_TEST_CASE_SIG("Heterogeneous lookup",
   constexpr std::size_t capacity = num * 2;
   auto const probe               = probe_type{custom_hasher{}, custom_hasher{}};
 
-  auto my_map = cuco::experimental::static_map{capacity,
-                                               cuco::empty_key<Key>{sentinel_key},
-                                               cuco::empty_value{sentinel_value},
-                                               custom_key_equal{},
-                                               probe};
+  auto my_map = cuco::static_map{capacity,
+                                 cuco::empty_key<Key>{sentinel_key},
+                                 cuco::empty_value{sentinel_value},
+                                 custom_key_equal{},
+                                 probe};
 
   auto insert_pairs = thrust::make_transform_iterator(
     thrust::counting_iterator<int>(0),
-    [] __device__(auto i) { return cuco::pair<InsertKey, Value>(i, i); });
-  auto probe_keys = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
-                                                    [] __device__(auto i) { return ProbeKey(i); });
+    cuda::proclaim_return_type<cuco::pair<InsertKey, Value>>(
+      [] __device__(auto i) { return cuco::pair<InsertKey, Value>(i, i); }));
+  auto probe_keys = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0),
+    cuda::proclaim_return_type<ProbeKey>([] __device__(auto i) { return ProbeKey{i}; }));
 
   SECTION("All inserted keys-value pairs should be contained")
   {

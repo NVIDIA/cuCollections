@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_set.cuh>
 
@@ -28,7 +28,7 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 template <typename Set>
-__inline__ void test_unique_sequence(Set& set, std::size_t num_keys)
+void test_unique_sequence(Set& set, std::size_t num_keys)
 {
   using Key = typename Set::key_type;
 
@@ -71,23 +71,16 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
   constexpr std::size_t num_keys{400};
-  auto constexpr gold_capacity = CGSize == 1 ? 409  // 409 x 1 x 1
-                                             : 422  // 211 x 2 x 1
+  constexpr double desired_load_factor = 1.;
+  auto constexpr gold_capacity         = CGSize == 1 ? 409  // 409 x 1 x 1
+                                                     : 422  // 211 x 2 x 1
     ;
 
-  using probe = std::conditional_t<
-    Probe == cuco::test::probe_sequence::linear_probing,
-    cuco::experimental::linear_probing<CGSize, cuco::default_hash_function<Key>>,
-    cuco::experimental::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
+                                   cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
-  auto set = cuco::experimental::static_set<Key,
-                                            cuco::experimental::extent<std::size_t>,
-                                            cuda::thread_scope_device,
-                                            thrust::equal_to<Key>,
-                                            probe,
-                                            cuco::cuda_allocator<std::byte>,
-                                            cuco::experimental::storage<1>>{
-    num_keys, cuco::empty_key<Key>{-1}};
+  auto set = cuco::static_set{num_keys, desired_load_factor, cuco::empty_key<Key>{-1}, {}, probe{}};
 
   REQUIRE(set.capacity() == gold_capacity);
 

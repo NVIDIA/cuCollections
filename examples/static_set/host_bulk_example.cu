@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ int main(void)
   std::size_t const capacity = std::ceil(num_keys / load_factor);
 
   // Constructs a set with at least `capacity` slots using -1 as the empty keys sentinel.
-  cuco::experimental::static_set<Key> set{capacity, cuco::empty_key{empty_key_sentinel}};
+  cuco::static_set<Key> set{capacity, cuco::empty_key{empty_key_sentinel}};
 
   // Create a sequence of keys {0, 1, 2, .., i}
   thrust::device_vector<Key> keys(num_keys);

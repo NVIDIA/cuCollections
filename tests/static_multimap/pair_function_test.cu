@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_multimap.cuh>
 
@@ -40,7 +40,7 @@ struct pair_equal {
 };
 
 template <typename Key, typename Value, typename Map, typename PairIt>
-__inline__ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num_pairs)
+void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num_pairs)
 {
   map.insert(pair_begin, pair_begin + num_pairs);
   CUCO_CUDA_TRY(cudaStreamSynchronize(0));
@@ -132,9 +132,10 @@ TEMPLATE_TEST_CASE_SIG(
                       return cuco::pair<Key, Value>{i / 2, i};
                     });
 
-  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
-                                   cuco::linear_probing<1, cuco::default_hash_function<Key>>,
-                                   cuco::double_hashing<8, cuco::default_hash_function<Key>>>;
+  using probe =
+    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                       cuco::legacy::linear_probing<1, cuco::default_hash_function<Key>>,
+                       cuco::legacy::double_hashing<8, cuco::default_hash_function<Key>>>;
 
   cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
     map{num_pairs * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};

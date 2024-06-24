@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/distance.h>
 #include <thrust/functional.h>
@@ -32,7 +33,7 @@
 using size_type = int32_t;
 
 template <typename Set>
-__inline__ void test_unique_sequence(Set& set, size_type num_keys)
+void test_unique_sequence(Set& set, size_type num_keys)
 {
   using Key = typename Set::key_type;
 
@@ -43,8 +44,10 @@ __inline__ void test_unique_sequence(Set& set, size_type num_keys)
   auto keys_begin = d_keys.begin();
   thrust::device_vector<bool> d_contained(num_keys);
 
-  auto zip_equal = [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); };
-  auto is_even   = [] __device__(auto const& i) { return i % 2 == 0; };
+  auto zip_equal = cuda::proclaim_return_type<bool>(
+    [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); });
+  auto is_even =
+    cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
 
   SECTION("Non-inserted keys should not be contained.")
   {
@@ -73,12 +76,13 @@ __inline__ void test_unique_sequence(Set& set, size_type num_keys)
     REQUIRE(set.size() == num_keys / 2);
 
     set.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::equal(d_contained.begin(),
-                              d_contained.end(),
-                              thrust::counting_iterator<std::size_t>(0),
-                              [] __device__(auto const& idx_contained, auto const& idx) {
-                                return ((idx % 2) == 0) == idx_contained;
-                              }));
+    REQUIRE(cuco::test::equal(
+      d_contained.begin(),
+      d_contained.end(),
+      thrust::counting_iterator<std::size_t>(0),
+      cuda::proclaim_return_type<bool>([] __device__(auto const& idx_contained, auto const& idx) {
+        return ((idx % 2) == 0) == idx_contained;
+      })));
   }
 
   set.insert(keys_begin, keys_begin + num_keys);
@@ -132,19 +136,12 @@ TEMPLATE_TEST_CASE_SIG(
                                                   : 412  // 103 x 2 x 2
     ;
 
-  using probe = std::conditional_t<
-    Probe == cuco::test::probe_sequence::linear_probing,
-    cuco::experimental::linear_probing<CGSize, cuco::default_hash_function<Key>>,
-    cuco::experimental::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
+                                   cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
-  auto set = cuco::experimental::static_set<Key,
-                                            cuco::experimental::extent<size_type>,
-                                            cuda::thread_scope_device,
-                                            thrust::equal_to<Key>,
-                                            probe,
-                                            cuco::cuda_allocator<std::byte>,
-                                            cuco::experimental::storage<2>>{
-    num_keys, cuco::empty_key<Key>{-1}};
+  auto set =
+    cuco::static_set{num_keys, cuco::empty_key<Key>{-1}, {}, probe{}, {}, cuco::storage<2>{}};
 
   REQUIRE(set.capacity() == gold_capacity);
 

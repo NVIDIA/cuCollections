@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
  */
 
 #include <cuco/cuda_stream_ref.hpp>
-#include <cuco/detail/static_map/functors.cuh>
+#include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
@@ -25,7 +25,6 @@
 #include <cstddef>
 
 namespace cuco {
-namespace experimental {
 
 template <class Key,
           class T,
@@ -41,10 +40,11 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
              empty_value<T> empty_value_sentinel,
              KeyEqual const& pred,
              ProbingScheme const& probing_scheme,
+             cuda_thread_scope<Scope>,
+             Storage,
              Allocator const& alloc,
              cuda_stream_ref stream)
   : impl_{std::make_unique<impl_type>(capacity,
-                                      empty_key_sentinel,
                                       cuco::pair{empty_key_sentinel, empty_value_sentinel},
                                       pred,
                                       probing_scheme,
@@ -69,11 +69,12 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
              empty_value<T> empty_value_sentinel,
              KeyEqual const& pred,
              ProbingScheme const& probing_scheme,
+             cuda_thread_scope<Scope>,
+             Storage,
              Allocator const& alloc,
              cuda_stream_ref stream)
   : impl_{std::make_unique<impl_type>(n,
                                       desired_load_factor,
-                                      empty_key_sentinel,
                                       cuco::pair{empty_key_sentinel, empty_value_sentinel},
                                       pred,
                                       probing_scheme,
@@ -98,10 +99,11 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
              erased_key<Key> erased_key_sentinel,
              KeyEqual const& pred,
              ProbingScheme const& probing_scheme,
+             cuda_thread_scope<Scope>,
+             Storage,
              Allocator const& alloc,
              cuda_stream_ref stream)
   : impl_{std::make_unique<impl_type>(capacity,
-                                      empty_key_sentinel,
                                       cuco::pair{empty_key_sentinel, empty_value_sentinel},
                                       erased_key_sentinel,
                                       pred,
@@ -121,7 +123,7 @@ template <class Key,
           class Allocator,
           class Storage>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear(
-  cuda_stream_ref stream) noexcept
+  cuda_stream_ref stream)
 {
   impl_->clear(stream);
 }
@@ -213,7 +215,7 @@ template <class Key,
           class Storage>
 template <typename InputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
-  insert_or_assign(InputIt first, InputIt last, cuda_stream_ref stream) noexcept
+  insert_or_assign(InputIt first, InputIt last, cuda_stream_ref stream)
 {
   return this->insert_or_assign_async(first, last, stream);
   stream.synchronize();
@@ -410,14 +412,7 @@ template <typename InputIt, typename OutputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
 {
-  auto const num_keys = cuco::detail::distance(first, last);
-  if (num_keys == 0) { return; }
-
-  auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
-
-  static_map_ns::detail::find<cg_size, cuco::detail::default_block_size()>
-    <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
-      first, num_keys, output_begin, ref(op::find));
+  impl_->find_async(first, last, output_begin, ref(op::find), stream);
 }
 
 template <class Key,
@@ -433,14 +428,9 @@ std::pair<KeyOut, ValueOut>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   KeyOut keys_out, ValueOut values_out, cuda_stream_ref stream) const
 {
-  auto const begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>{0},
-    static_map_ns::detail::get_slot<storage_ref_type>(impl_->storage_ref()));
-  auto const is_filled  = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
-                                                                       this->erased_key_sentinel());
-  auto zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
-  auto const zipped_out_end = impl_->retrieve_all(begin, zipped_out_begin, is_filled, stream);
-  auto const num            = std::distance(zipped_out_begin, zipped_out_end);
+  auto const zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
+  auto const zipped_out_end   = impl_->retrieve_all(zipped_out_begin, stream);
+  auto const num              = std::distance(zipped_out_begin, zipped_out_end);
 
   return std::make_pair(keys_out + num, values_out + num);
 }
@@ -456,9 +446,7 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   cuda_stream_ref stream)
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
-                                                                       this->erased_key_sentinel());
-  this->impl_->rehash(*this, is_filled, stream);
+  this->impl_->rehash(*this, stream);
 }
 
 template <class Key,
@@ -472,10 +460,8 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   size_type capacity, cuda_stream_ref stream)
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
-                                                                       this->erased_key_sentinel());
-  auto const extent    = make_window_extent<static_map>(capacity);
-  this->impl_->rehash(extent, *this, is_filled, stream);
+  auto const extent = make_window_extent<static_map>(capacity);
+  this->impl_->rehash(extent, *this, stream);
 }
 
 template <class Key,
@@ -489,9 +475,7 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   cuda_stream_ref stream)
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
-                                                                       this->erased_key_sentinel());
-  this->impl_->rehash_async(*this, is_filled, stream);
+  this->impl_->rehash_async(*this, stream);
 }
 
 template <class Key,
@@ -505,10 +489,8 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   size_type capacity, cuda_stream_ref stream)
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
-                                                                       this->erased_key_sentinel());
-  auto const extent    = make_window_extent<static_map>(capacity);
-  this->impl_->rehash_async(extent, *this, is_filled, stream);
+  auto const extent = make_window_extent<static_map>(capacity);
+  this->impl_->rehash_async(extent, *this, stream);
 }
 
 template <class Key,
@@ -521,11 +503,9 @@ template <class Key,
           class Storage>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
-  cuda_stream_ref stream) const noexcept
+  cuda_stream_ref stream) const
 {
-  auto const is_filled = static_map_ns::detail::slot_is_filled<Key, T>(this->empty_key_sentinel(),
-                                                                       this->erased_key_sentinel());
-  return impl_->size(is_filled, stream);
+  return impl_->size(stream);
 }
 
 template <class Key,
@@ -602,18 +582,19 @@ auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   Operators...) const noexcept
 {
   static_assert(sizeof...(Operators), "No operators specified");
-  return this->empty_key_sentinel() == this->erased_key_sentinel()
+  return cuco::detail::bitwise_compare(this->empty_key_sentinel(), this->erased_key_sentinel())
            ? ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
                                     cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
                                     impl_->key_eq(),
                                     impl_->probing_scheme(),
+                                    cuda_thread_scope<Scope>{},
                                     impl_->storage_ref()}
            : ref_type<Operators...>{cuco::empty_key<key_type>(this->empty_key_sentinel()),
                                     cuco::empty_value<mapped_type>(this->empty_value_sentinel()),
                                     cuco::erased_key<key_type>(this->erased_key_sentinel()),
                                     impl_->key_eq(),
                                     impl_->probing_scheme(),
+                                    cuda_thread_scope<Scope>{},
                                     impl_->storage_ref()};
 }
-}  // namespace experimental
 }  // namespace cuco

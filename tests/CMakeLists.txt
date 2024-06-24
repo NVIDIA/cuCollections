@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2023, NVIDIA CORPORATION.
+# Copyright (c) 2018-2024, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -53,7 +53,8 @@ ConfigureTest(UTILITY_TEST
     utility/extent_test.cu
     utility/storage_test.cu
     utility/fast_int_test.cu
-    utility/hash_test.cu)
+    utility/hash_test.cu
+    utility/probing_scheme_test.cu)
 
 ###################################################################################################
 # - static_set tests ------------------------------------------------------------------------------
@@ -62,9 +63,11 @@ ConfigureTest(STATIC_SET_TEST
     static_set/heterogeneous_lookup_test.cu
     static_set/insert_and_find_test.cu
     static_set/large_input_test.cu
+    static_set/retrieve_test.cu
     static_set/retrieve_all_test.cu
     static_set/rehash_test.cu
     static_set/size_test.cu
+    static_set/shared_memory_test.cu
     static_set/unique_sequence_test.cu)
 
 ###################################################################################################
@@ -74,6 +77,7 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/custom_type_test.cu
     static_map/duplicate_keys_test.cu
     static_map/erase_test.cu
+    static_map/hash_test.cu
     static_map/heterogeneous_lookup_test.cu
     static_map/insert_and_find_test.cu
     static_map/insert_or_assign_test.cu
@@ -89,6 +93,11 @@ ConfigureTest(STATIC_MAP_TEST
 ConfigureTest(DYNAMIC_MAP_TEST
     dynamic_map/unique_sequence_test.cu
     dynamic_map/erase_test.cu)
+
+###################################################################################################
+# - static_multiset tests -------------------------------------------------------------------------
+ConfigureTest(STATIC_MULTISET_TEST
+    static_multiset/insert_test.cu)
 
 ###################################################################################################
 # - static_multimap tests -------------------------------------------------------------------------
@@ -109,3 +118,10 @@ ConfigureTest(DYNAMIC_BITSET_TEST
     dynamic_bitset/rank_test.cu
     dynamic_bitset/select_test.cu
     dynamic_bitset/size_test.cu)
+
+###################################################################################################
+# - distinct_count_estimator ----------------------------------------------------------------------
+ConfigureTest(DISTINCT_COUNT_ESTIMATOR_TEST
+    distinct_count_estimator/unique_sequence_test.cu
+    distinct_count_estimator/spark_parity_test.cu
+    distinct_count_estimator/device_ref_test.cu)

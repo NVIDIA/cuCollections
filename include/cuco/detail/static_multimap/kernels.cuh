@@ -15,13 +15,12 @@
  */
 #pragma once
 
+#include <cuco/detail/utility/cuda.cuh>
 #include <cuco/pair.cuh>
 
-#include <thrust/type_traits/is_contiguous_iterator.h>
-
 #include <cub/block/block_reduce.cuh>
-
 #include <cuda/std/atomic>
+#include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <iterator>
 
@@ -29,6 +28,7 @@ namespace cuco {
 namespace detail {
 namespace cg = cooperative_groups;
 
+CUCO_SUPPRESS_KERNEL_WARNINGS
 /**
  * @brief Initializes each slot in the flat `slots` storage to contain `k` and `v`.
  *
@@ -51,7 +51,7 @@ template <typename atomic_key_type,
           typename Key,
           typename Value,
           typename pair_atomic_type>
-__global__ void initialize(pair_atomic_type* const slots, Key k, Value v, int64_t size)
+CUCO_KERNEL void initialize(pair_atomic_type* const slots, Key k, Value v, int64_t size)
 {
   int64_t const loop_stride = gridDim.x * blockDim.x;
   int64_t idx               = threadIdx.x + blockIdx.x * blockDim.x;
@@ -82,7 +82,7 @@ __global__ void initialize(pair_atomic_type* const slots, Key k, Value v, int64_
  * @param view Mutable device view used to access the hash map's slot storage
  */
 template <uint32_t block_size, uint32_t tile_size, typename InputIt, typename viewT>
-__global__ void insert(InputIt first, int64_t n, viewT view)
+CUCO_KERNEL void insert(InputIt first, int64_t n, viewT view)
 {
   auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
   int64_t const loop_stride = gridDim.x * block_size / tile_size;
@@ -130,7 +130,7 @@ template <uint32_t block_size,
           typename StencilIt,
           typename viewT,
           typename Predicate>
-__global__ void insert_if_n(InputIt first, StencilIt s, int64_t n, viewT view, Predicate pred)
+CUCO_KERNEL void insert_if_n(InputIt first, StencilIt s, int64_t n, viewT view, Predicate pred)
 {
   auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
   int64_t const loop_stride = gridDim.x * block_size / tile_size;
@@ -177,7 +177,7 @@ template <bool is_pair_contains,
           typename OutputIt,
           typename viewT,
           typename Equal>
-__global__ void contains(InputIt first, int64_t n, OutputIt output_begin, viewT view, Equal equal)
+CUCO_KERNEL void contains(InputIt first, int64_t n, OutputIt output_begin, viewT view, Equal equal)
 {
   auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
   int64_t const loop_stride = gridDim.x * block_size / tile_size;
@@ -235,7 +235,7 @@ template <uint32_t block_size,
           typename atomicT,
           typename viewT,
           typename KeyEqual>
-__global__ void count(
+CUCO_KERNEL void count(
   InputIt first, int64_t n, atomicT* num_matches, viewT view, KeyEqual key_equal)
 {
   auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
@@ -294,7 +294,7 @@ template <uint32_t block_size,
           typename atomicT,
           typename viewT,
           typename PairEqual>
-__global__ void pair_count(
+CUCO_KERNEL void pair_count(
   InputIt first, int64_t n, atomicT* num_matches, viewT view, PairEqual pair_equal)
 {
   auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
@@ -363,12 +363,12 @@ template <uint32_t block_size,
           typename atomicT,
           typename viewT,
           typename KeyEqual>
-__global__ void retrieve(InputIt first,
-                         int64_t n,
-                         OutputIt output_begin,
-                         atomicT* num_matches,
-                         viewT view,
-                         KeyEqual key_equal)
+CUCO_KERNEL void retrieve(InputIt first,
+                          int64_t n,
+                          OutputIt output_begin,
+                          atomicT* num_matches,
+                          viewT view,
+                          KeyEqual key_equal)
 {
   using pair_type = typename viewT::value_type;
 
@@ -476,13 +476,13 @@ template <uint32_t block_size,
           typename atomicT,
           typename viewT,
           typename PairEqual>
-__global__ void pair_retrieve(InputIt first,
-                              int64_t n,
-                              OutputIt1 probe_output_begin,
-                              OutputIt2 contained_output_begin,
-                              atomicT* num_matches,
-                              viewT view,
-                              PairEqual pair_equal)
+CUCO_KERNEL void pair_retrieve(InputIt first,
+                               int64_t n,
+                               OutputIt1 probe_output_begin,
+                               OutputIt2 contained_output_begin,
+                               atomicT* num_matches,
+                               viewT view,
+                               PairEqual pair_equal)
 {
   using pair_type = typename viewT::value_type;
 
@@ -549,6 +549,5 @@ __global__ void pair_retrieve(InputIt first,
                              contained_output_begin);
   }
 }
-
 }  // namespace detail
 }  // namespace cuco

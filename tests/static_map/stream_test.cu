@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
@@ -29,7 +30,7 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
-TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
+TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
                        "",
                        ((typename Key, typename Value), Key, Value),
                        (int32_t, int32_t),
@@ -41,11 +42,15 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
   CUCO_CUDA_TRY(cudaStreamCreate(&stream));
 
   constexpr std::size_t num_keys{500'000};
-  cuco::static_map<Key, Value> map{1'000'000,
-                                   cuco::empty_key<Key>{-1},
-                                   cuco::empty_value<Value>{-1},
-                                   cuco::cuda_allocator<char>{},
-                                   stream};
+  auto map = cuco::static_map{num_keys * 2,
+                              cuco::empty_key<Key>{-1},
+                              cuco::empty_value<Value>{-1},
+                              {},
+                              cuco::linear_probing<1, cuco::default_hash_function<Key>>{},
+                              {},
+                              {},
+                              {},
+                              stream};
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<Value> d_values(num_keys);
@@ -53,35 +58,34 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys on given stream",
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   thrust::sequence(thrust::device, d_values.begin(), d_values.end());
 
-  auto pairs_begin =
-    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
-
-  auto hash_fn  = cuco::default_hash_function<Key>{};
-  auto equal_fn = thrust::equal_to<Value>{};
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<int>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); }));
 
   // bulk function test cases
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
   {
     thrust::device_vector<Value> d_results(num_keys);
 
-    map.insert(pairs_begin, pairs_begin + num_keys, hash_fn, equal_fn, stream);
-    map.find(d_keys.begin(), d_keys.end(), d_results.begin(), hash_fn, equal_fn, stream);
+    map.insert(pairs_begin, pairs_begin + num_keys, stream);
+    map.find(d_keys.begin(), d_keys.end(), d_results.begin(), stream);
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), d_values.begin()));
 
-    REQUIRE(cuco::test::all_of(
-      zip,
-      zip + num_keys,
-      [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); },
-      stream));
+    REQUIRE(cuco::test::all_of(zip,
+                               zip + num_keys,
+                               cuda::proclaim_return_type<bool>([] __device__(auto const& p) {
+                                 return thrust::get<0>(p) == thrust::get<1>(p);
+                               }),
+                               stream));
   }
 
   SECTION("All inserted keys-value pairs should be contained")
   {
     thrust::device_vector<bool> d_contained(num_keys);
 
-    map.insert(pairs_begin, pairs_begin + num_keys, hash_fn, equal_fn, stream);
-    map.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), hash_fn, equal_fn, stream);
+    map.insert(pairs_begin, pairs_begin + num_keys, stream);
+    map.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), stream);
 
     REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}, stream));
   }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,13 +20,13 @@
 #include <cuco/hash_functions.cuh>
 #include <cuco/operator.hpp>
 #include <cuco/probing_scheme.cuh>
-#include <cuco/sentinel.cuh>
 #include <cuco/storage.cuh>
+#include <cuco/types.cuh>
+#include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/atomic>
 
 namespace cuco {
-namespace experimental {
 
 /**
  * @brief Device non-owning "ref" type that can be used in device code to perform arbitrary
@@ -67,8 +67,12 @@ class static_map_ref
   : public detail::operator_impl<
       Operators,
       static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
-  using impl_type =
-    detail::open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  /// Flag indicating whether duplicate keys are allowed or not
+  static constexpr auto allows_duplicates = false;
+
+  /// Implementation type
+  using impl_type = detail::
+    open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef, allows_duplicates>;
 
   static_assert(sizeof(T) <= 8, "Container does not support payload types larger than 8 bytes.");
 
@@ -93,6 +97,7 @@ class static_map_ref
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
   static constexpr auto window_size =
     storage_ref_type::window_size;  ///< Number of elements handled per window
+  static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
 
   /**
    * @brief Constructs static_map_ref.
@@ -101,12 +106,14 @@ class static_map_ref
    * @param empty_value_sentinel Sentinel indicating empty payload
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr static_map_ref(cuco::empty_key<Key> empty_key_sentinel,
                                                         cuco::empty_value<T> empty_value_sentinel,
                                                         KeyEqual const& predicate,
                                                         ProbingScheme const& probing_scheme,
+                                                        cuda_thread_scope<Scope> scope,
                                                         StorageRef storage_ref) noexcept;
 
   /**
@@ -117,6 +124,7 @@ class static_map_ref
    * @param erased_key_sentinel Sentinel indicating erased key
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
    * @param storage_ref Non-owning ref of slot storage
    */
   __host__ __device__ explicit constexpr static_map_ref(cuco::empty_key<Key> empty_key_sentinel,
@@ -124,6 +132,7 @@ class static_map_ref
                                                         cuco::erased_key<Key> erased_key_sentinel,
                                                         KeyEqual const& predicate,
                                                         ProbingScheme const& probing_scheme,
+                                                        cuda_thread_scope<Scope> scope,
                                                         StorageRef storage_ref) noexcept;
 
   /**
@@ -146,6 +155,13 @@ class static_map_ref
   [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept;
 
   /**
+   * @brief Gets the window extent of the current storage.
+   *
+   * @return The window extent.
+   */
+  [[nodiscard]] __host__ __device__ constexpr extent_type window_extent() const noexcept;
+
+  /**
    * @brief Gets the sentinel value used to represent an empty key slot.
    *
    * @return The sentinel value used to represent an empty key slot
@@ -160,7 +176,37 @@ class static_map_ref
   [[nodiscard]] __host__ __device__ constexpr mapped_type empty_value_sentinel() const noexcept;
 
   /**
+   * @brief Gets the sentinel value used to represent an erased key slot.
+   *
+   * @return The sentinel value used to represent an erased key slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr key_type erased_key_sentinel() const noexcept;
+
+  /**
+   * @brief Gets the key comparator.
+   *
+   * @return The comparator used to compare keys
+   */
+  [[nodiscard]] __host__ __device__ constexpr key_equal key_eq() const noexcept;
+
+  /**
+   * @brief Returns a const_iterator to one past the last slot.
+   *
+   * @return A const_iterator to one past the last slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept;
+
+  /**
+   * @brief Returns an iterator to one past the last slot.
+   *
+   * @return An iterator to one past the last slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept;
+
+  /**
    * @brief Creates a reference with new operators from the current object.
+   *
+   * @deprecated This function is deprecated. Use the new `with_operators` instead.
    *
    * Note that this function uses move semantics and thus invalidates the current object.
    *
@@ -175,6 +221,59 @@ class static_map_ref
    */
   template <typename... NewOperators>
   [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
+
+  /**
+   * @brief Creates a reference with new operators from the current object
+   *
+   * @warning Using two or more reference objects to the same container but with
+   * a different operator set at the same time results in undefined behavior.
+   *
+   * @tparam NewOperators List of `cuco::op::*_tag` types
+   *
+   * @param ops List of operators, e.g., `cuco::insert`
+   *
+   * @return `*this` with `NewOperators...`
+   */
+  template <typename... NewOperators>
+  [[nodiscard]] __host__ __device__ constexpr auto with_operators(
+    NewOperators... ops) const noexcept;
+
+  /**
+   * @brief Makes a copy of the current device reference using non-owned memory
+   *
+   * This function is intended to be used to create shared memory copies of small static maps,
+   * although global memory can be used as well.
+   *
+   * @note This function synchronizes the group `tile`.
+   * @note By-default the thread scope of the copy will be the same as the scope of the parent ref.
+   *
+   * @tparam CG The type of the cooperative thread group
+   * @tparam NewScope The thread scope of the newly created device ref
+   *
+   * @param tile The ooperative thread group used to copy the data structure
+   * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
+   * the ownership of the memory
+   * @param scope The thread scope of the newly created device ref
+   *
+   * @return Copy of the current device ref
+   */
+  template <typename CG, cuda::thread_scope NewScope = thread_scope>
+  [[nodiscard]] __device__ constexpr auto make_copy(
+    CG const& tile,
+    window_type* const memory_to_use,
+    cuda_thread_scope<NewScope> scope = {}) const noexcept;
+
+  /**
+   * @brief Initializes the map storage using the threads in the group `tile`.
+   *
+   * @note This function synchronizes the group `tile`.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param tile The cooperative thread group used to initialize the map
+   */
+  template <typename CG>
+  __device__ constexpr void initialize(CG const& tile) noexcept;
 
  private:
   impl_type impl_;  ///< Static map ref implementation
@@ -194,7 +293,6 @@ class static_map_ref
   friend class static_map_ref;
 };
 
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/static_map/static_map_ref.inl>

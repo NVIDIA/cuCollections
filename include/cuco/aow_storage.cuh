@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@
 #include <memory>
 
 namespace cuco {
-namespace experimental {
 
 /// Window type alias
 template <typename T, int32_t WindowSize>
@@ -49,8 +48,8 @@ class aow_storage_ref;
  */
 template <typename T,
           int32_t WindowSize,
-          typename Extent    = cuco::experimental::extent<std::size_t>,
-          typename Allocator = cuco::cuda_allocator<cuco::experimental::window<T, WindowSize>>>
+          typename Extent    = cuco::extent<std::size_t>,
+          typename Allocator = cuco::cuda_allocator<cuco::window<T, WindowSize>>>
 class aow_storage : public detail::aow_storage_base<T, WindowSize, Extent> {
  public:
   using base_type = detail::aow_storage_base<T, WindowSize, Extent>;  ///< AoW base class type
@@ -66,7 +65,8 @@ class aow_storage : public detail::aow_storage_base<T, WindowSize, Extent> {
   using base_type::num_windows;
 
   /// Type of the allocator to (de)allocate windows
-  using allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<window_type>;
+  using allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<window_type>;
   using window_deleter_type =
     detail::custom_deleter<size_type, allocator_type>;  ///< Type of window deleter
   using ref_type = aow_storage_ref<value_type, window_size, extent_type>;  ///< Storage ref type
@@ -81,7 +81,7 @@ class aow_storage : public detail::aow_storage_base<T, WindowSize, Extent> {
    * @param size Number of windows to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
-  explicit constexpr aow_storage(Extent size, Allocator const& allocator = {}) noexcept;
+  explicit constexpr aow_storage(Extent size, Allocator const& allocator = {});
 
   aow_storage(aow_storage&&) = default;  ///< Move constructor
   /**
@@ -92,7 +92,7 @@ class aow_storage : public detail::aow_storage_base<T, WindowSize, Extent> {
   aow_storage& operator=(aow_storage&&) = default;
   ~aow_storage()                        = default;  ///< Destructor
 
-  aow_storage(aow_storage const&) = delete;
+  aow_storage(aow_storage const&)            = delete;
   aow_storage& operator=(aow_storage const&) = delete;
 
   /**
@@ -122,7 +122,7 @@ class aow_storage : public detail::aow_storage_base<T, WindowSize, Extent> {
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
    */
-  void initialize(value_type key, cuda_stream_ref stream = {}) noexcept;
+  void initialize(value_type key, cuda_stream_ref stream = {});
 
   /**
    * @brief Asynchronously initializes each slot in the AoW storage to contain `key`.
@@ -145,7 +145,7 @@ class aow_storage : public detail::aow_storage_base<T, WindowSize, Extent> {
  * @tparam WindowSize Number of slots in each window
  * @tparam Extent Type of extent denoting storage capacity
  */
-template <typename T, int32_t WindowSize, typename Extent = cuco::experimental::extent<std::size_t>>
+template <typename T, int32_t WindowSize, typename Extent = cuco::extent<std::size_t>>
 class aow_storage_ref : public detail::aow_storage_base<T, WindowSize, Extent> {
  public:
   using base_type = detail::aow_storage_base<T, WindowSize, Extent>;  ///< AoW base class type
@@ -223,7 +223,6 @@ class aow_storage_ref : public detail::aow_storage_base<T, WindowSize, Extent> {
   window_type* windows_;  ///< Pointer to the windows array
 };
 
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/storage/aow_storage.inl>

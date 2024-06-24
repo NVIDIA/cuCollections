@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,14 @@
 
 #pragma once
 
-#include <cuco/detail/traits.hpp>
-#include <cuco/detail/utils.cuh>
+#include <cuco/detail/pair/helpers.cuh>
+#include <cuco/detail/pair/traits.hpp>
 
+#include <cuda/std/tuple>
 #include <thrust/device_reference.h>
 #include <thrust/tuple.h>
 
-#include <cuda/std/tuple>
+#include <tuple>
 #include <type_traits>
 
 namespace cuco {
@@ -86,6 +87,19 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
    * @param p The input pair to copy from
    */
   template <typename T, std::enable_if_t<detail::is_std_pair_like<T>::value>* = nullptr>
+  __host__ __device__ constexpr pair(T const& p)
+    : pair{std::get<0>(thrust::raw_reference_cast(p)), std::get<1>(thrust::raw_reference_cast(p))}
+  {
+  }
+
+  /**
+   * @brief Constructs a pair from the given cuda::std::pair-like `p`.
+   *
+   * @tparam T Type of the pair to copy from
+   *
+   * @param p The input pair to copy from
+   */
+  template <typename T, std::enable_if_t<detail::is_cuda_std_pair_like<T>::value>* = nullptr>
   __host__ __device__ constexpr pair(T const& p)
     : pair{cuda::std::get<0>(thrust::raw_reference_cast(p)),
            cuda::std::get<1>(thrust::raw_reference_cast(p))}

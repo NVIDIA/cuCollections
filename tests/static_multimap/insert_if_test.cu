@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_multimap.cuh>
 
@@ -27,7 +27,7 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 template <typename Key, typename Map, typename PairIt, typename KeyIt>
-__inline__ void test_insert_if(Map& map, PairIt pair_begin, KeyIt key_begin, std::size_t size)
+void test_insert_if(Map& map, PairIt pair_begin, KeyIt key_begin, std::size_t size)
 {
   // 50% insertion
   auto pred_lambda = [] __device__(Key k) { return k % 2 == 0; };
@@ -67,9 +67,10 @@ TEMPLATE_TEST_CASE_SIG(
                       return cuco::pair<Key, Value>{i, i};
                     });
 
-  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
-                                   cuco::linear_probing<1, cuco::default_hash_function<Key>>,
-                                   cuco::double_hashing<8, cuco::default_hash_function<Key>>>;
+  using probe =
+    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                       cuco::legacy::linear_probing<1, cuco::default_hash_function<Key>>,
+                       cuco::legacy::double_hashing<8, cuco::default_hash_function<Key>>>;
 
   cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
     map{num_keys * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};

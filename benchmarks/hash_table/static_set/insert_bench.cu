@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include <defaults.hpp>
-#include <utils.hpp>
+#include <benchmark_defaults.hpp>
+#include <benchmark_utils.hpp>
 
 #include <cuco/static_set.cuh>
-#include <cuco/utility/key_generator.hpp>
+#include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
 
@@ -47,8 +47,8 @@ void static_set_insert(nvbench::state& state, nvbench::type_list<Key, Dist>)
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               cuco::experimental::static_set<Key> set{
-                 size, cuco::empty_key<Key>{-1}, {}, {}, {}, {launch.get_stream()}};
+               cuco::static_set<Key> set{
+                 size, cuco::empty_key<Key>{-1}, {}, {}, {}, {}, {}, {launch.get_stream()}};
 
                timer.start();
                set.insert(keys.begin(), keys.end(), {launch.get_stream()});

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
@@ -113,7 +114,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
   constexpr std::size_t num      = 100;
   constexpr std::size_t capacity = num * 2;
-  cuco::static_map<Key, Value> map{
+  cuco::legacy::static_map<Key, Value> map{
     capacity, cuco::empty_key<Key>{sentinel_key}, cuco::empty_value<Value>{sentinel_value}};
 
   thrust::device_vector<Key> insert_keys(num);
@@ -123,17 +124,18 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num),
                     insert_keys.begin(),
-                    [] __device__(auto i) { return Key{i}; });
+                    cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i}; }));
 
   thrust::transform(thrust::device,
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num),
                     insert_values.begin(),
-                    [] __device__(auto i) { return Value{i}; });
+                    cuda::proclaim_return_type<Value>([] __device__(auto i) { return Value{i}; }));
 
-  auto insert_pairs =
-    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
+  auto insert_pairs = thrust::make_transform_iterator(
+    thrust::make_counting_iterator<int>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); }));
 
   SECTION("All inserted keys-value pairs should be correctly recovered during find")
   {
@@ -151,9 +153,9 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     REQUIRE(cuco::test::equal(insert_values.begin(),
                               insert_values.end(),
                               found_values.begin(),
-                              [] __device__(Value lhs, Value rhs) {
+                              cuda::proclaim_return_type<bool>([] __device__(Value lhs, Value rhs) {
                                 return std::tie(lhs.f, lhs.s) == std::tie(rhs.f, rhs.s);
-                              }));
+                              })));
   }
 
   SECTION("All inserted keys-value pairs should be contained")
@@ -175,7 +177,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
       insert_pairs,
       insert_pairs + num,
       thrust::counting_iterator<int>(0),
-      [] __device__(auto const& key) { return (key % 2) == 0; },
+      cuda::proclaim_return_type<bool>([] __device__(auto const& key) { return (key % 2) == 0; }),
       hash_custom_key{},
       custom_key_equals{});
 
@@ -187,12 +189,13 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                  hash_custom_key{},
                  custom_key_equals{});
 
-    REQUIRE(cuco::test::equal(contained.begin(),
-                              contained.end(),
-                              thrust::counting_iterator<int>(0),
-                              [] __device__(auto const& idx_contained, auto const& idx) {
-                                return ((idx % 2) == 0) == idx_contained;
-                              }));
+    REQUIRE(cuco::test::equal(
+      contained.begin(),
+      contained.end(),
+      thrust::counting_iterator<int>(0),
+      cuda::proclaim_return_type<bool>([] __device__(auto const& idx_contained, auto const& idx) {
+        return ((idx % 2) == 0) == idx_contained;
+      })));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
@@ -212,9 +215,11 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     map.insert(insert_pairs, insert_pairs + num, hash_custom_key{}, custom_key_equals{});
     auto view = map.get_device_view();
     REQUIRE(cuco::test::all_of(
-      insert_pairs, insert_pairs + num, [view] __device__(cuco::pair<Key, Value> const& pair) {
+      insert_pairs,
+      insert_pairs + num,
+      cuda::proclaim_return_type<bool>([view] __device__(cuco::pair<Key, Value> const& pair) {
         return view.contains(pair.first, hash_custom_key{}, custom_key_equals{});
-      }));
+      })));
   }
 
   SECTION("Inserting unique keys should return insert success.")
@@ -222,9 +227,11 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
     auto m_view = map.get_device_mutable_view();
     REQUIRE(cuco::test::all_of(insert_pairs,
                                insert_pairs + num,
-                               [m_view] __device__(cuco::pair<Key, Value> const& pair) mutable {
-                                 return m_view.insert(pair, hash_custom_key{}, custom_key_equals{});
-                               }));
+                               cuda::proclaim_return_type<bool>(
+                                 [m_view] __device__(cuco::pair<Key, Value> const& pair) mutable {
+                                   return m_view.insert(
+                                     pair, hash_custom_key{}, custom_key_equals{});
+                                 })));
   }
 
   SECTION("Cannot find any key in an empty hash map")
@@ -235,18 +242,21 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
       REQUIRE(cuco::test::all_of(
         insert_pairs,
         insert_pairs + num,
-        [view] __device__(cuco::pair<Key, Value> const& pair) mutable {
-          return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) == view.end();
-        }));
+        cuda::proclaim_return_type<bool>(
+          [view] __device__(cuco::pair<Key, Value> const& pair) mutable {
+            return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) == view.end();
+          })));
     }
 
     SECTION("const view")
     {
       auto const view = map.get_device_view();
       REQUIRE(cuco::test::all_of(
-        insert_pairs, insert_pairs + num, [view] __device__(cuco::pair<Key, Value> const& pair) {
+        insert_pairs,
+        insert_pairs + num,
+        cuda::proclaim_return_type<bool>([view] __device__(cuco::pair<Key, Value> const& pair) {
           return view.find(pair.first, hash_custom_key{}, custom_key_equals{}) == view.end();
-        }));
+        })));
     }
   }
 }

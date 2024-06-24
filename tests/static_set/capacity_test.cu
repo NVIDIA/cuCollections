@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,23 +21,23 @@
 TEST_CASE("Static set capacity", "")
 {
   using Key        = int32_t;
-  using ProbeT     = cuco::experimental::double_hashing<1, cuco::default_hash_function<Key>>;
+  using ProbeT     = cuco::double_hashing<1, cuco::default_hash_function<Key>>;
   using Equal      = thrust::equal_to<Key>;
   using AllocatorT = cuco::cuda_allocator<std::byte>;
-  using StorageT   = cuco::experimental::storage<2>;
+  using StorageT   = cuco::storage<2>;
 
   SECTION("zero capacity is allowed.")
   {
     auto constexpr gold_capacity = 4;
 
-    using extent_type = cuco::experimental::extent<std::size_t, 0>;
-    cuco::experimental::
+    using extent_type = cuco::extent<std::size_t, 0>;
+    cuco::
       static_set<Key, extent_type, cuda::thread_scope_device, Equal, ProbeT, AllocatorT, StorageT>
         set{extent_type{}, cuco::empty_key<Key>{-1}};
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);
 
-    auto ref                = set.ref(cuco::experimental::insert);
+    auto ref                = set.ref(cuco::insert);
     auto const ref_capacity = ref.capacity();
     REQUIRE(ref_capacity == gold_capacity);
   }
@@ -46,32 +46,46 @@ TEST_CASE("Static set capacity", "")
   {
     auto constexpr gold_capacity = 4;
 
-    using extent_type = cuco::experimental::extent<int32_t>;
-    cuco::experimental::
+    using extent_type = cuco::extent<int32_t>;
+    cuco::
       static_set<Key, extent_type, cuda::thread_scope_device, Equal, ProbeT, AllocatorT, StorageT>
         set{extent_type{-10}, cuco::empty_key<Key>{-1}};
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);
 
-    auto ref                = set.ref(cuco::experimental::insert);
+    auto ref                = set.ref(cuco::insert);
     auto const ref_capacity = ref.capacity();
     REQUIRE(ref_capacity == gold_capacity);
   }
 
   constexpr std::size_t num_keys{400};
 
+  SECTION("Static window extent can be evaluated at build time.")
+  {
+    std::size_t constexpr gold_extent = 211;
+
+    using extent_type = cuco::extent<std::size_t, num_keys>;
+    cuco::
+      static_set<Key, extent_type, cuda::thread_scope_device, Equal, ProbeT, AllocatorT, StorageT>
+        set{extent_type{}, cuco::empty_key<Key>{-1}};
+
+    auto ref               = set.ref(cuco::insert);
+    auto const num_windows = ref.window_extent();
+    STATIC_REQUIRE(static_cast<std::size_t>(num_windows) == gold_extent);
+  }
+
   SECTION("Dynamic extent is evaluated at run time.")
   {
     auto constexpr gold_capacity = 422;  // 211 x 2
 
-    using extent_type = cuco::experimental::extent<std::size_t>;
-    cuco::experimental::
+    using extent_type = cuco::extent<std::size_t>;
+    cuco::
       static_set<Key, extent_type, cuda::thread_scope_device, Equal, ProbeT, AllocatorT, StorageT>
         set{num_keys, cuco::empty_key<Key>{-1}};
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);
 
-    auto ref                = set.ref(cuco::experimental::insert);
+    auto ref                = set.ref(cuco::insert);
     auto const ref_capacity = ref.capacity();
     REQUIRE(ref_capacity == gold_capacity);
   }
@@ -80,13 +94,13 @@ TEST_CASE("Static set capacity", "")
   {
     auto constexpr gold_capacity = 422;  // 211 x 2
 
-    cuco::experimental::
+    cuco::
       static_set<Key, std::size_t, cuda::thread_scope_device, Equal, ProbeT, AllocatorT, StorageT>
         set{num_keys, cuco::empty_key<Key>{-1}};
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);
 
-    auto ref                = set.ref(cuco::experimental::insert);
+    auto ref                = set.ref(cuco::insert);
     auto const ref_capacity = ref.capacity();
     REQUIRE(ref_capacity == gold_capacity);
   }
@@ -95,13 +109,13 @@ TEST_CASE("Static set capacity", "")
   {
     auto constexpr gold_capacity = 502;  // 251 x 2
 
-    cuco::experimental::
+    cuco::
       static_set<Key, std::size_t, cuda::thread_scope_device, Equal, ProbeT, AllocatorT, StorageT>
         set{num_keys, 0.8, cuco::empty_key<Key>{-1}};
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);
 
-    auto ref                = set.ref(cuco::experimental::insert);
+    auto ref                = set.ref(cuco::insert);
     auto const ref_capacity = ref.capacity();
     REQUIRE(ref_capacity == gold_capacity);
   }
@@ -110,19 +124,19 @@ TEST_CASE("Static set capacity", "")
   {
     auto constexpr gold_capacity = 412;  // 103 x 2 x 2
 
-    using probe = cuco::experimental::linear_probing<2, cuco::default_hash_function<Key>>;
-    auto set    = cuco::experimental::static_set<Key,
-                                              cuco::experimental::extent<std::size_t>,
-                                              cuda::thread_scope_device,
-                                              Equal,
-                                              probe,
-                                              AllocatorT,
-                                              StorageT>{num_keys, cuco::empty_key<Key>{-1}};
+    using probe = cuco::linear_probing<2, cuco::default_hash_function<Key>>;
+    auto set    = cuco::static_set<Key,
+                                cuco::extent<std::size_t>,
+                                cuda::thread_scope_device,
+                                Equal,
+                                probe,
+                                AllocatorT,
+                                StorageT>{num_keys, cuco::empty_key<Key>{-1}};
 
     auto const capacity = set.capacity();
     REQUIRE(capacity == gold_capacity);
 
-    auto ref                = set.ref(cuco::experimental::insert);
+    auto ref                = set.ref(cuco::insert);
     auto const ref_capacity = ref.capacity();
     REQUIRE(ref_capacity == gold_capacity);
   }

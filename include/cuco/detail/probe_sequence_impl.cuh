@@ -25,8 +25,7 @@
 
 #include <utility>
 
-namespace cuco {
-namespace detail {
+namespace cuco::legacy::detail {
 
 /**
  * @brief Base class of public probe sequence. This class should not be used directly.
@@ -461,5 +460,4 @@ class probe_sequence : public ProbeImpl::template impl<Key, Value, Scope> {
   }
 };  // class probe_sequence
 
-}  // namespace detail
-}  // namespace cuco
+}  // namespace cuco::legacy::detail

@@ -13,6 +13,13 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 
 `cuCollections` is still under heavy development. Users should expect breaking changes and refactoring to be common.
 
+### Major Updates
+
+__01/08/2024__ Deprecated the `experimental` namespace
+
+__01/02/2024__ Moved the legacy `static_map` to `cuco::legacy` namespace
+
+
 ## Getting cuCollections
 
 `cuCollections` is header only and can be incorporated manually into your project by downloading the headers and placing them into your source tree.
@@ -59,8 +66,7 @@ This will take care of downloading `cuCollections` from GitHub and making the he
 
 `cuCollections` depends on the following libraries:
 
-- [libcu++](https://github.com/NVIDIA/libcudacxx)
-- [CUB](https://github.com/thrust/cub)
+- [CUDA C++ Core Libraries (CCCL)](https://github.com/NVIDIA/cccl)
 
 No action is required from the user to satisfy these dependencies. `cuCollections`'s CMake script is configured to first search the system for these libraries, and if they are not found, to automatically fetch them from GitHub.
 
@@ -75,14 +81,26 @@ To build the tests, benchmarks, and examples:
 cd $CUCO_ROOT
 mkdir -p build
 cd build
-cmake ..
-make
+cmake .. # configure
+make # build
+ctest --test-dir tests # run tests
 ```
 Binaries will be built into:
 - `build/tests/`
-- `build/gbenchmarks/`
+- `build/benchmarks/`
 - `build/examples/`
 
+### Build Script:
+
+Alternatively, you can use the build script located at `ci/build.sh`. Calling this script with no arguments will trigger a full build which will be located at `build/local`.
+
+```bash
+cd $CUCO_ROOT
+ci/build.sh # configure and build
+ctest --test-dir build/local/tests # run tests
+```
+
+For a comprehensive list of all available options along with descriptions and examples, you can use the option `ci/build.sh -h`.
 
 ## Code Formatting
 By default, `cuCollections` uses [`pre-commit.ci`](https://pre-commit.ci/) along with [`mirrors-clang-format`](https://github.com/pre-commit/mirrors-clang-format) to automatically format the C++/CUDA files in a pull request.
@@ -173,7 +191,7 @@ class example_class {
 ### Doxygen style check
 `cuCollections` also uses Doxygen as a documentation linter. To check the Doxygen style locally, run
 ```bash
-./ci/checks/doxygen.sh
+./ci/pre-commit/doxygen.sh
 ```
 
 
@@ -186,25 +204,28 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 `cuco::static_set` is a fixed-size container that stores unique elements in no particular order. See the Doxygen documentation in `static_set.cuh` for more detailed information.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/Pzf6vabz1))
-- [Device-ref APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/sfG3qKqGv))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/fczxbM1h6))
+- [Device-ref APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/zcnGqfdMW))
+- [One single storage for multiple sets](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_subsets_example.cu) (see [live example in godbolt](https://godbolt.org/z/P9s4fKscj))
+- [Using shared memory as storage](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/shared_memory_example.cu) (see [live example in godbolt](https://godbolt.org/z/4dq58efc8))
+- [Using set as mapping table to handle large keys or indeterministic sentinels](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/mapping_table_example.cu) (see [live example in godbolt](https://godbolt.org/z/E1e3j86E4))
 
 ### `static_map`
 
 `cuco::static_map` is a fixed-size hash table using open addressing with linear probing. See the Doxygen documentation in `static_map.cuh` for more detailed information.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/T49P85Mnd))
-- [Device-view APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/device_view_example.cu) (see [live example in godbolt](https://godbolt.org/z/dh8bMn3G1))
-- [Custom data types, key equality operators and hash functions](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/custom_type_example.cu) (see [live example in godbolt](https://godbolt.org/z/7djKevK6e))
-- [Key histogram](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/count_by_key_example.cu) (see [live example in godbolt](https://godbolt.org/z/vecGeYM48))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/n3x8s19hP))
+- [Device-ref APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/K4oWe46PT))
+- [Custom data types, key equality operators and hash functions](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/custom_type_example.cu) (see [live example in godbolt](https://godbolt.org/z/nbb8Psd8z))
+- [Key histogram](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_map/count_by_key_example.cu) (see [live example in godbolt](https://godbolt.org/z/P8TW5194T))
 
 ### `static_multimap`
 
 `cuco::static_multimap` is a fixed-size hash table that supports storing equivalent keys. It uses double hashing by default and supports switching to linear probing. See the Doxygen documentation in `static_multimap.cuh` for more detailed information.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_multimap/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/PrbqG6ae4))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_multimap/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/nx97W4f7q))
 
 ### `dynamic_map`
 
@@ -212,5 +233,13 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 
 #### Examples:
 - [Host-bulk APIs (TODO)]()
+
+### `distinct_count_estimator`
+
+`cuco::distinct_count_estimator` implements the well-established [HyperLogLog++ algorithm](https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf) for approximating the count of distinct items in a multiset/stream.
+
+#### Examples:
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/distinct_count_estimator/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/ahjEoWM1E))
+- [Device-ref APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/distinct_count_estimator/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/qebYY8Goj))
 
 

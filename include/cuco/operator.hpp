@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@
 #pragma once
 
 namespace cuco {
-namespace experimental {
 inline namespace op {
 // TODO enum class of int32_t instead of struct
 // https://github.com/NVIDIA/cuCollections/issues/239
@@ -25,19 +24,19 @@ inline namespace op {
  * @brief `insert` operator tag
  */
 struct insert_tag {
-} inline constexpr insert;
+} inline constexpr insert;  ///< `cuco::insert` operator
 
 /**
  * @brief `insert_and_find` operator tag
  */
 struct insert_and_find_tag {
-} inline constexpr insert_and_find;
+} inline constexpr insert_and_find;  ///< `cuco::insert_and_find` operator
 
 /**
  * @brief `insert_or_assign` operator tag
  */
 struct insert_or_assign_tag {
-} inline constexpr insert_or_assign;
+} inline constexpr insert_or_assign;  ///< `cuco::insert_or_assign` operator
 
 /**
  * @brief `insert_or_apply` operator tag
@@ -49,19 +48,19 @@ struct insert_or_apply_tag {
  * @brief `erase` operator tag
  */
 struct erase_tag {
-} inline constexpr erase;
+} inline constexpr erase;  ///< `cuco::erase` operator
 
 /**
  * @brief `contains` operator tag
  */
 struct contains_tag {
-} inline constexpr contains;
+} inline constexpr contains;  ///< `cuco::contains` operator
 
 /**
  * @brief `find` operator tag
  */
 struct find_tag {
-} inline constexpr find;
+} inline constexpr find;  ///< `cuco::find` operator
 
 namespace reduce {
 
@@ -74,7 +73,6 @@ struct sum_tag {
 }  // namespace reduce
 
 }  // namespace op
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/operator.inl>

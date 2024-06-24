@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,14 +56,18 @@ __global__ void custom_cooperative_insert(SetRef set, InputIterator keys, std::s
 template <typename SetRef, typename InputIterator, typename OutputIterator>
 __global__ void custom_contains(SetRef set, InputIterator keys, std::size_t n, OutputIterator found)
 {
-  int64_t const loop_stride = gridDim.x * blockDim.x;
-  int64_t idx               = blockDim.x * blockIdx.x + threadIdx.x;
+  namespace cg = cooperative_groups;
 
-  auto const tile =
-    cooperative_groups::tiled_partition<SetRef::cg_size>(cooperative_groups::this_thread_block());
+  constexpr auto cg_size = SetRef::cg_size;
+
+  auto tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
+
+  int64_t const loop_stride = gridDim.x * blockDim.x / cg_size;
+  int64_t idx               = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
   while (idx < n) {
-    found[idx] = set.contains(tile, *(keys + idx));
+    bool const is_contained = set.contains(tile, *(keys + idx));
+    if (tile.thread_rank() == 0) { found[idx] = is_contained; }
     idx += loop_stride;
   }
 }
@@ -83,10 +87,8 @@ int main(void)
   auto constexpr load_factor = 0.5;
   std::size_t const capacity = std::ceil(num_keys / load_factor);
 
-  using set_type = cuco::experimental::static_set<Key>;
-
   // Constructs a hash set with at least "capacity" slots using -1 as the empty key sentinel.
-  set_type set{capacity, cuco::empty_key{empty_key_sentinel}};
+  cuco::static_set<Key> set{capacity, cuco::empty_key{empty_key_sentinel}};
 
   // Create a sequence of keys {0, 1, 2, .., i}
   thrust::device_vector<Key> keys(num_keys);
@@ -97,7 +99,7 @@ int main(void)
 
   // Insert the second half of keys using a custom CUDA kernel.
   custom_cooperative_insert<<<128, 128>>>(
-    set.ref(cuco::experimental::insert), keys.begin() + num_keys / 2, num_keys / 2);
+    set.ref(cuco::insert), keys.begin() + num_keys / 2, num_keys / 2);
 
   // Storage for result
   thrust::device_vector<bool> found(num_keys);
@@ -107,8 +109,7 @@ int main(void)
   // In general, using two or more reference objects to the same container but with
   // a different set of operators concurrently is undefined behavior.
   // This does not apply here since the two kernels do not overlap.
-  custom_contains<<<128, 128>>>(
-    set.ref(cuco::experimental::contains), keys.begin(), num_keys, found.begin());
+  custom_contains<<<128, 128>>>(set.ref(cuco::contains), keys.begin(), num_keys, found.begin());
 
   // Verify that all keys have been found
   bool const all_keys_found = thrust::all_of(found.begin(), found.end(), thrust::identity<bool>());

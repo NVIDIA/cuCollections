@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
@@ -30,15 +31,17 @@
 using size_type = std::size_t;
 
 template <typename Map>
-__inline__ void test_insert_or_assign(Map& map, size_type num_keys)
+void test_insert_or_assign(Map& map, size_type num_keys)
 {
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;
 
   // Insert pairs
-  auto pairs_begin =
-    thrust::make_transform_iterator(thrust::counting_iterator<size_type>(0),
-                                    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); });
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::counting_iterator<size_type>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
+      return cuco::pair<Key, Value>{i, i};
+    }));
 
   auto const initial_size = map.insert(pairs_begin, pairs_begin + num_keys);
   REQUIRE(initial_size == num_keys);  // all keys should be inserted
@@ -46,7 +49,8 @@ __inline__ void test_insert_or_assign(Map& map, size_type num_keys)
   // Query pairs have the same keys but different payloads
   auto query_pairs_begin = thrust::make_transform_iterator(
     thrust::counting_iterator<size_type>(0),
-    [] __device__(auto i) { return cuco::pair<Key, Value>(i, i * 2); });
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>(i, i * 2); }));
 
   map.insert_or_assign(query_pairs_begin, query_pairs_begin + num_keys);
 
@@ -58,8 +62,9 @@ __inline__ void test_insert_or_assign(Map& map, size_type num_keys)
   thrust::device_vector<Key> d_values(num_keys);
   map.retrieve_all(d_keys.begin(), d_values.begin());
 
-  auto gold_values_begin = thrust::make_transform_iterator(thrust::counting_iterator<size_type>(0),
-                                                           [] __device__(auto i) { return i * 2; });
+  auto gold_values_begin = thrust::make_transform_iterator(
+    thrust::counting_iterator<size_type>(0),
+    cuda::proclaim_return_type<size_type>([] __device__(auto i) { return i * 2; }));
 
   thrust::sort(thrust::device, d_values.begin(), d_values.end());
   REQUIRE(cuco::test::equal(
@@ -93,21 +98,19 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr size_type num_keys{400};
 
-  using probe =
-    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
-                       cuco::experimental::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-                       cuco::experimental::double_hashing<CGSize,
-                                                          cuco::murmurhash3_32<Key>,
-                                                          cuco::murmurhash3_32<Key>>>;
+  using probe = std::conditional_t<
+    Probe == cuco::test::probe_sequence::linear_probing,
+    cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+    cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
-  auto map = cuco::experimental::static_map<Key,
-                                            Value,
-                                            cuco::experimental::extent<size_type>,
-                                            cuda::thread_scope_device,
-                                            thrust::equal_to<Key>,
-                                            probe,
-                                            cuco::cuda_allocator<std::byte>,
-                                            cuco::experimental::storage<2>>{
+  auto map = cuco::static_map<Key,
+                              Value,
+                              cuco::extent<size_type>,
+                              cuda::thread_scope_device,
+                              thrust::equal_to<Key>,
+                              probe,
+                              cuco::cuda_allocator<std::byte>,
+                              cuco::storage<2>>{
     num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   test_insert_or_assign(map, num_keys);

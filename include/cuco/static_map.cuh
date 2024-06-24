@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,14 +22,14 @@
 #include <cuco/detail/static_map_kernels.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/pair.cuh>
-#include <cuco/sentinel.cuh>
 #include <cuco/static_map_ref.cuh>
+#include <cuco/types.cuh>
 #include <cuco/utility/allocator.hpp>
+#include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
-#include <thrust/functional.h>
-
 #include <cuda/std/atomic>
+#include <thrust/functional.h>
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
@@ -40,7 +40,6 @@
 #include <utility>
 
 namespace cuco {
-namespace experimental {
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value pairs with unique keys.
  *
@@ -61,8 +60,8 @@ namespace experimental {
  * construction.
  *
  * @note Allows constant time concurrent modify or lookup operations from threads in device code.
- * @note cuCollections data structures always place the slot keys on the left-hand side when
- * invoking the key comparison predicate, i.e., `pred(slot_key, query_key)`. Order-sensitive
+ * @note cuCollections data structures always place the slot keys on the right-hand side when
+ * invoking the key comparison predicate, i.e., `pred(query_key, slot_key)`. Order-sensitive
  * `KeyEqual` should be used with caution.
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
@@ -87,14 +86,13 @@ namespace experimental {
  */
 template <class Key,
           class T,
-          class Extent             = cuco::experimental::extent<std::size_t>,
+          class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
-          class ProbingScheme =
-            cuco::experimental::double_hashing<4,  // CG size
-                                               cuco::default_hash_function<Key>>,
-          class Allocator = cuco::cuda_allocator<cuco::pair<Key, T>>,
-          class Storage   = cuco::experimental::storage<1>>
+          class ProbingScheme      = cuco::linear_probing<4,  // CG size
+                                                     cuco::default_hash_function<Key>>,
+          class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
+          class Storage            = cuco::storage<1>>
 class static_map {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
 
@@ -131,16 +129,15 @@ class static_map {
 
   using mapped_type = T;  ///< Payload type
   template <typename... Operators>
-  using ref_type =
-    cuco::experimental::static_map_ref<key_type,
-                                       mapped_type,
-                                       thread_scope,
-                                       key_equal,
-                                       probing_scheme_type,
-                                       storage_ref_type,
-                                       Operators...>;  ///< Non-owning container ref type
+  using ref_type = cuco::static_map_ref<key_type,
+                                        mapped_type,
+                                        thread_scope,
+                                        key_equal,
+                                        probing_scheme_type,
+                                        storage_ref_type,
+                                        Operators...>;  ///< Non-owning container ref type
 
-  static_map(static_map const&) = delete;
+  static_map(static_map const&)            = delete;
   static_map& operator=(static_map const&) = delete;
 
   static_map(static_map&&) = default;  ///< Move constructor
@@ -171,6 +168,8 @@ class static_map {
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the map
    */
@@ -179,6 +178,8 @@ class static_map {
                        empty_value<T> empty_value_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
@@ -210,6 +211,8 @@ class static_map {
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the map
    */
@@ -219,6 +222,8 @@ class static_map {
                        empty_value<T> empty_value_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
@@ -242,6 +247,8 @@ class static_map {
    * @param erased_key_sentinel The reserved key to denote erased slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the map
    */
@@ -251,6 +258,8 @@ class static_map {
                        erased_key<Key> erased_key_sentinel,
                        KeyEqual const& pred                = {},
                        ProbingScheme const& probing_scheme = {},
+                       cuda_thread_scope<Scope> scope      = {},
+                       Storage storage                     = {},
                        Allocator const& alloc              = {},
                        cuda_stream_ref stream              = {});
 
@@ -260,7 +269,7 @@ class static_map {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuda_stream_ref stream = {}) noexcept;
+  void clear(cuda_stream_ref stream = {});
 
   /**
    * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
@@ -378,7 +387,7 @@ class static_map {
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt>
-  void insert_or_assign(InputIt first, InputIt last, cuda_stream_ref stream = {}) noexcept;
+  void insert_or_assign(InputIt first, InputIt last, cuda_stream_ref stream = {});
 
   /**
    * @brief For any key-value pair `{k, v}` in the range `[first, last)`, if a key equivalent to `k`
@@ -570,8 +579,7 @@ class static_map {
    *
    * @note This function synchronizes the given stream. For asynchronous execution use `find_async`.
    * @note If the key `*(first + i)` has a matched `element` in the map, copies the payload of
-   * `element` to
-   * `(output_begin + i)`. Else, copies the empty value sentinel.
+   * `element` to `(output_begin + i)`. Else, copies the empty value sentinel.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator assignable from the map's `mapped_type`
@@ -589,8 +597,7 @@ class static_map {
    * equivalent to the query key.
    *
    * @note If the key `*(first + i)` has a matched `element` in the map, copies the payload of
-   * `element` to
-   * `(output_begin + i)`. Else, copies the empty value sentinel.
+   * `element` to `(output_begin + i)`. Else, copies the empty value sentinel.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator assignable from the map's `mapped_type`
@@ -694,7 +701,7 @@ class static_map {
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const noexcept;
+  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const;
 
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
@@ -740,10 +747,11 @@ class static_map {
   std::unique_ptr<impl_type> impl_;   ///< Static map implementation
   mapped_type empty_value_sentinel_;  ///< Sentinel value that indicates an empty payload
 };
-}  // namespace experimental
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;
+
+namespace legacy {
 
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
@@ -850,9 +858,9 @@ class static_map {
   using slot_type           = pair_atomic_type;                  ///< Type of hash map slots
   using atomic_ctr_type     = cuda::atomic<std::size_t, Scope>;  ///< Atomic counter type
   using allocator_type      = Allocator;                         ///< Allocator type
-  using slot_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+  using slot_allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<
     pair_atomic_type>;  ///< Type of the allocator to (de)allocate slots
-  using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+  using counter_allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<
     atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
 
 #if !defined(CUCO_HAS_INDEPENDENT_THREADS)
@@ -866,7 +874,7 @@ class static_map {
   static_map(static_map&&)      = delete;
 
   static_map& operator=(static_map const&) = delete;
-  static_map& operator=(static_map&&) = delete;
+  static_map& operator=(static_map&&)      = delete;
 
   /**
    * @brief Indicates if concurrent insert/find is supported for the key/value types.
@@ -1853,7 +1861,7 @@ class static_map {
                                             pair_atomic_type* const memory_to_use,
                                             device_view source_device_view) noexcept
     {
-#if defined(CUDA_HAS_CUDA_BARRIER)
+#if defined(CUCO_HAS_CUDA_BARRIER)
       __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
       if (g.thread_rank() == 0) { init(&barrier, g.size()); }
       g.sync();
@@ -2125,6 +2133,7 @@ class static_map {
   slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
   counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate `num_successes_`
 };
+}  // namespace legacy
 }  // namespace cuco
 
 #include <cuco/detail/static_map.inl>

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_multimap.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
@@ -28,9 +29,9 @@
 #include <thrust/sort.h>
 #include <thrust/transform.h>
 
-#include <catch2/catch_template_test_macros.hpp>
-
 #include <cooperative_groups.h>
+
+#include <catch2/catch_template_test_macros.hpp>
 
 // Custom pair equal
 template <typename Key, typename Value>
@@ -93,9 +94,9 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_pairs),
                     d_pairs.begin(),
-                    [] __device__(auto i) {
+                    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
                       return cuco::pair<Key, Value>{i / 2, i};
-                    });
+                    }));
 
   auto pair_begin = d_pairs.begin();
 
@@ -106,15 +107,17 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_pairs),
                     pair_begin,
-                    [] __device__(auto i) {
+                    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
                       return cuco::pair<Key, Value>{i, i};
-                    });
+                    }));
 
   // create an array of prefix sum
   thrust::device_vector<int> d_scan(num_pairs);
-  auto count_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<int>(0),
-    [num_pairs] __device__(auto i) { return i < (num_pairs / 2) ? 2 : 1; });
+  auto count_begin =
+    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
+                                    cuda::proclaim_return_type<int>([num_pairs] __device__(auto i) {
+                                      return i < (num_pairs / 2) ? 2 : 1;
+                                    }));
   thrust::exclusive_scan(thrust::device, count_begin, count_begin + num_pairs, d_scan.begin(), 0);
 
   auto constexpr gold_size  = 300;
@@ -151,21 +154,24 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
   thrust::sort(thrust::device, contained_vals.begin(), contained_vals.end());
 
   // set gold references
-  auto gold_probe         = thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
-                                                    [num_pairs] __device__(auto i) {
-                                                      if (i < num_pairs) { return i / 2; }
-                                                      return i - (int(num_pairs) / 2);
-                                                    });
-  auto gold_contained_key = thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
-                                                            [num_pairs] __device__(auto i) {
-                                                              if (i < num_pairs / 2) { return -1; }
-                                                              return (i - (int(num_pairs) / 2)) / 2;
-                                                            });
-  auto gold_contained_val = thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
-                                                            [num_pairs] __device__(auto i) {
-                                                              if (i < num_pairs / 2) { return -1; }
-                                                              return i - (int(num_pairs) / 2);
-                                                            });
+  auto gold_probe =
+    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
+                                    cuda::proclaim_return_type<int>([num_pairs] __device__(auto i) {
+                                      if (i < num_pairs) { return i / 2; }
+                                      return i - (int(num_pairs) / 2);
+                                    }));
+  auto gold_contained_key =
+    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
+                                    cuda::proclaim_return_type<int>([num_pairs] __device__(auto i) {
+                                      if (i < num_pairs / 2) { return -1; }
+                                      return (i - (int(num_pairs) / 2)) / 2;
+                                    }));
+  auto gold_contained_val =
+    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
+                                    cuda::proclaim_return_type<int>([num_pairs] __device__(auto i) {
+                                      if (i < num_pairs / 2) { return -1; }
+                                      return i - (int(num_pairs) / 2);
+                                    }));
 
   auto key_equal   = thrust::equal_to<Key>{};
   auto value_equal = thrust::equal_to<Value>{};
@@ -196,9 +202,10 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr std::size_t num_pairs{200};
 
-  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
-                                   cuco::linear_probing<1, cuco::default_hash_function<Key>>,
-                                   cuco::double_hashing<8, cuco::default_hash_function<Key>>>;
+  using probe =
+    std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                       cuco::legacy::linear_probing<1, cuco::default_hash_function<Key>>,
+                       cuco::legacy::double_hashing<8, cuco::default_hash_function<Key>>>;
 
   cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
     map{num_pairs * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};

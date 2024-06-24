@@ -26,6 +26,7 @@ namespace cuco {
 namespace experimental {
 namespace detail {
 
+CUCO_SUPPRESS_KERNEL_WARNINGS
 /*
  * @brief Test bits for a range of keys
  *
@@ -41,10 +42,10 @@ namespace detail {
  * @param num_keys Number of input keys
  */
 template <typename BitsetRef, typename KeyIt, typename OutputIt>
-__global__ void bitset_test_kernel(BitsetRef ref,
-                                   KeyIt keys,
-                                   OutputIt outputs,
-                                   cuco::detail::index_type num_keys)
+CUCO_KERNEL void bitset_test_kernel(BitsetRef ref,
+                                    KeyIt keys,
+                                    OutputIt outputs,
+                                    cuco::detail::index_type num_keys)
 {
   auto key_id       = cuco::detail::global_thread_id();
   auto const stride = cuco::detail::grid_stride();
@@ -70,10 +71,10 @@ __global__ void bitset_test_kernel(BitsetRef ref,
  * @param num_keys Number of input keys
  */
 template <typename BitsetRef, typename KeyIt, typename OutputIt>
-__global__ void bitset_rank_kernel(BitsetRef ref,
-                                   KeyIt keys,
-                                   OutputIt outputs,
-                                   cuco::detail::index_type num_keys)
+CUCO_KERNEL void bitset_rank_kernel(BitsetRef ref,
+                                    KeyIt keys,
+                                    OutputIt outputs,
+                                    cuco::detail::index_type num_keys)
 {
   auto key_id       = cuco::detail::global_thread_id();
   auto const stride = cuco::detail::grid_stride();
@@ -99,10 +100,10 @@ __global__ void bitset_rank_kernel(BitsetRef ref,
  * @param num_keys Number of input keys
  */
 template <typename BitsetRef, typename KeyIt, typename OutputIt>
-__global__ void bitset_select_kernel(BitsetRef ref,
-                                     KeyIt keys,
-                                     OutputIt outputs,
-                                     cuco::detail::index_type num_keys)
+CUCO_KERNEL void bitset_select_kernel(BitsetRef ref,
+                                      KeyIt keys,
+                                      OutputIt outputs,
+                                      cuco::detail::index_type num_keys)
 {
   auto key_id       = cuco::detail::global_thread_id();
   auto const stride = cuco::detail::grid_stride();
@@ -125,10 +126,10 @@ __global__ void bitset_select_kernel(BitsetRef ref,
  * @param flip_bits Boolean to request negation of words before counting bits
  */
 template <typename WordType, typename SizeType>
-__global__ void bit_counts_kernel(WordType const* words,
-                                  SizeType* bit_counts,
-                                  cuco::detail::index_type num_words,
-                                  bool flip_bits)
+CUCO_KERNEL void bit_counts_kernel(WordType const* words,
+                                   SizeType* bit_counts,
+                                   cuco::detail::index_type num_words,
+                                   bool flip_bits)
 {
   auto word_id      = cuco::detail::global_thread_id();
   auto const stride = cuco::detail::grid_stride();
@@ -157,11 +158,11 @@ __global__ void bit_counts_kernel(WordType const* words,
  * @param words_per_block Number of words in each block
  */
 template <typename SizeType>
-__global__ void encode_ranks_from_prefix_bit_counts(const SizeType* prefix_bit_counts,
-                                                    rank* ranks,
-                                                    SizeType num_words,
-                                                    SizeType num_blocks,
-                                                    SizeType words_per_block)
+CUCO_KERNEL void encode_ranks_from_prefix_bit_counts(const SizeType* prefix_bit_counts,
+                                                     rank* ranks,
+                                                     SizeType num_words,
+                                                     SizeType num_blocks,
+                                                     SizeType words_per_block)
 {
   auto rank_id      = cuco::detail::global_thread_id();
   auto const stride = cuco::detail::grid_stride();
@@ -200,11 +201,11 @@ __global__ void encode_ranks_from_prefix_bit_counts(const SizeType* prefix_bit_c
  * @param bits_per_block Number of bits in each block
  */
 template <typename SizeType>
-__global__ void mark_blocks_with_select_entries(SizeType const* prefix_bit_counts,
-                                                SizeType* select_markers,
-                                                SizeType num_blocks,
-                                                SizeType words_per_block,
-                                                SizeType bits_per_block)
+CUCO_KERNEL void mark_blocks_with_select_entries(SizeType const* prefix_bit_counts,
+                                                 SizeType* select_markers,
+                                                 SizeType num_blocks,
+                                                 SizeType words_per_block,
+                                                 SizeType bits_per_block)
 {
   auto block_id     = cuco::detail::global_thread_id();
   auto const stride = cuco::detail::grid_stride();

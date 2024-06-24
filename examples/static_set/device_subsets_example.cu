@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,13 +17,12 @@
 #include <cuco/static_set_ref.cuh>
 #include <cuco/storage.cuh>
 
+#include <cuda/std/array>
 #include <thrust/device_vector.h>
 #include <thrust/reduce.h>
 #include <thrust/scan.h>
 
 #include <cooperative_groups.h>
-
-#include <cuda/std/array>
 
 #include <algorithm>
 #include <cstddef>
@@ -48,20 +47,21 @@ auto constexpr cg_size     = 8;   ///< A CUDA Cooperative Group of 8 threads to 
 auto constexpr window_size = 1;   ///< Number of concurrent slots handled by each thread
 auto constexpr N           = 10;  ///< Number of elements to insert and query
 
-using key_type            = int;  ///< Key type
-using probing_scheme_type = cuco::experimental::linear_probing<
-  cg_size,
-  cuco::default_hash_function<key_type>>;  ///< Type controls CG granularity and probing scheme
-                                           ///< (linear probing v.s. double hashing)
+using key_type = int;  ///< Key type
+using probing_scheme_type =
+  cuco::linear_probing<cg_size,
+                       cuco::default_hash_function<key_type>>;  ///< Type controls CG granularity
+                                                                ///< and probing scheme (linear
+                                                                ///< probing v.s. double hashing)
 /// Type of bulk allocation storage
-using storage_type = cuco::experimental::aow_storage<key_type, window_size>;
+using storage_type = cuco::aow_storage<key_type, window_size>;
 /// Lightweight non-owning storage ref type
 using storage_ref_type = typename storage_type::ref_type;
-using ref_type         = cuco::experimental::static_set_ref<key_type,
-                                                    cuda::thread_scope_device,
-                                                    thrust::equal_to<key_type>,
-                                                    probing_scheme_type,
-                                                    storage_ref_type>;  ///< Set ref type
+using ref_type         = cuco::static_set_ref<key_type,
+                                      cuda::thread_scope_device,
+                                      thrust::equal_to<key_type>,
+                                      probing_scheme_type,
+                                      storage_ref_type>;  ///< Set ref type
 
 /// Sample data to insert and query
 __device__ constexpr std::array<key_type, N> data = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19};
@@ -85,7 +85,7 @@ __global__ void insert(ref_type* set_refs)
   auto const idx = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
   auto raw_set_ref    = *(set_refs + idx);
-  auto insert_set_ref = std::move(raw_set_ref).with(cuco::experimental::insert);
+  auto insert_set_ref = raw_set_ref.with_operators(cuco::insert);
 
   // Insert `N` elemtns into the set with CG insert
   for (int i = 0; i < N; i++) {
@@ -109,7 +109,7 @@ __global__ void find(ref_type* set_refs)
   auto const idx  = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
   auto raw_set_ref  = *(set_refs + idx);
-  auto find_set_ref = std::move(raw_set_ref).with(cuco::experimental::find);
+  auto find_set_ref = raw_set_ref.with_operators(cuco::find);
 
   // Result denoting if any of the inserted data is not found
   __shared__ int result;
@@ -143,7 +143,7 @@ int main()
 
   for (size_t i = 0; i < num; ++i) {
     valid_sizes.emplace_back(
-      static_cast<std::size_t>(cuco::experimental::make_window_extent<ref_type>(subset_sizes[i])));
+      static_cast<std::size_t>(cuco::make_window_extent<ref_type>(subset_sizes[i])));
   }
 
   std::vector<std::size_t> offsets(num + 1, 0);
@@ -169,7 +169,7 @@ int main()
   for (std::size_t i = 0; i < num; ++i) {
     storage_ref_type storage_ref{valid_sizes[i], set_storage.data() + offsets[i]};
     set_refs.emplace_back(
-      ref_type{cuco::empty_key<key_type>{empty_key_sentinel}, {}, {}, storage_ref});
+      ref_type{cuco::empty_key<key_type>{empty_key_sentinel}, {}, {}, {}, storage_ref});
   }
 
   thrust::device_vector<ref_type> d_set_refs(set_refs);

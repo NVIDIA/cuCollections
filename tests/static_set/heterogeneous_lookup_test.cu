@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
@@ -74,10 +75,10 @@ struct custom_hasher {
 
 // User-defined device key equality
 struct custom_key_equal {
-  template <typename SlotKey, typename InputKey>
-  __device__ bool operator()(SlotKey const& lhs, InputKey const& rhs) const
+  template <typename InsertKey, typename SlotKey>
+  __device__ bool operator()(InsertKey const& lhs, SlotKey const& rhs) const
   {
-    return lhs == rhs.a;
+    return lhs.a == rhs;
   }
 };
 
@@ -87,7 +88,7 @@ TEMPLATE_TEST_CASE_SIG(
   using Key        = T;
   using InsertKey  = key_pair<T>;
   using ProbeKey   = key_triplet<T>;
-  using probe_type = cuco::experimental::double_hashing<CGSize, custom_hasher, custom_hasher>;
+  using probe_type = cuco::double_hashing<CGSize, custom_hasher, custom_hasher>;
 
   auto const sentinel_key = Key{-1};
 
@@ -95,13 +96,15 @@ TEMPLATE_TEST_CASE_SIG(
   constexpr std::size_t capacity = num * 2;
   auto const probe               = probe_type{custom_hasher{}, custom_hasher{}};
 
-  auto my_set = cuco::experimental::static_set{
-    capacity, cuco::empty_key<Key>{sentinel_key}, custom_key_equal{}, probe};
+  auto my_set =
+    cuco::static_set{capacity, cuco::empty_key<Key>{sentinel_key}, custom_key_equal{}, probe};
 
   auto insert_keys = thrust::make_transform_iterator(
-    thrust::counting_iterator<int>(0), [] __device__(auto i) { return InsertKey(i); });
-  auto probe_keys = thrust::make_transform_iterator(thrust::counting_iterator<int>(0),
-                                                    [] __device__(auto i) { return ProbeKey(i); });
+    thrust::counting_iterator<int>(0),
+    cuda::proclaim_return_type<InsertKey>([] __device__(auto i) { return InsertKey(i); }));
+  auto probe_keys = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0),
+    cuda::proclaim_return_type<ProbeKey>([] __device__(auto i) { return ProbeKey(i); }));
 
   SECTION("All inserted keys should be contained")
   {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
@@ -29,29 +30,28 @@
 
 #include <limits>
 
-template <typename MapType, int CAPACITY>
-__global__ void shared_memory_test_kernel(
-  typename MapType::device_view const* const device_views,
-  typename MapType::device_view::key_type const* const insterted_keys,
-  typename MapType::device_view::mapped_type const* const inserted_values,
-  const size_t number_of_elements,
-  bool* const keys_exist,
-  bool* const keys_and_values_correct)
+template <std::size_t NumWindows, typename Ref>
+__global__ void shared_memory_test_kernel(Ref* maps,
+                                          typename Ref::key_type const* const insterted_keys,
+                                          typename Ref::mapped_type const* const inserted_values,
+                                          size_t number_of_elements,
+                                          bool* const keys_exist,
+                                          bool* const keys_and_values_correct)
 {
   // Each block processes one map
   const size_t map_id = blockIdx.x;
   const size_t offset = map_id * number_of_elements;
 
-  __shared__ typename MapType::pair_atomic_type sm_buffer[CAPACITY];
+  __shared__ typename Ref::window_type sm_buffer[NumWindows];
 
-  auto g = cuco::test::cg::this_thread_block();
-  typename MapType::device_view sm_device_view =
-    MapType::device_view::make_copy(g, sm_buffer, device_views[map_id]);
+  auto g          = cuco::test::cg::this_thread_block();
+  auto insert_ref = maps[map_id].make_copy(g, sm_buffer, cuco::thread_scope_block);
+  auto find_ref   = insert_ref.with_operators(cuco::op::find);
 
   for (int i = g.thread_rank(); i < number_of_elements; i += g.size()) {
-    auto found_pair_it = sm_device_view.find(insterted_keys[offset + i]);
+    auto found_pair_it = find_ref.find(insterted_keys[offset + i]);
 
-    if (found_pair_it != sm_device_view.end()) {
+    if (found_pair_it != find_ref.end()) {
       keys_exist[offset + i] = true;
       if (found_pair_it->first == insterted_keys[offset + i] and
           found_pair_it->second == inserted_values[offset + i]) {
@@ -74,13 +74,17 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
                        (int64_t, int32_t),
                        (int64_t, int64_t))
 {
-  using MapType                = cuco::static_map<Key, Value>;
-  using DeviceViewType         = typename MapType::device_view;
-  using DeviceViewIteratorType = typename DeviceViewType::iterator;
-
   constexpr std::size_t number_of_maps  = 1000;
   constexpr std::size_t elements_in_map = 500;
   constexpr std::size_t map_capacity    = 2 * elements_in_map;
+
+  using extent_type = cuco::extent<std::size_t, map_capacity>;
+  using map_type    = cuco::static_map<Key,
+                                    Value,
+                                    extent_type,
+                                    cuda::thread_scope_device,
+                                    thrust::equal_to<Key>,
+                                    cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
 
   // one array for all maps, first elements_in_map element belong to map 0, second to map 1 and so
   // on
@@ -92,31 +96,36 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
 
   // using std::unique_ptr because static_map does not have copy/move constructor/assignment
   // operator yet
-  std::vector<std::unique_ptr<MapType>> maps;
+  std::vector<std::unique_ptr<map_type>> maps;
   for (std::size_t map_id = 0; map_id < number_of_maps; ++map_id) {
-    maps.push_back(std::make_unique<MapType>(
-      map_capacity, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}));
+    maps.push_back(std::make_unique<map_type>(
+      extent_type{}, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}));
   }
 
   thrust::device_vector<bool> d_keys_exist(number_of_maps * elements_in_map);
   thrust::device_vector<bool> d_keys_and_values_correct(number_of_maps * elements_in_map);
 
+  using ref_type = typename map_type::ref_type<cuco::op::insert_tag>;
+
   SECTION("Keys are all found after insertion.")
   {
     auto pairs_begin =
       thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
-    std::vector<DeviceViewType> h_device_views;
+    std::vector<ref_type> h_refs;
     for (std::size_t map_id = 0; map_id < number_of_maps; ++map_id) {
       const std::size_t offset = map_id * elements_in_map;
 
-      MapType* map = maps[map_id].get();
+      map_type* map = maps[map_id].get();
       map->insert(pairs_begin + offset, pairs_begin + offset + elements_in_map);
-      h_device_views.push_back(map->get_device_view());
+      h_refs.push_back(map->ref(cuco::op::insert));
     }
-    thrust::device_vector<DeviceViewType> d_device_views(h_device_views);
+    thrust::device_vector<ref_type> d_refs(h_refs);
 
-    shared_memory_test_kernel<MapType, map_capacity>
-      <<<number_of_maps, 64>>>(d_device_views.data().get(),
+    // maybe_unused to silence false positive "variable set but not used" warning
+    [[maybe_unused]] auto constexpr num_windows = cuco::make_window_extent<ref_type>(extent_type{});
+
+    shared_memory_test_kernel<num_windows.value(), ref_type>
+      <<<number_of_maps, 64>>>(d_refs.data().get(),
                                d_keys.data().get(),
                                d_values.data().get(),
                                elements_in_map,
@@ -127,21 +136,26 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
     auto zip = thrust::make_zip_iterator(
       thrust::make_tuple(d_keys_exist.begin(), d_keys_and_values_correct.begin()));
 
-    REQUIRE(cuco::test::all_of(zip, zip + d_keys_exist.size(), [] __device__(auto const& z) {
-      return thrust::get<0>(z) and thrust::get<1>(z);
-    }));
+    REQUIRE(cuco::test::all_of(zip,
+                               zip + d_keys_exist.size(),
+                               cuda::proclaim_return_type<bool>([] __device__(auto const& z) {
+                                 return thrust::get<0>(z) and thrust::get<1>(z);
+                               })));
   }
 
   SECTION("No key is found before insertion.")
   {
-    std::vector<DeviceViewType> h_device_views;
+    std::vector<ref_type> h_refs;
     for (std::size_t map_id = 0; map_id < number_of_maps; ++map_id) {
-      h_device_views.push_back(maps[map_id].get()->get_device_view());
+      h_refs.push_back(maps[map_id].get()->ref(cuco::op::insert));
     }
-    thrust::device_vector<DeviceViewType> d_device_views(h_device_views);
+    thrust::device_vector<ref_type> d_refs(h_refs);
 
-    shared_memory_test_kernel<MapType, map_capacity>
-      <<<number_of_maps, 64>>>(d_device_views.data().get(),
+    // maybe_unused to silence false positive "variable set but not used" warning
+    [[maybe_unused]] auto constexpr num_windows = cuco::make_window_extent<ref_type>(extent_type{});
+
+    shared_memory_test_kernel<num_windows.value(), ref_type>
+      <<<number_of_maps, 64>>>(d_refs.data().get(),
                                d_keys.data().get(),
                                d_values.data().get(),
                                elements_in_map,
@@ -152,36 +166,59 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
   }
 }
 
-template <typename K, typename V, std::size_t N>
+auto constexpr cg_size     = 1;
+auto constexpr window_size = 1;
+
+template <std::size_t NumWindows>
 __global__ void shared_memory_hash_table_kernel(bool* key_found)
 {
-  namespace cg   = cooperative_groups;
-  using map_type = typename cuco::static_map<K, V, cuda::thread_scope_block>::device_mutable_view;
-  using find_map_type = typename cuco::static_map<K, V, cuda::thread_scope_block>::device_view;
-  __shared__ typename map_type::slot_type slots[N];
-  auto map = map_type::make_from_uninitialized_slots(
-    cg::this_thread_block(), &slots[0], N, cuco::empty_key<K>{-1}, cuco::empty_value<V>{-1});
+  using Key       = int32_t;
+  using Value     = int32_t;
+  using slot_type = cuco::pair<Key, Value>;
 
-  auto g            = cg::this_thread_block();
-  std::size_t index = threadIdx.x + blockIdx.x * blockDim.x;
-  int rank          = g.thread_rank();
+  __shared__ cuco::window<slot_type, window_size> map[NumWindows];
+
+  using extent_type      = cuco::extent<std::size_t, NumWindows>;
+  using storage_ref_type = cuco::aow_storage_ref<slot_type, window_size, extent_type>;
+
+  auto raw_ref =
+    cuco::static_map_ref{cuco::empty_key<Key>{-1},
+                         cuco::empty_value<Value>{-1},
+                         thrust::equal_to<Key>{},
+                         cuco::linear_probing<cg_size, cuco::default_hash_function<Key>>{},
+                         cuco::thread_scope_block,
+                         storage_ref_type{extent_type{}, map}};
+
+  auto const block = cooperative_groups::this_thread_block();
+  raw_ref.initialize(block);
+
+  auto const index = threadIdx.x + blockIdx.x * blockDim.x;
+  auto const rank  = block.thread_rank();
 
   // insert {thread_rank, thread_rank} for each thread in thread-block
-  map.insert(cuco::pair<int, int>(rank, rank));
-  g.sync();
+  auto insert_ref = raw_ref.with_operators(cuco::op::insert);
+  insert_ref.insert(slot_type{rank, rank});
+  block.sync();
 
-  auto find_map       = find_map_type(map);
-  auto retrieved_pair = find_map.find(rank);
-  if (retrieved_pair != find_map.end() && retrieved_pair->second == rank) {
+  auto find_ref             = insert_ref.with_operators(cuco::op::find);
+  auto const retrieved_pair = find_ref.find(rank);
+  block.sync();
+
+  if (retrieved_pair != find_ref.end() && retrieved_pair->second == rank) {
     key_found[index] = true;
   }
 }
 
-TEMPLATE_TEST_CASE("Shared memory slots.", "", int32_t)
+TEST_CASE("static map shared memory slots.", "")
 {
   constexpr std::size_t N = 256;
+  // maybe_unused to silence false positive "variable set but not used" warning
+  [[maybe_unused]] auto constexpr num_windows =
+    cuco::make_window_extent<cg_size, window_size>(cuco::extent<std::size_t, N>{});
+
   thrust::device_vector<bool> key_found(N, false);
-  shared_memory_hash_table_kernel<TestType, TestType, N><<<8, 32>>>(key_found.data().get());
+  shared_memory_hash_table_kernel<num_windows.value()><<<8, 32>>>(key_found.data().get());
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
 }

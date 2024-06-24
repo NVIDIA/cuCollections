@@ -38,33 +38,33 @@ namespace cuco {
  *
  */
 template <typename T, typename = void>
-struct is_bitwise_comparable : std::false_type {
-};
+struct is_bitwise_comparable : std::false_type {};
 
 /// By default, only types with unique object representations are allowed
 template <typename T>
 struct is_bitwise_comparable<T, std::enable_if_t<std::has_unique_object_representations_v<T>>>
-  : std::true_type {
-};
+  : std::true_type {};
 
 template <typename T>
-inline constexpr bool is_bitwise_comparable_v = is_bitwise_comparable<T>::value;
+inline constexpr bool is_bitwise_comparable_v =
+  is_bitwise_comparable<T>::value;  ///< Shortcut definition
 
 /**
  * @brief Declares that a type `Type` is bitwise comparable.
  *
  */
-#define CUCO_DECLARE_BITWISE_COMPARABLE(Type)           \
-  namespace cuco {                                      \
-  template <>                                           \
-  struct is_bitwise_comparable<Type> : std::true_type { \
-  };                                                    \
+#define CUCO_DECLARE_BITWISE_COMPARABLE(Type)             \
+  namespace cuco {                                        \
+  template <>                                             \
+  struct is_bitwise_comparable<Type> : std::true_type {}; \
   }
 
 template <bool value, typename... Args>
-inline constexpr bool dependent_bool_value = value;
+inline constexpr bool dependent_bool_value = value;  ///< Unpacked dependent bool value
 
 template <typename... Args>
-inline constexpr bool dependent_false = dependent_bool_value<false, Args...>;
+inline constexpr bool dependent_false =
+  dependent_bool_value<false, Args...>;  ///< Emits a `false` value which is dependent on the given
+                                         ///< argument types
 
 }  // namespace cuco

@@ -18,10 +18,11 @@
 
 #include <cuco/detail/__config>
 
-#include <cstdint>
 #include <cuda/std/bit>
 #include <cuda/std/limits>
 #include <cuda/std/type_traits>
+
+#include <cstdint>
 
 namespace cuco::utility {
 
@@ -148,6 +149,18 @@ struct fast_int {
     if (rhs.magic_ == 0) { return lhs >> rhs.shift_; }  // edge case for value_ == pow2
     auto const mul = (lhs == cuda::std::numeric_limits<T>::max()) ? lhs : lhs + 1;
     return rhs.mulhi(rhs.magic_, mul) >> rhs.shift_;
+  }
+
+  template <typename Rhs>
+  friend __host__ __device__ constexpr auto operator-(fast_int const& lhs, Rhs rhs) noexcept
+  {
+    return lhs.value() - rhs;
+  }
+
+  template <typename Rhs>
+  friend __host__ __device__ constexpr auto operator/(fast_int const& lhs, Rhs rhs) noexcept
+  {
+    return lhs.value() / rhs;
   }
 
   template <typename Lhs>

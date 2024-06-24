@@ -60,12 +60,31 @@ class cuda_allocator {
   void deallocate(value_type* p, std::size_t) { CUCO_CUDA_TRY(cudaFree(p)); }
 };
 
+/**
+ * @brief Equality comparison operator.
+ *
+ * @tparam T Value type of LHS object
+ * @tparam U Value type of RHS object
+ *
+ * @return `true` iff given arguments are equal
+ */
 template <typename T, typename U>
 bool operator==(cuda_allocator<T> const&, cuda_allocator<U> const&) noexcept
 {
   return true;
 }
 
+/**
+ * @brief Inequality comparison operator.
+ *
+ * @tparam T Value type of LHS object
+ * @tparam U Value type of RHS object
+ *
+ * @param lhs Left-hand side object to compare
+ * @param rhs Right-hand side object to compare
+ *
+ * @return `true` iff given arguments are not equal
+ */
 template <typename T, typename U>
 bool operator!=(cuda_allocator<T> const& lhs, cuda_allocator<U> const& rhs) noexcept
 {

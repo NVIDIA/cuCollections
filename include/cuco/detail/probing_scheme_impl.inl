@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,6 @@
 #include <cuco/detail/utils.cuh>
 
 namespace cuco {
-namespace experimental {
 namespace detail {
 
 /**
@@ -94,6 +93,14 @@ __host__ __device__ constexpr linear_probing<CGSize, Hash>::linear_probing(Hash 
 }
 
 template <int32_t CGSize, typename Hash>
+template <typename NewHash>
+__host__ __device__ constexpr auto linear_probing<CGSize, Hash>::with_hash_function(
+  NewHash const& hash) const noexcept
+{
+  return linear_probing<cg_size, NewHash>{hash};
+}
+
+template <int32_t CGSize, typename Hash>
 template <typename ProbeKey, typename Extent>
 __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
@@ -114,7 +121,7 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
 {
   using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
-    cuco::detail::sanitize_hash<size_type>(hash_(probe_key) + g.thread_rank()) % upper_bound,
+    cuco::detail::sanitize_hash<size_type>(g, hash_(probe_key)) % upper_bound,
     cg_size,
     upper_bound};
 }
@@ -127,6 +134,14 @@ __host__ __device__ constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashi
 }
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
+template <typename NewHash1, typename NewHash2>
+__host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::with_hash_function(
+  NewHash1 const& hash1, NewHash2 const& hash2) const noexcept
+{
+  return double_hashing<cg_size, NewHash1, NewHash2>{hash1, hash2};
+}
+
+template <int32_t CGSize, typename Hash1, typename Hash2>
 template <typename ProbeKey, typename Extent>
 __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
@@ -134,9 +149,8 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
   using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
     cuco::detail::sanitize_hash<size_type>(hash1_(probe_key)) % upper_bound,
-    max(size_type{1},
-        cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) %
-          upper_bound),  // step size in range [1, prime - 1]
+    cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) % (upper_bound - 1) +
+      1,  // step size in range [1, prime - 1]
     upper_bound};
 }
 
@@ -149,12 +163,11 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
 {
   using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
-    cuco::detail::sanitize_hash<size_type>(hash1_(probe_key) + g.thread_rank()) % upper_bound,
-    static_cast<size_type>((cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) %
-                              (upper_bound.value() / cg_size - 1) +
-                            1) *
-                           cg_size),
+    cuco::detail::sanitize_hash<size_type>(g, hash1_(probe_key)) % upper_bound,
+    static_cast<size_type>(
+      (cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) % (upper_bound / cg_size - 1) +
+       1) *
+      cg_size),
     upper_bound};  // TODO use fast_int operator
 }
-}  // namespace experimental
 }  // namespace cuco

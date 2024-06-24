@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include <defaults.hpp>
-#include <utils.hpp>
+#include <benchmark_defaults.hpp>
+#include <benchmark_utils.hpp>
 
 #include <cuco/static_multimap.cuh>
-#include <cuco/utility/key_generator.hpp>
+#include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
 
@@ -61,9 +61,12 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_query(
     size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(pairs.begin(), pairs.end());
 
+  auto const output_size = map.count_outer(keys.begin(), keys.end());
+  thrust::device_vector<pair_type> output(output_size);
+
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    auto count = map.count_outer(keys.begin(), keys.end(), launch.get_stream());
-    map.retrieve_outer(keys.begin(), keys.end(), pairs.begin(), launch.get_stream());
+    auto const count = map.count_outer(keys.begin(), keys.end(), launch.get_stream());
+    map.retrieve_outer(keys.begin(), keys.end(), output.begin(), launch.get_stream());
   });
 }
 

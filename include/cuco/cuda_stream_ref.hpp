@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 #include <cstddef>
 
 namespace cuco {
-namespace experimental {
 
 /**
  * @brief Strongly-typed non-owning wrapper for CUDA streams with default constructor.
@@ -136,7 +135,6 @@ static const cuda_stream_ref cuda_stream_per_thread{cudaStreamPerThread};
 //  */
 // inline bool operator!=(cuda_stream_ref lhs, cuda_stream_ref rhs) { return not(lhs == rhs); }
 
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/cuda_stream_ref.inl>

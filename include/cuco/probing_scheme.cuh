@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <cooperative_groups.h>
 
 namespace cuco {
-namespace experimental {
 /**
  * @brief Public linear probing scheme class.
  *
@@ -46,6 +45,19 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @param hash Hasher
    */
   __host__ __device__ constexpr linear_probing(Hash const& hash = {});
+
+  /**
+   *@brief Makes a copy of the current probing method with the given hasher
+   *
+   * @tparam NewHash New hasher type
+   *
+   * @param hash Hasher
+   *
+   * @return Copy of the current probing method
+   */
+  template <typename NewHash>
+  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(
+    NewHash const& hash) const noexcept;
 
   /**
    * @brief Operator to return a probing iterator
@@ -112,6 +124,22 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   __host__ __device__ constexpr double_hashing(Hash1 const& hash1 = {}, Hash2 const& hash2 = {1});
 
   /**
+   *@brief Makes a copy of the current probing method with the given hasher
+   *
+   * @tparam NewHash1 First new hasher type
+   * @tparam NewHash2 Second new hasher type
+   *
+   * @param hash1 First hasher
+   * @param hash2 second hasher
+   *
+   * @return Copy of the current probing method
+   */
+  template <typename NewHash1, typename NewHash2 = NewHash1>
+  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(NewHash1 const& hash1,
+                                                                      NewHash2 const& hash2 = {
+                                                                        1}) const noexcept;
+
+  /**
    * @brief Operator to return a probing iterator
    *
    * @tparam ProbeKey Type of probing key
@@ -147,7 +175,6 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   Hash2 hash2_;
 };
 
-}  // namespace experimental
 }  // namespace cuco
 
 #include <cuco/detail/probing_scheme_impl.inl>

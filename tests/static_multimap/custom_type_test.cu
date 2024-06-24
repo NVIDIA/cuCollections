@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <utils.hpp>
+#include <test_utils.hpp>
 
 #include <cuco/static_multimap.cuh>
 
@@ -58,7 +58,7 @@ struct value_pair {
 };
 
 template <typename Map>
-__inline__ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
+void test_custom_key_value_type(Map& map, std::size_t num_pairs)
 {
   using Key   = key_pair;
   using Value = value_pair;
@@ -234,8 +234,8 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   constexpr std::size_t capacity  = num_pairs * 2;
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
-                                   cuco::linear_probing<1, hash_key_pair>,
-                                   cuco::double_hashing<8, hash_key_pair, hash_key_pair>>;
+                                   cuco::legacy::linear_probing<1, hash_key_pair>,
+                                   cuco::legacy::double_hashing<8, hash_key_pair, hash_key_pair>>;
 
   cuco::static_multimap<Key, Value, cuda::thread_scope_device, cuco::cuda_allocator<char>, probe>
     map{capacity, cuco::empty_key{sentinel_key}, cuco::empty_value{sentinel_value}};

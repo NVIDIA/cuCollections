@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,8 @@
 #pragma once
 
 #include <cuco/detail/__config>
-#include <cuco/detail/common_functors.cuh>
-#include <cuco/detail/common_kernels.cuh>
+#include <cuco/detail/open_addressing/functors.cuh>
+#include <cuco/detail/open_addressing/kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/extent.cuh>
@@ -27,18 +27,15 @@
 #include <cuco/storage.cuh>
 #include <cuco/utility/traits.hpp>
 
+#include <cub/device/device_select.cuh>
+#include <cuda/atomic>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
-#include <cub/device/device_select.cuh>
-
-#include <cuda/atomic>
-
 #include <cmath>
 
 namespace cuco {
-namespace experimental {
 namespace detail {
 /**
  * @brief An open addressing impl class.
@@ -79,9 +76,11 @@ class open_addressing_impl {
     "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
   static_assert(
-    std::is_base_of_v<cuco::experimental::detail::probing_scheme_base<ProbingScheme::cg_size>,
-                      ProbingScheme>,
+    std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>, ProbingScheme>,
     "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+
+  /// Determines if the container is a key/value or key-only store
+  static constexpr auto has_payload = not std::is_same_v<Key, Value>;
 
  public:
   static constexpr auto cg_size      = ProbingScheme::cg_size;  ///< CG size used for probing
@@ -115,7 +114,6 @@ class open_addressing_impl {
    * stream before the object is first used.
    *
    * @param capacity The requested lower-bound size
-   * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_slot_sentinel The reserved slot value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
@@ -123,15 +121,13 @@ class open_addressing_impl {
    * @param stream CUDA stream used to initialize the data structure
    */
   constexpr open_addressing_impl(Extent capacity,
-                                 Key empty_key_sentinel,
                                  Value empty_slot_sentinel,
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
-                                 cuda_stream_ref stream) noexcept
-    : empty_key_sentinel_{empty_key_sentinel},
-      empty_slot_sentinel_{empty_slot_sentinel},
-      erased_key_sentinel_{empty_key_sentinel},
+                                 cuda_stream_ref stream)
+    : empty_slot_sentinel_{empty_slot_sentinel},
+      erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
       probing_scheme_{probing_scheme},
       storage_{make_window_extent<open_addressing_impl>(capacity), alloc}
@@ -163,7 +159,6 @@ class open_addressing_impl {
    * @param n The number of elements to insert
    * @param desired_load_factor The desired load factor of the container, e.g., 0.5 implies a 50%
    * load factor
-   * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_slot_sentinel The reserved slot value for empty slots
    * @param pred Key equality binary predicate
    * @param probing_scheme Probing scheme
@@ -172,14 +167,13 @@ class open_addressing_impl {
    */
   constexpr open_addressing_impl(Extent n,
                                  double desired_load_factor,
-                                 Key empty_key_sentinel,
                                  Value empty_slot_sentinel,
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
                                  cuda_stream_ref stream)
-    : empty_key_sentinel_{empty_key_sentinel},
-      empty_slot_sentinel_{empty_slot_sentinel},
+    : empty_slot_sentinel_{empty_slot_sentinel},
+      erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
       probing_scheme_{probing_scheme},
       storage_{make_window_extent<open_addressing_impl>(
@@ -187,7 +181,7 @@ class open_addressing_impl {
                alloc}
   {
     CUCO_EXPECTS(desired_load_factor > 0., "Desired occupancy must be larger than zero");
-    CUCO_EXPECTS(desired_load_factor < 1., "Desired occupancy must be smaller than one");
+    CUCO_EXPECTS(desired_load_factor <= 1., "Desired occupancy must be no larger than one");
 
     this->clear_async(stream);
   }
@@ -206,7 +200,6 @@ class open_addressing_impl {
    * stream before the object is first used.
    *
    * @param capacity The requested lower-bound size
-   * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_slot_sentinel The reserved slot value for empty slots
    * @param erased_key_sentinel The reserved key value for erased slots
    * @param pred Key equality binary predicate
@@ -215,21 +208,19 @@ class open_addressing_impl {
    * @param stream CUDA stream used to initialize the data structure
    */
   constexpr open_addressing_impl(Extent capacity,
-                                 Key empty_key_sentinel,
                                  Value empty_slot_sentinel,
                                  Key erased_key_sentinel,
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
                                  cuda_stream_ref stream)
-    : empty_key_sentinel_{empty_key_sentinel},
-      empty_slot_sentinel_{empty_slot_sentinel},
+    : empty_slot_sentinel_{empty_slot_sentinel},
       erased_key_sentinel_{erased_key_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
       storage_{make_window_extent<open_addressing_impl>(capacity), alloc}
   {
-    CUCO_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
+    CUCO_EXPECTS(this->empty_key_sentinel() != this->erased_key_sentinel(),
                  "The empty key sentinel and erased key sentinel cannot be the same value.",
                  std::logic_error);
 
@@ -242,7 +233,7 @@ class open_addressing_impl {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuda_stream_ref stream) noexcept { storage_.initialize(empty_slot_sentinel_, stream); }
+  void clear(cuda_stream_ref stream) { storage_.initialize(empty_slot_sentinel_, stream); }
 
   /**
    * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
@@ -277,21 +268,8 @@ class open_addressing_impl {
   template <typename InputIt, typename Ref>
   size_type insert(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream)
   {
-    auto const num_keys = cuco::detail::distance(first, last);
-    if (num_keys == 0) { return 0; }
-
-    auto counter =
-      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
-    counter.reset(stream);
-
-    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
-
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
-        first, num_keys, always_true, thrust::identity{}, counter.data(), container_ref);
-
-    return counter.load_to_host(stream);
+    return this->insert_if(first, last, always_true, thrust::identity{}, container_ref, stream);
   }
 
   /**
@@ -310,15 +288,8 @@ class open_addressing_impl {
   template <typename InputIt, typename Ref>
   void insert_async(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream) noexcept
   {
-    auto const num_keys = cuco::detail::distance(first, last);
-    if (num_keys == 0) { return; }
-
-    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
-
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
-        first, num_keys, always_true, thrust::identity{}, container_ref);
+    this->insert_if_async(first, last, always_true, thrust::identity{}, container_ref, stream);
   }
 
   /**
@@ -437,7 +408,7 @@ class open_addressing_impl {
   template <typename InputIt, typename Ref>
   void erase_async(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream = {})
   {
-    CUCO_EXPECTS(empty_key_sentinel_ != erased_key_sentinel_,
+    CUCO_EXPECTS(this->empty_key_sentinel() != this->erased_key_sentinel(),
                  "The empty key sentinel and erased key sentinel cannot be the same value.",
                  std::logic_error);
 
@@ -472,15 +443,9 @@ class open_addressing_impl {
                       Ref container_ref,
                       cuda_stream_ref stream) const noexcept
   {
-    auto const num_keys = cuco::detail::distance(first, last);
-    if (num_keys == 0) { return; }
-
-    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
-
     auto const always_true = thrust::constant_iterator<bool>{true};
-    detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
-        first, num_keys, always_true, thrust::identity{}, output_begin, container_ref);
+    this->contains_if_async(
+      first, last, always_true, thrust::identity{}, output_begin, container_ref, stream);
   }
 
   /**
@@ -532,6 +497,37 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief For all keys in the range `[first, last)`, asynchronously finds
+   * a match with its key equivalent to the query key.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of matches retrieved for each key
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt, typename Ref>
+  void find_async(InputIt first,
+                  InputIt last,
+                  OutputIt output_begin,
+                  Ref container_ref,
+                  cuda_stream_ref stream) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::find<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+        first, num_keys, output_begin, container_ref);
+  }
+
+  /**
    * @brief Retrieves all keys contained in the container.
    *
    * @note This API synchronizes the given stream.
@@ -540,29 +536,28 @@ class open_addressing_impl {
    * @note Behavior is undefined if the range beginning at `output_begin` is smaller than the return
    * value of `size()`.
    *
-   * @tparam InputIt Device accessible container slot iterator
    * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
    * convertible from the container's `value_type`
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
-   * @param begin Beginning of the container slot iterator
    * @param output_begin Beginning output iterator for keys
-   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
    *
    * @return Iterator indicating the end of the output
    */
-  template <typename InputIt, typename OutputIt, typename Predicate>
-  [[nodiscard]] OutputIt retrieve_all(InputIt begin,
-                                      OutputIt output_begin,
-                                      Predicate const& is_filled,
-                                      cuda_stream_ref stream) const
+  template <typename OutputIt>
+  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream) const
   {
     std::size_t temp_storage_bytes = 0;
-    using temp_allocator_type = typename std::allocator_traits<allocator_type>::rebind_alloc<char>;
-    auto temp_allocator       = temp_allocator_type{this->allocator()};
-    auto d_num_out            = reinterpret_cast<size_type*>(
+    using temp_allocator_type =
+      typename std::allocator_traits<allocator_type>::template rebind_alloc<char>;
+    auto temp_allocator = temp_allocator_type{this->allocator()};
+    auto d_num_out      = reinterpret_cast<size_type*>(
       std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
+    auto const begin = thrust::make_transform_iterator(
+      thrust::counting_iterator<size_type>{0},
+      open_addressing_ns::detail::get_slot<has_payload, storage_ref_type>(this->storage_ref()));
+    auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+      this->empty_key_sentinel(), this->erased_key_sentinel()};
     CUCO_CUDA_TRY(cub::DeviceSelect::If(nullptr,
                                         temp_storage_bytes,
                                         begin,
@@ -596,25 +591,23 @@ class open_addressing_impl {
   }
 
   /**
-   * @brief Gets the number of elements in the container.
+   * @brief Gets the number of elements in the container
    *
    * @note This function synchronizes the given stream.
    *
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
-   *
-   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used to get the number of inserted elements
    *
    * @return The number of elements in the container
    */
-  template <typename Predicate>
-  [[nodiscard]] size_type size(Predicate const& is_filled, cuda_stream_ref stream) const noexcept
+  [[nodiscard]] size_type size(cuda_stream_ref stream) const
   {
     auto counter =
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
     auto const grid_size = cuco::detail::grid_size(storage_.num_windows());
+    auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+      this->empty_key_sentinel(), this->erased_key_sentinel()};
 
     // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
     // v2.1.0
@@ -632,17 +625,15 @@ class open_addressing_impl {
    * `rehash_async`.
    *
    * @tparam Container The container type this function operates on
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
    * @param extent The container's new `window_extent` after this operation took place
    * @param container The container to be rehashed
-   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
    */
-  template <typename Container, typename Predicate>
-  void rehash(Container const& container, Predicate const& is_filled, cuda_stream_ref stream)
+  template <typename Container>
+  void rehash(Container const& container, cuda_stream_ref stream)
   {
-    this->rehash_async(container, is_filled, stream);
+    this->rehash_async(container, stream);
     stream.synchronize();
   }
 
@@ -663,20 +654,15 @@ class open_addressing_impl {
    * @note This function is not available if the conatiner's `extent_type` is static.
    *
    * @tparam Container The container type this function operates on
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
    * @param extent The container's new `window_extent` after this operation took place
    * @param container The container to be rehashed
-   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
    */
-  template <typename Container, typename Predicate>
-  void rehash(extent_type extent,
-              Container const& container,
-              Predicate const& is_filled,
-              cuda_stream_ref stream)
+  template <typename Container>
+  void rehash(extent_type extent, Container const& container, cuda_stream_ref stream)
   {
-    this->rehash_async(extent, container, is_filled, stream);
+    this->rehash_async(extent, container, stream);
     stream.synchronize();
   }
 
@@ -684,17 +670,15 @@ class open_addressing_impl {
    * @brief Asynchronously regenerates the container
    *
    * @tparam Container The container type this function operates on
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
    * @param extent The container's new `window_extent` after this operation took place
    * @param container The container to be rehashed
-   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
    */
-  template <typename Container, typename Predicate>
-  void rehash_async(Container const& container, Predicate const& is_filled, cuda_stream_ref stream)
+  template <typename Container>
+  void rehash_async(Container const& container, cuda_stream_ref stream)
   {
-    this->rehash_async(this->storage_.window_extent(), container, is_filled, stream);
+    this->rehash_async(this->storage_.window_extent(), container, stream);
   }
 
   /**
@@ -711,18 +695,13 @@ class open_addressing_impl {
    * @note This function is not available if the conatiner's `extent_type` is static.
    *
    * @tparam Container The container type this function operates on
-   * @tparam Predicate Type of predicate indicating if the given slot is filled
    *
    * @param extent The container's new `window_extent` after this operation took place
    * @param container The container to be rehashed
-   * @param is_filled Predicate indicating if the given slot is filled
    * @param stream CUDA stream used for this operation
    */
-  template <typename Container, typename Predicate>
-  void rehash_async(extent_type extent,
-                    Container const& container,
-                    Predicate const& is_filled,
-                    cuda_stream_ref stream)
+  template <typename Container>
+  void rehash_async(extent_type extent, Container const& container, cuda_stream_ref stream)
   {
     auto const old_storage = std::move(this->storage_);
     new (&storage_) storage_type{extent, this->allocator()};
@@ -734,6 +713,8 @@ class open_addressing_impl {
     auto constexpr block_size = cuco::detail::default_block_size();
     auto constexpr stride     = cuco::detail::default_stride();
     auto const grid_size      = cuco::detail::grid_size(num_windows, 1, stride, block_size);
+    auto const is_filled      = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+      this->empty_key_sentinel(), this->erased_key_sentinel()};
 
     detail::rehash<block_size><<<grid_size, block_size, 0, stream>>>(
       old_storage.ref(), container.ref(op::insert), is_filled);
@@ -753,7 +734,7 @@ class open_addressing_impl {
    */
   [[nodiscard]] constexpr key_type empty_key_sentinel() const noexcept
   {
-    return empty_key_sentinel_;
+    return this->extract_key(this->empty_slot_sentinel_);
   }
 
   /**
@@ -797,9 +778,25 @@ class open_addressing_impl {
    */
   [[nodiscard]] constexpr storage_ref_type storage_ref() const noexcept { return storage_.ref(); }
 
+ private:
+  /**
+   * @brief Extracts the key from a given slot.
+   *
+   * @param value The input value
+   *
+   * @return The key
+   */
+  [[nodiscard]] constexpr key_type const& extract_key(value_type const& slot) const noexcept
+  {
+    if constexpr (this->has_payload) {
+      return slot.first;
+    } else {
+      return slot;
+    }
+  }
+
  protected:
   // TODO: cleanup by using equal wrapper as a data member
-  key_type empty_key_sentinel_;         ///< Key value that represents an empty slot
   value_type empty_slot_sentinel_;      ///< Slot value that represents an empty slot
   key_type erased_key_sentinel_;        ///< Key value that represents an erased slot
   key_equal predicate_;                 ///< Key equality binary predicate
@@ -808,5 +805,4 @@ class open_addressing_impl {
 };
 
 }  // namespace detail
-}  // namespace experimental
 }  // namespace cuco
