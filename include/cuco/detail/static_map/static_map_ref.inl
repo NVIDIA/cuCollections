@@ -573,19 +573,29 @@ class operator_impl<
                 "sizeof(mapped_type) must be either 4 bytes or 8 bytes.");
 
  public:
-  // TODO docs
   /**
-   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, assigns `v`
-   * to the mapped_type corresponding to the key `k`.
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, applies
+   `Op`
+   * binary function to the mapped_type corresponding to the key `k` and the value `v`.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
-   *
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+
    * @param value The element to insert
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
    */
+
   template <typename Value, typename Op>
   __device__ void insert_or_apply(Value const& value, Op op) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+
+    static_assert(
+      std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
+      "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
 
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
@@ -605,8 +615,10 @@ class operator_impl<
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          op(((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
-             val.second);
+          op(
+            cuda::atomic_ref<T, Scope>{
+              ((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second},
+            val.second);
           return;
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
@@ -625,29 +637,35 @@ class operator_impl<
   __device__ void insert_or_apply(Value const& value, cuco::op::reduce::sum_tag) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.insert_or_apply(value, [](T& slot, T const& payload) {
-      cuda::atomic_ref<T, Scope> slot_ref{slot};
+    ref_.insert_or_apply(value, [](cuda::atomic_ref<T, Scope> slot_ref, T const& payload) {
       slot_ref.fetch_add(payload, cuda::memory_order_relaxed);
     });
   }
 
-  // TODO docs
   /**
-   * @brief Inserts an element.
-   *
-   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, assigns `v`
-   * to the mapped_type corresponding to the key `k`.
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, applies
+   * `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
    */
+
   template <typename Value, typename Op>
   __device__ void insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
                                   Value const& value,
                                   Op op) noexcept
   {
+    static_assert(
+      std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
+      "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
+
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
     auto const val       = ref_.impl_.heterogeneous_value(value);
@@ -675,8 +693,10 @@ class operator_impl<
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         if (group.thread_rank() == src_lane) {
-          op(((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
-             val.second);
+          op(
+            cuda::atomic_ref<T, Scope>{
+              ((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second},
+            val.second);
         }
         group.sync();
         return;
@@ -705,25 +725,24 @@ class operator_impl<
                                   cuco::op::reduce::sum_tag) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.insert_or_apply(group, value, [](T& slot, T const& payload) {
-      cuda::atomic_ref<T, Scope> slot_ref{slot};
+    ref_.insert_or_apply(group, value, [](cuda::atomic_ref<T, Scope> slot_ref, T const& payload) {
       slot_ref.fetch_add(payload, cuda::memory_order_relaxed);
     });
   }
 
  private:
-  // TODO docs
   /**
-   * @brief Attempts to insert an element into a slot or update the matching payload with the given
-   * element
-   *
-   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, assigns `v`
-   * to the mapped_type corresponding to the key `k`.
+   * @brief Attempts to insert an element into a slot or update the matching payload by applying the
+   * binary operation on the payload and new value.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
-   *
-   * @param group The Cooperative Group used to perform group insert
+   * @tparam Op Callable type which is used as apply operation and called be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T)
+
+   * @param slot value_type pointer to the slot to insert
    * @param value The element to insert
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and element to insert.
    *
    * @return Returns `true` if the given `value` is inserted or `value` has a match in the map.
    */
@@ -744,7 +763,7 @@ class operator_impl<
         (ref_.impl_.predicate().equal_to(value.first, *old_key_ptr) ==
          detail::equal_result::EQUAL)) {
       // Update payload
-      op(slot->second, value.second);
+      op(cuda::atomic_ref<T, Scope>{slot->second}, value.second);
       return true;
     }
     return false;

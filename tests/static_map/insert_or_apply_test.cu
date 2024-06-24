@@ -18,6 +18,7 @@
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/atomic>
 #include <thrust/device_vector.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -47,7 +48,12 @@ __inline__ void test_insert_or_apply(Map& map, size_type num_keys, size_type num
       return cuco::pair<Key, Value>{i % num_unique_keys, 1};
     }));
 
-  map.insert_or_apply(pairs_begin, pairs_begin + num_keys, cuco::op::reduce::sum);
+  map.insert_or_apply(
+    pairs_begin,
+    pairs_begin + num_keys,
+    [] __device__(cuda::atomic_ref<Value, Map::thread_scope> lhs, const Value& rhs) {
+      lhs.fetch_add(rhs, cuda::memory_order_relaxed);
+    });
 
   REQUIRE(map.size() == num_unique_keys);
 
@@ -105,4 +111,24 @@ TEMPLATE_TEST_CASE_SIG(
     num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
 
   test_insert_or_apply(map, num_keys, num_unique_keys);
+}
+
+TEMPLATE_TEST_CASE_SIG(
+  "Insert or apply all unique keys", "", ((typename Key)), (int32_t), (int64_t))
+{
+  using Value = Key;
+
+  constexpr size_type num_keys = 100;
+
+  auto map = cuco::static_map<Key,
+                              Value,
+                              cuco::extent<size_type>,
+                              cuda::thread_scope_device,
+                              thrust::equal_to<Key>,
+                              cuco::linear_probing<1, cuco::murmurhash3_32<Key>>,
+                              cuco::cuda_allocator<std::byte>,
+                              cuco::storage<2>>{
+    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+
+  test_insert_or_apply(map, num_keys, num_keys);
 }
