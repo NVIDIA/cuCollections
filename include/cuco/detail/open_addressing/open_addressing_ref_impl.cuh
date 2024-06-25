@@ -970,13 +970,13 @@ class open_addressing_ref_impl {
    * `key` to the callback.
    *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
-   + @tparam Callback Callback functor or lambda
+   * @tparam CallbackOp Unary callback functor or device lambda
    *
    * @param key The key to search for
    * @param callback Function to call on every element found
    */
-  template <class ProbeKey, class Callback>
-  __device__ void for_each(ProbeKey const& key, Callback&& callback) const noexcept
+  template <class ProbeKey, class CallbackOp>
+  __device__ void for_each(ProbeKey const& key, CallbackOp&& callback) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter = this->probing_scheme_(key, this->storage_ref_.window_extent());
@@ -1014,16 +1014,16 @@ class open_addressing_ref_impl {
    * each thread with a match will call the callback with its associated element.
    *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
-   + @tparam Callback Callback functor or lambda
+   * @tparam CallbackOp Unary callback functor or device lambda
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    * @param callback Function to call on every element found
    */
-  template <class ProbeKey, class Callback>
+  template <class ProbeKey, class CallbackOp>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
                            ProbeKey const& key,
-                           Callback&& callback) const noexcept
+                           CallbackOp&& callback) const noexcept
   {
     auto probing_iter = this->probing_scheme_(group, key, this->storage_ref_.window_extent());
     bool empty        = false;
