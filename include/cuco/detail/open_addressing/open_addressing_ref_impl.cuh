@@ -985,7 +985,7 @@ class open_addressing_ref_impl {
       // TODO atomic_ref::load if insert operator is present
       auto const window_slots = this->storage_ref_[*probing_iter];
 
-      for (auto i = 0; i < window_size; ++i) {
+      for (int32_t i = 0; i < window_size; ++i) {
         switch (
           this->predicate_.operator()<is_insert::NO>(key, this->extract_key(window_slots[i]))) {
           case detail::equal_result::EMPTY: {
@@ -993,11 +993,7 @@ class open_addressing_ref_impl {
           }
           case detail::equal_result::EQUAL: {
             callback(const_iterator{&(*(this->storage_ref_.data() + *probing_iter))[i]});
-            if constexpr (allows_duplicates) {
-              continue;
-            } else {
-              return;
-            }
+            continue;
           }
           default: continue;
         }
@@ -1029,33 +1025,29 @@ class open_addressing_ref_impl {
                            ProbeKey const& key,
                            Callback&& callback) const noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.window_extent());
+    auto probing_iter = this->probing_scheme_(group, key, this->storage_ref_.window_extent());
+    bool empty        = false;
 
     while (true) {
-      auto const window_slots = storage_ref_[*probing_iter];
+      // TODO atomic_ref::load if insert operator is present
+      auto const window_slots = this->storage_ref_[*probing_iter];
 
-      auto const [state, intra_window_index] = [&]() {
-        auto res = detail::equal_result::UNEQUAL;
-        for (auto i = 0; i < window_size; ++i) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(window_slots[i]));
-          if (res != detail::equal_result::UNEQUAL) { return window_probing_results{res, i}; }
+      for (int32_t i = 0; i < window_size and !empty; ++i) {
+        switch (
+          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(window_slots[i]))) {
+          case detail::equal_result::EMPTY: {
+            empty = true;
+            continue;
+          }
+          case detail::equal_result::EQUAL: {
+            callback(const_iterator{&(*(this->storage_ref_.data() + *probing_iter))[i]});
+            continue;
+          }
+          default: {
+            continue;
+          }
         }
-        // returns dummy index `-1` for UNEQUAL
-        return window_probing_results{res, -1};
-      }();
-
-      // Find a match for the probe key, thus call the callback with an iterator to the entry
-      auto const equal = state == detail::equal_result::EQUAL;
-      if (equal) {
-        callback(const_iterator{&(*(storage_ref_.data() + *probing_iter))[intra_window_index]});
       }
-
-      if constexpr (not allows_duplicates) {
-        if (group.any(equal)) { return; }
-      }
-
-      // Find an empty slot, meaning that the probe key isn't present in the container
-      auto const empty = state == detail::equal_result::EMPTY;
       if (group.any(empty)) { return; }
 
       ++probing_iter;
