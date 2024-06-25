@@ -472,17 +472,17 @@ class operator_impl<
    * `key` to the callback.
    *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
-   + @tparam Callback Callback functor or lambda
+   * @tparam CallbackOp Unary callback functor or device lambda
    *
    * @param key The key to search for
-   * @param callback Function to call on every element found
+   * @param callback_op Function to call on every element found
    */
-  template <class ProbeKey, class Callback>
-  __device__ void for_each(ProbeKey const& key, Callback&& callback) const noexcept
+  template <class ProbeKey, class CallbackOp>
+  __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.for_each(key, std::forward<Callback>(callback));
+    ref_.impl_.for_each(key, std::forward<CallbackOp>(callback_op));
   }
 
   /**
@@ -496,21 +496,63 @@ class operator_impl<
    * callback if it finds a matching element. If multiple elements are found within the same group,
    * each thread with a match will call the callback with its associated element.
    *
+   * @note Synchronizing `group` within `callback_op` is undefined behavior.
+   *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
-   + @tparam Callback Callback functor or lambda
+   * @tparam CallbackOp Unary callback functor or device lambda
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
-   * @param callback Function to call on every element found
+   * @param callback_op Function to call on every element found
    */
-  template <class ProbeKey, class Callback>
+  template <class ProbeKey, class CallbackOp>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
                            ProbeKey const& key,
-                           Callback&& callback) const noexcept
+                           CallbackOp&& callback_op) const noexcept
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.for_each(group, key, std::forward<Callback>(callback));
+    ref_.impl_.for_each(group, key, std::forward<CallbackOp>(callback_op));
+  }
+
+  /**
+   * @brief Executes a callback on every element in the container with key equivalent to the probe
+   * key and can additionally perform work that requires synchronizing the Cooperative Group
+   * performing this operation.
+   *
+   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
+   * `key` to the callback.
+   *
+   * @note This function uses cooperative group semantics, meaning that any thread may call the
+   * callback if it finds a matching element. If multiple elements are found within the same group,
+   * each thread with a match will call the callback with its associated element.
+   *
+   * @note Synchronizing `group` within `callback_op` is undefined behavior.
+   *
+   * @note The `sync_op` function can be used to perform work that requires synchronizing threads in
+   * `group` inbetween probing steps, where the number of probing steps performed between
+   * synchronization points is capped by `window_size * cg_size`. The functor will be called right
+   * after the current probing window has been traversed.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam SyncOp Functor or device lambda which accepts the current `group` object
+   *
+   * @param group The Cooperative Group used to perform this operation
+   * @param key The key to search for
+   * @param callback_op Function to call on every element found
+   * @param sync_op Function that is allowed to synchronize `group` inbetween probing windows
+   */
+  template <class ProbeKey, class CallbackOp, class SyncOp>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+                           ProbeKey const& key,
+                           CallbackOp&& callback_op,
+                           SyncOp&& sync_op) const noexcept
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.for_each(
+      group, key, std::forward<CallbackOp>(callback_op), std::forward<SyncOp>(sync_op));
   }
 };
 

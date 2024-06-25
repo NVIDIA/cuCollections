@@ -53,7 +53,7 @@ CUCO_KERNEL void for_each_check_scalar(Ref ref,
   }
 }
 
-template <class Ref, class InputIt, class AtomicErrorCounter>
+template <bool Synced, class Ref, class InputIt, class AtomicErrorCounter>
 CUCO_KERNEL void for_each_check_cooperative(Ref ref,
                                             InputIt first,
                                             std::size_t n,
@@ -69,10 +69,19 @@ CUCO_KERNEL void for_each_check_cooperative(Ref ref,
       cooperative_groups::tiled_partition<Ref::cg_size>(cooperative_groups::this_thread_block());
     auto const& key            = *(first + idx);
     std::size_t thread_matches = 0;
-    ref.for_each(tile, key, [&] __device__(auto const it) {
-      if (ref.key_eq()(key, *it)) { thread_matches++; }
-    });
-    tile.sync();
+    if constexpr (Synced) {
+      ref.for_each(
+        tile,
+        key,
+        [&] __device__(auto const it) {
+          if (ref.key_eq()(key, *it)) { thread_matches++; }
+        },
+        [] __device__(auto const& group) { group.sync(); });
+    } else {
+      ref.for_each(tile, key, [&] __device__(auto const it) {
+        if (ref.key_eq()(key, *it)) { thread_matches++; }
+      });
+    }
     auto const tile_matches =
       cooperative_groups::reduce(tile, thread_matches, cooperative_groups::plus<std::size_t>());
     if (tile_matches != multiplicity and tile.thread_rank() == 0) {
@@ -131,7 +140,14 @@ TEMPLATE_TEST_CASE_SIG(
   }
 
   // test CG for_each
-  for_each_check_cooperative<<<grid_size, block_size>>>(
+  for_each_check_cooperative<false><<<grid_size, block_size>>>(
+    set.ref(cuco::for_each), unique_keys_begin, num_unique_keys, key_multiplicity, error_counter);
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  REQUIRE(error_counter->load() == 0);
+  error_counter->store(0);
+
+  // test synchronized CG for_each
+  for_each_check_cooperative<true><<<grid_size, block_size>>>(
     set.ref(cuco::for_each), unique_keys_begin, num_unique_keys, key_multiplicity, error_counter);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
   REQUIRE(error_counter->load() == 0);
