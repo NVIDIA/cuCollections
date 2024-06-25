@@ -329,5 +329,177 @@ class operator_impl<
   }
 };
 
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::contains_tag,
+  static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type =
+    static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type   = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief Indicates whether the probe key `key` was inserted into the container.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   *
+   * @param key The key to search for
+   *
+   * @return A boolean indicating whether the probe key is present
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.contains(key);
+  }
+
+  /**
+   * @brief Indicates whether the probe key `key` was inserted into the container.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   *
+   * @param group The Cooperative Group used to perform group contains
+   * @param key The key to search for
+   *
+   * @return A boolean indicating whether the probe key is present
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ bool contains(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.contains(group, key);
+  }
+};
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::find_tag,
+  static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type =
+    static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type       = typename base_type::key_type;
+  using value_type     = typename base_type::value_type;
+  using iterator       = typename base_type::iterator;
+  using const_iterator = typename base_type::const_iterator;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief Finds an element in the multiset with key equivalent to the probe key.
+   *
+   * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
+   * `key`. If no such element exists, returns `end()`.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   *
+   * @param key The key to search for
+   *
+   * @return An iterator to the position at which the equivalent key is stored
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ const_iterator find(ProbeKey const& key) const noexcept
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.find(key);
+  }
+
+  /**
+   * @brief Finds an element in the multiset with key equivalent to the probe key.
+   *
+   * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
+   * `key`. If no such element exists, returns `end()`.
+   *
+   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   *
+   * @param group The Cooperative Group used to perform this operation
+   * @param key The key to search for
+   *
+   * @return An iterator to the position at which the equivalent key is stored
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ const_iterator find(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.find(group, key);
+  }
+};
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::count_tag,
+  static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type =
+    static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type   = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+  using size_type  = typename base_type::size_type;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief Counts the occurrence of a given key contained in multiset
+   *
+   * @tparam ProbeKey Input type
+   *
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  __device__ size_type count(ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.count(key);
+  }
+
+  /**
+   * @brief Counts the occurrence of a given key contained in multiset
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param group The Cooperative Group used to perform group count
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  __device__ size_type count(cooperative_groups::thread_block_tile<cg_size> const& group,
+                             ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.count(group, key);
+  }
+};
+
 }  // namespace detail
 }  // namespace cuco
