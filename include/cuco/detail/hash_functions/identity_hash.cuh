@@ -23,7 +23,7 @@ namespace cuco::detail {
 /**
  * @brief An Identity hash function to hash the given argument on host and device
  *
- * @note `identity_hash` is perfect iff `hash_table_capacity >= |input set|`
+ * @note `identity_hash` is perfect if `hash_table_capacity >= |input set|`
  *
  * @note `identity_hash` is only intended to be used perfectly.
  *
@@ -32,23 +32,9 @@ namespace cuco::detail {
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
-struct identity_hash {
+struct identity_hash : public thrust::identity<Key> {
   using argument_type = Key;  ///< The type of the values taken as argument
   using result_type   = Key;  ///< The type of the hash values produced
-
-  /**
-   * @brief Returns a hash value for its argument, as a value of type `result_type`.
-   *
-   * @param key The input argument to hash
-   * @return The resulting hash value for `key`
-   */
-  constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
-  {
-    return idfunct_(key);
-  }
-
- private:
-  thrust::identity<Key> idfunct_;
-};  // identity_hash
+};                            // identity_hash
 
 }  //  namespace cuco::detail

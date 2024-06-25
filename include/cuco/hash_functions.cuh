@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/hash_functions/identityhash.cuh>
+#include <cuco/detail/hash_functions/identity_hash.cuh>
 #include <cuco/detail/hash_functions/murmurhash3.cuh>
 #include <cuco/detail/hash_functions/xxhash.cuh>
 
