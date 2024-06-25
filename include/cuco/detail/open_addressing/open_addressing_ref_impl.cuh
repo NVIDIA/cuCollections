@@ -1277,8 +1277,6 @@ class open_addressing_ref_impl {
       if constexpr (cuco::detail::is_cuda_std_pair_like<T>::value) {
         return cuco::pair{cuda::std::get<0>(value),
                           static_cast<mapped_type>(cuda::std::get<1>(value))};
-      } else if constexpr (cuco::detail::is_thrust_pair_like<T>::value) {
-        return cuco::pair{thrust::get<0>(value), static_cast<mapped_type>(thrust::get<1>(value))};
       } else {
         // hail mary (convert using .first/.second members)
         return cuco::pair{thrust::raw_reference_cast(value.first),
