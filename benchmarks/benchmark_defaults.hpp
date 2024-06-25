@@ -23,12 +23,10 @@
 
 namespace cuco::benchmark::defaults {
 
-using KEY_TYPE_RANGE   = nvbench::type_list<nvbench::int32_t>;
-using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t>;
-// using KEY_TYPE_RANGE   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
-// using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
+using KEY_TYPE_RANGE   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
+using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 
-auto constexpr N             = 10'000'000;
+auto constexpr N             = 100'000'000;
 auto constexpr OCCUPANCY     = 0.5;
 auto constexpr MULTIPLICITY  = 8;
 auto constexpr MATCHING_RATE = 0.5;

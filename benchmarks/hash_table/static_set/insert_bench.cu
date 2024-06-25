@@ -47,14 +47,8 @@ void static_set_insert(nvbench::state& state, nvbench::type_list<Key, Dist>)
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               cuco::static_set<Key,
-                                cuco::extent<std::size_t>,
-                                cuda::thread_scope_device,
-                                thrust::equal_to<Key>,
-                                cuco::double_hashing<4,  // CG size
-                                                     cuco::default_hash_function<Key>>>
-                 set{size, cuco::empty_key<Key>{-1}, {}, {}, {}, {}, {}, {launch.get_stream()}};
-
+               cuco::static_set<Key> set{
+                 size, cuco::empty_key<Key>{-1}, {}, {}, {}, {}, {}, {launch.get_stream()}};
                timer.start();
                set.insert(keys.begin(), keys.end(), {launch.get_stream()});
                timer.stop();

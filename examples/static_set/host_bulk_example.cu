@@ -48,13 +48,7 @@ int main(void)
   std::size_t const capacity = std::ceil(num_keys / load_factor);
 
   // Constructs a set with at least `capacity` slots using -1 as the empty keys sentinel.
-  cuco::static_set<Key,
-                   cuco::extent<std::size_t>,
-                   cuda::thread_scope_device,
-                   thrust::equal_to<Key>,
-                   cuco::double_hashing<4,  // CG size
-                                        cuco::default_hash_function<Key>>>
-    set{capacity, cuco::empty_key{empty_key_sentinel}};
+  cuco::static_set<Key> set{capacity, cuco::empty_key{empty_key_sentinel}};
 
   // Create a sequence of keys {0, 1, 2, .., i}
   thrust::device_vector<Key> keys(num_keys);
