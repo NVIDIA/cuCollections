@@ -60,7 +60,7 @@ ConfigureBench(STATIC_SET_BENCH
 # - static_set_perfect benchmarks -------------------------------------------------------------------------
 ConfigureBench(STATIC_SET_PERFECT_BENCH
   hash_table/static_set_perfect/contains_bench.cu
-  hash_table/static_set_perfect/find_bench.cu
+  hash_table/static_set_perfect/insert_bench.cu)
 
 ###################################################################################################
 # - static_map benchmarks -------------------------------------------------------------------------
