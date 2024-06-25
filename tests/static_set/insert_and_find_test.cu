@@ -18,10 +18,9 @@
 
 #include <cuco/static_set.cuh>
 
-#include <cuda/functional>
+#include <thrust/device_vector.h>
 #include <thrust/functional.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
+#include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -31,53 +30,24 @@ void test_insert_and_find(Set& set, std::size_t num_keys)
   using Key                     = typename Set::key_type;
   static auto constexpr cg_size = Set::cg_size;
 
-  auto const keys_begin = [&]() {
-    if constexpr (cg_size == 1) {
-      return thrust::counting_iterator<Key>(0);
-    } else {
-      return thrust::make_transform_iterator(
-        thrust::counting_iterator<Key>(0),
-        cuda::proclaim_return_type<Key>([] __device__(auto i) { return i / cg_size; }));
-    }
-  }();
-  auto const keys_end = [&]() {
-    if constexpr (cg_size == 1) {
-      return keys_begin + num_keys;
-    } else {
-      return keys_begin + num_keys * cg_size;
-    }
-  }();
+  thrust::device_vector<Key> d_keys(num_keys);
+  thrust::sequence(d_keys.begin(), d_keys.end());
 
-  auto ref = set.ref(cuco::op::insert_and_find);
+  thrust::device_vector<Key> iters1(num_keys);
+  thrust::device_vector<int> iters2(num_keys);
 
-  REQUIRE(cuco::test::all_of(keys_begin, keys_end, [ref] __device__(Key key) mutable {
-    auto [iter, inserted] = [&]() {
-      if constexpr (cg_size == 1) {
-        return ref.insert_and_find(key);
-      } else {
-        auto const tile =
-          cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
-        return ref.insert_and_find(tile, key);
-      }
-    }();
-    return inserted == true;
-  }));
+  thrust::device_vector<bool> inserted(num_keys);
 
-  SECTION("Inserting elements for the second time will always fail.")
-  {
-    REQUIRE(cuco::test::all_of(keys_begin, keys_end, [ref] __device__(Key key) mutable {
-      auto [iter, inserted] = [&]() {
-        if constexpr (cg_size == 1) {
-          return ref.insert_and_find(key);
-        } else {
-          auto const tile =
-            cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
-          return ref.insert_and_find(tile, key);
-        }
-      }();
-      return inserted == false and key == *iter;
-    }));
-  }
+  // insert first time, fills inserted with true
+  set.insert_and_find(d_keys.begin(), d_keys.end(), iters1.begin(), inserted.begin());
+  REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), thrust::identity{}));
+
+  // insert second time, fills inserted with false as keys already in set
+  set.insert_and_find(d_keys.begin(), d_keys.end(), iters2.begin(), inserted.begin());
+  REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), thrust::identity{}));
+
+  // both iters1 and iters2 should be same, as keys will be referring to same slot
+  REQUIRE(cuco::test::equal(iters1.begin(), iters1.end(), iters2.begin(), thrust::equal_to<Key>{}));
 }
 
 TEMPLATE_TEST_CASE_SIG(
