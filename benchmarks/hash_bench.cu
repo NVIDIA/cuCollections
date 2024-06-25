@@ -199,6 +199,7 @@ NVBENCH_BENCH_TYPES(string_hash_eval,
                     NVBENCH_TYPE_AXES(nvbench::type_list<cuco::murmurhash3_32<std::byte>,
                                                          cuco::xxhash_32<std::byte>,
                                                          cuco::xxhash_64<std::byte>,
+                                                         cuco::murmurhash3_x86_128<std::byte>,
                                                          cuco::murmurhash3_x64_128<std::byte>>))
   .set_name("string_hash_function_eval")
   .set_type_axes_names({"Hash"})
