@@ -58,6 +58,16 @@ constexpr __host__ __device__ void hash_result_aggregate(cuda::std::array<uint64
   agg[1] += hash_val[1];
 }
 
+template <>
+constexpr __host__ __device__ void hash_result_aggregate(cuda::std::array<uint32_t, 4>& agg,
+                                                         cuda::std::array<uint32_t, 4> hash_val)
+{
+  agg[0] += hash_val[0];
+  agg[1] += hash_val[1];
+  agg[2] += hash_val[2];
+  agg[3] += hash_val[3];
+}
+
 template <int32_t BlockSize, typename Hasher, typename OutputIt>
 __global__ void hash_bench_kernel(Hasher hash,
                                   cuco::detail::index_type n,
@@ -175,6 +185,9 @@ NVBENCH_BENCH_TYPES(
                                        cuco::xxhash_64<large_key<32>>,
                                        cuco::murmurhash3_fmix_32<nvbench::int32_t>,
                                        cuco::murmurhash3_fmix_64<nvbench::int64_t>,
+                                       cuco::murmurhash3_x86_128<nvbench::int32_t>,
+                                       cuco::murmurhash3_x86_128<nvbench::int64_t>,
+                                       cuco::murmurhash3_x86_128<large_key<32>>,
                                        cuco::murmurhash3_x64_128<nvbench::int32_t>,
                                        cuco::murmurhash3_x64_128<nvbench::int64_t>,
                                        cuco::murmurhash3_x64_128<large_key<32>>>))

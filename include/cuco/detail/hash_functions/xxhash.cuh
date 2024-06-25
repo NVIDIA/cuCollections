@@ -127,21 +127,21 @@ struct XXHash_32 {
         // pipeline 4*4byte computations
         auto const pipeline_offset = offset / 4;
         v1 += load_chunk<std::uint32_t>(bytes, pipeline_offset + 0) * prime2;
-        v1 = rotl(v1, 13);
+        v1 = rotl32(v1, 13);
         v1 *= prime1;
         v2 += load_chunk<std::uint32_t>(bytes, pipeline_offset + 1) * prime2;
-        v2 = rotl(v2, 13);
+        v2 = rotl32(v2, 13);
         v2 *= prime1;
         v3 += load_chunk<std::uint32_t>(bytes, pipeline_offset + 2) * prime2;
-        v3 = rotl(v3, 13);
+        v3 = rotl32(v3, 13);
         v3 *= prime1;
         v4 += load_chunk<std::uint32_t>(bytes, pipeline_offset + 3) * prime2;
-        v4 = rotl(v4, 13);
+        v4 = rotl32(v4, 13);
         v4 *= prime1;
         offset += 16;
       } while (offset <= limit);
 
-      h32 = rotl(v1, 1) + rotl(v2, 7) + rotl(v3, 12) + rotl(v4, 18);
+      h32 = rotl32(v1, 1) + rotl32(v2, 7) + rotl32(v3, 12) + rotl32(v4, 18);
     } else {
       h32 = seed_ + prime5;
     }
@@ -152,7 +152,7 @@ struct XXHash_32 {
     if ((size % 16) >= 4) {
       for (; offset <= size - 4; offset += 4) {
         h32 += load_chunk<std::uint32_t>(bytes, offset / 4) * prime3;
-        h32 = rotl(h32, 17) * prime4;
+        h32 = rotl32(h32, 17) * prime4;
       }
     }
 
@@ -160,7 +160,7 @@ struct XXHash_32 {
     if (size % 4) {
       while (offset < size) {
         h32 += (std::to_integer<std::uint32_t>(bytes[offset]) & 255) * prime5;
-        h32 = rotl(h32, 11) * prime1;
+        h32 = rotl32(h32, 11) * prime1;
         ++offset;
       }
     }
@@ -169,11 +169,6 @@ struct XXHash_32 {
   }
 
  private:
-  constexpr __host__ __device__ std::uint32_t rotl(std::uint32_t h, std::int8_t r) const noexcept
-  {
-    return ((h << r) | (h >> (32 - r)));
-  }
-
   // avalanche helper
   constexpr __host__ __device__ std::uint32_t finalize(std::uint32_t h) const noexcept
   {
@@ -295,42 +290,42 @@ struct XXHash_64 {
         // pipeline 4*8byte computations
         auto const pipeline_offset = offset / 8;
         v1 += load_chunk<std::uint64_t>(bytes, pipeline_offset + 0) * prime2;
-        v1 = rotl(v1, 31);
+        v1 = rotl64(v1, 31);
         v1 *= prime1;
         v2 += load_chunk<std::uint64_t>(bytes, pipeline_offset + 1) * prime2;
-        v2 = rotl(v2, 31);
+        v2 = rotl64(v2, 31);
         v2 *= prime1;
         v3 += load_chunk<std::uint64_t>(bytes, pipeline_offset + 2) * prime2;
-        v3 = rotl(v3, 31);
+        v3 = rotl64(v3, 31);
         v3 *= prime1;
         v4 += load_chunk<std::uint64_t>(bytes, pipeline_offset + 3) * prime2;
-        v4 = rotl(v4, 31);
+        v4 = rotl64(v4, 31);
         v4 *= prime1;
         offset += 32;
       } while (offset <= limit);
 
-      h64 = rotl(v1, 1) + rotl(v2, 7) + rotl(v3, 12) + rotl(v4, 18);
+      h64 = rotl64(v1, 1) + rotl64(v2, 7) + rotl64(v3, 12) + rotl64(v4, 18);
 
       v1 *= prime2;
-      v1 = rotl(v1, 31);
+      v1 = rotl64(v1, 31);
       v1 *= prime1;
       h64 ^= v1;
       h64 = h64 * prime1 + prime4;
 
       v2 *= prime2;
-      v2 = rotl(v2, 31);
+      v2 = rotl64(v2, 31);
       v2 *= prime1;
       h64 ^= v2;
       h64 = h64 * prime1 + prime4;
 
       v3 *= prime2;
-      v3 = rotl(v3, 31);
+      v3 = rotl64(v3, 31);
       v3 *= prime1;
       h64 ^= v3;
       h64 = h64 * prime1 + prime4;
 
       v4 *= prime2;
-      v4 = rotl(v4, 31);
+      v4 = rotl64(v4, 31);
       v4 *= prime1;
       h64 ^= v4;
       h64 = h64 * prime1 + prime4;
@@ -344,9 +339,9 @@ struct XXHash_64 {
     if ((size % 32) >= 8) {
       for (; offset <= size - 8; offset += 8) {
         std::uint64_t k1 = load_chunk<std::uint64_t>(bytes, offset / 8) * prime2;
-        k1               = rotl(k1, 31) * prime1;
+        k1               = rotl64(k1, 31) * prime1;
         h64 ^= k1;
-        h64 = rotl(h64, 27) * prime1 + prime4;
+        h64 = rotl64(h64, 27) * prime1 + prime4;
       }
     }
 
@@ -354,7 +349,7 @@ struct XXHash_64 {
     if ((size % 8) >= 4) {
       for (; offset <= size - 4; offset += 4) {
         h64 ^= (load_chunk<std::uint32_t>(bytes, offset / 4) & 0xffffffffull) * prime1;
-        h64 = rotl(h64, 23) * prime2 + prime3;
+        h64 = rotl64(h64, 23) * prime2 + prime3;
       }
     }
 
@@ -363,7 +358,7 @@ struct XXHash_64 {
     if (size % 4) {
       while (offset < size) {
         h64 ^= (std::to_integer<std::uint32_t>(bytes[offset]) & 0xff) * prime5;
-        h64 = rotl(h64, 11) * prime1;
+        h64 = rotl64(h64, 11) * prime1;
         ++offset;
       }
     }
@@ -371,11 +366,6 @@ struct XXHash_64 {
   }
 
  private:
-  constexpr __host__ __device__ std::uint64_t rotl(std::uint64_t h, std::int8_t r) const noexcept
-  {
-    return ((h << r) | (h >> (64 - r)));
-  }
-
   // avalanche helper
   constexpr __host__ __device__ std::uint64_t finalize(std::uint64_t h) const noexcept
   {
