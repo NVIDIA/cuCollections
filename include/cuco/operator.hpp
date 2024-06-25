@@ -42,7 +42,7 @@ struct insert_or_assign_tag {
  * @brief `insert_or_apply` operator tag
  */
 struct insert_or_apply_tag {
-} inline constexpr insert_or_apply;
+} inline constexpr insert_or_apply;  ///< `cuco::insert_or_apply` operator
 
 /**
  * @brief `erase` operator tag
