@@ -375,7 +375,6 @@ class operator_impl<
   }
 };
 
-// TODO use insert_or_apply internally
 template <typename Key,
           typename T,
           cuda::thread_scope Scope,
@@ -394,9 +393,6 @@ class operator_impl<
 
   static constexpr auto cg_size     = base_type::cg_size;
   static constexpr auto window_size = base_type::window_size;
-
-  static_assert(sizeof(T) == 4 or sizeof(T) == 8,
-                "sizeof(mapped_type) must be either 4 bytes or 8 bytes.");
 
  public:
   /**
@@ -551,6 +547,7 @@ class operator_impl<
   }
 };
 
+// TODO use insert_or_apply internally
 template <typename Key,
           typename T,
           cuda::thread_scope Scope,
@@ -569,14 +566,10 @@ class operator_impl<
   static constexpr auto cg_size     = base_type::cg_size;
   static constexpr auto window_size = base_type::window_size;
 
-  static_assert(sizeof(T) == 4 or sizeof(T) == 8,
-                "sizeof(mapped_type) must be either 4 bytes or 8 bytes.");
-
  public:
   /**
    * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, applies
-   `Op`
-   * binary function to the mapped_type corresponding to the key `k` and the value `v`.
+   * `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
    *
    * @tparam Value Input type which is implicitly convertible to 'value_type'
    * @tparam Op Callable type which is used as apply operation and can be
@@ -589,7 +582,7 @@ class operator_impl<
    */
 
   template <typename Value, typename Op>
-  __device__ void insert_or_apply(Value const& value, Op op) noexcept
+  __device__ void insert_or_apply(Value const& value, Op op)
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
@@ -634,7 +627,7 @@ class operator_impl<
   }
 
   template <typename Value>
-  __device__ void insert_or_apply(Value const& value, cuco::op::reduce::sum_tag) noexcept
+  __device__ void insert_or_apply(Value const& value, cuco::op::reduce::sum_tag)
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     ref_.insert_or_apply(value, [](cuda::atomic_ref<T, Scope> slot_ref, T const& payload) {
@@ -660,7 +653,7 @@ class operator_impl<
   template <typename Value, typename Op>
   __device__ void insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
                                   Value const& value,
-                                  Op op) noexcept
+                                  Op op)
   {
     static_assert(
       std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
@@ -722,7 +715,7 @@ class operator_impl<
   template <typename Value>
   __device__ void insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
                                   Value const& value,
-                                  cuco::op::reduce::sum_tag) noexcept
+                                  cuco::op::reduce::sum_tag)
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     ref_.insert_or_apply(group, value, [](cuda::atomic_ref<T, Scope> slot_ref, T const& payload) {

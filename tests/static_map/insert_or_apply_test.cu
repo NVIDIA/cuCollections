@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@
 using size_type = std::size_t;
 
 template <typename Map>
-__inline__ void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_keys)
+void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_keys)
 {
   REQUIRE((num_keys % num_unique_keys) == 0);
 
@@ -68,7 +68,7 @@ __inline__ void test_insert_or_apply(Map& map, size_type num_keys, size_type num
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Insert or apply",
+  "static_map insert_or_apply tests",
   "",
   ((typename Key, typename Value, cuco::test::probe_sequence Probe, int CGSize),
    Key,
@@ -114,7 +114,7 @@ TEMPLATE_TEST_CASE_SIG(
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Insert or apply all unique keys", "", ((typename Key)), (int32_t), (int64_t))
+  "static_map insert_or_apply all unique keys tests", "", ((typename Key)), (int32_t), (int64_t))
 {
   using Value = Key;
 
