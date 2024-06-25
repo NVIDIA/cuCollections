@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,25 +16,23 @@
 
 #pragma once
 
-#include <cuco/detail/hash_functions/utils.cuh>
+#include <thrust/functional.h>
 
 namespace cuco::detail {
 
 /**
  * @brief An Identity hash function to hash the given argument on host and device
-.*
- * @note IdentityHash is perfect iff hash_table_capacity >= |input set|
  *
- * @note IdentityHash is only intended to be used perfectly.
+ * @note `identity_hash` is perfect iff `hash_table_capacity >= |input set|`
+ *
+ * @note `identity_hash` is only intended to be used perfectly.
  *
  * @note Perfect hashes are deterministic, and thus do not need seeds.
- *
- * -----------------------------------------------------------------------------
  *
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
-struct IdentityHash {
+struct identity_hash {
   using argument_type = Key;  ///< The type of the values taken as argument
   using result_type   = Key;  ///< The type of the hash values produced
 
@@ -51,6 +49,6 @@ struct IdentityHash {
 
  private:
   thrust::identity<Key> idfunct_;
-};  // Identity hash
+};  // identity_hash
 
 }  //  namespace cuco::detail

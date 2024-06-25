@@ -62,37 +62,51 @@ __global__ void check_identity_hash_result_kernel(OutputIter result)
 {
   int i = 0;
 
-  result[i++] = check_hash_result<cuco::identityhash<signed char>>(SCHAR_MIN, SCHAR_MIN);
-  result[i++] = check_hash_result<cuco::identityhash<signed char>>(SCHAR_MAX, SCHAR_MAX);
+  result[i++] = check_hash_result<cuco::identity_hash<signed char>>(
+    std::numeric_limits<signed char>::min(), std::numeric_limits<signed char>::min());
+  result[i++] = check_hash_result<cuco::identity_hash<signed char>>(
+    std::numeric_limits<signed char>::max(), std::numeric_limits<signed char>::max());
 
-  result[i++] = check_hash_result<cuco::identityhash<int32_t>>(INT32_MIN, INT32_MIN);
-  result[i++] = check_hash_result<cuco::identityhash<int32_t>>(INT32_MAX, INT32_MAX);
+  result[i++] = check_hash_result<cuco::identity_hash<int32_t>>(
+    std::numeric_limits<int32_t>::min(), std::numeric_limits<int32_t>::min());
+  result[i++] = check_hash_result<cuco::identity_hash<int32_t>>(
+    std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
 
-  result[i++] = check_hash_result<cuco::identityhash<int64_t>>(INT64_MIN, INT64_MIN);
-  result[i++] = check_hash_result<cuco::identityhash<int64_t>>(INT64_MAX, INT64_MAX);
+  result[i++] = check_hash_result<cuco::identity_hash<int64_t>>(
+    std::numeric_limits<int64_t>::min(), std::numeric_limits<int64_t>::min());
+  result[i++] = check_hash_result<cuco::identity_hash<int64_t>>(
+    std::numeric_limits<int64_t>::max(), std::numeric_limits<int64_t>::max());
 
 #if defined(CUCO_HAS_INT128)
-  result[i++] = check_hash_result<cuco::identityhash<__int128>>((__int128)INT64_MAX + 1,
-                                                                (__int128)INT64_MAX + 1);
+  result[i++] = check_hash_result<cuco::identity_hash<__int128>>(
+    (__int128)std::numeric_limits<int64_t>::max() + 1,
+    (__int128)std::numeric_limits<int64_t>::max() + 1);
 #endif
 }
 
-TEST_CASE("Test cuco::identityhash", "")
+TEST_CASE("Test cuco::identity_hash", "")
 {
   SECTION("Check if host-generated hash values match the identity function.")
   {
-    CHECK(check_hash_result<cuco::identityhash<signed char>>(SCHAR_MIN, SCHAR_MIN));
-    CHECK(check_hash_result<cuco::identityhash<signed char>>(SCHAR_MAX, SCHAR_MAX));
+    CHECK(check_hash_result<cuco::identity_hash<signed char>>(
+      std::numeric_limits<signed char>::min(), std::numeric_limits<signed char>::min()));
+    CHECK(check_hash_result<cuco::identity_hash<signed char>>(
+      std::numeric_limits<signed char>::max(), std::numeric_limits<signed char>::max()));
 
-    CHECK(check_hash_result<cuco::identityhash<int32_t>>(INT32_MIN, INT32_MIN));
-    CHECK(check_hash_result<cuco::identityhash<int32_t>>(INT32_MAX, INT32_MAX));
+    CHECK(check_hash_result<cuco::identity_hash<int32_t>>(std::numeric_limits<int32_t>::min(),
+                                                          std::numeric_limits<int32_t>::min()));
+    CHECK(check_hash_result<cuco::identity_hash<int32_t>>(std::numeric_limits<int32_t>::max(),
+                                                          std::numeric_limits<int32_t>::max()));
 
-    CHECK(check_hash_result<cuco::identityhash<int64_t>>(INT64_MIN, INT64_MIN));
-    CHECK(check_hash_result<cuco::identityhash<int64_t>>(INT64_MAX, INT64_MAX));
+    CHECK(check_hash_result<cuco::identity_hash<int64_t>>(std::numeric_limits<int64_t>::min(),
+                                                          std::numeric_limits<int64_t>::min()));
+    CHECK(check_hash_result<cuco::identity_hash<int64_t>>(std::numeric_limits<int64_t>::max(),
+                                                          std::numeric_limits<int64_t>::max()));
 
 #if defined(CUCO_HAS_INT128)
-    CHECK(check_hash_result<cuco::identityhash<__int128>>((__int128)INT64_MAX + 1,
-                                                          (__int128)INT64_MAX + 1));
+    CHECK(check_hash_result<cuco::identity_hash<__int128>>(
+      (__int128)std::numeric_limits<int64_t>::max() + 1,
+      (__int128)std::numeric_limits<int64_t>::max() + 1));
 #endif
   }
   SECTION("Check if device-generated hash values match the identity function.")

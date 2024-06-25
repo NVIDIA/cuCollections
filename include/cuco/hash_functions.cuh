@@ -23,12 +23,12 @@
 namespace cuco {
 
 /**
- * @brief An `Identity` hash function to hash the given argument on host and device.
+ * @brief An `identity` hash function to hash the given argument on host and device.
  *
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
-using identityhash = detail::IdentityHash<Key>;
+using identity_hash = detail::identity_hash<Key>;
 
 /**
  * @brief The 32-bit integer finalizer function of `MurmurHash3` to hash the given argument on host
