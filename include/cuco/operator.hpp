@@ -62,6 +62,12 @@ struct count_tag {
 struct find_tag {
 } inline constexpr find;  ///< `cuco::find` operator
 
+/**
+ * @brief `for_each` operator tag
+ */
+struct for_each_tag {
+} inline constexpr for_each;  ///< `cuco::for_each` operator
+
 }  // namespace op
 }  // namespace cuco
 
