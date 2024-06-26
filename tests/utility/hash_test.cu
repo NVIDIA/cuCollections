@@ -79,8 +79,7 @@ __global__ void check_identity_hash_result_kernel(OutputIter result)
 
 #if defined(CUCO_HAS_INT128)
   result[i++] = check_hash_result<cuco::identity_hash<__int128>>(
-    (__int128)std::numeric_limits<int64_t>::max() + 1,
-    (__int128)std::numeric_limits<int64_t>::max() + 1);
+    std::numeric_limits<__int128>::max(), std::numeric_limits<__int128>::max());
 #endif
 }
 
