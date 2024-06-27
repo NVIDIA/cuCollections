@@ -36,8 +36,8 @@ struct identity_hash : private thrust::identity<Key> {
   using argument_type = Key;       // The type of the values taken as argument
   using result_type   = uint64_t;  // The type of the hash values produced
 
-  static_assert(sizeof(Key) <= sizeof(uint64_t),
-                "Key type is too large to be reinterpreted as uint64_t in identity_hash");
+  static_assert(sizeof(Key) <= sizeof(result_type),
+                "Key type must not be larger than result_type in identity_hash");
 
   __host__ __device__ result_type operator()(const Key& x) const
   {
