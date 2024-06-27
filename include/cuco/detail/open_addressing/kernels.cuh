@@ -245,7 +245,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
       block.sync();
       if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
     } else {
-      auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
+      auto const tile = cg::tiled_partition<CGSize>(block);
       if (idx < n) {
         typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
         auto const found = pred(*(stencil + idx)) ? ref.contains(tile, key) : false;
@@ -332,10 +332,10 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
   });
 
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
-    if (idx < n) {
-      typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
-      if constexpr (CGSize == 1) {
-        auto const found = ref.find(key);
+    if constexpr (CGSize == 1) {
+      if (idx < n) {
+        typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+        auto const found                                              = ref.find(key);
         /*
          * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased
          * sector stores from L2 to global memory. By writing results to shared memory and then
@@ -343,11 +343,14 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
          * increase in sector stores from L2 to global and improving performance.
          */
         output_buffer[thread_idx] = output(found);
-        block.sync();
-        *(output_begin + idx) = output_buffer[thread_idx];
-      } else {
-        auto const tile  = cg::tiled_partition<CGSize>(block);
-        auto const found = ref.find(tile, key);
+      }
+      block.sync();
+      if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
+    } else {
+      auto const tile = cg::tiled_partition<CGSize>(block);
+      if (idx < n) {
+        typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+        auto const found                                              = ref.find(tile, key);
 
         if (tile.thread_rank() == 0) { *(output_begin + idx) = output(found); }
       }
