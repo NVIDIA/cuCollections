@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/hash_functions/identity_hash.cuh>
 #include <cuco/detail/hash_functions/murmurhash3.cuh>
 #include <cuco/detail/hash_functions/xxhash.cuh>
 
@@ -26,16 +27,12 @@ namespace cuco {
 /**
  * @brief An Identity hash function to hash the given argument on host and device
  *
- * @note `identity_hash` is perfect if `hash_table_capacity >= |input set|`
- *
- * @note `identity_hash` is only intended to be used perfectly.
- *
- * @note Perfect hashes are deterministic, and thus do not need seeds.
+ * @throw A key must not be larger than uint64_t
  *
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
-struct identity_hash : public thrust::identity<Key> {};
+using identity_hash = detail::identity_hash<Key>;
 
 /**
  * @brief The 32-bit integer finalizer function of `MurmurHash3` to hash the given argument on host
