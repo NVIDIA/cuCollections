@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuda/std/type_traits>
 #include <thrust/functional.h>
 
 namespace cuco::detail {
@@ -29,18 +30,23 @@ namespace cuco::detail {
  *
  * @note Perfect hashes are deterministic, and thus do not need seeds.
  *
- * @tparam Key The type of the values to hash. Must have size <= uint64_t
+ * @tparam Key The type of the values to hash
  */
 template <typename Key>
 struct identity_hash : private thrust::identity<Key> {
-  using argument_type = Key;  // The type of the values taken as argument
-  using result_type =
-    std::conditional_t<sizeof(Key) <= 4, uint32_t, uint64_t>;  // The type of the hash values
-                                                               // produced
+  using argument_type = Key;  ///< The type of the values taken as argument
+  /// The type of the hash values produced
+  using result_type = cuda::std::conditional_t<sizeof(Key) <= 4, uint32_t, uint64_t>;
 
   static_assert(cuda::std::is_convertible_v<Key, result_type>,
                 "Key type must be convertible to result_type");
 
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @param x The input argument to hash
+   * @return A resulting hash value for `x`
+   */
   __host__ __device__ result_type operator()(Key const& x) const
   {
     return static_cast<result_type>(thrust::identity<Key>::operator()(x));
