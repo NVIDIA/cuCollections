@@ -34,12 +34,12 @@ namespace cuco::detail {
 template <typename Key>
 struct identity_hash : private thrust::identity<Key> {
   using argument_type = Key;       // The type of the values taken as argument
-  using result_type   = uint64_t;  // The type of the hash values produced
+  using result_type   = std::conditional_t<sizeof(Key) <= 4, uint32_t, uint64_t>;  // The type of the hash values produced
 
-  static_assert(sizeof(Key) <= sizeof(result_type),
-                "Key type must not be larger than result_type in identity_hash");
+  static_assert(cuda::std::is_convertible_v<Key, result_type>,
+                "Key type must be convertible to result_type");
 
-  __host__ __device__ result_type operator()(const Key& x) const
+  __host__ __device__ result_type operator()(Key const& x) const
   {
     return static_cast<result_type>(thrust::identity<Key>::operator()(x));
   }
