@@ -344,26 +344,26 @@ class static_set {
    *
    * @note: For a given element `*(first + i)`, if the container doesn't already contain an element
    * with an equivalent key, inserts the element at a location pointed by `iter` and writes
-   * `iter` to `location_begin + i` and writes `true` to `inserted_begin + i`. Otherwise, finds the
-   * location of the equivalent element, `iter` and writes `iter` to `location_begin + i` and writes
+   * `iter` to `found_begin + i` and writes `true` to `inserted_begin + i`. Otherwise, finds the
+   * location of the equivalent element, `iter` and writes `iter` to `found_begin + i` and writes
    * `false` to `inserted_begin + i`.
    *
    * @tparam InputIt Device accessible random access input iterator
-   * @tparam LocationIt Device accessible random access output iterator whose `value_type`
+   * @tparam FoundIt Device accessible random access output iterator whose `value_type`
    * is constructible from `map::iterator` type
    * @tparam Boolt Device accessible random access output iterator whose `value_type`
    * is constructible from `bool`
    *
    * @param first Beginning of the sequence of elements
    * @param last End of the sequence of elements
-   * @param location_begin Beginning of the sequence of elements retrieved for each key
+   * @param found_begin Beginning of the sequence of elements retrieved for each key
    * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
    * @param stream CUDA stream used for insert
    */
-  template <typename InputIt, typename LocationIt, typename Boolt>
+  template <typename InputIt, typename FoundIt, typename Boolt>
   void insert_and_find_async(InputIt first,
                              InputIt last,
-                             LocationIt location_begin,
+                             FoundIt found_begin,
                              Boolt inserted_begin,
                              cuda_stream_ref stream = {}) noexcept;
 
@@ -372,26 +372,26 @@ class static_set {
    *
    * @note: For a given element `*(first + i)`, if the container doesn't already contain an element
    * with an equivalent key, inserts the element at a location pointed by `iter` and writes
-   * `iter` to `location_begin + i` and writes `true` to `inserted_begin + i`. Otherwise, finds the
-   * location of the equivalent element, `iter` and writes `iter` to `location_begin + i` and writes
+   * `iter` to `found_begin + i` and writes `true` to `inserted_begin + i`. Otherwise, finds the
+   * location of the equivalent element, `iter` and writes `iter` to `found_begin + i` and writes
    * `false` to `inserted_begin + i`.
    *
    * @tparam InputIt Device accessible random access input iterator
-   * @tparam LocationIt Device accessible random access output iterator whose `value_type`
+   * @tparam FoundIt Device accessible random access output iterator whose `value_type`
    * is constructible from `map::iterator` type
    * @tparam Boolt Device accessible random access output iterator whose `value_type`
    * is constructible from `bool`
    *
    * @param first Beginning of the sequence of elements
    * @param last End of the sequence of elements
-   * @param location_begin Beginning of the sequence of elements retrieved for each key
+   * @param found_begin Beginning of the sequence of elements retrieved for each key
    * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
    * @param stream CUDA stream used for insert
    */
-  template <typename InputIt, typename LocationIt, typename Boolt>
+  template <typename InputIt, typename FoundIt, typename Boolt>
   void insert_and_find(InputIt first,
                        InputIt last,
-                       LocationIt location_begin,
+                       FoundIt found_begin,
                        Boolt inserted_begin,
                        cuda_stream_ref stream = {}) noexcept;
 
