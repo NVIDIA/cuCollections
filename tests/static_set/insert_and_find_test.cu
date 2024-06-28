@@ -30,8 +30,8 @@ void test_insert_and_find(Set& set, std::size_t num_keys)
   using Key                     = typename Set::key_type;
   static auto constexpr cg_size = Set::cg_size;
 
-  thrust::device_vector<Key> d_keys(num_keys);
-  thrust::sequence(d_keys.begin(), d_keys.end());
+  auto const keys_begin = thrust::counting_iterator<Key>(0);
+  auto const keys_end   = thrust::counting_iterator<Key>(num_keys);
 
   thrust::device_vector<Key> iters1(num_keys);
   thrust::device_vector<int> iters2(num_keys);
@@ -39,11 +39,11 @@ void test_insert_and_find(Set& set, std::size_t num_keys)
   thrust::device_vector<bool> inserted(num_keys);
 
   // insert first time, fills inserted with true
-  set.insert_and_find(d_keys.begin(), d_keys.end(), iters1.begin(), inserted.begin());
+  set.insert_and_find(keys_begin, keys_end, iters1.begin(), inserted.begin());
   REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), thrust::identity{}));
 
   // insert second time, fills inserted with false as keys already in set
-  set.insert_and_find(d_keys.begin(), d_keys.end(), iters2.begin(), inserted.begin());
+  set.insert_and_find(keys_begin, keys_end, iters2.begin(), inserted.begin());
   REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), thrust::identity{}));
 
   // both iters1 and iters2 should be same, as keys will be referring to same slot
@@ -51,7 +51,7 @@ void test_insert_and_find(Set& set, std::size_t num_keys)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Insert and find",
+  "static_set Insert and find",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
