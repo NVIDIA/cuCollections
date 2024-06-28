@@ -100,17 +100,28 @@ TEMPLATE_TEST_CASE_SIG(
     cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
     cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
-  auto map = cuco::static_map<Key,
-                              Value,
-                              cuco::extent<size_type>,
-                              cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
-                              probe,
-                              cuco::cuda_allocator<std::byte>,
-                              cuco::storage<2>>{
-    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+  using map_type = cuco::static_map<Key,
+                                    Value,
+                                    cuco::extent<size_type>,
+                                    cuda::thread_scope_device,
+                                    thrust::equal_to<Key>,
+                                    probe,
+                                    cuco::cuda_allocator<std::byte>,
+                                    cuco::storage<2>>;
 
-  test_insert_or_apply(map, num_keys, num_unique_keys);
+  SECTION("Sentinel equals to identity")
+  {
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+
+    test_insert_or_apply(map, num_keys, num_unique_keys);
+  }
+
+  SECTION("Sentinel not equals to identity")
+  {
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+
+    test_insert_or_apply(map, num_keys, num_unique_keys);
+  }
 }
 
 TEMPLATE_TEST_CASE_SIG(
