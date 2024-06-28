@@ -22,8 +22,6 @@
 #include <cuco/operator.hpp>
 #include <cuco/static_map_ref.cuh>
 
-#include <cuda/std/optional>
-
 #include <cstddef>
 
 namespace cuco {
@@ -255,13 +253,9 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename Op>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
-  insert_or_apply(InputIt first,
-                  InputIt last,
-                  Op op,
-                  cuda::std::optional<T> identity_element,
-                  cuda_stream_ref stream) noexcept
+  insert_or_apply(InputIt first, InputIt last, Op op, cuda_stream_ref stream) noexcept
 {
-  return this->insert_or_apply_async(first, last, op, identity_element, stream);
+  return this->insert_or_apply_async(first, last, op, stream);
   stream.synchronize();
 }
 
@@ -275,11 +269,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename Op>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
-  insert_or_apply_async(InputIt first,
-                        InputIt last,
-                        Op op,
-                        cuda::std::optional<T> identity_element,
-                        cuda_stream_ref stream) noexcept
+  insert_or_apply_async(InputIt first, InputIt last, Op op, cuda_stream_ref stream) noexcept
 {
   auto const num = cuco::detail::distance(first, last);
   if (num == 0) { return; }
@@ -288,7 +278,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
 
   static_map_ns::detail::insert_or_apply<cg_size, cuco::detail::default_block_size()>
     <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
-      first, num, op, identity_element, ref(op::insert_or_apply));
+      first, num, op, ref(op::insert_or_apply));
 }
 
 template <class Key,

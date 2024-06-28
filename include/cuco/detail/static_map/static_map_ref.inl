@@ -20,7 +20,6 @@
 #include <cuco/operator.hpp>
 
 #include <cuda/atomic>
-#include <cuda/std/optional>
 #include <thrust/tuple.h>
 
 #include <cooperative_groups.h>
@@ -580,13 +579,10 @@ class operator_impl<
    * @param value The element to insert
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
-   * @param identity_element An optional Identity element of the binary operation
    */
 
   template <typename Value, typename Op>
-  __device__ void insert_or_apply(Value const& value,
-                                  Op op,
-                                  cuda::std::optional<T> identity_element = {})
+  __device__ void insert_or_apply(Value const& value, Op op)
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
@@ -596,20 +592,11 @@ class operator_impl<
 
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val         = ref_.impl_.heterogeneous_value(value);
-    auto const key         = ref_.impl_.extract_key(val);
-    auto& probing_scheme   = ref_.impl_.probing_scheme();
-    auto storage_ref       = ref_.impl_.storage_ref();
-    auto probing_iter      = probing_scheme(key, storage_ref.window_extent());
-    auto const empty_value = ref_.impl_.empty_slot_sentinel().second;
-
-    // optimize first insert when sentinel payload value equals identity element
-    auto const optimize_insert = [&]() {
-      if (identity_element.has_value()) {
-        if (identity_element.value() == empty_value) return true;
-      }
-      return false;
-    }();
+    auto const val       = ref_.impl_.heterogeneous_value(value);
+    auto const key       = ref_.impl_.extract_key(val);
+    auto& probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref     = ref_.impl_.storage_ref();
+    auto probing_iter    = probing_scheme(key, storage_ref.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref[*probing_iter];
@@ -617,30 +604,21 @@ class operator_impl<
       for (auto& slot_content : window_slots) {
         auto const eq_res =
           ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
-        auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-        auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_window_index;
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
-          op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
+          auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+          op(
+            cuda::atomic_ref<T, Scope>{
+              ((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second},
+            val.second);
           return;
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
-          // if the sentinel value and identity_element are same, perform op
-          // and return, no need to wait on payload
-          if (optimize_insert) {
-            if (attempt_insert_or_apply(slot_ptr, val, op)) return;
-            continue;
-          }
-          // else, attempt stable insert
-          switch (ref_.impl_.attempt_insert_stable(slot_ptr, slot_content, val)) {
-            case insert_result::CONTINUE: continue;
-            case insert_result::SUCCESS: return;
-            case insert_result::DUPLICATE: {
-              ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
-              op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
-              return;
-            }
+          auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+          if (attempt_insert_or_apply(
+                (storage_ref.data() + *probing_iter)->data() + intra_window_index, value, op)) {
+            return;
           }
         }
       }
@@ -649,17 +627,12 @@ class operator_impl<
   }
 
   template <typename Value>
-  __device__ void insert_or_apply(Value const& value,
-                                  cuco::op::reduce::sum_tag,
-                                  cuda::std::optional<T> = {})
+  __device__ void insert_or_apply(Value const& value, cuco::op::reduce::sum_tag)
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.insert_or_apply(
-      value,
-      [](cuda::atomic_ref<T, Scope> slot_ref, T const& payload) {
-        slot_ref.fetch_add(payload, cuda::memory_order_relaxed);
-      },
-      static_cast<T>(0));
+    ref_.insert_or_apply(value, [](cuda::atomic_ref<T, Scope> slot_ref, T const& payload) {
+      slot_ref.fetch_add(payload, cuda::memory_order_relaxed);
+    });
   }
 
   /**
@@ -675,14 +648,12 @@ class operator_impl<
    * @param value The element to insert
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
-   * @param identity_element An optional Identity element of the binary operation
    */
 
   template <typename Value, typename Op>
   __device__ void insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
                                   Value const& value,
-                                  Op op,
-                                  cuda::std::optional<T> identity_element = {})
+                                  Op op)
   {
     static_assert(
       std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
@@ -690,19 +661,11 @@ class operator_impl<
 
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val         = ref_.impl_.heterogeneous_value(value);
-    auto const key         = ref_.impl_.extract_key(val);
-    auto& probing_scheme   = ref_.impl_.probing_scheme();
-    auto storage_ref       = ref_.impl_.storage_ref();
-    auto probing_iter      = probing_scheme(group, key, storage_ref.window_extent());
-    auto const empty_value = ref_.impl_.empty_slot_sentinel().second;
-
-    auto const optimize_insert = [&]() {
-      if (identity_element.has_value()) {
-        if (identity_element.value() == empty_value) return true;
-      }
-      return false;
-    }();
+    auto const val       = ref_.impl_.heterogeneous_value(value);
+    auto const key       = ref_.impl_.extract_key(val);
+    auto& probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref     = ref_.impl_.storage_ref();
+    auto probing_iter    = probing_scheme(group, key, storage_ref.window_extent());
 
     while (true) {
       auto const window_slots = storage_ref[*probing_iter];
@@ -719,13 +682,14 @@ class operator_impl<
         return detail::window_probing_results{res, -1};
       }();
 
-      auto* slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_window_index;
-
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         if (group.thread_rank() == src_lane) {
-          op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
+          op(
+            cuda::atomic_ref<T, Scope>{
+              ((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second},
+            val.second);
         }
         group.sync();
         return;
@@ -734,31 +698,14 @@ class operator_impl<
       auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
+        auto const status =
+          (group.thread_rank() == src_lane)
+            ? attempt_insert_or_apply(
+                (storage_ref.data() + *probing_iter)->data() + intra_window_index, value, op)
+            : false;
 
-        if (optimize_insert) {
-          auto const status = (group.thread_rank() == src_lane)
-                                ? attempt_insert_or_apply(slot_ptr, value, op)
-                                : false;
-          if (group.shfl(status, src_lane)) { return; }
-          continue;
-        }
-        auto const status = [&, target_idx = intra_window_index]() {
-          if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
-          return ref_.impl_.attempt_insert_stable(slot_ptr, window_slots[target_idx], val);
-        }();
-
-        switch (group.shfl(status, src_lane)) {
-          case insert_result::SUCCESS: return;
-          case insert_result::DUPLICATE: {
-            if (group.thread_rank() == src_lane) {
-              ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
-              op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
-            }
-            group.sync();
-            return;
-          }
-          default: continue;
-        }
+        // Exit if inserted or assigned
+        if (group.shfl(status, src_lane)) { return; }
       } else {
         ++probing_iter;
       }
@@ -768,17 +715,12 @@ class operator_impl<
   template <typename Value>
   __device__ void insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
                                   Value const& value,
-                                  cuco::op::reduce::sum_tag,
-                                  cuda::std::optional<T> = {})
+                                  cuco::op::reduce::sum_tag)
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.insert_or_apply(
-      group,
-      value,
-      [](cuda::atomic_ref<T, Scope> slot_ref, T const& payload) {
-        slot_ref.fetch_add(payload, cuda::memory_order_relaxed);
-      },
-      static_cast<T>(0));
+    ref_.insert_or_apply(group, value, [](cuda::atomic_ref<T, Scope> slot_ref, T const& payload) {
+      slot_ref.fetch_add(payload, cuda::memory_order_relaxed);
+    });
   }
 
  private:
