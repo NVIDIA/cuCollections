@@ -245,7 +245,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
       block.sync();
       if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
     } else {
-      auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
+      auto const tile = cg::tiled_partition<CGSize>(block);
       if (idx < n) {
         typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
         auto const found = pred(*(stencil + idx)) ? ref.contains(tile, key) : false;
@@ -332,10 +332,10 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
   });
 
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
-    if (idx < n) {
-      typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
-      if constexpr (CGSize == 1) {
-        auto const found = ref.find(key);
+    if constexpr (CGSize == 1) {
+      if (idx < n) {
+        typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+        auto const found                                              = ref.find(key);
         /*
          * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased
          * sector stores from L2 to global memory. By writing results to shared memory and then
@@ -343,17 +343,83 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
          * increase in sector stores from L2 to global and improving performance.
          */
         output_buffer[thread_idx] = output(found);
-        block.sync();
-        *(output_begin + idx) = output_buffer[thread_idx];
-      } else {
-        auto const tile  = cg::tiled_partition<CGSize>(block);
-        auto const found = ref.find(tile, key);
+      }
+      block.sync();
+      if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
+    } else {
+      auto const tile = cg::tiled_partition<CGSize>(block);
+      if (idx < n) {
+        typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+        auto const found                                              = ref.find(tile, key);
 
         if (tile.thread_rank() == 0) { *(output_begin + idx) = output(found); }
       }
     }
     idx += loop_stride;
   }
+}
+
+/**
+ * @brief Counts the occurrences of keys in `[first, last)` contained in the container
+ *
+ * @tparam IsOuter Flag indicating whether it's an outer count or not
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIt Device accessible input iterator
+ * @tparam AtomicT Atomic counter type
+ * @tparam Ref Type of non-owning device container ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param count Number of matches
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
+template <bool IsOuter,
+          int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIt,
+          typename AtomicT,
+          typename Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
+                                                    cuco::detail::index_type n,
+                                                    AtomicT* count,
+                                                    Ref ref)
+{
+  using size_type = typename Ref::size_type;
+
+  size_type constexpr outer_min_count = 1;
+
+  using BlockReduce = cub::BlockReduce<size_type, BlockSize>;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+  size_type thread_count = 0;
+
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
+
+  while (idx < n) {
+    typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+    if constexpr (CGSize == 1) {
+      if constexpr (IsOuter) {
+        thread_count += max(ref.count(key), outer_min_count);
+      } else {
+        thread_count += ref.count(key);
+      }
+    } else {
+      auto const tile =
+        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+      if constexpr (IsOuter) {
+        auto temp_count = ref.count(tile, key);
+        if (tile.all(temp_count == 0) and tile.thread_rank() == 0) { ++temp_count; }
+        thread_count += temp_count;
+      } else {
+        thread_count += ref.count(tile, key);
+      }
+    }
+    idx += loop_stride;
+  }
+
+  auto const block_count = BlockReduce(temp_storage).Sum(thread_count);
+  if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
 }
 
 /**

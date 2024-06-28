@@ -57,10 +57,22 @@ struct contains_tag {
 } inline constexpr contains;  ///< `cuco::contains` operator
 
 /**
+ * @brief `count` operator tag
+ */
+struct count_tag {
+} inline constexpr count;  ///< `cuco::contains` operator
+
+/**
  * @brief `find` operator tag
  */
 struct find_tag {
 } inline constexpr find;  ///< `cuco::find` operator
+
+/**
+ * @brief `for_each` operator tag
+ */
+struct for_each_tag {
+} inline constexpr for_each;  ///< `cuco::for_each` operator
 
 namespace reduce {
 
