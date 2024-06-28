@@ -125,7 +125,7 @@ class open_addressing_impl {
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
-                                 cuda_stream_ref stream) noexcept
+                                 cuda_stream_ref stream)
     : empty_slot_sentinel_{empty_slot_sentinel},
       erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
@@ -233,7 +233,7 @@ class open_addressing_impl {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuda_stream_ref stream) noexcept { storage_.initialize(empty_slot_sentinel_, stream); }
+  void clear(cuda_stream_ref stream) { storage_.initialize(empty_slot_sentinel_, stream); }
 
   /**
    * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
@@ -528,6 +528,52 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the container
+   *
+   * @tparam Input Device accessible input iterator
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <typename InputIt, typename Ref>
+  [[nodiscard]] size_type count(InputIt first,
+                                InputIt last,
+                                Ref container_ref,
+                                cuda_stream_ref stream) const noexcept
+  {
+    auto constexpr is_outer = false;
+    return this->count<is_outer>(first, last, container_ref, stream);
+  }
+
+  /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the container
+   *
+   * @note If a given key has no matches, its occurrence is 1.
+   *
+   * @tparam Input Device accessible input iterator
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <typename InputIt, typename Ref>
+  [[nodiscard]] size_type count_outer(InputIt first,
+                                      InputIt last,
+                                      Ref container_ref,
+                                      cuda_stream_ref stream) const noexcept
+  {
+    auto constexpr is_outer = true;
+    return this->count<is_outer>(first, last, container_ref, stream);
+  }
+
+  /**
    * @brief Retrieves all keys contained in the container.
    *
    * @note This API synchronizes the given stream.
@@ -599,7 +645,7 @@ class open_addressing_impl {
    *
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cuda_stream_ref stream) const noexcept
+  [[nodiscard]] size_type size(cuda_stream_ref stream) const
   {
     auto counter =
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
@@ -779,6 +825,43 @@ class open_addressing_impl {
   [[nodiscard]] constexpr storage_ref_type storage_ref() const noexcept { return storage_.ref(); }
 
  private:
+  /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the container
+   *
+   * @note If `IsOuter` is `true`, the occurrence of a non-match key is 1. Else, it's 0.
+   *
+   * @tparam IsOuter Flag indicating whether it's an outer count or not
+   * @tparam Input Device accessible input iterator
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <bool IsOuter, typename InputIt, typename Ref>
+  [[nodiscard]] size_type count(InputIt first,
+                                InputIt last,
+                                Ref container_ref,
+                                cuda_stream_ref stream) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return 0; }
+
+    auto counter =
+      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
+    counter.reset(stream);
+
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::count<IsOuter, cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+        first, num_keys, counter.data(), container_ref);
+
+    return counter.load_to_host(stream);
+  }
+
   /**
    * @brief Extracts the key from a given slot.
    *

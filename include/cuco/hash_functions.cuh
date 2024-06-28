@@ -73,6 +73,14 @@ template <typename Key>
 using murmurhash3_x64_128 = detail::MurmurHash3_x64_128<Key>;
 
 /**
+ * @brief A 128-bit `MurmurHash3` hash function to hash the given argument on host and device.
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using murmurhash3_x86_128 = detail::MurmurHash3_x86_128<Key>;
+
+/**
  * @brief A 32-bit `XXH32` hash function to hash the given argument on host and device.
  *
  * @tparam Key The type of the values to hash

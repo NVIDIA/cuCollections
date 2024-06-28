@@ -65,6 +65,14 @@ ConfigureBench(STATIC_MAP_BENCH
   hash_table/static_map/erase_bench.cu)
 
 ###################################################################################################
+# - static_multiset benchmarks --------------------------------------------------------------------
+ConfigureBench(STATIC_MULTISET_BENCH
+  hash_table/static_multiset/contains_bench.cu
+  hash_table/static_multiset/count_bench.cu
+  hash_table/static_multiset/find_bench.cu
+  hash_table/static_multiset/insert_bench.cu)
+
+###################################################################################################
 # - static_multimap benchmarks --------------------------------------------------------------------
 ConfigureBench(STATIC_MULTIMAP_BENCH
   hash_table/static_multimap/insert_bench.cu

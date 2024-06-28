@@ -93,7 +93,7 @@ struct slot_is_filled {
     auto const key = [&]() {
       if constexpr (HasPayload) {
         // required by thrust zip iterator in `retrieve_all`
-        if constexpr (cuco::detail::is_thrust_pair_like<S>::value) {
+        if constexpr (cuco::detail::is_cuda_std_pair_like<S>::value) {
           return thrust::get<0>(slot);
         } else {
           return slot.first;

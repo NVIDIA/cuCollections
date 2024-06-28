@@ -130,7 +130,7 @@ class distinct_count_estimator {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  constexpr void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream = {}) noexcept;
+  constexpr void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream = {});
 
   /**
    * @brief Adds to be counted items to the estimator.

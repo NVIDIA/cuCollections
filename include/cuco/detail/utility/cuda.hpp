@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <cuco/detail/error.hpp>
 #include <cuco/detail/utility/math.hpp>
 
 namespace cuco {
@@ -43,6 +44,34 @@ constexpr auto grid_size(index_type num,
                          int32_t block_size = default_block_size()) noexcept
 {
   return int_div_ceil(cg_size * num, stride * block_size);
+}
+
+/**
+ * @brief Computes the ideal 1D grid size with the given parameters
+ *
+ * @tparam Kernel Kernel type
+ *
+ * @param block_size Number of threads in each thread block
+ * @param kernel CUDA kernel to launch
+ * @param dynamic_shm_size Dynamic shared memory size
+ *
+ * @return The grid size that delivers the highest occupancy
+ */
+template <typename Kernel>
+constexpr auto max_occupancy_grid_size(int32_t block_size,
+                                       Kernel kernel,
+                                       std::size_t dynamic_shm_size = 0)
+{
+  int32_t device = 0;
+  CUCO_CUDA_TRY(cudaGetDevice(&device));
+  cudaDeviceProp device_props;
+  CUCO_CUDA_TRY(cudaGetDeviceProperties(&device_props, device));
+  int32_t num_multiprocessors = device_props.multiProcessorCount;
+  int32_t max_active_blocks_per_multiprocessor;
+  CUCO_CUDA_TRY(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+    &max_active_blocks_per_multiprocessor, kernel, block_size, dynamic_shm_size));
+
+  return max_active_blocks_per_multiprocessor * num_multiprocessors;
 }
 
 }  // namespace detail
