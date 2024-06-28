@@ -377,7 +377,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
- * @param found_begin Beginning of the sequence of elements retrieved for each key
+ * @param found_begin Beginning of the sequence of elements found for each key
  * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
  * @param ref Non-owning container device ref used to access the slot storage
  */

@@ -20,7 +20,7 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
-#include <thrust/sequence.h>
+#include <thrust/iterator/counting_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 

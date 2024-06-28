@@ -356,7 +356,7 @@ class static_set {
    *
    * @param first Beginning of the sequence of elements
    * @param last End of the sequence of elements
-   * @param found_begin Beginning of the sequence of elements retrieved for each key
+   * @param found_begin Beginning of the sequence of elements found for each key
    * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
    * @param stream CUDA stream used for insert
    */
@@ -384,7 +384,7 @@ class static_set {
    *
    * @param first Beginning of the sequence of elements
    * @param last End of the sequence of elements
-   * @param found_begin Beginning of the sequence of elements retrieved for each key
+   * @param found_begin Beginning of the sequence of elements found for each key
    * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
    * @param stream CUDA stream used for insert
    */
