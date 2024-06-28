@@ -45,16 +45,7 @@ static __host__ __device__ bool check_hash_result(
   typename Hash::result_type expected,
   HashConstructorArgs&&... hash_constructor_args) noexcept
 {
-  Hash h(std::forward<HashConstructorArgs>(hash_constructor_args)...);
-  return (h(key) == expected);
-}
-
-// Overload for hash functions without a seed
-template <typename Hash>
-__host__ __device__ bool check_hash_result(typename Hash::argument_type const& key,
-                                           typename Hash::result_type expected) noexcept
-{
-  Hash h;
+  Hash h(cuda::std::forward<HashConstructorArgs>(hash_constructor_args)...);
   return (h(key) == expected);
 }
 
@@ -98,7 +89,7 @@ TEST_CASE("Test cuco::identity_hash", "")
 
     check_identity_hash_result_kernel<<<1, 1>>>(result.begin());
 
-    CHECK(cuco::test::all_of(result.begin(), result.end(), [] __device__(bool v) { return v; }));
+    CHECK(cuco::test::all_of(result.begin(), result.end(), thrust::identity<bool>{}));
   }
 }
 
