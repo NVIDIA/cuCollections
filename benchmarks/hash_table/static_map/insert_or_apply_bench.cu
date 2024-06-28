@@ -28,6 +28,8 @@
 using namespace cuco::benchmark;
 using namespace cuco::utility;
 
+const auto USE_IDENTITY       = std::vector<nvbench::int64_t>{0, 1};
+const auto MULTIPLICITY_RANGE = std::vector<nvbench::int64_t>{1, 2, 4, 8, 16, 32, 64, 128};
 /**
  * @brief A benchmark evaluating `cuco::static_map::insert_or_apply` performance
  */
@@ -40,8 +42,12 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert_or_appl
   auto const num_keys     = state.get_int64_or_default("NumInputs", defaults::N);
   auto const occupancy    = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
   auto const multiplicity = state.get_int64_or_default("Multiplicity", defaults::MULTIPLICITY);
+  auto const use_identity = state.get_int64_or_default("UseIdentity", 1);
 
   std::size_t const size = cuco::detail::int_div_ceil(num_keys, multiplicity) / occupancy;
+
+  cuda::std::optional<Value> identity{};
+  if (use_identity) identity = 0;
 
   thrust::device_vector<Key> keys(num_keys);
 
@@ -57,12 +63,17 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert_or_appl
 
   cuco::static_map map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
 
+  using Map = decltype(map);
+
+  auto const op = [] __device__(cuda::atomic_ref<Value, Map::thread_scope> lhs, const Value& rhs) {
+    lhs.fetch_add(rhs, cuda::memory_order_relaxed);
+  };
+
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
     map.clear_async({launch.get_stream()});
 
     timer.start();
-    map.insert_or_apply_async(
-      pairs.begin(), pairs.end(), cuco::op::reduce::sum, {launch.get_stream()});
+    map.insert_or_apply_async(pairs.begin(), pairs.end(), op, identity, {launch.get_stream()});
     timer.stop();
   });
 }
@@ -81,7 +92,8 @@ NVBENCH_BENCH_TYPES(static_map_insert_or_apply,
   .set_name("static_map_insert_or_apply_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
+  .add_int64_axis("Multiplicity", MULTIPLICITY_RANGE)
+  .add_int64_axis("UseIdentity", USE_IDENTITY);
 
 NVBENCH_BENCH_TYPES(static_map_insert_or_apply,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
@@ -90,4 +102,5 @@ NVBENCH_BENCH_TYPES(static_map_insert_or_apply,
   .set_name("static_set_insert_or_apply_uniform_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
+  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE)
+  .add_int64_axis("UseIdentity", USE_IDENTITY);

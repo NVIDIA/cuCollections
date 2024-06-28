@@ -20,6 +20,7 @@
 
 #include <cub/block/block_reduce.cuh>
 #include <cuda/atomic>
+#include <cuda/std/optional>
 
 #include <cooperative_groups.h>
 
@@ -82,15 +83,27 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
  * @tparam Op Callable type used to peform apply operation.
+ * @tparam T Type of optional idenitity element which is convertible
+ * to `value_type` of the data structure
  * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
  * @param op callable object to perform apply operation.
+ * @param identity_element An optional Identity element of the binary operation
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Op, typename Ref>
-__global__ void insert_or_apply(InputIt first, cuco::detail::index_type n, Op op, Ref ref)
+template <int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIt,
+          typename Op,
+          typename T,
+          typename Ref>
+__global__ void insert_or_apply(InputIt first,
+                                cuco::detail::index_type n,
+                                Op op,
+                                cuda::std::optional<T> identity_element,
+                                Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
@@ -98,11 +111,11 @@ __global__ void insert_or_apply(InputIt first, cuco::detail::index_type n, Op op
   while (idx < n) {
     typename std::iterator_traits<InputIt>::value_type const& insert_pair = *(first + idx);
     if constexpr (CGSize == 1) {
-      ref.insert_or_apply(insert_pair, op);
+      ref.insert_or_apply(insert_pair, op, identity_element);
     } else {
       auto const tile =
         cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-      ref.insert_or_apply(tile, insert_pair, op);
+      ref.insert_or_apply(tile, insert_pair, op, identity_element);
     }
     idx += loop_stride;
   }

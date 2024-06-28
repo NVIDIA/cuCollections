@@ -29,6 +29,7 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/std/atomic>
+#include <cuda/std/optional>
 #include <thrust/functional.h>
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
@@ -427,10 +428,15 @@ class static_map {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param op callable object to perform apply operation.
+   * @param identity_element An optional Identity element of the binary operation
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt, typename Op>
-  void insert_or_apply(InputIt first, InputIt last, Op op, cuda_stream_ref stream = {}) noexcept;
+  void insert_or_apply(InputIt first,
+                       InputIt last,
+                       Op op,
+                       cuda::std::optional<T> identity_element = {},
+                       cuda_stream_ref stream                  = {}) noexcept;
 
   /**
    * @brief For any key-value pair `{k, v}` in the range `[first, first + n)`, if a key equivalent
@@ -449,13 +455,15 @@ class static_map {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param op callable object to perform apply operation.
+   * @param identity_element An optional Identity element of the binary operation
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt, typename Op>
   void insert_or_apply_async(InputIt first,
                              InputIt last,
                              Op op,
-                             cuda_stream_ref stream = {}) noexcept;
+                             cuda::std::optional<T> identity_element = {},
+                             cuda_stream_ref stream                  = {}) noexcept;
 
   /**
    * @brief Erases keys in the range `[first, last)`.

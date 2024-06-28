@@ -19,6 +19,7 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/atomic>
+#include <cuda/std/optional>
 #include <thrust/device_vector.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -34,7 +35,10 @@
 using size_type = std::size_t;
 
 template <typename Map>
-void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_keys)
+void test_insert_or_apply(Map& map,
+                          size_type num_keys,
+                          size_type num_unique_keys,
+                          bool use_identity)
 {
   REQUIRE((num_keys % num_unique_keys) == 0);
 
@@ -48,12 +52,17 @@ void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_key
       return cuco::pair<Key, Value>{i % num_unique_keys, 1};
     }));
 
+  cuda::std::optional<Value> identity{};
+
+  if (use_identity) identity = 0;
+
   map.insert_or_apply(
     pairs_begin,
     pairs_begin + num_keys,
     [] __device__(cuda::atomic_ref<Value, Map::thread_scope> lhs, const Value& rhs) {
       lhs.fetch_add(rhs, cuda::memory_order_relaxed);
-    });
+    },
+    identity);
 
   REQUIRE(map.size() == num_unique_keys);
 
@@ -100,17 +109,40 @@ TEMPLATE_TEST_CASE_SIG(
     cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
     cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
-  auto map = cuco::static_map<Key,
-                              Value,
-                              cuco::extent<size_type>,
-                              cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
-                              probe,
-                              cuco::cuda_allocator<std::byte>,
-                              cuco::storage<2>>{
-    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+  using map_type = cuco::static_map<Key,
+                                    Value,
+                                    cuco::extent<size_type>,
+                                    cuda::thread_scope_device,
+                                    thrust::equal_to<Key>,
+                                    probe,
+                                    cuco::cuda_allocator<std::byte>,
+                                    cuco::storage<2>>;
 
-  test_insert_or_apply(map, num_keys, num_unique_keys);
+  // test all four case of sentienel value and identity
+  // only first case i.e sentienel = 0, identity = true will use optimized_insert code path
+  SECTION("sentienel = 0, use_identity = true")
+  {
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+    test_insert_or_apply(map, num_keys, num_unique_keys, true);
+  }
+
+  SECTION("sentienel = 0, use_identity = false")
+  {
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+    test_insert_or_apply(map, num_keys, num_unique_keys, false);
+  }
+
+  SECTION("sentienel = -1, use_identity = true")
+  {
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+    test_insert_or_apply(map, num_keys, num_unique_keys, true);
+  }
+
+  SECTION("sentienel = -1, use_identity = false")
+  {
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+    test_insert_or_apply(map, num_keys, num_unique_keys, false);
+  }
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -130,5 +162,5 @@ TEMPLATE_TEST_CASE_SIG(
                               cuco::storage<2>>{
     num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
 
-  test_insert_or_apply(map, num_keys, num_keys);
+  test_insert_or_apply(map, num_keys, num_keys, true);
 }
