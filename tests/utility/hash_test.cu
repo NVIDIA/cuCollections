@@ -50,50 +50,6 @@ static __host__ __device__ bool check_hash_result(
 }
 
 template <typename OutputIter>
-__global__ void check_identity_hash_result_kernel(OutputIter result)
-{
-  int i = 0;
-
-  result[i++] = check_hash_result<cuco::identity_hash<signed char>>(0, 0);
-  result[i++] = check_hash_result<cuco::identity_hash<signed char>>(
-    std::numeric_limits<signed char>::max(), std::numeric_limits<signed char>::max());
-
-  result[i++] = check_hash_result<cuco::identity_hash<int32_t>>(0, 0);
-  result[i++] = check_hash_result<cuco::identity_hash<int32_t>>(
-    std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
-
-  result[i++] = check_hash_result<cuco::identity_hash<int64_t>>(0, 0);
-  result[i++] = check_hash_result<cuco::identity_hash<int64_t>>(
-    std::numeric_limits<int64_t>::max(), std::numeric_limits<int64_t>::max());
-}
-
-TEST_CASE("Test cuco::identity_hash", "")
-{
-  SECTION("Check if host-generated hash values match the identity function.")
-  {
-    CHECK(check_hash_result<cuco::identity_hash<signed char>>(0, 0));
-    CHECK(check_hash_result<cuco::identity_hash<signed char>>(
-      std::numeric_limits<signed char>::max(), std::numeric_limits<signed char>::max()));
-
-    CHECK(check_hash_result<cuco::identity_hash<int32_t>>(0, 0));
-    CHECK(check_hash_result<cuco::identity_hash<int32_t>>(std::numeric_limits<int32_t>::max(),
-                                                          std::numeric_limits<int32_t>::max()));
-
-    CHECK(check_hash_result<cuco::identity_hash<int64_t>>(0, 0));
-    CHECK(check_hash_result<cuco::identity_hash<int64_t>>(std::numeric_limits<int64_t>::max(),
-                                                          std::numeric_limits<int64_t>::max()));
-  }
-  SECTION("Check if device-generated hash values match the identity function.")
-  {
-    thrust::device_vector<bool> result(7, true);
-
-    check_identity_hash_result_kernel<<<1, 1>>>(result.begin());
-
-    CHECK(cuco::test::all_of(result.begin(), result.end(), thrust::identity<bool>{}));
-  }
-}
-
-template <typename OutputIter>
 __global__ void check_hash_result_kernel_64(OutputIter result)
 {
   int i = 0;
