@@ -17,6 +17,7 @@
 
 #include <cuco/detail/hyperloglog/tuning.cuh>
 
+#include <cuda/functional>
 #include <cuda/std/cmath>
 #include <cuda/std/limits>
 

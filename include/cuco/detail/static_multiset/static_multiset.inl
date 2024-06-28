@@ -97,7 +97,7 @@ template <class Key,
           class Allocator,
           class Storage>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear(
-  cuda_stream_ref stream) noexcept
+  cuda_stream_ref stream)
 {
   impl_->clear(stream);
 }
@@ -181,9 +181,169 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename OutputIt>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+{
+  this->contains_async(first, last, output_begin, stream);
+  stream.synchronize();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename OutputIt>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  contains_async(InputIt first,
+                 InputIt last,
+                 OutputIt output_begin,
+                 cuda_stream_ref stream) const noexcept
+{
+  impl_->contains_async(first, last, output_begin, ref(op::contains), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_if(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  Predicate pred,
+  OutputIt output_begin,
+  cuda_stream_ref stream) const
+{
+  this->contains_if_async(first, last, stencil, pred, output_begin, stream);
+  stream.synchronize();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  contains_if_async(InputIt first,
+                    InputIt last,
+                    StencilIt stencil,
+                    Predicate pred,
+                    OutputIt output_begin,
+                    cuda_stream_ref stream) const noexcept
+{
+  impl_->contains_if_async(first, last, stencil, pred, output_begin, ref(op::contains), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename OutputIt>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find(
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+{
+  find_async(first, last, output_begin, stream);
+  stream.synchronize();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename OutputIt>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
+  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+{
+  impl_->find_async(first, last, output_begin, ref(op::find), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
+  InputIt first, InputIt last, cuda_stream_ref stream) const noexcept
+{
+  return impl_->count(first, last, ref(op::count), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
+  InputIt first,
+  InputIt last,
+  ProbeKeyEqual const& probe_key_equal,
+  ProbeHash const& probe_hash,
+  cuda_stream_ref stream) const noexcept
+{
+  return impl_->count(first,
+                      last,
+                      ref(op::count).with_key_eq(probe_key_equal).with_hash_function(probe_hash),
+                      stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count_outer(
+  InputIt first,
+  InputIt last,
+  ProbeKeyEqual const& probe_key_equal,
+  ProbeHash const& probe_hash,
+  cuda_stream_ref stream) const noexcept
+{
+  return impl_->count_outer(
+    first,
+    last,
+    ref(op::count).with_key_eq(probe_key_equal).with_hash_function(probe_hash),
+    stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
-  cuda_stream_ref stream) const noexcept
+  cuda_stream_ref stream) const
 {
   return impl_->size(stream);
 }
