@@ -239,7 +239,6 @@ __global__ void check_murmurhash3_128_result_kernel(OutputIter result)
       {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
       {15409921801541329777ull, 10546487400963404004ull},
       1024);
-
 }
 
 TEST_CASE("Test cuco::murmurhash3_x64_128", "")
