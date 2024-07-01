@@ -371,7 +371,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
  * convertible to the `value_type` of the data structure
  * @tparam FoundIt Device accessible random access output iterator whose `value_type`
  * is constructible from `map::iterator` type
- * @tparam Boolt Device accessible random access output iterator whose `value_type`
+ * @tparam InsertedIt Device accessible random access output iterator whose `value_type`
  * is constructible from `bool`
  * @tparam Ref Type of non-owning device container ref allowing access to storage
  *
@@ -385,10 +385,13 @@ template <int32_t CGSize,
           int32_t BlockSize,
           typename InputIt,
           typename FoundIt,
-          typename Boolt,
+          typename InsertedIt,
           typename Ref>
-CUCO_KERNEL __launch_bounds__(BlockSize) void insert_and_find(
-  InputIt first, cuco::detail::index_type n, FoundIt found_begin, Boolt inserted_begin, Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void insert_and_find(InputIt first,
+                                                              cuco::detail::index_type n,
+                                                              FoundIt found_begin,
+                                                              InsertedIt inserted_begin,
+                                                              Ref ref)
 {
   namespace cg = cooperative_groups;
 

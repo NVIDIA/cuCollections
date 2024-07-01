@@ -351,7 +351,7 @@ class static_set {
    * @tparam InputIt Device accessible random access input iterator
    * @tparam FoundIt Device accessible random access output iterator whose `value_type`
    * is constructible from `map::iterator` type
-   * @tparam Boolt Device accessible random access output iterator whose `value_type`
+   * @tparam InsertedIt Device accessible random access output iterator whose `value_type`
    * is constructible from `bool`
    *
    * @param first Beginning of the sequence of elements
@@ -360,11 +360,11 @@ class static_set {
    * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
    * @param stream CUDA stream used for insert
    */
-  template <typename InputIt, typename FoundIt, typename Boolt>
+  template <typename InputIt, typename FoundIt, typename InsertedIt>
   void insert_and_find_async(InputIt first,
                              InputIt last,
                              FoundIt found_begin,
-                             Boolt inserted_begin,
+                             InsertedIt inserted_begin,
                              cuda_stream_ref stream = {}) noexcept;
 
   /**
@@ -379,7 +379,7 @@ class static_set {
    * @tparam InputIt Device accessible random access input iterator
    * @tparam FoundIt Device accessible random access output iterator whose `value_type`
    * is constructible from `map::iterator` type
-   * @tparam Boolt Device accessible random access output iterator whose `value_type`
+   * @tparam InsertedIt Device accessible random access output iterator whose `value_type`
    * is constructible from `bool`
    *
    * @param first Beginning of the sequence of elements
@@ -388,11 +388,11 @@ class static_set {
    * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
    * @param stream CUDA stream used for insert
    */
-  template <typename InputIt, typename FoundIt, typename Boolt>
+  template <typename InputIt, typename FoundIt, typename InsertedIt>
   void insert_and_find(InputIt first,
                        InputIt last,
                        FoundIt found_begin,
-                       Boolt inserted_begin,
+                       InsertedIt inserted_begin,
                        cuda_stream_ref stream = {}) noexcept;
 
   /**

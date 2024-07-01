@@ -181,12 +181,12 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <typename InputIt, typename FoundIt, typename Boolt>
+template <typename InputIt, typename FoundIt, typename InsertedIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_and_find(
   InputIt first,
   InputIt last,
   FoundIt found_begin,
-  Boolt inserted_begin,
+  InsertedIt inserted_begin,
   cuda_stream_ref stream) noexcept
 {
   insert_and_find_async(first, last, found_begin, inserted_begin, stream);
@@ -200,12 +200,12 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <typename InputIt, typename FoundIt, typename Boolt>
+template <typename InputIt, typename FoundIt, typename InsertedIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   insert_and_find_async(InputIt first,
                         InputIt last,
                         FoundIt found_begin,
-                        Boolt inserted_begin,
+                        InsertedIt inserted_begin,
                         cuda_stream_ref stream) noexcept
 {
   impl_->insert_and_find_async(
