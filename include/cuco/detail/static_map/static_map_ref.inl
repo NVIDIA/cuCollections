@@ -20,6 +20,7 @@
 #include <cuco/operator.hpp>
 
 #include <cuda/atomic>
+#include <cuda/std/functional>
 #include <thrust/tuple.h>
 
 #include <cooperative_groups.h>
@@ -587,7 +588,7 @@ class operator_impl<
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
     static_assert(
-      std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
+      cuda::std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
       "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
 
     ref_type& ref_ = static_cast<ref_type&>(*this);
@@ -617,7 +618,9 @@ class operator_impl<
           switch (ref_.impl_.attempt_insert_stable(slot_ptr, slot_content, val)) {
             case insert_result::SUCCESS: return;
             case insert_result::DUPLICATE: {
-              ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+              if constexpr (sizeof(value_type) > 8) {
+                ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+              }
               op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
               return;
             }
@@ -633,8 +636,8 @@ class operator_impl<
   __device__ void insert_or_apply(Value const& value, cuco::op::reduce::sum_tag)
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.insert_or_apply(value, [](cuda::atomic_ref<T, Scope> slot_ref, T const& payload) {
-      slot_ref.fetch_add(payload, cuda::memory_order_relaxed);
+    ref_.insert_or_apply(value, [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
+      payload_ref.fetch_add(payload, cuda::memory_order_relaxed);
     });
   }
 
@@ -659,7 +662,7 @@ class operator_impl<
                                   Op op)
   {
     static_assert(
-      std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
+      cuda::std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
       "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
 
     ref_type& ref_ = static_cast<ref_type&>(*this);
@@ -728,8 +731,8 @@ class operator_impl<
                                   cuco::op::reduce::sum_tag)
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.insert_or_apply(group, value, [](cuda::atomic_ref<T, Scope> slot_ref, T const& payload) {
-      slot_ref.fetch_add(payload, cuda::memory_order_relaxed);
+    ref_.insert_or_apply(group, value, [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
+      payload_ref.fetch_add(payload, cuda::memory_order_relaxed);
     });
   }
 
