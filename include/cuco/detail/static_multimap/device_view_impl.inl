@@ -206,7 +206,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
   probe_sequence_type probe_sequence_;  ///< Probe sequence used to probe the hash map
   Key empty_key_sentinel_{};            ///< Key value that represents an empty slot
   Value empty_value_sentinel_{};        ///< Initial Value of empty slot
-};                                      // class device_view_impl_base
+};  // class device_view_impl_base
 
 template <typename Key,
           typename Value,

@@ -1247,7 +1247,7 @@ class static_multimap {
 
    private:
     using device_view_base<device_view_impl>::impl_;  ///< Implementation detail of `device_view`
-  };                                                  // class device_view
+  };  // class device_view
 
   /**
    * @brief Return the raw pointer of the hash map slots.
@@ -1348,7 +1348,7 @@ class static_multimap {
   slot_deleter delete_slots_;                   ///< Custom slots deleter
   std::unique_ptr<atomic_ctr_type, counter_deleter> d_counter_{};  ///< Preallocated device counter
   std::unique_ptr<pair_atomic_type, slot_deleter> slots_{};  ///< Pointer to flat slots storage
-};                                                           // class static_multimap
+};  // class static_multimap
 
 }  // namespace cuco
 

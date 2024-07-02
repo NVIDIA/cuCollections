@@ -144,7 +144,7 @@ class probe_sequence_impl_base {
  protected:
   iterator slots_;              ///< Pointer to beginning of the hash map slots
   const std::size_t capacity_;  ///< Total number of slots
-};                              // class probe_sequence_impl_base
+};  // class probe_sequence_impl_base
 
 /**
  * @brief Cooperative Groups based Linear probing scheme.
@@ -282,7 +282,7 @@ class linear_probing_impl
 
  private:
   Hash hash_;  ///< The unary callable used to hash the key
-};             // class linear_probing
+};  // class linear_probing
 
 /**
  * @brief Cooperative Groups based double hashing scheme.
@@ -430,7 +430,7 @@ class double_hashing_impl
   Hash1 hash1_;                    ///< The first unary callable used to hash the key
   Hash2 hash2_;                    ///< The second unary callable used to determine step size
   mutable std::size_t step_size_;  ///< The step stride when searching for the next slot
-};                                 // class double_hashing
+};  // class double_hashing
 
 /**
  * @brief Probe sequence used internally by hash map.

@@ -94,9 +94,8 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_pairs),
                     d_pairs.begin(),
-                    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
-                      return cuco::pair<Key, Value>{i / 2, i};
-                    }));
+                    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+                      [] __device__(auto i) { return cuco::pair<Key, Value>{i / 2, i}; }));
 
   auto pair_begin = d_pairs.begin();
 
@@ -107,9 +106,8 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_pairs),
                     pair_begin,
-                    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
-                      return cuco::pair<Key, Value>{i, i};
-                    }));
+                    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+                      [] __device__(auto i) { return cuco::pair<Key, Value>{i, i}; }));
 
   // create an array of prefix sum
   thrust::device_vector<int> d_scan(num_pairs);

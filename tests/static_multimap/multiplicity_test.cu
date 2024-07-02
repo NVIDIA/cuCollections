@@ -44,9 +44,7 @@ void test_multiplicity_two(Map& map, std::size_t num_items)
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_items),
                     d_pairs.begin(),
-                    [] __device__(auto i) {
-                      return cuco::pair<Key, Value>{i / 2, i};
-                    });
+                    [] __device__(auto i) { return cuco::pair<Key, Value>{i / 2, i}; });
 
   thrust::device_vector<cuco::pair<Key, Value>> d_results(num_items);
 
