@@ -393,7 +393,7 @@ class static_set {
                        InputIt last,
                        FoundIt found_begin,
                        InsertedIt inserted_begin,
-                       cuda_stream_ref stream = {}) noexcept;
+                       cuda_stream_ref stream = {});
 
   /**
    * @brief Erases keys in the range `[first, last)`.
