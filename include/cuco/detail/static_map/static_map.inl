@@ -253,7 +253,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename Op>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
-  insert_or_apply(InputIt first, InputIt last, Op op, cuda_stream_ref stream) noexcept
+  insert_or_apply(InputIt first, InputIt last, Op op, cuda_stream_ref stream)
 {
   return this->insert_or_apply_async(first, last, op, stream);
   stream.synchronize();

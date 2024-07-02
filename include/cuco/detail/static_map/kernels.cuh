@@ -74,19 +74,19 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
  * on the existing value at slot and the element to insert. If the key does not exist, inserts the
  * pair as if by insert.
  *
- * @note Callable object to perform binary operation should be able to invoke as Op(cuda::atomic<T,
- * Scope>, T>)
+ * @note Callable object to perform binary operation should be able to invoke as
+ * Op(cuda::atomic_ref<T,Scope>, T>)
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
- * @tparam Op Callable type used to peform apply operation.
+ * @tparam Op Callable type used to peform `apply` operation.
  * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
- * @param op callable object to perform apply operation.
+ * @param op Callable object to perform apply operation.
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Op, typename Ref>

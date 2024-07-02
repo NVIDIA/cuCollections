@@ -87,7 +87,7 @@ NVBENCH_BENCH_TYPES(static_map_insert_or_apply,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<distribution::uniform>))
-  .set_name("static_set_insert_or_apply_uniform_occupancy")
+  .set_name("static_map_insert_or_apply_uniform_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);

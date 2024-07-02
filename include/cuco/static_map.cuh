@@ -417,20 +417,20 @@ class static_map {
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `insert_or_apply_async`.
    * @note Callable object to perform binary operation should be able to invoke as
-   *  Op(cuda::atomic<T, Scope>, T>)
+   *  Op(cuda::atomic_ref<T, Scope>, T>)
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
    * static_map<K, V>::value_type></tt> is `true`
-   * @tparam Op Callable type used to peform apply operation.
+   * @tparam Op Callable type used to peform `apply` operation.
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param op callable object to perform apply operation.
+   * @param op Callable object to perform apply operation.
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt, typename Op>
-  void insert_or_apply(InputIt first, InputIt last, Op op, cuda_stream_ref stream = {}) noexcept;
+  void insert_or_apply(InputIt first, InputIt last, Op op, cuda_stream_ref stream = {});
 
   /**
    * @brief For any key-value pair `{k, v}` in the range `[first, first + n)`, if a key equivalent
@@ -439,16 +439,16 @@ class static_map {
    * inserts the pair as if by insert.
    *
    * @note Callable object to perform binary operation should be able to invoke as
-   *  Op(cuda::atomic<T, Scope>, T>)
+   *  Op(cuda::atomic_ref<T, Scope>, T>)
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
    * static_map<K, V>::value_type></tt> is `true`
-   * @tparam Op Callable type used to peform apply operation.
+   * @tparam Op Callable type used to peform `apply` operation.
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param op callable object to perform apply operation.
+   * @param op Callable object to perform apply operation.
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt, typename Op>
