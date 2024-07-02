@@ -16,13 +16,13 @@
 
 #pragma once
 
-#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/storage/kernels.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/extent.cuh>
 
 #include <cuda/std/array>
+#include <cuda/stream_ref>
 
 #include <cstddef>
 #include <cstdint>
@@ -64,21 +64,21 @@ aow_storage<T, WindowSize, Extent, Allocator>::ref() const noexcept
 
 template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
 void aow_storage<T, WindowSize, Extent, Allocator>::initialize(value_type key,
-                                                               cuda_stream_ref stream)
+                                                               cuda::stream_ref stream)
 {
   this->initialize_async(key, stream);
-  stream.synchronize();
+  stream.wait();
 }
 
 template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
 void aow_storage<T, WindowSize, Extent, Allocator>::initialize_async(
-  value_type key, cuda_stream_ref stream) noexcept
+  value_type key, cuda::stream_ref stream) noexcept
 {
   auto constexpr cg_size = 1;
   auto constexpr stride  = 4;
   auto const grid_size   = cuco::detail::grid_size(this->num_windows(), cg_size, stride);
 
-  detail::initialize<<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+  detail::initialize<<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
     this->data(), this->num_windows(), key);
 }
 

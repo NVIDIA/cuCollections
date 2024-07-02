@@ -21,7 +21,7 @@ constexpr distinct_count_estimator<T, Scope, Hash, Allocator>::distinct_count_es
   cuco::sketch_size_kb sketch_size_kb,
   Hash const& hash,
   Allocator const& alloc,
-  cuco::cuda_stream_ref stream)
+  cuda::stream_ref stream)
   : impl_{std::make_unique<impl_type>(sketch_size_kb, hash, alloc, stream)}
 {
 }
@@ -31,21 +31,20 @@ constexpr distinct_count_estimator<T, Scope, Hash, Allocator>::distinct_count_es
   cuco::standard_deviation standard_deviation,
   Hash const& hash,
   Allocator const& alloc,
-  cuco::cuda_stream_ref stream)
+  cuda::stream_ref stream)
   : impl_{std::make_unique<impl_type>(standard_deviation, hash, alloc, stream)}
 {
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::clear_async(
-  cuco::cuda_stream_ref stream) noexcept
+  cuda::stream_ref stream) noexcept
 {
   this->impl_->clear_async(stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
-constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::clear(
-  cuco::cuda_stream_ref stream)
+constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::clear(cuda::stream_ref stream)
 {
   this->impl_->clear(stream);
 }
@@ -53,15 +52,16 @@ constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::clear(
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 template <class InputIt>
 constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::add_async(
-  InputIt first, InputIt last, cuco::cuda_stream_ref stream)
+  InputIt first, InputIt last, cuda::stream_ref stream)
 {
   this->impl_->add_async(first, last, stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 template <class InputIt>
-constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::add(
-  InputIt first, InputIt last, cuco::cuda_stream_ref stream)
+constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::add(InputIt first,
+                                                                        InputIt last,
+                                                                        cuda::stream_ref stream)
 {
   this->impl_->add(first, last, stream);
 }
@@ -70,7 +70,7 @@ template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 template <cuda::thread_scope OtherScope, class OtherAllocator>
 constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::merge_async(
   distinct_count_estimator<T, OtherScope, Hash, OtherAllocator> const& other,
-  cuco::cuda_stream_ref stream)
+  cuda::stream_ref stream)
 {
   this->impl_->merge_async(*(other.impl_), stream);
 }
@@ -79,7 +79,7 @@ template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 template <cuda::thread_scope OtherScope, class OtherAllocator>
 constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::merge(
   distinct_count_estimator<T, OtherScope, Hash, OtherAllocator> const& other,
-  cuco::cuda_stream_ref stream)
+  cuda::stream_ref stream)
 {
   this->impl_->merge(*(other.impl_), stream);
 }
@@ -87,7 +87,7 @@ constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::merge(
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 template <cuda::thread_scope OtherScope>
 constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::merge_async(
-  ref_type<OtherScope> const& other_ref, cuco::cuda_stream_ref stream)
+  ref_type<OtherScope> const& other_ref, cuda::stream_ref stream)
 {
   this->impl_->merge_async(other_ref.impl_, stream);
 }
@@ -95,14 +95,14 @@ constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::merge_async(
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 template <cuda::thread_scope OtherScope>
 constexpr void distinct_count_estimator<T, Scope, Hash, Allocator>::merge(
-  ref_type<OtherScope> const& other_ref, cuco::cuda_stream_ref stream)
+  ref_type<OtherScope> const& other_ref, cuda::stream_ref stream)
 {
   this->impl_->merge(other_ref.impl_, stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 constexpr std::size_t distinct_count_estimator<T, Scope, Hash, Allocator>::estimate(
-  cuco::cuda_stream_ref stream) const
+  cuda::stream_ref stream) const
 {
   return this->impl_->estimate(stream);
 }

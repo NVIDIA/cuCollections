@@ -15,13 +15,14 @@
  */
 #pragma once
 
-#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hyperloglog/hyperloglog_ref.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/types.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
+
+#include <cuda/stream_ref>
 
 #include <cstddef>
 #include <iterator>
@@ -69,7 +70,7 @@ class hyperloglog {
   constexpr hyperloglog(std::size_t sketch_size_b,
                         Hash const& hash,
                         Allocator const& alloc,
-                        cuco::cuda_stream_ref stream)
+                        cuda::stream_ref stream)
     : allocator_{alloc},
       sketch_{this->allocator_.allocate(sketch_size_b / sizeof(register_type)),
               custom_deleter{sketch_size_b / sizeof(register_type), this->allocator_}},
@@ -92,7 +93,7 @@ class hyperloglog {
   constexpr hyperloglog(cuco::sketch_size_kb sketch_size_kb,
                         Hash const& hash,
                         Allocator const& alloc,
-                        cuco::cuda_stream_ref stream)
+                        cuda::stream_ref stream)
     : hyperloglog{sketch_bytes(sketch_size_kb), hash, alloc, stream}
   {
   }
@@ -110,7 +111,7 @@ class hyperloglog {
   constexpr hyperloglog(cuco::standard_deviation standard_deviation,
                         Hash const& hash,
                         Allocator const& alloc,
-                        cuco::cuda_stream_ref stream)
+                        cuda::stream_ref stream)
     : hyperloglog{sketch_bytes(standard_deviation), hash, alloc, stream}
   {
   }
@@ -133,10 +134,7 @@ class hyperloglog {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  constexpr void clear_async(cuco::cuda_stream_ref stream) noexcept
-  {
-    this->ref_.clear_async(stream);
-  }
+  constexpr void clear_async(cuda::stream_ref stream) noexcept { this->ref_.clear_async(stream); }
 
   /**
    * @brief Resets the estimator, i.e., clears the current count estimate.
@@ -146,7 +144,7 @@ class hyperloglog {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  constexpr void clear(cuco::cuda_stream_ref stream) { this->ref_.clear(stream); }
+  constexpr void clear(cuda::stream_ref stream) { this->ref_.clear(stream); }
 
   /**
    * @brief Asynchronously adds to be counted items to the estimator.
@@ -160,7 +158,7 @@ class hyperloglog {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  constexpr void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
+  constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream)
   {
     this->ref_.add_async(first, last, stream);
   }
@@ -180,7 +178,7 @@ class hyperloglog {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  constexpr void add(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
+  constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream)
   {
     this->ref_.add(first, last, stream);
   }
@@ -198,7 +196,7 @@ class hyperloglog {
    */
   template <cuda::thread_scope OtherScope, class OtherAllocator>
   constexpr void merge_async(hyperloglog<T, OtherScope, Hash, OtherAllocator> const& other,
-                             cuco::cuda_stream_ref stream)
+                             cuda::stream_ref stream)
   {
     this->ref_.merge_async(other.ref(), stream);
   }
@@ -219,7 +217,7 @@ class hyperloglog {
    */
   template <cuda::thread_scope OtherScope, class OtherAllocator>
   constexpr void merge(hyperloglog<T, OtherScope, Hash, OtherAllocator> const& other,
-                       cuco::cuda_stream_ref stream)
+                       cuda::stream_ref stream)
   {
     this->ref_.merge(other.ref(), stream);
   }
@@ -235,7 +233,7 @@ class hyperloglog {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  constexpr void merge_async(ref_type<OtherScope> const& other_ref, cuco::cuda_stream_ref stream)
+  constexpr void merge_async(ref_type<OtherScope> const& other_ref, cuda::stream_ref stream)
   {
     this->ref_.merge_async(other_ref, stream);
   }
@@ -254,7 +252,7 @@ class hyperloglog {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  constexpr void merge(ref_type<OtherScope> const& other_ref, cuco::cuda_stream_ref stream)
+  constexpr void merge(ref_type<OtherScope> const& other_ref, cuda::stream_ref stream)
   {
     this->ref_.merge(other_ref, stream);
   }
@@ -268,7 +266,7 @@ class hyperloglog {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] constexpr std::size_t estimate(cuco::cuda_stream_ref stream) const
+  [[nodiscard]] constexpr std::size_t estimate(cuda::stream_ref stream) const
   {
     return this->ref_.estimate(stream);
   }

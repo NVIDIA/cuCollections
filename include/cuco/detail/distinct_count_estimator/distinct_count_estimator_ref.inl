@@ -34,14 +34,13 @@ __device__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::clear(
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::clear_async(
-  cuco::cuda_stream_ref stream) noexcept
+  cuda::stream_ref stream) noexcept
 {
   this->impl_.clear_async(stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
-__host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::clear(
-  cuco::cuda_stream_ref stream)
+__host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::clear(cuda::stream_ref stream)
 {
   this->impl_.clear(stream);
 }
@@ -55,15 +54,16 @@ __device__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::add(T co
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class InputIt>
 __host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::add_async(
-  InputIt first, InputIt last, cuco::cuda_stream_ref stream)
+  InputIt first, InputIt last, cuda::stream_ref stream)
 {
   this->impl_.add_async(first, last, stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class InputIt>
-__host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::add(
-  InputIt first, InputIt last, cuco::cuda_stream_ref stream)
+__host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::add(InputIt first,
+                                                                          InputIt last,
+                                                                          cuda::stream_ref stream)
 {
   this->impl_.add(first, last, stream);
 }
@@ -79,7 +79,7 @@ __device__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::merge(
 template <class T, cuda::thread_scope Scope, class Hash>
 template <cuda::thread_scope OtherScope>
 __host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::merge_async(
-  distinct_count_estimator_ref<T, OtherScope, Hash> const& other, cuco::cuda_stream_ref stream)
+  distinct_count_estimator_ref<T, OtherScope, Hash> const& other, cuda::stream_ref stream)
 {
   this->impl_.merge_async(other, stream);
 }
@@ -87,7 +87,7 @@ __host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::merge_asyn
 template <class T, cuda::thread_scope Scope, class Hash>
 template <cuda::thread_scope OtherScope>
 __host__ constexpr void distinct_count_estimator_ref<T, Scope, Hash>::merge(
-  distinct_count_estimator_ref<T, OtherScope, Hash> const& other, cuco::cuda_stream_ref stream)
+  distinct_count_estimator_ref<T, OtherScope, Hash> const& other, cuda::stream_ref stream)
 {
   this->impl_.merge(other, stream);
 }
@@ -101,7 +101,7 @@ __device__ std::size_t distinct_count_estimator_ref<T, Scope, Hash>::estimate(
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ constexpr std::size_t distinct_count_estimator_ref<T, Scope, Hash>::estimate(
-  cuco::cuda_stream_ref stream) const
+  cuda::stream_ref stream) const
 {
   return this->impl_.estimate(stream);
 }
