@@ -43,10 +43,11 @@ int main(void)
 
   // Create a sequence of pairs. Eeach key has two matches.
   // E.g., {{0,0}, {1,1}, ... {0,25'000}, {1, 25'001}, ...}
-  thrust::transform(thrust::make_counting_iterator<int>(0),
-                    thrust::make_counting_iterator<int>(pairs.size()),
-                    pairs.begin(),
-                    [] __device__(auto i) { return cuco::pair{i % (N / 2), i}; });
+  thrust::transform(
+    thrust::make_counting_iterator<int>(0),
+    thrust::make_counting_iterator<int>(pairs.size()),
+    pairs.begin(),
+    [] __device__(auto i) { return cuco::pair<key_type, value_type>{i % (N / 2), i}; });
 
   // Inserts all pairs into the map
   map.insert(pairs.begin(), pairs.end());
