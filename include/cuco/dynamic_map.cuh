@@ -73,13 +73,13 @@ namespace cuco {
  * thrust::transform(thrust::make_counting_iterator(0),
  *                   thrust::make_counting_iterator(pairs_0.size()),
  *                   pairs_0.begin(),
- *                   []__device__(auto i){ return thrust::make_pair(i,i); };
+ *                   []__device__(auto i){ return cuco::pair{i,i}; };
  *
  * thrust::device_vector<thrust::pair<int,int>> pairs_1(100'000);
  * thrust::transform(thrust::make_counting_iterator(50'000),
  *                   thrust::make_counting_iterator(pairs_1.size()),
  *                   pairs_1.begin(),
- *                   []__device__(auto i){ return thrust::make_pair(i,i); };
+ *                   []__device__(auto i){ return cuco::pair{i,i}; };
  *
  * // Inserts all pairs into the map
  * m.insert(pairs_0.begin(), pairs_0.end());
