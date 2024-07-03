@@ -430,7 +430,7 @@ class static_map {
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt, typename Op>
-  void insert_or_apply(InputIt first, InputIt last, Op op, cuda_stream_ref stream = {});
+  void insert_or_apply(InputIt first, InputIt last, Op op, cuda::stream_ref stream = {});
 
   /**
    * @brief For any key-value pair `{k, v}` in the range `[first, first + n)`, if a key equivalent
@@ -455,7 +455,7 @@ class static_map {
   void insert_or_apply_async(InputIt first,
                              InputIt last,
                              Op op,
-                             cuda_stream_ref stream = {}) noexcept;
+                             cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Erases keys in the range `[first, last)`.

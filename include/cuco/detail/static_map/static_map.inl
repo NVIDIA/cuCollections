@@ -257,10 +257,10 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename Op>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
-  insert_or_apply(InputIt first, InputIt last, Op op, cuda_stream_ref stream)
+  insert_or_apply(InputIt first, InputIt last, Op op, cuda::stream_ref stream)
 {
   return this->insert_or_apply_async(first, last, op, stream);
-  stream.synchronize();
+  stream.wait();
 }
 
 template <class Key,
@@ -273,7 +273,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename Op>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
-  insert_or_apply_async(InputIt first, InputIt last, Op op, cuda_stream_ref stream) noexcept
+  insert_or_apply_async(InputIt first, InputIt last, Op op, cuda::stream_ref stream) noexcept
 {
   auto const num = cuco::detail::distance(first, last);
   if (num == 0) { return; }
@@ -281,7 +281,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   auto const grid_size = cuco::detail::grid_size(num, cg_size);
 
   static_map_ns::detail::insert_or_apply<cg_size, cuco::detail::default_block_size()>
-    <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+    <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
       first, num, op, ref(op::insert_or_apply));
 }
 
