@@ -386,6 +386,48 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief Asynchronously inserts all elements in the range `[first, last)`.
+   *
+   * @note: For a given element `*(first + i)`, if the container doesn't already contain an element
+   * with an equivalent key, inserts the element at a location pointed by `iter` and writes
+   * `iter` to `found_begin + i` and writes `true` to `inserted_begin + i`. Otherwise, finds the
+   * location of the equivalent element, `iter` and writes `iter` to `found_begin + i` and writes
+   * `false` to `inserted_begin + i`.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the `value_type` of the data structure
+   * @tparam FoundIt Device accessible random access output iterator whose `value_type`
+   * is constructible from `map::iterator` type
+   * @tparam InsertedIt Device accessible random access output iterator whose `value_type`
+   * is constructible from `bool`
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of input elements
+   * @param last End of the sequence of elements
+   * @param found_begin Beginning of the sequence of elements found for each key
+   * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
+   * @param ref Non-owning container device ref used to access the slot storage
+   * @param stream CUDA stream used for the operation
+   */
+  template <typename InputIt, typename FoundIt, typename InsertedIt, typename Ref>
+  void insert_and_find_async(InputIt first,
+                             InputIt last,
+                             FoundIt found_begin,
+                             InsertedIt inserted_begin,
+                             Ref container_ref,
+                             cuda_stream_ref stream) noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::insert_and_find<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+        first, num_keys, found_begin, inserted_begin, container_ref);
+  }
+
+  /**
    * @brief Asynchronously erases keys in the range `[first, last)`.
    *
    * @note For each key `k` in `[first, last)`, if contains(k) returns true, removes `k` and it's
