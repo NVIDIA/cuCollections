@@ -17,9 +17,8 @@
 
 #pragma once
 
-#include <cuco/cuda_stream_ref.hpp>
-
 #include <cuda/std/array>
+#include <cuda/stream_ref>
 #include <thrust/device_malloc_allocator.h>
 #include <thrust/device_vector.h>
 
@@ -143,7 +142,7 @@ class dynamic_bitset {
   constexpr void test(KeyIt keys_begin,
                       KeyIt keys_end,
                       OutputIt outputs_begin,
-                      cuda_stream_ref stream = {}) noexcept;
+                      cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief For any element `keys_begin[i]` in the range `[keys_begin, keys_end)`, stores total
@@ -163,7 +162,7 @@ class dynamic_bitset {
   constexpr void rank(KeyIt keys_begin,
                       KeyIt keys_end,
                       OutputIt outputs_begin,
-                      cuda_stream_ref stream = {}) noexcept;
+                      cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief For any element `keys_begin[i]` in the range `[keys_begin, keys_end)`, stores the
@@ -183,7 +182,7 @@ class dynamic_bitset {
   constexpr void select(KeyIt keys_begin,
                         KeyIt keys_end,
                         OutputIt outputs_begin,
-                        cuda_stream_ref stream = {}) noexcept;
+                        cuda::stream_ref stream = {}) noexcept;
 
   using rank_type = cuco::experimental::detail::rank;  ///< Rank type
 
@@ -350,7 +349,7 @@ class dynamic_bitset {
    *
    * @param stream Stream to execute kernels
    */
-  constexpr void build(cuda_stream_ref stream = {}) noexcept;
+  constexpr void build(cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Populates rank and select indexes for true or false bits
@@ -364,7 +363,7 @@ class dynamic_bitset {
     thrust::device_vector<rank_type, rank_allocator_type>& ranks,
     thrust::device_vector<size_type, size_allocator_type>& selects,
     bool flip_bits,
-    cuda_stream_ref stream = {});
+    cuda::stream_ref stream = {});
 };
 
 }  // namespace detail

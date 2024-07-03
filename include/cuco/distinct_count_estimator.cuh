@@ -15,13 +15,14 @@
  */
 #pragma once
 
-#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/hyperloglog/hyperloglog.cuh>
 #include <cuco/distinct_count_estimator_ref.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/types.cuh>
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
+
+#include <cuda/stream_ref>
 
 #include <cstddef>
 #include <iterator>
@@ -71,7 +72,7 @@ class distinct_count_estimator {
   constexpr distinct_count_estimator(cuco::sketch_size_kb sketch_size_kb = 32_KB,
                                      Hash const& hash                    = {},
                                      Allocator const& alloc              = {},
-                                     cuco::cuda_stream_ref stream        = {});
+                                     cuda::stream_ref stream             = {});
 
   /**
    * @brief Constructs a `distinct_count_estimator` host object.
@@ -84,9 +85,9 @@ class distinct_count_estimator {
    * @param stream CUDA stream used to initialize the object
    */
   constexpr distinct_count_estimator(cuco::standard_deviation standard_deviation,
-                                     Hash const& hash             = {},
-                                     Allocator const& alloc       = {},
-                                     cuco::cuda_stream_ref stream = {});
+                                     Hash const& hash        = {},
+                                     Allocator const& alloc  = {},
+                                     cuda::stream_ref stream = {});
 
   ~distinct_count_estimator() = default;
 
@@ -106,7 +107,7 @@ class distinct_count_estimator {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  constexpr void clear_async(cuco::cuda_stream_ref stream = {}) noexcept;
+  constexpr void clear_async(cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Resets the estimator, i.e., clears the current count estimate.
@@ -116,7 +117,7 @@ class distinct_count_estimator {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  constexpr void clear(cuco::cuda_stream_ref stream = {});
+  constexpr void clear(cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously adds to be counted items to the estimator.
@@ -130,7 +131,7 @@ class distinct_count_estimator {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  constexpr void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream = {});
+  constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Adds to be counted items to the estimator.
@@ -147,7 +148,7 @@ class distinct_count_estimator {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  constexpr void add(InputIt first, InputIt last, cuco::cuda_stream_ref stream = {});
+  constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously merges the result of `other` estimator into `*this` estimator.
@@ -163,7 +164,7 @@ class distinct_count_estimator {
   template <cuda::thread_scope OtherScope, class OtherAllocator>
   constexpr void merge_async(
     distinct_count_estimator<T, OtherScope, Hash, OtherAllocator> const& other,
-    cuco::cuda_stream_ref stream = {});
+    cuda::stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator into `*this` estimator.
@@ -181,7 +182,7 @@ class distinct_count_estimator {
    */
   template <cuda::thread_scope OtherScope, class OtherAllocator>
   constexpr void merge(distinct_count_estimator<T, OtherScope, Hash, OtherAllocator> const& other,
-                       cuco::cuda_stream_ref stream = {});
+                       cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously merges the result of `other` estimator reference into `*this` estimator.
@@ -194,8 +195,7 @@ class distinct_count_estimator {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  constexpr void merge_async(ref_type<OtherScope> const& other_ref,
-                             cuco::cuda_stream_ref stream = {});
+  constexpr void merge_async(ref_type<OtherScope> const& other_ref, cuda::stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator.
@@ -211,7 +211,7 @@ class distinct_count_estimator {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  constexpr void merge(ref_type<OtherScope> const& other_ref, cuco::cuda_stream_ref stream = {});
+  constexpr void merge(ref_type<OtherScope> const& other_ref, cuda::stream_ref stream = {});
 
   /**
    * @brief Compute the estimated distinct items count.
@@ -222,7 +222,7 @@ class distinct_count_estimator {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] constexpr std::size_t estimate(cuco::cuda_stream_ref stream = {}) const;
+  [[nodiscard]] constexpr std::size_t estimate(cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Get device ref.
