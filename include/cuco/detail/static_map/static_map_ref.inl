@@ -712,7 +712,9 @@ class operator_impl<
           case insert_result::SUCCESS: return;
           case insert_result::DUPLICATE: {
             if (group.thread_rank() == src_lane) {
-              ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+              if constexpr (sizeof(value_type) > 8) {
+                ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+              }
               op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
             }
             return;
@@ -735,45 +737,6 @@ class operator_impl<
       group, value, [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
         payload_ref.fetch_add(payload, cuda::memory_order_relaxed);
       });
-  }
-
- private:
-  /**
-   * @brief Attempts to insert an element into a slot or update the matching payload by applying the
-   * binary operation on the payload and new value.
-   *
-   * @tparam Value Input type which is implicitly convertible to 'value_type'
-   * @tparam Op Callable type which is used as apply operation and called be
-   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T)
-
-   * @param slot value_type pointer to the slot to insert
-   * @param value The element to insert
-   * @param op The callable object to perform binary operation between existing value at the slot
-   *  and element to insert.
-   *
-   * @return Returns `true` if the given `value` is inserted or `value` has a match in the map.
-   */
-  template <typename Value, typename Op>
-  __device__ constexpr bool attempt_insert_or_apply(value_type* slot,
-                                                    Value const& value,
-                                                    Op op) noexcept
-  {
-    ref_type& ref_          = static_cast<ref_type&>(*this);
-    auto const expected_key = ref_.impl_.empty_slot_sentinel().first;
-
-    auto old_key =
-      ref_.impl_.compare_and_swap(&slot->first, expected_key, static_cast<key_type>(value.first));
-    auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
-
-    // if key success or key was already present in the map
-    if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key) or
-        (ref_.impl_.predicate().equal_to(value.first, *old_key_ptr) ==
-         detail::equal_result::EQUAL)) {
-      // Update payload
-      op(cuda::atomic_ref<T, Scope>{slot->second}, value.second);
-      return true;
-    }
-    return false;
   }
 };
 
