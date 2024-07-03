@@ -415,7 +415,7 @@ class open_addressing_impl {
                              FoundIt found_begin,
                              InsertedIt inserted_begin,
                              Ref container_ref,
-                             cuda_stream_ref stream) noexcept
+                             cuda::stream_ref stream) noexcept
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
@@ -423,7 +423,7 @@ class open_addressing_impl {
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     detail::insert_and_find<cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, found_begin, inserted_begin, container_ref);
   }
 

@@ -187,10 +187,10 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt last,
   FoundIt found_begin,
   InsertedIt inserted_begin,
-  cuda_stream_ref stream)
+  cuda::stream_ref stream)
 {
   insert_and_find_async(first, last, found_begin, inserted_begin, stream);
-  stream.synchronize();
+  stream.wait();
 }
 
 template <class Key,
@@ -206,7 +206,7 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
                         InputIt last,
                         FoundIt found_begin,
                         InsertedIt inserted_begin,
-                        cuda_stream_ref stream) noexcept
+                        cuda::stream_ref stream) noexcept
 {
   impl_->insert_and_find_async(
     first, last, found_begin, inserted_begin, ref(op::insert_and_find), stream);
