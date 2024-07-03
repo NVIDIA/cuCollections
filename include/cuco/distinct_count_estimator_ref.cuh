@@ -15,11 +15,12 @@
  */
 #pragma once
 
-#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/hyperloglog/hyperloglog_ref.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/types.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
+
+#include <cuda/stream_ref>
 
 #include <cooperative_groups.h>
 
@@ -81,7 +82,7 @@ class distinct_count_estimator_ref {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  __host__ constexpr void clear_async(cuco::cuda_stream_ref stream = {}) noexcept;
+  __host__ constexpr void clear_async(cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Resets the estimator, i.e., clears the current count estimate.
@@ -91,7 +92,7 @@ class distinct_count_estimator_ref {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  __host__ constexpr void clear(cuco::cuda_stream_ref stream = {});
+  __host__ constexpr void clear(cuda::stream_ref stream = {});
 
   /**
    * @brief Adds an item to the estimator.
@@ -112,7 +113,7 @@ class distinct_count_estimator_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  __host__ constexpr void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream = {});
+  __host__ constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Adds to be counted items to the estimator.
@@ -129,7 +130,7 @@ class distinct_count_estimator_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  __host__ constexpr void add(InputIt first, InputIt last, cuco::cuda_stream_ref stream = {});
+  __host__ constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator reference.
@@ -158,8 +159,7 @@ class distinct_count_estimator_ref {
    */
   template <cuda::thread_scope OtherScope>
   __host__ constexpr void merge_async(
-    distinct_count_estimator_ref<T, OtherScope, Hash> const& other,
-    cuco::cuda_stream_ref stream = {});
+    distinct_count_estimator_ref<T, OtherScope, Hash> const& other, cuda::stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator.
@@ -176,7 +176,7 @@ class distinct_count_estimator_ref {
    */
   template <cuda::thread_scope OtherScope>
   __host__ constexpr void merge(distinct_count_estimator_ref<T, OtherScope, Hash> const& other,
-                                cuco::cuda_stream_ref stream = {});
+                                cuda::stream_ref stream = {});
 
   /**
    * @brief Compute the estimated distinct items count.
@@ -197,7 +197,7 @@ class distinct_count_estimator_ref {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] __host__ constexpr std::size_t estimate(cuco::cuda_stream_ref stream = {}) const;
+  [[nodiscard]] __host__ constexpr std::size_t estimate(cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Gets the hash function.

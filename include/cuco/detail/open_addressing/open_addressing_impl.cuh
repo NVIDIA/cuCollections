@@ -125,7 +125,7 @@ class open_addressing_impl {
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
-                                 cuda_stream_ref stream)
+                                 cuda::stream_ref stream)
     : empty_slot_sentinel_{empty_slot_sentinel},
       erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
@@ -171,7 +171,7 @@ class open_addressing_impl {
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
-                                 cuda_stream_ref stream)
+                                 cuda::stream_ref stream)
     : empty_slot_sentinel_{empty_slot_sentinel},
       erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
@@ -213,7 +213,7 @@ class open_addressing_impl {
                                  KeyEqual const& pred,
                                  ProbingScheme const& probing_scheme,
                                  Allocator const& alloc,
-                                 cuda_stream_ref stream)
+                                 cuda::stream_ref stream)
     : empty_slot_sentinel_{empty_slot_sentinel},
       erased_key_sentinel_{erased_key_sentinel},
       predicate_{pred},
@@ -233,7 +233,7 @@ class open_addressing_impl {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuda_stream_ref stream) { storage_.initialize(empty_slot_sentinel_, stream); }
+  void clear(cuda::stream_ref stream) { storage_.initialize(empty_slot_sentinel_, stream); }
 
   /**
    * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
@@ -241,7 +241,7 @@ class open_addressing_impl {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear_async(cuda_stream_ref stream) noexcept
+  void clear_async(cuda::stream_ref stream) noexcept
   {
     storage_.initialize_async(empty_slot_sentinel_, stream);
   }
@@ -266,7 +266,7 @@ class open_addressing_impl {
    * @return Number of successfully inserted keys
    */
   template <typename InputIt, typename Ref>
-  size_type insert(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream)
+  size_type insert(InputIt first, InputIt last, Ref container_ref, cuda::stream_ref stream)
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
     return this->insert_if(first, last, always_true, thrust::identity{}, container_ref, stream);
@@ -286,7 +286,10 @@ class open_addressing_impl {
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt, typename Ref>
-  void insert_async(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream) noexcept
+  void insert_async(InputIt first,
+                    InputIt last,
+                    Ref container_ref,
+                    cuda::stream_ref stream) noexcept
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
     this->insert_if_async(first, last, always_true, thrust::identity{}, container_ref, stream);
@@ -324,7 +327,7 @@ class open_addressing_impl {
                       StencilIt stencil,
                       Predicate pred,
                       Ref container_ref,
-                      cuda_stream_ref stream)
+                      cuda::stream_ref stream)
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return 0; }
@@ -336,7 +339,7 @@ class open_addressing_impl {
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, stencil, pred, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
@@ -370,7 +373,7 @@ class open_addressing_impl {
                        StencilIt stencil,
                        Predicate pred,
                        Ref container_ref,
-                       cuda_stream_ref stream) noexcept
+                       cuda::stream_ref stream) noexcept
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
@@ -378,8 +381,50 @@ class open_addressing_impl {
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, stencil, pred, container_ref);
+  }
+
+  /**
+   * @brief Asynchronously inserts all elements in the range `[first, last)`.
+   *
+   * @note: For a given element `*(first + i)`, if the container doesn't already contain an element
+   * with an equivalent key, inserts the element at a location pointed by `iter` and writes
+   * `iter` to `found_begin + i` and writes `true` to `inserted_begin + i`. Otherwise, finds the
+   * location of the equivalent element, `iter` and writes `iter` to `found_begin + i` and writes
+   * `false` to `inserted_begin + i`.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the `value_type` of the data structure
+   * @tparam FoundIt Device accessible random access output iterator whose `value_type`
+   * is constructible from `map::iterator` type
+   * @tparam InsertedIt Device accessible random access output iterator whose `value_type`
+   * is constructible from `bool`
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of input elements
+   * @param last End of the sequence of elements
+   * @param found_begin Beginning of the sequence of elements found for each key
+   * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
+   * @param ref Non-owning container device ref used to access the slot storage
+   * @param stream CUDA stream used for the operation
+   */
+  template <typename InputIt, typename FoundIt, typename InsertedIt, typename Ref>
+  void insert_and_find_async(InputIt first,
+                             InputIt last,
+                             FoundIt found_begin,
+                             InsertedIt inserted_begin,
+                             Ref container_ref,
+                             cuda_stream_ref stream) noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::insert_and_find<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+        first, num_keys, found_begin, inserted_begin, container_ref);
   }
 
   /**
@@ -406,7 +451,7 @@ class open_addressing_impl {
    * provided at construction
    */
   template <typename InputIt, typename Ref>
-  void erase_async(InputIt first, InputIt last, Ref container_ref, cuda_stream_ref stream = {})
+  void erase_async(InputIt first, InputIt last, Ref container_ref, cuda::stream_ref stream = {})
   {
     CUCO_EXPECTS(this->empty_key_sentinel() != this->erased_key_sentinel(),
                  "The empty key sentinel and erased key sentinel cannot be the same value.",
@@ -418,7 +463,7 @@ class open_addressing_impl {
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     detail::erase<cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, container_ref);
   }
 
@@ -441,7 +486,7 @@ class open_addressing_impl {
                       InputIt last,
                       OutputIt output_begin,
                       Ref container_ref,
-                      cuda_stream_ref stream) const noexcept
+                      cuda::stream_ref stream) const noexcept
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
     this->contains_if_async(
@@ -484,7 +529,7 @@ class open_addressing_impl {
                          Predicate pred,
                          OutputIt output_begin,
                          Ref container_ref,
-                         cuda_stream_ref stream) const noexcept
+                         cuda::stream_ref stream) const noexcept
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
@@ -492,7 +537,7 @@ class open_addressing_impl {
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, stencil, pred, output_begin, container_ref);
   }
 
@@ -515,7 +560,7 @@ class open_addressing_impl {
                   InputIt last,
                   OutputIt output_begin,
                   Ref container_ref,
-                  cuda_stream_ref stream) const noexcept
+                  cuda::stream_ref stream) const noexcept
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
@@ -523,7 +568,7 @@ class open_addressing_impl {
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     detail::find<cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, output_begin, container_ref);
   }
 
@@ -543,7 +588,7 @@ class open_addressing_impl {
   [[nodiscard]] size_type count(InputIt first,
                                 InputIt last,
                                 Ref container_ref,
-                                cuda_stream_ref stream) const noexcept
+                                cuda::stream_ref stream) const noexcept
   {
     auto constexpr is_outer = false;
     return this->count<is_outer>(first, last, container_ref, stream);
@@ -567,7 +612,7 @@ class open_addressing_impl {
   [[nodiscard]] size_type count_outer(InputIt first,
                                       InputIt last,
                                       Ref container_ref,
-                                      cuda_stream_ref stream) const noexcept
+                                      cuda::stream_ref stream) const noexcept
   {
     auto constexpr is_outer = true;
     return this->count<is_outer>(first, last, container_ref, stream);
@@ -591,7 +636,7 @@ class open_addressing_impl {
    * @return Iterator indicating the end of the output
    */
   template <typename OutputIt>
-  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream) const
+  [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cuda::stream_ref stream) const
   {
     std::size_t temp_storage_bytes = 0;
     using temp_allocator_type =
@@ -611,7 +656,7 @@ class open_addressing_impl {
                                         d_num_out,
                                         this->capacity(),
                                         is_filled,
-                                        stream));
+                                        stream.get()));
 
     // Allocate temporary storage
     auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
@@ -623,12 +668,12 @@ class open_addressing_impl {
                                         d_num_out,
                                         this->capacity(),
                                         is_filled,
-                                        stream));
+                                        stream.get()));
 
     size_type h_num_out;
-    CUCO_CUDA_TRY(
-      cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
-    stream.synchronize();
+    CUCO_CUDA_TRY(cudaMemcpyAsync(
+      &h_num_out, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+    stream.wait();
     std::allocator_traits<temp_allocator_type>::deallocate(
       temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(size_type));
     temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
@@ -645,7 +690,7 @@ class open_addressing_impl {
    *
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cuda_stream_ref stream) const
+  [[nodiscard]] size_type size(cuda::stream_ref stream) const
   {
     auto counter =
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
@@ -658,7 +703,7 @@ class open_addressing_impl {
     // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
     // v2.1.0
     detail::size<cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         storage_.ref(), is_filled, counter.data());
 
     return counter.load_to_host(stream);
@@ -677,10 +722,10 @@ class open_addressing_impl {
    * @param stream CUDA stream used for this operation
    */
   template <typename Container>
-  void rehash(Container const& container, cuda_stream_ref stream)
+  void rehash(Container const& container, cuda::stream_ref stream)
   {
     this->rehash_async(container, stream);
-    stream.synchronize();
+    stream.wait();
   }
 
   /**
@@ -706,10 +751,10 @@ class open_addressing_impl {
    * @param stream CUDA stream used for this operation
    */
   template <typename Container>
-  void rehash(extent_type extent, Container const& container, cuda_stream_ref stream)
+  void rehash(extent_type extent, Container const& container, cuda::stream_ref stream)
   {
     this->rehash_async(extent, container, stream);
-    stream.synchronize();
+    stream.wait();
   }
 
   /**
@@ -722,7 +767,7 @@ class open_addressing_impl {
    * @param stream CUDA stream used for this operation
    */
   template <typename Container>
-  void rehash_async(Container const& container, cuda_stream_ref stream)
+  void rehash_async(Container const& container, cuda::stream_ref stream)
   {
     this->rehash_async(this->storage_.window_extent(), container, stream);
   }
@@ -747,7 +792,7 @@ class open_addressing_impl {
    * @param stream CUDA stream used for this operation
    */
   template <typename Container>
-  void rehash_async(extent_type extent, Container const& container, cuda_stream_ref stream)
+  void rehash_async(extent_type extent, Container const& container, cuda::stream_ref stream)
   {
     auto const old_storage = std::move(this->storage_);
     new (&storage_) storage_type{extent, this->allocator()};
@@ -762,7 +807,7 @@ class open_addressing_impl {
     auto const is_filled      = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
       this->empty_key_sentinel(), this->erased_key_sentinel()};
 
-    detail::rehash<block_size><<<grid_size, block_size, 0, stream>>>(
+    detail::rehash<block_size><<<grid_size, block_size, 0, stream.get()>>>(
       old_storage.ref(), container.ref(op::insert), is_filled);
   }
 
@@ -844,7 +889,7 @@ class open_addressing_impl {
   [[nodiscard]] size_type count(InputIt first,
                                 InputIt last,
                                 Ref container_ref,
-                                cuda_stream_ref stream) const noexcept
+                                cuda::stream_ref stream) const noexcept
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return 0; }
@@ -856,7 +901,7 @@ class open_addressing_impl {
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
     detail::count<IsOuter, cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream>>>(
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, counter.data(), container_ref);
 
     return counter.load_to_host(stream);

@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/open_addressing/open_addressing_impl.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/hash_functions.cuh>
@@ -30,6 +29,7 @@
 
 #include <cuda/atomic>
 #include <cuda/std/utility>
+#include <cuda/stream_ref>
 #include <thrust/functional.h>
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
@@ -84,7 +84,7 @@ template <class Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme      = cuco::double_hashing<4,  // CG size
-                                                     cuco::default_hash_function<Key>>,
+                                                          cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<Key>,
           class Storage            = cuco::storage<1>>
 class static_set {
@@ -156,7 +156,7 @@ class static_set {
                        cuda_thread_scope<Scope> scope      = {},
                        Storage storage                     = {},
                        Allocator const& alloc              = {},
-                       cuda_stream_ref stream              = {});
+                       cuda::stream_ref stream             = {});
 
   /**
    * @brief Constructs a statically-sized set with the number of elements to insert `n`, the desired
@@ -198,7 +198,7 @@ class static_set {
                        cuda_thread_scope<Scope> scope      = {},
                        Storage storage                     = {},
                        Allocator const& alloc              = {},
-                       cuda_stream_ref stream              = {});
+                       cuda::stream_ref stream             = {});
 
   /**
    * @brief Constructs a statically-sized set with the specified initial capacity, sentinel values
@@ -232,7 +232,7 @@ class static_set {
                        cuda_thread_scope<Scope> scope      = {},
                        Storage storage                     = {},
                        Allocator const& alloc              = {},
-                       cuda_stream_ref stream              = {});
+                       cuda::stream_ref stream             = {});
 
   /**
    * @brief Erases all elements from the container. After this call, `size()` returns zero.
@@ -240,7 +240,7 @@ class static_set {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuda_stream_ref stream = {});
+  void clear(cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
@@ -248,7 +248,7 @@ class static_set {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear_async(cuda_stream_ref stream = {}) noexcept;
+  void clear_async(cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
@@ -268,7 +268,7 @@ class static_set {
    * @return Number of successfully inserted keys
    */
   template <typename InputIt>
-  size_type insert(InputIt first, InputIt last, cuda_stream_ref stream = {});
+  size_type insert(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously inserts all keys in the range `[first, last)`.
@@ -282,7 +282,7 @@ class static_set {
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt>
-  void insert_async(InputIt first, InputIt last, cuda_stream_ref stream = {}) noexcept;
+  void insert_async(InputIt first, InputIt last, cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
@@ -310,7 +310,7 @@ class static_set {
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
   size_type insert_if(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream = {});
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously inserts keys in the range `[first, last)` if `pred` of the corresponding
@@ -337,7 +337,63 @@ class static_set {
                        InputIt last,
                        StencilIt stencil,
                        Predicate pred,
-                       cuda_stream_ref stream = {}) noexcept;
+                       cuda::stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief Asynchronously inserts all elements in the range `[first, last)`.
+   *
+   * @note: For a given element `*(first + i)`, if the container doesn't already contain an element
+   * with an equivalent key, inserts the element at a location pointed by `iter` and writes
+   * `iter` to `found_begin + i` and writes `true` to `inserted_begin + i`. Otherwise, finds the
+   * location of the equivalent element, `iter` and writes `iter` to `found_begin + i` and writes
+   * `false` to `inserted_begin + i`.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam FoundIt Device accessible random access output iterator whose `value_type`
+   * is constructible from `map::iterator` type
+   * @tparam InsertedIt Device accessible random access output iterator whose `value_type`
+   * is constructible from `bool`
+   *
+   * @param first Beginning of the sequence of elements
+   * @param last End of the sequence of elements
+   * @param found_begin Beginning of the sequence of elements found for each key
+   * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt, typename FoundIt, typename InsertedIt>
+  void insert_and_find_async(InputIt first,
+                             InputIt last,
+                             FoundIt found_begin,
+                             InsertedIt inserted_begin,
+                             cuda_stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief Inserts all elements in the range `[first, last)`.
+   *
+   * @note: For a given element `*(first + i)`, if the container doesn't already contain an element
+   * with an equivalent key, inserts the element at a location pointed by `iter` and writes
+   * `iter` to `found_begin + i` and writes `true` to `inserted_begin + i`. Otherwise, finds the
+   * location of the equivalent element, `iter` and writes `iter` to `found_begin + i` and writes
+   * `false` to `inserted_begin + i`.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam FoundIt Device accessible random access output iterator whose `value_type`
+   * is constructible from `map::iterator` type
+   * @tparam InsertedIt Device accessible random access output iterator whose `value_type`
+   * is constructible from `bool`
+   *
+   * @param first Beginning of the sequence of elements
+   * @param last End of the sequence of elements
+   * @param found_begin Beginning of the sequence of elements found for each key
+   * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt, typename FoundIt, typename InsertedIt>
+  void insert_and_find(InputIt first,
+                       InputIt last,
+                       FoundIt found_begin,
+                       InsertedIt inserted_begin,
+                       cuda_stream_ref stream = {});
 
   /**
    * @brief Erases keys in the range `[first, last)`.
@@ -364,7 +420,7 @@ class static_set {
    * provided at construction
    */
   template <typename InputIt>
-  void erase(InputIt first, InputIt last, cuda_stream_ref stream = {});
+  void erase(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously erases keys in the range `[first, last)`.
@@ -389,7 +445,7 @@ class static_set {
    * provided at construction
    */
   template <typename InputIt>
-  void erase_async(InputIt first, InputIt last, cuda_stream_ref stream = {});
+  void erase_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set.
@@ -409,7 +465,7 @@ class static_set {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                cuda_stream_ref stream = {}) const;
+                cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
@@ -427,7 +483,7 @@ class static_set {
   void contains_async(InputIt first,
                       InputIt last,
                       OutputIt output_begin,
-                      cuda_stream_ref stream = {}) const noexcept;
+                      cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the set if
@@ -460,7 +516,7 @@ class static_set {
                    StencilIt stencil,
                    Predicate pred,
                    OutputIt output_begin,
-                   cuda_stream_ref stream = {}) const;
+                   cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
@@ -491,7 +547,7 @@ class static_set {
                          StencilIt stencil,
                          Predicate pred,
                          OutputIt output_begin,
-                         cuda_stream_ref stream = {}) const noexcept;
+                         cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief For all keys in the range `[first, last)`, finds an element with key equivalent to the
@@ -510,7 +566,7 @@ class static_set {
    * @param stream Stream used for executing the kernels
    */
   template <typename InputIt, typename OutputIt>
-  void find(InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream = {}) const;
+  void find(InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream = {}) const;
 
   /**
    * @brief For all keys in the range `[first, last)`, asynchronously finds an element with key
@@ -531,7 +587,7 @@ class static_set {
   void find_async(InputIt first,
                   InputIt last,
                   OutputIt output_begin,
-                  cuda_stream_ref stream = {}) const;
+                  cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Retrieves the matched key in the set corresponding to all probe keys in the range
@@ -564,7 +620,7 @@ class static_set {
                                                  InputIt last,
                                                  OutputIt1 output_probe,
                                                  OutputIt2 output_match,
-                                                 cuda_stream_ref stream = {}) const;
+                                                 cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in
@@ -602,7 +658,7 @@ class static_set {
                     OutputIt output_begin,
                     ProbeEqual const& probe_equal = ProbeEqual{},
                     ProbeHash const& probe_hash   = ProbeHash{},
-                    cuda_stream_ref stream        = {}) const;
+                    cuda::stream_ref stream       = {}) const;
 
   /**
    * @brief Retrieves all keys contained in the set.
@@ -622,7 +678,7 @@ class static_set {
    * @return Iterator indicating the end of the output
    */
   template <typename OutputIt>
-  OutputIt retrieve_all(OutputIt output_begin, cuda_stream_ref stream = {}) const;
+  OutputIt retrieve_all(OutputIt output_begin, cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Regenerates the container.
@@ -632,7 +688,7 @@ class static_set {
    *
    * @param stream CUDA stream used for this operation
    */
-  void rehash(cuda_stream_ref stream = {});
+  void rehash(cuda::stream_ref stream = {});
 
   /**
    * @brief Reserves at least the specified number of slots and regenerates the container
@@ -652,14 +708,14 @@ class static_set {
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
    */
-  void rehash(size_type capacity, cuda_stream_ref stream = {});
+  void rehash(size_type capacity, cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously regenerates the container.
    *
    * @param stream CUDA stream used for this operation
    */
-  void rehash_async(cuda_stream_ref stream = {});
+  void rehash_async(cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously reserves at least the specified number of slots and regenerates the
@@ -677,7 +733,7 @@ class static_set {
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
    */
-  void rehash_async(size_type capacity, cuda_stream_ref stream = {});
+  void rehash_async(size_type capacity, cuda::stream_ref stream = {});
 
   /**
    * @brief Gets the number of elements in the container.
@@ -687,7 +743,7 @@ class static_set {
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const;
+  [[nodiscard]] size_type size(cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Gets the maximum number of elements the hash set can hold.

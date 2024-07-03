@@ -15,7 +15,6 @@
  */
 #pragma once
 
-#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/__config>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hyperloglog/finalizer.cuh>
@@ -29,6 +28,7 @@
 #include <cuda/std/bit>
 #include <cuda/std/span>
 #include <cuda/std/utility>
+#include <cuda/stream_ref>
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <cooperative_groups.h>
@@ -122,10 +122,10 @@ class hyperloglog_ref {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  __host__ constexpr void clear(cuco::cuda_stream_ref stream)
+  __host__ constexpr void clear(cuda::stream_ref stream)
   {
     this->clear_async(stream);
-    stream.synchronize();
+    stream.wait();
   }
 
   /**
@@ -133,10 +133,10 @@ class hyperloglog_ref {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  __host__ constexpr void clear_async(cuco::cuda_stream_ref stream) noexcept
+  __host__ constexpr void clear_async(cuda::stream_ref stream) noexcept
   {
     auto constexpr block_size = 1024;
-    cuco::hyperloglog_ns::detail::clear<<<1, block_size, 0, stream>>>(*this);
+    cuco::hyperloglog_ns::detail::clear<<<1, block_size, 0, stream.get()>>>(*this);
   }
 
   /**
@@ -169,7 +169,7 @@ class hyperloglog_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  __host__ constexpr void add_async(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
+  __host__ constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream)
   {
     auto const num_items = cuco::detail::distance(first, last);
     if (num_items == 0) { return; }
@@ -222,7 +222,7 @@ class hyperloglog_ref {
           (void*)(&num_items),
           reinterpret_cast<void*>(this)};
         CUCO_CUDA_TRY(
-          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream));
+          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream.get()));
       }
     } else {
       kernel = reinterpret_cast<void const*>(
@@ -233,7 +233,7 @@ class hyperloglog_ref {
           cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, shmem_bytes));
 
         CUCO_CUDA_TRY(
-          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream));
+          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream.get()));
       } else {
         // Computes sketch directly in global memory. (Fallback path in case there is not enough
         // shared memory avalable)
@@ -242,7 +242,8 @@ class hyperloglog_ref {
 
         CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, 0));
 
-        CUCO_CUDA_TRY(cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, 0, stream));
+        CUCO_CUDA_TRY(
+          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, 0, stream.get()));
       }
     }
   }
@@ -262,10 +263,10 @@ class hyperloglog_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  __host__ constexpr void add(InputIt first, InputIt last, cuco::cuda_stream_ref stream)
+  __host__ constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream)
   {
     this->add_async(first, last, stream);
-    stream.synchronize();
+    stream.wait();
   }
 
   /**
@@ -304,13 +305,13 @@ class hyperloglog_ref {
    */
   template <cuda::thread_scope OtherScope>
   __host__ constexpr void merge_async(hyperloglog_ref<T, OtherScope, Hash> const& other,
-                                      cuco::cuda_stream_ref stream)
+                                      cuda::stream_ref stream)
   {
     CUCO_EXPECTS(other.precision_ == this->precision_,
                  "Cannot merge estimators with different sketch sizes",
                  std::runtime_error);
     auto constexpr block_size = 1024;
-    cuco::hyperloglog_ns::detail::merge<<<1, block_size, 0, stream>>>(other, *this);
+    cuco::hyperloglog_ns::detail::merge<<<1, block_size, 0, stream.get()>>>(other, *this);
   }
 
   /**
@@ -328,10 +329,10 @@ class hyperloglog_ref {
    */
   template <cuda::thread_scope OtherScope>
   __host__ constexpr void merge(hyperloglog_ref<T, OtherScope, Hash> const& other,
-                                cuco::cuda_stream_ref stream)
+                                cuda::stream_ref stream)
   {
     this->merge_async(other, stream);
-    stream.synchronize();
+    stream.wait();
   }
 
   /**
@@ -403,7 +404,7 @@ class hyperloglog_ref {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] __host__ constexpr std::size_t estimate(cuco::cuda_stream_ref stream) const
+  [[nodiscard]] __host__ constexpr std::size_t estimate(cuda::stream_ref stream) const
   {
     auto const num_regs = 1ull << this->precision_;
     std::vector<register_type> host_sketch(num_regs);
@@ -413,8 +414,8 @@ class hyperloglog_ref {
                                   this->sketch_.data(),
                                   sizeof(register_type) * num_regs,
                                   cudaMemcpyDefault,
-                                  stream));
-    stream.synchronize();
+                                  stream.get()));
+    stream.wait();
 
     fp_type sum = 0;
     int zeroes  = 0;

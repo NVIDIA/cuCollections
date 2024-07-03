@@ -80,11 +80,11 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
 
   using extent_type = cuco::extent<std::size_t, map_capacity>;
   using map_type    = cuco::static_map<Key,
-                                    Value,
-                                    extent_type,
-                                    cuda::thread_scope_device,
-                                    thrust::equal_to<Key>,
-                                    cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
+                                       Value,
+                                       extent_type,
+                                       cuda::thread_scope_device,
+                                       thrust::equal_to<Key>,
+                                       cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
 
   // one array for all maps, first elements_in_map element belong to map 0, second to map 1 and so
   // on

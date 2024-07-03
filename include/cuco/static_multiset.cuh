@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/open_addressing/open_addressing_impl.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/hash_functions.cuh>
@@ -29,6 +28,7 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/atomic>
+#include <cuda/stream_ref>
 #include <thrust/functional.h>
 
 #include <cstddef>
@@ -79,7 +79,7 @@ template <class Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
           class ProbingScheme      = cuco::double_hashing<4,  // CG size
-                                                     cuco::default_hash_function<Key>>,
+                                                          cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<Key>,
           class Storage            = cuco::storage<2>>
 class static_multiset {
@@ -151,7 +151,7 @@ class static_multiset {
                             cuda_thread_scope<Scope> scope      = {},
                             Storage storage                     = {},
                             Allocator const& alloc              = {},
-                            cuda_stream_ref stream              = {});
+                            cuda::stream_ref stream             = {});
 
   /**
    * @brief Constructs a statically-sized multiset with the number of elements to insert `n`, the
@@ -193,7 +193,7 @@ class static_multiset {
                             cuda_thread_scope<Scope> scope      = {},
                             Storage storage                     = {},
                             Allocator const& alloc              = {},
-                            cuda_stream_ref stream              = {});
+                            cuda::stream_ref stream             = {});
 
   /**
    * @brief Constructs a statically-sized set with the specified initial capacity, sentinel values
@@ -227,7 +227,7 @@ class static_multiset {
                             cuda_thread_scope<Scope> scope      = {},
                             Storage storage                     = {},
                             Allocator const& alloc              = {},
-                            cuda_stream_ref stream              = {});
+                            cuda::stream_ref stream             = {});
 
   /**
    * @brief Erases all elements from the container. After this call, `size()` returns zero.
@@ -235,7 +235,7 @@ class static_multiset {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear(cuda_stream_ref stream = {});
+  void clear(cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously erases all elements from the container. After this call, `size()` returns
@@ -243,7 +243,7 @@ class static_multiset {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  void clear_async(cuda_stream_ref stream = {}) noexcept;
+  void clear_async(cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Inserts all keys in the range `[first, last)`
@@ -261,7 +261,7 @@ class static_multiset {
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt>
-  void insert(InputIt first, InputIt last, cuda_stream_ref stream = {});
+  void insert(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously inserts all keys in the range `[first, last)`.
@@ -276,7 +276,7 @@ class static_multiset {
    * @param stream CUDA stream used for insert
    */
   template <typename InputIt>
-  void insert_async(InputIt first, InputIt last, cuda_stream_ref stream = {}) noexcept;
+  void insert_async(InputIt first, InputIt last, cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
@@ -302,7 +302,7 @@ class static_multiset {
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
   void insert_if(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream = {});
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously inserts keys in the range `[first, last)` if `pred` of the corresponding
@@ -329,7 +329,7 @@ class static_multiset {
                        InputIt last,
                        StencilIt stencil,
                        Predicate pred,
-                       cuda_stream_ref stream = {}) noexcept;
+                       cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the multiset.
@@ -349,7 +349,7 @@ class static_multiset {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                cuda_stream_ref stream = {}) const;
+                cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
@@ -367,7 +367,7 @@ class static_multiset {
   void contains_async(InputIt first,
                       InputIt last,
                       OutputIt output_begin,
-                      cuda_stream_ref stream = {}) const noexcept;
+                      cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the multiset if
@@ -400,7 +400,7 @@ class static_multiset {
                    StencilIt stencil,
                    Predicate pred,
                    OutputIt output_begin,
-                   cuda_stream_ref stream = {}) const;
+                   cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
@@ -431,7 +431,7 @@ class static_multiset {
                          StencilIt stencil,
                          Predicate pred,
                          OutputIt output_begin,
-                         cuda_stream_ref stream = {}) const noexcept;
+                         cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief For all keys in the range `[first, last)`, finds an element with key equivalent to the
@@ -450,7 +450,7 @@ class static_multiset {
    * @param stream Stream used for executing the kernels
    */
   template <typename InputIt, typename OutputIt>
-  void find(InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream = {}) const;
+  void find(InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream = {}) const;
 
   /**
    * @brief For all keys in the range `[first, last)`, asynchronously finds an element with key
@@ -471,7 +471,7 @@ class static_multiset {
   void find_async(InputIt first,
                   InputIt last,
                   OutputIt output_begin,
-                  cuda_stream_ref stream = {}) const;
+                  cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
@@ -487,7 +487,7 @@ class static_multiset {
    * @return The sum of total occurrences of all keys in `[first, last)`
    */
   template <typename InputIt>
-  size_type count(InputIt first, InputIt last, cuda_stream_ref stream = {}) const noexcept;
+  size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
@@ -511,7 +511,7 @@ class static_multiset {
                   InputIt last,
                   ProbeKeyEqual const& probe_key_equal,
                   ProbeHash const& probe_hash,
-                  cuda_stream_ref stream = {}) const noexcept;
+                  cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
@@ -537,7 +537,7 @@ class static_multiset {
                         InputIt last,
                         ProbeKeyEqual const& probe_key_equal,
                         ProbeHash const& probe_hash,
-                        cuda_stream_ref stream = {}) const noexcept;
+                        cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Gets the number of elements in the container.
@@ -547,7 +547,7 @@ class static_multiset {
    * @param stream CUDA stream used to get the number of inserted elements
    * @return The number of elements in the container
    */
-  [[nodiscard]] size_type size(cuda_stream_ref stream = {}) const;
+  [[nodiscard]] size_type size(cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Gets the maximum number of elements the multiset can hold.
