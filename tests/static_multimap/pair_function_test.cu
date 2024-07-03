@@ -53,9 +53,7 @@ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num_pairs)
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_pairs),
                     pair_begin,
-                    [] __device__(auto i) {
-                      return cuco::pair<Key, Value>{i, i};
-                    });
+                    [] __device__(auto i) { return cuco::pair<Key, Value>{i, i}; });
 
   SECTION("pair_contains returns true for all inserted pairs and false for non-inserted ones.")
   {
@@ -128,9 +126,7 @@ TEMPLATE_TEST_CASE_SIG(
                     thrust::counting_iterator<int>(0),
                     thrust::counting_iterator<int>(num_pairs),
                     d_pairs.begin(),
-                    [] __device__(auto i) {
-                      return cuco::pair<Key, Value>{i / 2, i};
-                    });
+                    [] __device__(auto i) { return cuco::pair<Key, Value>{i / 2, i}; });
 
   using probe =
     std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,

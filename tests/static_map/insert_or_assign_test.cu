@@ -39,9 +39,8 @@ void test_insert_or_assign(Map& map, size_type num_keys)
   // Insert pairs
   auto pairs_begin = thrust::make_transform_iterator(
     thrust::counting_iterator<size_type>(0),
-    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
-      return cuco::pair<Key, Value>{i, i};
-    }));
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>{i, i}; }));
 
   auto const initial_size = map.insert(pairs_begin, pairs_begin + num_keys);
   REQUIRE(initial_size == num_keys);  // all keys should be inserted

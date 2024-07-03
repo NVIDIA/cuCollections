@@ -47,9 +47,8 @@ void test_unique_sequence(Map& map, size_type num_keys)
   auto keys_begin  = d_keys.begin();
   auto pairs_begin = thrust::make_transform_iterator(
     thrust::make_counting_iterator<size_type>(0),
-    cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
-      return cuco::pair<Key, Value>{i, i};
-    }));
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [] __device__(auto i) { return cuco::pair<Key, Value>{i, i}; }));
   thrust::device_vector<bool> d_contained(num_keys);
 
   auto zip_equal = cuda::proclaim_return_type<bool>(
@@ -173,9 +172,9 @@ TEMPLATE_TEST_CASE_SIG(
   // XXX: testing static extent is intended, DO NOT CHANGE
   using extent_type = cuco::extent<size_type, num_keys>;
   using probe       = std::conditional_t<
-    Probe == cuco::test::probe_sequence::linear_probing,
-    cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-    cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+          Probe == cuco::test::probe_sequence::linear_probing,
+          cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+          cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
   auto map = cuco::static_map<Key,
                               Value,
