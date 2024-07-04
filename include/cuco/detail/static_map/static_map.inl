@@ -255,6 +255,44 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename Op>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_or_apply(InputIt first, InputIt last, Op op, cuda::stream_ref stream)
+{
+  return this->insert_or_apply_async(first, last, op, stream);
+  stream.wait();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename Op>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_or_apply_async(InputIt first, InputIt last, Op op, cuda::stream_ref stream) noexcept
+{
+  auto const num = cuco::detail::distance(first, last);
+  if (num == 0) { return; }
+
+  auto const grid_size = cuco::detail::grid_size(num, cg_size);
+
+  static_map_ns::detail::insert_or_apply<cg_size, cuco::detail::default_block_size()>
+    <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+      first, num, op, ref(op::insert_or_apply));
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename InputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::erase(
   InputIt first, InputIt last, cuda::stream_ref stream)
