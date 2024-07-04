@@ -840,8 +840,7 @@ namespace legacy {
  * // sentinels. The supplied erased key sentinel of -2 must be a different value from the empty
  * // key sentinel. If erase functionality is not needed, you may elect to not supply an erased
  * // key sentinel to the constructor. Note the capacity is chosen knowing we will insert 50,000
- * keys,
- * // for an load factor of 50%.
+ * // keys, for an load factor of 50%.
  * static_map<int, int> m{100'000, empty_key_sentinel, empty_value_sentinel, erased_value_sentinel};
  *
  * // Create a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
@@ -849,7 +848,7 @@ namespace legacy {
  * thrust::transform(thrust::make_counting_iterator(0),
  *                   thrust::make_counting_iterator(pairs.size()),
  *                   pairs.begin(),
- *                   []__device__(auto i){ return thrust::make_pair(i,i); };
+ *                   []__device__(auto i){ return cuco::pair{i,i}; };
  *
  *
  * // Inserts all pairs into the map
@@ -1490,7 +1489,7 @@ class static_map {
    *                  thrust::make_counting_iterator(50'000),
    *                  [map = m.get_device_mutable_view()]
    *                  __device__ (auto i) mutable {
-   *                     map.insert(thrust::make_pair(i,i));
+   *                     map.insert(cuco::pair{i,i});
    *                  });
    * \endcode
    */
