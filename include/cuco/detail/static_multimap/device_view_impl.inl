@@ -512,7 +512,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
 #endif  // end CUCO_HAS_CUDA_BARRIER
     } else {
       for (auto index = lane_id; index < num_outputs; index += g.size()) {
-        *(output_begin + offset + index) = output_buffer[index];
+        thrust::get<0>(*(output_begin + offset + index)) = output_buffer[index].first;
+        thrust::get<1>(*(output_begin + offset + index)) = output_buffer[index].second;
       }
     }
   }
