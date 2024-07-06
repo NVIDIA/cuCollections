@@ -25,6 +25,7 @@
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
+#include <cuda/atomic>
 #include <cuda/std/bit>
 #include <cuda/std/span>
 #include <cuda/std/utility>
@@ -35,7 +36,6 @@
 #include <cooperative_groups/reduce.h>
 
 #include <algorithm>  // there is no <cuda/std/algorithm>
-#include <atomic>
 #include <cstddef>
 #include <vector>
 
