@@ -23,6 +23,7 @@
 #include <cuco/probing_scheme.cuh>
 
 #include <cuda/atomic>
+#include <cuda/std/type_traits>
 #include <thrust/distance.h>
 #include <thrust/tuple.h>
 #if defined(CUCO_HAS_CUDA_BARRIER)

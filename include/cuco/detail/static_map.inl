@@ -408,7 +408,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
         }
 
         if constexpr (not cuco::detail::is_packable<value_type>()) {
-#if (_CUDA_ARCH__ < 700)
+#if (__CUDA_ARCH__ < 700)
           return cas_dependent_write(current_slot, insert_pair, key_equal, existing_key);
 #else
           return back_to_back_cas(current_slot, insert_pair, key_equal, existing_key);
