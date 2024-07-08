@@ -1437,7 +1437,7 @@ class open_addressing_ref_impl {
     if constexpr (sizeof(value_type) <= 8) {
       return packed_cas(address, expected, desired);
     } else {
-#if (_CUDA_ARCH__ < 700)
+#if (__CUDA_ARCH__ < 700)
       return cas_dependent_write(address, expected, desired);
 #else
       return back_to_back_cas(address, expected, desired);
