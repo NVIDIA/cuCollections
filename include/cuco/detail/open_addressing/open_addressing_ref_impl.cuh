@@ -1345,7 +1345,7 @@ class open_addressing_ref_impl {
                                                                     value_type const& expected,
                                                                     Value const& desired) noexcept
   {
-    using mapped_type = decltype(this->empty_value_sentinel());
+    using mapped_type = cuda::std::decay_t<decltype(this->empty_value_sentinel())>;
 
     auto const expected_key     = expected.first;
     auto const expected_payload = expected.second;
