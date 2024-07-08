@@ -1274,16 +1274,20 @@ class open_addressing_ref_impl {
     cuda::atomic_ref<key_type, Scope> key_ref(address->first);
     cuda::atomic_ref<mapped_type, Scope> payload_ref(address->second);
 
-    auto const key_cas_success =
-      key_ref.atomic_exchange_strong(expected_key, desired.first, cuda::memory_order_relaxed);
-    auto const payload_cas_success = payload_ref.atomic_exchange_strong(
+    auto const key_cas_success = key_ref.compare_exchange_strong(
+      expected_key, static_cast<key_type>(desired.first), cuda::memory_order_relaxed);
+    auto payload_cas_success = payload_ref.compare_exchange_strong(
       expected_payload, desired.second, cuda::memory_order_relaxed);
 
     // if key success
     if (key_cas_success) {
+      while (not payload_cas_success) {
+        payload_cas_success = payload_ref.compare_exchange_strong(
+          expected_payload = expected.second, desired.second, cuda::memory_order_relaxed);
+      }
       return insert_result::SUCCESS;
     } else if (payload_cas_success) {
-      payload_ref.store(expected_payload, cuda::memory_order_relaxed);
+      payload_ref.store(expected.second, cuda::memory_order_relaxed);
     }
 
     // Our key was already present in the slot, so our key is a duplicate
