@@ -26,11 +26,7 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
-#include <cuda.h>
-
 #include <catch2/catch_template_test_macros.hpp>
-
-#include <iostream>
 
 using size_type = std::size_t;
 
