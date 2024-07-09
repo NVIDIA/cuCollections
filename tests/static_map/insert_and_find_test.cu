@@ -26,7 +26,11 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
+#include <cuda.h>
+
 #include <catch2/catch_template_test_macros.hpp>
+
+#include <iostream>
 
 using size_type = std::size_t;
 
@@ -55,41 +59,47 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  using probe = std::conditional_t<
-    Probe == cuco::test::probe_sequence::linear_probing,
-    cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-    cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+#if !defined(CUCO_HAS_INDEPENDENT_THREADS)
+  if constexpr (cuco::detail::is_packable<cuco::pair<Key, Value>>())
+#endif
+  {
+    using probe = std::conditional_t<
+      Probe == cuco::test::probe_sequence::linear_probing,
+      cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+      cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
-  constexpr size_type num_keys{400};
+    constexpr size_type num_keys{400};
 
-  auto map = cuco::static_map<Key,
-                              Value,
-                              cuco::extent<size_type>,
-                              cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
-                              probe,
-                              cuco::cuda_allocator<std::byte>,
-                              cuco::storage<2>>{
-    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+    auto map = cuco::static_map<Key,
+                                Value,
+                                cuco::extent<size_type>,
+                                cuda::thread_scope_device,
+                                thrust::equal_to<Key>,
+                                probe,
+                                cuco::cuda_allocator<std::byte>,
+                                cuco::storage<2>>{
+      num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>(0),
-    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
-      [] __device__(auto i) { return cuco::pair<Key, Value>{i, 1}; }));
+    auto pairs_begin = thrust::make_transform_iterator(
+      thrust::counting_iterator<size_type>(0),
+      cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+        [] __device__(auto i) { return cuco::pair<Key, Value>{i, 1}; }));
 
-  thrust::device_vector<size_type> found1(num_keys);
-  thrust::device_vector<size_type> found2(num_keys);
+    thrust::device_vector<size_type> found1(num_keys);
+    thrust::device_vector<size_type> found2(num_keys);
 
-  thrust::device_vector<bool> inserted(num_keys);
+    thrust::device_vector<bool> inserted(num_keys);
 
-  // insert first time, fills inserted with true
-  map.insert_and_find(pairs_begin, pairs_begin + num_keys, found1.begin(), inserted.begin());
-  REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), thrust::identity{}));
+    // insert first time, fills inserted with true
+    map.insert_and_find(pairs_begin, pairs_begin + num_keys, found1.begin(), inserted.begin());
+    REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), thrust::identity{}));
 
-  // insert second time, fills inserted with false as keys already in map
-  map.insert_and_find(pairs_begin, pairs_begin + num_keys, found2.begin(), inserted.begin());
-  REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), thrust::identity{}));
+    // insert second time, fills inserted with false as keys already in map
+    map.insert_and_find(pairs_begin, pairs_begin + num_keys, found2.begin(), inserted.begin());
+    REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), thrust::identity{}));
 
-  // both found1 and found2 should be same, as keys will be referring to same slot
-  REQUIRE(cuco::test::equal(found1.begin(), found1.end(), found2.begin(), thrust::equal_to<Key>{}));
+    // both found1 and found2 should be same, as keys will be referring to same slot
+    REQUIRE(
+      cuco::test::equal(found1.begin(), found1.end(), found2.begin(), thrust::equal_to<Key>{}));
+  }
 }
