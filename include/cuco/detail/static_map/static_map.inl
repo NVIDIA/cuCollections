@@ -182,6 +182,46 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename FoundIt, typename InsertedIt>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_and_find(InputIt first,
+                  InputIt last,
+                  FoundIt found_begin,
+                  InsertedIt inserted_begin,
+                  cuda::stream_ref stream)
+{
+  insert_and_find_async(first, last, found_begin, inserted_begin, stream);
+  stream.wait();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename FoundIt, typename InsertedIt>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_and_find_async(InputIt first,
+                        InputIt last,
+                        FoundIt found_begin,
+                        InsertedIt inserted_begin,
+                        cuda::stream_ref stream) noexcept
+{
+  impl_->insert_and_find_async(
+    first, last, found_begin, inserted_begin, ref(op::insert_and_find), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
