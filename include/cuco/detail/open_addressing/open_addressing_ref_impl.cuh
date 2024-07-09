@@ -23,6 +23,7 @@
 #include <cuco/probing_scheme.cuh>
 
 #include <cuda/atomic>
+#include <cuda/std/type_traits>
 #include <thrust/distance.h>
 #include <thrust/tuple.h>
 #if defined(CUCO_HAS_CUDA_BARRIER)
@@ -1345,7 +1346,7 @@ class open_addressing_ref_impl {
                                                                     value_type const& expected,
                                                                     Value const& desired) noexcept
   {
-    using mapped_type = decltype(this->empty_value_sentinel());
+    using mapped_type = cuda::std::decay_t<decltype(this->empty_value_sentinel())>;
 
     auto const expected_key     = expected.first;
     auto const expected_payload = expected.second;
@@ -1437,7 +1438,7 @@ class open_addressing_ref_impl {
     if constexpr (sizeof(value_type) <= 8) {
       return packed_cas(address, expected, desired);
     } else {
-#if (_CUDA_ARCH__ < 700)
+#if (__CUDA_ARCH__ < 700)
       return cas_dependent_write(address, expected, desired);
 #else
       return back_to_back_cas(address, expected, desired);
