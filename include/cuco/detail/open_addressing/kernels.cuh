@@ -374,34 +374,30 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void retrieve(InputProbeIt input_probe,
                                                        AtomicCounter* atomic_counter,
                                                        Ref ref)
 {
-  auto constexpr tile_size = cuco::detail::warp_size();  // TODO include
+  namespace cg = cooperative_groups;
 
-  namespace cg        = cooperative_groups;
-  auto const block    = cg::this_thread_block();
-  auto const tile     = cg::tiled_partition<tile_size>(block);
-  auto const tile_idx = cuco::detail::global_thread_id() / tile_size;
+  auto const block           = cg::this_thread_block();
+  auto const blocks_in_grid  = gridDim.x;
+  auto const elems_per_block = cuco::detail::int_div_ceil(n, blocks_in_grid);
 
-  auto const tiles_in_grid  = (gridDim.x * BlockSize) / tile_size;
-  auto const elems_per_tile = cuco::detail::int_div_ceil(n, tiles_in_grid);  // TODO include
+  auto const block_begin_offset = block.group_index().x * elems_per_block;
+  auto const block_end_offset   = max(n, block_begin_offset + elems_per_block);
 
-  auto const tile_begin_offset = tile_idx * elems_per_tile;
-  auto const tile_end_offset   = max(n, tile_begin_offset + elems_per_tile);
-
-  if (tile_begin_offset < tile_end_offset) {
+  if (block_begin_offset < block_end_offset) {
     if constexpr (IsOuter) {
-      ref.retrieve_outer(tile,
-                         input_probe + tile_begin_offset,
-                         input_probe + tile_end_offset,
-                         output_probe,
-                         output_match,
-                         *atomic_counter);
+      ref.retrieve_outer<BlockSize>(block,
+                                    input_probe + block_begin_offset,
+                                    input_probe + block_end_offset,
+                                    output_probe,
+                                    output_match,
+                                    *atomic_counter);
     } else {
-      ref.retrieve(tile,
-                   input_probe + tile_begin_offset,
-                   input_probe + tile_end_offset,
-                   output_probe,
-                   output_match,
-                   *atomic_counter);
+      ref.retrieve<BlockSize>(block,
+                              input_probe + block_begin_offset,
+                              input_probe + block_end_offset,
+                              output_probe,
+                              output_match,
+                              *atomic_counter);
     }
   }
 }

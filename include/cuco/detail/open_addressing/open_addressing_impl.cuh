@@ -952,14 +952,15 @@ class open_addressing_impl {
     counter.reset(stream);
 
     auto constexpr block_size = cuco::detail::default_block_size();
-    auto const grid_size      = cuco::detail::max_occupancy_grid_size(block_size,
-                                                                 detail::retrieve<IsOuter,
-                                                                                       block_size,
-                                                                                       InputProbeIt,
-                                                                                       OutputProbeIt,
-                                                                                       OutputMatchIt,
-                                                                                       decltype(counter),
-                                                                                       Ref>);
+    auto const grid_size =
+      cuco::detail::max_occupancy_grid_size(block_size,
+                                            detail::retrieve<IsOuter,
+                                                             block_size,
+                                                             InputProbeIt,
+                                                             OutputProbeIt,
+                                                             OutputMatchIt,
+                                                             typename decltype(counter)::value_type,
+                                                             Ref>);
 
     detail::retrieve<IsOuter, block_size><<<grid_size, block_size, 0, stream.get()>>>(
       first, n, output_probe, output_match, counter.data(), container_ref);

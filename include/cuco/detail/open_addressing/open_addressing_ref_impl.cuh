@@ -18,6 +18,7 @@
 
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/detail/probing_scheme_base.cuh>
+#include <cuco/detail/utility/cuda.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/pair.cuh>
 #include <cuco/probing_scheme.cuh>
@@ -964,83 +965,85 @@ class open_addressing_ref_impl {
   }
 
   // TODO docs
-  template <int32_t FlushingTileSize,
+  template <int32_t BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
             class AtomicCounter>
-  __device__ void retrieve(
-    cooperative_groups::thread_block_tile<FlushingTileSize> const& flushing_tile,
-    InputProbeIt input_probe_begin,
-    InputProbeIt input_probe_end,
-    OutputProbeIt output_probe,
-    OutputMatchIt output_match,
-    AtomicCounter& atomic_counter) const
+  __device__ void retrieve(cooperative_groups::thread_block const& block,
+                           InputProbeIt input_probe_begin,
+                           InputProbeIt input_probe_end,
+                           OutputProbeIt output_probe,
+                           OutputMatchIt output_match,
+                           AtomicCounter& atomic_counter) const
   {
     auto constexpr is_outer = false;
     auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
-    this->retrieve_impl<is_outer>(
-      flushing_tile, input_probe_begin, n, output_probe, output_match, atomic_counter);
+    this->retrieve_impl<is_outer, BlockSize>(
+      block, input_probe_begin, n, output_probe, output_match, atomic_counter);
   }
 
   // TODO docs
-  template <int32_t FlushingTileSize,
+  template <int32_t BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
             class AtomicCounter>
-  __device__ void retrieve_outer(
-    cooperative_groups::thread_block_tile<FlushingTileSize> const& flushing_tile,
-    InputProbeIt input_probe_begin,
-    InputProbeIt input_probe_end,
-    OutputProbeIt output_probe,
-    OutputMatchIt output_match,
-    AtomicCounter& atomic_counter) const
+  __device__ void retrieve_outer(cooperative_groups::thread_block const& block,
+                                 InputProbeIt input_probe_begin,
+                                 InputProbeIt input_probe_end,
+                                 OutputProbeIt output_probe,
+                                 OutputMatchIt output_match,
+                                 AtomicCounter& atomic_counter) const
   {
     auto constexpr is_outer = true;
     auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
-    this->retrieve_impl<is_outer>(
-      flushing_tile, input_probe_begin, n, output_probe, output_match, atomic_counter);
+    this->retrieve_impl<is_outer, BlockSize>(
+      block, input_probe_begin, n, output_probe, output_match, atomic_counter);
   }
 
   // TODO docs
   template <bool IsOuter,
-            int32_t FlushingTileSize,
+            int32_t BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
             class AtomicCounter>
-  __device__ void retrieve_impl(
-    cooperative_groups::thread_block_tile<FlushingTileSize> const& flushing_tile,
-    InputProbeIt input_probe,
-    cuco::detail::index_type n,
-    OutputProbeIt output_probe,
-    OutputMatchIt output_match,
-    AtomicCounter& atomic_counter) const
+  __device__ void retrieve_impl(cooperative_groups::thread_block const& block,
+                                InputProbeIt input_probe,
+                                cuco::detail::index_type n,
+                                OutputProbeIt output_probe,
+                                OutputMatchIt output_match,
+                                AtomicCounter& atomic_counter) const
   {
     namespace cg = cooperative_groups;
 
     if (n == 0) { return; }
 
     using probe_type = typename std::iterator_traits<InputProbeIt>::value_type;
-    static_assert(FlushingTileSize >= cg_size);
 
     // tuning parameter
-    auto constexpr buffer_multiplicator = 1;
-    static_assert(buffer_multiplicator > 0);
+    auto constexpr buffer_multiplier = 1;
+    static_assert(buffer_multiplier > 0);
 
-    auto constexpr probing_tile_size    = cg_size;
-    auto constexpr max_matches_per_step = FlushingTileSize * window_size;
-    auto constexpr buffer_size          = buffer_multiplicator * max_matches_per_step;
+    auto constexpr probing_tile_size  = cg_size;
+    auto constexpr flushing_tile_size = cuco::detail::warp_size();
+    static_assert(flushing_tile_size >= probing_tile_size);
 
-    auto const probing_tile = cg::tiled_partition<probing_tile_size>(flushing_tile);
+    auto constexpr num_flushing_tiles   = BlockSize / flushing_tile_size;
+    auto constexpr max_matches_per_step = flushing_tile_size * window_size;
+    auto constexpr buffer_size          = buffer_multiplier * max_matches_per_step;
 
-    auto idx              = flushing_tile.thread_rank() / probing_tile_size;
-    auto constexpr stride = FlushingTileSize / probing_tile_size;
+    auto const flushing_tile = cg::tiled_partition<flushing_tile_size>(block);
+    auto const probing_tile  = cg::tiled_partition<probing_tile_size>(block);
+
+    auto const flushing_tile_id = flushing_tile.meta_group_rank();
+    auto idx                    = probing_tile.meta_group_rank();
+    auto const stride           = probing_tile.meta_group_size();
 
     // TODO align to 16B?
-    __shared__ probe_type probe_buffer[buffer_size];
-    __shared__ value_type match_buffer[buffer_size];
+    __shared__ probe_type probe_buffers[num_flushing_tiles][buffer_size];
+    __shared__ value_type match_buffers[num_flushing_tiles][buffer_size];
 
     //   using atomic_offset_type = cuda::atomic<size_type, cuda::thread_scope_block>;
     //   __shared__ atomic_offset_type buffer_offsets[flushing_tiles_per_block];
@@ -1060,7 +1063,7 @@ class open_addressing_ref_impl {
     while (flushing_tile.any(idx < n)) {
       bool active_flag = idx < n;
       auto const active_flushing_tile =
-        cg::binary_partition<FlushingTileSize>(flushing_tile, active_flag);
+        cg::binary_partition<flushing_tile_size>(flushing_tile, active_flag);
 
       if (active_flag) {
         // perform probing
@@ -1104,8 +1107,9 @@ class open_addressing_ref_impl {
               auto const matching_tile = cg::binary_partition(active_flushing_tile, match_found);
               // stage matches in shmem buffer
               if (match_found) {
-                probe_buffer[num_matches + matching_tile.thread_rank()] = probe;
-                match_buffer[num_matches + matching_tile.thread_rank()] = window_slots[i];
+                probe_buffers[flushing_tile_id][num_matches + matching_tile.thread_rank()] = probe;
+                match_buffers[flushing_tile_id][num_matches + matching_tile.thread_rank()] =
+                  window_slots[i];
               }
               // add number of new matches to the buffer counter
               num_matches += matching_tile.size();
@@ -1152,8 +1156,8 @@ class open_addressing_ref_impl {
               // flush_buffers
               // TODO use memcpy_async or pragma unroll?
               for (size_type i = rank; i < num_matches; i += active_flushing_tile.size()) {
-                *(output_probe + offset + i) = probe_buffer[i];
-                *(output_match + offset + i) = match_buffer[i];
+                *(output_probe + offset + i) = probe_buffers[flushing_tile_id][i];
+                *(output_match + offset + i) = match_buffers[flushing_tile_id][i];
               }
 
               // reset buffer counter

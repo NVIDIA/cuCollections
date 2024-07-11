@@ -471,49 +471,39 @@ class operator_impl<
 
  public:
   // TODO docs
-  template <int32_t FlushingTileSize,
+  template <int32_t BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
             class AtomicCounter>
-  __device__ void retrieve(
-    cooperative_groups::thread_block_tile<FlushingTileSize> const& flushing_tile,
-    InputProbeIt input_probe_begin,
-    InputProbeIt input_probe_end,
-    OutputProbeIt output_probe,
-    OutputMatchIt output_match,
-    AtomicCounter& atomic_counter) const
+  __device__ void retrieve(cooperative_groups::thread_block const& block,
+                           InputProbeIt input_probe_begin,
+                           InputProbeIt input_probe_end,
+                           OutputProbeIt output_probe,
+                           OutputMatchIt output_match,
+                           AtomicCounter& atomic_counter) const
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.retrieve(flushing_tile,
-                        input_probe_begin,
-                        input_probe_end,
-                        output_probe,
-                        output_match,
-                        atomic_counter);
+    ref_.impl_.retrieve<BlockSize>(
+      block, input_probe_begin, input_probe_end, output_probe, output_match, atomic_counter);
   }
 
   // TODO docs
-  template <int32_t FlushingTileSize,
+  template <int32_t BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
             class AtomicCounter>
-  __device__ void retrieve_outer(
-    cooperative_groups::thread_block_tile<FlushingTileSize> const& flushing_tile,
-    InputProbeIt input_probe_begin,
-    InputProbeIt input_probe_end,
-    OutputProbeIt output_probe,
-    OutputMatchIt output_match,
-    AtomicCounter& atomic_counter) const
+  __device__ void retrieve_outer(cooperative_groups::thread_block const& block,
+                                 InputProbeIt input_probe_begin,
+                                 InputProbeIt input_probe_end,
+                                 OutputProbeIt output_probe,
+                                 OutputMatchIt output_match,
+                                 AtomicCounter& atomic_counter) const
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.retrieve_outer(flushing_tile,
-                              input_probe_begin,
-                              input_probe_end,
-                              output_probe,
-                              output_match,
-                              atomic_counter);
+    ref_.impl_.retrieve_outer<BlockSize>(
+      block, input_probe_begin, input_probe_end, output_probe, output_match, atomic_counter);
   }
 };
 
