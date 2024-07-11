@@ -356,6 +356,53 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
   }
 }
 
+// TODO docs
+template <bool IsOuter,
+          int32_t BlockSize,
+          class InputProbeIt,
+          class OutputProbeIt,
+          class OutputMatchIt,
+          class AtomicCounter,
+          class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void retrieve(InputProbeIt input_probe,
+                                                       cuco::detail::index_type n,
+                                                       OutputProbeIt output_probe,
+                                                       OutputMatchIt output_match,
+                                                       AtomicCounter* atomic_counter,
+                                                       Ref ref)
+{
+  auto constexpr tile_size = cuco::detail::warp_size();  // TODO include
+
+  namespace cg        = cooperative_groups;
+  auto const block    = cg::this_thread_block();
+  auto const tile     = cg::tiled_partition<tile_size>(block);
+  auto const tile_idx = cuco::detail::global_thread_id() / tile_size;
+
+  auto const tiles_in_grid  = (gridDim.x * BlockSize) / tile_size;
+  auto const elems_per_tile = cuco::detail::int_div_ceil(n, tiles_in_grid);  // TODO include
+
+  auto const tile_begin_offset = tile_idx * elems_per_tile;
+  auto const tile_end_offset   = max(n, tile_begin_offset + elems_per_tile);
+
+  if (tile_begin_offset < tile_end_offset) {
+    if constexpr (IsOuter) {
+      ref.retrieve_outer(tile,
+                         input_probe + tile_begin_offset,
+                         input_probe + tile_end_offset,
+                         output_probe,
+                         output_match,
+                         *atomic_counter);
+    } else {
+      ref.retrieve(tile,
+                   input_probe + tile_begin_offset,
+                   input_probe + tile_end_offset,
+                   output_probe,
+                   output_match,
+                   *atomic_counter);
+    }
+  }
+}
+
 /**
  * @brief Counts the occurrences of keys in `[first, last)` contained in the container
  *

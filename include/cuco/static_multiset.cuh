@@ -473,6 +473,24 @@ class static_multiset {
                   OutputIt output_begin,
                   cuda_stream_ref stream = {}) const;
 
+  // TODO docs
+  template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve(
+    InputProbeIt first,
+    InputProbeIt last,
+    OutputProbeIt output_probe,
+    OutputMatchIt output_match,
+    cuda_stream_ref stream = {}) const;  // TODO cuda::stream_ref
+
+  // TODO docs
+  template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_outer(
+    InputProbeIt first,
+    InputProbeIt last,
+    OutputProbeIt output_probe,
+    OutputMatchIt output_match,
+    cuda_stream_ref stream = {}) const;  // TODO cuda::stream_ref
+
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
    *

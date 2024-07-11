@@ -962,6 +962,217 @@ class open_addressing_ref_impl {
     }
   }
 
+  // TODO docs
+  template <int32_t FlushingTileSize,
+            class InputProbeIt,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve(
+    cooperative_groups::thread_block_tile<FlushingTileSize> const& flushing_tile,
+    InputProbeIt input_probe_begin,
+    InputProbeIt input_probe_end,
+    OutputProbeIt output_probe,
+    OutputMatchIt output_match,
+    AtomicCounter& atomic_counter) const
+  {
+    auto constexpr is_outer = false;
+    auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
+    this->retrieve_impl<is_outer>(
+      flushing_tile, input_probe_begin, n, output_probe, output_match, atomic_counter);
+  }
+
+  // TODO docs
+  template <int32_t FlushingTileSize,
+            class InputProbeIt,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve_outer(
+    cooperative_groups::thread_block_tile<FlushingTileSize> const& flushing_tile,
+    InputProbeIt input_probe_begin,
+    InputProbeIt input_probe_end,
+    OutputProbeIt output_probe,
+    OutputMatchIt output_match,
+    AtomicCounter& atomic_counter) const
+  {
+    auto constexpr is_outer = true;
+    auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
+    this->retrieve_impl<is_outer>(
+      flushing_tile, input_probe_begin, n, output_probe, output_match, atomic_counter);
+  }
+
+  // TODO docs
+  template <bool IsOuter,
+            int32_t FlushingTileSize,
+            class InputProbeIt,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve_impl(
+    cooperative_groups::thread_block_tile<FlushingTileSize> const& flushing_tile,
+    InputProbeIt input_probe,
+    cuco::detail::index_type n,
+    OutputProbeIt output_probe,
+    OutputMatchIt output_match,
+    AtomicCounter& atomic_counter) const
+  {
+    namespace cg = cooperative_groups;
+
+    if (n == 0) { return; }
+
+    using probe_type = typename std::iterator_traits<InputProbeIt>::value_type;
+    static_assert(FlushingTileSize >= cg_size);
+
+    // tuning parameter
+    auto constexpr buffer_multiplicator = 1;
+    static_assert(buffer_multiplicator > 0);
+
+    auto constexpr probing_tile_size    = cg_size;
+    auto constexpr max_matches_per_step = FlushingTileSize * window_size;
+    auto constexpr buffer_size          = buffer_multiplicator * max_matches_per_step;
+
+    auto const probing_tile = cg::tiled_partition<probing_tile_size>(flushing_tile);
+
+    auto idx              = flushing_tile.thread_rank() / probing_tile_size;
+    auto constexpr stride = FlushingTileSize / probing_tile_size;
+
+    // TODO align to 16B?
+    __shared__ probe_type probe_buffer[buffer_size];
+    __shared__ value_type match_buffer[buffer_size];
+
+    //   using atomic_offset_type = cuda::atomic<size_type, cuda::thread_scope_block>;
+    //   __shared__ atomic_offset_type buffer_offsets[flushing_tiles_per_block];
+
+    // #if defined(CUCO_HAS_CG_INVOKE_ONE)
+    //   cg::invoke_one(flushing_tile,
+    //                  [&]() { new (&buffer_offsets[flushing_tile_id]) atomic_offset_type{0}; });
+    // #else
+    //   if (flushing_tile.thread_rank() == 0) {
+    //     new (&buffer_offsets[flushing_tile_id]) atomic_offset_type{0};
+    //   }
+    // #endif
+    //   flushing_tile.sync();  // sync still needed since cg.any doesn't imply a memory barrier
+
+    // iterate over input keys
+    // Note: `.any()` will implicitly synchronize the tile so we can safely reuse the shmem buffer
+    while (flushing_tile.any(idx < n)) {
+      bool active_flag = idx < n;
+      auto const active_flushing_tile =
+        cg::binary_partition<FlushingTileSize>(flushing_tile, active_flag);
+
+      if (active_flag) {
+        // perform probing
+        // make sure the flushing_tile is converged at this point to get a coalesced load
+        auto const& probe = *(input_probe + idx);
+        auto probing_iter =
+          this->probing_scheme_(probing_tile, probe, this->storage_ref_.window_extent());
+        bool empty_found                      = false;
+        bool match_found                      = false;
+        [[maybe_unused]] bool found_any_match = false;  // only needed if `IsOuter == true`
+        size_type num_matches                 = 0;
+
+        while (true) {
+          // TODO atomic_ref::load if insert operator is present
+          auto const window_slots = this->storage_ref_[*probing_iter];
+
+          for (int32_t i = 0; i < window_size; ++i) {
+            // if we're not at the end of the probing sequence
+            if (probing_tile.any(empty_found)) {
+              // set empty flag for all threads in the probing tile
+              empty_found = true;
+            } else {
+              // inspect slot content
+              switch (this->predicate_.operator()<is_insert::NO>(
+                probe, this->extract_key(window_slots[i]))) {
+                case detail::equal_result::EMPTY: {
+                  empty_found = true;
+                  break;
+                }
+                case detail::equal_result::EQUAL: {
+                  match_found = true;
+                  break;
+                }
+                default: {
+                  break;
+                }
+              }
+            }
+
+            if (active_flushing_tile.any(match_found)) {
+              auto const matching_tile = cg::binary_partition(active_flushing_tile, match_found);
+              // stage matches in shmem buffer
+              if (match_found) {
+                probe_buffer[num_matches + matching_tile.thread_rank()] = probe;
+                match_buffer[num_matches + matching_tile.thread_rank()] = window_slots[i];
+              }
+              // add number of new matches to the buffer counter
+              num_matches += matching_tile.size();
+            }
+
+            if constexpr (IsOuter) {
+              if (not found_any_match /*yet*/ and probing_tile.any(match_found) /*now*/) {
+                found_any_match = true;
+              }
+            }
+
+            // reset flag for next iteration
+            match_found = false;
+          }
+
+          // check if all probing tiles have finished their work
+          bool const finished = active_flushing_tile.all(empty_found);
+
+          if constexpr (IsOuter) {
+            if (finished and not found_any_match) {
+              // TODO write probe + empty_payload_sentinel or end()
+              // also increment num_matches accordingly
+            }
+          }
+
+          // if the buffer has not enough empty slots for the next iteration or the tile has
+          // finished probing
+          if (finished or num_matches > (buffer_size - max_matches_per_step)) {
+            if (num_matches > 0) {
+              auto const rank = active_flushing_tile.thread_rank();
+
+#if defined(CUCO_HAS_CG_INVOKE_ONE)
+              auto const offset = cg::invoke_one_broadcast(active_flushing_tile, [&]() {
+                return atomic_counter.fetch_add(num_matches, cuda::std::memory_order_relaxed);
+              });
+#else
+              size_type offset;
+              if (rank == 0) {
+                offset = atomic_counter.fetch_add(num_matches, cuda::std::memory_order_relaxed);
+              }
+              offset = active_flushing_tile.shfl(offset, 0);
+#endif
+
+              // flush_buffers
+              // TODO use memcpy_async or pragma unroll?
+              for (size_type i = rank; i < num_matches; i += active_flushing_tile.size()) {
+                *(output_probe + offset + i) = probe_buffer[i];
+                *(output_match + offset + i) = match_buffer[i];
+              }
+
+              // reset buffer counter
+              num_matches = 0;
+            }
+          }
+
+          // the entire flushing tile has finished its work
+          if (finished) { break; }
+
+          // onto the next probing window
+          ++probing_iter;
+        }
+      }
+
+      // onto the next key
+      idx += stride;
+    }
+  }
+
   /**
    * @brief Executes a callback on every element in the container with key equivalent to the probe
    * key.

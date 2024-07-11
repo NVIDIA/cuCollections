@@ -455,6 +455,74 @@ template <typename Key,
           typename StorageRef,
           typename... Operators>
 class operator_impl<
+  op::retrieve_tag,
+  static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type =
+    static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type       = typename base_type::key_type;
+  using value_type     = typename base_type::value_type;
+  using iterator       = typename base_type::iterator;
+  using const_iterator = typename base_type::const_iterator;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  // TODO docs
+  template <int32_t FlushingTileSize,
+            class InputProbeIt,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve(
+    cooperative_groups::thread_block_tile<FlushingTileSize> const& flushing_tile,
+    InputProbeIt input_probe_begin,
+    InputProbeIt input_probe_end,
+    OutputProbeIt output_probe,
+    OutputMatchIt output_match,
+    AtomicCounter& atomic_counter) const
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.retrieve(flushing_tile,
+                        input_probe_begin,
+                        input_probe_end,
+                        output_probe,
+                        output_match,
+                        atomic_counter);
+  }
+
+  // TODO docs
+  template <int32_t FlushingTileSize,
+            class InputProbeIt,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve_outer(
+    cooperative_groups::thread_block_tile<FlushingTileSize> const& flushing_tile,
+    InputProbeIt input_probe_begin,
+    InputProbeIt input_probe_end,
+    OutputProbeIt output_probe,
+    OutputMatchIt output_match,
+    AtomicCounter& atomic_counter) const
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.retrieve_outer(flushing_tile,
+                              input_probe_begin,
+                              input_probe_end,
+                              output_probe,
+                              output_match,
+                              atomic_counter);
+  }
+};
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
   op::for_each_tag,
   static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
   using base_type = static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;

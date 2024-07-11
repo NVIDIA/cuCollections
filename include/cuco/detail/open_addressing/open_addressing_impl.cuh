@@ -527,6 +527,34 @@ class open_addressing_impl {
         first, num_keys, output_begin, container_ref);
   }
 
+  // TODO docs
+  template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt, class Ref>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve(InputProbeIt first,
+                                                   InputProbeIt last,
+                                                   OutputProbeIt output_probe,
+                                                   OutputMatchIt output_match,
+                                                   Ref container_ref,
+                                                   cuda_stream_ref stream) const
+  {  // TODO cuda::stream_ref
+    auto constexpr is_outer = false;
+    return this->retrieve_impl<is_outer>(
+      first, last, output_probe, output_match, container_ref, stream);
+  }
+
+  // TODO docs
+  template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt, class Ref>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_outer(InputProbeIt first,
+                                                         InputProbeIt last,
+                                                         OutputProbeIt output_probe,
+                                                         OutputMatchIt output_match,
+                                                         Ref container_ref,
+                                                         cuda_stream_ref stream) const
+  {  // TODO cuda::stream_ref
+    auto constexpr is_outer = true;
+    return this->retrieve_impl<is_outer>(
+      first, last, output_probe, output_match, container_ref, stream);
+  }
+
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the container
    *
@@ -860,6 +888,40 @@ class open_addressing_impl {
         first, num_keys, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
+  }
+
+  // TODO docs
+  template <bool IsOuter, class InputProbeIt, class OutputProbeIt, class OutputMatchIt, class Ref>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_impl(InputProbeIt first,
+                                                        InputProbeIt last,
+                                                        OutputProbeIt output_probe,
+                                                        OutputMatchIt output_match,
+                                                        Ref container_ref,
+                                                        cuda_stream_ref stream) const
+  {  // TODO cuda::stream_ref
+    auto const n = cuco::detail::distance(first, last);
+    if (n == 0) { return {output_probe, output_match}; }
+
+    auto counter =
+      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
+    counter.reset(stream);
+
+    auto constexpr block_size = cuco::detail::default_block_size();
+    auto const grid_size      = cuco::detail::max_occupancy_grid_size(block_size,
+                                                                 detail::retrieve<IsOuter,
+                                                                                  block_size,
+                                                                                  InputProbeIt,
+                                                                                  OutputProbeIt,
+                                                                                  OutputMatchIt,
+                                                                                  decltype(counter),
+                                                                                  Ref>);
+
+    detail::retrieve<IsOuter, block_size><<<grid_size, block_size, 0, stream>>>(
+      first, n, output_probe, output_match, counter.data(), container_ref);
+
+    auto const num_retrieved = counter.load_to_host(stream);
+
+    return {output_probe + num_retrieved, output_match + num_retrieved};
   }
 
   /**
