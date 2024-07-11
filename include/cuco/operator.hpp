@@ -39,6 +39,12 @@ struct insert_or_assign_tag {
 } inline constexpr insert_or_assign;  ///< `cuco::insert_or_assign` operator
 
 /**
+ * @brief `insert_or_apply` operator tag
+ */
+struct insert_or_apply_tag {
+} inline constexpr insert_or_apply;  ///< `cuco::insert_or_apply` operator
+
+/**
  * @brief `erase` operator tag
  */
 struct erase_tag {
@@ -73,6 +79,16 @@ struct retrieve_tag {
  */
 struct for_each_tag {
 } inline constexpr for_each;  ///< `cuco::for_each` operator
+
+namespace reduce {
+
+/**
+ * @brief `sum` reduction operator tag
+ */
+struct sum_tag {
+} inline constexpr sum;
+
+}  // namespace reduce
 
 }  // namespace op
 }  // namespace cuco

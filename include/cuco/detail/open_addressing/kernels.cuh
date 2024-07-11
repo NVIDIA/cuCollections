@@ -245,7 +245,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
       block.sync();
       if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
     } else {
-      auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
+      auto const tile = cg::tiled_partition<CGSize>(block);
       if (idx < n) {
         typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
         auto const found = pred(*(stencil + idx)) ? ref.contains(tile, key) : false;
@@ -332,10 +332,10 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
   });
 
   while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
-    if (idx < n) {
-      typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
-      if constexpr (CGSize == 1) {
-        auto const found = ref.find(key);
+    if constexpr (CGSize == 1) {
+      if (idx < n) {
+        typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+        auto const found                                              = ref.find(key);
         /*
          * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased
          * sector stores from L2 to global memory. By writing results to shared memory and then
@@ -343,11 +343,14 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
          * increase in sector stores from L2 to global and improving performance.
          */
         output_buffer[thread_idx] = output(found);
-        block.sync();
-        *(output_begin + idx) = output_buffer[thread_idx];
-      } else {
-        auto const tile  = cg::tiled_partition<CGSize>(block);
-        auto const found = ref.find(tile, key);
+      }
+      block.sync();
+      if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
+    } else {
+      auto const tile = cg::tiled_partition<CGSize>(block);
+      if (idx < n) {
+        typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+        auto const found                                              = ref.find(tile, key);
 
         if (tile.thread_rank() == 0) { *(output_begin + idx) = output(found); }
       }
@@ -400,6 +403,99 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void retrieve(InputProbeIt input_probe,
                    output_match,
                    *atomic_counter);
     }
+  }
+}
+
+/**
+ * @brief Inserts all elements in the range `[first, last)`.
+ *
+ * @note: For a given element `*(first + i)`, if the container doesn't already contain an element
+ * with an equivalent key, inserts the element at a location pointed by `iter` and writes
+ * `iter` to `found_begin + i` and writes `true` to `inserted_begin + i`. Otherwise, finds the
+ * location of the equivalent element, `iter` and writes `iter` to `found_begin + i` and writes
+ * `false` to `inserted_begin + i`.
+ *
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the `value_type` of the data structure
+ * @tparam FoundIt Device accessible random access output iterator whose `value_type`
+ * is constructible from `map::iterator` type
+ * @tparam InsertedIt Device accessible random access output iterator whose `value_type`
+ * is constructible from `bool`
+ * @tparam Ref Type of non-owning device container ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param found_begin Beginning of the sequence of elements found for each key
+ * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
+template <int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIt,
+          typename FoundIt,
+          typename InsertedIt,
+          typename Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void insert_and_find(InputIt first,
+                                                              cuco::detail::index_type n,
+                                                              FoundIt found_begin,
+                                                              InsertedIt inserted_begin,
+                                                              Ref ref)
+{
+  namespace cg = cooperative_groups;
+
+  auto const block       = cg::this_thread_block();
+  auto const thread_idx  = block.thread_rank();
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
+
+  using output_type = typename find_buffer<Ref>::type;
+
+  auto constexpr has_payload = not std::is_same_v<typename Ref::key_type, typename Ref::value_type>;
+
+  auto output = cuda::proclaim_return_type<output_type>([&] __device__(auto found) {
+    if constexpr (has_payload) {
+      return found->second;
+    } else {
+      return *found;
+    }
+  });
+
+  __shared__ output_type output_location_buffer[BlockSize / CGSize];
+  __shared__ bool output_inserted_buffer[BlockSize / CGSize];
+
+  while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
+    if constexpr (CGSize == 1) {
+      if (idx < n) {
+        typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};
+        auto const [iter, inserted] = ref.insert_and_find(insert_element);
+        /*
+         * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased
+         * sector stores from L2 to global memory. By writing results to shared memory and then
+         * synchronizing before writing back to global, we no longer rely on L1, preventing the
+         * increase in sector stores from L2 to global and improving performance.
+         */
+        output_location_buffer[thread_idx] = output(iter);
+        output_inserted_buffer[thread_idx] = inserted;
+      }
+      block.sync();
+      if (idx < n) {
+        *(found_begin + idx)    = output_location_buffer[thread_idx];
+        *(inserted_begin + idx) = output_inserted_buffer[thread_idx];
+      }
+    } else {
+      auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
+      if (idx < n) {
+        typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};
+        auto const [iter, inserted] = ref.insert_and_find(tile, insert_element);
+        if (tile.thread_rank() == 0) {
+          *(found_begin + idx)    = output(iter);
+          *(inserted_begin + idx) = inserted;
+        }
+      }
+    }
+    idx += loop_stride;
   }
 }
 

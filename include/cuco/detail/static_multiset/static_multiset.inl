@@ -39,7 +39,7 @@ constexpr static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator
                   cuda_thread_scope<Scope>,
                   Storage,
                   Allocator const& alloc,
-                  cuda_stream_ref stream)
+                  cuda::stream_ref stream)
   : impl_{std::make_unique<impl_type>(
       capacity, empty_key_sentinel, pred, probing_scheme, alloc, stream)}
 {
@@ -61,7 +61,7 @@ constexpr static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator
                   cuda_thread_scope<Scope>,
                   Storage,
                   Allocator const& alloc,
-                  cuda_stream_ref stream)
+                  cuda::stream_ref stream)
   : impl_{std::make_unique<impl_type>(
       n, desired_load_factor, empty_key_sentinel, pred, probing_scheme, alloc, stream)}
 {
@@ -83,7 +83,7 @@ constexpr static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator
                   cuda_thread_scope<Scope>,
                   Storage,
                   Allocator const& alloc,
-                  cuda_stream_ref stream)
+                  cuda::stream_ref stream)
   : impl_{std::make_unique<impl_type>(
       capacity, empty_key_sentinel, erased_key_sentinel, pred, probing_scheme, alloc, stream)}
 {
@@ -97,7 +97,7 @@ template <class Key,
           class Allocator,
           class Storage>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear(
-  cuda_stream_ref stream)
+  cuda::stream_ref stream)
 {
   impl_->clear(stream);
 }
@@ -110,7 +110,7 @@ template <class Key,
           class Allocator,
           class Storage>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear_async(
-  cuda_stream_ref stream) noexcept
+  cuda::stream_ref stream) noexcept
 {
   impl_->clear_async(stream);
 }
@@ -124,10 +124,10 @@ template <class Key,
           class Storage>
 template <typename InputIt>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
-  InputIt first, InputIt last, cuda_stream_ref stream)
+  InputIt first, InputIt last, cuda::stream_ref stream)
 {
   this->insert_async(first, last, stream);
-  stream.synchronize();
+  stream.wait();
 }
 
 template <class Key,
@@ -139,7 +139,7 @@ template <class Key,
           class Storage>
 template <typename InputIt>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_async(
-  InputIt first, InputIt last, cuda_stream_ref stream) noexcept
+  InputIt first, InputIt last, cuda::stream_ref stream) noexcept
 {
   impl_->insert_async(first, last, ref(op::insert), stream);
 }
@@ -153,10 +153,10 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
-  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream)
+  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
 {
   this->insert_if_async(first, last, stencil, pred, stream);
-  stream.synchronize();
+  stream.wait();
 }
 
 template <class Key,
@@ -168,8 +168,11 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
-  insert_if_async(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda_stream_ref stream) noexcept
+  insert_if_async(InputIt first,
+                  InputIt last,
+                  StencilIt stencil,
+                  Predicate pred,
+                  cuda::stream_ref stream) noexcept
 {
   impl_->insert_if_async(first, last, stencil, pred, ref(op::insert), stream);
 }
@@ -183,10 +186,10 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename OutputIt>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
-  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+  InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
   this->contains_async(first, last, output_begin, stream);
-  stream.synchronize();
+  stream.wait();
 }
 
 template <class Key,
@@ -201,7 +204,7 @@ void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   contains_async(InputIt first,
                  InputIt last,
                  OutputIt output_begin,
-                 cuda_stream_ref stream) const noexcept
+                 cuda::stream_ref stream) const noexcept
 {
   impl_->contains_async(first, last, output_begin, ref(op::contains), stream);
 }
@@ -220,10 +223,10 @@ void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   StencilIt stencil,
   Predicate pred,
   OutputIt output_begin,
-  cuda_stream_ref stream) const
+  cuda::stream_ref stream) const
 {
   this->contains_if_async(first, last, stencil, pred, output_begin, stream);
-  stream.synchronize();
+  stream.wait();
 }
 
 template <class Key,
@@ -240,7 +243,7 @@ void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
                     StencilIt stencil,
                     Predicate pred,
                     OutputIt output_begin,
-                    cuda_stream_ref stream) const noexcept
+                    cuda::stream_ref stream) const noexcept
 {
   impl_->contains_if_async(first, last, stencil, pred, output_begin, ref(op::contains), stream);
 }
@@ -254,10 +257,10 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename OutputIt>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find(
-  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+  InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
   find_async(first, last, output_begin, stream);
-  stream.synchronize();
+  stream.wait();
 }
 
 template <class Key,
@@ -269,7 +272,7 @@ template <class Key,
           class Storage>
 template <typename InputIt, typename OutputIt>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
-  InputIt first, InputIt last, OutputIt output_begin, cuda_stream_ref stream) const
+  InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
   impl_->find_async(first, last, output_begin, ref(op::find), stream);
 }
@@ -326,7 +329,7 @@ template <class Key,
 template <typename InputIt>
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
-  InputIt first, InputIt last, cuda_stream_ref stream) const noexcept
+  InputIt first, InputIt last, cuda::stream_ref stream) const noexcept
 {
   return impl_->count(first, last, ref(op::count), stream);
 }
@@ -345,7 +348,7 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt last,
   ProbeKeyEqual const& probe_key_equal,
   ProbeHash const& probe_hash,
-  cuda_stream_ref stream) const noexcept
+  cuda::stream_ref stream) const noexcept
 {
   return impl_->count(first,
                       last,
@@ -367,7 +370,7 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt last,
   ProbeKeyEqual const& probe_key_equal,
   ProbeHash const& probe_hash,
-  cuda_stream_ref stream) const noexcept
+  cuda::stream_ref stream) const noexcept
 {
   return impl_->count_outer(
     first,
@@ -385,7 +388,7 @@ template <class Key,
           class Storage>
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
-  cuda_stream_ref stream) const
+  cuda::stream_ref stream) const
 {
   return impl_->size(stream);
 }

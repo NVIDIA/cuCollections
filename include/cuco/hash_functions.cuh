@@ -16,10 +16,23 @@
 
 #pragma once
 
+#include <cuco/detail/hash_functions/identity_hash.cuh>
 #include <cuco/detail/hash_functions/murmurhash3.cuh>
 #include <cuco/detail/hash_functions/xxhash.cuh>
 
+#include <thrust/functional.h>
+
 namespace cuco {
+
+/**
+ * @brief An Identity hash function to hash the given argument on host and device
+ *
+ * @throw A key must not be larger than uint64_t
+ *
+ * @tparam Key The type of the values to hash
+ */
+template <typename Key>
+using identity_hash = detail::identity_hash<Key>;
 
 /**
  * @brief The 32-bit integer finalizer function of `MurmurHash3` to hash the given argument on host

@@ -74,7 +74,8 @@ class static_map_ref
   using impl_type = detail::
     open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef, allows_duplicates>;
 
-  static_assert(sizeof(T) <= 8, "Container does not support payload types larger than 8 bytes.");
+  static_assert(sizeof(T) == 4 or sizeof(T) == 8,
+                "sizeof(mapped_type) must be either 4 bytes or 8 bytes.");
 
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,

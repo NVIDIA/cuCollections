@@ -19,6 +19,7 @@
 #include <cuco/operator.hpp>
 
 #include <cuda/atomic>
+#include <cuda/std/type_traits>
 
 #include <cooperative_groups.h>
 
@@ -266,7 +267,7 @@ static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators..
   return static_multiset_ref<Key,
                              Scope,
                              KeyEqual,
-                             decltype(probing_scheme),
+                             cuda::std::decay_t<decltype(probing_scheme)>,
                              StorageRef,
                              Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
                                            this->impl_.key_eq(),

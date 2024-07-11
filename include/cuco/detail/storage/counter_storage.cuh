@@ -16,12 +16,12 @@
 
 #pragma once
 
-#include <cuco/cuda_stream_ref.hpp>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/extent.cuh>
 
 #include <cuda/atomic>
+#include <cuda/stream_ref>
 
 #include <memory>
 
@@ -64,10 +64,10 @@ class counter_storage : public storage_base<cuco::extent<SizeType, 1>> {
    *
    * @param stream CUDA stream used to reset
    */
-  void reset(cuda_stream_ref stream)
+  void reset(cuda::stream_ref stream)
   {
     static_assert(sizeof(size_type) == sizeof(value_type));
-    CUCO_CUDA_TRY(cudaMemsetAsync(this->data(), 0, sizeof(value_type), stream));
+    CUCO_CUDA_TRY(cudaMemsetAsync(this->data(), 0, sizeof(value_type), stream.get()));
   }
 
   /**
@@ -92,12 +92,12 @@ class counter_storage : public storage_base<cuco::extent<SizeType, 1>> {
    * @param stream CUDA stream used to copy device value to the host
    * @return Value of the atomic counter
    */
-  [[nodiscard]] constexpr size_type load_to_host(cuda_stream_ref stream) const
+  [[nodiscard]] constexpr size_type load_to_host(cuda::stream_ref stream) const
   {
     size_type h_count;
-    CUCO_CUDA_TRY(
-      cudaMemcpyAsync(&h_count, this->data(), sizeof(size_type), cudaMemcpyDeviceToHost, stream));
-    stream.synchronize();
+    CUCO_CUDA_TRY(cudaMemcpyAsync(
+      &h_count, this->data(), sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+    stream.wait();
     return h_count;
   }
 

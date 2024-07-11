@@ -101,12 +101,11 @@ namespace cuco {
  * static_multimap<int, int> m{100'000, empty_key_sentinel, empty_value_sentinel};
  *
  * // Create a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
- * thrust::device_vector<thrust::pair<int,int>> pairs(50,000);
+ * thrust::device_vector<cuco::pair<int,int>> pairs(50,000);
  * thrust::transform(thrust::make_counting_iterator(0),
  *                   thrust::make_counting_iterator(pairs.size()),
  *                   pairs.begin(),
- *                   []__device__(auto i){ return thrust::make_pair(i,i); };
- *
+ *                   []__device__(auto i){ return cuco::pair{i,i}; };
  *
  * // Inserts all pairs into the map
  * m.insert(pairs.begin(), pairs.end());
@@ -683,7 +682,7 @@ class static_multimap {
    *                  thrust::make_counting_iterator(50'000),
    *                  [map = m.get_device_mutable_view()]
    *                  __device__ (auto i) mutable {
-   *                     map.insert(thrust::make_pair(i,i));
+   *                     map.insert(cuco::pair{i,i});
    *                  });
    * \endcode
    */
@@ -1247,7 +1246,7 @@ class static_multimap {
 
    private:
     using device_view_base<device_view_impl>::impl_;  ///< Implementation detail of `device_view`
-  };                                                  // class device_view
+  };  // class device_view
 
   /**
    * @brief Return the raw pointer of the hash map slots.
@@ -1348,7 +1347,7 @@ class static_multimap {
   slot_deleter delete_slots_;                   ///< Custom slots deleter
   std::unique_ptr<atomic_ctr_type, counter_deleter> d_counter_{};  ///< Preallocated device counter
   std::unique_ptr<pair_atomic_type, slot_deleter> slots_{};  ///< Pointer to flat slots storage
-};                                                           // class static_multimap
+};  // class static_multimap
 
 }  // namespace cuco
 
