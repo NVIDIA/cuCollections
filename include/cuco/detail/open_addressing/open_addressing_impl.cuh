@@ -579,8 +579,8 @@ class open_addressing_impl {
                                                    OutputProbeIt output_probe,
                                                    OutputMatchIt output_match,
                                                    Ref container_ref,
-                                                   cuda_stream_ref stream) const
-  {  // TODO cuda::stream_ref
+                                                   cuda::stream_ref stream) const
+  {
     auto constexpr is_outer = false;
     return this->retrieve_impl<is_outer>(
       first, last, output_probe, output_match, container_ref, stream);
@@ -593,8 +593,8 @@ class open_addressing_impl {
                                                          OutputProbeIt output_probe,
                                                          OutputMatchIt output_match,
                                                          Ref container_ref,
-                                                         cuda_stream_ref stream) const
-  {  // TODO cuda::stream_ref
+                                                         cuda::stream_ref stream) const
+  {
     auto constexpr is_outer = true;
     return this->retrieve_impl<is_outer>(
       first, last, output_probe, output_match, container_ref, stream);
@@ -942,8 +942,8 @@ class open_addressing_impl {
                                                         OutputProbeIt output_probe,
                                                         OutputMatchIt output_match,
                                                         Ref container_ref,
-                                                        cuda_stream_ref stream) const
-  {  // TODO cuda::stream_ref
+                                                        cuda::stream_ref stream) const
+  {
     auto const n = cuco::detail::distance(first, last);
     if (n == 0) { return {output_probe, output_match}; }
 
@@ -954,14 +954,14 @@ class open_addressing_impl {
     auto constexpr block_size = cuco::detail::default_block_size();
     auto const grid_size      = cuco::detail::max_occupancy_grid_size(block_size,
                                                                  detail::retrieve<IsOuter,
-                                                                                  block_size,
-                                                                                  InputProbeIt,
-                                                                                  OutputProbeIt,
-                                                                                  OutputMatchIt,
-                                                                                  decltype(counter),
-                                                                                  Ref>);
+                                                                                       block_size,
+                                                                                       InputProbeIt,
+                                                                                       OutputProbeIt,
+                                                                                       OutputMatchIt,
+                                                                                       decltype(counter),
+                                                                                       Ref>);
 
-    detail::retrieve<IsOuter, block_size><<<grid_size, block_size, 0, stream>>>(
+    detail::retrieve<IsOuter, block_size><<<grid_size, block_size, 0, stream.get()>>>(
       first, n, output_probe, output_match, counter.data(), container_ref);
 
     auto const num_retrieved = counter.load_to_host(stream);

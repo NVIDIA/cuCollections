@@ -292,7 +292,7 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputProbeIt last,
   OutputProbeIt output_probe,
   OutputMatchIt output_match,
-  cuda_stream_ref stream) const  // TODO cuda::stream_ref
+  cuda::stream_ref stream) const
 {
   return this->impl_->retrieve(
     first, last, output_probe, output_match, this->ref(op::retrieve), stream);
@@ -313,7 +313,7 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputProbeIt last,
   OutputProbeIt output_probe,
   OutputMatchIt output_match,
-  cuda_stream_ref stream) const  // TODO cuda::stream_ref
+  cuda::stream_ref stream) const
 {
   return this->impl_->retrieve_outer(
     first, last, output_probe, output_match, this->ref(op::retrieve), stream);
