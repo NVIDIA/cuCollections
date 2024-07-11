@@ -19,6 +19,7 @@
 #include <cuco/operator.hpp>
 
 #include <cuda/atomic>
+#include <cuda/std/type_traits>
 
 #include <cooperative_groups.h>
 
@@ -260,12 +261,16 @@ static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::w
   NewHash const& hash) const noexcept
 {
   auto const probing_scheme = this->impl_.probing_scheme().with_hash_function(hash);
-  return static_set_ref<Key, Scope, KeyEqual, decltype(probing_scheme), StorageRef, Operators...>{
-    cuco::empty_key<Key>{this->empty_key_sentinel()},
-    this->impl_.key_eq(),
-    probing_scheme,
-    {},
-    this->impl_.storage_ref()};
+  return static_set_ref<Key,
+                        Scope,
+                        KeyEqual,
+                        cuda::std::decay_t<decltype(probing_scheme)>,
+                        StorageRef,
+                        Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
+                                      this->impl_.key_eq(),
+                                      probing_scheme,
+                                      {},
+                                      this->impl_.storage_ref()};
 }
 
 template <typename Key,
