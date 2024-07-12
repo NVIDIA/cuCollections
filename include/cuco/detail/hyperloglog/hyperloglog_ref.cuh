@@ -540,15 +540,22 @@ class hyperloglog_ref {
    * @returns True iff kernel configuration is succesful
    */
   template <typename Kernel>
-  [[nodiscard]] __host__ constexpr bool try_reserve_shmem(Kernel kernel,
-                                                          int shmem_bytes) const noexcept
+  [[nodiscard]] __host__ constexpr bool try_reserve_shmem(Kernel kernel, int shmem_bytes) const
   {
-    bool const ret =
-      cudaSuccess == cudaFuncSetAttribute(reinterpret_cast<void const*>(kernel),
-                                          cudaFuncAttributeMaxDynamicSharedMemorySize,
-                                          shmem_bytes);
-    cudaGetLastError();  // flush CUDA error
-    return ret;
+    int device = -1;
+    CUCO_CUDA_TRY(cudaGetDevice(&device));
+    int max_shmem_bytes = 0;
+    CUCO_CUDA_TRY(
+      cudaDeviceGetAttribute(&max_shmem_bytes, cudaDevAttrMaxSharedMemoryPerBlockOptin, device));
+
+    if (shmem_bytes <= max_shmem_bytes) {
+      CUCO_CUDA_TRY(cudaFuncSetAttribute(reinterpret_cast<void const*>(kernel),
+                                         cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                         shmem_bytes));
+      return true;
+    } else {
+      return false;
+    }
   }
 
   hasher hash_;                            ///< Hash function used to hash items
