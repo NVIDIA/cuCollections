@@ -25,6 +25,7 @@
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
+#include <cuda/atomic>
 #include <cuda/std/bit>
 #include <cuda/std/span>
 #include <cuda/std/utility>
@@ -524,17 +525,8 @@ class hyperloglog_ref {
    */
   __device__ constexpr void update_max(int i, register_type value) noexcept
   {
-    if constexpr (Scope == cuda::thread_scope_thread) {
-      this->sketch_[i] = max(this->sketch_[i], value);
-    } else if constexpr (Scope == cuda::thread_scope_block) {
-      atomicMax_block(&(this->sketch_[i]), value);
-    } else if constexpr (Scope == cuda::thread_scope_device) {
-      atomicMax(&(this->sketch_[i]), value);
-    } else if constexpr (Scope == cuda::thread_scope_system) {
-      atomicMax_system(&(this->sketch_[i]), value);
-    } else {
-      static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-    }
+    cuda::atomic_ref<register_type, Scope> register_ref(this->sketch_[i]);
+    register_ref.fetch_max(value, cuda::memory_order_relaxed);
   }
 
   /**
