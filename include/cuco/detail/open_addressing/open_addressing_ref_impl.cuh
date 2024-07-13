@@ -1270,7 +1270,7 @@ class open_addressing_ref_impl {
     using mapped_type = cuda::std::decay_t<decltype(this->empty_value_sentinel())>;
 
     auto expected_key     = expected.first;
-    auto expected_payload = expected.second;
+    auto expected_payload = this->empty_value_sentinel();
 
     cuda::atomic_ref<key_type, Scope> key_ref(address->first);
     cuda::atomic_ref<mapped_type, Scope> payload_ref(address->second);
@@ -1283,12 +1283,14 @@ class open_addressing_ref_impl {
     // if key success
     if (key_cas_success) {
       while (not payload_cas_success) {
-        payload_cas_success = payload_ref.compare_exchange_strong(
-          expected_payload = expected.second, desired.second, cuda::memory_order_relaxed);
+        payload_cas_success =
+          payload_ref.compare_exchange_strong(expected_payload = this->empty_value_sentinel(),
+                                              desired.second,
+                                              cuda::memory_order_relaxed);
       }
       return insert_result::SUCCESS;
     } else if (payload_cas_success) {
-      payload_ref.store(expected.second, cuda::memory_order_relaxed);
+      payload_ref.store(this->empty_value_sentinel(), cuda::memory_order_relaxed);
     }
 
     // Our key was already present in the slot, so our key is a duplicate
