@@ -669,9 +669,10 @@ class open_addressing_ref_impl {
         // Key exists, return true if successfully deleted
         if (eq_res == detail::equal_result::EQUAL) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
-                                 slot_content,
-                                 this->erased_slot_sentinel())) {
+          switch (attempt_insert_stable(
+            (storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+            slot_content,
+            this->erased_slot_sentinel())) {
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: return false;
             default: continue;
@@ -716,9 +717,10 @@ class open_addressing_ref_impl {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         auto const status =
           (group.thread_rank() == src_lane)
-            ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
-                             window_slots[intra_window_index],
-                             this->erased_slot_sentinel())
+            ? attempt_insert_stable(
+                (storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+                window_slots[intra_window_index],
+                this->erased_slot_sentinel())
             : insert_result::CONTINUE;
 
         switch (group.shfl(status, src_lane)) {
@@ -1254,6 +1256,8 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts the specified element with two back-to-back CAS operations.
    *
+   * @note This CAS can be used exclusively for `cuco::op::insert` operations.
+   *
    * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param address Pointer to the slot in memory
@@ -1290,6 +1294,7 @@ class open_addressing_ref_impl {
       }
       return insert_result::SUCCESS;
     } else if (payload_cas_success) {
+      // This is insert-specific, cannot for `erase` operations
       payload_ref.store(this->empty_value_sentinel(), cuda::memory_order_relaxed);
     }
 
