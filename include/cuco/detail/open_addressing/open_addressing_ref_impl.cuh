@@ -669,9 +669,10 @@ class open_addressing_ref_impl {
         // Key exists, return true if successfully deleted
         if (eq_res == detail::equal_result::EQUAL) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
-                                 slot_content,
-                                 this->erased_slot_sentinel())) {
+          switch (attempt_insert_stable(
+            (storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+            slot_content,
+            this->erased_slot_sentinel())) {
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: return false;
             default: continue;
@@ -716,9 +717,10 @@ class open_addressing_ref_impl {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         auto const status =
           (group.thread_rank() == src_lane)
-            ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
-                             window_slots[intra_window_index],
-                             this->erased_slot_sentinel())
+            ? attempt_insert_stable(
+                (storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+                window_slots[intra_window_index],
+                this->erased_slot_sentinel())
             : insert_result::CONTINUE;
 
         switch (group.shfl(status, src_lane)) {
@@ -1254,6 +1256,8 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts the specified element with two back-to-back CAS operations.
    *
+   * @note This CAS can be used exclusively for `cuco::op::insert` operations.
+   *
    * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param address Pointer to the slot in memory
@@ -1270,7 +1274,7 @@ class open_addressing_ref_impl {
     using mapped_type = cuda::std::decay_t<decltype(this->empty_value_sentinel())>;
 
     auto expected_key     = expected.first;
-    auto expected_payload = expected.second;
+    auto expected_payload = this->empty_value_sentinel();
 
     cuda::atomic_ref<key_type, Scope> key_ref(address->first);
     cuda::atomic_ref<mapped_type, Scope> payload_ref(address->second);
@@ -1283,12 +1287,15 @@ class open_addressing_ref_impl {
     // if key success
     if (key_cas_success) {
       while (not payload_cas_success) {
-        payload_cas_success = payload_ref.compare_exchange_strong(
-          expected_payload = expected.second, desired.second, cuda::memory_order_relaxed);
+        payload_cas_success =
+          payload_ref.compare_exchange_strong(expected_payload = this->empty_value_sentinel(),
+                                              desired.second,
+                                              cuda::memory_order_relaxed);
       }
       return insert_result::SUCCESS;
     } else if (payload_cas_success) {
-      payload_ref.store(expected.second, cuda::memory_order_relaxed);
+      // This is insert-specific, cannot for `erase` operations
+      payload_ref.store(this->empty_value_sentinel(), cuda::memory_order_relaxed);
     }
 
     // Our key was already present in the slot, so our key is a duplicate
