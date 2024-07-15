@@ -1231,20 +1231,24 @@ class open_addressing_ref_impl {
    */
   template <typename Value>
   [[nodiscard]] __device__ constexpr insert_result packed_cas(value_type* address,
-                                                              value_type const& expected,
-                                                              Value const& desired) noexcept
+                                                              value_type expected,
+                                                              Value desired) noexcept
   {
-    cuda::atomic_ref<value_type, Scope> slot_ref(*address);
-    auto expected_slot = expected;
+    using packed_type = cuda::std::conditional_t<sizeof(value_type) == 4, uint32_t, uint64_t>;
 
-    auto const success = slot_ref.compare_exchange_strong(
-      expected_slot, this->native_value(desired), cuda::std::memory_order_relaxed);
+    auto* slot_ptr     = reinterpret_cast<packed_type*>(address);
+    auto* expected_ptr = reinterpret_cast<packed_type*>(&expected);
+    auto* desired_ptr  = reinterpret_cast<packed_type*>(&desired);
+
+    auto slot_ref = cuda::atomic_ref<packed_type, Scope>{*slot_ptr};
+
+    auto const success =
+      slot_ref.compare_exchange_strong(*expected_ptr, *desired_ptr, cuda::memory_order_relaxed);
 
     if (success) {
       return insert_result::SUCCESS;
     } else {
-      return this->predicate_.equal_to(this->extract_key(desired),
-                                       this->extract_key(expected_slot)) ==
+      return this->predicate_.equal_to(this->extract_key(desired), this->extract_key(expected)) ==
                  detail::equal_result::EQUAL
                ? insert_result::DUPLICATE
                : insert_result::CONTINUE;
