@@ -32,6 +32,203 @@
 
 namespace cuco {
 
+namespace modern {
+/**
+ * @brief A GPU-accelerated, unordered, associative container of key-value
+ * pairs with unique keys.
+ *
+ * This container automatically grows its capacity as necessary until device memory runs out.
+ *
+ * @tparam Key The type of the keys.
+ * @tparam T The type of the mapped values.
+ * @tparam Extent The type representing the extent of the container.
+ * @tparam Scope The thread scope for the container's operations.
+ * @tparam KeyEqual The equality comparison function for keys.
+ * @tparam ProbingScheme The probing scheme for resolving hash collisions.
+ * @tparam Allocator The allocator used for memory management.
+ * @tparam Storage The storage policy for the container.
+ */
+template <class Key,
+          class T,
+          class Extent             = cuco::extent<std::size_t>,
+          cuda::thread_scope Scope = cuda::thread_scope_device,
+          class KeyEqual           = thrust::equal_to<Key>,
+          class ProbingScheme      = cuco::linear_probing<4,  // CG size
+                                                          cuco::default_hash_function<Key>>,
+          class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
+          class Storage            = cuco::storage<1>>
+class dynamic_map {
+  using impl_type = detail::open_addressing_impl<Key,
+                                                 cuco::pair<Key, T>,
+                                                 Extent,
+                                                 Scope,
+                                                 KeyEqual,
+                                                 ProbingScheme,
+                                                 Allocator,
+                                                 Storage>;
+
+  using key_type       = typename impl_type::key_type;        ///< Key type
+  using value_type     = typename impl_type::value_type;      ///< Key-value pair type
+  using extent_type    = typename impl_type::extent_type;     ///< Extent type
+  using size_type      = typename impl_type::size_type;       ///< Size type
+  using key_equal      = typename impl_type::key_equal;       ///< Key equality comparator type
+  using allocator_type = typename impl_type::allocator_type;  ///< Allocator type
+  /// Non-owning window storage ref type
+  using storage_ref_type    = typename impl_type::storage_ref_type;
+  using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
+
+  using mapped_type = T;  ///< Payload type
+  template <typename... Operators>
+  using ref_type = cuco::static_map_ref<key_type,
+                                        mapped_type,
+                                        thread_scope,
+                                        key_equal,
+                                        probing_scheme_type,
+                                        storage_ref_type,
+                                        Operators...>;  ///< Non-owning container ref type
+
+  static_map(static_map const&)            = delete;
+  static_map& operator=(static_map const&) = delete;
+
+  static_map(static_map&&) = default;  ///< Move constructor
+
+  /**
+   * @brief Replaces the contents of the container with another container.
+   *
+   * @return Reference of the current map object
+   */
+  static_map& operator=(static_map&&) = default;
+  ~static_map()                       = default;
+
+  /**
+   * @brief Constructs a dynamically-sized map with the specified initial capacity, growth factor
+   * and sentinel values.
+   *
+   * The capacity of the map will automatically increase as the user adds key/value pairs using
+   * `insert`.
+   *
+   * Capacity increases by a factor of growth_factor each time the size of the map exceeds a
+   * threshold occupancy. The performance of `find` and `contains` decreases somewhat each time the
+   * map's capacity grows.
+   *
+   * The `empty_key_sentinel` and `empty_value_sentinel` values are reserved and
+   * undefined behavior results from attempting to insert any key/value pair
+   * that contains either.
+   *
+   * @param initial_capacity The initial number of slots in the map
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param alloc Allocator used to allocate submap device storage
+   * @param stream Stream used for executing the kernels
+   */
+  constexpr dynamic_map(Extent initial_capacity,
+                        empty_key<Key> empty_key_sentinel,
+                        empty_value<T> empty_value_sentinel,
+                        KeyEqual const& pred                = {},
+                        ProbingScheme const& probing_scheme = {},
+                        cuda_thread_scope<Scope> scope      = {},
+                        Storage storage                     = {},
+                        Allocator const& alloc              = Allocator{},
+                        cuda::stream_ref stream             = {});
+
+  /**
+   * @brief Constructs a dynamically-sized map with erase capability.
+   *
+   * The capacity of the map will automatically increase as the user adds key/value pairs using
+   * `insert`.
+   *
+   * Capacity increases by a factor of growth_factor each time the size of the map exceeds a
+   * threshold occupancy. The performance of `find` and `contains` decreases somewhat each time the
+   * map's capacity grows.
+   *
+   * The `empty_key_sentinel` and `empty_value_sentinel` values are reserved and
+   * undefined behavior results from attempting to insert any key/value pair
+   * that contains either.
+   *
+   * @param initial_capacity The initial number of slots in the map
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param erased_key_sentinel The reserved key value for erased slots
+   * @param alloc Allocator used to allocate submap device storage
+   * @param stream Stream used for executing the kernels
+   *
+   * @throw std::runtime error if the empty key sentinel and erased key sentinel
+   * are the same value
+   */
+  constexpr dynamic_map(Extent initial_capacity,
+                        empty_key<Key> empty_key_sentinel,
+                        empty_value<T> empty_value_sentinel,
+                        erased_key<Key> erased_key_sentinel,
+                        KeyEqual const& pred                = {},
+                        ProbingScheme const& probing_scheme = {},
+                        cuda_thread_scope<Scope> scope      = {},
+                        Storage storage                     = {},
+                        Allocator const& alloc              = Allocator{},
+                        cuda::stream_ref stream             = {});
+
+  /**
+   * @brief Destroys the map and frees its contents
+   *
+   */
+  ~dynamic_map() {}
+
+  /**
+   * @brief Grows the capacity of the map so there is enough space for `n` key/value pairs.
+   *
+   * If there is already enough space for `n` key/value pairs, the capacity remains the same.
+   *
+   * @param n The number of key value pairs for which there must be space
+   * @param stream Stream used for executing the kernels
+   */
+  void reserve(std::size_t n, cuda::stream_ref stream);
+
+  /**
+   * @brief Inserts all key/value pairs in the range `[first, last)`.
+   *
+   * If multiple keys in `[first, last)` compare equal, it is unspecified which
+   * element is inserted.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the map's `value_type`
+   * @tparam Hash Unary callable type
+   * @tparam KeyEqual Binary callable type
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param hash The unary function to apply to hash each key
+   * @param key_equal The binary function to compare two keys for equality
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt>
+  void insert(InputIt first, InputIt last, cuda::stream_ref stream = {});
+
+ private:
+  key_type empty_key_sentinel_{};       ///< Key value that represents an empty slot
+  mapped_type empty_value_sentinel_{};  ///< Initial value of empty slot
+  key_type erased_key_sentinel_{};      ///< Key value that represents an erased slot
+
+  std::size_t size_{};      ///< Number of keys in the map
+  std::size_t capacity_{};  ///< Maximum number of keys that can be inserted
+
+  std::vector<std::unique_ptr<cuco::static_map<key_type,
+                                               mapped_type,
+                                               Extent,
+                                               Scope,
+                                               KeyEqual,
+                                               ProbingScheme,
+                                               Allocator,
+                                               Storage>>>
+    submaps_;  ///< vector of pointers to each submap
+  thrust::device_vector<ref_type<cuco::insert_tag>>
+    submap_mutable_views_;         ///< vector of mutable device views for each submap
+  std::size_t min_insert_size_{};  ///< min remaining capacity of submap for insert
+  float max_load_factor_{};
+  Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
+}
+
+}  // namespace modern
+
+namespace legacy {
+
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs with unique keys
@@ -358,6 +555,9 @@ class dynamic_map {
     submap_num_successes_;  ///< Number of successfully erased keys for each submap
   Allocator alloc_{};       ///< Allocator passed to submaps to allocate their device storage
 };
+
+}  // namespace legacy
+
 }  // namespace cuco
 
 #include <cuco/detail/dynamic_map.inl>
