@@ -605,6 +605,9 @@ class operator_impl<
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
+          if constexpr (sizeof(value_type) > 8) {
+            ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+          }
           op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
           return;
         }
@@ -689,6 +692,9 @@ class operator_impl<
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         if (group.thread_rank() == src_lane) {
+          if constexpr (sizeof(value_type) > 8) {
+            ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+          }
           op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
         }
         return;
