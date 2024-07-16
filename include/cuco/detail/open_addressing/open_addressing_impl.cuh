@@ -949,23 +949,16 @@ class open_addressing_impl {
 
     auto counter =
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
-    counter.reset(stream);
+    counter.reset(stream.get());
 
-    auto constexpr block_size = cuco::detail::default_block_size();
-    auto const grid_size =
-      cuco::detail::max_occupancy_grid_size(block_size,
-                                            detail::retrieve<IsOuter,
-                                                             block_size,
-                                                             InputProbeIt,
-                                                             OutputProbeIt,
-                                                             OutputMatchIt,
-                                                             typename decltype(counter)::value_type,
-                                                             Ref>);
+    auto constexpr block_size  = cuco::detail::default_block_size();
+    auto constexpr grid_stride = 1;
+    auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);
 
     detail::retrieve<IsOuter, block_size><<<grid_size, block_size, 0, stream.get()>>>(
       first, n, output_probe, output_match, counter.data(), container_ref);
 
-    auto const num_retrieved = counter.load_to_host(stream);
+    auto const num_retrieved = counter.load_to_host(stream.get());
 
     return {output_probe + num_retrieved, output_match + num_retrieved};
   }

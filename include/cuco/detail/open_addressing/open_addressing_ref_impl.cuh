@@ -1045,21 +1045,6 @@ class open_addressing_ref_impl {
     __shared__ probe_type probe_buffers[num_flushing_tiles][buffer_size];
     __shared__ value_type match_buffers[num_flushing_tiles][buffer_size];
 
-    //   using atomic_offset_type = cuda::atomic<size_type, cuda::thread_scope_block>;
-    //   __shared__ atomic_offset_type buffer_offsets[flushing_tiles_per_block];
-
-    // #if defined(CUCO_HAS_CG_INVOKE_ONE)
-    //   cg::invoke_one(flushing_tile,
-    //                  [&]() { new (&buffer_offsets[flushing_tile_id]) atomic_offset_type{0}; });
-    // #else
-    //   if (flushing_tile.thread_rank() == 0) {
-    //     new (&buffer_offsets[flushing_tile_id]) atomic_offset_type{0};
-    //   }
-    // #endif
-    //   flushing_tile.sync();  // sync still needed since cg.any doesn't imply a memory barrier
-
-    // iterate over input keys
-    // Note: `.any()` will implicitly synchronize the tile so we can safely reuse the shmem buffer
     while (flushing_tile.any(idx < n)) {
       bool active_flag = idx < n;
       auto const active_flushing_tile =
@@ -1081,11 +1066,7 @@ class open_addressing_ref_impl {
           auto const window_slots = this->storage_ref_[*probing_iter];
 
           for (int32_t i = 0; i < window_size; ++i) {
-            // if we're not at the end of the probing sequence
-            if (probing_tile.any(empty_found)) {
-              // set empty flag for all threads in the probing tile
-              empty_found = true;
-            } else {
+            if (not empty_found) {
               // inspect slot content
               switch (this->predicate_.operator()<is_insert::NO>(
                 probe, this->extract_key(window_slots[i]))) {
@@ -1111,8 +1092,10 @@ class open_addressing_ref_impl {
                 match_buffers[flushing_tile_id][num_matches + matching_tile.thread_rank()] =
                   window_slots[i];
               }
+
               // add number of new matches to the buffer counter
-              num_matches += matching_tile.size();
+              num_matches += (match_found) ? matching_tile.size()
+                                           : active_flushing_tile.size() - matching_tile.size();
             }
 
             if constexpr (IsOuter) {
@@ -1124,14 +1107,25 @@ class open_addressing_ref_impl {
             // reset flag for next iteration
             match_found = false;
           }
+          empty_found = probing_tile.any(empty_found);
 
           // check if all probing tiles have finished their work
           bool const finished = active_flushing_tile.all(empty_found);
 
           if constexpr (IsOuter) {
             if (finished and not found_any_match) {
-              // TODO write probe + empty_payload_sentinel or end()
-              // also increment num_matches accordingly
+#if defined(CUCO_HAS_CG_INVOKE_ONE)
+              cg::invoke_one(active_flushing_tile, [&]() {
+                probe_buffers[flushing_tile_id][num_matches] = probe;
+                probe_buffers[flushing_tile_id][num_matches] = this->empty_value_sentinel_;
+              });
+#else
+              if (active_flushing_tile.thread_rank() == 0) {
+                probe_buffers[flushing_tile_id][num_matches] = probe;
+                probe_buffers[flushing_tile_id][num_matches] = this->empty_value_sentinel_;
+              }
+#endif
+              num_matches++;  // not really a match but a sentinel in the buffer
             }
           }
 
@@ -1154,7 +1148,6 @@ class open_addressing_ref_impl {
 #endif
 
               // flush_buffers
-              // TODO use memcpy_async or pragma unroll?
               for (size_type i = rank; i < num_matches; i += active_flushing_tile.size()) {
                 *(output_probe + offset + i) = probe_buffers[flushing_tile_id][i];
                 *(output_match + offset + i) = match_buffers[flushing_tile_id][i];

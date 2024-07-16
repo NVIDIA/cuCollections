@@ -381,7 +381,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void retrieve(InputProbeIt input_probe,
   auto const elems_per_block = cuco::detail::int_div_ceil(n, blocks_in_grid);
 
   auto const block_begin_offset = block.group_index().x * elems_per_block;
-  auto const block_end_offset   = max(n, block_begin_offset + elems_per_block);
+  auto const block_end_offset   = min(n, block_begin_offset + elems_per_block);
 
   if (block_begin_offset < block_end_offset) {
     if constexpr (IsOuter) {
