@@ -423,21 +423,17 @@ class operator_impl<
       for (auto& slot_content : window_slots) {
         auto const eq_res =
           ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
+        auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+        auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_window_index;
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
-          auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          ref_.impl_.atomic_store(
-            &((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
-            val.second);
+          cuda::atomic_ref<mapped_type, Scope> payload_ref(slot_ptr->second);
+          payload_ref.store(val.second, cuda::memory_order_relaxed);
           return;
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
-          auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          if (attempt_insert_or_assign(
-                (storage_ref.data() + *probing_iter)->data() + intra_window_index, val)) {
-            return;
-          }
+          if (attempt_insert_or_assign(slot_ptr, val)) { return; }
         }
       }
       ++probing_iter;
@@ -482,13 +478,14 @@ class operator_impl<
         return detail::window_probing_results{res, -1};
       }();
 
+      auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_window_index;
+
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         if (group.thread_rank() == src_lane) {
-          ref_.impl_.atomic_store(
-            &((storage_ref.data() + *probing_iter)->data() + intra_window_index)->second,
-            val.second);
+          cuda::atomic_ref<mapped_type, Scope> payload_ref(slot_ptr->second);
+          payload_ref.store(val.second, cuda::memory_order_relaxed);
         }
         group.sync();
         return;
@@ -498,10 +495,7 @@ class operator_impl<
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status =
-          (group.thread_rank() == src_lane)
-            ? attempt_insert_or_assign(
-                (storage_ref.data() + *probing_iter)->data() + intra_window_index, val)
-            : false;
+          (group.thread_rank() == src_lane) ? attempt_insert_or_assign(slot_ptr, val) : false;
 
         // Exit if inserted or assigned
         if (group.shfl(status, src_lane)) { return; }
@@ -529,19 +523,19 @@ class operator_impl<
   template <typename Value>
   __device__ constexpr bool attempt_insert_or_assign(value_type* slot, Value const& value) noexcept
   {
-    ref_type& ref_          = static_cast<ref_type&>(*this);
-    auto const expected_key = ref_.impl_.empty_slot_sentinel().first;
+    ref_type& ref_    = static_cast<ref_type&>(*this);
+    auto expected_key = ref_.impl_.empty_slot_sentinel().first;
 
-    auto old_key =
-      ref_.impl_.compare_and_swap(&slot->first, expected_key, static_cast<key_type>(value.first));
-    auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
+    cuda::atomic_ref<key_type, Scope> key_ref(slot->first);
+    auto const success = key_ref.compare_exchange_strong(
+      expected_key, static_cast<key_type>(value.first), cuda::memory_order_relaxed);
 
     // if key success or key was already present in the map
-    if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key) or
-        (ref_.impl_.predicate().equal_to(value.first, *old_key_ptr) ==
-         detail::equal_result::EQUAL)) {
+    if (success or (ref_.impl_.predicate().equal_to(value.first, expected_key) ==
+                    detail::equal_result::EQUAL)) {
       // Update payload
-      ref_.impl_.atomic_store(&slot->second, value.second);
+      cuda::atomic_ref<mapped_type, Scope> payload_ref(slot->second);
+      payload_ref.store(value.second, cuda::memory_order_relaxed);
       return true;
     }
     return false;
@@ -611,6 +605,9 @@ class operator_impl<
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
+          if constexpr (sizeof(value_type) > 8) {
+            ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+          }
           op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
           return;
         }
@@ -695,6 +692,9 @@ class operator_impl<
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         if (group.thread_rank() == src_lane) {
+          if constexpr (sizeof(value_type) > 8) {
+            ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+          }
           op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
         }
         return;

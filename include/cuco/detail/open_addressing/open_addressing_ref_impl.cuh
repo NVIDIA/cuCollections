@@ -670,9 +670,10 @@ class open_addressing_ref_impl {
         // Key exists, return true if successfully deleted
         if (eq_res == detail::equal_result::EQUAL) {
           auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-          switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
-                                 slot_content,
-                                 this->erased_slot_sentinel())) {
+          switch (attempt_insert_stable(
+            (storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+            slot_content,
+            this->erased_slot_sentinel())) {
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: return false;
             default: continue;
@@ -717,9 +718,10 @@ class open_addressing_ref_impl {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         auto const status =
           (group.thread_rank() == src_lane)
-            ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_window_index,
-                             window_slots[intra_window_index],
-                             this->erased_slot_sentinel())
+            ? attempt_insert_stable(
+                (storage_ref_.data() + *probing_iter)->data() + intra_window_index,
+                window_slots[intra_window_index],
+                this->erased_slot_sentinel())
             : insert_result::CONTINUE;
 
         switch (group.shfl(status, src_lane)) {
@@ -1330,90 +1332,6 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Compares the content of the address `address` (old value) with the `expected` value and,
-   * only if they are the same, sets the content of `address` to `desired`.
-   *
-   * @tparam T Address content type
-   *
-   * @param address The target address
-   * @param expected The value expected to be found at the target address
-   * @param desired The value to store at the target address if it is as expected
-   *
-   * @return The old value located at address `address`
-   */
-  template <typename T>
-  __device__ constexpr auto compare_and_swap(T* address, T expected, T desired)
-  {
-    // temporary workaround due to performance regression
-    // https://github.com/NVIDIA/libcudacxx/issues/366
-    if constexpr (sizeof(T) == sizeof(unsigned int)) {
-      auto* const slot_ptr           = reinterpret_cast<unsigned int*>(address);
-      auto const* const expected_ptr = reinterpret_cast<unsigned int*>(&expected);
-      auto const* const desired_ptr  = reinterpret_cast<unsigned int*>(&desired);
-      if constexpr (Scope == cuda::thread_scope_system) {
-        return atomicCAS_system(slot_ptr, *expected_ptr, *desired_ptr);
-      } else if constexpr (Scope == cuda::thread_scope_device) {
-        return atomicCAS(slot_ptr, *expected_ptr, *desired_ptr);
-      } else if constexpr (Scope == cuda::thread_scope_block) {
-        return atomicCAS_block(slot_ptr, *expected_ptr, *desired_ptr);
-      } else {
-        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-      }
-    } else if constexpr (sizeof(T) == sizeof(unsigned long long int)) {
-      auto* const slot_ptr           = reinterpret_cast<unsigned long long int*>(address);
-      auto const* const expected_ptr = reinterpret_cast<unsigned long long int*>(&expected);
-      auto const* const desired_ptr  = reinterpret_cast<unsigned long long int*>(&desired);
-      if constexpr (Scope == cuda::thread_scope_system) {
-        return atomicCAS_system(slot_ptr, *expected_ptr, *desired_ptr);
-      } else if constexpr (Scope == cuda::thread_scope_device) {
-        return atomicCAS(slot_ptr, *expected_ptr, *desired_ptr);
-      } else if constexpr (Scope == cuda::thread_scope_block) {
-        return atomicCAS_block(slot_ptr, *expected_ptr, *desired_ptr);
-      } else {
-        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-      }
-    }
-  }
-
-  /**
-   * @brief Atomically stores `value` at the given `address`.
-   *
-   * @tparam T Address content type
-   *
-   * @param address The target address
-   * @param value The value to store
-   */
-  template <typename T>
-  __device__ constexpr void atomic_store(T* address, T value)
-  {
-    if constexpr (sizeof(T) == sizeof(unsigned int)) {
-      auto* const slot_ptr        = reinterpret_cast<unsigned int*>(address);
-      auto const* const value_ptr = reinterpret_cast<unsigned int*>(&value);
-      if constexpr (Scope == cuda::thread_scope_system) {
-        atomicExch_system(slot_ptr, *value_ptr);
-      } else if constexpr (Scope == cuda::thread_scope_device) {
-        atomicExch(slot_ptr, *value_ptr);
-      } else if constexpr (Scope == cuda::thread_scope_block) {
-        atomicExch_block(slot_ptr, *value_ptr);
-      } else {
-        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-      }
-    } else if constexpr (sizeof(T) == sizeof(unsigned long long int)) {
-      auto* const slot_ptr        = reinterpret_cast<unsigned long long int*>(address);
-      auto const* const value_ptr = reinterpret_cast<unsigned long long int*>(&value);
-      if constexpr (Scope == cuda::thread_scope_system) {
-        atomicExch_system(slot_ptr, *value_ptr);
-      } else if constexpr (Scope == cuda::thread_scope_device) {
-        atomicExch(slot_ptr, *value_ptr);
-      } else if constexpr (Scope == cuda::thread_scope_block) {
-        atomicExch_block(slot_ptr, *value_ptr);
-      } else {
-        static_assert(cuco::dependent_false<decltype(Scope)>, "Unsupported thread scope");
-      }
-    }
-  }
-
-  /**
    * @brief Extracts the key from a given value type.
    *
    * @tparam Value Input type which is convertible to 'value_type'
@@ -1523,15 +1441,24 @@ class open_addressing_ref_impl {
    */
   template <typename Value>
   [[nodiscard]] __device__ constexpr insert_result packed_cas(value_type* address,
-                                                              value_type const& expected,
-                                                              Value const& desired) noexcept
+                                                              value_type expected,
+                                                              Value desired) noexcept
   {
-    auto old      = compare_and_swap(address, expected, this->native_value(desired));
-    auto* old_ptr = reinterpret_cast<value_type*>(&old);
-    if (cuco::detail::bitwise_compare(this->extract_key(*old_ptr), this->extract_key(expected))) {
+    using packed_type = cuda::std::conditional_t<sizeof(value_type) == 4, uint32_t, uint64_t>;
+
+    auto* slot_ptr     = reinterpret_cast<packed_type*>(address);
+    auto* expected_ptr = reinterpret_cast<packed_type*>(&expected);
+    auto* desired_ptr  = reinterpret_cast<packed_type*>(&desired);
+
+    auto slot_ref = cuda::atomic_ref<packed_type, Scope>{*slot_ptr};
+
+    auto const success =
+      slot_ref.compare_exchange_strong(*expected_ptr, *desired_ptr, cuda::memory_order_relaxed);
+
+    if (success) {
       return insert_result::SUCCESS;
     } else {
-      return this->predicate_.equal_to(this->extract_key(desired), this->extract_key(*old_ptr)) ==
+      return this->predicate_.equal_to(this->extract_key(desired), this->extract_key(expected)) ==
                  detail::equal_result::EQUAL
                ? insert_result::DUPLICATE
                : insert_result::CONTINUE;
@@ -1540,6 +1467,8 @@ class open_addressing_ref_impl {
 
   /**
    * @brief Inserts the specified element with two back-to-back CAS operations.
+   *
+   * @note This CAS can be used exclusively for `cuco::op::insert` operations.
    *
    * @tparam Value Input type which is convertible to 'value_type'
    *
@@ -1556,29 +1485,34 @@ class open_addressing_ref_impl {
   {
     using mapped_type = cuda::std::decay_t<decltype(this->empty_value_sentinel())>;
 
-    auto const expected_key     = expected.first;
-    auto const expected_payload = expected.second;
+    auto expected_key     = expected.first;
+    auto expected_payload = this->empty_value_sentinel();
 
-    auto old_key =
-      compare_and_swap(&address->first, expected_key, static_cast<key_type>(desired.first));
-    auto old_payload = compare_and_swap(&address->second, expected_payload, desired.second);
+    cuda::atomic_ref<key_type, Scope> key_ref(address->first);
+    cuda::atomic_ref<mapped_type, Scope> payload_ref(address->second);
 
-    auto* old_key_ptr     = reinterpret_cast<key_type*>(&old_key);
-    auto* old_payload_ptr = reinterpret_cast<mapped_type*>(&old_payload);
+    auto const key_cas_success = key_ref.compare_exchange_strong(
+      expected_key, static_cast<key_type>(desired.first), cuda::memory_order_relaxed);
+    auto payload_cas_success = payload_ref.compare_exchange_strong(
+      expected_payload, desired.second, cuda::memory_order_relaxed);
 
     // if key success
-    if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
-      while (not cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
-        old_payload = compare_and_swap(&address->second, expected_payload, desired.second);
+    if (key_cas_success) {
+      while (not payload_cas_success) {
+        payload_cas_success =
+          payload_ref.compare_exchange_strong(expected_payload = this->empty_value_sentinel(),
+                                              desired.second,
+                                              cuda::memory_order_relaxed);
       }
       return insert_result::SUCCESS;
-    } else if (cuco::detail::bitwise_compare(*old_payload_ptr, expected_payload)) {
-      atomic_store(&address->second, expected_payload);
+    } else if (payload_cas_success) {
+      // This is insert-specific, cannot for `erase` operations
+      payload_ref.store(this->empty_value_sentinel(), cuda::memory_order_relaxed);
     }
 
     // Our key was already present in the slot, so our key is a duplicate
     // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-    if (this->predicate_.equal_to(desired.first, *old_key_ptr) == detail::equal_result::EQUAL) {
+    if (this->predicate_.equal_to(desired.first, expected_key) == detail::equal_result::EQUAL) {
       return insert_result::DUPLICATE;
     }
 
@@ -1600,24 +1534,23 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(
     value_type* address, value_type const& expected, Value const& desired) noexcept
   {
-    using mapped_type = decltype(this->empty_value_sentinel());
+    using mapped_type = cuda::std::decay_t<decltype(this->empty_value_sentinel())>;
 
-    auto const expected_key = expected.first;
-
-    auto old_key =
-      compare_and_swap(&address->first, expected_key, static_cast<key_type>(desired.first));
-
-    auto* old_key_ptr = reinterpret_cast<key_type*>(&old_key);
+    cuda::atomic_ref<key_type, Scope> key_ref(address->first);
+    auto expected_key  = expected.first;
+    auto const success = key_ref.compare_exchange_strong(
+      expected_key, static_cast<key_type>(desired.first), cuda::memory_order_relaxed);
 
     // if key success
-    if (cuco::detail::bitwise_compare(*old_key_ptr, expected_key)) {
-      atomic_store(&address->second, desired.second);
+    if (success) {
+      cuda::atomic_ref<mapped_type, Scope> payload_ref(address->second);
+      payload_ref.store(desired.second, cuda::memory_order_relaxed);
       return insert_result::SUCCESS;
     }
 
     // Our key was already present in the slot, so our key is a duplicate
     // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
-    if (this->predicate_.equal_to(desired.first, *old_key_ptr) == detail::equal_result::EQUAL) {
+    if (this->predicate_.equal_to(desired.first, expected_key) == detail::equal_result::EQUAL) {
       return insert_result::DUPLICATE;
     }
 
