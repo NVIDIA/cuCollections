@@ -110,6 +110,7 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/custom_pair_retrieve_test.cu
     static_multimap/custom_type_test.cu
     static_multimap/heterogeneous_lookup_test.cu
+    static_multimap/insert_test.cu
     static_multimap/insert_if_test.cu
     static_multimap/multiplicity_test.cu
     static_multimap/non_match_test.cu
