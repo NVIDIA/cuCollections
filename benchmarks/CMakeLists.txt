@@ -1,5 +1,5 @@
 ﻿#=============================================================================
-# Copyright (c) 2018-2023, NVIDIA CORPORATION.
+# Copyright (c) 2018-2024, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -69,6 +69,7 @@ ConfigureBench(STATIC_MAP_BENCH
 # - static_multiset benchmarks --------------------------------------------------------------------
 ConfigureBench(STATIC_MULTISET_BENCH
   hash_table/static_multiset/contains_bench.cu
+  hash_table/static_multiset/retrieve_bench.cu
   hash_table/static_multiset/count_bench.cu
   hash_table/static_multiset/find_bench.cu
   hash_table/static_multiset/insert_bench.cu)
