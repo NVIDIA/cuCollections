@@ -51,7 +51,8 @@ int main(void)
   cuco::static_multiset<key_type> multiset{capacity, cuco::empty_key{empty_key_sentinel}};
 
   // Create a sequence of keys {0, 1, 2, .., i}
-  thrust::device_vector<key_type> keys(num_keys);
+  // We're going to insert each key twice so we only need 'num_keys / 2' distinct keys.
+  thrust::device_vector<key_type> keys(num_keys / 2);
   thrust::sequence(keys.begin(), keys.end(), 0);
 
   // Inserts all keys into the hash set
@@ -60,18 +61,22 @@ int main(void)
   multiset.insert(keys.begin(), keys.end());
 
   // Counts the occurrences of matching keys contained in the multiset.
-  auto const output_size = multiset.count(keys.begin(), keys.end());
+  std::size_t const counted_output_size = multiset.count(keys.begin(), keys.end());
 
   // Storage for result
-  thrust::device_vector<key_type> output_probes(output_size);
-  thrust::device_vector<key_type> output_matches(output_size);
+  thrust::device_vector<key_type> output_probes(counted_output_size);
+  thrust::device_vector<key_type> output_matches(counted_output_size);
 
-  auto const [output_probes_end, output_matches_end] =
+  // Retrieve all matching keys
+  auto const [output_probes_end, _] =
     multiset.retrieve(keys.begin(), keys.end(), output_probes.begin(), output_matches.begin());
-  auto const actual_output_size = output_probes_end - output_probes.begin();
+  std::size_t const retrieved_output_size = output_probes_end - output_probes.begin();
 
-  // The total number of outer matches should be `N + N / 2`
-  assert(not(output_size == retrieve_size == num_keys * 2));
+  if ((retrieved_output_size == counted_output_size) and (retrieved_output_size == num_keys)) {
+    std::cout << "Success! Found all keys.\n";
+  } else {
+    std::cout << "Fail! Something went wrong.\n";
+  }
 
   return 0;
 }
