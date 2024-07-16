@@ -33,6 +33,14 @@
 
 using size_type = std::size_t;
 
+struct binary_plus_op {
+  template <typename T, cuda::thread_scope Scope>
+  __device__ void operator()(cuda::atomic_ref<T, Scope> lhs, T rhs)
+  {
+    lhs.fetch_add(rhs, cuda::memory_order_relaxed);
+  }
+};
+
 template <typename Map>
 void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_keys)
 {
@@ -48,12 +56,7 @@ void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_key
       return cuco::pair<Key, Value>{i % num_unique_keys, 1};
     }));
 
-  map.insert_or_apply(
-    pairs_begin,
-    pairs_begin + num_keys,
-    [] __device__(cuda::atomic_ref<Value, Map::thread_scope> lhs, const Value& rhs) {
-      lhs.fetch_add(rhs, cuda::memory_order_relaxed);
-    });
+  map.insert_or_apply(pairs_begin, pairs_begin + num_keys, binary_plus_op{});
 
   REQUIRE(map.size() == num_unique_keys);
 

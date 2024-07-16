@@ -17,7 +17,9 @@
 #include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
+#include <cuco/detail/utility/math.hpp>
 #include <cuco/detail/utils.hpp>
+#include <cuco/distinct_count_estimator.cuh>
 #include <cuco/operator.hpp>
 #include <cuco/static_map_ref.cuh>
 
@@ -318,11 +320,57 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   auto const num = cuco::detail::distance(first, last);
   if (num == 0) { return; }
 
-  auto const grid_size = cuco::detail::grid_size(num, cg_size);
+  auto cardinality_estimator = cuco::distinct_count_estimator<Key>{};
+  auto keys_begin            = thrust::make_transform_iterator(
+    first, cuda::proclaim_return_type<Key>([] __device__(auto const& input_pair) {
+      return input_pair.first;
+    }));
 
-  static_map_ns::detail::insert_or_apply<cg_size, cuco::detail::default_block_size()>
-    <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-      first, num, op, ref(op::insert_or_apply));
+  auto constexpr cardinality_threshold = cuco::detail::default_block_size();
+
+  cardinality_estimator.add(keys_begin, keys_begin + num);
+  auto const cardinality = cardinality_estimator.estimate();
+
+  int32_t const grid_size = cuco::detail::grid_size(num, cg_size);
+
+  if (cardinality > cardinality_threshold) {
+    static_map_ns::detail::insert_or_apply<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+        first, num, op, ref(op::insert_or_apply));
+  } else {
+    constexpr int32_t block_size            = cuco::detail::default_block_size();
+    constexpr int32_t cardinality_threshold = 128;
+
+    constexpr int32_t shared_map_num_elements = cardinality_threshold + block_size;
+    constexpr float load_factor               = 0.7;
+    constexpr int32_t shared_map_size         = (1.0 / load_factor) * shared_map_num_elements;
+
+    using extent_type            = cuco::extent<int32_t, shared_map_size>;
+    using shared_map_type        = cuco::static_map<Key,
+                                                    T,
+                                                    extent_type,
+                                                    cuda::thread_scope_block,
+                                                    KeyEqual,
+                                                    ProbingScheme,
+                                                    Allocator,
+                                                    cuco::storage<1>>;
+    using shared_map_ref_type    = typename shared_map_type::ref_type<>;
+    auto constexpr window_extent = cuco::make_window_extent<shared_map_ref_type>(extent_type{});
+
+    using ref_type = decltype(ref(op::insert_or_apply));
+
+    auto insert_or_apply_shmem_fn_ptr = static_map_ns::detail::
+      insert_or_apply_shmem<cg_size, block_size, shared_map_ref_type, InputIt, Op, ref_type>;
+
+    int32_t const max_op_grid_size =
+      cuco::detail::max_occupancy_grid_size(block_size, insert_or_apply_shmem_fn_ptr, 0);
+
+    auto const shmem_grid_size = std::min(grid_size, max_op_grid_size);
+
+    static_map_ns::detail::insert_or_apply_shmem<cg_size, block_size, shared_map_ref_type>
+      <<<shmem_grid_size, block_size, 0, stream.get()>>>(
+        first, num, op, ref(op::insert_or_apply), window_extent);
+  }
 }
 
 template <class Key,
