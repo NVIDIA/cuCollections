@@ -328,8 +328,8 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
 
   auto constexpr cardinality_threshold = cuco::detail::default_block_size();
 
-  cardinality_estimator.add(keys_begin, keys_begin + num);
-  auto const cardinality = cardinality_estimator.estimate();
+  cardinality_estimator.add(keys_begin, keys_begin + num, stream);
+  auto const cardinality = cardinality_estimator.estimate(stream);
 
   int32_t const grid_size = cuco::detail::grid_size(num, cg_size);
 
