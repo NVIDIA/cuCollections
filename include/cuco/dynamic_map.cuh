@@ -67,6 +67,9 @@ class dynamic_map {
                                                  Allocator,
                                                  Storage>;
 
+ public:
+  static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
+
   using key_type       = typename impl_type::key_type;        ///< Key type
   using value_type     = typename impl_type::value_type;      ///< Key-value pair type
   using extent_type    = typename impl_type::extent_type;     ///< Extent type
@@ -87,18 +90,18 @@ class dynamic_map {
                                         storage_ref_type,
                                         Operators...>;  ///< Non-owning container ref type
 
-  static_map(static_map const&)            = delete;
-  static_map& operator=(static_map const&) = delete;
+  dynamic_map(dynamic_map const&)            = delete;
+  dynamic_map& operator=(dynamic_map const&) = delete;
 
-  static_map(static_map&&) = default;  ///< Move constructor
+  dynamic_map(dynamic_map&&) = default;  ///< Move constructor
 
   /**
    * @brief Replaces the contents of the container with another container.
    *
    * @return Reference of the current map object
    */
-  static_map& operator=(static_map&&) = default;
-  ~static_map()                       = default;
+  dynamic_map& operator=(dynamic_map&&) = default;
+  ~dynamic_map()                        = default;
 
   /**
    * @brief Constructs a dynamically-sized map with the specified initial capacity, growth factor
@@ -118,8 +121,12 @@ class dynamic_map {
    * @param initial_capacity The initial number of slots in the map
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
-   * @param alloc Allocator used to allocate submap device storage
-   * @param stream Stream used for executing the kernels
+   * @param pred Key equality binary predicate
+   * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the map
    */
   constexpr dynamic_map(Extent initial_capacity,
                         empty_key<Key> empty_key_sentinel,
@@ -128,7 +135,7 @@ class dynamic_map {
                         ProbingScheme const& probing_scheme = {},
                         cuda_thread_scope<Scope> scope      = {},
                         Storage storage                     = {},
-                        Allocator const& alloc              = Allocator{},
+                        Allocator const& alloc              = {},
                         cuda::stream_ref stream             = {});
 
   /**
@@ -149,8 +156,12 @@ class dynamic_map {
    * @param empty_key_sentinel The reserved key value for empty slots
    * @param empty_value_sentinel The reserved mapped value for empty slots
    * @param erased_key_sentinel The reserved key value for erased slots
-   * @param alloc Allocator used to allocate submap device storage
-   * @param stream Stream used for executing the kernels
+   * @param pred Key equality binary predicate
+   * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the map
    *
    * @throw std::runtime error if the empty key sentinel and erased key sentinel
    * are the same value
@@ -163,14 +174,8 @@ class dynamic_map {
                         ProbingScheme const& probing_scheme = {},
                         cuda_thread_scope<Scope> scope      = {},
                         Storage storage                     = {},
-                        Allocator const& alloc              = Allocator{},
+                        Allocator const& alloc              = {},
                         cuda::stream_ref stream             = {});
-
-  /**
-   * @brief Destroys the map and frees its contents
-   *
-   */
-  ~dynamic_map() {}
 
   /**
    * @brief Grows the capacity of the map so there is enough space for `n` key/value pairs.
@@ -190,16 +195,33 @@ class dynamic_map {
    *
    * @tparam InputIt Device accessible input iterator whose `value_type` is
    * convertible to the map's `value_type`
-   * @tparam Hash Unary callable type
-   * @tparam KeyEqual Binary callable type
    * @param first Beginning of the sequence of key/value pairs
    * @param last End of the sequence of key/value pairs
-   * @param hash The unary function to apply to hash each key
-   * @param key_equal The binary function to compare two keys for equality
    * @param stream Stream used for executing the kernels
    */
   template <typename InputIt>
   void insert(InputIt first, InputIt last, cuda::stream_ref stream = {});
+
+  /**
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+   *
+   * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the map's `key_type`
+   * @tparam OutputIt Device accessible output iterator whose `value_type` is
+   * convertible to the map's `mapped_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void contains(InputIt first,
+                InputIt last,
+                OutputIt output_begin,
+                cuda::stream_ref stream = {}) const;
 
  private:
   key_type empty_key_sentinel_{};       ///< Key value that represents an empty slot
@@ -219,15 +241,15 @@ class dynamic_map {
                                                Storage>>>
     submaps_;  ///< vector of pointers to each submap
   thrust::device_vector<ref_type<cuco::insert_tag>>
-    submap_mutable_views_;         ///< vector of mutable device views for each submap
+    submap_mutable_views_;  ///< vector of mutable device views for each submap
+  thrust::device_vector<ref_type<cuco::contains_tag>>
+    submap_views;                  ///< vector of mutable device views for each submap
   std::size_t min_insert_size_{};  ///< min remaining capacity of submap for insert
   float max_load_factor_{};
   Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
-}
+};
 
 }  // namespace modern
-
-namespace legacy {
 
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
@@ -556,8 +578,9 @@ class dynamic_map {
   Allocator alloc_{};       ///< Allocator passed to submaps to allocate their device storage
 };
 
-}  // namespace legacy
+// namespace legacy
 
 }  // namespace cuco
 
 #include <cuco/detail/dynamic_map.inl>
+#include <cuco/detail/dynamic_map/dynamic_map.inl>

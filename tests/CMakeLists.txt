@@ -92,6 +92,7 @@ ConfigureTest(STATIC_MAP_TEST
 # - dynamic_map tests -----------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_MAP_TEST
     dynamic_map/unique_sequence_test.cu
+    dynamic_map/unique_sequence_test_modern.cu
     dynamic_map/erase_test.cu)
 
 ###################################################################################################
