@@ -102,7 +102,8 @@ ConfigureTest(STATIC_MULTISET_TEST
     static_multiset/custom_count_test.cu
     static_multiset/find_test.cu
     static_multiset/insert_test.cu
-    static_multiset/for_each_test.cu)
+    static_multiset/for_each_test.cu
+    static_multiset/retrieve_test.cu)
 
 ###################################################################################################
 # - static_multimap tests -------------------------------------------------------------------------

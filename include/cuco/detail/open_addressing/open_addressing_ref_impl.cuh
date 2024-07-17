@@ -1210,12 +1210,12 @@ class open_addressing_ref_impl {
 #if defined(CUCO_HAS_CG_INVOKE_ONE)
               cg::invoke_one(active_flushing_tile, [&]() {
                 probe_buffers[flushing_tile_id][num_matches] = probe;
-                probe_buffers[flushing_tile_id][num_matches] = this->empty_value_sentinel_;
+                probe_buffers[flushing_tile_id][num_matches] = this->empty_slot_sentinel();
               });
 #else
               if (active_flushing_tile.thread_rank() == 0) {
                 probe_buffers[flushing_tile_id][num_matches] = probe;
-                probe_buffers[flushing_tile_id][num_matches] = this->empty_value_sentinel_;
+                probe_buffers[flushing_tile_id][num_matches] = this->empty_slots_sentinel();
               }
 #endif
               num_matches++;  // not really a match but a sentinel in the buffer
