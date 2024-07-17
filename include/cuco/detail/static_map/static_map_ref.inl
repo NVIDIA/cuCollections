@@ -577,7 +577,7 @@ class operator_impl<
    */
 
   template <typename Value, typename Op>
-  __device__ void insert_or_apply(Value const& value, Op op)
+  __device__ bool insert_or_apply(Value const& value, Op op)
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
@@ -609,17 +609,17 @@ class operator_impl<
             ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
           }
           op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
-          return;
+          return false;
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
           switch (ref_.impl_.attempt_insert_stable(slot_ptr, slot_content, val)) {
-            case insert_result::SUCCESS: return;
+            case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: {
               if constexpr (sizeof(value_type) > 8) {
                 ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
               }
               op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
-              return;
+              return false;
             }
             default: continue;
           }
@@ -630,12 +630,13 @@ class operator_impl<
   }
 
   template <typename Value>
-  __device__ void insert_or_apply(Value const& value, cuco::op::reduce::sum_tag)
+  __device__ bool insert_or_apply(Value const& value, cuco::op::reduce::sum_tag)
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.insert_or_apply(value, [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
-      payload_ref.fetch_add(payload, cuda::memory_order_relaxed);
-    });
+    return ref_.insert_or_apply(value,
+                                [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
+                                  payload_ref.fetch_add(payload, cuda::memory_order_relaxed);
+                                });
   }
 
   /**
@@ -654,7 +655,7 @@ class operator_impl<
    */
 
   template <typename Value, typename Op>
-  __device__ void insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
+  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
                                   Value const& value,
                                   Op op)
   {
@@ -697,7 +698,7 @@ class operator_impl<
           }
           op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
         }
-        return;
+        return false;
       }
 
       auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
@@ -709,7 +710,7 @@ class operator_impl<
         }();
 
         switch (group.shfl(status, src_lane)) {
-          case insert_result::SUCCESS: return;
+          case insert_result::SUCCESS: return true;
           case insert_result::DUPLICATE: {
             if (group.thread_rank() == src_lane) {
               if constexpr (sizeof(value_type) > 8) {
@@ -717,7 +718,7 @@ class operator_impl<
               }
               op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
             }
-            return;
+            return false;
           }
           default: continue;
         }
@@ -728,12 +729,12 @@ class operator_impl<
   }
 
   template <typename Value>
-  __device__ void insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
+  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
                                   Value const& value,
                                   cuco::op::reduce::sum_tag)
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.insert_or_apply(
+    return ref_.insert_or_apply(
       group, value, [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
         payload_ref.fetch_add(payload, cuda::memory_order_relaxed);
       });
