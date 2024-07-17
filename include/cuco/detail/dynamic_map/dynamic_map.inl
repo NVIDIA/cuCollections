@@ -247,22 +247,6 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
     first += cur_size;
   }
 }
-/*
-while (num_to_insert > 0) {
-    auto& cur = submaps_[submap_idx];
-    std::size_t capacity_remaining = max_load_factor_ * cur->capacity() - cur->size();
-
-    if (capacity_remaining >= min_insert_size_) {
-      auto const n                = std::min(capacity_remaining, num_to_insert);
-      std::size_t h_num_successes = cur->insert(first, first + n, stream);
-
-      size_ += h_num_successes;
-      first += n;
-      num_to_insert -= n;
-    }
-    submap_idx++;
-  }
-*/
 
 }  // namespace experimental
 }  // namespace cuco
