@@ -131,18 +131,19 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
+  auto warp                  = cg::tiled_partition<32>(block);
+  auto const warp_thread_idx = warp.thread_rank();
+
   // Shared map initialization
   __shared__ typename SharedMapRefType::window_type windows[window_extent.value()];
   auto storage           = SharedMapRefType::storage_ref_type(window_extent, windows);
   auto const num_windows = storage.num_windows();
 
-  // BlockReduce to find cardinality
-  using BlockReduce = cub::BlockReduce<int32_t, BlockSize>;
-  __shared__ typename BlockReduce::TempStorage temp_storage;
   __shared__ int32_t block_cardinality;
-
   if (thread_idx == 0) block_cardinality = 0;
   block.sync();
+
+  cuda::atomic_ref<int32_t, cuda::thread_scope_block> cardinality_counter(block_cardinality);
 
   auto shared_map     = SharedMapRefType(cuco::empty_key<Key>(ref.empty_key_sentinel()),
                                      cuco::empty_value<Value>(ref.empty_value_sentinel()),
@@ -154,40 +155,25 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   shared_map_ref.initialize(block);
   block.sync();
 
-  int32_t num_loop = 0;
   while (idx - thread_idx < n) {
     if constexpr (CGSize == 1) {
       // insert-or-apply into the shared map first
+      int32_t inserted = 0;
       if (idx < n) {
         value_type const& insert_pair = *(first + idx);
-        shared_map_ref.insert_or_apply(insert_pair, op);
+        inserted                      = shared_map_ref.insert_or_apply(insert_pair, op);
       }
+
+      if (idx - warp_thread_idx < n)  // all threads in warp particpate
+      {
+        warp.sync();  // sync for inserted to materalize
+        for (int32_t i = warp.size() / 2; i > 0; i /= 2) {
+          inserted += warp.shfl_down(inserted, i);
+        }
+      }
+      if (warp_thread_idx == 0) cardinality_counter.fetch_add(inserted, cuda::memory_order_relaxed);
       block.sync();
-
-      // for first pass block_cardinality will be < threshold
-      // we can skip block_reduction to find cardinality
-      if (num_loop != 0) {
-        // find if cardinality exceeds threshold
-        int32_t thread_count = 0;
-        if (idx < n) {
-          auto window_idx = thread_idx;
-          while (window_idx < num_windows) {
-            auto const slot = storage[window_idx][0];
-            if (not cuco::detail::bitwise_compare(slot.first, ref.empty_key_sentinel())) {
-              thread_count += 1;
-            }
-            window_idx += BlockSize;
-          }
-        }
-
-        int32_t local_cardinality = BlockReduce(temp_storage).Sum(thread_count);
-        if (thread_idx == 0) block_cardinality = local_cardinality;
-        block.sync();
-
-        if (idx < n) {
-          if (block_cardinality > BlockSize) { break; }
-        }
-      }
+      if (block_cardinality > BlockSize) break;
     } else {
       auto const tile = cg::tiled_partition<CGSize>(block);
       if (idx < n) {
@@ -196,7 +182,6 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
       }
     }
     idx += loop_stride;
-    num_loop += 1;
   }
 
   if constexpr (CGSize == 1) {
