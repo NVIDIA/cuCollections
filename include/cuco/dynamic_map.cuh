@@ -32,7 +32,7 @@
 
 namespace cuco {
 
-namespace modern {
+namespace experimental {
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs with unique keys.
@@ -249,7 +249,7 @@ class dynamic_map {
   Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
 };
 
-}  // namespace modern
+}  // namespace experimental
 
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
@@ -577,9 +577,6 @@ class dynamic_map {
     submap_num_successes_;  ///< Number of successfully erased keys for each submap
   Allocator alloc_{};       ///< Allocator passed to submaps to allocate their device storage
 };
-
-// namespace legacy
-
 }  // namespace cuco
 
 #include <cuco/detail/dynamic_map.inl>

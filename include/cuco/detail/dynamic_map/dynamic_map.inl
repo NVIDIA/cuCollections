@@ -27,7 +27,7 @@
 #include <iostream>
 
 namespace cuco {
-namespace modern {
+namespace experimental {
 
 template <typename Key,
           typename T,
@@ -67,8 +67,7 @@ constexpr dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator,
       scope,
       Storage{},
       alloc,
-      stream));  // do we not need to fill something here
-  // TODO: remember why i wrote the above comment
+      stream));
 
   submap_mutable_views_.push_back(submaps_[0]->ref(op::insert));
 }
@@ -228,23 +227,42 @@ template <typename InputIt, typename OutputIt>
 void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
-  auto num_keys             = std::distance(first, last);
-  int increment             = 0;
-  const uint32_t submap_idx = 0;
+  auto num_keys       = std::distance(first, last);
+  int increment       = 0;
+  uint32_t submap_idx = 0;
   while (num_keys > 0) {
     const auto& cur       = submaps_[submap_idx];
     const size_t cur_size = cur->size(stream);
+
     CUCO_CUDA_TRY(cudaStreamSynchronize(stream.get()));
 
     cur->contains(first,
-                  first + cur_size + increment,  // do bound checking later
+                  first + increment,  // should I do bounds checking?
                   output_begin + increment,
                   stream);
 
     increment += cur_size;
     num_keys -= cur_size;
+    submap_idx++;
+    first += cur_size;
   }
 }
+/*
+while (num_to_insert > 0) {
+    auto& cur = submaps_[submap_idx];
+    std::size_t capacity_remaining = max_load_factor_ * cur->capacity() - cur->size();
 
-}  // namespace modern
+    if (capacity_remaining >= min_insert_size_) {
+      auto const n                = std::min(capacity_remaining, num_to_insert);
+      std::size_t h_num_successes = cur->insert(first, first + n, stream);
+
+      size_ += h_num_successes;
+      first += n;
+      num_to_insert -= n;
+    }
+    submap_idx++;
+  }
+*/
+
+}  // namespace experimental
 }  // namespace cuco
