@@ -47,7 +47,7 @@ namespace experimental {
  * @brief A GPU-accelerated, unordered, associative container of key-value pairs that supports
  * equivalent keys.
  *
- * The `static_map` supports two types of operations:
+ * The `static_multimap` supports two types of operations:
  * - Host-side "bulk" operations
  * - Device-side "singular" operations
  *
