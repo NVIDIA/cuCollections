@@ -50,9 +50,8 @@ int count_if(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = 0)
     Allocator{});
 
   counter_storage.reset(cuda::stream_ref(stream));
-  int* ptr = reinterpret_cast<int*>(counter_storage.data());
 
-  detail::count_if<<<grid_size, block_size, 0, stream>>>(begin, end, ptr, p);
+  detail::count_if<<<grid_size, block_size, 0, stream>>>(begin, end, counter_storage.data(), p);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   auto const res = counter_storage.load_to_host(cuda::stream_ref(stream));
@@ -93,9 +92,9 @@ bool equal(Iterator1 begin1, Iterator1 end1, Iterator2 begin2, Predicate p, cuda
     Allocator{});
 
   counter_storage.reset(cuda::stream_ref(stream));
-  int* ptr = reinterpret_cast<int*>(counter_storage.data());
 
-  detail::count_if<<<grid_size, block_size, 0, stream>>>(begin1, end1, begin2, ptr, p);
+  detail::count_if<<<grid_size, block_size, 0, stream>>>(
+    begin1, end1, begin2, counter_storage.data(), p);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   auto const res = counter_storage.load_to_host(cuda::stream_ref(stream));
