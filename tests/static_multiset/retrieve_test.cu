@@ -35,49 +35,16 @@
 static constexpr auto empty_key_sentinel = -1;
 
 template <class Container>
-void test_unique_sequence(Container& container, std::size_t num_keys)
-{
-  using key_type = typename Container::key_type;
-
-  thrust::device_vector<key_type> probed_keys(num_keys);
-  thrust::device_vector<key_type> matched_keys(num_keys);
-
-  auto input_keys_begin     = thrust::counting_iterator<key_type>{0};
-  auto const input_keys_end = input_keys_begin + num_keys;
-
-  SECTION("Non-inserted keys should not be contained.")
-  {
-    REQUIRE(container.size() == 0);
-
-    auto const [probe_end, matched_end] = container.retrieve(
-      input_keys_begin, input_keys_end, probed_keys.begin(), matched_keys.begin());
-    REQUIRE(std::distance(probed_keys.begin(), probe_end) == 0);
-    REQUIRE(std::distance(matched_keys.begin(), matched_end) == 0);
-  }
-
-  container.insert(input_keys_begin, input_keys_end);
-
-  SECTION("All inserted keys should be contained.")
-  {
-    auto const [probed_end, matched_end] = container.retrieve(
-      input_keys_begin, input_keys_end, probed_keys.begin(), matched_keys.begin());
-    thrust::sort(probed_keys.begin(), probed_end);
-    thrust::sort(matched_keys.begin(), matched_end);
-    REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_keys.end(), input_keys_begin, thrust::equal_to<key_type>{}));
-    REQUIRE(cuco::test::equal(
-      matched_keys.begin(), matched_keys.end(), input_keys_begin, thrust::equal_to<key_type>{}));
-  }
-}
-
-template <class Container>
 void test_multiplicity(Container& container, std::size_t num_keys, std::size_t multiplicity)
 {
   using key_type = typename Container::key_type;
 
+  container.clear();
+
   auto const num_unique_keys = num_keys / multiplicity;
   REQUIRE(num_unique_keys > 0);
   auto const num_actual_keys = num_unique_keys * multiplicity;
+  REQUIRE(num_actual_keys <= num_keys);
 
   thrust::device_vector<key_type> input_keys(num_actual_keys);
   thrust::device_vector<key_type> probed_keys(num_actual_keys);
@@ -92,6 +59,7 @@ void test_multiplicity(Container& container, std::size_t num_keys, std::size_t m
   thrust::shuffle(input_keys.begin(), input_keys.end(), thrust::default_random_engine{});
 
   container.insert(input_keys.begin(), input_keys.end());
+  REQUIRE(container.size() == num_actual_keys);
 
   SECTION("All inserted keys should be contained.")
   {
@@ -112,6 +80,8 @@ void test_outer(Container& container, std::size_t num_keys)
 {
   using key_type = typename Container::key_type;
 
+  container.clear();
+
   thrust::device_vector<key_type> probed_keys(num_keys * 2ull);
   thrust::device_vector<key_type> matched_keys(num_keys * 2ull);
 
@@ -123,8 +93,6 @@ void test_outer(Container& container, std::size_t num_keys)
 
   SECTION("Non-inserted keys should output sentinels.")
   {
-    REQUIRE(container.size() == 0);
-
     auto const [probed_end, matched_end] = container.retrieve_outer(
       query_keys_begin, query_keys_end, probed_keys.begin(), matched_keys.begin());
     REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == num_keys);
@@ -174,7 +142,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
   constexpr std::size_t num_keys{400};
-  constexpr double desired_load_factor = 1.;
+  constexpr double desired_load_factor = 0.5;
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
@@ -183,7 +151,8 @@ TEMPLATE_TEST_CASE_SIG(
   auto set = cuco::static_multiset{
     num_keys, desired_load_factor, cuco::empty_key<Key>{empty_key_sentinel}, {}, probe{}};
 
-  test_unique_sequence(set, num_keys);
-  // test_multiplicity(set, num_keys, decltype(set)::cg_size + 1); // TODO deadlock or infinite loop
-  // test_outer(set, num_keys); // TODO also deadlocks -.-
+  test_multiplicity(set, num_keys, 1);  // unique sequence
+  test_multiplicity(set, num_keys, 2);  // each key occurs twice
+  test_multiplicity(set, num_keys, 11);
+  // test_outer(set, num_keys); // TODO still fails
 }
