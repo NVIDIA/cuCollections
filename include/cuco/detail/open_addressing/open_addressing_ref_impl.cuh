@@ -1137,6 +1137,29 @@ class open_addressing_ref_impl {
     // TODO align to 16B?
     __shared__ probe_type probe_buffers[num_flushing_tiles][buffer_size];
     __shared__ value_type match_buffers[num_flushing_tiles][buffer_size];
+    size_type num_matches = 0;
+
+    auto flush_buffers = [&](cg::coalesced_group const& tile) {
+      auto const rank = tile.thread_rank();
+
+#if defined(CUCO_HAS_CG_INVOKE_ONE)
+      auto const offset = cg::invoke_one_broadcast(tile, [&]() {
+        return atomic_counter.fetch_add(num_matches, cuda::std::memory_order_relaxed);
+      });
+#else
+      size_type offset;
+      if (rank == 0) {
+        offset = atomic_counter.fetch_add(num_matches, cuda::std::memory_order_relaxed);
+      }
+      offset = tile.shfl(offset, 0);
+#endif
+
+      // flush_buffers
+      for (size_type i = rank; i < num_matches; i += tile.size()) {
+        *(output_probe + offset + i) = probe_buffers[flushing_tile_id][i];
+        *(output_match + offset + i) = match_buffers[flushing_tile_id][i];
+      }
+    };
 
     while (flushing_tile.any(idx < n)) {
       bool active_flag = idx < n;
@@ -1152,7 +1175,6 @@ class open_addressing_ref_impl {
         bool empty_found                      = false;
         bool match_found                      = false;
         [[maybe_unused]] bool found_any_match = false;  // only needed if `IsOuter == true`
-        size_type num_matches                 = 0;
 
         while (true) {
           // TODO atomic_ref::load if insert operator is present
@@ -1222,33 +1244,12 @@ class open_addressing_ref_impl {
             }
           }
 
-          // if the buffer has not enough empty slots for the next iteration or the tile has
-          // finished probing
-          if (finished or num_matches > (buffer_size - max_matches_per_step)) {
-            if (num_matches > 0) {
-              auto const rank = active_flushing_tile.thread_rank();
+          // if the buffer has not enough empty slots for the next iteration
+          if (num_matches > (buffer_size - max_matches_per_step)) {
+            flush_buffers(active_flushing_tile);
 
-#if defined(CUCO_HAS_CG_INVOKE_ONE)
-              auto const offset = cg::invoke_one_broadcast(active_flushing_tile, [&]() {
-                return atomic_counter.fetch_add(num_matches, cuda::std::memory_order_relaxed);
-              });
-#else
-              size_type offset;
-              if (rank == 0) {
-                offset = atomic_counter.fetch_add(num_matches, cuda::std::memory_order_relaxed);
-              }
-              offset = active_flushing_tile.shfl(offset, 0);
-#endif
-
-              // flush_buffers
-              for (size_type i = rank; i < num_matches; i += active_flushing_tile.size()) {
-                *(output_probe + offset + i) = probe_buffers[flushing_tile_id][i];
-                *(output_match + offset + i) = match_buffers[flushing_tile_id][i];
-              }
-
-              // reset buffer counter
-              num_matches = 0;
-            }
+            // reset buffer counter
+            num_matches = 0;
           }
 
           // the entire flushing tile has finished its work
@@ -1256,6 +1257,11 @@ class open_addressing_ref_impl {
 
           // onto the next probing window
           ++probing_iter;
+        }
+
+        // entire flusing_tile has finished; flush remaining elements
+        if (num_matches != 0 and active_flushing_tile.all((idx + stride) >= n)) {
+          flush_buffers(active_flushing_tile);
         }
       }
 
