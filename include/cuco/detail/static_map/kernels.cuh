@@ -22,6 +22,7 @@
 #include <cuda/atomic>
 
 #include <cooperative_groups.h>
+#include <cooperative_groups/reduce.h>
 
 #include <iterator>
 
@@ -110,10 +111,10 @@ __global__ void insert_or_apply(InputIt first, cuco::detail::index_type n, Op op
 
 template <int32_t CGSize,
           int32_t BlockSize,
-          typename SharedMapRefType,
-          typename InputIt,
-          typename Op,
-          typename Ref>
+          class SharedMapRefType,
+          class InputIt,
+          class Op,
+          class Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   InputIt first,
   cuco::detail::index_type n,
@@ -157,23 +158,21 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
 
   while (idx - thread_idx < n) {
     if constexpr (CGSize == 1) {
+      int32_t inserted          = 0;
+      int32_t local_cardinality = 0;
       // insert-or-apply into the shared map first
-      int32_t inserted = 0;
       if (idx < n) {
         value_type const& insert_pair = *(first + idx);
         inserted                      = shared_map_ref.insert_or_apply(insert_pair, op);
       }
-
-      if (idx - warp_thread_idx < n)  // all threads in warp particpate
-      {
-        warp.sync();  // sync for inserted to materalize
-        for (int32_t i = warp.size() / 2; i > 0; i /= 2) {
-          inserted += warp.shfl_down(inserted, i);
-        }
+      if (idx - warp_thread_idx < n) {  // all threads in warp particpate
+        local_cardinality = cg::reduce(warp, inserted, cg::plus<int32_t>());
       }
-      if (warp_thread_idx == 0) cardinality_counter.fetch_add(inserted, cuda::memory_order_relaxed);
+      if (warp_thread_idx == 0) {
+        cardinality_counter.fetch_add(local_cardinality, cuda::memory_order_relaxed);
+      }
       block.sync();
-      if (block_cardinality > BlockSize) break;
+      if (block_cardinality > BlockSize) { break; }
     } else {
       auto const tile = cg::tiled_partition<CGSize>(block);
       if (idx < n) {
@@ -185,12 +184,11 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   }
 
   if constexpr (CGSize == 1) {
-    // write from shared_map to global_map
+    // insert-or-apply from shared map to global map
     auto window_idx = thread_idx;
     while (window_idx < num_windows) {
       auto const slot = storage[window_idx][0];
       if (not cuco::detail::bitwise_compare(slot.first, ref.empty_key_sentinel())) {
-        // TODO use insert ?
         ref.insert_or_apply(slot, op);
       }
       window_idx += BlockSize;
