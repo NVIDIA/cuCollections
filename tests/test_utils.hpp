@@ -19,6 +19,8 @@
 #include "test_utils.cuh"
 
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/storage/counter_storage.cuh>
+#include <cuco/utility/allocator.hpp>
 
 #include <thrust/functional.h>
 
@@ -42,20 +44,17 @@ int count_if(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = 0)
   auto const size      = std::distance(begin, end);
   auto const grid_size = (size + block_size - 1) / block_size;
 
-  int* count;
-  CUCO_CUDA_TRY(cudaMallocManaged(&count, sizeof(int)));
+  using Allocator = cuco::cuda_allocator<cuda::atomic<int, cuda::thread_scope_device>>;
 
-  *count = 0;
-  int device_id;
-  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(count, sizeof(int), device_id, stream));
+  cuco::detail::counter_storage<int, cuda::thread_scope_device, Allocator> counter_storage(
+    Allocator{});
 
-  detail::count_if<<<grid_size, block_size, 0, stream>>>(begin, end, count, p);
+  counter_storage.reset(cuda::stream_ref(stream));
+
+  detail::count_if<<<grid_size, block_size, 0, stream>>>(begin, end, counter_storage.data(), p);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
-  auto const res = *count;
-
-  CUCO_CUDA_TRY(cudaFree(count));
+  auto const res = counter_storage.load_to_host(cuda::stream_ref(stream));
 
   return res;
 }
@@ -87,21 +86,18 @@ bool equal(Iterator1 begin1, Iterator1 end1, Iterator2 begin2, Predicate p, cuda
 {
   auto const size      = std::distance(begin1, end1);
   auto const grid_size = (size + block_size - 1) / block_size;
+  using Allocator      = cuco::cuda_allocator<cuda::atomic<int, cuda::thread_scope_device>>;
 
-  int* count;
-  CUCO_CUDA_TRY(cudaMallocManaged(&count, sizeof(int)));
+  cuco::detail::counter_storage<int, cuda::thread_scope_device, Allocator> counter_storage(
+    Allocator{});
 
-  *count = 0;
-  int device_id;
-  CUCO_CUDA_TRY(cudaGetDevice(&device_id));
-  CUCO_CUDA_TRY(cudaMemPrefetchAsync(count, sizeof(int), device_id, stream));
+  counter_storage.reset(cuda::stream_ref(stream));
 
-  detail::count_if<<<grid_size, block_size, 0, stream>>>(begin1, end1, begin2, count, p);
+  detail::count_if<<<grid_size, block_size, 0, stream>>>(
+    begin1, end1, begin2, counter_storage.data(), p);
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
-  auto const res = *count;
-
-  CUCO_CUDA_TRY(cudaFree(count));
+  auto const res = counter_storage.load_to_host(cuda::stream_ref(stream));
 
   return res == size;
 }
