@@ -140,11 +140,10 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   auto storage           = SharedMapRefType::storage_ref_type(window_extent, windows);
   auto const num_windows = storage.num_windows();
 
-  __shared__ int32_t block_cardinality;
-  if (thread_idx == 0) block_cardinality = 0;
+  using atomic_type = cuda::atomic<int32_t, cuda::thread_scope_block>;
+  __shared__ atomic_type block_cardinality;
+  if (thread_idx == 0) { new (&block_cardinality) atomic_type{}; }
   block.sync();
-
-  cuda::atomic_ref<int32_t, cuda::thread_scope_block> cardinality_counter(block_cardinality);
 
   auto shared_map     = SharedMapRefType(cuco::empty_key<Key>(ref.empty_key_sentinel()),
                                      cuco::empty_value<Value>(ref.empty_value_sentinel()),
@@ -169,7 +168,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
         local_cardinality = cg::reduce(warp, inserted, cg::plus<int32_t>());
       }
       if (warp_thread_idx == 0) {
-        cardinality_counter.fetch_add(local_cardinality, cuda::memory_order_relaxed);
+        block_cardinality.fetch_add(local_cardinality, cuda::memory_order_relaxed);
       }
       block.sync();
       if (block_cardinality > BlockSize) { break; }
