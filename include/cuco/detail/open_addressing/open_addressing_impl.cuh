@@ -1035,16 +1035,25 @@ class open_addressing_impl {
                                                         Ref container_ref,
                                                         cuda::stream_ref stream) const
   {
-    auto const n = cuco::detail::distance(first, last);
+    auto const n = detail::distance(first, last);
     if (n == 0) { return {output_probe, output_match}; }
 
-    auto counter =
-      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
+    using counter_type = detail::counter_storage<size_type, thread_scope, allocator_type>;
+    auto counter       = counter_type{this->allocator()};
     counter.reset(stream.get());
 
-    auto constexpr block_size  = cuco::detail::default_block_size();
-    auto constexpr grid_stride = 1;
-    auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);
+    int32_t constexpr block_size = cuco::detail::default_block_size();
+    int32_t grid_size =
+      detail::max_occupancy_grid_size(block_size,
+                                      detail::retrieve<IsOuter,
+                                                       block_size,
+                                                       InputProbeIt,
+                                                       OutputProbeIt,
+                                                       OutputMatchIt,
+                                                       typename counter_type::value_type,
+                                                       Ref>);
+    grid_size *= 1.2;  // oversubscription factor
+    // TODO shrink grid if n is very small
 
     detail::retrieve<IsOuter, block_size><<<grid_size, block_size, 0, stream.get()>>>(
       first, n, output_probe, output_match, counter.data(), container_ref);

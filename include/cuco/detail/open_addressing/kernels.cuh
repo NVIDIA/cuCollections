@@ -376,12 +376,13 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void retrieve(InputProbeIt input_probe,
 {
   namespace cg = cooperative_groups;
 
-  auto const block           = cg::this_thread_block();
-  auto const blocks_in_grid  = gridDim.x;
-  auto const elems_per_block = cuco::detail::int_div_ceil(n, blocks_in_grid);
+  auto const block              = cg::this_thread_block();
+  auto constexpr tiles_in_block = BlockSize / Ref::cg_size;
+  // make sure all but the last block are always occupied
+  auto const items_per_block = detail::int_div_ceil(n, tiles_in_block * gridDim.x) * tiles_in_block;
 
-  auto const block_begin_offset = block.group_index().x * elems_per_block;
-  auto const block_end_offset   = min(n, block_begin_offset + elems_per_block);
+  auto const block_begin_offset = block.group_index().x * items_per_block;
+  auto const block_end_offset   = min(n, block_begin_offset + items_per_block);
 
   if (block_begin_offset < block_end_offset) {
     if constexpr (IsOuter) {
