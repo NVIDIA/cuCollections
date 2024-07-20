@@ -68,7 +68,6 @@ constexpr dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator,
       Storage{},
       alloc,
       stream));
-
   submap_mutable_views_.push_back(submaps_[0]->ref(op::insert));
 }
 
@@ -132,18 +131,18 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   InputIt first, InputIt last, cuda::stream_ref stream)
 {
   std::size_t num_to_insert = std::distance(first, last);
-
   reserve(size_ + num_to_insert, stream);
 
   uint32_t submap_idx = 0;
   while (num_to_insert > 0) {
     auto& cur = submaps_[submap_idx];
-    //
+
     std::size_t capacity_remaining = max_load_factor_ * cur->capacity() - cur->size();
     // If we are tying to insert some of the remaining keys into this submap, we can insert
     // only if we meet the minimum insert size.
     if (capacity_remaining >= min_insert_size_) {
-      auto const n                = std::min(capacity_remaining, num_to_insert);
+      auto const n = std::min(capacity_remaining, num_to_insert);
+
       std::size_t h_num_successes = cur->insert(first, first + n, stream);
 
       size_ += h_num_successes;
@@ -228,23 +227,21 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
   auto num_keys       = std::distance(first, last);
-  int increment       = 0;
+  long traversed      = 0;
   uint32_t submap_idx = 0;
-  while (num_keys > 0) {
-    const auto& cur       = submaps_[submap_idx];
-    const size_t cur_size = cur->size(stream);
+  while (num_keys > 0 && submap_idx < submaps_.size()) {
+    const auto& cur                  = submaps_[submap_idx];
+    const size_t cur_size            = cur->size();
+    const size_t num_keys_to_process = std::min(num_keys, static_cast<long>(cur_size));
 
     CUCO_CUDA_TRY(cudaStreamSynchronize(stream.get()));
 
-    cur->contains(first,
-                  first + increment,  // should I do bounds checking?
-                  output_begin + increment,
-                  stream);
+    cur->contains(first, first + num_keys_to_process, output_begin + traversed, stream);
 
-    increment += cur_size;
-    num_keys -= cur_size;
+    traversed += num_keys_to_process;
+    num_keys -= num_keys_to_process;
     submap_idx++;
-    first += cur_size;
+    first += num_keys_to_process;
   }
 }
 

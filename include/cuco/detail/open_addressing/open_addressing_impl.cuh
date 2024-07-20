@@ -34,6 +34,7 @@
 #include <thrust/iterator/transform_iterator.h>
 
 #include <cmath>
+#include <cstdio>
 
 namespace cuco {
 namespace detail {
@@ -694,6 +695,7 @@ class open_addressing_impl {
   {
     auto counter =
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
+
     counter.reset(stream);
 
     auto const grid_size = cuco::detail::grid_size(storage_.num_windows());
@@ -702,6 +704,7 @@ class open_addressing_impl {
 
     // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
     // v2.1.0
+
     detail::size<cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         storage_.ref(), is_filled, counter.data());

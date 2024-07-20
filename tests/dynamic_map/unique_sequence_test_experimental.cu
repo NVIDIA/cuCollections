@@ -69,6 +69,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys experimental",
 
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
+    // segfaults
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
     REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
