@@ -34,7 +34,6 @@
 #include <thrust/iterator/transform_iterator.h>
 
 #include <cmath>
-#include <cstdio>
 
 namespace cuco {
 namespace detail {
