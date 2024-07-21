@@ -251,7 +251,7 @@ constexpr static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Alloca
   static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
     empty_value_sentinel() const noexcept
 {
-  return this->empty_value_sentinel_;
+  return empty_value_sentinel_;
 }
 
 template <class Key,

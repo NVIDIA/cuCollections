@@ -120,7 +120,7 @@ __host__ __device__ constexpr static_multimap_ref<Key,
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::key_eq()
   const noexcept
 {
-  return this->impl_.key_eq();
+  return impl_.key_eq();
 }
 
 template <typename Key,
@@ -140,7 +140,7 @@ __host__ __device__ constexpr static_multimap_ref<Key,
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::end()
   const noexcept
 {
-  return this->impl_.end();
+  return impl_.end();
 }
 
 template <typename Key,
@@ -275,9 +275,9 @@ __host__ __device__ auto constexpr static_multimap_ref<
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     cuco::empty_value<T>{this->empty_value_sentinel()},
     this->key_eq(),
-    this->impl_.probing_scheme(),
+    impl_.probing_scheme(),
     {},
-    this->impl_.storage_ref()};
+    impl_.storage_ref()};
 }
 
 template <typename Key,
@@ -294,13 +294,13 @@ static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operator
   window_type* const memory_to_use,
   cuda_thread_scope<NewScope> scope) const noexcept
 {
-  this->impl_.make_copy(tile, memory_to_use);
+  impl_.make_copy(tile, memory_to_use);
   return static_multimap_ref<Key, T, NewScope, KeyEqual, ProbingScheme, StorageRef, Operators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     cuco::empty_value<T>{this->empty_value_sentinel()},
     cuco::erased_key<Key>{this->erased_key_sentinel()},
     this->key_eq(),
-    this->impl_.probing_scheme(),
+    impl_.probing_scheme(),
     scope,
     storage_ref_type{this->window_extent(), memory_to_use}};
 }
@@ -317,7 +317,7 @@ __device__ constexpr void
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::initialize(
   CG const& tile) noexcept
 {
-  this->impl_.initialize(tile);
+  impl_.initialize(tile);
 }
 
 namespace detail {
