@@ -21,7 +21,6 @@
 
 #include <cuda/atomic>
 #include <cuda/std/functional>
-#include <thrust/tuple.h>
 
 #include <cooperative_groups.h>
 
