@@ -56,8 +56,7 @@ constexpr dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator,
     alloc_{alloc}
 {
   submaps_.push_back(
-    std::make_unique<
-      cuco::static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>>(
+    std::make_unique<map_type>(
       initial_capacity,
       empty_key<Key>{empty_key_sentinel},
       empty_value<T>{empty_value_sentinel},
