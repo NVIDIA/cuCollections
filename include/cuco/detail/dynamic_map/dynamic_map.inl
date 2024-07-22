@@ -126,7 +126,7 @@ template <typename InputIt>
 void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cuda::stream_ref stream)
 {
-  std::size_t num_to_insert = std::distance(first, last);
+  auto const num_to_insert = cuco::detail::distance(first, last);
   reserve(size_ + num_to_insert, stream);
 
   uint32_t submap_idx = 0;
