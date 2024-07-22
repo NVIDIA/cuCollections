@@ -207,8 +207,7 @@ class dynamic_map {
    *
    * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
    *
-   * @tparam InputIt Device accessible input iterator whose `value_type` is
-   * convertible to the map's `key_type`
+   * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator whose `value_type` is
    * convertible to the map's `mapped_type`
    *
