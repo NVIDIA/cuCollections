@@ -76,13 +76,7 @@ class dynamic_map {
 
   using mapped_type = T;  ///< Payload type
   template <typename... Operators>
-  using ref_type = cuco::static_map_ref<key_type,
-                                        mapped_type,
-                                        thread_scope,
-                                        key_equal,
-                                        probing_scheme_type,
-                                        storage_ref_type,
-                                        Operators...>;  ///< Non-owning container ref type
+  using ref_type = map_type::ref_type;
 
   dynamic_map(dynamic_map const&)            = delete;
   dynamic_map& operator=(dynamic_map const&) = delete;
@@ -220,19 +214,10 @@ class dynamic_map {
   std::size_t size_{};      ///< Number of keys in the map
   std::size_t capacity_{};  ///< Maximum number of keys that can be inserted
 
-  std::vector<std::unique_ptr<cuco::static_map<key_type,
-                                               mapped_type,
-                                               Extent,
-                                               Scope,
-                                               KeyEqual,
-                                               ProbingScheme,
-                                               Allocator,
-                                               Storage>>>
+  std::vector<std::unique_ptr<map_type>>
     submaps_;  ///< vector of pointers to each submap
   thrust::device_vector<ref_type<cuco::insert_tag>>
-    submap_mutable_views_;  ///< vector of mutable device views for each submap
-  thrust::device_vector<ref_type<cuco::contains_tag>>
-    submap_views;                  ///< vector of mutable device views for each submap
+    submap_mutable_refs_;  ///< vector of mutable device views for each submap
   std::size_t min_insert_size_{};  ///< min remaining capacity of submap for insert
   float max_load_factor_{};
   Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
