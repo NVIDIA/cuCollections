@@ -58,14 +58,8 @@ template <class Key,
           class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
           class Storage            = cuco::storage<1>>
 class dynamic_map {
-  using map_type = static_map<Key,
-                                                 cuco::pair<Key, T>,
-                                                 Extent,
-                                                 Scope,
-                                                 KeyEqual,
-                                                 ProbingScheme,
-                                                 Allocator,
-                                                 Storage>;
+  using map_type =
+    static_map<Key, cuco::pair<Key, T>, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>;
 
  public:
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
