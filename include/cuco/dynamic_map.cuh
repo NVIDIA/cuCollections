@@ -58,7 +58,7 @@ template <class Key,
           class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
           class Storage            = cuco::storage<1>>
 class dynamic_map {
-  using impl_type = detail::open_addressing_impl<Key,
+  using map_type = static_map<Key,
                                                  cuco::pair<Key, T>,
                                                  Extent,
                                                  Scope,
