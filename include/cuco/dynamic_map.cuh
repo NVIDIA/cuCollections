@@ -214,10 +214,9 @@ class dynamic_map {
   std::size_t size_{};      ///< Number of keys in the map
   std::size_t capacity_{};  ///< Maximum number of keys that can be inserted
 
-  std::vector<std::unique_ptr<map_type>>
-    submaps_;  ///< vector of pointers to each submap
+  std::vector<std::unique_ptr<map_type>> submaps_;  ///< vector of pointers to each submap
   thrust::device_vector<ref_type<cuco::insert_tag>>
-    submap_mutable_refs_;  ///< vector of mutable device views for each submap
+    submap_mutable_refs_;          ///< vector of mutable device views for each submap
   std::size_t min_insert_size_{};  ///< min remaining capacity of submap for insert
   float max_load_factor_{};
   Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
