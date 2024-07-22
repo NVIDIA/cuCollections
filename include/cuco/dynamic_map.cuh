@@ -217,9 +217,6 @@ class dynamic_map {
                 cuda::stream_ref stream = {}) const;
 
  private:
-  key_type empty_key_sentinel_{};       ///< Key value that represents an empty slot
-  mapped_type empty_value_sentinel_{};  ///< Initial value of empty slot
-  key_type erased_key_sentinel_{};      ///< Key value that represents an erased slot
 
   std::size_t size_{};      ///< Number of keys in the map
   std::size_t capacity_{};  ///< Maximum number of keys that can be inserted
