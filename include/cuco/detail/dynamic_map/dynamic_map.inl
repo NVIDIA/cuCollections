@@ -43,7 +43,7 @@ constexpr dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator,
               KeyEqual const& pred,
               ProbingScheme const& probing_scheme,
               cuda_thread_scope<Scope> scope,
-              Storage,
+              Storage storage,
               Allocator const& alloc,
               cuda::stream_ref stream)
   : empty_key_sentinel_(empty_key_sentinel.value),
