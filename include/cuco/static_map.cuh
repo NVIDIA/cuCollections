@@ -842,7 +842,7 @@ class static_map {
   mapped_type empty_value_sentinel_;  ///< Sentinel value that indicates an empty payload
 };
 
-namespace modern {
+namespace experimental {
 template <class Key,
           class T,
           class Extent,
