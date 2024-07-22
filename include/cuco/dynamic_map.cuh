@@ -217,7 +217,6 @@ class dynamic_map {
                 cuda::stream_ref stream = {}) const;
 
  private:
-
   std::size_t size_{};      ///< Number of keys in the map
   std::size_t capacity_{};  ///< Maximum number of keys that can be inserted
 
