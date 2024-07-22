@@ -311,6 +311,22 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename Init, typename Op>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_or_apply(InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream)
+{
+  return this->insert_or_apply_async(first, last, init, op, stream);
+  stream.wait();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename InputIt, typename Op>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   insert_or_apply_async(InputIt first, InputIt last, Op op, cuda::stream_ref stream) noexcept
@@ -320,9 +336,35 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
 
   auto const grid_size = cuco::detail::grid_size(num, cg_size);
 
-  static_map_ns::detail::insert_or_apply<cg_size, cuco::detail::default_block_size()>
+  auto constexpr use_init = false;
+  auto const init = this->empty_value_sentinel();  // use empty_sentinel as unused init value
+  static_map_ns::detail::insert_or_apply<use_init, cg_size, cuco::detail::default_block_size()>
     <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-      first, num, op, ref(op::insert_or_apply));
+      first, num, init, op, ref(op::insert_or_apply));
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename Init, typename Op>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_or_apply_async(
+    InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream) noexcept
+{
+  auto const num = cuco::detail::distance(first, last);
+  if (num == 0) { return; }
+
+  auto const grid_size = cuco::detail::grid_size(num, cg_size);
+
+  auto constexpr use_init = true;
+  static_map_ns::detail::insert_or_apply<use_init, cg_size, cuco::detail::default_block_size()>
+    <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+      first, num, init, op, ref(op::insert_or_apply));
 }
 
 template <class Key,

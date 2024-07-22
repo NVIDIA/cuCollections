@@ -81,28 +81,46 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
+ * @tparam Init Type of init value convertible to payload type
  * @tparam Op Callable type used to peform `apply` operation.
  * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
+ * @param init The init value of the op
  * @param op Callable object to perform apply operation.
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Op, typename Ref>
-__global__ void insert_or_apply(InputIt first, cuco::detail::index_type n, Op op, Ref ref)
+template <bool UseInit,
+          int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIt,
+          typename Init,
+          typename Op,
+          typename Ref>
+__global__ void insert_or_apply(
+  InputIt first, cuco::detail::index_type n, Init init, Op op, Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    typename std::iterator_traits<InputIt>::value_type const& insert_pair = *(first + idx);
+    using value_type              = typename std::iterator_traits<InputIt>::value_type;
+    value_type const& insert_pair = *(first + idx);
     if constexpr (CGSize == 1) {
-      ref.insert_or_apply(insert_pair, op);
+      if constexpr (UseInit) {
+        ref.insert_or_apply(insert_pair, init, op);
+      } else {
+        ref.insert_or_apply(insert_pair, op);
+      }
     } else {
       auto const tile =
         cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-      ref.insert_or_apply(tile, insert_pair, op);
+      if constexpr (UseInit) {
+        ref.insert_or_apply(tile, insert_pair, init, op);
+      } else {
+        ref.insert_or_apply(tile, insert_pair, op);
+      }
     }
     idx += loop_stride;
   }

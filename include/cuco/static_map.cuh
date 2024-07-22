@@ -494,6 +494,32 @@ class static_map {
    * object on the existing value at slot and the element to insert. If the key does not exist,
    * inserts the pair as if by insert.
    *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `insert_or_apply_async`.
+   * @note Callable object to perform binary operation should be able to invoke as
+   *  Op(cuda::atomic_ref<T, Scope>, T>)
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_map<K, V>::value_type></tt> is `true`
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type used to peform `apply` operation.
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param init The identity value of the op
+   * @param op Callable object to perform apply operation.
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt, typename Init, typename Op>
+  void insert_or_apply(InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream = {});
+
+  /**
+   * @brief For any key-value pair `{k, v}` in the range `[first, first + n)`, if a key equivalent
+   * to `k` already exists in the container, then binary operation is applied using `op` callable
+   * object on the existing value at slot and the element to insert. If the key does not exist,
+   * inserts the pair as if by insert.
+   *
    * @note Callable object to perform binary operation should be able to invoke as
    *  Op(cuda::atomic_ref<T, Scope>, T>)
    *
@@ -512,6 +538,31 @@ class static_map {
                              InputIt last,
                              Op op,
                              cuda::stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief For any key-value pair `{k, v}` in the range `[first, first + n)`, if a key equivalent
+   * to `k` already exists in the container, then binary operation is applied using `op` callable
+   * object on the existing value at slot and the element to insert. If the key does not exist,
+   * inserts the pair as if by insert.
+   *
+   * @note Callable object to perform binary operation should be able to invoke as
+   *  Op(cuda::atomic_ref<T, Scope>, T>)
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_map<K, V>::value_type></tt> is `true`
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type used to peform `apply` operation.
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param init The identity value of the op
+   * @param op Callable object to perform apply operation.
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt, typename Init, typename Op>
+  void insert_or_apply_async(
+    InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Erases keys in the range `[first, last)`.
