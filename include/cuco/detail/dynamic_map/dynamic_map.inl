@@ -55,17 +55,15 @@ constexpr dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator,
     max_load_factor_(0.60),
     alloc_{alloc}
 {
-  submaps_.push_back(
-    std::make_unique<map_type>(
-      initial_capacity,
-      empty_key<Key>{empty_key_sentinel},
-      empty_value<T>{empty_value_sentinel},
-      pred,
-      probing_scheme,
-      scope,
-      Storage{},
-      alloc,
-      stream));
+  submaps_.push_back(std::make_unique<map_type>(initial_capacity,
+                                                empty_key<Key>{empty_key_sentinel},
+                                                empty_value<T>{empty_value_sentinel},
+                                                pred,
+                                                probing_scheme,
+                                                scope,
+                                                Storage{},
+                                                alloc,
+                                                stream));
   submap_mutable_views_.push_back(submaps_[0]->ref(op::insert));
 }
 
