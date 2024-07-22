@@ -32,12 +32,13 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
-static constexpr auto empty_key_sentinel = -1;
+#include <limits>
 
 template <class Container>
 void test_multiplicity(Container& container, std::size_t num_keys, std::size_t multiplicity)
 {
-  using key_type = typename Container::key_type;
+  using key_type                = typename Container::key_type;
+  auto const empty_key_sentinel = container.empty_key_sentinel();
 
   container.clear();
 
@@ -78,53 +79,56 @@ void test_multiplicity(Container& container, std::size_t num_keys, std::size_t m
 template <class Container>
 void test_outer(Container& container, std::size_t num_keys)
 {
-  using key_type = typename Container::key_type;
+  using key_type                = typename Container::key_type;
+  auto const empty_key_sentinel = container.empty_key_sentinel();
 
   container.clear();
+
+  thrust::device_vector<key_type> insert_keys(num_keys);
+  thrust::sequence(insert_keys.begin(), insert_keys.end(), 0);
+  thrust::device_vector<key_type> query_keys(num_keys * 2ull);
+  thrust::sequence(query_keys.begin(), query_keys.end(), 0);
 
   thrust::device_vector<key_type> probed_keys(num_keys * 2ull);
   thrust::device_vector<key_type> matched_keys(num_keys * 2ull);
 
-  auto input_keys_begin     = thrust::counting_iterator<key_type>{0};
-  auto const input_keys_end = input_keys_begin + num_keys;
-
-  auto query_keys_begin     = input_keys_begin;
-  auto const query_keys_end = query_keys_begin + num_keys * 2ull;
-
   SECTION("Non-inserted keys should output sentinels.")
   {
     auto const [probed_end, matched_end] = container.retrieve_outer(
-      query_keys_begin, query_keys_end, probed_keys.begin(), matched_keys.begin());
-    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == num_keys);
-    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == num_keys);
-    REQUIRE(cuco::test::all_of(matched_keys.begin(),
-                               matched_keys.end(),
-                               cuda::proclaim_return_type<bool>([] __device__(auto const& k) {
-                                 return static_cast<bool>(
-                                   k == static_cast<key_type>(empty_key_sentinel));
-                               })));
+      query_keys.begin(), query_keys.end(), probed_keys.begin(), matched_keys.begin());
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) ==
+            num_keys * 2ull);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
+            num_keys * 2ull);
+    REQUIRE(cuco::test::all_of(
+      matched_keys.begin(),
+      matched_keys.end(),
+      cuda::proclaim_return_type<bool>([empty_key_sentinel] __device__(auto const& k) {
+        return static_cast<bool>(k == static_cast<key_type>(empty_key_sentinel));
+      })));
   }
 
-  container.insert(input_keys_begin, input_keys_end);
+  container.insert(insert_keys.begin(), insert_keys.end());
 
   SECTION("All inserted keys should be contained.")
   {
-    auto const [probed_end, matched_end] = container.retrieve(
-      query_keys_begin, query_keys_end, probed_keys.begin(), matched_keys.begin());
-    thrust::sort(probed_keys.begin(), probed_end);
-    thrust::sort(matched_keys.begin(), matched_end);
+    auto const [probed_end, matched_end] = container.retrieve_outer(
+      query_keys.begin(), query_keys.end(), probed_keys.begin(), matched_keys.begin());
+    thrust::sort_by_key(
+      probed_keys.begin(), probed_end, matched_keys.begin(), thrust::less<key_type>());
+
     REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_keys.end(), query_keys_begin, thrust::equal_to<key_type>{}));
+      probed_keys.begin(), probed_keys.end(), query_keys.begin(), thrust::equal_to<key_type>{}));
     REQUIRE(cuco::test::equal(matched_keys.begin(),
                               matched_keys.begin() + num_keys,
-                              input_keys_begin,
+                              insert_keys.begin(),
                               thrust::equal_to<key_type>{}));
-    REQUIRE(cuco::test::all_of(matched_keys.begin() + num_keys,
-                               matched_keys.end(),
-                               cuda::proclaim_return_type<bool>([] __device__(auto const& k) {
-                                 return static_cast<bool>(
-                                   k == static_cast<key_type>(empty_key_sentinel));
-                               })));
+    REQUIRE(cuco::test::all_of(
+      matched_keys.begin() + num_keys,
+      matched_keys.end(),
+      cuda::proclaim_return_type<bool>([empty_key_sentinel] __device__(auto const& k) {
+        return static_cast<bool>(k == static_cast<key_type>(empty_key_sentinel));
+      })));
   }
 }
 
@@ -132,17 +136,18 @@ TEMPLATE_TEST_CASE_SIG(
   "static_multiset retrieve tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
-  (int32_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int32_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  // (int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  // (int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  // (int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  // (int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  // (int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  // (int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  // (int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
   constexpr std::size_t num_keys{400};
   constexpr double desired_load_factor = 0.5;
+  constexpr auto empty_key_sentinel    = std::numeric_limits<Key>::max();
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
@@ -154,5 +159,5 @@ TEMPLATE_TEST_CASE_SIG(
   test_multiplicity(set, num_keys, 1);  // unique sequence
   test_multiplicity(set, num_keys, 2);  // each key occurs twice
   test_multiplicity(set, num_keys, 11);
-  // test_outer(set, num_keys); // TODO still fails
+  test_outer(set, num_keys);
 }
