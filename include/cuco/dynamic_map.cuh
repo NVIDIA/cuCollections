@@ -101,9 +101,6 @@ class dynamic_map {
    * @param storage Kind of storage to use
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the map
-   *
-   * @throw std::runtime error if the empty key sentinel and erased key sentinel
-   * are the same value
    */
   constexpr dynamic_map(Extent initial_capacity,
                         empty_key<Key> empty_key_sentinel,
@@ -165,8 +162,8 @@ class dynamic_map {
   size_type capacity_{};  ///< Maximum number of keys that can be inserted
 
   std::vector<std::unique_ptr<map_type>> submaps_;  ///< vector of pointers to each submap
-  std::size_t min_insert_size_{};                   ///< min remaining capacity of submap for insert
-  float max_load_factor_{};
+  size_type min_insert_size_{};                   ///< min remaining capacity of submap for insert
+  float max_load_factor_{}; ///< Maximum load factor
   Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
 };
 

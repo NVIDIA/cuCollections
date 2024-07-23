@@ -110,9 +110,9 @@ template <typename Key,
           typename Allocator,
           typename Storage>
 void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::reserve(
-  std::size_t n, cuda::stream_ref stream)
+  size_type n, cuda::stream_ref stream)
 {
-  int64_t num_elements_remaining = n;
+  size_type num_elements_remaining = n;
   uint32_t submap_idx            = 0;
   while (num_elements_remaining > 0) {
     std::size_t submap_capacity;
@@ -123,13 +123,11 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
     }
     // if the submap does not exist yet, create it
     else {
-      empty_key<Key> erased_key_sentinel{submaps_.front()->erased_key_sentinel()};
       empty_key<Key> empty_key_sentinel{submaps_.front()->empty_key_sentinel()};
       empty_value<T> empty_value_sentinel{submaps_.front()->empty_value_sentinel()};
 
       submap_capacity = capacity_;
-      if (erased_key_sentinel != empty_key_sentinel) {
-        submaps_.push_back(
+      submaps_.push_back(
           std::make_unique<
             cuco::static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>>(
             submap_capacity,
@@ -141,21 +139,6 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
             Storage{},
             alloc_,
             stream));
-
-      } else {
-        submaps_.push_back(
-          std::make_unique<
-            cuco::static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>>(
-            submap_capacity,
-            empty_key_sentinel,
-            empty_value_sentinel,
-            KeyEqual{},
-            ProbingScheme{},
-            cuda_thread_scope<Scope>{},
-            Storage{},
-            alloc_,
-            stream));
-      }
       capacity_ *= 2;
     }
 
