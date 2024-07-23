@@ -113,7 +113,7 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   size_type n, cuda::stream_ref stream)
 {
   size_type num_elements_remaining = n;
-  uint32_t submap_idx            = 0;
+  uint32_t submap_idx              = 0;
   while (num_elements_remaining > 0) {
     std::size_t submap_capacity;
 
@@ -128,17 +128,17 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
 
       submap_capacity = capacity_;
       submaps_.push_back(
-          std::make_unique<
-            cuco::static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>>(
-            submap_capacity,
-            empty_key_sentinel,
-            empty_value_sentinel,
-            KeyEqual{},
-            ProbingScheme{},
-            cuda_thread_scope<Scope>{},
-            Storage{},
-            alloc_,
-            stream));
+        std::make_unique<
+          cuco::static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>>(
+          submap_capacity,
+          empty_key_sentinel,
+          empty_value_sentinel,
+          KeyEqual{},
+          ProbingScheme{},
+          cuda_thread_scope<Scope>{},
+          Storage{},
+          alloc_,
+          stream));
       capacity_ *= 2;
     }
 
