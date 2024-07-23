@@ -577,7 +577,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
   auto idx                       = cuco::detail::global_thread_id();
   auto const n                   = storage_ref.num_windows();
 
-  while ((idx - thread_rank / cg_size) < n) {
+  while (idx - thread_rank < n) {
     if (thread_rank == 0) { buffer_size = 0; }
     block.sync();
 
