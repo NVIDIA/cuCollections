@@ -46,10 +46,10 @@ constexpr dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator,
               Storage storage,
               Allocator const& alloc,
               cuda::stream_ref stream)
-  : size_(0),
-    capacity_(initial_capacity),
-    min_insert_size_(1E4),
-    max_load_factor_(0.60),
+  : size_{0},
+    capacity_{initial_capacity},
+    min_insert_size_{1E4},
+    max_load_factor_{0.60},
     alloc_{alloc}
 {
   submaps_.push_back(
