@@ -46,50 +46,7 @@ constexpr dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator,
               Storage storage,
               Allocator const& alloc,
               cuda::stream_ref stream)
-  : empty_key_sentinel_{empty_key_sentinel.value},
-    empty_value_sentinel_{empty_value_sentinel.value},
-    erased_key_sentinel_{empty_key_sentinel.value},
-    size_{0},
-    capacity_{initial_capacity},
-    min_insert_size_{1E4},
-    max_load_factor_{0.60},
-    alloc_{alloc}
-{
-  submaps_.push_back(std::make_unique<map_type>(initial_capacity,
-                                                empty_key<Key>{empty_key_sentinel},
-                                                empty_value<T>{empty_value_sentinel},
-                                                pred,
-                                                probing_scheme,
-                                                scope,
-                                                Storage{},
-                                                alloc,
-                                                stream));
-  submap_mutable_views_.push_back(submaps_[0]->ref(op::insert));
-}
-
-template <typename Key,
-          typename T,
-          typename Extent,
-          cuda::thread_scope Scope,
-          typename KeyEqual,
-          typename ProbingScheme,
-          typename Allocator,
-          typename Storage>
-constexpr dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
-  dynamic_map(Extent initial_capacity,
-              empty_key<Key> empty_key_sentinel,
-              empty_value<T> empty_value_sentinel,
-              erased_key<Key> erased_key_sentinel,
-              KeyEqual const& pred,
-              ProbingScheme const& probing_scheme,
-              cuda_thread_scope<Scope> scope,
-              Storage,
-              Allocator const& alloc,
-              cuda::stream_ref stream)
-  : empty_key_sentinel_(empty_key_sentinel.value),
-    empty_value_sentinel_(empty_value_sentinel.value),
-    erased_key_sentinel_(erased_key_sentinel.value),
-    size_(0),
+  : size_(0),
     capacity_(initial_capacity),
     min_insert_size_(1E4),
     max_load_factor_(0.60),
@@ -99,15 +56,14 @@ constexpr dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator,
     std::make_unique<
       cuco::static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>>(
       initial_capacity,
-      empty_key<Key>{empty_key_sentinel_},
-      empty_value<T>{empty_value_sentinel_},
-      erased_key<Key>{erased_key_sentinel_},
+      empty_key_sentinel,
+      empty_value_sentinel,
       pred,
       probing_scheme,
       scope,
+      storage,
       alloc,
       stream));
-  submap_mutable_views_.push_back(submaps_[0]->ref(op::insert));
 }
 
 template <typename Key,
@@ -122,18 +78,18 @@ template <typename InputIt>
 void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cuda::stream_ref stream)
 {
-  auto const num_to_insert = cuco::detail::distance(first, last);
+  auto num_to_insert = cuco::detail::distance(first, last);
   reserve(size_ + num_to_insert, stream);
 
   uint32_t submap_idx = 0;
   while (num_to_insert > 0) {
     auto& cur = submaps_[submap_idx];
 
-    std::size_t capacity_remaining = max_load_factor_ * cur->capacity() - cur->size();
+    auto capacity_remaining = max_load_factor_ * cur->capacity() - cur->size();
     // If we are tying to insert some of the remaining keys into this submap, we can insert
     // only if we meet the minimum insert size.
     if (capacity_remaining >= min_insert_size_) {
-      auto const n = std::min(capacity_remaining, num_to_insert);
+      auto const n = std::min(static_cast<detail::index_type>(capacity_remaining), num_to_insert);
 
       std::size_t h_num_successes = cur->insert(first, first + n, stream);
 
@@ -167,15 +123,18 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
     }
     // if the submap does not exist yet, create it
     else {
+      empty_key<Key> erased_key_sentinel{submaps_.front()->erased_key_sentinel()};
+      empty_key<Key> empty_key_sentinel{submaps_.front()->empty_key_sentinel()};
+      empty_value<T> empty_value_sentinel{submaps_.front()->empty_value_sentinel()};
+
       submap_capacity = capacity_;
-      if (erased_key_sentinel_ != empty_key_sentinel_) {
+      if (erased_key_sentinel != empty_key_sentinel) {
         submaps_.push_back(
           std::make_unique<
             cuco::static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>>(
             submap_capacity,
-            empty_key<Key>{empty_key_sentinel_},
-            empty_value<T>{empty_value_sentinel_},
-            erased_key<Key>{erased_key_sentinel_},
+            empty_key_sentinel,
+            empty_value_sentinel,
             KeyEqual{},
             ProbingScheme{},
             cuda_thread_scope<Scope>{},
@@ -188,8 +147,8 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
           std::make_unique<
             cuco::static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>>(
             submap_capacity,
-            empty_key<Key>{empty_key_sentinel_},
-            empty_value<T>{empty_value_sentinel_},
+            empty_key_sentinel,
+            empty_value_sentinel,
             KeyEqual{},
             ProbingScheme{},
             cuda_thread_scope<Scope>{},
@@ -197,7 +156,6 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
             alloc_,
             stream));
       }
-      submap_mutable_views_.push_back(submaps_[submap_idx]->ref(op::insert));
       capacity_ *= 2;
     }
 
@@ -218,14 +176,14 @@ template <typename InputIt, typename OutputIt>
 void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
-  auto num_keys       = std::distance(first, last);
+  auto num_keys       = cuco::detail::distance(first, last);
   long traversed      = 0;
   uint32_t submap_idx = 0;
   while (num_keys > 0 && submap_idx < submaps_.size()) {
-    const auto& cur                  = submaps_[submap_idx];
-    const size_t cur_size            = cur->size();
-    const size_t num_keys_to_process = std::min(num_keys, static_cast<long>(cur_size));
-
+    const auto& cur       = submaps_[submap_idx];
+    const size_t cur_size = cur->size();
+    const size_t num_keys_to_process =
+      std::min(static_cast<detail::index_type>(cur_size), num_keys);
     CUCO_CUDA_TRY(cudaStreamSynchronize(stream.get()));
 
     cur->contains(first, first + num_keys_to_process, output_begin + traversed, stream);
