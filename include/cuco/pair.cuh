@@ -142,6 +142,17 @@ template <class T1, class T2, class U1, class U2>
 __host__ __device__ constexpr bool operator==(cuco::pair<T1, T2> const& lhs,
                                               cuco::pair<U1, U2> const& rhs) noexcept;
 
+template <typename T>
+struct is_cuco_pair : cuda::std::false_type {};
+
+template <typename F, typename S>
+struct is_cuco_pair<cuco::pair<F, S>> : cuda::std::true_type {};
+
+/// Trait determing whether a given type is tuple-like or not
+template <typename T>
+__host__ __device__ constexpr bool is_tuple_like_v = cuda::std::
+  disjunction_v<is_cuco_pair<T>, detail::is_std_pair_like<T>, detail::is_cuda_std_pair_like<T>>;
+
 }  // namespace cuco
 
 #include <cuco/detail/pair/pair.inl>
