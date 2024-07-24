@@ -258,7 +258,7 @@ template <typename Key,
 template <typename NewHash>
 __host__ __device__ constexpr auto
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_hash_function(
-  NewHash const& hash) const noexcept
+  NewHash const& hash) const
 {
   auto const probing_scheme = this->impl_.probing_scheme().with_hash_function(hash);
   return static_set_ref<Key,

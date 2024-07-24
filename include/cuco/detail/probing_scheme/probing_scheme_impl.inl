@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/detail/utils.cuh>
+#include <cuco/pair.cuh>
 
 namespace cuco {
 namespace detail {
@@ -139,6 +140,26 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::with_ha
   NewHash1 const& hash1, NewHash2 const& hash2) const noexcept
 {
   return double_hashing<cg_size, NewHash1, NewHash2>{hash1, hash2};
+}
+
+template <int32_t CGSize, typename Hash1, typename Hash2>
+template <typename NewHash, typename Enable>
+__host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::with_hash_function(
+  NewHash const& hash) const
+{
+  static_assert(cuco::is_tuple_like<NewHash>::value,
+                "The given hasher must be a tuple-like object");
+
+  auto const [hash1, hash2] = [&]() {
+    if constexpr (detail::is_std_pair_like<NewHash>::value) {
+      return cuco::pair{std::get<0>(hash), std::get<1>(hash)};
+    } else {
+      return cuco::pair{cuda::std::get<0>(hash), cuda::std::get<1>(hash)};
+    }
+  }();
+  using hash1_type = cuda::std::decay_t<decltype(hash1)>;
+  using hash2_type = cuda::std::decay_t<decltype(hash2)>;
+  return double_hashing<cg_size, hash1_type, hash2_type>{hash1, hash2};
 }
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
