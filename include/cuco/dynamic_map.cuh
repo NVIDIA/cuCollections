@@ -120,7 +120,7 @@ class dynamic_map {
    * @param n The number of key value pairs for which there must be space
    * @param stream Stream used for executing the kernels
    */
-  void reserve(std::size_t n, cuda::stream_ref stream);
+  void reserve(size_type n, cuda::stream_ref stream);
 
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
