@@ -135,6 +135,13 @@ __host__ __device__ constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashi
 }
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
+__host__ __device__ constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashing(
+  cuco::pair<Hash1, Hash2> const& hash)
+  : hash1_{hash.first}, hash2_{hash.second}
+{
+}
+
+template <int32_t CGSize, typename Hash1, typename Hash2>
 template <typename NewHash1, typename NewHash2>
 __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::with_hash_function(
   NewHash1 const& hash1, NewHash2 const& hash2) const noexcept

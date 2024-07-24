@@ -125,6 +125,13 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   __host__ __device__ constexpr double_hashing(Hash1 const& hash1 = {}, Hash2 const& hash2 = {1});
 
   /**
+   *@brief Constructs double hashing probing scheme with the hasher tuple
+   *
+   * @param hash Hasher tuple
+   */
+  __host__ __device__ constexpr double_hashing(cuco::pair<Hash1, Hash2> const& hash);
+
+  /**
    *@brief Makes a copy of the current probing method with the given hasher
    *
    * @tparam NewHash1 First new hasher type
