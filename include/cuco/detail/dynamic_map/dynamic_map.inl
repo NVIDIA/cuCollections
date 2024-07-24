@@ -48,7 +48,7 @@ constexpr dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator,
               cuda::stream_ref stream)
   : size_{0},
     capacity_{initial_capacity},
-    min_insert_size_{1E4},
+    min_insert_size_{static_cast<size_type>(1E4)},
     max_load_factor_{0.60},
     alloc_{alloc}
 {
