@@ -150,15 +150,9 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::with_ha
   static_assert(cuco::is_tuple_like<NewHash>::value,
                 "The given hasher must be a tuple-like object");
 
-  auto const [hash1, hash2] = [&]() {
-    if constexpr (detail::is_std_pair_like<NewHash>::value) {
-      return cuco::pair{std::get<0>(hash), std::get<1>(hash)};
-    } else {
-      return cuco::pair{cuda::std::get<0>(hash), cuda::std::get<1>(hash)};
-    }
-  }();
-  using hash1_type = cuda::std::decay_t<decltype(hash1)>;
-  using hash2_type = cuda::std::decay_t<decltype(hash2)>;
+  auto const [hash1, hash2] = cuco::pair{hash};
+  using hash1_type          = cuda::std::decay_t<decltype(hash1)>;
+  using hash2_type          = cuda::std::decay_t<decltype(hash2)>;
   return double_hashing<cg_size, hash1_type, hash2_type>{hash1, hash2};
 }
 
