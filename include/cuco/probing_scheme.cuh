@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/probing_scheme_base.cuh>
+#include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
 
 #include <cooperative_groups.h>
 
@@ -177,4 +177,4 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
 
 }  // namespace cuco
 
-#include <cuco/detail/probing_scheme_impl.inl>
+#include <cuco/detail/probing_scheme/probing_scheme_impl.inl>
