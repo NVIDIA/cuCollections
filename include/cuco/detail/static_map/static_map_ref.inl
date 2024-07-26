@@ -597,7 +597,7 @@ class operator_impl<
   __device__ void insert_or_apply(Value const& value, cuco::op::reduce::sum_tag)
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.insert_or_apply(value, T{}, [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
+    ref_.insert_or_apply(value, [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
       payload_ref.fetch_add(payload, cuda::memory_order_relaxed);
     });
   }
@@ -669,7 +669,7 @@ class operator_impl<
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     ref_.insert_or_apply(
-      group, value, T{}, [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
+      group, value, [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
         payload_ref.fetch_add(payload, cuda::memory_order_relaxed);
       });
   }
