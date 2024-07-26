@@ -498,6 +498,8 @@ class static_map {
    * `insert_or_apply_async`.
    * @note Callable object to perform binary operation should be able to invoke as
    *  Op(cuda::atomic_ref<T, Scope>, T>)
+   * @note There could be performance improvements if `init` value passed here equals to the
+   *  `sentinel value` of the map.
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -547,6 +549,8 @@ class static_map {
    *
    * @note Callable object to perform binary operation should be able to invoke as
    *  Op(cuda::atomic_ref<T, Scope>, T>)
+   * @note There could be performance improvements if `init` value passed here equals to the
+   *  `sentinel value` of the map.
    *
    * @tparam InputIt Device accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,

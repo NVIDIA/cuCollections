@@ -589,8 +589,8 @@ class operator_impl<
     auto& ref_ = static_cast<ref_type&>(*this);
 
     // directly dispatch to implemntation if no init element is given
-    auto constexpr payload_write = true;
-    ref_.insert_or_apply_impl<payload_write>(value, op);
+    auto constexpr init_eq_sentinel = false;
+    ref_.insert_or_apply_impl<init_eq_sentinel>(value, op);
   }
 
   template <typename Value>
@@ -602,6 +602,21 @@ class operator_impl<
     });
   }
 
+  /**
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, applies
+   * `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+
+   * @param value The element to insert
+   * @param init The init value of the op
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   */
   template <typename Value,
             typename Init,
             typename Op,
@@ -615,7 +630,7 @@ class operator_impl<
       "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
 
     auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.insert_or_apply_init(value, init, op);
+    ref_.dispatch_insert_or_apply(value, init, op);
   }
 
   /**
@@ -643,8 +658,8 @@ class operator_impl<
       "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
     auto& ref_ = static_cast<ref_type&>(*this);
 
-    auto constexpr payload_write = true;
-    ref_.insert_or_apply_impl<payload_write>(group, value, op);
+    auto constexpr init_eq_sentinel = false;
+    ref_.insert_or_apply_impl<init_eq_sentinel>(group, value, op);
   }
 
   template <typename Value>
@@ -659,6 +674,22 @@ class operator_impl<
       });
   }
 
+  /**
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, applies
+   * `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+   *
+   * @param group The Cooperative Group used to perform group insert
+   * @param value The element to insert
+   * @param init The init value of the op
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   */
   template <typename Value, typename Init, typename Op>
   __device__ void insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
                                   Value const& value,
@@ -670,38 +701,39 @@ class operator_impl<
       cuda::std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
       "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
 
-    ref_.insert_or_apply_init(group, value, init, op);
+    ref_.dispatch_insert_or_apply(group, value, init, op);
   }
 
  private:
   template <typename Value, typename Init, typename Op>
-  __device__ void insert_or_apply_init(Value const& value, Init init, Op op)
+  __device__ void dispatch_insert_or_apply(Value const& value, Init init, Op op)
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    // if init equals sentienl value, then we can just `apply` op instead of write
-    if (init == ref_.impl_.empty_slot_sentinel().second) {
-      ref_.insert_or_apply_impl<false>(value, op);
-    } else {
+    // if init equals sentinel value, then we can just `apply` op instead of write
+    if (init == ref_.empty_value_sentinel()) {
       ref_.insert_or_apply_impl<true>(value, op);
+    } else {
+      ref_.insert_or_apply_impl<false>(value, op);
     }
   }
 
   template <typename Value, typename Init, typename Op>
-  __device__ void insert_or_apply_init(cooperative_groups::thread_block_tile<cg_size> const& group,
-                                       Value const& value,
-                                       Init init,
-                                       Op op)
+  __device__ void dispatch_insert_or_apply(
+    cooperative_groups::thread_block_tile<cg_size> const& group,
+    Value const& value,
+    Init init,
+    Op op)
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
-    // if init equals sentienl value, then we can just `apply` op instead of write
-    if (init == ref_.impl_.empty_slot_sentinel().second) {
-      ref_.insert_or_apply_impl<false>(group, value, op);
-    } else {
+    // if init equals sentinel value, then we can just `apply` op instead of write
+    if (init == ref_.empty_value_sentinel()) {
       ref_.insert_or_apply_impl<true>(group, value, op);
+    } else {
+      ref_.insert_or_apply_impl<false>(group, value, op);
     }
   }
 
-  template <bool PayloadWrite, typename Value, typename Op>
+  template <bool InitEqSentinel, typename Value, typename Op>
   __device__ void insert_or_apply_impl(Value const& value, Op op)
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
@@ -711,9 +743,10 @@ class operator_impl<
     auto& probing_scheme   = ref_.impl_.probing_scheme();
     auto storage_ref       = ref_.impl_.storage_ref();
     auto probing_iter      = probing_scheme(key, storage_ref.window_extent());
-    auto const empty_value = ref_.impl_.empty_slot_sentinel().second;
+    auto const empty_value = ref_.empty_value_sentinel();
 
-    auto constexpr use_insert = PayloadWrite and (sizeof(value_type) > 8);
+    // wait for payload only when init != sentinel and sizeof(value_type) > 8
+    auto constexpr wait_for_payload = (not InitEqSentinel) and (sizeof(value_type) > 8);
 
     while (true) {
       auto const window_slots = storage_ref[*probing_iter];
@@ -727,16 +760,18 @@ class operator_impl<
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
           // wait for payload only when performing insert operation
-          if constexpr (use_insert) { ref_.impl_.wait_for_payload(slot_ptr->second, empty_value); }
+          if constexpr (wait_for_payload) {
+            ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+          }
           op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
           return;
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
-          switch (ref_.attempt_insert_or_apply<PayloadWrite>(slot_ptr, slot_content, val, op)) {
+          switch (ref_.attempt_insert_or_apply<InitEqSentinel>(slot_ptr, slot_content, val, op)) {
             case insert_result::SUCCESS: return;
             case insert_result::DUPLICATE: {
               // wait for payload only when performing insert operation
-              if constexpr (use_insert) {
+              if constexpr (wait_for_payload) {
                 ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
               }
               op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
@@ -750,7 +785,7 @@ class operator_impl<
     }
   }
 
-  template <bool PayloadWrite, typename Value, typename Op>
+  template <bool InitEqSentinel, typename Value, typename Op>
   __device__ void insert_or_apply_impl(cooperative_groups::thread_block_tile<cg_size> const& group,
                                        Value const& value,
                                        Op op)
@@ -762,9 +797,10 @@ class operator_impl<
     auto& probing_scheme   = ref_.impl_.probing_scheme();
     auto storage_ref       = ref_.impl_.storage_ref();
     auto probing_iter      = probing_scheme(group, key, storage_ref.window_extent());
-    auto const empty_value = ref_.impl_.empty_slot_sentinel().second;
+    auto const empty_value = ref_.empty_value_sentinel();
 
-    auto constexpr use_insert = PayloadWrite and (sizeof(value_type) > 8);
+    // wait for payload only when init != sentinel and sizeof(value_type) > 8
+    auto constexpr wait_for_payload = (not InitEqSentinel) and (sizeof(value_type) > 8);
 
     while (true) {
       auto const window_slots = storage_ref[*probing_iter];
@@ -787,7 +823,9 @@ class operator_impl<
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         if (group.thread_rank() == src_lane) {
-          if constexpr (use_insert) { ref_.impl_.wait_for_payload(slot_ptr->second, empty_value); }
+          if constexpr (wait_for_payload) {
+            ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+          }
           op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
         }
         return;
@@ -798,7 +836,7 @@ class operator_impl<
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status   = [&, target_idx = intra_window_index]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
-          return ref_.attempt_insert_or_apply<use_insert>(
+          return ref_.attempt_insert_or_apply<InitEqSentinel>(
             slot_ptr, window_slots[target_idx], val, op);
         }();
 
@@ -806,7 +844,7 @@ class operator_impl<
           case insert_result::SUCCESS: return;
           case insert_result::DUPLICATE: {
             if (group.thread_rank() == src_lane) {
-              if constexpr (use_insert) {
+              if constexpr (wait_for_payload) {
                 ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
               }
               op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
@@ -821,7 +859,7 @@ class operator_impl<
     }
   }
 
-  template <bool PayloadWrite, typename Value, typename Op>
+  template <bool InitEqSentinel, typename Value, typename Op>
   [[nodiscard]] __device__ insert_result attempt_insert_or_apply(value_type* address,
                                                                  value_type const& expected,
                                                                  Value const& desired,
@@ -842,10 +880,11 @@ class operator_impl<
       // if key success
       if (success) {
         cuda::atomic_ref<mapped_type, Scope> payload_ref(address->second);
-        if constexpr (PayloadWrite) {
-          payload_ref.store(desired.second, cuda::memory_order_relaxed);
-        } else {
+        // if init values == sentinel then directly apply the `op`
+        if constexpr (InitEqSentinel) {
           op(payload_ref, desired.second);
+        } else {
+          payload_ref.store(desired.second, cuda::memory_order_relaxed);
         }
         return insert_result::SUCCESS;
       }
