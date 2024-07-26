@@ -16,7 +16,8 @@
 
 #pragma once
 
-#include <cuco/detail/probing_scheme_base.cuh>
+#include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
+#include <cuco/pair.cuh>
 
 #include <cooperative_groups.h>
 
@@ -124,6 +125,13 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   __host__ __device__ constexpr double_hashing(Hash1 const& hash1 = {}, Hash2 const& hash2 = {1});
 
   /**
+   *@brief Constructs double hashing probing scheme with the hasher tuple
+   *
+   * @param hash Hasher tuple
+   */
+  __host__ __device__ constexpr double_hashing(cuco::pair<Hash1, Hash2> const& hash);
+
+  /**
    *@brief Makes a copy of the current probing method with the given hasher
    *
    * @tparam NewHash1 First new hasher type
@@ -138,6 +146,21 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(NewHash1 const& hash1,
                                                                       NewHash2 const& hash2 = {
                                                                         1}) const noexcept;
+
+  /**
+   *@brief Makes a copy of the current probing method with the given hasher
+   *
+   * @tparam NewHash Tuple-like new hasher type
+   *
+   * @throw If `cuco::is_tuple_like_v<NewHash>` is `false`
+   *
+   * @param hash Hasher
+   *
+   * @return Copy of the current probing method
+   */
+  template <typename NewHash,
+            typename Enable = cuda::std::enable_if_t<cuco::is_tuple_like<NewHash>::value>>
+  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(NewHash const& hash) const;
 
   /**
    * @brief Operator to return a probing iterator
@@ -177,4 +200,4 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
 
 }  // namespace cuco
 
-#include <cuco/detail/probing_scheme_impl.inl>
+#include <cuco/detail/probing_scheme/probing_scheme_impl.inl>
