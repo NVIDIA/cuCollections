@@ -145,8 +145,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   if (thread_idx == 0) { new (&block_cardinality) atomic_type{}; }
   block.sync();
 
-  auto shared_map     = SharedMapRefType{cuco::empty_key<Key>(ref.empty_key_sentinel()),
-                                     cuco::empty_value<Value>(ref.empty_value_sentinel()),
+  auto shared_map     = SharedMapRefType{cuco::empty_key<Key>{ref.empty_key_sentinel()},
+                                     cuco::empty_value<Value>{ref.empty_value_sentinel()},
                                          {},
                                          {},
                                          {},
@@ -155,7 +155,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   shared_map_ref.initialize(block);
   block.sync();
 
-  while (idx - thread_idx < n) {
+  while ((idx - thread_idx / CGSize) < n) {
     if constexpr (CGSize == 1) {
       int32_t inserted          = 0;
       int32_t local_cardinality = 0;
