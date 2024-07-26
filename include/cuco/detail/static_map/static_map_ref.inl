@@ -589,8 +589,8 @@ class operator_impl<
     auto& ref_ = static_cast<ref_type&>(*this);
 
     // directly dispatch to implementation if no init element is given
-    auto constexpr init_eq_sentinel = false;
-    ref_.insert_or_apply_impl<init_eq_sentinel>(value, op);
+    auto constexpr use_direct_apply = false;
+    ref_.insert_or_apply_impl<use_direct_apply>(value, op);
   }
 
   template <typename Value>
@@ -658,8 +658,8 @@ class operator_impl<
       "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
     auto& ref_ = static_cast<ref_type&>(*this);
 
-    auto constexpr init_eq_sentinel = false;
-    ref_.insert_or_apply_impl<init_eq_sentinel>(group, value, op);
+    auto constexpr use_direct_apply = false;
+    ref_.insert_or_apply_impl<use_direct_apply>(group, value, op);
   }
 
   template <typename Value>
@@ -733,7 +733,7 @@ class operator_impl<
     }
   }
 
-  template <bool InitEqSentinel, typename Value, typename Op>
+  template <bool UseDirectApply, typename Value, typename Op>
   __device__ void insert_or_apply_impl(Value const& value, Op op)
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
@@ -746,7 +746,7 @@ class operator_impl<
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and sizeof(value_type) > 8
-    auto constexpr wait_for_payload = (not InitEqSentinel) and (sizeof(value_type) > 8);
+    auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
 
     while (true) {
       auto const window_slots = storage_ref[*probing_iter];
@@ -767,7 +767,7 @@ class operator_impl<
           return;
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
-          switch (ref_.attempt_insert_or_apply<InitEqSentinel>(slot_ptr, slot_content, val, op)) {
+          switch (ref_.attempt_insert_or_apply<UseDirectApply>(slot_ptr, slot_content, val, op)) {
             case insert_result::SUCCESS: return;
             case insert_result::DUPLICATE: {
               // wait for payload only when performing insert operation
@@ -785,7 +785,7 @@ class operator_impl<
     }
   }
 
-  template <bool InitEqSentinel, typename Value, typename Op>
+  template <bool UseDirectApply, typename Value, typename Op>
   __device__ void insert_or_apply_impl(cooperative_groups::thread_block_tile<cg_size> const& group,
                                        Value const& value,
                                        Op op)
@@ -800,7 +800,7 @@ class operator_impl<
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and sizeof(value_type) > 8
-    auto constexpr wait_for_payload = (not InitEqSentinel) and (sizeof(value_type) > 8);
+    auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
 
     while (true) {
       auto const window_slots = storage_ref[*probing_iter];
@@ -836,7 +836,7 @@ class operator_impl<
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status   = [&, target_idx = intra_window_index]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
-          return ref_.attempt_insert_or_apply<InitEqSentinel>(
+          return ref_.attempt_insert_or_apply<UseDirectApply>(
             slot_ptr, window_slots[target_idx], val, op);
         }();
 
@@ -859,7 +859,7 @@ class operator_impl<
     }
   }
 
-  template <bool InitEqSentinel, typename Value, typename Op>
+  template <bool UseDirectApply, typename Value, typename Op>
   [[nodiscard]] __device__ insert_result attempt_insert_or_apply(value_type* address,
                                                                  value_type const& expected,
                                                                  Value const& desired,
@@ -881,7 +881,7 @@ class operator_impl<
       if (success) {
         cuda::atomic_ref<mapped_type, Scope> payload_ref(address->second);
         // if init values == sentinel then directly apply the `op`
-        if constexpr (InitEqSentinel) {
+        if constexpr (UseDirectApply) {
           op(payload_ref, desired.second);
         } else {
           payload_ref.store(desired.second, cuda::memory_order_relaxed);
