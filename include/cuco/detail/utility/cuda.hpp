@@ -64,9 +64,11 @@ constexpr auto max_occupancy_grid_size(int32_t block_size,
 {
   int32_t device = 0;
   CUCO_CUDA_TRY(cudaGetDevice(&device));
-  cudaDeviceProp device_props;
-  CUCO_CUDA_TRY(cudaGetDeviceProperties(&device_props, device));
-  int32_t num_multiprocessors = device_props.multiProcessorCount;
+
+  int32_t num_multiprocessors = -1;
+  CUCO_CUDA_TRY(
+    cudaDeviceGetAttribute(&num_multiprocessors, cudaDevAttrMultiProcessorCount, device));
+
   int32_t max_active_blocks_per_multiprocessor;
   CUCO_CUDA_TRY(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
     &max_active_blocks_per_multiprocessor, kernel, block_size, dynamic_shm_size));

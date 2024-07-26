@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/detail/utils.cuh>
+#include <cuco/pair.cuh>
 
 namespace cuco {
 namespace detail {
@@ -134,11 +135,32 @@ __host__ __device__ constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashi
 }
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
+__host__ __device__ constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashing(
+  cuco::pair<Hash1, Hash2> const& hash)
+  : hash1_{hash.first}, hash2_{hash.second}
+{
+}
+
+template <int32_t CGSize, typename Hash1, typename Hash2>
 template <typename NewHash1, typename NewHash2>
 __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::with_hash_function(
   NewHash1 const& hash1, NewHash2 const& hash2) const noexcept
 {
   return double_hashing<cg_size, NewHash1, NewHash2>{hash1, hash2};
+}
+
+template <int32_t CGSize, typename Hash1, typename Hash2>
+template <typename NewHash, typename Enable>
+__host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::with_hash_function(
+  NewHash const& hash) const
+{
+  static_assert(cuco::is_tuple_like<NewHash>::value,
+                "The given hasher must be a tuple-like object");
+
+  auto const [hash1, hash2] = cuco::pair{hash};
+  using hash1_type          = cuda::std::decay_t<decltype(hash1)>;
+  using hash2_type          = cuda::std::decay_t<decltype(hash2)>;
+  return double_hashing<cg_size, hash1_type, hash2_type>{hash1, hash2};
 }
 
 template <int32_t CGSize, typename Hash1, typename Hash2>

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,8 +26,6 @@
 
 #include <cuda/std/atomic>
 
-#include <memory>
-
 namespace cuco {
 
 /**
@@ -43,11 +41,15 @@ namespace cuco {
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
  * @throw If the size of the given key type is larger than 8 bytes
+ * @throw If the size of the given payload type is larger than 8 bytes
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::bitwise_comparable_v<Key> == false`
+ * @throw If the given payload type doesn't have unique object representations, i.e.,
+ * `cuco::bitwise_comparable_v<T> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
  * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>` returning true
+ * @tparam T Type used for mapped values. Requires `cuco::is_bitwise_comparable_v<T>` returning true
  * @tparam Scope The scope in which operations will be performed by individual threads.
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
@@ -55,24 +57,34 @@ namespace cuco {
  * @tparam Operators Device operator options defined in `include/cuco/operator.hpp`
  */
 template <typename Key,
+          typename T,
           cuda::thread_scope Scope,
           typename KeyEqual,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
-class static_set_ref
+class static_multimap_ref
   : public detail::operator_impl<
       Operators,
-      static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
+      static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>>... {
   /// Flag indicating whether duplicate keys are allowed or not
-  static constexpr auto allows_duplicates = false;
+  static constexpr auto allows_duplicates = true;
 
   /// Implementation type
   using impl_type = detail::
     open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef, allows_duplicates>;
 
+  static_assert(sizeof(T) == 4 or sizeof(T) == 8,
+                "sizeof(mapped_type) must be either 4 bytes or 8 bytes.");
+
+  static_assert(
+    cuco::is_bitwise_comparable_v<Key>,
+    "Key type must have unique object representations or have been explicitly declared as safe for "
+    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
+
  public:
-  using key_type            = Key;                                     ///< Key Type
+  using key_type            = Key;                                     ///< Key type
+  using mapped_type         = T;                                       ///< Mapped type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
   using storage_ref_type    = StorageRef;                              ///< Type of storage ref
   using window_type         = typename storage_ref_type::window_type;  ///< Window type
@@ -89,36 +101,42 @@ class static_set_ref
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
 
   /**
-   * @brief Constructs static_set_ref.
+   * @brief Constructs static_multimap_ref.
    *
    * @param empty_key_sentinel Sentinel indicating empty key
+   * @param empty_value_sentinel Sentinel indicating empty payload
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
    * @param scope The scope in which operations will be performed
    * @param storage_ref Non-owning ref of slot storage
    */
-  __host__ __device__ explicit constexpr static_set_ref(cuco::empty_key<Key> empty_key_sentinel,
-                                                        KeyEqual const& predicate,
-                                                        ProbingScheme const& probing_scheme,
-                                                        cuda_thread_scope<Scope> scope,
-                                                        StorageRef storage_ref) noexcept;
+  __host__ __device__ explicit constexpr static_multimap_ref(
+    cuco::empty_key<Key> empty_key_sentinel,
+    cuco::empty_value<T> empty_value_sentinel,
+    KeyEqual const& predicate,
+    ProbingScheme const& probing_scheme,
+    cuda_thread_scope<Scope> scope,
+    StorageRef storage_ref) noexcept;
 
   /**
-   * @brief Constructs static_set_ref.
+   * @brief Constructs static_multimap_ref.
    *
    * @param empty_key_sentinel Sentinel indicating empty key
+   * @param empty_value_sentinel Sentinel indicating empty payload
    * @param erased_key_sentinel Sentinel indicating erased key
    * @param predicate Key equality binary callable
    * @param probing_scheme Probing scheme
    * @param scope The scope in which operations will be performed
    * @param storage_ref Non-owning ref of slot storage
    */
-  __host__ __device__ explicit constexpr static_set_ref(cuco::empty_key<Key> empty_key_sentinel,
-                                                        cuco::erased_key<Key> erased_key_sentinel,
-                                                        KeyEqual const& predicate,
-                                                        ProbingScheme const& probing_scheme,
-                                                        cuda_thread_scope<Scope> scope,
-                                                        StorageRef storage_ref) noexcept;
+  __host__ __device__ explicit constexpr static_multimap_ref(
+    cuco::empty_key<Key> empty_key_sentinel,
+    cuco::empty_value<T> empty_value_sentinel,
+    cuco::erased_key<Key> erased_key_sentinel,
+    KeyEqual const& predicate,
+    ProbingScheme const& probing_scheme,
+    cuda_thread_scope<Scope> scope,
+    StorageRef storage_ref) noexcept;
 
   /**
    * @brief Operator-agnostic move constructor.
@@ -128,8 +146,8 @@ class static_set_ref
    * @param other Object to construct `*this` from
    */
   template <typename... OtherOperators>
-  __host__ __device__ explicit constexpr static_set_ref(
-    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, OtherOperators...>&&
+  __host__ __device__ explicit constexpr static_multimap_ref(
+    static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, OtherOperators...>&&
       other) noexcept;
 
   /**
@@ -152,6 +170,13 @@ class static_set_ref
    * @return The sentinel value used to represent an empty key slot
    */
   [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept;
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty key slot.
+   *
+   * @return The sentinel value used to represent an empty key slot
+   */
+  [[nodiscard]] __host__ __device__ constexpr mapped_type empty_value_sentinel() const noexcept;
 
   /**
    * @brief Gets the sentinel value used to represent an erased key slot.
@@ -217,34 +242,9 @@ class static_set_ref
     NewOperators... ops) const noexcept;
 
   /**
-   * @brief Makes a copy of the current device reference with given key comparator
-   *
-   * @tparam NewKeyEqual The new key equal type
-   *
-   * @param key_equal New key comparator
-   *
-   * @return Copy of the current device ref
-   */
-  template <typename NewKeyEqual>
-  [[nodiscard]] __host__ __device__ constexpr auto with_key_eq(
-    NewKeyEqual const& key_equal) const noexcept;
-
-  /**
-   * @brief Makes a copy of the current device reference with given hasher
-   *
-   * @tparam NewHash The new hasher type
-   *
-   * @param hash New hasher
-   *
-   * @return Copy of the current device ref
-   */
-  template <typename NewHash>
-  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(NewHash const& hash) const;
-
-  /**
    * @brief Makes a copy of the current device reference using non-owned memory
    *
-   * This function is intended to be used to create shared memory copies of small static sets,
+   * This function is intended to be used to create shared memory copies of small static maps,
    * although global memory can be used as well.
    *
    * @note This function synchronizes the group `tile`.
@@ -267,19 +267,19 @@ class static_set_ref
     cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
   /**
-   * @brief Initializes the set storage using the threads in the group `tile`.
+   * @brief Initializes the map storage using the threads in the group `tile`.
    *
    * @note This function synchronizes the group `tile`.
    *
    * @tparam CG The type of the cooperative thread group
    *
-   * @param tile The cooperative thread group used to initialize the set
+   * @param tile The cooperative thread group used to initialize the map
    */
   template <typename CG>
   __device__ constexpr void initialize(CG const& tile) noexcept;
 
  private:
-  impl_type impl_;
+  impl_type impl_;  ///< Static map ref implementation
 
   // Mixins need to be friends with this class in order to access private members
   template <typename Op, typename Ref>
@@ -287,14 +287,15 @@ class static_set_ref
 
   // Refs with other operator sets need to be friends too
   template <typename Key_,
+            typename T_,
             cuda::thread_scope Scope_,
             typename KeyEqual_,
             typename ProbingScheme_,
             typename StorageRef_,
             typename... Operators_>
-  friend class static_set_ref;
+  friend class static_multimap_ref;
 };
 
 }  // namespace cuco
 
-#include <cuco/detail/static_set/static_set_ref.inl>
+#include <cuco/detail/static_multimap/static_multimap_ref.inl>

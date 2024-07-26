@@ -230,7 +230,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
 
   __shared__ bool output_buffer[BlockSize / CGSize];
 
-  while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
+  while ((idx - thread_idx / CGSize) < n) {  // the whole thread block falls into the same iteration
     if constexpr (CGSize == 1) {
       if (idx < n) {
         typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
@@ -331,7 +331,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
     }
   });
 
-  while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
+  while ((idx - thread_idx / CGSize) < n) {  // the whole thread block falls into the same iteration
     if constexpr (CGSize == 1) {
       if (idx < n) {
         typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
@@ -418,7 +418,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_and_find(InputIt first,
   __shared__ output_type output_location_buffer[BlockSize / CGSize];
   __shared__ bool output_inserted_buffer[BlockSize / CGSize];
 
-  while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
+  while ((idx - thread_idx / CGSize) < n) {  // the whole thread block falls into the same iteration
     if constexpr (CGSize == 1) {
       if (idx < n) {
         typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};

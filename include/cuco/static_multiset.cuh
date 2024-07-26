@@ -511,7 +511,7 @@ class static_multiset {
                   InputIt last,
                   ProbeKeyEqual const& probe_key_equal,
                   ProbeHash const& probe_hash,
-                  cuda::stream_ref stream = {}) const noexcept;
+                  cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
@@ -537,7 +537,7 @@ class static_multiset {
                         InputIt last,
                         ProbeKeyEqual const& probe_key_equal,
                         ProbeHash const& probe_hash,
-                        cuda::stream_ref stream = {}) const noexcept;
+                        cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Gets the number of elements in the container.
