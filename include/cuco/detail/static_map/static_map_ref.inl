@@ -574,6 +574,8 @@ class operator_impl<
    * @param value The element to insert
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
    */
 
   template <typename Value, typename Op>
@@ -652,6 +654,8 @@ class operator_impl<
    * @param value The element to insert
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
    */
 
   template <typename Value, typename Op>

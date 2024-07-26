@@ -145,12 +145,12 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   if (thread_idx == 0) { new (&block_cardinality) atomic_type{}; }
   block.sync();
 
-  auto shared_map     = SharedMapRefType(cuco::empty_key<Key>(ref.empty_key_sentinel()),
+  auto shared_map     = SharedMapRefType{cuco::empty_key<Key>(ref.empty_key_sentinel()),
                                      cuco::empty_value<Value>(ref.empty_value_sentinel()),
                                          {},
                                          {},
                                          {},
-                                     storage);
+                                     storage};
   auto shared_map_ref = std::move(shared_map).with(cuco::op::insert_or_apply);
   shared_map_ref.initialize(block);
   block.sync();

@@ -17,14 +17,13 @@
 #include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
-#include <cuco/detail/utility/math.hpp>
 #include <cuco/detail/utils.hpp>
-#include <cuco/distinct_count_estimator.cuh>
 #include <cuco/operator.hpp>
 #include <cuco/static_map_ref.cuh>
 
 #include <cuda/stream_ref>
 
+#include <algorithm>
 #include <cstddef>
 
 namespace cuco {
@@ -346,7 +345,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
     insert_or_apply_shmem<cg_size, shmem_block_size, shared_map_ref_type, InputIt, Op, ref_type>;
 
   int32_t const max_op_grid_size =
-    cuco::detail::max_occupancy_grid_size(shmem_block_size, insert_or_apply_shmem_fn_ptr, 0);
+    cuco::detail::max_occupancy_grid_size(shmem_block_size, insert_or_apply_shmem_fn_ptr);
 
   auto const shmem_grid_size      = std::min(default_grid_size, max_op_grid_size);
   auto const num_loops_per_thread = num / (shmem_grid_size * shmem_block_size);
