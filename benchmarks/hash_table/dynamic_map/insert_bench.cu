@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
-using namespace cuco::benchmark;
-using namespace cuco::utility;
+using namespace cuco::benchmark;  // defaults, dist_from_state
+using namespace cuco::utility;    // key_generator, distribution
 
 /**
  * @brief A benchmark evaluating `cuco::dynamic_map::insert` performance
@@ -37,9 +37,9 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_insert(
 {
   using pair_type = cuco::pair<Key, Value>;
 
-  auto const num_keys     = state.get_int64_or_default("NumInputs", defaults::N);
-  auto const initial_size = state.get_int64_or_default("InitSize", defaults::INITIAL_SIZE);
-  auto const batch_size   = state.get_int64_or_default("BatchSize", defaults::BATCH_SIZE);
+  auto const num_keys     = state.get_int64("NumInputs");
+  auto const initial_size = state.get_int64("InitSize");
+  auto const batch_size   = state.get_int64("BatchSize");
 
   if (num_keys % batch_size) { state.skip("NumInputs must be divisible by BatchSize."); }
 
@@ -82,10 +82,12 @@ NVBENCH_BENCH_TYPES(dynamic_map_insert,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<distribution::unique>))
-  .set_name("dynamic_map_insert_unique_num_inputs")
+  .set_name("dynamic_map_insert_unique_capacity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", defaults::N_RANGE);
+  .add_int64_axis("NumInputs", defaults::N_RANGE)
+  .add_int64_axis("InitSize", {defaults::INITIAL_SIZE})
+  .add_float64_axis("BatchSize", {defaults::BATCH_SIZE});
 
 NVBENCH_BENCH_TYPES(dynamic_map_insert,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
@@ -94,6 +96,9 @@ NVBENCH_BENCH_TYPES(dynamic_map_insert,
   .set_name("dynamic_map_insert_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_int64_axis("InitSize", {defaults::INITIAL_SIZE})
+  .add_float64_axis("BatchSize", {defaults::BATCH_SIZE})
   .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
 
 NVBENCH_BENCH_TYPES(dynamic_map_insert,
@@ -103,4 +108,7 @@ NVBENCH_BENCH_TYPES(dynamic_map_insert,
   .set_name("dynamic_map_insert_gaussian_skew")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_int64_axis("InitSize", {defaults::INITIAL_SIZE})
+  .add_float64_axis("BatchSize", {defaults::BATCH_SIZE})
   .add_float64_axis("Skew", defaults::SKEW_RANGE);

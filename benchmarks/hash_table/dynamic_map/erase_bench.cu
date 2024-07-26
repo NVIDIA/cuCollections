@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,8 +25,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
-using namespace cuco::benchmark;
-using namespace cuco::utility;
+using namespace cuco::benchmark;  // defaults, dist_from_state
+using namespace cuco::utility;    // key_generator, distribution
 
 /**
  * @brief A benchmark evaluating `cuco::dynamic_map::erase` performance
@@ -37,9 +37,9 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_erase(
 {
   using pair_type = cuco::pair<Key, Value>;
 
-  auto const num_keys      = state.get_int64_or_default("NumInputs", defaults::N);
-  auto const initial_size  = state.get_int64_or_default("InitSize", defaults::INITIAL_SIZE);
-  auto const matching_rate = state.get_float64_or_default("MatchingRate", defaults::MATCHING_RATE);
+  auto const num_keys      = state.get_int64("NumInputs");
+  auto const initial_size  = state.get_int64("InitSize");
+  auto const matching_rate = state.get_float64("MatchingRate");
 
   thrust::device_vector<Key> keys(num_keys);
 
@@ -80,10 +80,12 @@ NVBENCH_BENCH_TYPES(dynamic_map_erase,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<distribution::unique>))
-  .set_name("dynamic_map_erase_unique_num_inputs")
+  .set_name("dynamic_map_erase_unique_capacity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", defaults::N_RANGE);
+  .add_int64_axis("NumInputs", defaults::N_RANGE)
+  .add_int64_axis("InitSize", {defaults::INITIAL_SIZE})
+  .add_float64_axis("MatchingRate", {defaults::MATCHING_RATE});
 
 NVBENCH_BENCH_TYPES(dynamic_map_erase,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
@@ -92,4 +94,6 @@ NVBENCH_BENCH_TYPES(dynamic_map_erase,
   .set_name("dynamic_map_erase_unique_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_int64_axis("InitSize", {defaults::INITIAL_SIZE})
   .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE);

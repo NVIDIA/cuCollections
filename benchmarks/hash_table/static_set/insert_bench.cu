@@ -24,17 +24,17 @@
 
 #include <thrust/device_vector.h>
 
-using namespace cuco::benchmark;
-using namespace cuco::utility;
+using namespace cuco::benchmark;  // defaults, dist_from_state
+using namespace cuco::utility;    // key_generator, distribution
 
 /**
- * @brief A benchmark evaluating `cuco::static_set::insert` performance
+ * @brief A benchmark evaluating `cuco::static_set::insert_async` performance
  */
 template <typename Key, typename Dist>
 void static_set_insert(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
-  auto const num_keys  = state.get_int64_or_default("NumInputs", defaults::N);
-  auto const occupancy = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
+  auto const num_keys  = state.get_int64("NumInputs");
+  auto const occupancy = state.get_float64("Occupancy");
 
   std::size_t const size = num_keys / occupancy;
 
@@ -45,24 +45,24 @@ void static_set_insert(nvbench::state& state, nvbench::type_list<Key, Dist>)
 
   state.add_element_count(num_keys);
 
-  state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
-             [&](nvbench::launch& launch, auto& timer) {
-               cuco::static_set<Key> set{
-                 size, cuco::empty_key<Key>{-1}, {}, {}, {}, {}, {}, {launch.get_stream()}};
+  cuco::static_set<Key> set{size, cuco::empty_key<Key>{-1}};
 
-               timer.start();
-               set.insert(keys.begin(), keys.end(), {launch.get_stream()});
-               timer.stop();
-             });
+  state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+    timer.start();
+    set.insert_async(keys.begin(), keys.end(), {launch.get_stream()});
+    timer.stop();
+    set.clear_async({launch.get_stream()});
+  });
 }
 
 NVBENCH_BENCH_TYPES(static_set_insert,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      nvbench::type_list<distribution::uniform>))
-  .set_name("static_set_insert_uniform_multiplicity")
+                                      nvbench::type_list<distribution::unique>))
+  .set_name("static_set_insert_unique_capacity")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
+  .add_int64_axis("NumInputs", defaults::N_RANGE_CACHE)
+  .add_float64_axis("Occupancy", {defaults::OCCUPANCY});
 
 NVBENCH_BENCH_TYPES(static_set_insert,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
@@ -70,7 +70,18 @@ NVBENCH_BENCH_TYPES(static_set_insert,
   .set_name("static_set_insert_unique_occupancy")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {defaults::N})
   .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
+
+NVBENCH_BENCH_TYPES(static_set_insert,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      nvbench::type_list<distribution::uniform>))
+  .set_name("static_set_insert_uniform_multiplicity")
+  .set_type_axes_names({"Key", "Distribution"})
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
+  .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_set_insert,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
@@ -78,4 +89,6 @@ NVBENCH_BENCH_TYPES(static_set_insert,
   .set_name("static_set_insert_gaussian_skew")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
   .add_float64_axis("Skew", defaults::SKEW_RANGE);

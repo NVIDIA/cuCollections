@@ -30,8 +30,8 @@
 #include <cmath>
 #include <cstddef>
 
-using namespace cuco::benchmark;
-using namespace cuco::utility;
+using namespace cuco::benchmark;  // defaults, dist_from_state
+using namespace cuco::utility;    // key_generator, distribution
 
 template <typename InputIt>
 [[nodiscard]] std::size_t exact_distinct_count(InputIt first, std::size_t n)
@@ -114,7 +114,7 @@ void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<T, D
 }
 
 /**
- * @brief A benchmark evaluating `cuco::distinct_count_estimator::add` performance
+ * @brief A benchmark evaluating `cuco::distinct_count_estimator::add_async` performance
  */
 template <typename T, typename Dist>
 void distinct_count_estimator_add(nvbench::state& state, nvbench::type_list<T, Dist>)
@@ -146,7 +146,7 @@ using TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t, __int1
 
 NVBENCH_BENCH_TYPES(distinct_count_estimator_e2e,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
-  .set_name("distinct_count_estimator_e2e")
+  .set_name("distinct_count_estimator_e2e_uniform")
   .set_type_axes_names({"T", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
   .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})  // 256KB uses gmem fallback kernel
@@ -155,7 +155,7 @@ NVBENCH_BENCH_TYPES(distinct_count_estimator_e2e,
 
 NVBENCH_BENCH_TYPES(distinct_count_estimator_add,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
-  .set_name("distinct_count_estimator::add_async")
+  .set_name("distinct_count_estimator_add_uniform")
   .set_type_axes_names({"T", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
   .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})

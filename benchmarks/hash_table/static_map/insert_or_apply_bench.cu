@@ -25,11 +25,11 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
-using namespace cuco::benchmark;
-using namespace cuco::utility;
+using namespace cuco::benchmark;  // defaults, dist_from_state
+using namespace cuco::utility;    // key_generator, distribution
 
 /**
- * @brief A benchmark evaluating `cuco::static_map::insert_or_apply` performance
+ * @brief A benchmark evaluating `cuco::static_map::insert_or_apply_async` performance
  */
 template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert_or_apply(
@@ -37,9 +37,9 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert_or_appl
 {
   using pair_type = cuco::pair<Key, Value>;
 
-  auto const num_keys     = state.get_int64_or_default("NumInputs", defaults::N);
-  auto const occupancy    = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
-  auto const multiplicity = state.get_int64_or_default("Multiplicity", defaults::MULTIPLICITY);
+  auto const num_keys     = state.get_int64("NumInputs");
+  auto const occupancy    = state.get_float64("Occupancy");
+  auto const multiplicity = state.get_int64("Multiplicity");
 
   std::size_t const size = cuco::detail::int_div_ceil(num_keys, multiplicity) / occupancy;
 
@@ -58,12 +58,11 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert_or_appl
   cuco::static_map map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
 
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-    map.clear_async({launch.get_stream()});
-
     timer.start();
     map.insert_or_apply_async(
       pairs.begin(), pairs.end(), cuco::op::reduce::sum, {launch.get_stream()});
     timer.stop();
+    map.clear_async({launch.get_stream()});
   });
 }
 
@@ -78,10 +77,12 @@ NVBENCH_BENCH_TYPES(static_map_insert_or_apply,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::VALUE_TYPE_RANGE,
                                       nvbench::type_list<distribution::uniform>))
-  .set_name("static_map_insert_or_apply_uniform_multiplicity")
+  .set_name("static_map_insert_or_apply_uniform_capacity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
+  .add_int64_axis("NumInputs", defaults::N_RANGE_CACHE)
+  .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
+  .add_int64_axis("Multiplicity", {defaults::MULTIPLICITY});
 
 NVBENCH_BENCH_TYPES(static_map_insert_or_apply,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
@@ -90,4 +91,17 @@ NVBENCH_BENCH_TYPES(static_map_insert_or_apply,
   .set_name("static_map_insert_or_apply_uniform_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE)
+  .add_int64_axis("Multiplicity", {defaults::MULTIPLICITY});
+
+NVBENCH_BENCH_TYPES(static_map_insert_or_apply,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      defaults::VALUE_TYPE_RANGE,
+                                      nvbench::type_list<distribution::uniform>))
+  .set_name("static_map_insert_or_apply_uniform_multiplicity")
+  .set_type_axes_names({"Key", "Value", "Distribution"})
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
+  .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);

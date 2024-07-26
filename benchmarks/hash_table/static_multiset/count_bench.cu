@@ -25,15 +25,15 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
-using namespace cuco::benchmark;
-using namespace cuco::utility;
+using namespace cuco::benchmark;  // defaults, dist_from_state
+using namespace cuco::utility;    // key_generator, distribution
 
 template <typename Key, typename Dist>
 void static_multiset_count(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
-  auto const num_keys      = state.get_int64_or_default("NumInputs", defaults::N);
-  auto const occupancy     = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
-  auto const matching_rate = state.get_float64_or_default("MatchingRate", defaults::MATCHING_RATE);
+  auto const num_keys      = state.get_int64("NumInputs");
+  auto const occupancy     = state.get_float64("Occupancy");
+  auto const matching_rate = state.get_float64("MatchingRate");
 
   std::size_t const size = num_keys / occupancy;
 
@@ -56,18 +56,24 @@ void static_multiset_count(nvbench::state& state, nvbench::type_list<Key, Dist>)
 NVBENCH_BENCH_TYPES(static_multiset_count,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       nvbench::type_list<distribution::uniform>))
-  .set_name("static_multiset_count_uniform_occupancy")
+  .set_name("static_multiset_count_uniform_capacity")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
+  .add_int64_axis("NumInputs", defaults::N_RANGE_CACHE)
+  .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
+  .add_int64_axis("Multiplicity", {defaults::MULTIPLICITY})
+  .add_float64_axis("MatchingRate", {defaults::MATCHING_RATE});
 
 NVBENCH_BENCH_TYPES(static_multiset_count,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       nvbench::type_list<distribution::uniform>))
-  .set_name("static_multiset_count_uniform_matching_rate")
+  .set_name("static_multiset_count_uniform_occupancy")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE);
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE)
+  .add_int64_axis("Multiplicity", {defaults::MULTIPLICITY})
+  .add_float64_axis("MatchingRate", {defaults::MATCHING_RATE});
 
 NVBENCH_BENCH_TYPES(static_multiset_count,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
@@ -75,4 +81,18 @@ NVBENCH_BENCH_TYPES(static_multiset_count,
   .set_name("static_multiset_count_uniform_multiplicity")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
+  .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE)
+  .add_float64_axis("MatchingRate", {defaults::MATCHING_RATE});
+
+NVBENCH_BENCH_TYPES(static_multiset_count,
+                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                                      nvbench::type_list<distribution::uniform>))
+  .set_name("static_multiset_count_uniform_matching_rate")
+  .set_type_axes_names({"Key", "Distribution"})
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
+  .add_int64_axis("Multiplicity", {defaults::MULTIPLICITY})
+  .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE);
