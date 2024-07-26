@@ -588,7 +588,7 @@ class operator_impl<
 
     auto& ref_ = static_cast<ref_type&>(*this);
 
-    // directly dispatch to implemntation if no init element is given
+    // directly dispatch to implementation if no init element is given
     auto constexpr init_eq_sentinel = false;
     ref_.insert_or_apply_impl<init_eq_sentinel>(value, op);
   }

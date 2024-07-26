@@ -41,7 +41,7 @@ struct binary_plus_op {
   }
 };
 
-template <bool UseInit, typename Map, typename Init>
+template <bool HasInit, typename Map, typename Init>
 void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_keys, Init init)
 {
   REQUIRE((num_keys % num_unique_keys) == 0);
@@ -56,7 +56,7 @@ void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_key
       return cuco::pair<Key, Value>{i % num_unique_keys, 1};
     }));
 
-  if constexpr (UseInit) {
+  if constexpr (HasInit) {
     map.insert_or_apply(pairs_begin, pairs_begin + num_keys, init, binary_plus_op{});
   } else {
     map.insert_or_apply(pairs_begin, pairs_begin + num_keys, binary_plus_op{});
@@ -116,22 +116,22 @@ TEMPLATE_TEST_CASE_SIG(
                                     cuco::cuda_allocator<std::byte>,
                                     cuco::storage<2>>;
 
-  SECTION("sentinel equals init; use_init = true")
+  SECTION("sentinel equals init; has_init = true")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
     test_insert_or_apply<true>(map, num_keys, num_unique_keys, Key(0));
   }
-  SECTION("sentinel equals init; use_init = false")
+  SECTION("sentinel equals init; has_init = false")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
     test_insert_or_apply<false>(map, num_keys, num_unique_keys, Key(0));
   }
-  SECTION("sentinel not equals init; use_init = true")
+  SECTION("sentinel not equals init; has_init = true")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
     test_insert_or_apply<true>(map, num_keys, num_unique_keys, Key(-1));
   }
-  SECTION("sentinel not equals init; use_init = false")
+  SECTION("sentinel not equals init; has_init = false")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
     test_insert_or_apply<false>(map, num_keys, num_unique_keys, Key(-1));
@@ -154,22 +154,22 @@ TEMPLATE_TEST_CASE_SIG(
                                     cuco::cuda_allocator<std::byte>,
                                     cuco::storage<2>>;
 
-  SECTION("sentinel equals init; use_init = true")
+  SECTION("sentinel equals init; has_init = true")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
     test_insert_or_apply<true>(map, num_keys, num_keys, Key(0));
   }
-  SECTION("sentinel equals init; use_init = false")
+  SECTION("sentinel equals init; has_init = false")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
     test_insert_or_apply<false>(map, num_keys, num_keys, Key(0));
   }
-  SECTION("sentinel not equals init; use_init = true")
+  SECTION("sentinel not equals init; has_init = true")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
     test_insert_or_apply<true>(map, num_keys, num_keys, Key(-1));
   }
-  SECTION("sentinel not equals init; use_init = false")
+  SECTION("sentinel not equals init; has_init = false")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
     test_insert_or_apply<false>(map, num_keys, num_keys, Key(-1));

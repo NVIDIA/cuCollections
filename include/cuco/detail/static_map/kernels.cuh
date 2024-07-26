@@ -77,6 +77,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
  * @note Callable object to perform binary operation should be able to invoke as
  * Op(cuda::atomic_ref<T,Scope>, T>)
  *
+ * @tparam HasInit Boolean to dispatch based on init parameter
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -91,7 +92,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
  * @param op Callable object to perform apply operation.
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <bool UseInit,
+template <bool HasInit,
           int32_t CGSize,
           int32_t BlockSize,
           typename InputIt,
@@ -108,7 +109,7 @@ __global__ void insert_or_apply(
     using value_type              = typename std::iterator_traits<InputIt>::value_type;
     value_type const& insert_pair = *(first + idx);
     if constexpr (CGSize == 1) {
-      if constexpr (UseInit) {
+      if constexpr (HasInit) {
         ref.insert_or_apply(insert_pair, init, op);
       } else {
         ref.insert_or_apply(insert_pair, op);
@@ -116,7 +117,7 @@ __global__ void insert_or_apply(
     } else {
       auto const tile =
         cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-      if constexpr (UseInit) {
+      if constexpr (HasInit) {
         ref.insert_or_apply(tile, insert_pair, init, op);
       } else {
         ref.insert_or_apply(tile, insert_pair, op);
