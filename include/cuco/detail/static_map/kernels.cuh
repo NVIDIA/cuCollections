@@ -103,7 +103,7 @@ template <bool HasInit,
           typename Op,
           typename Ref>
 __global__ void insert_or_apply(
-  InputIt first, cuco::detail::index_type n, Init init, Op op, Ref ref)
+  InputIt first, cuco::detail::index_type n, [[maybe_unused]] Init init, Op op, Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
