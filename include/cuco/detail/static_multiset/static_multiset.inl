@@ -306,7 +306,7 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt last,
   ProbeKeyEqual const& probe_key_equal,
   ProbeHash const& probe_hash,
-  cuda::stream_ref stream) const noexcept
+  cuda::stream_ref stream) const
 {
   return impl_->count(first,
                       last,
@@ -328,7 +328,7 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt last,
   ProbeKeyEqual const& probe_key_equal,
   ProbeHash const& probe_hash,
-  cuda::stream_ref stream) const noexcept
+  cuda::stream_ref stream) const
 {
   return impl_->count_outer(
     first,
