@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/static_map/reduction_functors.cuh>
 #include <cuco/static_map.cuh>
 
 #include <cuda/atomic>
@@ -33,14 +34,6 @@
 
 using size_type = std::size_t;
 
-struct binary_plus_op {
-  template <typename T, cuda::thread_scope Scope>
-  __device__ void operator()(cuda::atomic_ref<T, Scope> lhs, T rhs)
-  {
-    lhs.fetch_add(rhs, cuda::memory_order_relaxed);
-  }
-};
-
 template <bool HasInit, typename Map, typename Init>
 void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_keys, Init init)
 {
@@ -56,10 +49,11 @@ void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_key
       return cuco::pair<Key, Value>{i % num_unique_keys, 1};
     }));
 
+  auto constexpr plus_op = cuco::reduce::plus{};
   if constexpr (HasInit) {
-    map.insert_or_apply(pairs_begin, pairs_begin + num_keys, init, binary_plus_op{});
+    map.insert_or_apply(pairs_begin, pairs_begin + num_keys, init, plus_op);
   } else {
-    map.insert_or_apply(pairs_begin, pairs_begin + num_keys, binary_plus_op{});
+    map.insert_or_apply(pairs_begin, pairs_begin + num_keys, plus_op);
   }
 
   REQUIRE(map.size() == num_unique_keys);

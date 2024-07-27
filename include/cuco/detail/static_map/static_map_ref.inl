@@ -593,15 +593,6 @@ class operator_impl<
     ref_.insert_or_apply_impl<use_direct_apply>(value, op);
   }
 
-  template <typename Value>
-  __device__ void insert_or_apply(Value const& value, cuco::op::reduce::sum_tag)
-  {
-    auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.insert_or_apply(value, [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
-      payload_ref.fetch_add(payload, cuda::memory_order_relaxed);
-    });
-  }
-
   /**
    * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, applies
    * `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
@@ -660,18 +651,6 @@ class operator_impl<
 
     auto constexpr use_direct_apply = false;
     ref_.insert_or_apply_impl<use_direct_apply>(group, value, op);
-  }
-
-  template <typename Value>
-  __device__ void insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
-                                  Value const& value,
-                                  cuco::op::reduce::sum_tag)
-  {
-    auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.insert_or_apply(
-      group, value, [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
-        payload_ref.fetch_add(payload, cuda::memory_order_relaxed);
-      });
   }
 
   /**
