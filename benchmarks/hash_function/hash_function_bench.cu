@@ -98,8 +98,8 @@ void hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
 {
   bool const materialize_result = false;
   constexpr auto block_size     = 128;
-  auto const num_keys  = state.get_int64_or_default("NumInputs", cuco::benchmark::defaults::N * 10);
-  auto const grid_size = (num_keys + block_size * 16 - 1) / block_size * 16;
+  auto const num_keys           = state.get_int64("NumInputs");
+  auto const grid_size          = (num_keys + block_size * 16 - 1) / block_size * 16;
 
   thrust::device_vector<typename Hash::result_type> hash_values((materialize_result) ? num_keys
                                                                                      : 1);
@@ -193,7 +193,8 @@ NVBENCH_BENCH_TYPES(
                                        cuco::murmurhash3_x64_128<large_key<32>>>))
   .set_name("hash_function_eval")
   .set_type_axes_names({"Hash"})
-  .set_max_noise(cuco::benchmark::defaults::MAX_NOISE);
+  .set_max_noise(cuco::benchmark::defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {cuco::benchmark::defaults::N * 10});
 
 NVBENCH_BENCH_TYPES(string_hash_eval,
                     NVBENCH_TYPE_AXES(nvbench::type_list<cuco::murmurhash3_32<std::byte>,
@@ -203,7 +204,7 @@ NVBENCH_BENCH_TYPES(string_hash_eval,
                                                          cuco::murmurhash3_x64_128<std::byte>>))
   .set_name("string_hash_function_eval")
   .set_type_axes_names({"Hash"})
+  .set_max_noise(cuco::benchmark::defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {cuco::benchmark::defaults::N / 4})
   .add_int64_axis("MinLength", {1, 4})
-  .add_int64_axis("MaxLength", {4, 32, 64})
-  .set_max_noise(cuco::benchmark::defaults::MAX_NOISE);
+  .add_int64_axis("MaxLength", {4, 32, 64});

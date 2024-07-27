@@ -29,7 +29,7 @@ using namespace cuco::benchmark;  // defaults, dist_from_state
 using namespace cuco::utility;    // key_generator, distribution
 
 /**
- * @brief A benchmark evaluating `cuco::static_multimap::retrieve_outer` performance
+ * @brief A benchmark evaluating `cuco::static_multimap::retrieve` performance
  */
 template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_retrieve(
@@ -61,11 +61,11 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_retrieve(
     size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(pairs.begin(), pairs.end());
 
-  auto const output_size = map.count_outer(keys.begin(), keys.end());
+  auto const output_size = map.count(keys.begin(), keys.end());
   thrust::device_vector<pair_type> output(output_size);
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    map.retrieve_outer(keys.begin(), keys.end(), output.begin(), launch.get_stream());
+    map.retrieve(keys.begin(), keys.end(), output.begin(), launch.get_stream());
   });
 }
 

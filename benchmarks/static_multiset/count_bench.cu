@@ -28,6 +28,9 @@
 using namespace cuco::benchmark;  // defaults, dist_from_state
 using namespace cuco::utility;    // key_generator, distribution
 
+/**
+ * @brief A benchmark evaluating `cuco::static_multiset::count` performance
+ */
 template <typename Key, typename Dist>
 void static_multiset_count(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
