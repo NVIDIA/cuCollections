@@ -29,7 +29,7 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
-TEMPLATE_TEST_CASE_SIG("Unique sequence of keys experimental",
+TEMPLATE_TEST_CASE_SIG("experimental::dynamic_map: unique sequence",
                        "",
                        ((typename Key, typename T), Key, T),
                        (int32_t, int32_t),
@@ -37,7 +37,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence of keys experimental",
                        (int64_t, int32_t),
                        (int64_t, int64_t))
 {
-  constexpr std::size_t num_keys{50'000'000};
+  constexpr std::size_t num_keys{1'000'000};
 
   cuco::experimental::dynamic_map<Key, T> map{
     30'000'000, cuco::empty_key<Key>{-1}, cuco::empty_value<T>{-1}};

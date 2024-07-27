@@ -89,7 +89,7 @@ class dynamic_map {
    * `insert`.
    *
    * Capacity increases by a factor of growth_factor each time the size of the map exceeds a
-   * threshold occupancy. The performance of `find` and `contains` decreases somewhat each time the
+   * threshold occupancy. The performance of `find` and `contains` gradually decreases each time the
    * map's capacity grows.
    *
    * @param initial_capacity The initial number of slots in the map

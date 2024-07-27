@@ -23,6 +23,7 @@
 
 #include <cuda/stream_ref>
 
+#include <algorithm>
 #include <cstddef>
 
 namespace cuco {
@@ -127,18 +128,15 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
       empty_value<T> empty_value_sentinel{submaps_.front()->empty_value_sentinel()};
 
       submap_capacity = capacity_;
-      submaps_.push_back(
-        std::make_unique<
-          cuco::static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>>(
-          submap_capacity,
-          empty_key_sentinel,
-          empty_value_sentinel,
-          KeyEqual{},
-          ProbingScheme{},
-          cuda_thread_scope<Scope>{},
-          Storage{},
-          alloc_,
-          stream));
+      submaps_.push_back(std::make_unique<map_type>(submap_capacity,
+                                                    empty_key_sentinel,
+                                                    empty_value_sentinel,
+                                                    KeyEqual{},
+                                                    ProbingScheme{},
+                                                    cuda_thread_scope<Scope>{},
+                                                    Storage{},
+                                                    alloc_,
+                                                    stream));
       capacity_ *= 2;
     }
 
