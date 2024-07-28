@@ -87,7 +87,7 @@ NVBENCH_BENCH_TYPES(dynamic_map_insert,
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", defaults::N_RANGE)
   .add_int64_axis("InitSize", {defaults::INITIAL_SIZE})
-  .add_float64_axis("BatchSize", {defaults::BATCH_SIZE});
+  .add_int64_axis("BatchSize", {defaults::BATCH_SIZE});
 
 NVBENCH_BENCH_TYPES(dynamic_map_insert,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
@@ -98,7 +98,7 @@ NVBENCH_BENCH_TYPES(dynamic_map_insert,
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_int64_axis("InitSize", {defaults::INITIAL_SIZE})
-  .add_float64_axis("BatchSize", {defaults::BATCH_SIZE})
+  .add_int64_axis("BatchSize", {defaults::BATCH_SIZE})
   .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
 
 NVBENCH_BENCH_TYPES(dynamic_map_insert,
@@ -110,5 +110,5 @@ NVBENCH_BENCH_TYPES(dynamic_map_insert,
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_int64_axis("InitSize", {defaults::INITIAL_SIZE})
-  .add_float64_axis("BatchSize", {defaults::BATCH_SIZE})
+  .add_int64_axis("BatchSize", {defaults::BATCH_SIZE})
   .add_float64_axis("Skew", defaults::SKEW_RANGE);
