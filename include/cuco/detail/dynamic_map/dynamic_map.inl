@@ -157,9 +157,9 @@ template <typename InputIt, typename OutputIt>
 void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
-  auto num_keys       = cuco::detail::distance(first, last);
-  std::size_t traversed      = 0;
-  uint32_t submap_idx = 0;
+  auto num_keys         = cuco::detail::distance(first, last);
+  std::size_t traversed = 0;
+  uint32_t submap_idx   = 0;
   while (num_keys > 0 && submap_idx < submaps_.size()) {
     const auto& cur       = submaps_[submap_idx];
     const size_t cur_size = cur->size();
