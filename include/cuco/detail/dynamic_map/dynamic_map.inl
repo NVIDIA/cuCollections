@@ -158,7 +158,7 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
   auto num_keys       = cuco::detail::distance(first, last);
-  long traversed      = 0;
+  std::size_t traversed      = 0;
   uint32_t submap_idx = 0;
   while (num_keys > 0 && submap_idx < submaps_.size()) {
     const auto& cur       = submaps_[submap_idx];
