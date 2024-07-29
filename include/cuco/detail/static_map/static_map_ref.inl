@@ -684,6 +684,20 @@ class operator_impl<
   }
 
  private:
+  /**
+   * @brief dispatches `insert_or_apply_impl` based on condition `init == empty_value_sentinel`.
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+   *
+   * @param value The element to insert
+   * @param init The init value of the op
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   */
   template <typename Value, typename Init, typename Op>
   __device__ void dispatch_insert_or_apply(Value const& value, Init init, Op op)
   {
@@ -696,6 +710,21 @@ class operator_impl<
     }
   }
 
+  /**
+   * @brief dispatches `insert_or_apply_impl` based on condition `init == empty_value_sentinel`.
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+   *
+   * @param group The Cooperative Group used to perform group insert
+   * @param value The element to insert
+   * @param init The init value of the op
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   */
   template <typename Value, typename Init, typename Op>
   __device__ void dispatch_insert_or_apply(
     cooperative_groups::thread_block_tile<cg_size> const& group,
@@ -712,6 +741,22 @@ class operator_impl<
     }
   }
 
+  /**
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, applies
+   * `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
+   *
+   * @tparam UseDirectApply Boolean condition which enables direct apply `op` instead of
+   * wait_for_payload with an atomic_store on an empty slot.
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+   *
+   * @param value The element to insert
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   */
   template <bool UseDirectApply, typename Value, typename Op>
   __device__ void insert_or_apply_impl(Value const& value, Op op)
   {
@@ -764,6 +809,24 @@ class operator_impl<
     }
   }
 
+  /**
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, applies
+   * `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
+   *
+   * @tparam UseDirectApply Boolean condition which enables direct apply `op` instead of
+   * wait_for_payload with an atomic_store on an empty slot.
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+   *
+   * @param group The Cooperative Group used to perform group insert
+   * @param value The element to insert
+   * @param init The init value of the op
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   */
   template <bool UseDirectApply, typename Value, typename Op>
   __device__ void insert_or_apply_impl(cooperative_groups::thread_block_tile<cg_size> const& group,
                                        Value const& value,
@@ -838,6 +901,23 @@ class operator_impl<
     }
   }
 
+  /**
+   * @brief Attempts to insert a key-value pair `{k, v}` if it's not present in the map. Otherwise,
+   * applies `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
+   *
+   * @tparam UseDirectApply Boolean condition which enables direct apply `op` instead of
+   * wait_for_payload with an atomic_store on an empty slot when `sizeof(value_type) >= 8`.
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+   *
+   * @param address Pointer to the slot in memory
+   * @param expected Element to compare against
+   * @param desired Element to insert
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   */
   template <bool UseDirectApply, typename Value, typename Op>
   [[nodiscard]] __device__ insert_result attempt_insert_or_apply(value_type* address,
                                                                  value_type const& expected,
