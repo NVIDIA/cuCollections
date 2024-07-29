@@ -682,6 +682,73 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief Executes a callback on every filled element in the container.
+   *
+   * @note Passes an un-incrementable input iterator to the element whose key is filled
+   * to the callback.
+   *
+   * @tparam CallbackOp Unary callback functor or device lambda
+   *
+   * @param callback_op Function to call on every filled element in the container
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename CallbackOp>
+  void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream)
+  {
+    using const_iterator = typename storage_ref_type::const_iterator;
+
+    auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+      this->empty_key_sentinel(), this->erased_key_sentinel()};
+
+    thrust::for_each(
+      thrust::cuda::par.on(stream.get()),
+      thrust::make_counting_iterator(static_cast<size_t>(0)),
+      thrust::make_counting_iterator(this->capacity()),
+      [callback_op, is_filled, storage_ = this->storage_ref()] __device__(auto const idx) {
+        auto const window_idx = idx / storage_ref_type::window_size;
+        auto const intra_idx  = idx % storage_ref_type::window_size;
+        auto const slot_ptr   = const_iterator{&(storage_[window_idx][intra_idx])};
+
+        if (is_filled(*slot_ptr)) { callback_op(slot_ptr); }
+      });
+  }
+
+  /**
+   * @brief Asynchronously executes a callback on every element in the container whose key matches
+   * with a key from the input key sequence.
+   *
+   * @note Passes an un-incrementable input iterator to the element whose key matches with
+   * a key from the input key sequence to the callback.
+   *
+   * @tparam InputIt Device accessible random access input iterator whose `value_type` is
+   * convertible to key type of the map.
+   * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param callback_op Function to call on every element found in the container
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename CallbackOp, typename Ref>
+  void for_each_async(InputIt first,
+                      InputIt last,
+                      CallbackOp&& callback_op,
+                      Ref container_ref,
+                      cuda::stream_ref stream)
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::for_each<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+        first, num_keys, std::forward<CallbackOp>(callback_op), container_ref);
+  }
+
+  /**
    * @brief Gets the number of elements in the container
    *
    * @note This function synchronizes the given stream.
