@@ -701,7 +701,7 @@ class open_addressing_impl {
       this->empty_key_sentinel(), this->erased_key_sentinel()};
 
     thrust::for_each(
-      thrust::cuda::par.on(stream.get()),
+      thrust::cuda::par_nosync.on(stream.get()),
       thrust::make_counting_iterator(static_cast<size_t>(0)),
       thrust::make_counting_iterator(this->capacity()),
       [callback_op, is_filled, storage_ = this->storage_ref()] __device__(auto const idx) {
