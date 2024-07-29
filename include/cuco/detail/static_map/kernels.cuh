@@ -76,7 +76,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
  *
  * @note Callable object to perform binary operation should be able to invoke as
  * Op(cuda::atomic_ref<T,Scope>, T>)
- * @note If `HasInit` is `true` and if `init` value equals to the `sentinel value`, we directly
+ * @note If `HasInit` is `true` and if `init == empty_sentinel_value`, we directly
  * `apply` the `op` instead of atomic store and then waiting for the payload to get materalized.
  * This has potential speedups when sizeof(value_type) > 8.
  *

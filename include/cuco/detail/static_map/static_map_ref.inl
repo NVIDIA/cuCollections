@@ -778,7 +778,7 @@ class operator_impl<
     auto probing_iter      = probing_scheme(group, key, storage_ref.window_extent());
     auto const empty_value = ref_.empty_value_sentinel();
 
-    // wait for payload only when init != sentinel and sizeof(value_type) > 8
+    // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
     auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
 
     while (true) {
