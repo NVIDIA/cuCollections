@@ -17,9 +17,9 @@
 #include <benchmark_defaults.hpp>
 #include <benchmark_utils.hpp>
 
-#include <cuco/detail/static_map/reduction_functors.cuh>
 #include <cuco/static_map.cuh>
 #include <cuco/utility/key_generator.cuh>
+#include <cuco/utility/reduction_functors.cuh>
 
 #include <nvbench/nvbench.cuh>
 

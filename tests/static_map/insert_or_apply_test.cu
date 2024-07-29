@@ -16,8 +16,8 @@
 
 #include <test_utils.hpp>
 
-#include <cuco/detail/static_map/reduction_functors.cuh>
 #include <cuco/static_map.cuh>
+#include <cuco/utility/reduction_functors.cuh>
 
 #include <cuda/atomic>
 #include <thrust/device_vector.h>
