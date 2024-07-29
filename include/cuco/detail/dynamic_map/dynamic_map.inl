@@ -80,7 +80,7 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   InputIt first, InputIt last, cuda::stream_ref stream)
 {
   auto num_to_insert = cuco::detail::distance(first, last);
-  reserve(size_ + num_to_insert, stream);
+  this->reserve(size_ + num_to_insert, stream);
 
   uint32_t submap_idx = 0;
   while (num_to_insert > 0) {
