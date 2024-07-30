@@ -92,7 +92,7 @@ void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_uniq
   // Therefore shared_map_size = (1/0.7) * (1024 + 1024) = 2925
   int32_t constexpr shared_map_size = 2925;
 
-  using extent_type     = cuco::extent<int32_t, shared_map_size>;
+  using extent_type     = cuco::extent<int32_t, static_cast<int32_t>(shared_map_size)>;
   using shared_map_type = cuco::static_map<Key,
                                            Value,
                                            extent_type,
