@@ -78,7 +78,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
  * Op(cuda::atomic_ref<T,Scope>, T>)
  * @note If `HasInit` is `true` and if `init == empty_sentinel_value`, we directly
  * `apply` the `op` instead of atomic store and then waiting for the payload to get materalized.
- * This has potential speedups when sizeof(value_type) > 8.
+ * This has potential speedups when insert strategy is not `packed_cas`.
  *
  * @tparam HasInit Boolean to dispatch based on init parameter
  * @tparam CGSize Number of threads in each CG

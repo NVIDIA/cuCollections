@@ -769,7 +769,7 @@ class operator_impl<
     auto probing_iter      = probing_scheme(key, storage_ref.window_extent());
     auto const empty_value = ref_.empty_value_sentinel();
 
-    // wait for payload only when init != sentinel and sizeof(value_type) > 8
+    // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
     auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
 
     while (true) {
@@ -906,7 +906,8 @@ class operator_impl<
    * applies `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
    *
    * @tparam UseDirectApply Boolean condition which enables direct apply `op` instead of
-   * wait_for_payload with an atomic_store on an empty slot when `sizeof(value_type) >= 8`.
+   * wait_for_payload with an atomic_store on an empty slot when insert strategy is not
+   * `packed_cas`.
    * @tparam Value Input type which is implicitly convertible to 'value_type'
    * @tparam Op Callable type which is used as apply operation and can be
    *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
