@@ -32,6 +32,143 @@
 
 namespace cuco {
 
+namespace experimental {
+/**
+ * @brief A GPU-accelerated, unordered, associative container of key-value
+ * pairs with unique keys.
+ *
+ * This container automatically grows its capacity as necessary until device memory runs out.
+ *
+ * @tparam Key The type of the keys.
+ * @tparam T The type of the mapped values.
+ * @tparam Extent The type representing the extent of the container.
+ * @tparam Scope The thread scope for the container's operations.
+ * @tparam KeyEqual The equality comparison function for keys.
+ * @tparam ProbingScheme The probing scheme for resolving hash collisions.
+ * @tparam Allocator The allocator used for memory management.
+ * @tparam Storage The storage policy for the container.
+ */
+template <class Key,
+          class T,
+          class Extent             = cuco::extent<std::size_t>,
+          cuda::thread_scope Scope = cuda::thread_scope_device,
+          class KeyEqual           = thrust::equal_to<Key>,
+          class ProbingScheme      = cuco::linear_probing<4,  // CG size
+                                                          cuco::default_hash_function<Key>>,
+          class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
+          class Storage            = cuco::storage<1>>
+class dynamic_map {
+  using map_type = static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>;
+
+ public:
+  static constexpr auto thread_scope = map_type::thread_scope;  ///< CUDA thread scope
+
+  using key_type    = typename map_type::key_type;    ///< Key type
+  using value_type  = typename map_type::value_type;  ///< Key-value pair type
+  using size_type   = typename map_type::size_type;   ///< Size type
+  using key_equal   = typename map_type::key_equal;   ///< Key equality comparator type
+  using mapped_type = T;                              ///< Payload type
+
+  dynamic_map(dynamic_map const&)            = delete;
+  dynamic_map& operator=(dynamic_map const&) = delete;
+
+  dynamic_map(dynamic_map&&) = default;  ///< Move constructor
+
+  /**
+   * @brief Replaces the contents of the container with another container.
+   *
+   * @return Reference of the current map object
+   */
+  dynamic_map& operator=(dynamic_map&&) = default;
+  ~dynamic_map()                        = default;
+
+  /**
+   * @brief Constructs a dynamically-sized map with erase capability.
+   *
+   * The capacity of the map will automatically increase as the user adds key/value pairs using
+   * `insert`.
+   *
+   * Capacity increases by a factor of growth_factor each time the size of the map exceeds a
+   * threshold occupancy. The performance of `find` and `contains` gradually decreases each time the
+   * map's capacity grows.
+   *
+   * @param initial_capacity The initial number of slots in the map
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param pred Key equality binary predicate
+   * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the map
+   */
+  constexpr dynamic_map(Extent initial_capacity,
+                        empty_key<Key> empty_key_sentinel,
+                        empty_value<T> empty_value_sentinel,
+                        KeyEqual const& pred                = {},
+                        ProbingScheme const& probing_scheme = {},
+                        cuda_thread_scope<Scope> scope      = {},
+                        Storage storage                     = {},
+                        Allocator const& alloc              = {},
+                        cuda::stream_ref stream             = {});
+
+  /**
+   * @brief Grows the capacity of the map so there is enough space for `n` key/value pairs.
+   *
+   * If there is already enough space for `n` key/value pairs, the capacity remains the same.
+   *
+   * @param n The number of key value pairs for which there must be space
+   * @param stream Stream used for executing the kernels
+   */
+  void reserve(size_type n, cuda::stream_ref stream);
+
+  /**
+   * @brief Inserts all key/value pairs in the range `[first, last)`.
+   *
+   * If multiple keys in `[first, last)` compare equal, it is unspecified which
+   * element is inserted.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the map's `value_type`
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt>
+  void insert(InputIt first, InputIt last, cuda::stream_ref stream = {});
+
+  /**
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
+   *
+   * Writes a `bool` to `(output + i)` indicating if the key `*(first + i)` exists in the map.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator whose `value_type` is
+   * convertible to the map's `mapped_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void contains(InputIt first,
+                InputIt last,
+                OutputIt output_begin,
+                cuda::stream_ref stream = {}) const;
+
+ private:
+  size_type size_{};      ///< Number of keys in the map
+  size_type capacity_{};  ///< Maximum number of keys that can be inserted
+
+  std::vector<std::unique_ptr<map_type>> submaps_;  ///< vector of pointers to each submap
+  size_type min_insert_size_{};                     ///< min remaining capacity of submap for insert
+  float max_load_factor_{};                         ///< Maximum load factor
+  Allocator alloc_{};  ///< Allocator passed to submaps to allocate their device storage
+};
+
+}  // namespace experimental
+
 /**
  * @brief A GPU-accelerated, unordered, associative container of key-value
  * pairs with unique keys
@@ -361,3 +498,4 @@ class dynamic_map {
 }  // namespace cuco
 
 #include <cuco/detail/dynamic_map.inl>
+#include <cuco/detail/dynamic_map/dynamic_map.inl>
