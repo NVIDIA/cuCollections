@@ -262,7 +262,7 @@ template <typename InputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   insert_or_assign(InputIt first, InputIt last, cuda::stream_ref stream)
 {
-  return this->insert_or_assign_async(first, last, stream);
+  this->insert_or_assign_async(first, last, stream);
   stream.wait();
 }
 
@@ -300,7 +300,7 @@ template <typename InputIt, typename Op>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   insert_or_apply(InputIt first, InputIt last, Op op, cuda::stream_ref stream)
 {
-  return this->insert_or_apply_async(first, last, op, stream);
+  this->insert_or_apply_async(first, last, op, stream);
   stream.wait();
 }
 
