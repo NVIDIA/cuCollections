@@ -70,6 +70,66 @@ void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_key
                             thrust::equal_to<Value>{}));
 }
 
+template <typename Map>
+void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_unique_keys)
+{
+  REQUIRE((num_keys % num_unique_keys) == 0);
+
+  using Key   = typename Map::key_type;
+  using Value = typename Map::mapped_type;
+
+  using KeyEqual         = typename Map::key_equal;
+  using ProbingScheme    = typename Map::probing_scheme_type;
+  using Allocator        = typename Map::allocator_type;
+  auto constexpr cg_size = Map::cg_size;
+
+  int32_t constexpr shmem_block_size        = 1024;
+  int32_t constexpr cardinality_threshold   = shmem_block_size;
+  int32_t constexpr shared_map_num_elements = cardinality_threshold + shmem_block_size;
+  float constexpr load_factor               = 0.7;
+  int32_t constexpr shared_map_size         = (1.0 / load_factor) * shared_map_num_elements;
+
+  using extent_type     = cuco::extent<int32_t, shared_map_size>;
+  using shared_map_type = cuco::static_map<Key,
+                                           Value,
+                                           extent_type,
+                                           cuda::thread_scope_block,
+                                           KeyEqual,
+                                           ProbingScheme,
+                                           Allocator,
+                                           cuco::storage<1>>;
+
+  using shared_map_ref_type    = typename shared_map_type::ref_type<>;
+  auto constexpr window_extent = cuco::make_window_extent<shared_map_ref_type>(extent_type{});
+
+  // Insert pairs
+  auto pairs_begin = thrust::make_transform_iterator(
+    thrust::counting_iterator<size_type>(0),
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>([num_unique_keys] __device__(auto i) {
+      return cuco::pair<Key, Value>{i % num_unique_keys, 1};
+    }));
+
+  auto const shmem_grid_size = cuco::detail::grid_size(num_keys, cg_size, 1, shmem_block_size);
+
+  cuda::stream_ref stream{};
+
+  // launch the shmem kernel
+  cuco::static_map_ns::detail::insert_or_apply_shmem<cg_size, shmem_block_size, shared_map_ref_type>
+    <<<shmem_grid_size, shmem_block_size, 0, stream.get()>>>(
+      pairs_begin, num_keys, binary_plus_op{}, map.ref(cuco::op::insert_or_apply), window_extent);
+
+  REQUIRE(map.size() == num_unique_keys);
+
+  thrust::device_vector<Key> d_keys(num_unique_keys);
+  thrust::device_vector<Value> d_values(num_unique_keys);
+  map.retrieve_all(d_keys.begin(), d_values.begin());
+
+  REQUIRE(cuco::test::equal(d_values.begin(),
+                            d_values.end(),
+                            thrust::make_constant_iterator<Value>(num_keys / num_unique_keys),
+                            thrust::equal_to<Value>{}));
+}
+
 TEMPLATE_TEST_CASE_SIG(
   "static_map insert_or_apply tests",
   "",
@@ -145,4 +205,37 @@ TEMPLATE_TEST_CASE_SIG(
     num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
 
   test_insert_or_apply(map, num_keys, num_keys);
+}
+
+TEMPLATE_TEST_CASE_SIG(
+  "static_map insert_or_apply shared memory", "", ((typename Key)), (int32_t), (int64_t))
+{
+  using Value = Key;
+
+  using map_type = cuco::static_map<Key,
+                                    Value,
+                                    cuco::extent<size_type>,
+                                    cuda::thread_scope_device,
+                                    thrust::equal_to<Key>,
+                                    cuco::linear_probing<1, cuco::murmurhash3_32<Key>>,
+                                    cuco::cuda_allocator<std::byte>,
+                                    cuco::storage<2>>;
+
+  SECTION("duplicate keys")
+  {
+    constexpr size_type num_keys        = 10'000;
+    constexpr size_type num_unique_keys = 100;
+
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+    test_insert_or_apply_shmem(map, num_keys, num_unique_keys);
+  }
+
+  SECTION("unique keys")
+  {
+    constexpr size_type num_keys        = 10'000;
+    constexpr size_type num_unique_keys = num_keys;
+
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+    test_insert_or_apply_shmem(map, num_keys, num_unique_keys);
+  }
 }
