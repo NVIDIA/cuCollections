@@ -684,8 +684,7 @@ class open_addressing_impl {
   /**
    * @brief Executes a callback on every filled element in the container.
    *
-   * @note Passes an un-incrementable input iterator to the element whose key is filled
-   * to the callback.
+   * @note Passes a copy of the filled element to the callback.
    *
    * @tparam CallbackOp Unary callback functor or device lambda
    *
@@ -707,9 +706,9 @@ class open_addressing_impl {
       [callback_op, is_filled, storage_ = this->storage_ref()] __device__(auto const idx) {
         auto const window_idx = idx / storage_ref_type::window_size;
         auto const intra_idx  = idx % storage_ref_type::window_size;
-        auto const slot_ptr   = const_iterator{&(storage_[window_idx][intra_idx])};
+        auto const slot       = storage_[window_idx][intra_idx];
 
-        if (is_filled(*slot_ptr)) { callback_op(slot_ptr); }
+        if (is_filled(slot)) { callback_op(slot); }
       });
   }
 
@@ -717,8 +716,8 @@ class open_addressing_impl {
    * @brief Asynchronously executes a callback on every element in the container whose key matches
    * with a key from the input key sequence.
    *
-   * @note Passes an un-incrementable input iterator to the element whose key matches with
-   * a key from the input key sequence to the callback.
+   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
+   * to the callback.
    *
    * @tparam InputIt Device accessible random access input iterator whose `value_type` is
    * convertible to key type of the map.

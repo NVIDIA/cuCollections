@@ -282,7 +282,7 @@ class static_map {
   /**
    * @brief Executes a callback on every filled element in the container.
    *
-   * @note Passes an un-incrementable input iterator to the element whose key is filled
+   * @note Passes a copy of the filled element to the callback.
    *
    * @tparam CallbackOp Unary callback functor or device lambda
    *
@@ -309,8 +309,8 @@ class static_map {
    * @brief Executes a callback on every element in the container whose key matches with
    * a key from the input key sequence.
    *
-   * @note Passes an un-incrementable input iterator to the element whose key matches with
-   * a key from the input key sequence to the callback.
+   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
+   * to the callback.
    *
    * @tparam InputIt Device accessible random access input iterator whose `value_type` is
    * convertible to key type of the map.
@@ -331,8 +331,8 @@ class static_map {
    * @brief Asynchronously executes a callback on every element in the container whose key matches
    * with a key from the input key sequence.
    *
-   * @note Passes an un-incrementable input iterator to the element whose key matches with
-   * a key from the input key sequence to the callback.
+   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
+   * to the callback.
    *
    * @tparam InputIt Device accessible random access input iterator whose `value_type` is
    * convertible to key type of the map.

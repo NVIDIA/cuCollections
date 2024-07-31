@@ -969,8 +969,8 @@ class open_addressing_ref_impl {
    * @brief Executes a callback on every element in the container with key equivalent to the probe
    * key.
    *
-   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
-   * `key` to the callback.
+   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
+   * to the callback.
    *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
    * @tparam CallbackOp Unary callback functor or device lambda
@@ -995,7 +995,7 @@ class open_addressing_ref_impl {
             return;
           }
           case detail::equal_result::EQUAL: {
-            callback_op(const_iterator{&(*(this->storage_ref_.data() + *probing_iter))[i]});
+            callback_op(window_slots[i]);
             continue;
           }
           default: continue;
@@ -1009,8 +1009,8 @@ class open_addressing_ref_impl {
    * @brief Executes a callback on every element in the container with key equivalent to the probe
    * key.
    *
-   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
-   * `key` to the callback.
+   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
+   * to the callback.
    *
    * @note This function uses cooperative group semantics, meaning that any thread may call the
    * callback if it finds a matching element. If multiple elements are found within the same group,
@@ -1045,7 +1045,7 @@ class open_addressing_ref_impl {
             continue;
           }
           case detail::equal_result::EQUAL: {
-            callback_op(const_iterator{&(*(this->storage_ref_.data() + *probing_iter))[i]});
+            callback_op(window_slots[i]);
             continue;
           }
           default: {
@@ -1064,8 +1064,8 @@ class open_addressing_ref_impl {
    * key and can additionally perform work that requires synchronizing the Cooperative Group
    * performing this operation.
    *
-   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
-   * `key` to the callback.
+   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
+   * to the callback.
    *
    * @note This function uses cooperative group semantics, meaning that any thread may call the
    * callback if it finds a matching element. If multiple elements are found within the same group,
@@ -1108,7 +1108,7 @@ class open_addressing_ref_impl {
             continue;
           }
           case detail::equal_result::EQUAL: {
-            callback_op(const_iterator{&(*(this->storage_ref_.data() + *probing_iter))[i]});
+            callback_op(window_slots[i]);
             continue;
           }
           default: {

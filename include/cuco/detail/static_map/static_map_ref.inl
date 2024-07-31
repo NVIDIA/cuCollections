@@ -1010,8 +1010,8 @@ class operator_impl<
    * @brief Executes a callback on every element in the container with key equivalent to the probe
    * key.
    *
-   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
-   * `key` to the callback.
+   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
+   * to the callback.
    *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
    * @tparam CallbackOp Unary callback functor or device lambda

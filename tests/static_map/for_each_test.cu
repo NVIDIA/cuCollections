@@ -55,8 +55,8 @@ void test_for_each(Map& map, size_type num_keys)
 
   // count all the keys which are even and whose payload has value 1
   map.for_each(
-    [counter = counter_storage.data()] __device__(auto const slot_ptr) {
-      auto const& [key, value] = *slot_ptr;
+    [counter = counter_storage.data()] __device__(auto const slot) {
+      auto const& [key, value] = slot;
       if (((key % 2 == 0)) and (value == 1)) { counter->fetch_add(1, cuda::memory_order_relaxed); }
     },
     stream);
@@ -69,8 +69,8 @@ void test_for_each(Map& map, size_type num_keys)
   map.for_each(
     thrust::counting_iterator<size_type>(0),
     thrust::counting_iterator<size_type>(2 * num_keys),  // test for false-positives
-    [counter = counter_storage.data()] __device__(auto const slot_ptr) {
-      auto const& [key, value] = *slot_ptr;
+    [counter = counter_storage.data()] __device__(auto const slot) {
+      auto const& [key, value] = slot;
       if (((key % 2 == 0)) and (value == 1)) { counter->fetch_add(1, cuda::memory_order_relaxed); }
     },
     stream);
