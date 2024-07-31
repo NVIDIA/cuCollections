@@ -186,8 +186,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void erase(InputIt first,
  * @brief Asynchronously executes a callback on every element in the container whose key matches
  * with a key from the input key sequence.
  *
- * @note Passes an un-incrementable input iterator to the element whose key matches with
- * a key from the input key sequence to the callback.
+ * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
+ * to the callback.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
