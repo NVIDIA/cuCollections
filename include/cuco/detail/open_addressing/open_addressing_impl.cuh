@@ -27,6 +27,7 @@
 #include <cuco/storage.cuh>
 #include <cuco/utility/traits.hpp>
 
+#include <cub/device/device_for.cuh>
 #include <cub/device/device_select.cuh>
 #include <cuda/atomic>
 #include <thrust/iterator/constant_iterator.h>
@@ -694,22 +695,39 @@ class open_addressing_impl {
   template <typename CallbackOp>
   void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream)
   {
-    using const_iterator = typename storage_ref_type::const_iterator;
+    std::size_t temp_storage_bytes = 0;
+    using temp_allocator_type =
+      typename std::allocator_traits<allocator_type>::template rebind_alloc<char>;
+    auto temp_allocator = temp_allocator_type{this->allocator()};
 
     auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
       this->empty_key_sentinel(), this->erased_key_sentinel()};
 
-    thrust::for_each(
-      thrust::cuda::par_nosync.on(stream.get()),
-      thrust::make_counting_iterator(static_cast<size_t>(0)),
-      thrust::make_counting_iterator(this->capacity()),
+    auto const op =
       [callback_op, is_filled, storage_ = this->storage_ref()] __device__(auto const idx) {
         auto const window_idx = idx / storage_ref_type::window_size;
         auto const intra_idx  = idx % storage_ref_type::window_size;
         auto const slot       = storage_[window_idx][intra_idx];
 
         if (is_filled(slot)) { callback_op(slot); }
-      });
+      };
+
+    CUCO_CUDA_TRY(cub::DeviceFor::ForEachN(nullptr,
+                                           temp_storage_bytes,
+                                           thrust::make_counting_iterator(static_cast<size_t>(0)),
+                                           this->capacity(),
+                                           op,
+                                           stream.get()));
+
+    // Allocate temporary storage
+    auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
+
+    CUCO_CUDA_TRY(cub::DeviceFor::ForEachN(d_temp_storage,
+                                           temp_storage_bytes,
+                                           thrust::make_counting_iterator(static_cast<size_t>(0)),
+                                           this->capacity(),
+                                           op,
+                                           stream.get()));
   }
 
   /**
