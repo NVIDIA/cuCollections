@@ -319,15 +319,18 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   auto const num = cuco::detail::distance(first, last);
   if (num == 0) { return; }
 
+  using shmem_size_type = int32_t;
+
   int32_t constexpr shmem_block_size = 1024;
   int32_t const default_grid_size    = cuco::detail::grid_size(num, cg_size);
 
-  int32_t constexpr cardinality_threshold   = shmem_block_size;
-  int32_t constexpr shared_map_num_elements = cardinality_threshold + shmem_block_size;
-  float constexpr load_factor               = 0.7;
-  int32_t constexpr shared_map_size         = (1.0 / load_factor) * shared_map_num_elements;
+  shmem_size_type constexpr cardinality_threshold   = shmem_block_size;
+  shmem_size_type constexpr shared_map_num_elements = cardinality_threshold + shmem_block_size;
+  float constexpr load_factor                       = 0.7;
+  shmem_size_type constexpr shared_map_size =
+    static_cast<shmem_size_type>((1.0 / load_factor) * shared_map_num_elements);
 
-  using extent_type            = cuco::extent<int32_t, shared_map_size>;
+  using extent_type            = cuco::extent<shmem_size_type, shared_map_size>;
   using shared_map_type        = cuco::static_map<Key,
                                                   T,
                                                   extent_type,

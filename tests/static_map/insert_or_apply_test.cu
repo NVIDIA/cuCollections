@@ -85,14 +85,15 @@ void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_uniq
 
   int32_t constexpr shmem_block_size = 1024;
 
-  // Workaround to avoid compiler error:
-  // using a pre-constructed compile time constant for shared_map_size (2925) from
-  // evaluating expression (1/LF * shmem_block_size + cardinality_threshold).
-  // Here LF = load factor = 0.7, and cardinality_threshold = 1024
-  // Therefore shared_map_size = (1/0.7) * (1024 + 1024) = 2925
-  int32_t constexpr shared_map_size = 2925;
+  using shmem_size_type = int32_t;
 
-  using extent_type     = cuco::extent<int32_t, static_cast<int32_t>(shared_map_size)>;
+  shmem_size_type constexpr cardinality_threshold   = shmem_block_size;
+  shmem_size_type constexpr shared_map_num_elements = cardinality_threshold + shmem_block_size;
+  float constexpr load_factor                       = 0.7;
+  shmem_size_type constexpr shared_map_size =
+    static_cast<shmem_size_type>((1.0 / load_factor) * shared_map_num_elements);
+
+  using extent_type     = cuco::extent<shmem_size_type, shared_map_size>;
   using shared_map_type = cuco::static_map<Key,
                                            Value,
                                            extent_type,
