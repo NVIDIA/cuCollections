@@ -912,6 +912,18 @@ class static_map {
   mapped_type empty_value_sentinel_;  ///< Sentinel value that indicates an empty payload
 };
 
+namespace experimental {
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+class dynamic_map;
+}
+
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;
 
