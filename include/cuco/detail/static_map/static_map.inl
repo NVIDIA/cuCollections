@@ -315,7 +315,7 @@ template <typename InputIt, typename Init, typename Op>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   insert_or_apply(InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream)
 {
-  return this->insert_or_apply_async(first, last, init, op, stream);
+  this->insert_or_apply_async(first, last, init, op, stream);
   stream.wait();
 }
 

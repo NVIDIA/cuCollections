@@ -113,22 +113,22 @@ TEMPLATE_TEST_CASE_SIG(
   SECTION("sentinel equals init; has_init = true")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
-    test_insert_or_apply<true>(map, num_keys, num_unique_keys, Key(0));
+    test_insert_or_apply<true>(map, num_keys, num_unique_keys, static_cast<Value>(0));
   }
   SECTION("sentinel equals init; has_init = false")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
-    test_insert_or_apply<false>(map, num_keys, num_unique_keys, Key(0));
+    test_insert_or_apply<false>(map, num_keys, num_unique_keys, static_cast<Value>(0));
   }
   SECTION("sentinel not equals init; has_init = true")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
-    test_insert_or_apply<true>(map, num_keys, num_unique_keys, Key(-1));
+    test_insert_or_apply<true>(map, num_keys, num_unique_keys, static_cast<Value>(-1));
   }
   SECTION("sentinel not equals init; has_init = false")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
-    test_insert_or_apply<false>(map, num_keys, num_unique_keys, Key(-1));
+    test_insert_or_apply<false>(map, num_keys, num_unique_keys, static_cast<Value>(-1));
   }
 }
 
@@ -151,21 +151,21 @@ TEMPLATE_TEST_CASE_SIG(
   SECTION("sentinel equals init; has_init = true")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
-    test_insert_or_apply<true>(map, num_keys, num_keys, Key(0));
+    test_insert_or_apply<true>(map, num_keys, num_keys, static_cast<Value>(0));
   }
   SECTION("sentinel equals init; has_init = false")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
-    test_insert_or_apply<false>(map, num_keys, num_keys, Key(0));
+    test_insert_or_apply<false>(map, num_keys, num_keys, static_cast<Value>(0));
   }
   SECTION("sentinel not equals init; has_init = true")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
-    test_insert_or_apply<true>(map, num_keys, num_keys, Key(-1));
+    test_insert_or_apply<true>(map, num_keys, num_keys, static_cast<Value>(-1));
   }
   SECTION("sentinel not equals init; has_init = false")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
-    test_insert_or_apply<false>(map, num_keys, num_keys, Key(-1));
+    test_insert_or_apply<false>(map, num_keys, num_keys, static_cast<Value>(-1));
   }
 }

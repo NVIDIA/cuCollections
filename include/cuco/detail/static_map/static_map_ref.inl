@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/operator.hpp>
 
@@ -703,7 +704,7 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     // if init equals sentinel value, then we can just `apply` op instead of write
-    if (init == ref_.empty_value_sentinel()) {
+    if (cuco::detail::bitwise_compare(init, ref_.empty_value_sentinel())) {
       ref_.insert_or_apply_impl<true>(value, op);
     } else {
       ref_.insert_or_apply_impl<false>(value, op);
@@ -734,7 +735,7 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     // if init equals sentinel value, then we can just `apply` op instead of write
-    if (init == ref_.empty_value_sentinel()) {
+    if (cuco::detail::bitwise_compare(init, ref_.empty_value_sentinel())) {
       ref_.insert_or_apply_impl<true>(group, value, op);
     } else {
       ref_.insert_or_apply_impl<false>(group, value, op);
