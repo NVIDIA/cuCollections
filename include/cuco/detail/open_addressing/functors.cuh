@@ -48,7 +48,7 @@ struct get_slot {
     auto const window_idx = idx / StorageRef::window_size;
     auto const intra_idx  = idx % StorageRef::window_size;
     if constexpr (HasPayload) {
-      auto const& [first, second] = storage_[window_idx][intra_idx];
+      auto const [first, second] = storage_[window_idx][intra_idx];
       return thrust::make_tuple(first, second);
     } else {
       return storage_[window_idx][intra_idx];
