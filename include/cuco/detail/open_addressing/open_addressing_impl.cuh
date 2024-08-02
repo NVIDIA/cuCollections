@@ -728,6 +728,8 @@ class open_addressing_impl {
                                            this->capacity(),
                                            op,
                                            stream.get()));
+
+    temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
   }
 
   /**
