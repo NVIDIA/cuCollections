@@ -122,6 +122,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   Ref ref,
   typename SharedMapRefType::extent_type window_extent)
 {
+  static_assert(CGSize == 1, "use shared_memory kernel only if cg_size == 1");
   namespace cg     = cooperative_groups;
   using Key        = typename Ref::key_type;
   using Value      = typename Ref::mapped_type;
@@ -156,52 +157,42 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   block.sync();
 
   while ((idx - thread_idx / CGSize) < n) {
-    if constexpr (CGSize == 1) {
-      int32_t inserted          = 0;
-      int32_t local_cardinality = 0;
-      // insert-or-apply into the shared map first
-      if (idx < n) {
-        value_type const& insert_pair = *(first + idx);
-        inserted                      = shared_map_ref.insert_or_apply(insert_pair, op);
-      }
-      if (idx - warp_thread_idx < n) {  // all threads in warp particpate
-        local_cardinality = cg::reduce(warp, inserted, cg::plus<int32_t>());
-      }
-      if (warp_thread_idx == 0) {
-        block_cardinality.fetch_add(local_cardinality, cuda::memory_order_relaxed);
-      }
-      block.sync();
-      if (block_cardinality > BlockSize) { break; }
-    } else {
-      auto const tile = cg::tiled_partition<CGSize>(block);
-      if (idx < n) {
-        value_type const& insert_pair = *(first + idx);
-        ref.insert_or_apply(tile, insert_pair, op);
-      }
+    int32_t inserted          = 0;
+    int32_t local_cardinality = 0;
+    // insert-or-apply into the shared map first
+    if (idx < n) {
+      value_type const& insert_pair = *(first + idx);
+      inserted                      = shared_map_ref.insert_or_apply(insert_pair, op);
     }
+    if (idx - warp_thread_idx < n) {  // all threads in warp particpate
+      local_cardinality = cg::reduce(warp, inserted, cg::plus<int32_t>());
+    }
+    if (warp_thread_idx == 0) {
+      block_cardinality.fetch_add(local_cardinality, cuda::memory_order_relaxed);
+    }
+    block.sync();
+    if (block_cardinality > BlockSize) { break; }
     idx += loop_stride;
   }
 
-  if constexpr (CGSize == 1) {
-    // insert-or-apply from shared map to global map
-    auto window_idx = thread_idx;
-    while (window_idx < num_windows) {
-      auto const slot = storage[window_idx][0];
-      if (not cuco::detail::bitwise_compare(slot.first, ref.empty_key_sentinel())) {
-        ref.insert_or_apply(slot, op);
-      }
-      window_idx += BlockSize;
+  // insert-or-apply from shared map to global map
+  auto window_idx = thread_idx;
+  while (window_idx < num_windows) {
+    auto const slot = storage[window_idx][0];
+    if (not cuco::detail::bitwise_compare(slot.first, ref.empty_key_sentinel())) {
+      ref.insert_or_apply(slot, op);
     }
+    window_idx += BlockSize;
+  }
 
-    // insert-or-apply into global map for the remaining elements whose block_cardinality
-    // exceeds the cardinality threshold.
-    if (block_cardinality > BlockSize) {
+  // insert-or-apply into global map for the remaining elements whose block_cardinality
+  // exceeds the cardinality threshold.
+  if (block_cardinality > BlockSize) {
+    idx += loop_stride;
+    while (idx < n) {
+      value_type const& insert_pair = *(first + idx);
+      ref.insert_or_apply(insert_pair, op);
       idx += loop_stride;
-      while (idx < n) {
-        value_type const& insert_pair = *(first + idx);
-        ref.insert_or_apply(insert_pair, op);
-        idx += loop_stride;
-      }
     }
   }
 }
