@@ -314,6 +314,61 @@ class static_map {
   void insert_async(InputIt first, InputIt last, cuda::stream_ref stream = {}) noexcept;
 
   /**
+   * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
+   * true.
+   *
+   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   * @note This function synchronizes the given stream and returns the number of successful
+   * insertions. For asynchronous execution use `insert_if_async`.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for the operation
+   *
+   * @return Number of successful insertions
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  size_type insert_if(
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
+
+  /**
+   * @brief Asynchronously inserts keys in the range `[first, last)` if `pred` of the corresponding
+   * stencil returns true.
+   *
+   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for the operation
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  void insert_if_async(InputIt first,
+                       InputIt last,
+                       StencilIt stencil,
+                       Predicate pred,
+                       cuda::stream_ref stream = {}) noexcept;
+
+  /**
    * @brief Asynchronously inserts all elements in the range `[first, last)`.
    *
    * @note: For a given element `*(first + i)`, if the container doesn't already contain an element
@@ -368,61 +423,6 @@ class static_map {
                        FoundIt found_begin,
                        InsertedIt inserted_begin,
                        cuda::stream_ref stream = {});
-
-  /**
-   * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
-   * true.
-   *
-   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
-   * @note This function synchronizes the given stream and returns the number of successful
-   * insertions. For asynchronous execution use `insert_if_async`.
-   *
-   * @tparam InputIt Device accessible random access iterator whose `value_type` is
-   * convertible to the container's `value_type`
-   * @tparam StencilIt Device accessible random access iterator whose value_type is
-   * convertible to Predicate's argument type
-   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
-   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
-   *
-   * @param first Beginning of the sequence of key/value pairs
-   * @param last End of the sequence of key/value pairs
-   * @param stencil Beginning of the stencil sequence
-   * @param pred Predicate to test on every element in the range `[stencil, stencil +
-   * std::distance(first, last))`
-   * @param stream CUDA stream used for the operation
-   *
-   * @return Number of successful insertions
-   */
-  template <typename InputIt, typename StencilIt, typename Predicate>
-  size_type insert_if(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
-
-  /**
-   * @brief Asynchronously inserts keys in the range `[first, last)` if `pred` of the corresponding
-   * stencil returns true.
-   *
-   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
-   *
-   * @tparam InputIt Device accessible random access iterator whose `value_type` is
-   * convertible to the container's `value_type`
-   * @tparam StencilIt Device accessible random access iterator whose value_type is
-   * convertible to Predicate's argument type
-   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
-   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
-   *
-   * @param first Beginning of the sequence of key/value pairs
-   * @param last End of the sequence of key/value pairs
-   * @param stencil Beginning of the stencil sequence
-   * @param pred Predicate to test on every element in the range `[stencil, stencil +
-   * std::distance(first, last))`
-   * @param stream CUDA stream used for the operation
-   */
-  template <typename InputIt, typename StencilIt, typename Predicate>
-  void insert_if_async(InputIt first,
-                       InputIt last,
-                       StencilIt stencil,
-                       Predicate pred,
-                       cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief For any key-value pair `{k, v}` in the range `[first, last)`, if a key equivalent to `k`

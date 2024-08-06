@@ -181,6 +181,41 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename StencilIt, typename Predicate>
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
+  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
+{
+  return impl_->insert_if(first, last, stencil, pred, ref(op::insert), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename StencilIt, typename Predicate>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_if_async(InputIt first,
+                  InputIt last,
+                  StencilIt stencil,
+                  Predicate pred,
+                  cuda::stream_ref stream) noexcept
+{
+  impl_->insert_if_async(first, last, stencil, pred, ref(op::insert), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename InputIt, typename OutputIt>
 void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
