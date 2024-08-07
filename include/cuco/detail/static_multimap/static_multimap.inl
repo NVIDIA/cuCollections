@@ -152,11 +152,11 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt>
-static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
+void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cuda::stream_ref stream)
 {
-  return impl_->insert(first, last, ref(op::insert), stream);
+  this->insert_async(first, last, stream);
+  stream.wait();
 }
 
 template <class Key,
@@ -183,11 +183,11 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
-static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
+void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
 {
-  return impl_->insert_if(first, last, stencil, pred, ref(op::insert), stream);
+  this->insert_if_async(first, last, stencil, pred, stream);
+  stream.wait();
 }
 
 template <class Key,

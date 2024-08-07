@@ -284,8 +284,7 @@ class static_multimap {
   void clear_async(cuda::stream_ref stream = {}) noexcept;
 
   /**
-   * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
-   * insertions.
+   * @brief Inserts all keys in the range `[first, last)`
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `insert_async`.
@@ -297,11 +296,9 @@ class static_multimap {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param stream CUDA stream used for insert
-   *
-   * @return Number of successful insertions
    */
   template <typename InputIt>
-  size_type insert(InputIt first, InputIt last, cuda::stream_ref stream = {});
+  void insert(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously inserts all keys in the range `[first, last)`.
@@ -338,11 +335,9 @@ class static_multimap {
    * @param pred Predicate to test on every element in the range `[stencil, stencil +
    * std::distance(first, last))`
    * @param stream CUDA stream used for the operation
-   *
-   * @return Number of successful insertions
    */
   template <typename InputIt, typename StencilIt, typename Predicate>
-  size_type insert_if(
+  void insert_if(
     InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
 
   /**
