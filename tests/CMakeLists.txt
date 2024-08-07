@@ -108,6 +108,7 @@ ConfigureTest(STATIC_MULTISET_TEST
 ###################################################################################################
 # - static_multimap tests -------------------------------------------------------------------------
 ConfigureTest(STATIC_MULTIMAP_TEST
+    static_multimap/count_test.cu
     static_multimap/custom_pair_retrieve_test.cu
     static_multimap/custom_type_test.cu
     static_multimap/heterogeneous_lookup_test.cu
