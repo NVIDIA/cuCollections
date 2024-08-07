@@ -68,8 +68,8 @@ void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_key
                             thrust::equal_to<Value>{}));
 }
 
-template <typename Map>
-void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_unique_keys)
+template <bool HasInit, typename Map, typename Init>
+void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_unique_keys, Init init)
 {
   REQUIRE((num_keys % num_unique_keys) == 0);
 
@@ -116,9 +116,14 @@ void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_uniq
   cuda::stream_ref stream{};
 
   // launch the shmem kernel
-  cuco::static_map_ns::detail::insert_or_apply_shmem<cg_size, shmem_block_size, shared_map_ref_type>
-    <<<shmem_grid_size, shmem_block_size, 0, stream.get()>>>(
-      pairs_begin, num_keys, binary_plus_op{}, map.ref(cuco::op::insert_or_apply), window_extent);
+  cuco::static_map_ns::detail::
+    insert_or_apply_shmem<HasInit, cg_size, shmem_block_size, shared_map_ref_type>
+    <<<shmem_grid_size, shmem_block_size, 0, stream.get()>>>(pairs_begin,
+                                                             num_keys,
+                                                             init,
+                                                             cuco::reduce::plus{},
+                                                             map.ref(cuco::op::insert_or_apply),
+                                                             window_extent);
 
   REQUIRE(map.size() == num_unique_keys);
 
@@ -233,7 +238,6 @@ TEMPLATE_TEST_CASE_SIG(
     test_insert_or_apply<false>(map, num_keys, num_keys, static_cast<Value>(-1));
   }
 }
-
 
 TEMPLATE_TEST_CASE_SIG(
   "static_map insert_or_apply shared memory", "", ((typename Key)), (int32_t), (int64_t))

@@ -593,7 +593,7 @@ class operator_impl<
 
     // directly dispatch to implementation if no init element is given
     auto constexpr use_direct_apply = false;
-    ref_.insert_or_apply_impl<use_direct_apply>(value, op);
+    return ref_.insert_or_apply_impl<use_direct_apply>(value, op);
   }
 
   /**
@@ -615,7 +615,7 @@ class operator_impl<
             typename Init,
             typename Op,
             typename = cuda::std::enable_if_t<std::is_convertible_v<Value, value_type>>>
-  __device__ void insert_or_apply(Value const& value, Init init, Op op)
+  __device__ bool insert_or_apply(Value const& value, Init init, Op op)
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
@@ -624,7 +624,7 @@ class operator_impl<
       "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
 
     auto& ref_ = static_cast<ref_type&>(*this);
-    ref_.dispatch_insert_or_apply(value, init, op);
+    return ref_.dispatch_insert_or_apply(value, init, op);
   }
 
   /**
@@ -655,7 +655,7 @@ class operator_impl<
     auto& ref_ = static_cast<ref_type&>(*this);
 
     auto constexpr use_direct_apply = false;
-    ref_.insert_or_apply_impl<use_direct_apply>(group, value, op);
+    return ref_.insert_or_apply_impl<use_direct_apply>(group, value, op);
   }
 
   /**
@@ -675,7 +675,7 @@ class operator_impl<
    *  and the element to insert.
    */
   template <typename Value, typename Init, typename Op>
-  __device__ void insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
+  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
                                   Value const& value,
                                   Init init,
                                   Op op)
@@ -685,7 +685,7 @@ class operator_impl<
       cuda::std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
       "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
 
-    ref_.dispatch_insert_or_apply(group, value, init, op);
+    return ref_.dispatch_insert_or_apply(group, value, init, op);
   }
 
  private:
@@ -704,14 +704,14 @@ class operator_impl<
    *  and the element to insert.
    */
   template <typename Value, typename Init, typename Op>
-  __device__ void dispatch_insert_or_apply(Value const& value, Init init, Op op)
+  __device__ bool dispatch_insert_or_apply(Value const& value, Init init, Op op)
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     // if init equals sentinel value, then we can just `apply` op instead of write
     if (cuco::detail::bitwise_compare(init, ref_.empty_value_sentinel())) {
-      ref_.insert_or_apply_impl<true>(value, op);
+      return ref_.insert_or_apply_impl<true>(value, op);
     } else {
-      ref_.insert_or_apply_impl<false>(value, op);
+      return ref_.insert_or_apply_impl<false>(value, op);
     }
   }
 
@@ -731,7 +731,7 @@ class operator_impl<
    *  and the element to insert.
    */
   template <typename Value, typename Init, typename Op>
-  __device__ void dispatch_insert_or_apply(
+  __device__ bool dispatch_insert_or_apply(
     cooperative_groups::thread_block_tile<cg_size> const& group,
     Value const& value,
     Init init,
@@ -740,9 +740,9 @@ class operator_impl<
     ref_type& ref_ = static_cast<ref_type&>(*this);
     // if init equals sentinel value, then we can just `apply` op instead of write
     if (cuco::detail::bitwise_compare(init, ref_.empty_value_sentinel())) {
-      ref_.insert_or_apply_impl<true>(group, value, op);
+      return ref_.insert_or_apply_impl<true>(group, value, op);
     } else {
-      ref_.insert_or_apply_impl<false>(group, value, op);
+      return ref_.insert_or_apply_impl<false>(group, value, op);
     }
   }
 
@@ -763,7 +763,7 @@ class operator_impl<
    *  and the element to insert.
    */
   template <bool UseDirectApply, typename Value, typename Op>
-  __device__ void insert_or_apply_impl(Value const& value, Op op)
+  __device__ bool insert_or_apply_impl(Value const& value, Op op)
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
@@ -793,18 +793,18 @@ class operator_impl<
             ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
           }
           op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
-          return;
+          return false;
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
           switch (ref_.attempt_insert_or_apply<UseDirectApply>(slot_ptr, slot_content, val, op)) {
-            case insert_result::SUCCESS: return;
+            case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: {
               // wait for payload only when performing insert operation
               if constexpr (wait_for_payload) {
                 ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
               }
               op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
-              return;
+              return false;
             }
             default: continue;
           }
@@ -833,7 +833,7 @@ class operator_impl<
    *  and the element to insert.
    */
   template <bool UseDirectApply, typename Value, typename Op>
-  __device__ void insert_or_apply_impl(cooperative_groups::thread_block_tile<cg_size> const& group,
+  __device__ bool insert_or_apply_impl(cooperative_groups::thread_block_tile<cg_size> const& group,
                                        Value const& value,
                                        Op op)
   {
