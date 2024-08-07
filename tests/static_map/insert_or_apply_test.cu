@@ -30,7 +30,6 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 #include <cstdint>
-#include <iostream>
 
 using size_type = std::size_t;
 

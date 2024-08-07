@@ -610,6 +610,8 @@ class operator_impl<
    * @param init The init value of the op
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
    */
   template <typename Value,
             typename Init,
@@ -673,6 +675,8 @@ class operator_impl<
    * @param init The init value of the op
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
    */
   template <typename Value, typename Init, typename Op>
   __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
@@ -702,6 +706,8 @@ class operator_impl<
    * @param init The init value of the op
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
    */
   template <typename Value, typename Init, typename Op>
   __device__ bool dispatch_insert_or_apply(Value const& value, Init init, Op op)
@@ -761,6 +767,8 @@ class operator_impl<
    * @param value The element to insert
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
    */
   template <bool UseDirectApply, typename Value, typename Op>
   __device__ bool insert_or_apply_impl(Value const& value, Op op)
@@ -831,6 +839,8 @@ class operator_impl<
    * @param init The init value of the op
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
    */
   template <bool UseDirectApply, typename Value, typename Op>
   __device__ bool insert_or_apply_impl(cooperative_groups::thread_block_tile<cg_size> const& group,

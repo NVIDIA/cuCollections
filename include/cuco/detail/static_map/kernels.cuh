@@ -183,8 +183,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   block.sync();
 
   while ((idx - thread_idx / CGSize) < n) {
-    int32_t inserted          = 0;
-    int32_t local_cardinality = 0;
+    int32_t inserted         = 0;
+    int32_t warp_cardinality = 0;
     // insert-or-apply into the shared map first
     if (idx < n) {
       value_type const& insert_pair = *(first + idx);
@@ -195,10 +195,10 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
       }
     }
     if (idx - warp_thread_idx < n) {  // all threads in warp particpate
-      local_cardinality = cg::reduce(warp, inserted, cg::plus<int32_t>());
+      warp_cardinality = cg::reduce(warp, inserted, cg::plus<int32_t>());
     }
     if (warp_thread_idx == 0) {
-      block_cardinality.fetch_add(local_cardinality, cuda::memory_order_relaxed);
+      block_cardinality.fetch_add(warp_cardinality, cuda::memory_order_relaxed);
     }
     block.sync();
     if (block_cardinality > BlockSize) { break; }
@@ -295,7 +295,7 @@ void dispatch_insert_or_apply(
     // use shared_memory only if each thread has atleast 3 elements to process
     if (num_elements_per_thread > 2) {
       insert_or_apply_shmem<HasInit, CGSize, shmem_block_size, shared_map_ref_type>
-        <<<shmem_default_grid_size, shmem_block_size, 0, stream.get()>>>(
+        <<<shmem_grid_size, shmem_block_size, 0, stream.get()>>>(
           first, num, init, op, ref, window_extent);
     } else {
       insert_or_apply<HasInit, CGSize, cuco::detail::default_block_size()>
