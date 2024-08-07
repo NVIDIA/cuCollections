@@ -152,11 +152,11 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
-void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
 {
-  this->insert_if_async(first, last, stencil, pred, stream);
-  stream.wait();
+  return impl_->insert_if(first, last, stencil, pred, ref(op::insert), stream);
 }
 
 template <class Key,
