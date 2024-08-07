@@ -576,10 +576,12 @@ class operator_impl<
    * @param value The element to insert
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
    */
 
   template <typename Value, typename Op>
-  __device__ void insert_or_apply(Value const& value, Op op)
+  __device__ bool insert_or_apply(Value const& value, Op op)
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
@@ -638,10 +640,12 @@ class operator_impl<
    * @param value The element to insert
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
    */
 
   template <typename Value, typename Op>
-  __device__ void insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
+  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
                                   Value const& value,
                                   Op op)
   {
@@ -871,7 +875,7 @@ class operator_impl<
           }
           op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
         }
-        return;
+        return false;
       }
 
       auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
@@ -884,7 +888,7 @@ class operator_impl<
         }();
 
         switch (group.shfl(status, src_lane)) {
-          case insert_result::SUCCESS: return;
+          case insert_result::SUCCESS: return true;
           case insert_result::DUPLICATE: {
             if (group.thread_rank() == src_lane) {
               if constexpr (wait_for_payload) {
@@ -892,7 +896,7 @@ class operator_impl<
               }
               op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
             }
-            return;
+            return false;
           }
           default: continue;
         }
