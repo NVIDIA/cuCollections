@@ -219,6 +219,7 @@ class static_multimap_ref
    * @return The probing scheme used for the container
    */
   [[nodiscard]] __host__ __device__ constexpr auto probing_scheme() const noexcept;
+
   /**
    * @brief Creates a reference with new operators from the current object.
    *
