@@ -57,10 +57,28 @@ void test_insert(Map& map, std::size_t num_keys)
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
     REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
+
+  SECTION("Conditional contains should return true on even inputs.")
+  {
+    auto is_even =
+      cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
+    auto zip_equal = cuda::proclaim_return_type<bool>(
+      [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); });
+
+    map.contains_if(keys_begin,
+                    keys_begin + num_keys,
+                    thrust::counting_iterator<std::size_t>(0),
+                    is_even,
+                    d_contained.begin());
+    auto gold_iter =
+      thrust::make_transform_iterator(thrust::counting_iterator<std::size_t>(0), is_even);
+    auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_contained.begin(), gold_iter));
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+  }
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "static_multimap insert test",
+  "static_multimap insert/contains test",
   "",
   ((typename Key, typename Value, cuco::test::probe_sequence Probe, int CGSize),
    Key,
