@@ -411,6 +411,70 @@ class static_multimap {
                       cuda::stream_ref stream = {}) const noexcept;
 
   /**
+   * @brief Indicates whether the keys in the range `[first, last)` are contained in the map if
+   * `pred` of the corresponding stencil returns true.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
+   * indicating if the key `*(first + i)` is present in the map. If `pred( *(stencil + i) )` is
+   * false, stores `false` to `(output_begin + i)`.
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `contains_if_async`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+  void contains_if(InputIt first,
+                   InputIt last,
+                   StencilIt stencil,
+                   Predicate pred,
+                   OutputIt output_begin,
+                   cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchronously indicates whether the keys in the range `[first, last)` are contained in
+   * the map if `pred` of the corresponding stencil returns true.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores `true` or `false` to `(output_begin + i)`
+   * indicating if the key `*(first + i)` is present in the map. If `pred( *(stencil + i) )` is
+   * false, stores `false` to `(output_begin + i)`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam OutputIt Device accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+  void contains_if_async(InputIt first,
+                         InputIt last,
+                         StencilIt stencil,
+                         Predicate pred,
+                         OutputIt output_begin,
+                         cuda::stream_ref stream = {}) const noexcept;
+
+  /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap
    *
    * @note This function synchronizes the given stream.
@@ -581,17 +645,14 @@ class static_multimap {
   using value_type         = cuco::pair<Key, Value>;            ///< Type of key/value pairs
   using key_type           = Key;                               ///< Key type
   using mapped_type        = Value;                             ///< Type of mapped values
+  using size_type          = std::size_t;                       ///< Size type
   using atomic_key_type    = cuda::atomic<key_type, Scope>;     ///< Type of atomic keys
   using atomic_mapped_type = cuda::atomic<mapped_type, Scope>;  ///< Type of atomic mapped values
   using pair_atomic_type =
     cuco::pair<atomic_key_type,
                atomic_mapped_type>;  ///< Pair type of atomic key and atomic mapped value
-  using atomic_ctr_type     = cuda::atomic<std::size_t, Scope>;  ///< Atomic counter type
-  using allocator_type      = Allocator;                         ///< Allocator type
-  using slot_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
+  using allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
     pair_atomic_type>;  ///< Type of the allocator to (de)allocate slots
-  using counter_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<
-    atomic_ctr_type>;  ///< Type of the allocator to (de)allocate atomic counters
   using probe_sequence_type =
     cuco::legacy::detail::probe_sequence<ProbeSequence, Key, Value, Scope>;  ///< Probe scheme type
 
@@ -995,29 +1056,16 @@ class static_multimap {
   static constexpr uint32_t warp_size() noexcept { return 32u; }
 
   /**
-   * @brief Custom deleter for unique pointer of device counter.
-   */
-  struct counter_deleter {
-    counter_deleter(counter_allocator_type& a) : allocator{a} {}
-
-    counter_deleter(counter_deleter const&) = default;
-
-    void operator()(atomic_ctr_type* ptr) { allocator.deallocate(ptr, 1); }
-
-    counter_allocator_type& allocator;
-  };
-
-  /**
    * @brief Custom deleter for unique pointer of slots.
    */
   struct slot_deleter {
-    slot_deleter(slot_allocator_type& a, size_t& c) : allocator{a}, capacity{c} {}
+    slot_deleter(allocator_type& a, size_t& c) : allocator{a}, capacity{c} {}
 
     slot_deleter(slot_deleter const&) = default;
 
     void operator()(pair_atomic_type* ptr) { allocator.deallocate(ptr, capacity); }
 
-    slot_allocator_type& allocator;
+    allocator_type& allocator;
     size_t& capacity;
   };
 
@@ -1770,14 +1818,11 @@ class static_multimap {
   }
 
  private:
-  std::size_t capacity_{};                      ///< Total number of slots
-  Key empty_key_sentinel_{};                    ///< Key value that represents an empty slot
-  Value empty_value_sentinel_{};                ///< Initial value of empty slot
-  slot_allocator_type slot_allocator_{};        ///< Allocator used to allocate slots
-  counter_allocator_type counter_allocator_{};  ///< Allocator used to allocate counters
-  counter_deleter delete_counter_;              ///< Custom counter deleter
-  slot_deleter delete_slots_;                   ///< Custom slots deleter
-  std::unique_ptr<atomic_ctr_type, counter_deleter> d_counter_{};  ///< Preallocated device counter
+  std::size_t capacity_{};        ///< Total number of slots
+  Key empty_key_sentinel_{};      ///< Key value that represents an empty slot
+  Value empty_value_sentinel_{};  ///< Initial value of empty slot
+  allocator_type allocator_{};    ///< Allocator used to allocate slots
+  slot_deleter delete_slots_;     ///< Custom slots deleter
   std::unique_ptr<pair_atomic_type, slot_deleter> slots_{};  ///< Pointer to flat slots storage
 };  // class static_multimap
 

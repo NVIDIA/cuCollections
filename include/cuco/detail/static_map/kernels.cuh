@@ -22,6 +22,7 @@
 #include <cuda/atomic>
 
 #include <cooperative_groups.h>
+#include <cooperative_groups/reduce.h>
 
 #include <iterator>
 
@@ -105,6 +106,94 @@ __global__ void insert_or_apply(InputIt first, cuco::detail::index_type n, Op op
       ref.insert_or_apply(tile, insert_pair, op);
     }
     idx += loop_stride;
+  }
+}
+
+template <int32_t CGSize,
+          int32_t BlockSize,
+          class SharedMapRefType,
+          class InputIt,
+          class Op,
+          class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
+  InputIt first,
+  cuco::detail::index_type n,
+  Op op,
+  Ref ref,
+  typename SharedMapRefType::extent_type window_extent)
+{
+  static_assert(CGSize == 1, "use shared_memory kernel only if cg_size == 1");
+  namespace cg     = cooperative_groups;
+  using Key        = typename Ref::key_type;
+  using Value      = typename Ref::mapped_type;
+  using value_type = typename std::iterator_traits<InputIt>::value_type;
+
+  auto const block       = cg::this_thread_block();
+  auto const thread_idx  = block.thread_rank();
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
+
+  auto warp                  = cg::tiled_partition<32>(block);
+  auto const warp_thread_idx = warp.thread_rank();
+
+  // Shared map initialization
+  __shared__ typename SharedMapRefType::window_type windows[window_extent.value()];
+  auto storage           = SharedMapRefType::storage_ref_type(window_extent, windows);
+  auto const num_windows = storage.num_windows();
+
+  using atomic_type = cuda::atomic<int32_t, cuda::thread_scope_block>;
+  __shared__ atomic_type block_cardinality;
+  if (thread_idx == 0) { new (&block_cardinality) atomic_type{}; }
+  block.sync();
+
+  auto shared_map     = SharedMapRefType{cuco::empty_key<Key>{ref.empty_key_sentinel()},
+                                     cuco::empty_value<Value>{ref.empty_value_sentinel()},
+                                         {},
+                                         {},
+                                         {},
+                                     storage};
+  auto shared_map_ref = std::move(shared_map).with(cuco::op::insert_or_apply);
+  shared_map_ref.initialize(block);
+  block.sync();
+
+  while ((idx - thread_idx / CGSize) < n) {
+    int32_t inserted          = 0;
+    int32_t local_cardinality = 0;
+    // insert-or-apply into the shared map first
+    if (idx < n) {
+      value_type const& insert_pair = *(first + idx);
+      inserted                      = shared_map_ref.insert_or_apply(insert_pair, op);
+    }
+    if (idx - warp_thread_idx < n) {  // all threads in warp particpate
+      local_cardinality = cg::reduce(warp, inserted, cg::plus<int32_t>());
+    }
+    if (warp_thread_idx == 0) {
+      block_cardinality.fetch_add(local_cardinality, cuda::memory_order_relaxed);
+    }
+    block.sync();
+    if (block_cardinality > BlockSize) { break; }
+    idx += loop_stride;
+  }
+
+  // insert-or-apply from shared map to global map
+  auto window_idx = thread_idx;
+  while (window_idx < num_windows) {
+    auto const slot = storage[window_idx][0];
+    if (not cuco::detail::bitwise_compare(slot.first, ref.empty_key_sentinel())) {
+      ref.insert_or_apply(slot, op);
+    }
+    window_idx += BlockSize;
+  }
+
+  // insert-or-apply into global map for the remaining elements whose block_cardinality
+  // exceeds the cardinality threshold.
+  if (block_cardinality > BlockSize) {
+    idx += loop_stride;
+    while (idx < n) {
+      value_type const& insert_pair = *(first + idx);
+      ref.insert_or_apply(insert_pair, op);
+      idx += loop_stride;
+    }
   }
 }
 
