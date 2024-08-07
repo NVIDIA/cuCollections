@@ -15,6 +15,7 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
+#include <cuco/detail/static_map/helpers.cuh>
 #include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
@@ -23,6 +24,7 @@
 
 #include <cuda/stream_ref>
 
+#include <algorithm>
 #include <cstddef>
 
 namespace cuco {
@@ -375,18 +377,56 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename Init, typename Op>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_or_apply(InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream)
+{
+  this->insert_or_apply_async(first, last, init, op, stream);
+  stream.wait();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename InputIt, typename Op>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   insert_or_apply_async(InputIt first, InputIt last, Op op, cuda::stream_ref stream) noexcept
 {
-  auto const num = cuco::detail::distance(first, last);
-  if (num == 0) { return; }
+  auto constexpr has_init = false;
+  auto const init = this->empty_value_sentinel();  // use empty_sentinel as unused init value
+  static_map_ns::detail::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
+    first, last, init, op, ref(op::insert_or_apply), stream);
+}
 
-  auto const grid_size = cuco::detail::grid_size(num, cg_size);
-
-  static_map_ns::detail::insert_or_apply<cg_size, cuco::detail::default_block_size()>
-    <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-      first, num, op, ref(op::insert_or_apply));
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename Init, typename Op>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_or_apply_async(
+    InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream) noexcept
+{
+  using shared_map_type   = cuco::static_map<Key,
+                                             T,
+                                             int32_t,
+                                             cuda::thread_scope_block,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             Allocator,
+                                             cuco::storage<1>>;
+  auto constexpr has_init = true;
+  static_map_ns::detail::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
+    first, last, init, op, ref(op::insert_or_apply), stream);
 }
 
 template <class Key,
