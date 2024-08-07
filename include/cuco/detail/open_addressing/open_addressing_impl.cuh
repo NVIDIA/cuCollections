@@ -698,14 +698,14 @@ class open_addressing_impl {
     auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
       this->empty_key_sentinel(), this->erased_key_sentinel()};
 
-    auto const op =
-      [callback_op, is_filled, storage_ = this->storage_ref()] __device__(auto const window_slots) {
-        for (auto const slot : window_slots) {
-          if (is_filled(slot)) { callback_op(slot); }
-        }
-      };
+    auto storage_ref = this->storage_ref();
+    auto const op    = [callback_op, is_filled, storage_ref] __device__(auto const window_slots) {
+      for (auto const slot : window_slots) {
+        if (is_filled(slot)) { callback_op(slot); }
+      }
+    };
 
-    cub::DeviceFor::ForEachCopyN(storage_.data(), storage_.num_windows(), op, stream.get());
+    cub::DeviceFor::ForEachCopyN(storage_ref.data(), storage_ref.num_windows(), op, stream.get());
   }
 
   /**
