@@ -205,6 +205,20 @@ class static_map_ref
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept;
 
   /**
+   * @brief Gets the non-owning storage ref.
+   *
+   * @return The non-owning storage ref of the container
+   */
+  [[nodiscard]] __host__ __device__ constexpr auto storage_ref() const noexcept;
+
+  /**
+   * @brief Gets the probing scheme.
+   *
+   * @return The probing scheme used for the container
+   */
+  [[nodiscard]] __host__ __device__ constexpr auto probing_scheme() const noexcept;
+
+  /**
    * @brief Creates a reference with new operators from the current object.
    *
    * @deprecated This function is deprecated. Use the new `with_operators` instead.
