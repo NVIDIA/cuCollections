@@ -131,7 +131,35 @@ __global__ void insert_or_apply(
   }
 }
 
-// TODO: Add docs
+/**
+ * @brief For any key-value pair `{k, v}` in the range `[first, first + n)`, if a key equivalent to
+ * `k` already exists in the container, then binary operation is applied using `op` callable object
+ * on the existing value at slot and the element to insert. If the key does not exist, inserts the
+ * pair as if by insert.
+ *
+ * @note Callable object to perform binary operation should be able to invoke as
+ * Op(cuda::atomic_ref<T,Scope>, T>)
+ * @note If `HasInit` is `true` and if `init == empty_sentinel_value`, we directly
+ * `apply` the `op` instead of atomic store and then waiting for the payload to get materalized.
+ * This has potential speedups when insert strategy is not `packed_cas`.
+ *
+ * @tparam HasInit Boolean to dispatch based on init parameter
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam SharedMapRefType The Shared Memory Map Ref Type
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the `value_type` of the data structure
+ * @tparam Init Type of init value convertible to payload type
+ * @tparam Op Callable type used to peform `apply` operation.
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param init The init value of the op
+ * @param op Callable object to perform apply operation.
+ * @param ref Non-owning container device ref used to access the slot storage
+ * @param window_extent Window Extent used for shared memory map slot storage
+ */
 template <bool HasInit,
           int32_t CGSize,
           int32_t BlockSize,
@@ -234,79 +262,4 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
     }
   }
 }
-
-// TODO: Add docs
-template <bool HasInit,
-          int32_t CGSize,
-          typename Allocator,
-          typename InputIt,
-          typename Init,
-          typename Op,
-          typename Ref>
-void dispatch_insert_or_apply(
-  InputIt first, InputIt last, Init init, Op op, Ref ref, cuda::stream_ref stream)
-{
-  auto const num = cuco::detail::distance(first, last);
-  if (num == 0) { return; }
-
-  int32_t const default_grid_size = cuco::detail::grid_size(num, CGSize);
-
-  if constexpr (CGSize == 1) {
-    using shmem_size_type = int32_t;
-
-    int32_t constexpr shmem_block_size                = 1024;
-    shmem_size_type constexpr cardinality_threshold   = shmem_block_size;
-    shmem_size_type constexpr shared_map_num_elements = cardinality_threshold + shmem_block_size;
-    float constexpr load_factor                       = 0.7;
-    shmem_size_type constexpr shared_map_size =
-      static_cast<shmem_size_type>((1.0 / load_factor) * shared_map_num_elements);
-
-    using extent_type     = cuco::extent<shmem_size_type, shared_map_size>;
-    using shared_map_type = cuco::static_map<typename Ref::key_type,
-                                             typename Ref::mapped_type,
-                                             extent_type,
-                                             cuda::thread_scope_block,
-                                             typename Ref::key_equal,
-                                             typename Ref::probing_scheme_type,
-                                             Allocator,
-                                             cuco::storage<1>>;
-
-    using shared_map_ref_type    = typename shared_map_type::ref_type<>;
-    auto constexpr window_extent = cuco::make_window_extent<shared_map_ref_type>(extent_type{});
-
-    auto insert_or_apply_shmem_fn_ptr = insert_or_apply_shmem<HasInit,
-                                                              CGSize,
-                                                              shmem_block_size,
-                                                              shared_map_ref_type,
-                                                              InputIt,
-                                                              Init,
-                                                              Op,
-                                                              Ref>;
-
-    int32_t const max_op_grid_size =
-      cuco::detail::max_occupancy_grid_size(shmem_block_size, insert_or_apply_shmem_fn_ptr);
-
-    int32_t const shmem_default_grid_size =
-      cuco::detail::grid_size(num, CGSize, cuco::detail::default_stride(), shmem_block_size);
-
-    auto const shmem_grid_size         = std::min(shmem_default_grid_size, max_op_grid_size);
-    auto const num_elements_per_thread = num / (shmem_grid_size * shmem_block_size);
-
-    // use shared_memory only if each thread has atleast 3 elements to process
-    if (num_elements_per_thread > 2) {
-      insert_or_apply_shmem<HasInit, CGSize, shmem_block_size, shared_map_ref_type>
-        <<<shmem_grid_size, shmem_block_size, 0, stream.get()>>>(
-          first, num, init, op, ref, window_extent);
-    } else {
-      insert_or_apply<HasInit, CGSize, cuco::detail::default_block_size()>
-        <<<default_grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-          first, num, init, op, ref);
-    }
-  } else {
-    insert_or_apply<HasInit, CGSize, cuco::detail::default_block_size()>
-      <<<default_grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-        first, num, init, op, ref);
-  }
-}
-
 }  // namespace cuco::static_map_ns::detail

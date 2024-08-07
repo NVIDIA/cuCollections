@@ -15,6 +15,7 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
+#include <cuco/detail/static_map/helpers.cuh>
 #include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
