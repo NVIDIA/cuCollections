@@ -705,7 +705,8 @@ class open_addressing_impl {
       }
     };
 
-    cub::DeviceFor::ForEachCopyN(storage_ref.data(), storage_ref.num_windows(), op, stream.get());
+    CUCO_CUDA_TRY(cub::DeviceFor::ForEachCopyN(
+      storage_ref.data(), storage_ref.num_windows(), op, stream.get()));
   }
 
   /**
