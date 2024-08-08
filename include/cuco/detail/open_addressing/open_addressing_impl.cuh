@@ -693,7 +693,7 @@ class open_addressing_impl {
    * @param stream CUDA stream used for this operation
    */
   template <typename CallbackOp>
-  void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream)
+  void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream) const
   {
     auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
       this->empty_key_sentinel(), this->erased_key_sentinel()};
@@ -731,7 +731,7 @@ class open_addressing_impl {
                       InputIt last,
                       CallbackOp&& callback_op,
                       Ref container_ref,
-                      cuda::stream_ref stream)
+                      cuda::stream_ref stream) const noexcept
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }

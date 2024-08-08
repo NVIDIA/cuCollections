@@ -153,70 +153,6 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <typename CallbackOp>
-void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
-  CallbackOp&& callback_op, cuda::stream_ref stream)
-{
-  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
-  stream.wait();
-}
-
-template <class Key,
-          class T,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-template <typename CallbackOp>
-void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each_async(
-  CallbackOp&& callback_op, cuda::stream_ref stream)
-{
-  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
-}
-
-template <class Key,
-          class T,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-template <typename InputIt, typename CallbackOp>
-void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
-  InputIt first, InputIt last, CallbackOp&& callback_op, cuda::stream_ref stream)
-{
-  impl_->for_each_async(
-    first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
-  stream.wait();
-}
-
-template <class Key,
-          class T,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-template <typename InputIt, typename CallbackOp>
-void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each_async(
-  InputIt first, InputIt last, CallbackOp&& callback_op, cuda::stream_ref stream)
-{
-  impl_->for_each_async(
-    first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
-}
-
-template <class Key,
-          class T,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
 template <typename InputIt>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
@@ -561,6 +497,70 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
   impl_->find_async(first, last, output_begin, ref(op::find), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename CallbackOp>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
+  CallbackOp&& callback_op, cuda::stream_ref stream) const
+{
+  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
+  stream.wait();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename CallbackOp>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each_async(
+  CallbackOp&& callback_op, cuda::stream_ref stream) const
+{
+  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename CallbackOp>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
+  InputIt first, InputIt last, CallbackOp&& callback_op, cuda::stream_ref stream) const
+{
+  impl_->for_each_async(
+    first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
+  stream.wait();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename CallbackOp>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each_async(
+  InputIt first, InputIt last, CallbackOp&& callback_op, cuda::stream_ref stream) const noexcept
+{
+  impl_->for_each_async(
+    first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
 }
 
 template <class Key,

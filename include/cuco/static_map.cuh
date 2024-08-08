@@ -280,76 +280,6 @@ class static_map {
   void clear_async(cuda::stream_ref stream = {}) noexcept;
 
   /**
-   * @brief Executes a callback on every filled element in the container.
-   *
-   * @note Passes a copy of the filled element to the callback.
-   *
-   * @tparam CallbackOp Unary callback functor or device lambda
-   *
-   * @param callback_op Function to call on every filled element in the container
-   * @param stream CUDA stream used for this operation
-   */
-  template <typename CallbackOp>
-  void for_each(CallbackOp&& callback_op, cuda::stream_ref stream = {});
-
-  /**
-   * @brief Asynchronously executes a callback on every filled element in the container.
-   *
-   * @note Passes an un-incrementable input iterator to the element whose key is filled
-   *
-   * @tparam CallbackOp Unary callback functor or device lambda
-   *
-   * @param callback_op Function to call on every filled element in the container
-   * @param stream CUDA stream used for this operation
-   */
-  template <typename CallbackOp>
-  void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream = {});
-
-  /**
-   * @brief Executes a callback on every element in the container whose key matches with
-   * a key from the input key sequence.
-   *
-   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
-   * to the callback.
-   *
-   * @tparam InputIt Device accessible random access input iterator whose `value_type` is
-   * convertible to key type of the map.
-   * @tparam CallbackOp Unary callback functor or device lambda
-   *
-   * @param first Beginning of the sequence of keys
-   * @param last End of the sequence of keys
-   * @param callback_op Function to call on every element found in the container
-   * @param stream CUDA stream used for this operation
-   */
-  template <typename InputIt, typename CallbackOp>
-  void for_each(InputIt first,
-                InputIt last,
-                CallbackOp&& callback_op,
-                cuda::stream_ref stream = {});
-
-  /**
-   * @brief Asynchronously executes a callback on every element in the container whose key matches
-   * with a key from the input key sequence.
-   *
-   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
-   * to the callback.
-   *
-   * @tparam InputIt Device accessible random access input iterator whose `value_type` is
-   * convertible to key type of the map.
-   * @tparam CallbackOp Unary callback functor or device lambda
-   *
-   * @param first Beginning of the sequence of keys
-   * @param last End of the sequence of keys
-   * @param callback_op Function to call on every element found in the container
-   * @param stream CUDA stream used for this operation
-   */
-  template <typename InputIt, typename CallbackOp>
-  void for_each_async(InputIt first,
-                      InputIt last,
-                      CallbackOp&& callback_op,
-                      cuda::stream_ref stream = {});
-
-  /**
    * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
    * insertions.
    *
@@ -831,6 +761,76 @@ class static_map {
                   InputIt last,
                   OutputIt output_begin,
                   cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Executes a callback on every filled element in the container.
+   *
+   * @note Passes a copy of the filled element to the callback.
+   *
+   * @tparam CallbackOp Unary callback functor or device lambda
+   *
+   * @param callback_op Function to call on every filled element in the container
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename CallbackOp>
+  void for_each(CallbackOp&& callback_op, cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchronously executes a callback on every filled element in the container.
+   *
+   * @note Passes an un-incrementable input iterator to the element whose key is filled
+   *
+   * @tparam CallbackOp Unary callback functor or device lambda
+   *
+   * @param callback_op Function to call on every filled element in the container
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename CallbackOp>
+  void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Executes a callback on every element in the container whose key matches with
+   * a key from the input key sequence.
+   *
+   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
+   * to the callback.
+   *
+   * @tparam InputIt Device accessible random access input iterator whose `value_type` is
+   * convertible to key type of the map.
+   * @tparam CallbackOp Unary callback functor or device lambda
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param callback_op Function to call on every element found in the container
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename CallbackOp>
+  void for_each(InputIt first,
+                InputIt last,
+                CallbackOp&& callback_op,
+                cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchronously executes a callback on every element in the container whose key matches
+   * with a key from the input key sequence.
+   *
+   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
+   * to the callback.
+   *
+   * @tparam InputIt Device accessible random access input iterator whose `value_type` is
+   * convertible to key type of the map.
+   * @tparam CallbackOp Unary callback functor or device lambda
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param callback_op Function to call on every element found in the container
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename CallbackOp>
+  void for_each_async(InputIt first,
+                      InputIt last,
+                      CallbackOp&& callback_op,
+                      cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Retrieves all of the keys and their associated values.
