@@ -495,8 +495,8 @@ class operator_impl<
    * @brief Executes a callback on every element in the container with key equivalent to the probe
    * key.
    *
-   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
-   * to the callback.
+   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
+   * `key` to the callback.
    *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
    * @tparam CallbackOp Unary callback functor or device lambda
@@ -516,8 +516,8 @@ class operator_impl<
    * @brief Executes a callback on every element in the container with key equivalent to the probe
    * key.
    *
-   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
-   * to the callback.
+   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
+   * `key` to the callback.
    *
    * @note This function uses cooperative group semantics, meaning that any thread may call the
    * callback if it finds a matching element. If multiple elements are found within the same group,
@@ -547,8 +547,8 @@ class operator_impl<
    * key and can additionally perform work that requires synchronizing the Cooperative Group
    * performing this operation.
    *
-   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
-   * to the callback.
+   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
+   * `key` to the callback.
    *
    * @note This function uses cooperative group semantics, meaning that any thread may call the
    * callback if it finds a matching element. If multiple elements are found within the same group,
