@@ -97,26 +97,26 @@ class bloom_filter_ref
     //     pattern[i] |= word_type{1} << (hash_value & bit_index_mask);
     //     hash_value >>= bit_index_width;
     //   }
+
+    return pattern;
   }
 
-  return pattern;
-}
+ private:
+  uint32_t pattern_bits_;
+  Hash hash_;
+  storage_ref_type storage_ref_;
 
-private : uint32_t pattern_bits_;
-Hash hash_;
-storage_ref_type storage_ref_;
+  // Mixins need to be friends with this class in order to access private members
+  template <class Op, class Ref>
+  friend class detail::operator_impl;
 
-// Mixins need to be friends with this class in order to access private members
-template <class Op, class Ref>
-friend class detail::operator_impl;
-
-// Refs with other operator sets need to be friends too
-template <class Key_,
-          cuda::thread_scope Scope_,
-          class Hash_,
-          class StorageRef_,
-          class... Operators_>
-friend class bloom_filter_ref;
+  // Refs with other operator sets need to be friends too
+  template <class Key_,
+            cuda::thread_scope Scope_,
+            class Hash_,
+            class StorageRef_,
+            class... Operators_>
+  friend class bloom_filter_ref;
 };
 
 namespace detail {

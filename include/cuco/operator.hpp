@@ -80,16 +80,6 @@ struct for_each_tag {
 struct add_tag {
 } inline constexpr add;  ///< `cuco::add` operator
 
-namespace reduce {
-
-/**
- * @brief `sum` reduction operator tag
- */
-struct sum_tag {
-} inline constexpr sum;
-
-}  // namespace reduce
-
 }  // namespace op
 }  // namespace cuco
 
