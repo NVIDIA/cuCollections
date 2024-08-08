@@ -77,47 +77,101 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
  *
  * @note Callable object to perform binary operation should be able to invoke as
  * Op(cuda::atomic_ref<T,Scope>, T>)
+ * @note If `HasInit` is `true` and if `init == empty_sentinel_value`, we directly
+ * `apply` the `op` instead of atomic store and then waiting for the payload to get materalized.
+ * This has potential speedups when insert strategy is not `packed_cas`.
  *
+ * @tparam HasInit Boolean to dispatch based on init parameter
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the `value_type` of the data structure
+ * @tparam Init Type of init value convertible to payload type
  * @tparam Op Callable type used to peform `apply` operation.
  * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
+ * @param init The init value of the op
  * @param op Callable object to perform apply operation.
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Op, typename Ref>
-__global__ void insert_or_apply(InputIt first, cuco::detail::index_type n, Op op, Ref ref)
+template <bool HasInit,
+          int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIt,
+          typename Init,
+          typename Op,
+          typename Ref>
+__global__ void insert_or_apply(
+  InputIt first, cuco::detail::index_type n, [[maybe_unused]] Init init, Op op, Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    typename std::iterator_traits<InputIt>::value_type const& insert_pair = *(first + idx);
+    using value_type              = typename std::iterator_traits<InputIt>::value_type;
+    value_type const& insert_pair = *(first + idx);
     if constexpr (CGSize == 1) {
-      ref.insert_or_apply(insert_pair, op);
+      if constexpr (HasInit) {
+        ref.insert_or_apply(insert_pair, init, op);
+      } else {
+        ref.insert_or_apply(insert_pair, op);
+      }
     } else {
       auto const tile =
         cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
-      ref.insert_or_apply(tile, insert_pair, op);
+      if constexpr (HasInit) {
+        ref.insert_or_apply(tile, insert_pair, init, op);
+      } else {
+        ref.insert_or_apply(tile, insert_pair, op);
+      }
     }
     idx += loop_stride;
   }
 }
 
-template <int32_t CGSize,
+/**
+ * @brief For any key-value pair `{k, v}` in the range `[first, first + n)`, if a key equivalent to
+ * `k` already exists in the container, then binary operation is applied using `op` callable object
+ * on the existing value at slot and the element to insert. If the key does not exist, inserts the
+ * pair as if by insert.
+ *
+ * @note Callable object to perform binary operation should be able to invoke as
+ * Op(cuda::atomic_ref<T,Scope>, T>)
+ * @note If `HasInit` is `true` and if `init == empty_sentinel_value`, we directly
+ * `apply` the `op` instead of atomic store and then waiting for the payload to get materalized.
+ * This has potential speedups when insert strategy is not `packed_cas`.
+ *
+ * @tparam HasInit Boolean to dispatch based on init parameter
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam SharedMapRefType The Shared Memory Map Ref Type
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the `value_type` of the data structure
+ * @tparam Init Type of init value convertible to payload type
+ * @tparam Op Callable type used to peform `apply` operation.
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param init The init value of the op
+ * @param op Callable object to perform apply operation.
+ * @param ref Non-owning container device ref used to access the slot storage
+ * @param window_extent Window Extent used for shared memory map slot storage
+ */
+template <bool HasInit,
+          int32_t CGSize,
           int32_t BlockSize,
           class SharedMapRefType,
           class InputIt,
+          class Init,
           class Op,
           class Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   InputIt first,
   cuco::detail::index_type n,
+  [[maybe_unused]] Init init,
   Op op,
   Ref ref,
   typename SharedMapRefType::extent_type window_extent)
@@ -157,18 +211,22 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   block.sync();
 
   while ((idx - thread_idx / CGSize) < n) {
-    int32_t inserted          = 0;
-    int32_t local_cardinality = 0;
+    int32_t inserted         = 0;
+    int32_t warp_cardinality = 0;
     // insert-or-apply into the shared map first
     if (idx < n) {
       value_type const& insert_pair = *(first + idx);
-      inserted                      = shared_map_ref.insert_or_apply(insert_pair, op);
+      if constexpr (HasInit) {
+        inserted = shared_map_ref.insert_or_apply(insert_pair, init, op);
+      } else {
+        inserted = shared_map_ref.insert_or_apply(insert_pair, op);
+      }
     }
     if (idx - warp_thread_idx < n) {  // all threads in warp particpate
-      local_cardinality = cg::reduce(warp, inserted, cg::plus<int32_t>());
+      warp_cardinality = cg::reduce(warp, inserted, cg::plus<int32_t>());
     }
     if (warp_thread_idx == 0) {
-      block_cardinality.fetch_add(local_cardinality, cuda::memory_order_relaxed);
+      block_cardinality.fetch_add(warp_cardinality, cuda::memory_order_relaxed);
     }
     block.sync();
     if (block_cardinality > BlockSize) { break; }
@@ -180,7 +238,11 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   while (window_idx < num_windows) {
     auto const slot = storage[window_idx][0];
     if (not cuco::detail::bitwise_compare(slot.first, ref.empty_key_sentinel())) {
-      ref.insert_or_apply(slot, op);
+      if constexpr (HasInit) {
+        ref.insert_or_apply(slot, init, op);
+      } else {
+        ref.insert_or_apply(slot, op);
+      }
     }
     window_idx += BlockSize;
   }
@@ -191,10 +253,13 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
     idx += loop_stride;
     while (idx < n) {
       value_type const& insert_pair = *(first + idx);
-      ref.insert_or_apply(insert_pair, op);
+      if constexpr (HasInit) {
+        ref.insert_or_apply(insert_pair, init, op);
+      } else {
+        ref.insert_or_apply(insert_pair, op);
+      }
       idx += loop_stride;
     }
   }
 }
-
 }  // namespace cuco::static_map_ns::detail

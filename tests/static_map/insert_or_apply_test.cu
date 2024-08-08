@@ -17,6 +17,7 @@
 #include <test_utils.hpp>
 
 #include <cuco/static_map.cuh>
+#include <cuco/utility/reduction_functors.cuh>
 
 #include <cuda/atomic>
 #include <thrust/device_vector.h>
@@ -29,20 +30,11 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 #include <cstdint>
-#include <iostream>
 
 using size_type = std::size_t;
 
-struct binary_plus_op {
-  template <typename T, cuda::thread_scope Scope>
-  __device__ void operator()(cuda::atomic_ref<T, Scope> lhs, T rhs)
-  {
-    lhs.fetch_add(rhs, cuda::memory_order_relaxed);
-  }
-};
-
-template <typename Map>
-void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_keys)
+template <bool HasInit, typename Map, typename Init>
+void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_keys, Init init)
 {
   REQUIRE((num_keys % num_unique_keys) == 0);
 
@@ -56,7 +48,12 @@ void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_key
       return cuco::pair<Key, Value>{i % num_unique_keys, 1};
     }));
 
-  map.insert_or_apply(pairs_begin, pairs_begin + num_keys, binary_plus_op{});
+  auto constexpr plus_op = cuco::reduce::plus{};
+  if constexpr (HasInit) {
+    map.insert_or_apply(pairs_begin, pairs_begin + num_keys, init, plus_op);
+  } else {
+    map.insert_or_apply(pairs_begin, pairs_begin + num_keys, plus_op);
+  }
 
   REQUIRE(map.size() == num_unique_keys);
 
@@ -70,8 +67,8 @@ void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_key
                             thrust::equal_to<Value>{}));
 }
 
-template <typename Map>
-void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_unique_keys)
+template <bool HasInit, typename Map, typename Init>
+void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_unique_keys, Init init)
 {
   REQUIRE((num_keys % num_unique_keys) == 0);
 
@@ -118,9 +115,14 @@ void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_uniq
   cuda::stream_ref stream{};
 
   // launch the shmem kernel
-  cuco::static_map_ns::detail::insert_or_apply_shmem<cg_size, shmem_block_size, shared_map_ref_type>
-    <<<shmem_grid_size, shmem_block_size, 0, stream.get()>>>(
-      pairs_begin, num_keys, binary_plus_op{}, map.ref(cuco::op::insert_or_apply), window_extent);
+  cuco::static_map_ns::detail::
+    insert_or_apply_shmem<HasInit, cg_size, shmem_block_size, shared_map_ref_type>
+    <<<shmem_grid_size, shmem_block_size, 0, stream.get()>>>(pairs_begin,
+                                                             num_keys,
+                                                             init,
+                                                             cuco::reduce::plus{},
+                                                             map.ref(cuco::op::insert_or_apply),
+                                                             window_extent);
 
   REQUIRE(map.size() == num_unique_keys);
 
@@ -176,18 +178,25 @@ TEMPLATE_TEST_CASE_SIG(
                                     cuco::cuda_allocator<std::byte>,
                                     cuco::storage<2>>;
 
-  SECTION("Sentinel equals to identity")
+  SECTION("sentinel equals init; has_init = true")
   {
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
-
-    test_insert_or_apply(map, num_keys, num_unique_keys);
+    test_insert_or_apply<true>(map, num_keys, num_unique_keys, static_cast<Value>(0));
   }
-
-  SECTION("Sentinel not equals to identity")
+  SECTION("sentinel equals init; has_init = false")
   {
-    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
-
-    test_insert_or_apply(map, num_keys, num_unique_keys);
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+    test_insert_or_apply<false>(map, num_keys, num_unique_keys, static_cast<Value>(0));
+  }
+  SECTION("sentinel not equals init; has_init = true")
+  {
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+    test_insert_or_apply<true>(map, num_keys, num_unique_keys, static_cast<Value>(-1));
+  }
+  SECTION("sentinel not equals init; has_init = false")
+  {
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+    test_insert_or_apply<false>(map, num_keys, num_unique_keys, static_cast<Value>(-1));
   }
 }
 
@@ -198,17 +207,35 @@ TEMPLATE_TEST_CASE_SIG(
 
   constexpr size_type num_keys = 100;
 
-  auto map = cuco::static_map<Key,
-                              Value,
-                              cuco::extent<size_type>,
-                              cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
-                              cuco::linear_probing<1, cuco::murmurhash3_32<Key>>,
-                              cuco::cuda_allocator<std::byte>,
-                              cuco::storage<2>>{
-    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+  using map_type = cuco::static_map<Key,
+                                    Value,
+                                    cuco::extent<size_type>,
+                                    cuda::thread_scope_device,
+                                    thrust::equal_to<Key>,
+                                    cuco::linear_probing<2, cuco::murmurhash3_32<Key>>,
+                                    cuco::cuda_allocator<std::byte>,
+                                    cuco::storage<2>>;
 
-  test_insert_or_apply(map, num_keys, num_keys);
+  SECTION("sentinel equals init; has_init = true")
+  {
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+    test_insert_or_apply<true>(map, num_keys, num_keys, static_cast<Value>(0));
+  }
+  SECTION("sentinel equals init; has_init = false")
+  {
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+    test_insert_or_apply<false>(map, num_keys, num_keys, static_cast<Value>(0));
+  }
+  SECTION("sentinel not equals init; has_init = true")
+  {
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+    test_insert_or_apply<true>(map, num_keys, num_keys, static_cast<Value>(-1));
+  }
+  SECTION("sentinel not equals init; has_init = false")
+  {
+    auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+    test_insert_or_apply<false>(map, num_keys, num_keys, static_cast<Value>(-1));
+  }
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -231,7 +258,7 @@ TEMPLATE_TEST_CASE_SIG(
     constexpr size_type num_unique_keys = 100;
 
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
-    test_insert_or_apply_shmem(map, num_keys, num_unique_keys);
+    test_insert_or_apply_shmem<true>(map, num_keys, num_unique_keys, static_cast<Value>(0));
   }
 
   SECTION("unique keys")
@@ -240,6 +267,6 @@ TEMPLATE_TEST_CASE_SIG(
     constexpr size_type num_unique_keys = num_keys;
 
     auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
-    test_insert_or_apply_shmem(map, num_keys, num_unique_keys);
+    test_insert_or_apply_shmem<true>(map, num_keys, num_unique_keys, static_cast<Value>(0));
   }
 }
