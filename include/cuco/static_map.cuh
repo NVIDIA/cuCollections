@@ -564,7 +564,7 @@ class static_map {
    * @param op Callable object to perform apply operation.
    * @param stream CUDA stream used for insert
    */
-  template <typename InputIt, typename Init, typename Op>
+  template <typename InputIt, typename Init, typename Op, typename = cuda::std::enable_if_t<std::is_convertible_v<Init, T>>>
   void insert_or_apply_async(
     InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream = {}) noexcept;
 
