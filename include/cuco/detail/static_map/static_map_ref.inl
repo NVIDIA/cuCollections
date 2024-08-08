@@ -1271,17 +1271,14 @@ class operator_impl<
 
  public:
   /**
-   * @brief Executes a callback on every element in the container with key equivalent to the probe
-   * key.
+   * @brief For a given key, applies the function object `callback_op` to its match found in the
+   * container.
    *
-   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
-   * to the callback.
-   *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Unary callback functor or device lambda
    *
    * @param key The key to search for
-   * @param callback_op Function to call on every element found
+   * @param callback_op Function to apply to the match
    */
   template <class ProbeKey, class CallbackOp>
   __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
@@ -1292,11 +1289,8 @@ class operator_impl<
   }
 
   /**
-   * @brief Executes a callback on every element in the container with key equivalent to the probe
-   * key.
-   *
-   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
-   * `key` to the callback.
+   * @brief For a given key, applies the function object `callback_op` to its match found in the
+   * container.
    *
    * @note This function uses cooperative group semantics, meaning that any thread may call the
    * callback if it finds a matching element. If multiple elements are found within the same group,
@@ -1304,12 +1298,12 @@ class operator_impl<
    *
    * @note Synchronizing `group` within `callback_op` is undefined behavior.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Unary callback functor or device lambda
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
-   * @param callback_op Function to call on every element found
+   * @param callback_op Function to apply to the match
    */
   template <class ProbeKey, class CallbackOp>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
