@@ -60,6 +60,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
     if (pred(*(stencil + idx))) {
       typename std::iterator_traits<InputIt>::value_type const& query{*(first + idx)};
       *(out + idx) = ref.contains(query);
+    } else {
+      *(out + idx) = false;
     }
     idx += loop_stride;
   }
