@@ -734,7 +734,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::for_each<cg_size, cuco::detail::default_block_size()>
+    detail::for_each_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, std::forward<CallbackOp>(callback_op), container_ref);
   }

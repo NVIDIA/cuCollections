@@ -183,17 +183,14 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void erase(InputIt first,
 }
 
 /**
- * @brief Asynchronously executes a callback on every element in the container whose key matches
- * with a key from the input key sequence.
- *
- * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
- * to the callback.
+ * @brief For each key in the range [first, first + n), applies the function object `callback_op` to
+ * the copy of all corresponding matches found in the container.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIt Device accessible input iterator whose `value_type` is
  * convertible to the `key_type` of the data structure
- * @tparam CallbackOp Unary callback functor or device lambda
+ * @tparam CallbackOp Type of unary callback function object
  * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
@@ -202,10 +199,10 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void erase(InputIt first,
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename CallbackOp, typename Ref>
-CUCO_KERNEL __launch_bounds__(BlockSize) void for_each(InputIt first,
-                                                       cuco::detail::index_type n,
-                                                       CallbackOp callback_op,
-                                                       Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void for_each_n(InputIt first,
+                                                         cuco::detail::index_type n,
+                                                         CallbackOp callback_op,
+                                                         Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
