@@ -132,3 +132,8 @@ ConfigureTest(DISTINCT_COUNT_ESTIMATOR_TEST
     distinct_count_estimator/unique_sequence_test.cu
     distinct_count_estimator/spark_parity_test.cu
     distinct_count_estimator/device_ref_test.cu)
+
+###################################################################################################
+# - bloom_filter ----------------------------------------------------------------------------------
+ConfigureTest(BLOOM_FILTER_TEST
+    bloom_filter/unique_sequence_test.cu)
