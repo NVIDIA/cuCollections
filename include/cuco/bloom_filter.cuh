@@ -35,6 +35,7 @@
 // move these includes to .inl
 #include <cuco/detail/bloom_filter/kernels.cuh>
 
+#include <cub/device/device_for.cuh>
 #include <thrust/functional.h>
 #include <thrust/iterator/constant_iterator.h>
 
@@ -111,8 +112,16 @@ class bloom_filter {
   template <class InputIt>
   void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {})
   {
-    auto const always_true = thrust::constant_iterator<bool>{true};
-    this->add_if_async(first, last, always_true, thrust::identity{}, stream);
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto add_op = [ref = this->ref(op::add)] __device__(key_type const key) mutable {
+      ref.add(key);
+    };
+    cub::DeviceFor::ForEachCopyN(first, num_keys, add_op, stream.get());
+
+    // auto const always_true = thrust::constant_iterator<bool>{true};
+    // this->add_if_async(first, last, always_true, thrust::identity{}, stream);
   }
 
   template <class InputIt, class StencilIt, class Predicate>
