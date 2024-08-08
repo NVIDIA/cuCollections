@@ -98,3 +98,8 @@ ConfigureBench(HASH_FUNCTION_BENCH
 # - distinct_count_estimator benchmarks -----------------------------------------------------------
 ConfigureBench(DISTINCT_COUNT_ESTIMATOR_BENCH
   distinct_count_estimator/distinct_count_estimator_bench.cu)
+
+###################################################################################################
+# - bloom_filter benchmarks -----------------------------------------------------------
+ConfigureBench(BLOOM_FILTER_BENCH
+  bloom_filter/bloom_filter_bench.cu)

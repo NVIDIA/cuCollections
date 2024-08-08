@@ -74,6 +74,12 @@ struct find_tag {
 struct for_each_tag {
 } inline constexpr for_each;  ///< `cuco::for_each` operator
 
+/**
+ * @brief `add` operator tag
+ */
+struct add_tag {
+} inline constexpr add;  ///< `cuco::add` operator
+
 namespace reduce {
 
 /**
