@@ -59,6 +59,7 @@ class bloom_filter_ref
   {
   }
 
+ private:
   // we use the MSB bits of the hash value to determine the sub filter for this key
   template <class HashValue>
   __device__ size_type sub_filter_idx(HashValue hash_value) const
@@ -101,7 +102,6 @@ class bloom_filter_ref
     return pattern;
   }
 
- private:
   uint32_t pattern_bits_;
   Hash hash_;
   storage_ref_type storage_ref_;
