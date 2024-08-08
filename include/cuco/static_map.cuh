@@ -763,45 +763,39 @@ class static_map {
                   cuda::stream_ref stream = {}) const;
 
   /**
-   * @brief Executes a callback on every filled element in the container.
+   * @brief Applies the given function object `callback_op` to the copy of every filled slot in the
+   * container
    *
-   * @note Passes a copy of the filled element to the callback.
+   * @tparam CallbackOp Type of unary callback function object
    *
-   * @tparam CallbackOp Unary callback functor or device lambda
-   *
-   * @param callback_op Function to call on every filled element in the container
+   * @param callback_op Function to call on every filled slot in the container
    * @param stream CUDA stream used for this operation
    */
   template <typename CallbackOp>
   void for_each(CallbackOp&& callback_op, cuda::stream_ref stream = {}) const;
 
   /**
-   * @brief Asynchronously executes a callback on every filled element in the container.
+   * @brief Asynchronously applies the given function object `callback_op` to the copy of every
+   * filled slot in the container
    *
-   * @note Passes an un-incrementable input iterator to the element whose key is filled
+   * @tparam CallbackOp Type of unary callback function object
    *
-   * @tparam CallbackOp Unary callback functor or device lambda
-   *
-   * @param callback_op Function to call on every filled element in the container
+   * @param callback_op Function to call on every filled slot in the container
    * @param stream CUDA stream used for this operation
    */
   template <typename CallbackOp>
   void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream = {}) const;
 
   /**
-   * @brief Executes a callback on every element in the container whose key matches with
-   * a key from the input key sequence.
+   * @brief For each key in the range [first, last), applies the function object `callback_op` to
+   * the copy of all corresponding matches found in the container.
    *
-   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
-   * to the callback.
-   *
-   * @tparam InputIt Device accessible random access input iterator whose `value_type` is
-   * convertible to key type of the map.
-   * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam CallbackOp Type of unary callback function object
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param callback_op Function to call on every element found in the container
+   * @param callback_op Function to call on every match found in the container
    * @param stream CUDA stream used for this operation
    */
   template <typename InputIt, typename CallbackOp>
@@ -811,19 +805,15 @@ class static_map {
                 cuda::stream_ref stream = {}) const;
 
   /**
-   * @brief Asynchronously executes a callback on every element in the container whose key matches
-   * with a key from the input key sequence.
+   * @brief For each key in the range [first, last), asynchronously applies the function object
+   * `callback_op` to the copy of all corresponding matches found in the container.
    *
-   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
-   * to the callback.
-   *
-   * @tparam InputIt Device accessible random access input iterator whose `value_type` is
-   * convertible to key type of the map.
-   * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam CallbackOp Type of unary callback function object
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param callback_op Function to call on every element found in the container
+   * @param callback_op Function to call on every match found in the container
    * @param stream CUDA stream used for this operation
    */
   template <typename InputIt, typename CallbackOp>
