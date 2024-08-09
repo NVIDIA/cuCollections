@@ -966,8 +966,8 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief For a given key, applies the function object `callback_op` to all corresponding matches
-   * found in the container.
+   * @brief For a given key, applies the function object `callback_op` to the copy of all
+   * corresponding matches found in the container.
    *
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Type of unary callback function object
@@ -1003,8 +1003,8 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief For a given key, applies the function object `callback_op` to all corresponding matches
-   * found in the container.
+   * @brief For a given key, applies the function object `callback_op` to the copy of all
+   * corresponding matches found in the container.
    *
    * @note This function uses cooperative group semantics, meaning that any thread may call the
    * callback if it finds a matching element. If multiple elements are found within the same group,
@@ -1054,12 +1054,9 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Applies the function object `callback_op` on every slot in the container with key
-   * equivalent to the probe key and can additionally perform work that requires synchronizing the
-   * Cooperative Group performing this operation.
-   *
-   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
-   * to the callback.
+   * @brief Applies the function object `callback_op` to the copy of every slot in the container
+   * with key equivalent to the probe key and can additionally perform work that requires
+   * synchronizing the Cooperative Group performing this operation.
    *
    * @note This function uses cooperative group semantics, meaning that any thread may call the
    * callback if it finds a matching element. If multiple elements are found within the same group,
