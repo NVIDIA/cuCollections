@@ -60,14 +60,11 @@ class bloom_filter_ref
   }
 
  private:
-  // we use the MSB bits of the hash value to determine the sub filter for this key
   template <class HashValue>
   __device__ size_type sub_filter_idx(HashValue hash_value) const
   {
-    auto constexpr hash_value_bits = sizeof(HashValue) * CHAR_BIT;
-    auto const index_bits =
-      max(hash_value_bits, cuda::std::bit_width(storage_ref_.num_windows() - 1));
-    return (hash_value >> (hash_value_bits - index_bits)) % storage_ref_.num_windows();
+    // TODO use fast_int modulo
+    return hash_value % storage_ref_.num_windows();
   }
 
   // we use the LSB bits of the hash value to determine the pattern bits for each word
@@ -91,13 +88,6 @@ class bloom_filter_ref
         hash_value >>= bit_index_width;
       }
     }
-
-    // #pragma unroll window_size
-    // for (int32_t i = 0; i < window_size; ++i) {
-    //   for (int32_t j = 0; j < bits_per_word; ++j) {
-    //     pattern[i] |= word_type{1} << (hash_value & bit_index_mask);
-    //     hash_value >>= bit_index_width;
-    //   }
 
     return pattern;
   }
