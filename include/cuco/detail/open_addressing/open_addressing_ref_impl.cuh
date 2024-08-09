@@ -966,17 +966,14 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Executes a callback on every element in the container with key equivalent to the probe
-   * key.
+   * @brief For a given key, applies the function object `callback_op` to all corresponding matches
+   * found in the container.
    *
-   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
-   * to the callback.
-   *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
-   * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Type of unary callback function object
    *
    * @param key The key to search for
-   * @param callback_op Function to call on every element found
+   * @param callback_op Function to apply to every match
    */
   template <class ProbeKey, class CallbackOp>
   __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
@@ -1006,11 +1003,8 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Executes a callback on every element in the container with key equivalent to the probe
-   * key.
-   *
-   * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
-   * to the callback.
+   * @brief For a given key, applies the function object `callback_op` to all corresponding matches
+   * found in the container.
    *
    * @note This function uses cooperative group semantics, meaning that any thread may call the
    * callback if it finds a matching element. If multiple elements are found within the same group,
@@ -1018,12 +1012,12 @@ class open_addressing_ref_impl {
    *
    * @note Synchronizing `group` within `callback_op` is undefined behavior.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
-   * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Type of unary callback function object
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
-   * @param callback_op Function to call on every element found
+   * @param callback_op Function to apply to every match
    */
   template <class ProbeKey, class CallbackOp>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
@@ -1060,9 +1054,9 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Executes a callback on every element in the container with key equivalent to the probe
-   * key and can additionally perform work that requires synchronizing the Cooperative Group
-   * performing this operation.
+   * @brief Applies the function object `callback_op` on every slot in the container with key
+   * equivalent to the probe key and can additionally perform work that requires synchronizing the
+   * Cooperative Group performing this operation.
    *
    * @note Passes a copy of the element whose `key` matches with a key from the input key sequence
    * to the callback.
@@ -1078,13 +1072,13 @@ class open_addressing_ref_impl {
    * synchronization points is capped by `window_size * cg_size`. The functor will be called right
    * after the current probing window has been traversed.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
-   * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Type of unary callback function object
    * @tparam SyncOp Functor or device lambda which accepts the current `group` object
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
-   * @param callback_op Function to call on every element found
+   * @param callback_op Function to apply to every match
    * @param sync_op Function that is allowed to synchronize `group` inbetween probing windows
    */
   template <class ProbeKey, class CallbackOp, class SyncOp>

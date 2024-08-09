@@ -1275,7 +1275,7 @@ class operator_impl<
    * container.
    *
    * @tparam ProbeKey Probe key type
-   * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam CallbackOp Type of unary callback function object
    *
    * @param key The key to search for
    * @param callback_op Function to apply to the match
@@ -1299,7 +1299,7 @@ class operator_impl<
    * @note Synchronizing `group` within `callback_op` is undefined behavior.
    *
    * @tparam ProbeKey Probe key type
-   * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam CallbackOp Type of unary callback function object
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
