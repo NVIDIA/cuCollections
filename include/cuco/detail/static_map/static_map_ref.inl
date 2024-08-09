@@ -1150,7 +1150,7 @@ class operator_impl<
    * @note If the probe key `key` was inserted into the container, returns
    * true. Otherwise, returns false.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
    *
@@ -1170,7 +1170,7 @@ class operator_impl<
    * @note If the probe key `key` was inserted into the container, returns
    * true. Otherwise, returns false.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
@@ -1213,7 +1213,7 @@ class operator_impl<
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
    *
@@ -1233,7 +1233,7 @@ class operator_impl<
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
