@@ -35,13 +35,17 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   auto const loop_stride = cuco::detail::grid_stride() / window_size;
   auto idx               = cuco::detail::global_thread_id() / window_size;
 
-  auto const tile =
+  [[maybe_unused]] auto const tile =
     cooperative_groups::tiled_partition<window_size>(cooperative_groups::this_thread_block());
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
       typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};
-      ref.add(tile, insert_element);
+      if constexpr (window_size == 1) {
+        ref.add(insert_element);
+      } else {
+        ref.add(tile, insert_element);
+      }
     }
     idx += loop_stride;
   }
