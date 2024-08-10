@@ -115,13 +115,15 @@ class bloom_filter {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto add_op = [ref = this->ref(op::add)] __device__(key_type const key) mutable {
-      ref.add(key);
-    };
-    cub::DeviceFor::ForEachCopyN(first, num_keys, add_op, stream.get());
-
-    // auto const always_true = thrust::constant_iterator<bool>{true};
-    // this->add_if_async(first, last, always_true, thrust::identity{}, stream);
+    if constexpr (window_size == 1) {
+      auto add_op = [ref = this->ref(op::add)] __device__(key_type const key) mutable {
+        ref.add(key);
+      };
+      CUCO_CUDA_TRY(cub::DeviceFor::ForEachCopyN(first, num_keys, add_op, stream.get()));
+    } else {
+      auto const always_true = thrust::constant_iterator<bool>{true};
+      this->add_if_async(first, last, always_true, thrust::identity{}, stream);
+    }
   }
 
   template <class InputIt, class StencilIt, class Predicate>
@@ -141,7 +143,7 @@ class bloom_filter {
 
     auto constexpr block_size = cuco::detail::default_block_size();
     auto const grid_size =
-      cuco::detail::grid_size(num_keys, 1, cuco::detail::default_stride(), block_size);
+      cuco::detail::grid_size(num_keys, window_size, cuco::detail::default_stride(), block_size);
 
     bloom_filter_ns::detail::add_if_n<block_size><<<grid_size, block_size, 0, stream.get()>>>(
       first, num_keys, stencil, pred, this->ref(op::add));

@@ -25,6 +25,8 @@
 #include <cuda/atomic>
 #include <cuda/std/bit>
 
+#include <cooperative_groups.h>
+
 #include <cstdint>
 #include <type_traits>
 
@@ -46,6 +48,10 @@ class bloom_filter_ref
 
   static_assert(std::is_same_v<typename storage_ref_type::value_type, word_type>,
                 "StorageRef has invalid value type");
+
+  static_assert(cuda::std::has_single_bit(static_cast<uint32_t>(storage_ref_type::window_size)) and
+                  storage_ref_type::window_size <= 32,
+                "Window size must be a power-of-two and less than or equal to 32");
 
   static constexpr auto window_size =
     storage_ref_type::window_size;             ///< Number of elements handled per window
@@ -92,6 +98,31 @@ class bloom_filter_ref
     return pattern;
   }
 
+  template <class HashValue>
+  __device__ word_type pattern_word(HashValue hash_value, uint32_t i) const
+  {
+    auto constexpr word_bits           = sizeof(word_type) * CHAR_BIT;
+    auto constexpr bit_index_width     = cuda::std::bit_width(word_bits - 1);
+    word_type constexpr bit_index_mask = (word_type{1} << bit_index_width) - 1;
+
+    auto const bits_per_word = pattern_bits_ / window_size;
+    auto const remainder     = pattern_bits_ % window_size;
+    auto const bits_so_far   = bits_per_word * i + (i < remainder ? i : remainder);
+
+    hash_value >>= bits_so_far * bit_index_width;
+
+    // Compute the word at index i
+    word_type word  = 0;
+    int32_t j_limit = bits_per_word + (i < remainder ? 1 : 0);
+
+    for (int32_t j = 0; j < j_limit; ++j) {
+      word |= word_type{1} << (hash_value & bit_index_mask);
+      hash_value >>= bit_index_width;
+    }
+
+    return word;
+  }
+
   uint32_t pattern_bits_;
   Hash hash_;
   storage_ref_type storage_ref_;
@@ -128,17 +159,34 @@ class operator_impl<op::add_tag, bloom_filter_ref<Key, Scope, Hash, StorageRef, 
 
     auto const hash_value = ref_.hash_(key);
     auto const idx        = ref_.sub_filter_idx(hash_value);
-    auto const pattern    = ref_.pattern(hash_value);
 
 #pragma unroll window_size
     for (int32_t i = 0; i < window_size; ++i) {
-      if (pattern[i] != 0) {
-        // atomicOr(reinterpret_cast<unsigned int*>(((ref_.storage_ref_.data() + idx)->data() + i)),
-        // pattern[i]);
+      auto const word = ref_.pattern_word(hash_value, i);
+      if (word != 0) {
         auto atom_word =
           cuda::atomic_ref<word_type, Scope>{*((ref_.storage_ref_.data() + idx)->data() + i)};
-        atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
+        atom_word.fetch_or(word, cuda::memory_order_relaxed);
       }
+    }
+  }
+
+  template <class ProbeKey>
+  __device__ void add(cooperative_groups::thread_block_tile<window_size> const& tile,
+                      ProbeKey const& key)
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto& ref_ = static_cast<ref_type&>(*this);
+
+    auto const hash_value = ref_.hash_(key);
+    auto const idx        = ref_.sub_filter_idx(hash_value);
+    auto const rank       = tile.thread_rank();
+
+    auto const word = ref_.pattern_word(hash_value, rank);
+    if (word != 0) {
+      auto atom_word =
+        cuda::atomic_ref<word_type, Scope>{*((ref_.storage_ref_.data() + idx)->data() + rank)};
+      atom_word.fetch_or(word, cuda::memory_order_relaxed);
     }
   }
 };

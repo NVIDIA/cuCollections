@@ -17,6 +17,8 @@
 
 #include <cuco/detail/utility/cuda.cuh>
 
+#include <cooperative_groups.h>
+
 #include <cstdint>
 #include <iterator>
 
@@ -28,13 +30,18 @@ template <int32_t BlockSize, class InputIt, class StencilIt, class Predicate, ty
 CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
-  auto const loop_stride = cuco::detail::grid_stride();
-  auto idx               = cuco::detail::global_thread_id();
+  auto constexpr window_size = Ref::window_size;
+
+  auto const loop_stride = cuco::detail::grid_stride() / window_size;
+  auto idx               = cuco::detail::global_thread_id() / window_size;
+
+  auto const tile =
+    cooperative_groups::tiled_partition<window_size>(cooperative_groups::this_thread_block());
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
       typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};
-      ref.add(insert_element);
+      ref.add(tile, insert_element);
     }
     idx += loop_stride;
   }
