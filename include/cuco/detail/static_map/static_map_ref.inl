@@ -1274,11 +1274,13 @@ class operator_impl<
    * @brief For a given key, applies the function object `callback_op` to its match found in the
    * container.
    *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Type of unary callback function object
    *
    * @param key The key to search for
-   * @param callback_op Function to apply to the match
+   * @param callback_op Function to apply to the copy of the matched key-value pair
    */
   template <class ProbeKey, class CallbackOp>
   __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
@@ -1293,8 +1295,9 @@ class operator_impl<
    * container.
    *
    * @note This function uses cooperative group semantics, meaning that any thread may call the
-   * callback if it finds a matching element. If multiple elements are found within the same group,
-   * each thread with a match will call the callback with its associated element.
+   * callback if it finds a matching key-value pair.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
    *
    * @note Synchronizing `group` within `callback_op` is undefined behavior.
    *
@@ -1303,7 +1306,7 @@ class operator_impl<
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
-   * @param callback_op Function to apply to the match
+   * @param callback_op Function to apply to the copy of the matched key-value pair
    */
   template <class ProbeKey, class CallbackOp>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,

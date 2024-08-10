@@ -766,9 +766,11 @@ class static_map {
    * @brief Applies the given function object `callback_op` to the copy of every filled slot in the
    * container
    *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
    * @tparam CallbackOp Type of unary callback function object
    *
-   * @param callback_op Function to call on every filled slot in the container
+   * @param callback_op Function to apply to the copy of the matched key-value pair
    * @param stream CUDA stream used for this operation
    */
   template <typename CallbackOp>
@@ -778,9 +780,11 @@ class static_map {
    * @brief Asynchronously applies the given function object `callback_op` to the copy of every
    * filled slot in the container
    *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
    * @tparam CallbackOp Type of unary callback function object
    *
-   * @param callback_op Function to call on every filled slot in the container
+   * @param callback_op Function to apply to the copy of the matched key-value pair
    * @param stream CUDA stream used for this operation
    */
   template <typename CallbackOp>
@@ -790,12 +794,14 @@ class static_map {
    * @brief For each key in the range [first, last), applies the function object `callback_op` to
    * the copy of all corresponding matches found in the container.
    *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
    * @tparam InputIt Device accessible random access input iterator
    * @tparam CallbackOp Type of unary callback function object
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param callback_op Function to call on every match found in the container
+   * @param callback_op Function to apply to the copy of the matched key-value pair
    * @param stream CUDA stream used for this operation
    */
   template <typename InputIt, typename CallbackOp>
@@ -808,12 +814,14 @@ class static_map {
    * @brief For each key in the range [first, last), asynchronously applies the function object
    * `callback_op` to the copy of all corresponding matches found in the container.
    *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
    * @tparam InputIt Device accessible random access input iterator
    * @tparam CallbackOp Type of unary callback function object
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param callback_op Function to call on every match found in the container
+   * @param callback_op Function to apply to the copy of the matched key-value pair
    * @param stream CUDA stream used for this operation
    */
   template <typename InputIt, typename CallbackOp>

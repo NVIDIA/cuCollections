@@ -186,6 +186,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void erase(InputIt first,
  * @brief For each key in the range [first, first + n), applies the function object `callback_op` to
  * the copy of all corresponding matches found in the container.
  *
+ * @note The return value of `callback_op`, if any, is ignored.
+ *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIt Device accessible input iterator whose `value_type` is
@@ -195,7 +197,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void erase(InputIt first,
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
- * @param callback_op Function to call on every element found in the container
+ * @param callback_op Function to call on every matched slot found in the container
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename CallbackOp, typename Ref>

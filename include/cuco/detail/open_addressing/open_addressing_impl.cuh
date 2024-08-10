@@ -686,6 +686,8 @@ class open_addressing_impl {
    * @brief Asynchronously applies the given function object `callback_op` to the copy of every
    * filled slot in the container
    *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
    * @tparam CallbackOp Type of unary callback function object
    *
    * @param callback_op Function to call on every filled slot in the container
@@ -711,6 +713,8 @@ class open_addressing_impl {
   /**
    * @brief For each key in the range [first, last), asynchronously applies the function object
    * `callback_op` to the copy of all corresponding matches found in the container.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
    *
    * @tparam InputIt Device accessible random access input iterator
    * @tparam CallbackOp Type of unary callback function object
