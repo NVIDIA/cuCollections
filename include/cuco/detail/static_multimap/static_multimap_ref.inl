@@ -431,7 +431,7 @@ class operator_impl<
    * @note If the probe key `key` was inserted into the container, returns
    * true. Otherwise, returns false.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
    *
@@ -451,7 +451,7 @@ class operator_impl<
    * @note If the probe key `key` was inserted into the container, returns
    * true. Otherwise, returns false.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
