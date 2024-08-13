@@ -645,40 +645,53 @@ class open_addressing_impl {
     auto temp_allocator = temp_allocator_type{this->allocator()};
     auto d_num_out      = reinterpret_cast<size_type*>(
       std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
-    auto const begin = thrust::make_transform_iterator(
-      thrust::counting_iterator<size_type>{0},
-      open_addressing_ns::detail::get_slot<has_payload, storage_ref_type>(this->storage_ref()));
-    auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
-      this->empty_key_sentinel(), this->erased_key_sentinel()};
-    CUCO_CUDA_TRY(cub::DeviceSelect::If(nullptr,
-                                        temp_storage_bytes,
-                                        begin,
-                                        output_begin,
-                                        d_num_out,
-                                        this->capacity(),
-                                        is_filled,
-                                        stream.get()));
 
-    // Allocate temporary storage
-    auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
+    cuco::detail::index_type constexpr stride = std::numeric_limits<int32_t>::max();
 
-    CUCO_CUDA_TRY(cub::DeviceSelect::If(d_temp_storage,
-                                        temp_storage_bytes,
-                                        begin,
-                                        output_begin,
-                                        d_num_out,
-                                        this->capacity(),
-                                        is_filled,
-                                        stream.get()));
+    cuco::detail::index_type h_num_out{0};
 
-    size_type h_num_out;
-    CUCO_CUDA_TRY(cudaMemcpyAsync(
-      &h_num_out, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
-    stream.wait();
+    for (cuco::detail::index_type offset = 0;
+         offset < static_cast<cuco::detail::index_type>(this->capacity());
+         offset += stride) {
+      auto const num_items =
+        std::min(static_cast<cuco::detail::index_type>(this->capacity()) - offset, stride);
+      auto const begin = thrust::make_transform_iterator(
+        thrust::counting_iterator{static_cast<int32_t>(offset)},
+        open_addressing_ns::detail::get_slot<has_payload, storage_ref_type>(this->storage_ref()));
+      auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+        this->empty_key_sentinel(), this->erased_key_sentinel()};
+
+      CUCO_CUDA_TRY(cub::DeviceSelect::If(nullptr,
+                                          temp_storage_bytes,
+                                          begin,
+                                          output_begin + h_num_out,
+                                          d_num_out,
+                                          static_cast<int32_t>(num_items),
+                                          is_filled,
+                                          stream.get()));
+
+      // Allocate temporary storage
+      auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
+
+      CUCO_CUDA_TRY(cub::DeviceSelect::If(d_temp_storage,
+                                          temp_storage_bytes,
+                                          begin,
+                                          output_begin + h_num_out,
+                                          d_num_out,
+                                          static_cast<int32_t>(num_items),
+                                          is_filled,
+                                          stream.get()));
+
+      size_type temp_count;
+      CUCO_CUDA_TRY(cudaMemcpyAsync(
+        &temp_count, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+      stream.wait();
+      h_num_out += temp_count;
+      temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
+    }
+
     std::allocator_traits<temp_allocator_type>::deallocate(
       temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(size_type));
-    temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
-
     return output_begin + h_num_out;
   }
 
