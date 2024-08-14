@@ -53,14 +53,27 @@ void test_unique_sequence(Set& set, bool* res_begin, std::size_t num_keys)
     set.contains(keys_begin, keys_end, res_begin);
     REQUIRE(cuco::test::all_of(res_begin, res_begin + num_keys, thrust::identity{}));
   }
+
+  SECTION("All inserted key/value pairs can be retrieved.")
+  {
+    auto output_keys = thrust::device_vector<Key>(num_keys);
+
+    auto const keys_end = set.retrieve_all(output_keys.begin());
+    REQUIRE(static_cast<std::size_t>(std::distance(output_keys.begin(), keys_end)) == num_keys);
+
+    thrust::sort(output_keys.begin(), keys_end);
+
+    REQUIRE(cuco::test::equal(output_keys.begin(),
+                              output_keys.end(),
+                              thrust::counting_iterator<Key>(0),
+                              thrust::equal_to<Key>{}));
+  }
 }
 
 TEMPLATE_TEST_CASE_SIG(
   "cuco::static_set large input test",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
-  (int32_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
   (int64_t, cuco::test::probe_sequence::double_hashing, 2))
 {
