@@ -27,6 +27,7 @@
 #include <cuco/storage.cuh>
 #include <cuco/utility/traits.hpp>
 
+#include <cub/device/device_for.cuh>
 #include <cub/device/device_select.cuh>
 #include <cuda/atomic>
 #include <thrust/iterator/constant_iterator.h>
@@ -679,6 +680,67 @@ class open_addressing_impl {
     temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
 
     return output_begin + h_num_out;
+  }
+
+  /**
+   * @brief Asynchronously applies the given function object `callback_op` to the copy of every
+   * filled slot in the container
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param callback_op Function to call on every filled slot in the container
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename CallbackOp>
+  void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream) const
+  {
+    auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+      this->empty_key_sentinel(), this->erased_key_sentinel()};
+
+    auto storage_ref = this->storage_ref();
+    auto const op    = [callback_op, is_filled, storage_ref] __device__(auto const window_slots) {
+      for (auto const slot : window_slots) {
+        if (is_filled(slot)) { callback_op(slot); }
+      }
+    };
+
+    CUCO_CUDA_TRY(cub::DeviceFor::ForEachCopyN(
+      storage_ref.data(), storage_ref.num_windows(), op, stream.get()));
+  }
+
+  /**
+   * @brief For each key in the range [first, last), asynchronously applies the function object
+   * `callback_op` to the copy of all corresponding matches found in the container.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam CallbackOp Type of unary callback function object
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param callback_op Function to call on every match found in the container
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename CallbackOp, typename Ref>
+  void for_each_async(InputIt first,
+                      InputIt last,
+                      CallbackOp&& callback_op,
+                      Ref container_ref,
+                      cuda::stream_ref stream) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::for_each_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+        first, num_keys, std::forward<CallbackOp>(callback_op), container_ref);
   }
 
   /**

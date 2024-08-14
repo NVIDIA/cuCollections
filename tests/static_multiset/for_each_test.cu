@@ -45,8 +45,8 @@ CUCO_KERNEL void for_each_check_scalar(Ref ref,
   while (idx < n) {
     auto const& key     = *(first + idx);
     std::size_t matches = 0;
-    ref.for_each(key, [&] __device__(auto const it) {
-      if (ref.key_eq()(key, *it)) { matches++; }
+    ref.for_each(key, [&] __device__(auto const slot) {
+      if (ref.key_eq()(key, slot)) { matches++; }
     });
     if (matches != multiplicity) { error_counter->fetch_add(1, cuda::memory_order_relaxed); }
     idx += loop_stride;
@@ -73,13 +73,13 @@ CUCO_KERNEL void for_each_check_cooperative(Ref ref,
       ref.for_each(
         tile,
         key,
-        [&] __device__(auto const it) {
-          if (ref.key_eq()(key, *it)) { thread_matches++; }
+        [&] __device__(auto const slot) {
+          if (ref.key_eq()(key, slot)) { thread_matches++; }
         },
         [] __device__(auto const& group) { group.sync(); });
     } else {
-      ref.for_each(tile, key, [&] __device__(auto const it) {
-        if (ref.key_eq()(key, *it)) { thread_matches++; }
+      ref.for_each(tile, key, [&] __device__(auto const slot) {
+        if (ref.key_eq()(key, slot)) { thread_matches++; }
       });
     }
     auto const tile_matches =
