@@ -37,6 +37,15 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
   using allocator_type = cuco::cuda_allocator<char>;
   auto allocator       = allocator_type{};
 
+  SECTION("Initialize empty storage is allowed.")
+  {
+    auto s = cuco::
+      aow_storage<cuco::pair<Key, Value>, window_size, cuco::extent<std::size_t>, allocator_type>{
+        cuco::extent<std::size_t>{0}, allocator};
+
+    s.initialize(cuco::pair<Key, Value>{1, 1});
+  }
+
   SECTION("Allocate array of pairs with AoS storage.")
   {
     auto s = cuco::
