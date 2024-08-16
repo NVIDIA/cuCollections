@@ -347,19 +347,11 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <typename InputIt, typename Init, typename Op>
+template <typename InputIt, typename Init, typename Op, typename>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   insert_or_apply_async(
     InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream) noexcept
 {
-  using shared_map_type   = cuco::static_map<Key,
-                                             T,
-                                             int32_t,
-                                             cuda::thread_scope_block,
-                                             KeyEqual,
-                                             ProbingScheme,
-                                             Allocator,
-                                             cuco::storage<1>>;
   auto constexpr has_init = true;
   static_map_ns::detail::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
     first, last, init, op, ref(op::insert_or_apply), stream);
