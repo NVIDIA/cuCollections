@@ -649,6 +649,7 @@ class open_addressing_impl {
     auto d_num_out      = reinterpret_cast<size_type*>(
       std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
 
+    // TODO: PR #580 to be reverted once https://github.com/NVIDIA/cccl/issues/1422 is resolved
     for (cuco::detail::index_type offset = 0;
          offset < static_cast<cuco::detail::index_type>(this->capacity());
          offset += stride) {
