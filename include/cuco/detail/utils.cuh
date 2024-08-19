@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <cuco/detail/__config>
 #include <cuco/detail/bitwise_compare.cuh>
 
 #include <cuda/std/array>
