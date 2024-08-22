@@ -767,9 +767,9 @@ class static_set {
   [[nodiscard]] constexpr key_type erased_key_sentinel() const noexcept;
 
   /**
-   * @brief Gets the key comparator.
+   * @brief Gets the function used to compare keys for equality
    *
-   * @return The comparator used to compare keys
+   * @return The function used to compare keys for equality
    */
   [[nodiscard]] constexpr key_equal key_eq() const noexcept;
 
