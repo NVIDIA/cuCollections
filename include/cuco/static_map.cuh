@@ -953,6 +953,13 @@ class static_map {
   [[nodiscard]] constexpr key_type erased_key_sentinel() const noexcept;
 
   /**
+   * @brief Gets the key comparator.
+   *
+   * @return The comparator used to compare keys
+   */
+  [[nodiscard]] constexpr key_equal key_eq() const noexcept;
+
+  /**
    * @brief Get device ref with operators.
    *
    * @tparam Operators Set of `cuco::op` to be provided by the ref
