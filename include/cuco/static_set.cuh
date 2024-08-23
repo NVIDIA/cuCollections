@@ -767,6 +767,13 @@ class static_set {
   [[nodiscard]] constexpr key_type erased_key_sentinel() const noexcept;
 
   /**
+   * @brief Gets the function used to compare keys for equality
+   *
+   * @return The function used to compare keys for equality
+   */
+  [[nodiscard]] constexpr key_equal key_eq() const noexcept;
+
+  /**
    * @brief Get device ref with operators.
    *
    * @tparam Operators Set of `cuco::op` to be provided by the ref

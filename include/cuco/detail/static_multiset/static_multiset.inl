@@ -400,6 +400,21 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+constexpr static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  key_equal
+  static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_eq()
+    const noexcept
+{
+  return impl_->key_eq();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename... Operators>
 auto static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref(
   Operators...) const noexcept
