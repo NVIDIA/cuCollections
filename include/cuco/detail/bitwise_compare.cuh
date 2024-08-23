@@ -18,6 +18,7 @@
 
 #include <cuco/utility/traits.hpp>
 
+#include <cuda/functional>
 #include <cuda/std/bit>
 
 #include <cstdint>
@@ -67,9 +68,10 @@ struct bitwise_compare_impl<8> {
  * size of type, or 16, whichever is smaller.
  */
 template <typename T>
-constexpr std::size_t alignment()
+__host__ __device__ constexpr std::size_t alignment()
 {
-  return std::min(std::size_t{16}, cuda::std::bit_ceil(sizeof(T)));
+  constexpr std::size_t alignment = cuda::std::bit_ceil(sizeof(T));
+  return cuda::std::min(std::size_t{16}, alignment);
 }
 
 /**
