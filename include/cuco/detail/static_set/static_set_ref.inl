@@ -117,6 +117,24 @@ __host__ __device__ constexpr static_set_ref<Key,
                                              KeyEqual,
                                              ProbingScheme,
                                              StorageRef,
+                                             Operators...>::hasher
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::hash_function()
+  const noexcept
+{
+  return this->impl_.hash_function();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr static_set_ref<Key,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
                                              Operators...>::const_iterator
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::end() const noexcept
 {
