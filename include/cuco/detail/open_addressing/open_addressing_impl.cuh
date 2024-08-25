@@ -100,6 +100,7 @@ class open_addressing_impl {
 
   using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
   using probing_scheme_type = ProbingScheme;                 ///< Probe scheme type
+  using hasher              = typename probing_scheme_type::hasher;  ///< Hash function type
 
   /**
    * @brief Constructs a statically-sized open addressing data structure with the specified initial
@@ -931,6 +932,16 @@ class open_addressing_impl {
   [[nodiscard]] constexpr probing_scheme_type const& probing_scheme() const noexcept
   {
     return probing_scheme_;
+  }
+
+  /**
+   * @brief Gets the function(s) used to hash keys
+   *
+   * @return The function(s) used to hash keys
+   */
+  [[nodiscard]] constexpr hasher hash_function() const noexcept
+  {
+    return this->probing_scheme().hash_function();
   }
 
   /**
