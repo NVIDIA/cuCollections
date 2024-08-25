@@ -19,6 +19,7 @@
 #include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
 #include <cuco/pair.cuh>
 
+#include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 
 #include <cooperative_groups.h>
@@ -37,10 +38,12 @@ namespace cuco {
  */
 template <int32_t CGSize, typename Hash>
 class linear_probing : private detail::probing_scheme_base<CGSize> {
- public:
   using probing_scheme_base_type =
     detail::probing_scheme_base<CGSize>;  ///< The base probe scheme type
+
+ public:
   using probing_scheme_base_type::cg_size;
+  using hasher = Hash;  ///< Hash function type
 
   /**
    *@brief Constructs linear probing scheme with the hasher callable.
@@ -93,6 +96,13 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
     ProbeKey const& probe_key,
     Extent upper_bound) const noexcept;
 
+  /**
+   * @brief Gets the function used to hash keys
+   *
+   * @return The function used to hash keys
+   */
+  __host__ __device__ constexpr hasher hash_function() const noexcept;
+
  private:
   Hash hash_;
 };
@@ -113,10 +123,12 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
  */
 template <int32_t CGSize, typename Hash1, typename Hash2 = Hash1>
 class double_hashing : private detail::probing_scheme_base<CGSize> {
- public:
   using probing_scheme_base_type =
     detail::probing_scheme_base<CGSize>;  ///< The base probe scheme type
+
+ public:
   using probing_scheme_base_type::cg_size;
+  using hasher = cuda::std::tuple<Hash1, Hash2>;  ///< Hash function type
 
   /**
    *@brief Constructs double hashing probing scheme with the two hasher callables.
@@ -194,6 +206,13 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
     cooperative_groups::thread_block_tile<cg_size> const& g,
     ProbeKey const& probe_key,
     Extent upper_bound) const noexcept;
+
+  /**
+   * @brief Gets the functions used to hash keys
+   *
+   * @return The functions used to hash keys
+   */
+  __host__ __device__ constexpr hasher hash_function() const noexcept;
 
  private:
   Hash1 hash1_;
