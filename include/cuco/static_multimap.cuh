@@ -130,6 +130,7 @@ class static_multimap {
   /// Non-owning window storage ref type
   using storage_ref_type    = typename impl_type::storage_ref_type;
   using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
+  using hasher              = typename probing_scheme_type::hasher;     ///< Hash function type
 
   using mapped_type = T;  ///< Payload type
   template <typename... Operators>
@@ -453,6 +454,13 @@ class static_multimap {
    * @return The function used to compare keys for equality
    */
   [[nodiscard]] constexpr key_equal key_eq() const noexcept;
+
+  /**
+   * @brief Gets the function(s) used to hash keys
+   *
+   * @return The function(s) used to hash keys
+   */
+  [[nodiscard]] constexpr hasher hash_function() const noexcept;
 
   /**
    * @brief Get device ref with operators.
