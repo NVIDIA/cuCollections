@@ -589,7 +589,7 @@ class open_addressing_impl {
   [[nodiscard]] size_type count(InputIt first,
                                 InputIt last,
                                 Ref container_ref,
-                                cuda::stream_ref stream) const noexcept
+                                cuda::stream_ref stream) const
   {
     auto constexpr is_outer = false;
     return this->count<is_outer>(first, last, container_ref, stream);

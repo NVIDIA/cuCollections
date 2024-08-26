@@ -485,7 +485,7 @@ class static_multimap {
    * @return The sum of total occurrences of all keys in `[first, last)`
    */
   template <typename InputIt>
-  size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const noexcept;
+  size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
