@@ -295,7 +295,7 @@ template <class Key,
 template <typename InputIt>
 static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
-  InputIt first, InputIt last, cuda::stream_ref stream) const noexcept
+  InputIt first, InputIt last, cuda::stream_ref stream) const
 {
   return impl_->count(first, last, ref(op::count), stream);
 }
