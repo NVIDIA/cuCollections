@@ -19,6 +19,8 @@
 #include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
 #include <cuco/pair.cuh>
 
+#include <cuda/std/type_traits>
+
 #include <cooperative_groups.h>
 
 namespace cuco {
@@ -197,6 +199,24 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   Hash1 hash1_;
   Hash2 hash2_;
 };
+
+/**
+ * @brief Trait indicating whether the given probing scheme is of `double_hashing` type or not
+ *
+ * @tparam T Input probing scheme type
+ */
+template <typename T>
+struct is_double_hashing : cuda::std::false_type {};
+
+/**
+ * @brief Trait indicating whether the given probing scheme is of `double_hashing` type or not
+ *
+ * @tparam CGSize Size of CUDA Cooperative Groups
+ * @tparam Hash1 Unary callable type
+ * @tparam Hash2 Unary callable type
+ */
+template <int32_t CGSize, typename Hash1, typename Hash2>
+struct is_double_hashing<cuco::double_hashing<CGSize, Hash1, Hash2>> : cuda::std::true_type {};
 
 }  // namespace cuco
 

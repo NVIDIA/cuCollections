@@ -16,11 +16,13 @@
 
 #pragma once
 
+#include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/operator.hpp>
 
 #include <cuda/atomic>
 #include <cuda/std/functional>
+#include <cuda/std/type_traits>
 #include <thrust/tuple.h>
 
 #include <cooperative_groups.h>
@@ -174,6 +176,34 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
   const noexcept
 {
   return impl_.capacity();
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr auto
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::storage_ref()
+  const noexcept
+{
+  return this->impl_.storage_ref();
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr auto
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::probing_scheme()
+  const noexcept
+{
+  return this->impl_.probing_scheme();
 }
 
 template <typename Key,
@@ -587,58 +617,44 @@ class operator_impl<
       cuda::std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
       "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
 
-    ref_type& ref_ = static_cast<ref_type&>(*this);
+    auto& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val         = ref_.impl_.heterogeneous_value(value);
-    auto const key         = ref_.impl_.extract_key(val);
-    auto& probing_scheme   = ref_.impl_.probing_scheme();
-    auto storage_ref       = ref_.impl_.storage_ref();
-    auto probing_iter      = probing_scheme(key, storage_ref.window_extent());
-    auto const empty_value = ref_.impl_.empty_slot_sentinel().second;
-
-    while (true) {
-      auto const window_slots = storage_ref[*probing_iter];
-
-      for (auto& slot_content : window_slots) {
-        auto const eq_res =
-          ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
-        auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-        auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_window_index;
-
-        // If the key is already in the container, update the payload and return
-        if (eq_res == detail::equal_result::EQUAL) {
-          if constexpr (sizeof(value_type) > 8) {
-            ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
-          }
-          op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
-          return false;
-        }
-        if (eq_res == detail::equal_result::AVAILABLE) {
-          switch (ref_.impl_.attempt_insert_stable(slot_ptr, slot_content, val)) {
-            case insert_result::SUCCESS: return true;
-            case insert_result::DUPLICATE: {
-              if constexpr (sizeof(value_type) > 8) {
-                ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
-              }
-              op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
-              return false;
-            }
-            default: continue;
-          }
-        }
-      }
-      ++probing_iter;
-    }
+    // directly dispatch to implementation if no init element is given
+    auto constexpr use_direct_apply = false;
+    return ref_.insert_or_apply_impl<use_direct_apply>(value, op);
   }
 
-  template <typename Value>
-  __device__ bool insert_or_apply(Value const& value, cuco::op::reduce::sum_tag)
+  /**
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, applies
+   * `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+
+   * @param value The element to insert
+   * @param init The init value of the op
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
+   */
+  template <typename Value,
+            typename Init,
+            typename Op,
+            typename = cuda::std::enable_if_t<std::is_convertible_v<Value, value_type>>>
+  __device__ bool insert_or_apply(Value const& value, Init init, Op op)
   {
+    static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+
+    static_assert(
+      cuda::std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
+      "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
+
     auto& ref_ = static_cast<ref_type&>(*this);
-    return ref_.insert_or_apply(value,
-                                [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
-                                  payload_ref.fetch_add(payload, cuda::memory_order_relaxed);
-                                });
+    return ref_.dispatch_insert_or_apply(value, init, op);
   }
 
   /**
@@ -666,7 +682,199 @@ class operator_impl<
     static_assert(
       cuda::std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
       "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
+    auto& ref_ = static_cast<ref_type&>(*this);
 
+    auto constexpr use_direct_apply = false;
+    return ref_.insert_or_apply_impl<use_direct_apply>(group, value, op);
+  }
+
+  /**
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, applies
+   * `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+   *
+   * @param group The Cooperative Group used to perform group insert
+   * @param value The element to insert
+   * @param init The init value of the op
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
+   */
+  template <typename Value, typename Init, typename Op>
+  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
+                                  Value const& value,
+                                  Init init,
+                                  Op op)
+  {
+    auto& ref_ = static_cast<ref_type&>(*this);
+    static_assert(
+      cuda::std::is_invocable_v<Op, cuda::atomic_ref<T, Scope>, T>,
+      "insert_or_apply expects `Op` to be a callable as `Op(cuda::atomic_ref<T, Scope>, T)`");
+
+    return ref_.dispatch_insert_or_apply(group, value, init, op);
+  }
+
+ private:
+  /**
+   * @brief dispatches `insert_or_apply_impl` based on condition `init == empty_value_sentinel`.
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+   *
+   * @param value The element to insert
+   * @param init The init value of the op
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
+   */
+  template <typename Value, typename Init, typename Op>
+  __device__ bool dispatch_insert_or_apply(Value const& value, Init init, Op op)
+  {
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    // if init equals sentinel value, then we can just `apply` op instead of write
+    if (cuco::detail::bitwise_compare(init, ref_.empty_value_sentinel())) {
+      return ref_.insert_or_apply_impl<true>(value, op);
+    } else {
+      return ref_.insert_or_apply_impl<false>(value, op);
+    }
+  }
+
+  /**
+   * @brief dispatches `insert_or_apply_impl` based on condition `init == empty_value_sentinel`.
+   *
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+   *
+   * @param group The Cooperative Group used to perform group insert
+   * @param value The element to insert
+   * @param init The init value of the op
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   */
+  template <typename Value, typename Init, typename Op>
+  __device__ bool dispatch_insert_or_apply(
+    cooperative_groups::thread_block_tile<cg_size> const& group,
+    Value const& value,
+    Init init,
+    Op op)
+  {
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    // if init equals sentinel value, then we can just `apply` op instead of write
+    if (cuco::detail::bitwise_compare(init, ref_.empty_value_sentinel())) {
+      return ref_.insert_or_apply_impl<true>(group, value, op);
+    } else {
+      return ref_.insert_or_apply_impl<false>(group, value, op);
+    }
+  }
+
+  /**
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, applies
+   * `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
+   *
+   * @tparam UseDirectApply Boolean condition which enables direct apply `op` instead of
+   * wait_for_payload with an atomic_store on an empty slot.
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+   *
+   * @param value The element to insert
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
+   */
+  template <bool UseDirectApply, typename Value, typename Op>
+  __device__ bool insert_or_apply_impl(Value const& value, Op op)
+  {
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+
+    auto const val         = ref_.impl_.heterogeneous_value(value);
+    auto const key         = ref_.impl_.extract_key(val);
+    auto& probing_scheme   = ref_.impl_.probing_scheme();
+    auto storage_ref       = ref_.impl_.storage_ref();
+    auto probing_iter      = probing_scheme(key, storage_ref.window_extent());
+    auto const empty_value = ref_.empty_value_sentinel();
+
+    // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
+    auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
+
+    while (true) {
+      auto const window_slots = storage_ref[*probing_iter];
+
+      for (auto& slot_content : window_slots) {
+        auto const eq_res =
+          ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
+        auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
+        auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_window_index;
+
+        // If the key is already in the container, update the payload and return
+        if (eq_res == detail::equal_result::EQUAL) {
+          // wait for payload only when performing insert operation
+          if constexpr (wait_for_payload) {
+            ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+          }
+          op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
+          return false;
+        }
+        if (eq_res == detail::equal_result::AVAILABLE) {
+          switch (ref_.attempt_insert_or_apply<UseDirectApply>(slot_ptr, slot_content, val, op)) {
+            case insert_result::SUCCESS: return true;
+            case insert_result::DUPLICATE: {
+              // wait for payload only when performing insert operation
+              if constexpr (wait_for_payload) {
+                ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+              }
+              op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
+              return false;
+            }
+            default: continue;
+          }
+        }
+      }
+      ++probing_iter;
+    }
+  }
+
+  /**
+   * @brief Inserts a key-value pair `{k, v}` if it's not present in the map. Otherwise, applies
+   * `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
+   *
+   * @tparam UseDirectApply Boolean condition which enables direct apply `op` instead of
+   * wait_for_payload with an atomic_store on an empty slot.
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+   *
+   * @param group The Cooperative Group used to perform group insert
+   * @param value The element to insert
+   * @param init The init value of the op
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   *
+   * @return Returns `true` if the given `value` is inserted successfully.
+   */
+  template <bool UseDirectApply, typename Value, typename Op>
+  __device__ bool insert_or_apply_impl(cooperative_groups::thread_block_tile<cg_size> const& group,
+                                       Value const& value,
+                                       Op op)
+  {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
     auto const val         = ref_.impl_.heterogeneous_value(value);
@@ -674,7 +882,10 @@ class operator_impl<
     auto& probing_scheme   = ref_.impl_.probing_scheme();
     auto storage_ref       = ref_.impl_.storage_ref();
     auto probing_iter      = probing_scheme(group, key, storage_ref.window_extent());
-    auto const empty_value = ref_.impl_.empty_slot_sentinel().second;
+    auto const empty_value = ref_.empty_value_sentinel();
+
+    // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
+    auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
 
     while (true) {
       auto const window_slots = storage_ref[*probing_iter];
@@ -697,7 +908,7 @@ class operator_impl<
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         if (group.thread_rank() == src_lane) {
-          if constexpr (sizeof(value_type) > 8) {
+          if constexpr (wait_for_payload) {
             ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
           }
           op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
@@ -710,14 +921,15 @@ class operator_impl<
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status   = [&, target_idx = intra_window_index]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
-          return ref_.impl_.attempt_insert_stable(slot_ptr, window_slots[target_idx], val);
+          return ref_.attempt_insert_or_apply<UseDirectApply>(
+            slot_ptr, window_slots[target_idx], val, op);
         }();
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: return true;
           case insert_result::DUPLICATE: {
             if (group.thread_rank() == src_lane) {
-              if constexpr (sizeof(value_type) > 8) {
+              if constexpr (wait_for_payload) {
                 ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
               }
               op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
@@ -732,16 +944,63 @@ class operator_impl<
     }
   }
 
-  template <typename Value>
-  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
-                                  Value const& value,
-                                  cuco::op::reduce::sum_tag)
+  /**
+   * @brief Attempts to insert a key-value pair `{k, v}` if it's not present in the map. Otherwise,
+   * applies `Op` binary function to the mapped_type corresponding to the key `k` and the value `v`.
+   *
+   * @tparam UseDirectApply Boolean condition which enables direct apply `op` instead of
+   * wait_for_payload with an atomic_store on an empty slot when insert strategy is not
+   * `packed_cas`.
+   * @tparam Value Input type which is implicitly convertible to 'value_type'
+   * @tparam Op Callable type which is used as apply operation and can be
+   *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
+   *   have this signature to atomically apply the operation.
+   *
+   * @param address Pointer to the slot in memory
+   * @param expected Element to compare against
+   * @param desired Element to insert
+   * @param op The callable object to perform binary operation between existing value at the slot
+   *  and the element to insert.
+   */
+  template <bool UseDirectApply, typename Value, typename Op>
+  [[nodiscard]] __device__ insert_result attempt_insert_or_apply(value_type* address,
+                                                                 value_type const& expected,
+                                                                 Value const& desired,
+                                                                 Op op) noexcept
   {
-    auto& ref_ = static_cast<ref_type&>(*this);
-    return ref_.insert_or_apply(
-      group, value, [](cuda::atomic_ref<T, Scope> payload_ref, T const& payload) {
-        payload_ref.fetch_add(payload, cuda::memory_order_relaxed);
-      });
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+
+    if constexpr (sizeof(value_type) <= 8) {
+      return ref_.impl_.packed_cas(address, expected, desired);  // no need to wait for payload
+    } else {
+      using mapped_type = T;
+
+      cuda::atomic_ref<key_type, Scope> key_ref(address->first);
+      auto expected_key  = expected.first;
+      auto const success = key_ref.compare_exchange_strong(
+        expected_key, static_cast<key_type>(desired.first), cuda::memory_order_relaxed);
+
+      // if key success
+      if (success) {
+        cuda::atomic_ref<mapped_type, Scope> payload_ref(address->second);
+        // if init values == sentinel then directly apply the `op`
+        if constexpr (UseDirectApply) {
+          op(payload_ref, desired.second);
+        } else {
+          payload_ref.store(desired.second, cuda::memory_order_relaxed);
+        }
+        return insert_result::SUCCESS;
+      }
+
+      // Our key was already present in the slot, so our key is a duplicate
+      // Shouldn't use `predicate` operator directly since it includes a redundant bitwise compare
+      if (ref_.impl_.predicate_.equal_to(desired.first, expected_key) ==
+          detail::equal_result::EQUAL) {
+        return insert_result::DUPLICATE;
+      }
+
+      return insert_result::CONTINUE;
+    }
   }
 };
 
@@ -891,7 +1150,7 @@ class operator_impl<
    * @note If the probe key `key` was inserted into the container, returns
    * true. Otherwise, returns false.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
    *
@@ -911,7 +1170,7 @@ class operator_impl<
    * @note If the probe key `key` was inserted into the container, returns
    * true. Otherwise, returns false.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
@@ -954,7 +1213,7 @@ class operator_impl<
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
    *
@@ -974,7 +1233,7 @@ class operator_impl<
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
@@ -987,6 +1246,76 @@ class operator_impl<
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.find(group, key);
+  }
+};
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::for_each_tag,
+  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type = typename base_type::key_type;
+  using value_type     = typename base_type::value_type;
+  using iterator       = typename base_type::iterator;
+  using const_iterator = typename base_type::const_iterator;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief For a given key, applies the function object `callback_op` to its match found in the
+   * container.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param key The key to search for
+   * @param callback_op Function to apply to the copy of the matched key-value pair
+   */
+  template <class ProbeKey, class CallbackOp>
+  __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.for_each(key, std::forward<CallbackOp>(callback_op));
+  }
+
+  /**
+   * @brief For a given key, applies the function object `callback_op` to its match found in the
+   * container.
+   *
+   * @note This function uses cooperative group semantics, meaning that any thread may call the
+   * callback if it finds a matching key-value pair.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @note Synchronizing `group` within `callback_op` is undefined behavior.
+   *
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param group The Cooperative Group used to perform this operation
+   * @param key The key to search for
+   * @param callback_op Function to apply to the copy of the matched key-value pair
+   */
+  template <class ProbeKey, class CallbackOp>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+                           ProbeKey const& key,
+                           CallbackOp&& callback_op) const noexcept
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.for_each(group, key, std::forward<CallbackOp>(callback_op));
   }
 };
 
