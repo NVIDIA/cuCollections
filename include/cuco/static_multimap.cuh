@@ -284,8 +284,7 @@ class static_multimap {
   void clear_async(cuda::stream_ref stream = {}) noexcept;
 
   /**
-   * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
-   * insertions.
+   * @brief Inserts all keys in the range `[first, last)`
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `insert_async`.
@@ -297,11 +296,9 @@ class static_multimap {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param stream CUDA stream used for insert
-   *
-   * @return Number of successful insertions
    */
   template <typename InputIt>
-  size_type insert(InputIt first, InputIt last, cuda::stream_ref stream = {});
+  void insert(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously inserts all keys in the range `[first, last)`.
@@ -316,6 +313,61 @@ class static_multimap {
    */
   template <typename InputIt>
   void insert_async(InputIt first, InputIt last, cuda::stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
+   * true.
+   *
+   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   * @note This function synchronizes the given stream and returns the number of successful
+   * insertions. For asynchronous execution use `insert_if_async`.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for the operation
+   *
+   * @return Number of successful insertions
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  size_type insert_if(
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
+
+  /**
+   * @brief Asynchronously inserts keys in the range `[first, last)` if `pred` of the corresponding
+   * stencil returns true.
+   *
+   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for the operation
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  void insert_if_async(InputIt first,
+                       InputIt last,
+                       StencilIt stencil,
+                       Predicate pred,
+                       cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -418,6 +470,22 @@ class static_multimap {
                          Predicate pred,
                          OutputIt output_begin,
                          cuda::stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @tparam Input Device accessible input iterator
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <typename InputIt>
+  size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Gets the maximum number of elements the hash map can hold.
