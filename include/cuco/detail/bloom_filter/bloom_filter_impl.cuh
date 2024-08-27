@@ -114,35 +114,19 @@ class bloom_filter_impl {
     }
   }
 
-  // template <class ProbeKey>
-  // __device__ void add(cooperative_groups::thread_block_tile<block_words> const& tile,
-  //                     ProbeKey const& key)
-  // {
-  //   auto const hash_value = hash_(key);
-  //   auto const idx        = this->block_idx(hash_value);
-  //   auto const rank       = tile.thread_rank();
-
-  //   auto const word = this->pattern_word(hash_value, rank);
-  //   if (word != 0) {
-  //     auto atom_word =
-  //       cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * block_words + rank))};
-  //     atom_word.fetch_or(word, cuda::memory_order_relaxed);
-  //   }
-  // }
-
-  template <class CG, class ProbeKey>
-  __device__ void add(CG const& group, ProbeKey const& key)
+  template <class ProbeKey>
+  __device__ void add(cooperative_groups::thread_block_tile<block_words> const& tile,
+                      ProbeKey const& key)
   {
     auto const hash_value = hash_(key);
     auto const idx        = this->block_idx(hash_value);
+    auto const rank       = tile.thread_rank();
 
-    for (int32_t i = group.thread_rank(); i < block_words; i += group.size()) {
-      auto const word = this->pattern_word(hash_value, i);
-      if (word != 0) {
-        auto atom_word =
-          cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * block_words + i))};
-        atom_word.fetch_or(word, cuda::memory_order_relaxed);
-      }
+    auto const word = this->pattern_word(hash_value, rank);
+    if (word != 0) {
+      auto atom_word =
+        cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * block_words + rank))};
+      atom_word.fetch_or(word, cuda::memory_order_relaxed);
     }
   }
 
