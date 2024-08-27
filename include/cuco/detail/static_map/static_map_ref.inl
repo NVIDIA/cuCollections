@@ -142,7 +142,7 @@ __host__ __device__ constexpr static_map_ref<Key,
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::hash_function()
   const noexcept
 {
-  return this->impl_.hash_function();
+  return impl_.hash_function();
 }
 
 template <typename Key,
