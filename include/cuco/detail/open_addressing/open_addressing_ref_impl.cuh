@@ -109,6 +109,7 @@ class open_addressing_ref_impl {
  public:
   using key_type            = Key;                                     ///< Key type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
+  using hasher              = typename probing_scheme_type::hasher;    ///< Hash function type
   using storage_ref_type    = StorageRef;                              ///< Type of storage ref
   using window_type         = typename storage_ref_type::window_type;  ///< Window type
   using value_type          = typename storage_ref_type::value_type;   ///< Storage element type
@@ -233,9 +234,20 @@ class open_addressing_ref_impl {
    *
    * @return The probing scheme used for the container
    */
-  [[nodiscard]] __device__ constexpr probing_scheme_type const& probing_scheme() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr probing_scheme_type const& probing_scheme()
+    const noexcept
   {
     return probing_scheme_;
+  }
+
+  /**
+   * @brief Gets the function(s) used to hash keys
+   *
+   * @return The function(s) used to hash keys
+   */
+  [[nodiscard]] __host__ __device__ constexpr hasher hash_function() const noexcept
+  {
+    return this->probing_scheme().hash_function();
   }
 
   /**

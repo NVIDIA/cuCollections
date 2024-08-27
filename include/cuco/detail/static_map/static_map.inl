@@ -732,6 +732,21 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::hasher
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::hash_function()
+  const noexcept
+{
+  return impl_->hash_function();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename... Operators>
 auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ref(
   Operators...) const noexcept
