@@ -111,6 +111,16 @@ class bloom_filter {
                               OutputIt output_begin,
                               cuda::stream_ref stream = {}) const noexcept;
 
+  [[nodiscard]] __host__ word_type* data() noexcept;
+
+  [[nodiscard]] __host__ word_type const* data() const noexcept;
+
+  [[nodiscard]] __host__ extent_type block_extent() const noexcept;
+
+  [[nodiscard]] __host__ hasher hash_function() const noexcept;
+
+  [[nodiscard]] __host__ allocator_type allocator() const noexcept;
+
   [[nodiscard]] ref_type<> ref() const noexcept;
 
  private:

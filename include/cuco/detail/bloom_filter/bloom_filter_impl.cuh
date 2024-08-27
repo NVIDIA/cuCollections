@@ -266,6 +266,17 @@ class bloom_filter_impl {
       first, num_keys, stencil, pred, output_begin, *this);
   }
 
+  [[nodiscard]] __host__ __device__ word_type* data() noexcept { return words_; }
+
+  [[nodiscard]] __host__ __device__ word_type const* data() const noexcept { return words_; }
+
+  [[nodiscard]] __host__ __device__ extent_type block_extent() const noexcept
+  {
+    return num_blocks_;
+  }
+
+  [[nodiscard]] __host__ __device__ hasher hash_function() const noexcept { return hash_; }
+
  private:
   template <class HashValue>
   __device__ size_type block_idx(HashValue hash_value) const

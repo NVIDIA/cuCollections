@@ -204,6 +204,77 @@ template <class Key,
           uint32_t BlockWords,
           class Word>
 [[nodiscard]] __host__
+  typename bloom_filter<Key, Extent, Scope, Hash, Allocator, BlockWords, Word>::word_type*
+  bloom_filter<Key, Extent, Scope, Hash, Allocator, BlockWords, Word>::data() noexcept
+{
+  return ref_.data();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class Hash,
+          class Allocator,
+          uint32_t BlockWords,
+          class Word>
+[[nodiscard]] __host__
+  typename bloom_filter<Key, Extent, Scope, Hash, Allocator, BlockWords, Word>::word_type const*
+  bloom_filter<Key, Extent, Scope, Hash, Allocator, BlockWords, Word>::data() const noexcept
+{
+  return ref_.data();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class Hash,
+          class Allocator,
+          uint32_t BlockWords,
+          class Word>
+[[nodiscard]] __host__
+  typename bloom_filter<Key, Extent, Scope, Hash, Allocator, BlockWords, Word>::extent_type
+  bloom_filter<Key, Extent, Scope, Hash, Allocator, BlockWords, Word>::block_extent() const noexcept
+{
+  return ref_.block_extent();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class Hash,
+          class Allocator,
+          uint32_t BlockWords,
+          class Word>
+[[nodiscard]] __host__
+  typename bloom_filter<Key, Extent, Scope, Hash, Allocator, BlockWords, Word>::hasher
+  bloom_filter<Key, Extent, Scope, Hash, Allocator, BlockWords, Word>::hash_function()
+    const noexcept
+{
+  return ref_.hash_function();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class Hash,
+          class Allocator,
+          uint32_t BlockWords,
+          class Word>
+[[nodiscard]] __host__
+  typename bloom_filter<Key, Extent, Scope, Hash, Allocator, BlockWords, Word>::allocator_type
+  bloom_filter<Key, Extent, Scope, Hash, Allocator, BlockWords, Word>::allocator() const noexcept
+{
+  return allocator_;
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class Hash,
+          class Allocator,
+          uint32_t BlockWords,
+          class Word>
+[[nodiscard]] __host__
   typename bloom_filter<Key, Extent, Scope, Hash, Allocator, BlockWords, Word>::ref_type<>
   bloom_filter<Key, Extent, Scope, Hash, Allocator, BlockWords, Word>::ref() const noexcept
 {

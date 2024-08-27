@@ -126,13 +126,18 @@ class bloom_filter_ref {
                               OutputIt output_begin,
                               cuda::stream_ref stream = {}) const noexcept;
 
+  [[nodiscard]] __host__ __device__ word_type* data() noexcept;
+
+  [[nodiscard]] __host__ __device__ word_type const* data() const noexcept;
+
+  [[nodiscard]] __host__ __device__ extent_type block_extent() const noexcept;
+
+  [[nodiscard]] __host__ __device__ hasher hash_function() const noexcept;
+
   // TODO
-  // __host__ __device__ word_type* data() const;
-  // __host__ __device__ extent_type extent() const;
   // __host__ __device__ size_type num_blocks() const;
   // __host__ __device__ size_type num_words() const;
   // __host__ __device__ size_type num_bits() const;
-  // __host__ __device__ hasher hash_function() const;
   // [[nodiscard]] __host__ float occupancy() const;
   // [[nodiscard]] __host__ float expected_false_positive_rate(size_t unique_keys) const
   // [[nodiscard]] __host__ __device__ static uint32_t optimal_pattern_bits(size_t num_blocks)
