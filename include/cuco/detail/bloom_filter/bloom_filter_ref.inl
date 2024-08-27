@@ -83,6 +83,19 @@ template <class Key,
           class Hash,
           std::uint32_t BlockWords,
           class Word>
+template <class ProbeKey>
+__device__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::add(
+  ProbeKey const& key)
+{
+  impl_.add(key);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class Hash,
+          std::uint32_t BlockWords,
+          class Word>
 template <class CG, class ProbeKey>
 __device__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::add(
   CG const& group, ProbeKey const& key)

@@ -58,9 +58,8 @@ class bloom_filter_ref {
 
   __host__ void clear_async(cuda::stream_ref stream = {});
 
-  // TODO
-  // template <class ProbeKey>
-  // __device__ void add(ProbeKey const& key);
+  template <class ProbeKey>
+  __device__ void add(ProbeKey const& key);
 
   template <class CG, class ProbeKey>
   __device__ void add(CG const& group, ProbeKey const& key);
