@@ -22,26 +22,26 @@
 #include <cstdint>
 #include <iterator>
 
-namespace cuco::bloom_filter_ns::detail {
+namespace cuco::detail {
 
 CUCO_SUPPRESS_KERNEL_WARNINGS
 
-template <int32_t BlockSize, class InputIt, class StencilIt, class Predicate, typename Ref>
+template <int32_t BlockSize, class InputIt, class StencilIt, class Predicate, class Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
-  auto constexpr window_size = Ref::window_size;
+  auto constexpr block_words = Ref::block_words;
 
-  auto const loop_stride = cuco::detail::grid_stride() / window_size;
-  auto idx               = cuco::detail::global_thread_id() / window_size;
+  auto const loop_stride = cuco::detail::grid_stride() / block_words;
+  auto idx               = cuco::detail::global_thread_id() / block_words;
 
   [[maybe_unused]] auto const tile =
-    cooperative_groups::tiled_partition<window_size>(cooperative_groups::this_thread_block());
+    cooperative_groups::tiled_partition<block_words>(cooperative_groups::this_thread_block());
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
       typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};
-      if constexpr (window_size == 1) {
+      if constexpr (block_words == 1) {
         ref.add(insert_element);
       } else {
         ref.add(tile, insert_element);
@@ -56,13 +56,13 @@ template <int32_t BlockSize,
           class StencilIt,
           class Predicate,
           class OutputIt,
-          typename Ref>
-CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
-                                                            cuco::detail::index_type n,
-                                                            StencilIt stencil,
-                                                            Predicate pred,
-                                                            OutputIt out,
-                                                            Ref ref)
+          class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void test_if_n(InputIt first,
+                                                        cuco::detail::index_type n,
+                                                        StencilIt stencil,
+                                                        Predicate pred,
+                                                        OutputIt out,
+                                                        Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride();
   auto idx               = cuco::detail::global_thread_id();
@@ -70,7 +70,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
   while (idx < n) {
     if (pred(*(stencil + idx))) {
       typename std::iterator_traits<InputIt>::value_type const& query{*(first + idx)};
-      *(out + idx) = ref.contains(query);
+      *(out + idx) = ref.test(query);
     } else {
       *(out + idx) = false;
     }
@@ -78,4 +78,4 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
   }
 }
 
-}  // namespace cuco::bloom_filter_ns::detail
+}  // namespace cuco::detail

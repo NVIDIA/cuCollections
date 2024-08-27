@@ -45,7 +45,7 @@ void add_fpr_summary(nvbench::state& state, FilterType& filter)
   auto tn_begin = tp_end;
   auto tn_end   = keys.end();
   filter.add(tp_begin, tp_end);
-  filter.contains(tn_begin, tn_end, result.begin());
+  filter.test(tn_begin, tn_end, result.begin());
 
   float fp = thrust::count(thrust::device, result.begin(), result.end(), true);
 
@@ -61,15 +61,15 @@ void add_fpr_summary(nvbench::state& state, FilterType& filter)
 /**
  * @brief A benchmark evaluating `cuco::bloom_filter::add_async` performance
  */
-template <typename Key, typename Hash, typename Storage, typename Dist>
-void bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Hash, Storage, Dist>)
+template <typename Key, typename Hash, typename BlockWords, typename Dist>
+void bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Hash, BlockWords, Dist>)
 {
   using filter_type = cuco::bloom_filter<Key,
                                          cuco::extent<size_t>,
                                          cuda::thread_scope_device,
                                          rebind_hasher_t<Hash, Key>,
                                          cuco::cuda_allocator<std::byte>,
-                                         Storage>;
+                                         BlockWords::value>;
 
   auto const num_keys       = state.get_int64("NumInputs");
   auto const filter_size_mb = state.get_int64("FilterSizeMB");
@@ -77,7 +77,7 @@ void bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Hash, Stora
 
   std::size_t const num_sub_filters =
     (filter_size_mb * 1024 * 1024) /
-    (sizeof(typename filter_type::word_type) * filter_type::window_size);
+    (sizeof(typename filter_type::word_type) * filter_type::block_words);
 
   thrust::device_vector<Key> keys(num_keys);
 
@@ -96,17 +96,17 @@ void bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Hash, Stora
 }
 
 /**
- * @brief A benchmark evaluating `cuco::bloom_filter::contains_async` performance
+ * @brief A benchmark evaluating `cuco::bloom_filter::test_async` performance
  */
-template <typename Key, typename Hash, typename Storage, typename Dist>
-void bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, Hash, Storage, Dist>)
+template <typename Key, typename Hash, typename BlockWords, typename Dist>
+void bloom_filter_test(nvbench::state& state, nvbench::type_list<Key, Hash, BlockWords, Dist>)
 {
   using filter_type = cuco::bloom_filter<Key,
                                          cuco::extent<size_t>,
                                          cuda::thread_scope_device,
                                          rebind_hasher_t<Hash, Key>,
                                          cuco::cuda_allocator<std::byte>,
-                                         Storage>;
+                                         BlockWords::value>;
 
   auto const num_keys       = state.get_int64("NumInputs");
   auto const filter_size_mb = state.get_int64("FilterSizeMB");
@@ -114,7 +114,7 @@ void bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, Hash, 
 
   std::size_t const num_sub_filters =
     (filter_size_mb * 1024 * 1024) /
-    (sizeof(typename filter_type::word_type) * filter_type::window_size);
+    (sizeof(typename filter_type::word_type) * filter_type::block_words);
 
   thrust::device_vector<Key> keys(num_keys);
   thrust::device_vector<bool> result(num_keys, false);
@@ -131,17 +131,22 @@ void bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, Hash, 
   filter.add(keys.begin(), keys.end());
 
   state.exec([&](nvbench::launch& launch) {
-    filter.contains_async(keys.begin(), keys.end(), result.begin(), {launch.get_stream()});
+    filter.test_async(keys.begin(), keys.end(), result.begin(), {launch.get_stream()});
   });
 }
+
+template <uint32_t S>
+struct BlockWords {
+  static constexpr auto value = S;
+};
 
 NVBENCH_BENCH_TYPES(bloom_filter_add,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       nvbench::type_list<cuco::default_hash_function<char>>,
-                                      nvbench::type_list<cuco::storage<1>>,
+                                      nvbench::type_list<BlockWords<1>>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_add_unique_size")
-  .set_type_axes_names({"Key", "Hash", "Storage", "Distribution"})
+  .set_type_axes_names({"Key", "Hash", "BlockWords", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
@@ -150,10 +155,10 @@ NVBENCH_BENCH_TYPES(bloom_filter_add,
 NVBENCH_BENCH_TYPES(bloom_filter_add,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::HASH_RANGE,
-                                      nvbench::type_list<cuco::storage<1>>,
+                                      nvbench::type_list<BlockWords<1>>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_add_unique_hash")
-  .set_type_axes_names({"Key", "Hash", "Storage", "Distribution"})
+  .set_type_axes_names({"Key", "Hash", "BlockWords", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})
@@ -163,47 +168,47 @@ NVBENCH_BENCH_TYPES(
   bloom_filter_add,
   NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                     nvbench::type_list<cuco::default_hash_function<char>>,
-                    nvbench::type_list<cuco::storage<1>, cuco::storage<2>, cuco::storage<4>>,
+                    nvbench::type_list<BlockWords<1>, BlockWords<2>, BlockWords<4>>,
                     nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_add_unique_subfilter")
-  .set_type_axes_names({"Key", "Hash", "Storage", "Distribution"})
+  .set_type_axes_names({"Key", "Hash", "BlockWords", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})
   .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
 
-NVBENCH_BENCH_TYPES(bloom_filter_contains,
+NVBENCH_BENCH_TYPES(bloom_filter_test,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       nvbench::type_list<cuco::default_hash_function<char>>,
-                                      nvbench::type_list<cuco::storage<1>>,
+                                      nvbench::type_list<BlockWords<1>>,
                                       nvbench::type_list<distribution::unique>))
-  .set_name("bloom_filter_contains_unique_size")
-  .set_type_axes_names({"Key", "Hash", "Storage", "Distribution"})
+  .set_name("bloom_filter_test_unique_size")
+  .set_type_axes_names({"Key", "Hash", "BlockWords", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
   .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
 
-NVBENCH_BENCH_TYPES(bloom_filter_contains,
+NVBENCH_BENCH_TYPES(bloom_filter_test,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::HASH_RANGE,
-                                      nvbench::type_list<cuco::storage<1>>,
+                                      nvbench::type_list<BlockWords<1>>,
                                       nvbench::type_list<distribution::unique>))
-  .set_name("bloom_filter_contains_unique_hash")
-  .set_type_axes_names({"Key", "Hash", "Storage", "Distribution"})
+  .set_name("bloom_filter_test_unique_hash")
+  .set_type_axes_names({"Key", "Hash", "BlockWords", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})
   .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
 
 NVBENCH_BENCH_TYPES(
-  bloom_filter_contains,
+  bloom_filter_test,
   NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                     nvbench::type_list<cuco::default_hash_function<char>>,
-                    nvbench::type_list<cuco::storage<1>, cuco::storage<2>, cuco::storage<4>>,
+                    nvbench::type_list<BlockWords<1>, BlockWords<2>, BlockWords<4>>,
                     nvbench::type_list<distribution::unique>))
-  .set_name("bloom_filter_contains_unique_subfilter")
-  .set_type_axes_names({"Key", "Hash", "Storage", "Distribution"})
+  .set_name("bloom_filter_test_unique_subfilter")
+  .set_type_axes_names({"Key", "Hash", "BlockWords", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})

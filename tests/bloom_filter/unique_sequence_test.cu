@@ -49,32 +49,32 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
 
   SECTION("Non-inserted keys should not be contained.")
   {
-    filter.contains(keys.begin(), keys.end(), contained.begin());
+    filter.test(keys.begin(), keys.end(), contained.begin());
     REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("All inserted keys should be contained.")
   {
     filter.add(keys.begin(), keys.end());
-    filter.contains(keys.begin(), keys.end(), contained.begin());
+    filter.test(keys.begin(), keys.end(), contained.begin());
     REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("After clearing the flter no keys should be contained.")
   {
     filter.clear();
-    filter.contains(keys.begin(), keys.end(), contained.begin());
+    filter.test(keys.begin(), keys.end(), contained.begin());
     REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("All conditionally inserted keys should be contained")
   {
     filter.add_if(keys.begin(), keys.end(), thrust::counting_iterator<std::size_t>(0), is_even);
-    filter.contains_if(keys.begin(),
-                       keys.end(),
-                       thrust::counting_iterator<std::size_t>(0),
-                       is_even,
-                       contained.begin());
+    filter.test_if(keys.begin(),
+                   keys.end(),
+                   thrust::counting_iterator<std::size_t>(0),
+                   is_even,
+                   contained.begin());
     REQUIRE(cuco::test::equal(
       contained.begin(),
       contained.end(),
@@ -87,18 +87,22 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
   // TODO test FPR but how?
 }
 
-TEMPLATE_TEST_CASE_SIG("Unique sequence",
-                       "",
-                       ((typename Key, typename Hash, int32_t WindowSize), Key, Hash, WindowSize),
-                       (int32_t, cuco::default_hash_function<int32_t>, 1),
-                       (int32_t, cuco::default_hash_function<int32_t>, 2))
+TEMPLATE_TEST_CASE_SIG(
+  "Unique sequence",
+  "",
+  ((typename Key, typename Hash, uint32_t BlockWords, typename Word), Key, Hash, BlockWords, Word),
+  (int32_t, cuco::default_hash_function<int32_t>, 1, uint32_t),
+  (int32_t, cuco::default_hash_function<int32_t>, 8, uint32_t),
+  (int32_t, cuco::default_hash_function<int32_t>, 1, uint64_t),
+  (int32_t, cuco::default_hash_function<int32_t>, 8, uint64_t))
 {
   using filter_type = cuco::bloom_filter<Key,
                                          cuco::extent<size_t>,
                                          cuda::thread_scope_device,
                                          Hash,
                                          cuco::cuda_allocator<std::byte>,
-                                         cuco::storage<WindowSize>>;
+                                         BlockWords,
+                                         Word>;
   constexpr size_type num_keys{400};
 
   uint32_t pattern_bits = GENERATE(1, 2, 4, 6);

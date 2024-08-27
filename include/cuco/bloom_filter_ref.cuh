@@ -16,211 +16,130 @@
 
 #pragma once
 
-#include <cuco/hash_functions.cuh>
-#include <cuco/operator.hpp>
-#include <cuco/storage.cuh>
-#include <cuco/types.cuh>
+#include <cuco/detail/bloom_filter/bloom_filter_impl.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/atomic>
-#include <cuda/std/bit>
-
-#include <cooperative_groups.h>
+#include <cuda/stream_ref>
 
 #include <cstdint>
-#include <type_traits>
 
 namespace cuco {
 
-template <class Key, cuda::thread_scope Scope, class Hash, class StorageRef, class... Operators>
-class bloom_filter_ref
-  : public detail::operator_impl<Operators,
-                                 bloom_filter_ref<Key, Scope, Hash, StorageRef, Operators...>>... {
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class Hash,
+          std::uint32_t BlockWords,
+          class Word>
+class bloom_filter_ref {
+  using impl_type = detail::bloom_filter_impl<Key, Extent, Scope, Hash, BlockWords, Word>;
+
  public:
-  using key_type         = Key;  ///< Key Type
-  using word_type        = uint32_t;
-  using storage_ref_type = StorageRef;                                 ///< Type of storage ref
-  using window_type      = typename storage_ref_type::window_type;     ///< Window type
-  using extent_type      = typename storage_ref_type::extent_type;     ///< Extent type
-  using size_type        = typename storage_ref_type::size_type;       ///< Probing scheme size type
-  using iterator         = typename storage_ref_type::iterator;        ///< Slot iterator type
-  using const_iterator   = typename storage_ref_type::const_iterator;  ///< Const slot iterator type
+  static constexpr auto thread_scope = impl_type::thread_scope;
+  static constexpr auto block_words  = impl_type::block_words;
 
-  static_assert(std::is_same_v<typename storage_ref_type::value_type, word_type>,
-                "StorageRef has invalid value type");
+  using key_type    = typename impl_type::key_type;  ///< Key Type
+  using extent_type = typename impl_type::extent_type;
+  using size_type   = typename extent_type::value_type;
+  using hasher      = typename impl_type::hasher;
+  using word_type   = typename impl_type::word_type;
 
-  static_assert(cuda::std::has_single_bit(static_cast<uint32_t>(storage_ref_type::window_size)) and
-                  storage_ref_type::window_size <= 32,
-                "Window size must be a power-of-two and less than or equal to 32");
+  __host__ __device__ bloom_filter_ref(word_type* data,
+                                       Extent num_blocks,
+                                       std::uint32_t pattern_bits,
+                                       cuda_thread_scope<Scope>,
+                                       Hash const& hash);
 
-  static constexpr auto window_size =
-    storage_ref_type::window_size;             ///< Number of elements handled per window
-  static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
+  template <class CG>
+  __device__ void clear(CG const& group);
 
-  __host__ __device__ explicit constexpr bloom_filter_ref(uint32_t pattern_bits,
-                                                          cuda_thread_scope<Scope>,
-                                                          Hash hash,
-                                                          StorageRef storage_ref) noexcept
-    : pattern_bits_{pattern_bits}, hash_{hash}, storage_ref_{storage_ref}
-  {
-  }
+  __host__ void clear(cuda::stream_ref stream = {});
+
+  __host__ void clear_async(cuda::stream_ref stream = {});
+
+  // TODO
+  // template <class ProbeKey>
+  // __device__ void add(ProbeKey const& key);
+
+  template <class CG, class ProbeKey>
+  __device__ void add(CG const& group, ProbeKey const& key);
+
+  // TODO
+  // template <class CG, class InputIt>
+  // __device__ void add(CG const& group, InputIt first, InputIt last);
+
+  template <class InputIt>
+  __host__ void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
+
+  template <class InputIt>
+  __host__ void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
+
+  template <class InputIt, class StencilIt, class Predicate>
+  __host__ void add_if(
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
+
+  template <class InputIt, class StencilIt, class Predicate>
+  __host__ void add_if_async(InputIt first,
+                             InputIt last,
+                             StencilIt stencil,
+                             Predicate pred,
+                             cuda::stream_ref stream = {}) noexcept;
+
+  template <class ProbeKey>
+  [[nodiscard]] __device__ bool test(ProbeKey const& key) const;
+
+  // TODO
+  // template <class CG, class ProbeKey>
+  // [[nodiscard]] __device__ bool test(CG const& group, ProbeKey const& key) const;
+
+  // TODO
+  // template <class CG, class InputIt, class OutputIt>
+  // __device__ void test(CG const& group, InputIt first, InputIt last, OutputIt output_begin)
+  // const;
+
+  template <class InputIt, class OutputIt>
+  __host__ void test(InputIt first,
+                     InputIt last,
+                     OutputIt output_begin,
+                     cuda::stream_ref stream = {}) const;
+
+  template <class InputIt, class OutputIt>
+  __host__ void test_async(InputIt first,
+                           InputIt last,
+                           OutputIt output_begin,
+                           cuda::stream_ref stream = {}) const noexcept;
+
+  template <class InputIt, class StencilIt, class Predicate, class OutputIt>
+  __host__ void test_if(InputIt first,
+                        InputIt last,
+                        StencilIt stencil,
+                        Predicate pred,
+                        OutputIt output_begin,
+                        cuda::stream_ref stream = {}) const;
+
+  template <class InputIt, class StencilIt, class Predicate, class OutputIt>
+  __host__ void test_if_async(InputIt first,
+                              InputIt last,
+                              StencilIt stencil,
+                              Predicate pred,
+                              OutputIt output_begin,
+                              cuda::stream_ref stream = {}) const noexcept;
+
+  // TODO
+  // __host__ __device__ word_type* data() const;
+  // __host__ __device__ extent_type extent() const;
+  // __host__ __device__ size_type num_blocks() const;
+  // __host__ __device__ size_type num_words() const;
+  // __host__ __device__ size_type num_bits() const;
+  // __host__ __device__ hasher hash_function() const;
+  // [[nodiscard]] __host__ float occupancy() const;
+  // [[nodiscard]] __host__ float expected_false_positive_rate(size_t unique_keys) const
+  // [[nodiscard]] __host__ __device__ static uint32_t optimal_pattern_bits(size_t num_blocks)
 
  private:
-  template <class HashValue>
-  __device__ size_type sub_filter_idx(HashValue hash_value) const
-  {
-    // TODO use fast_int modulo
-    return hash_value % storage_ref_.num_windows();
-  }
-
-  // we use the LSB bits of the hash value to determine the pattern bits for each word
-  template <class HashValue>
-  __device__ window_type pattern(HashValue hash_value) const
-  {
-    window_type pattern{};
-    auto constexpr word_bits           = sizeof(word_type) * CHAR_BIT;
-    auto constexpr bit_index_width     = cuda::std::bit_width(word_bits - 1);
-    word_type constexpr bit_index_mask = (word_type{1} << bit_index_width) - 1;
-
-    auto const bits_per_word = pattern_bits_ / window_size;
-    auto const remainder     = pattern_bits_ % window_size;
-
-    uint32_t k = 0;
-#pragma unroll window_size
-    for (int32_t i = 0; i < window_size; ++i) {
-      for (int32_t j = 0; j < bits_per_word + (i < remainder ? 1 : 0); ++j) {
-        if (k++ >= pattern_bits_) { return pattern; }
-        pattern[i] |= word_type{1} << (hash_value & bit_index_mask);
-        hash_value >>= bit_index_width;
-      }
-    }
-
-    return pattern;
-  }
-
-  template <class HashValue>
-  __device__ word_type pattern_word(HashValue hash_value, uint32_t i) const
-  {
-    auto constexpr word_bits           = sizeof(word_type) * CHAR_BIT;
-    auto constexpr bit_index_width     = cuda::std::bit_width(word_bits - 1);
-    word_type constexpr bit_index_mask = (word_type{1} << bit_index_width) - 1;
-
-    auto const bits_per_word = pattern_bits_ / window_size;
-    auto const remainder     = pattern_bits_ % window_size;
-    auto const bits_so_far   = bits_per_word * i + (i < remainder ? i : remainder);
-
-    hash_value >>= bits_so_far * bit_index_width;
-
-    // Compute the word at index i
-    word_type word  = 0;
-    int32_t j_limit = bits_per_word + (i < remainder ? 1 : 0);
-
-    for (int32_t j = 0; j < j_limit; ++j) {
-      word |= word_type{1} << (hash_value & bit_index_mask);
-      hash_value >>= bit_index_width;
-    }
-
-    return word;
-  }
-
-  uint32_t pattern_bits_;
-  Hash hash_;
-  storage_ref_type storage_ref_;
-
-  // Mixins need to be friends with this class in order to access private members
-  template <class Op, class Ref>
-  friend class detail::operator_impl;
-
-  // Refs with other operator sets need to be friends too
-  template <class Key_,
-            cuda::thread_scope Scope_,
-            class Hash_,
-            class StorageRef_,
-            class... Operators_>
-  friend class bloom_filter_ref;
+  impl_type impl_;
 };
-
-namespace detail {
-
-template <class Key, cuda::thread_scope Scope, class Hash, class StorageRef, class... Operators>
-class operator_impl<op::add_tag, bloom_filter_ref<Key, Scope, Hash, StorageRef, Operators...>> {
-  using base_type = bloom_filter_ref<Key, Scope, Hash, StorageRef>;
-  using ref_type  = bloom_filter_ref<Key, Scope, Hash, StorageRef, Operators...>;
-  using word_type = typename base_type::word_type;
-
-  static constexpr auto window_size = base_type::window_size;
-
- public:
-  template <class ProbeKey>
-  __device__ void add(ProbeKey const& key)
-  {
-    // CRTP: cast `this` to the actual ref type
-    auto& ref_ = static_cast<ref_type&>(*this);
-
-    auto const hash_value = ref_.hash_(key);
-    auto const idx        = ref_.sub_filter_idx(hash_value);
-
-#pragma unroll window_size
-    for (int32_t i = 0; i < window_size; ++i) {
-      auto const word = ref_.pattern_word(hash_value, i);
-      if (word != 0) {
-        auto atom_word =
-          cuda::atomic_ref<word_type, Scope>{*((ref_.storage_ref_.data() + idx)->data() + i)};
-        atom_word.fetch_or(word, cuda::memory_order_relaxed);
-      }
-    }
-  }
-
-  template <class ProbeKey>
-  __device__ void add(cooperative_groups::thread_block_tile<window_size> const& tile,
-                      ProbeKey const& key)
-  {
-    // CRTP: cast `this` to the actual ref type
-    auto& ref_ = static_cast<ref_type&>(*this);
-
-    auto const hash_value = ref_.hash_(key);
-    auto const idx        = ref_.sub_filter_idx(hash_value);
-    auto const rank       = tile.thread_rank();
-
-    auto const word = ref_.pattern_word(hash_value, rank);
-    if (word != 0) {
-      auto atom_word =
-        cuda::atomic_ref<word_type, Scope>{*((ref_.storage_ref_.data() + idx)->data() + rank)};
-      atom_word.fetch_or(word, cuda::memory_order_relaxed);
-    }
-  }
-};
-
-template <class Key, cuda::thread_scope Scope, class Hash, class StorageRef, class... Operators>
-class operator_impl<op::contains_tag,
-                    bloom_filter_ref<Key, Scope, Hash, StorageRef, Operators...>> {
-  using base_type = bloom_filter_ref<Key, Scope, Hash, StorageRef>;
-  using ref_type  = bloom_filter_ref<Key, Scope, Hash, StorageRef, Operators...>;
-
-  static constexpr auto window_size = base_type::window_size;
-
- public:
-  template <class ProbeKey>
-  [[nodiscard]] __device__ bool contains(ProbeKey const& key) const
-  {
-    // CRTP: cast `this` to the actual ref type
-    auto const& ref_ = static_cast<ref_type const&>(*this);
-
-    auto const hash_value = ref_.hash_(key);
-    auto const idx        = ref_.sub_filter_idx(hash_value);
-
-    auto const stored_pattern   = ref_.storage_ref_[idx];  // vectorized load
-    auto const expected_pattern = ref_.pattern(hash_value);
-
-#pragma unroll window_size
-    for (int32_t i = 0; i < window_size; ++i) {
-      if ((stored_pattern[i] & expected_pattern[i]) != expected_pattern[i]) { return false; }
-    }
-
-    return true;
-  }
-};
-
-}  // namespace detail
-
 }  // namespace cuco
+
+#include <cuco/detail/bloom_filter/bloom_filter_ref.inl>

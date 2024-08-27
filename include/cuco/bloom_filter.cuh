@@ -17,198 +17,108 @@
 #pragma once
 
 #include <cuco/bloom_filter_ref.cuh>
-#include <cuco/detail/utility/cuda.hpp>
+#include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/hash_functions.cuh>
-#include <cuco/storage.cuh>
-#include <cuco/types.cuh>
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
-#include <cuco/utility/traits.hpp>
 
-#include <cuda/std/atomic>
+#include <cuda/atomic>
 #include <cuda/stream_ref>
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
-
-// move these includes to .inl
-#include <cuco/detail/bloom_filter/kernels.cuh>
-
-#include <cub/device/device_for.cuh>
-#include <thrust/functional.h>
-#include <thrust/iterator/constant_iterator.h>
 
 namespace cuco {
 
 template <class Key,
-          class Extent             = cuco::extent<size_t>,
+          class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class Hash               = cuco::default_hash_function<Key>,
+          class Hash               = cuco::xxhash_64<Key>,
           class Allocator          = cuco::cuda_allocator<std::byte>,
-          class Storage            = cuco::storage<1>>
+          std::uint32_t BlockWords = 8,
+          class Word               = std::uint32_t>
 class bloom_filter {
  public:
-  static constexpr auto window_size  = Storage::window_size;  ///< Window size used for probing
-  static constexpr auto thread_scope = Scope;                 ///< CUDA thread scope
+  template <cuda::thread_scope NewScope = Scope>
+  using ref_type = bloom_filter_ref<Key, Extent, NewScope, Hash, BlockWords, Word>;
 
-  using key_type    = Key;
-  using word_type   = uint32_t;
-  using extent_type = Extent;
-  using size_type   = typename extent_type::value_type;  ///< Size type
-  using storage_type =
-    detail::storage<Storage, word_type, extent_type, Allocator>;   ///< Storage type
-  using allocator_type   = typename storage_type::allocator_type;  ///< Allocator type
-  using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
+  static constexpr auto thread_scope = ref_type<>::thread_scope;
+  static constexpr auto block_words  = ref_type<>::block_words;
 
-  template <typename... Operators>
-  using ref_type = cuco::bloom_filter_ref<key_type,
-                                          thread_scope,
-                                          Hash,
-                                          storage_ref_type,
-                                          Operators...>;  ///< Non-owning container ref type
+  using key_type    = typename ref_type<>::key_type;  ///< Key Type
+  using extent_type = typename ref_type<>::extent_type;
+  using size_type   = typename extent_type::value_type;
+  using hasher      = typename ref_type<>::hasher;
+  using word_type   = typename ref_type<>::word_type;
+  using allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<word_type>;
 
-  bloom_filter(bloom_filter const&)            = delete;
-  bloom_filter& operator=(bloom_filter const&) = delete;
+  __host__ bloom_filter(Extent num_blocks,
+                        std::uint32_t pattern_bits,
+                        cuda_thread_scope<Scope> = {},
+                        Hash const& hash         = {},
+                        Allocator const& alloc   = {},
+                        cuda::stream_ref stream  = {});
 
-  bloom_filter(bloom_filter&&) = default;  ///< Move constructor
+  __host__ void clear(cuda::stream_ref stream = {});
 
-  /**
-   * @brief Replaces the contents of the container with another container.
-   *
-   * @return Reference of the current set object
-   */
-  bloom_filter& operator=(bloom_filter&&) = default;
-  ~bloom_filter()                         = default;
-
-  constexpr bloom_filter(Extent num_sub_filters,
-                         uint32_t pattern_bits,
-                         cuda_thread_scope<Scope> = {},
-                         Hash hash                = {},
-                         Storage                  = {},
-                         Allocator const& alloc   = {},
-                         cuda::stream_ref stream  = {})
-    : pattern_bits_{pattern_bits},
-      hash_{hash},
-      storage_{std::make_unique<storage_type>(num_sub_filters, alloc)}
-  {
-    this->clear_async(stream);
-  }
-
-  void clear(cuda::stream_ref stream = {}) { this->storage_->initialize(word_type{}, stream); }
-
-  void clear_async(cuda::stream_ref stream = {}) noexcept
-  {
-    this->storage_->initialize_async(word_type{}, stream);
-  }
+  __host__ void clear_async(cuda::stream_ref stream = {});
 
   template <class InputIt>
-  void add(InputIt first, InputIt last, cuda::stream_ref stream = {})
-  {
-    this->add_async(first, last, stream);
-    stream.wait();
-  }
+  __host__ void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   template <class InputIt>
-  void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {})
-  {
-    auto const num_keys = cuco::detail::distance(first, last);
-    if (num_keys == 0) { return; }
-
-    if constexpr (window_size == 1) {
-      auto add_op = [ref = this->ref(op::add)] __device__(key_type const key) mutable {
-        ref.add(key);
-      };
-      CUCO_CUDA_TRY(cub::DeviceFor::ForEachCopyN(first, num_keys, add_op, stream.get()));
-    } else {
-      auto const always_true = thrust::constant_iterator<bool>{true};
-      this->add_if_async(first, last, always_true, thrust::identity{}, stream);
-    }
-  }
+  __host__ void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   template <class InputIt, class StencilIt, class Predicate>
-  void add_if(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {})
-  {
-    this->add_if_async(first, last, stencil, pred, stream);
-    stream.wait();
-  }
+  __host__ void add_if(
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
 
   template <class InputIt, class StencilIt, class Predicate>
-  void add_if_async(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {})
-  {
-    auto const num_keys = cuco::detail::distance(first, last);
-    if (num_keys == 0) { return; }
-
-    auto constexpr block_size = cuco::detail::default_block_size();
-    auto const grid_size =
-      cuco::detail::grid_size(num_keys, window_size, cuco::detail::default_stride(), block_size);
-
-    bloom_filter_ns::detail::add_if_n<block_size><<<grid_size, block_size, 0, stream.get()>>>(
-      first, num_keys, stencil, pred, this->ref(op::add));
-  }
+  __host__ void add_if_async(InputIt first,
+                             InputIt last,
+                             StencilIt stencil,
+                             Predicate pred,
+                             cuda::stream_ref stream = {}) noexcept;
 
   template <class InputIt, class OutputIt>
-  void contains(InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream = {})
-  {
-    this->contains_async(first, last, output_begin, stream);
-    stream.wait();
-  }
+  __host__ void test(InputIt first,
+                     InputIt last,
+                     OutputIt output_begin,
+                     cuda::stream_ref stream = {}) const;
 
   template <class InputIt, class OutputIt>
-  void contains_async(InputIt first,
-                      InputIt last,
-                      OutputIt output_begin,
-                      cuda::stream_ref stream = {})
-  {
-    auto const always_true = thrust::constant_iterator<bool>{true};
-    this->contains_if_async(first, last, always_true, thrust::identity{}, output_begin, stream);
-  }
+  __host__ void test_async(InputIt first,
+                           InputIt last,
+                           OutputIt output_begin,
+                           cuda::stream_ref stream = {}) const noexcept;
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  void contains_if(InputIt first,
-                   InputIt last,
-                   StencilIt stencil,
-                   Predicate pred,
-                   OutputIt output_begin,
-                   cuda::stream_ref stream = {})
-  {
-    this->contains_if_async(first, last, stencil, pred, output_begin, stream);
-    stream.wait();
-  }
+  __host__ void test_if(InputIt first,
+                        InputIt last,
+                        StencilIt stencil,
+                        Predicate pred,
+                        OutputIt output_begin,
+                        cuda::stream_ref stream = {}) const;
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  void contains_if_async(InputIt first,
-                         InputIt last,
-                         StencilIt stencil,
-                         Predicate pred,
-                         OutputIt output_begin,
-                         cuda::stream_ref stream = {})
-  {
-    auto const num_keys = cuco::detail::distance(first, last);
-    if (num_keys == 0) { return; }
+  __host__ void test_if_async(InputIt first,
+                              InputIt last,
+                              StencilIt stencil,
+                              Predicate pred,
+                              OutputIt output_begin,
+                              cuda::stream_ref stream = {}) const noexcept;
 
-    auto constexpr block_size = cuco::detail::default_block_size();
-    auto const grid_size =
-      cuco::detail::grid_size(num_keys, 1, cuco::detail::default_stride(), block_size);
-
-    bloom_filter_ns::detail::contains_if_n<block_size><<<grid_size, block_size, 0, stream.get()>>>(
-      first, num_keys, stencil, pred, output_begin, this->ref(op::contains));
-  }
-
-  template <typename... Operators>
-  [[nodiscard]] auto ref(Operators...) const noexcept
-  {
-    static_assert(sizeof...(Operators), "No operators specified");
-    return ref_type<Operators...>(
-      pattern_bits_, cuda_thread_scope<Scope>{}, hash_, storage_->ref());
-  }
+  [[nodiscard]] ref_type<> ref() const noexcept;
 
  private:
-  uint32_t pattern_bits_;
-  Hash hash_;
-  std::unique_ptr<storage_type> storage_;
+  allocator_type allocator_;
+  std::unique_ptr<word_type, detail::custom_deleter<std::size_t, allocator_type>> data_;
+  ref_type<> ref_;
 };
 
 }  // namespace cuco
+
+#include <cuco/detail/bloom_filter/bloom_filter.inl>

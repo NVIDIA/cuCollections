@@ -49,13 +49,13 @@ int main(void)
 
   // Query the filter for the previously inserted keys.
   // This should result in a true-positive rate of TPR=1.
-  filter.contains(tp_begin, tp_end, tp_result.begin());
+  filter.test(tp_begin, tp_end, tp_result.begin());
 
   // Query the filter for the keys that are not present in the filter.
   // Since bloom filters are probalistic data structures, the filter
   // exhibits a false-positive rate FPR>0 depending on the number of bits in
   // the filter and the number of hashes used per key.
-  filter.contains(tn_begin, tn_end, tn_result.begin());
+  filter.test(tn_begin, tn_end, tn_result.begin());
 
   float tp_rate =
     float(thrust::count(thrust::device, tp_result.begin(), tp_result.end(), true)) / float(num_tp);
