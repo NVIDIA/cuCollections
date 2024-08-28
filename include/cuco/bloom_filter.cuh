@@ -37,8 +37,8 @@ template <class Key,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class Hash               = cuco::xxhash_64<Key>,
           class Allocator          = cuco::cuda_allocator<std::byte>,
-          std::uint32_t BlockWords = 8,
-          class Word               = std::uint32_t>
+          std::uint32_t BlockWords = 4,
+          class Word               = std::uint64_t>
 class bloom_filter {
  public:
   template <cuda::thread_scope NewScope = Scope>

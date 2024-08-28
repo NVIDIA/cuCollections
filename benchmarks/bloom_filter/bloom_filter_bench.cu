@@ -147,8 +147,8 @@ struct BlockWords {
 NVBENCH_BENCH_TYPES(bloom_filter_add,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       nvbench::type_list<cuco::default_hash_function<char>>,
-                                      nvbench::type_list<BlockWords<1>>,
-                                      nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
+                                      nvbench::type_list<BlockWords<4>>,
+                                      nvbench::type_list<nvbench::uint64_t>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_add_unique_size")
   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
@@ -160,8 +160,8 @@ NVBENCH_BENCH_TYPES(bloom_filter_add,
 NVBENCH_BENCH_TYPES(bloom_filter_add,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::HASH_RANGE,
-                                      nvbench::type_list<BlockWords<1>>,
-                                      nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
+                                      nvbench::type_list<BlockWords<4>>,
+                                      nvbench::type_list<nvbench::uint64_t>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_add_unique_hash")
   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
@@ -177,7 +177,7 @@ NVBENCH_BENCH_TYPES(
                     nvbench::type_list<BlockWords<1>, BlockWords<2>, BlockWords<4>, BlockWords<8>>,
                     nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
                     nvbench::type_list<distribution::unique>))
-  .set_name("bloom_filter_add_unique_block_words")
+  .set_name("bloom_filter_add_unique_block_dim")
   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
@@ -187,8 +187,8 @@ NVBENCH_BENCH_TYPES(
 NVBENCH_BENCH_TYPES(bloom_filter_test,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       nvbench::type_list<cuco::default_hash_function<char>>,
-                                      nvbench::type_list<BlockWords<1>>,
-                                      nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
+                                      nvbench::type_list<BlockWords<4>>,
+                                      nvbench::type_list<nvbench::uint64_t>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_test_unique_size")
   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
@@ -200,8 +200,8 @@ NVBENCH_BENCH_TYPES(bloom_filter_test,
 NVBENCH_BENCH_TYPES(bloom_filter_test,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::HASH_RANGE,
-                                      nvbench::type_list<BlockWords<1>>,
-                                      nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
+                                      nvbench::type_list<BlockWords<4>>,
+                                      nvbench::type_list<nvbench::uint64_t>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_test_unique_hash")
   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
@@ -217,7 +217,7 @@ NVBENCH_BENCH_TYPES(
                     nvbench::type_list<BlockWords<1>, BlockWords<2>, BlockWords<4>, BlockWords<8>>,
                     nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
                     nvbench::type_list<distribution::unique>))
-  .set_name("bloom_filter_test_unique_block_words")
+  .set_name("bloom_filter_test_unique_block_dim")
   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
