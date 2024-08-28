@@ -144,6 +144,8 @@ struct BlockWords {
   static constexpr auto value = S;
 };
 
+static constexpr auto BF_N = defaults::N * 5;
+
 NVBENCH_BENCH_TYPES(bloom_filter_add,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       nvbench::type_list<cuco::default_hash_function<char>>,
@@ -153,7 +155,7 @@ NVBENCH_BENCH_TYPES(bloom_filter_add,
   .set_name("bloom_filter_add_unique_size")
   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {defaults::N})
+  .add_int64_axis("NumInputs", {BF_N})
   .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
   .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
 
@@ -166,7 +168,7 @@ NVBENCH_BENCH_TYPES(bloom_filter_add,
   .set_name("bloom_filter_add_unique_hash")
   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {defaults::N})
+  .add_int64_axis("NumInputs", {BF_N})
   .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})
   .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
 
@@ -180,7 +182,7 @@ NVBENCH_BENCH_TYPES(
   .set_name("bloom_filter_add_unique_block_dim")
   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {defaults::N})
+  .add_int64_axis("NumInputs", {BF_N})
   .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})
   .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
 
@@ -193,7 +195,7 @@ NVBENCH_BENCH_TYPES(bloom_filter_test,
   .set_name("bloom_filter_test_unique_size")
   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {defaults::N})
+  .add_int64_axis("NumInputs", {BF_N})
   .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
   .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
 
@@ -206,7 +208,7 @@ NVBENCH_BENCH_TYPES(bloom_filter_test,
   .set_name("bloom_filter_test_unique_hash")
   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {defaults::N})
+  .add_int64_axis("NumInputs", {BF_N})
   .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})
   .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
 
@@ -220,7 +222,7 @@ NVBENCH_BENCH_TYPES(
   .set_name("bloom_filter_test_unique_block_dim")
   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {defaults::N})
+  .add_int64_axis("NumInputs", {BF_N})
   .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})
   .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
 
@@ -235,7 +237,7 @@ NVBENCH_BENCH_TYPES(
 //   .set_name("bloom_filter_add_unique_product")
 //   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
 //   .set_max_noise(defaults::MAX_NOISE)
-//   .add_int64_axis("NumInputs", {defaults::N})
+//   .add_int64_axis("NumInputs", {BF_N})
 //   .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
 //   .add_int64_axis("PatternBits", {1, 2, 4, 6, 8, 10});
 
@@ -249,6 +251,6 @@ NVBENCH_BENCH_TYPES(
 //   .set_name("bloom_filter_test_unique_product")
 //   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
 //   .set_max_noise(defaults::MAX_NOISE)
-//   .add_int64_axis("NumInputs", {defaults::N})
+//   .add_int64_axis("NumInputs", {BF_N})
 //   .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
 //   .add_int64_axis("PatternBits", {1, 2, 4, 6, 8, 10});
