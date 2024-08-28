@@ -226,31 +226,33 @@ NVBENCH_BENCH_TYPES(
   .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})
   .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
 
-// benchmark outer product of configuration space
-// NVBENCH_BENCH_TYPES(
-//   bloom_filter_add,
-//   NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-//                     nvbench::type_list<cuco::xxhash_32<char>, cuco::xxhash_64<char>>,
-//                     nvbench::type_list<BlockWords<1>, BlockWords<2>, BlockWords<4>,
-//                     BlockWords<8>>, nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
-//                     nvbench::type_list<distribution::unique>))
-//   .set_name("bloom_filter_add_unique_product")
-//   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
-//   .set_max_noise(defaults::MAX_NOISE)
-//   .add_int64_axis("NumInputs", {BF_N})
-//   .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
-//   .add_int64_axis("PatternBits", {1, 2, 4, 6, 8, 10});
+/*
+benchmark outer product of configuration space
+NVBENCH_BENCH_TYPES(
+  bloom_filter_add,
+  NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                    nvbench::type_list<cuco::xxhash_32<char>, cuco::xxhash_64<char>>,
+                    nvbench::type_list<BlockWords<1>, BlockWords<2>, BlockWords<4>,
+                    BlockWords<8>>, nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
+                    nvbench::type_list<distribution::unique>))
+  .set_name("bloom_filter_add_unique_product")
+  .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {BF_N})
+  .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
+  .add_int64_axis("PatternBits", {1, 2, 4, 6, 8, 10});
 
-// NVBENCH_BENCH_TYPES(
-//   bloom_filter_test,
-//   NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-//                     nvbench::type_list<cuco::xxhash_32<char>, cuco::xxhash_64<char>>,
-//                     nvbench::type_list<BlockWords<1>, BlockWords<2>, BlockWords<4>,
-//                     BlockWords<8>>, nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
-//                     nvbench::type_list<distribution::unique>))
-//   .set_name("bloom_filter_test_unique_product")
-//   .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
-//   .set_max_noise(defaults::MAX_NOISE)
-//   .add_int64_axis("NumInputs", {BF_N})
-//   .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
-//   .add_int64_axis("PatternBits", {1, 2, 4, 6, 8, 10});
+NVBENCH_BENCH_TYPES(
+  bloom_filter_test,
+  NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
+                    nvbench::type_list<cuco::xxhash_32<char>, cuco::xxhash_64<char>>,
+                    nvbench::type_list<BlockWords<1>, BlockWords<2>, BlockWords<4>,
+                    BlockWords<8>>, nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
+                    nvbench::type_list<distribution::unique>))
+  .set_name("bloom_filter_test_unique_product")
+  .set_type_axes_names({"Key", "Hash", "BlockWords", "Word", "Distribution"})
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {BF_N})
+  .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
+  .add_int64_axis("PatternBits", {1, 2, 4, 6, 8, 10});
+*/
