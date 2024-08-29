@@ -1052,7 +1052,7 @@ class static_multimap {
    *
    * @return Boolean indicating if vector-load is used.
    */
-  static constexpr bool uses_vector_load() noexcept
+  static __host__ __device__ constexpr bool uses_vector_load() noexcept
   {
     return cuco::detail::is_packable<value_type>();
   }
@@ -1060,12 +1060,15 @@ class static_multimap {
   /**
    * @brief Returns the number of pairs loaded with each vector-load
    */
-  static constexpr uint32_t vector_width() noexcept { return ProbeSequence::vector_width(); }
+  static __host__ __device__ constexpr uint32_t vector_width() noexcept
+  {
+    return ProbeSequence::vector_width();
+  }
 
   /**
    * @brief Returns the warp size.
    */
-  static constexpr uint32_t warp_size() noexcept { return 32u; }
+  static __host__ __device__ constexpr uint32_t warp_size() noexcept { return 32u; }
 
   /**
    * @brief Custom deleter for unique pointer of slots.

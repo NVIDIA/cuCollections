@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ class probe_sequence_base {
    *
    * @return The number of elements loaded with each vector load
    */
-  static constexpr uint32_t vector_width() noexcept { return 2u; }
+  static __host__ __device__ constexpr uint32_t vector_width() noexcept { return 2u; }
 };
 
 /**
@@ -210,7 +210,7 @@ class linear_probing_impl
   __device__ __forceinline__ iterator
   initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
   {
-    return const_cast<iterator>(std::as_const(*this).initial_slot(g, k));
+    return const_cast<iterator>(cuda::std::as_const(*this).initial_slot(g, k));
   }
 
   /**
@@ -257,7 +257,7 @@ class linear_probing_impl
    */
   __device__ __forceinline__ iterator next_slot(iterator s) noexcept
   {
-    return const_cast<iterator>(std::as_const(*this).next_slot(s));
+    return const_cast<iterator>(cuda::std::as_const(*this).next_slot(s));
   }
 
   /**
@@ -364,7 +364,7 @@ class double_hashing_impl
   __device__ __forceinline__ iterator
   initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
   {
-    return const_cast<iterator>(std::as_const(*this).initial_slot(g, k));
+    return const_cast<iterator>(cuda::std::as_const(*this).initial_slot(g, k));
   }
 
   /**
@@ -409,7 +409,7 @@ class double_hashing_impl
    */
   __device__ __forceinline__ iterator next_slot(iterator s) noexcept
   {
-    return const_cast<iterator>(std::as_const(*this).next_slot(s));
+    return const_cast<iterator>(cuda::std::as_const(*this).next_slot(s));
   }
 
   /**

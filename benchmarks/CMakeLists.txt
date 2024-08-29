@@ -35,7 +35,7 @@ function(ConfigureBench BENCH_NAME)
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks")
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
-    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr -lineinfo)
+    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda -lineinfo)
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         nvbench::main
                                         pthread

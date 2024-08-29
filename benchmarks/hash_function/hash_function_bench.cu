@@ -21,9 +21,9 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/std/cstddef>
 #include <thrust/device_vector.h>
 
-#include <cstddef>
 #include <cstdint>
 #include <type_traits>
 
@@ -139,8 +139,8 @@ __global__ void string_hash_bench_kernel(
 template <typename Hash>
 void string_hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
 {
-  static_assert(std::is_same_v<typename Hash::argument_type, std::byte>,
-                "Argument type must be std::byte");
+  static_assert(std::is_same_v<typename Hash::argument_type, cuda::std::byte>,
+                "Argument type must be cuda::std::byte");
 
   bool const materialize_result = false;
   constexpr auto block_size     = 128;
@@ -164,7 +164,7 @@ void string_hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
                                                                                      : 1);
 
   state.add_element_count(num_keys);
-  // state.add_global_memory_reads<std::byte>(storage.size() * n_repeats);
+  // state.add_global_memory_reads<cuda::std::byte>(storage.size() * n_repeats);
 
   state.exec([&](nvbench::launch& launch) {
     string_hash_bench_kernel<block_size><<<grid_size, block_size, 0, launch.get_stream()>>>(
@@ -196,12 +196,13 @@ NVBENCH_BENCH_TYPES(
   .set_max_noise(cuco::benchmark::defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {cuco::benchmark::defaults::N * 10});
 
-NVBENCH_BENCH_TYPES(string_hash_eval,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<cuco::murmurhash3_32<std::byte>,
-                                                         cuco::xxhash_32<std::byte>,
-                                                         cuco::xxhash_64<std::byte>,
-                                                         cuco::murmurhash3_x86_128<std::byte>,
-                                                         cuco::murmurhash3_x64_128<std::byte>>))
+NVBENCH_BENCH_TYPES(
+  string_hash_eval,
+  NVBENCH_TYPE_AXES(nvbench::type_list<cuco::murmurhash3_32<cuda::std::byte>,
+                                       cuco::xxhash_32<cuda::std::byte>,
+                                       cuco::xxhash_64<cuda::std::byte>,
+                                       cuco::murmurhash3_x86_128<cuda::std::byte>,
+                                       cuco::murmurhash3_x64_128<cuda::std::byte>>))
   .set_name("string_hash_function_eval")
   .set_type_axes_names({"Hash"})
   .set_max_noise(cuco::benchmark::defaults::MAX_NOISE)
