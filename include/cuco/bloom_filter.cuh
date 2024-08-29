@@ -107,7 +107,8 @@ class bloom_filter {
   /**
    * @brief Constructs a statically-sized Bloom filter.
    *
-   * @note The total number of bits in the filter is determined by `BlockWords * num_blocks`.
+   * @note The total number of bits in the filter is determined by `block_words * num_blocks *
+   * sizeof(word_type) * CHAR_BIT`.
    *
    * @param num_blocks Number of sub-filters or blocks
    * @param pattern_bits Number of bits in a key's fingerprint
