@@ -154,7 +154,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                               insert_values.end(),
                               found_values.begin(),
                               cuda::proclaim_return_type<bool>([] __device__(Value lhs, Value rhs) {
-                                return std::tie(lhs.f, lhs.s) == std::tie(rhs.f, rhs.s);
+                                return cuda::std::tie(lhs.f, lhs.s) == cuda::std::tie(rhs.f, rhs.s);
                               })));
   }
 
