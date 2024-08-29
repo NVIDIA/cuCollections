@@ -21,6 +21,7 @@
 #include <cuco/detail/utility/strong_type.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/limits>
 #include <cuda/std/span>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
@@ -35,9 +36,8 @@
 #include <thrust/transform.h>
 #include <thrust/type_traits/is_execution_policy.h>
 
-#include <time.h>
-
 #include <cstdint>
+#include <ctime>
 #include <iterator>
 #include <tuple>
 #include <type_traits>
@@ -191,7 +191,7 @@ struct dropout_fn {
   {
     RNG rng;
     thrust::uniform_int_distribution<T> non_match_dist{static_cast<T>(num_),
-                                                       std::numeric_limits<T>::max()};
+                                                       cuda::std::numeric_limits<T>::max()};
     rng.seed(seed);
     return non_match_dist(rng);
   }
@@ -246,7 +246,7 @@ class key_generator {
    *
    * @param seed Seed for the random number generator
    */
-  key_generator(uint32_t seed = static_cast<uint32_t>(time(nullptr))) : rng_(seed) {}
+  key_generator(uint32_t seed = static_cast<uint32_t>(std::time(nullptr))) : rng_(seed) {}
 
   /**
    * @brief Generates a sequence of random keys in the interval [0, N).
