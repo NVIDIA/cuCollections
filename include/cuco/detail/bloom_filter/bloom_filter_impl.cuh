@@ -130,6 +130,10 @@ class bloom_filter_impl {
     }
   }
 
+  // TODO
+  // template <class CG, class InputIt>
+  // __device__ void add(CG const& group, InputIt first, InputIt last);
+
   template <class InputIt>
   __host__ void add(InputIt first, InputIt last, cuda::stream_ref stream)
   {
@@ -199,6 +203,15 @@ class bloom_filter_impl {
     return true;
   }
 
+  // TODO
+  // template <class CG, class ProbeKey>
+  // [[nodiscard]] __device__ bool test(CG const& group, ProbeKey const& key) const;
+
+  // TODO
+  // template <class CG, class InputIt, class OutputIt>
+  // __device__ void test(CG const& group, InputIt first, InputIt last, OutputIt output_begin)
+  // const;
+
   template <class InputIt, class OutputIt>
   __host__ void test(InputIt first,
                      InputIt last,
@@ -260,6 +273,14 @@ class bloom_filter_impl {
   }
 
   [[nodiscard]] __host__ __device__ hasher hash_function() const noexcept { return hash_; }
+
+  // TODO
+  // [[nodiscard]] __host__ double occupancy() const;
+  // [[nodiscard]] __host__ double expected_false_positive_rate(size_t unique_keys) const
+  // [[nodiscard]] __host__ __device__ static uint32_t optimal_pattern_bits(size_t num_blocks)
+  // template <typename CG, cuda::thread_scope NewScope = thread_scope>
+  // [[nodiscard]] __device__ constexpr auto make_copy(CG const& group, word_type* const
+  // memory_to_use, cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
  private:
   template <class HashValue>
@@ -330,7 +351,7 @@ class bloom_filter_impl {
 
   __host__ __device__ static constexpr size_t required_alignment() noexcept
   {
-    return sizeof(word_type);
+    return sizeof(word_type) * BlockWords;
   }
 
   word_type* words_;
