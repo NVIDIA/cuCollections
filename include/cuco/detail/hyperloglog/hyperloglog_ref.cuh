@@ -475,8 +475,8 @@ class hyperloglog_ref {
     cuco::sketch_size_kb sketch_size_kb) noexcept
   {
     // minimum precision is 4 or 64 bytes
-    return std::max(static_cast<std::size_t>(sizeof(register_type) * 1ull << 4),
-                    cuda::std::bit_floor(static_cast<std::size_t>(sketch_size_kb * 1024)));
+    return cuda::std::max(static_cast<std::size_t>(sizeof(register_type) * 1ull << 4),
+                          cuda::std::bit_floor(static_cast<std::size_t>(sketch_size_kb * 1024)));
   }
 
   /**
@@ -493,7 +493,7 @@ class hyperloglog_ref {
     // https://github.com/apache/spark/blob/6a27789ad7d59cd133653a49be0bb49729542abe/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/util/HyperLogLogPlusPlusHelper.scala#L43
 
     //  minimum precision is 4 or 64 bytes
-    auto const precision = std::max(
+    auto const precision = cuda::std::max(
       static_cast<int32_t>(4),
       static_cast<int32_t>(
         cuda::std::ceil(2.0 * cuda::std::log(1.106 / standard_deviation) / cuda::std::log(2.0))));

@@ -213,8 +213,8 @@ class open_addressing_ref_impl {
    *
    * @return The key equality predicate
    */
-  [[nodiscard]] __device__ constexpr detail::equal_wrapper<key_type, key_equal> const& predicate()
-    const noexcept
+  [[nodiscard]] __host__ __device__ constexpr detail::equal_wrapper<key_type, key_equal> const&
+  predicate() const noexcept
   {
     return this->predicate_;
   }
@@ -255,7 +255,7 @@ class open_addressing_ref_impl {
    *
    * @return The non-owning storage ref of the container
    */
-  [[nodiscard]] __device__ constexpr storage_ref_type const& storage_ref() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr storage_ref_type const& storage_ref() const noexcept
   {
     return storage_ref_;
   }
@@ -1142,7 +1142,8 @@ class open_addressing_ref_impl {
    * @return The key
    */
   template <typename Value>
-  [[nodiscard]] __device__ constexpr auto const& extract_key(Value const& value) const noexcept
+  [[nodiscard]] __host__ __device__ constexpr auto const& extract_key(
+    Value const& value) const noexcept
   {
     if constexpr (this->has_payload) {
       return thrust::raw_reference_cast(value).first;

@@ -1,5 +1,5 @@
 ﻿#=============================================================================
-# Copyright (c) 2018-2023, NVIDIA CORPORATION.
+# Copyright (c) 2018-2024, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,7 +25,7 @@ function(ConfigureExample EXAMPLE_NAME EXAMPLE_SRC)
     target_include_directories(${EXAMPLE_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
     target_compile_options(${EXAMPLE_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)
+      --expt-extended-lambda -Xcompiler -Wno-subobject-linkage)
     target_link_libraries(${EXAMPLE_NAME} PRIVATE cuco CUDA::cudart)
 endfunction(ConfigureExample)
 
