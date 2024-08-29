@@ -437,7 +437,8 @@ class key_generator {
  * vector holding the actual data
  */
 template <typename RNG = thrust::default_random_engine>
-std::pair<thrust::device_vector<cuda::std::span<std::byte>>, thrust::device_vector<std::byte>>
+std::pair<thrust::device_vector<cuda::std::span<cuda::std::byte>>,
+          thrust::device_vector<cuda::std::byte>>
 generate_random_byte_sequences(std::size_t n_sequences,
                                std::size_t min_sequence_length,
                                std::size_t max_sequence_length,
@@ -475,20 +476,21 @@ generate_random_byte_sequences(std::size_t n_sequences,
   // the total number of bytes required to store the sequences
   auto const n_bytes = thrust::reduce(exec_pol, lengths.begin(), lengths.end());
   // the byte vector holding the actual sequence data
-  thrust::device_vector<std::byte> bytes(n_bytes);
+  thrust::device_vector<cuda::std::byte> bytes(n_bytes);
 
   auto offsets_and_lengths =
     thrust::make_zip_iterator(thrust::make_tuple(offsets.begin(), lengths.begin()));
-  thrust::device_vector<cuda::std::span<std::byte>> sequences(n_sequences);
+  thrust::device_vector<cuda::std::span<cuda::std::byte>> sequences(n_sequences);
   // create the span object for each sequence
   thrust::transform(
     exec_pol,
     offsets_and_lengths,
     offsets_and_lengths + n_sequences,
     sequences.begin(),
-    cuda::proclaim_return_type<cuda::std::span<std::byte>>(
+    cuda::proclaim_return_type<cuda::std::span<cuda::std::byte>>(
       [bytes_ptr = thrust::raw_pointer_cast(bytes.data())] __device__(auto const& seq) {
-        return cuda::std::span<std::byte>{bytes_ptr + thrust::get<0>(seq), thrust::get<1>(seq)};
+        return cuda::std::span<cuda::std::byte>{bytes_ptr + thrust::get<0>(seq),
+                                                thrust::get<1>(seq)};
       }));
 
   // fill the byte buffer with random data
@@ -496,11 +498,11 @@ generate_random_byte_sequences(std::size_t n_sequences,
                     thrust::counting_iterator<std::size_t>(0),
                     thrust::counting_iterator<std::size_t>(bytes.size()),
                     bytes.begin(),
-                    cuda::proclaim_return_type<std::byte>([seed] __device__(std::size_t idx) {
+                    cuda::proclaim_return_type<cuda::std::byte>([seed] __device__(std::size_t idx) {
                       RNG rng;
                       thrust::uniform_int_distribution<int> byte_distribution{0, 255};
                       rng.seed(seed + idx);
-                      return static_cast<std::byte>(byte_distribution(rng));
+                      return static_cast<cuda::std::byte>(byte_distribution(rng));
                     }));
 
   return {std::move(sequences), std::move(bytes)};

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,11 @@
 #include <cuco/detail/__config>
 #include <cuco/hash_functions.cuh>
 
+#include <cuda/std/cstddef>
 #include <thrust/device_vector.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
-
-#include <cstddef>
 
 template <int32_t Words>
 struct large_key {
@@ -238,7 +237,7 @@ TEMPLATE_TEST_CASE_SIG("Static vs. dynamic key hash test",
   SECTION("Identical keys with static and dynamic key size should have the same hash value.")
   {
     CHECK(hash(key) ==
-          hash.compute_hash(reinterpret_cast<std::byte const*>(&key), sizeof(key_type)));
+          hash.compute_hash(reinterpret_cast<cuda::std::byte const*>(&key), sizeof(key_type)));
   }
 }
 

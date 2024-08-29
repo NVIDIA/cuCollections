@@ -16,12 +16,14 @@
 
 #pragma once
 
+#include <cuda/std/cstddef>
+
 namespace cuco::detail {
 
 template <typename T, typename U, typename Extent>
 constexpr __host__ __device__ T load_chunk(U const* const data, Extent index) noexcept
 {
-  auto const bytes = reinterpret_cast<std::byte const*>(data);
+  auto const bytes = reinterpret_cast<cuda::std::byte const*>(data);
   T chunk;
   memcpy(&chunk, bytes + index * sizeof(T), sizeof(T));
   return chunk;

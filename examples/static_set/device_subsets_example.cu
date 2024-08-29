@@ -64,7 +64,7 @@ using ref_type         = cuco::static_set_ref<key_type,
                                               storage_ref_type>;  ///< Set ref type
 
 /// Sample data to insert and query
-__device__ constexpr std::array<key_type, N> data = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19};
+__device__ constexpr cuda::std::array<key_type, N> data = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19};
 /// Empty slots are represented by reserved "sentinel" values. These values should be selected such
 /// that they never occur in your input data.
 key_type constexpr empty_key_sentinel = -1;
