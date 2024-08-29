@@ -144,7 +144,7 @@ struct BlockWords {
   static constexpr auto value = S;
 };
 
-static constexpr auto BF_N = defaults::N * 5;
+static constexpr auto BF_N = defaults::N * 2;
 
 NVBENCH_BENCH_TYPES(bloom_filter_add,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
