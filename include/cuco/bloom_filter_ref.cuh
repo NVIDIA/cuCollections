@@ -104,11 +104,20 @@ class bloom_filter_ref {
    */
   __host__ void clear_async(cuda::stream_ref stream = {});
 
+  /**
+   * @brief Device function that adds a key to the filter.
+   *
+   * @tparam ProbeKey Input type that is implicitly convertible to `key_type`
+   *
+   * @param key The key to be added
+   */
   template <class ProbeKey>
   __device__ void add(ProbeKey const& key);
 
   /**
    * @brief Device function that cooperatively adds a key to the filter.
+   *
+   * @note Best performance is achieved if the size of the CG is equal to `BlockWords`.
    *
    * @tparam CG Cooperative Group type
    * @tparam ProbeKey Input type that is implicitly convertible to `key_type`

@@ -90,8 +90,14 @@ class bloom_filter {
   bloom_filter& operator=(bloom_filter const&) =
     delete;  ///< Copy-assignment constructor is not available
 
-  bloom_filter(bloom_filter&&)            = default;  ///< Move constructor
-  bloom_filter& operator=(bloom_filter&&) = default;  ///< Move-assignment constructor
+  bloom_filter(bloom_filter&&) = default;  ///< Move constructor
+
+  /**
+   * @brief Move-assignment operator.
+   *
+   * @return Reference of the current `bloom_filter` object
+   */
+  bloom_filter& operator=(bloom_filter&&) = default;
 
   ~bloom_filter() = default;  ///< Destructor
 
@@ -378,7 +384,6 @@ class bloom_filter {
     data_;          ///< Storage of the current `bloom_filter` object
   ref_type<> ref_;  ///< Device ref of the current `bloom_filter` object
 };
-
 }  // namespace cuco
 
 #include <cuco/detail/bloom_filter/bloom_filter.inl>
