@@ -345,11 +345,18 @@ class bloom_filter {
   [[nodiscard]] __host__ extent_type block_extent() const noexcept;
 
   /**
+   * @brief Gets the number of bits in a key's fingerprint
+   *
+   * @return The number of fingerprint bits
+   */
+  [[nodiscard]] __host__ hasher hash_function() const noexcept;
+
+  /**
    * @brief Gets the function used to hash keys
    *
    * @return The function used to hash keys
    */
-  [[nodiscard]] __host__ hasher hash_function() const noexcept;
+  [[nodiscard]] __host__ std::uint32_t pattern_bits() const noexcept;
 
   /**
    * @brief Gets the allocator.

@@ -359,9 +359,16 @@ class bloom_filter_ref {
   [[nodiscard]] __host__ __device__ extent_type block_extent() const noexcept;
 
   /**
-   * @brief Gets the function used to hash keys
+   * @brief Gets the number of sub-filter blocks.
    *
-   * @return The function used to hash keys
+   * @return Number of sub-filter blocks
+   */
+  [[nodiscard]] __host__ __device__ std::uint32_t pattern_bits() const noexcept;
+
+  /**
+   * @brief Gets the number of bits in a key's fingerprint
+   *
+   * @return The number of fingerprint bits
    */
   [[nodiscard]] __host__ __device__ hasher hash_function() const noexcept;
 

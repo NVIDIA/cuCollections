@@ -275,6 +275,18 @@ template <class Key,
           class Hash,
           std::uint32_t BlockWords,
           class Word>
+[[nodiscard]] __host__ __device__ uint32_t
+bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::pattern_bits() const noexcept
+{
+  return impl_.pattern_bits();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class Hash,
+          std::uint32_t BlockWords,
+          class Word>
 [[nodiscard]] __host__ __device__
   typename bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::hasher
   bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::hash_function() const noexcept

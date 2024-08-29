@@ -272,6 +272,8 @@ class bloom_filter_impl {
     return num_blocks_;
   }
 
+  [[nodiscard]] __host__ __device__ uint32_t pattern_bits() const noexcept { return pattern_bits_; }
+
   [[nodiscard]] __host__ __device__ hasher hash_function() const noexcept { return hash_; }
 
   // TODO
