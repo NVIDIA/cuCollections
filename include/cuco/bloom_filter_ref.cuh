@@ -30,23 +30,20 @@ namespace cuco {
  * @brief Non-owning "ref" type of `bloom_filter`.
  *
  * @note Ref types are trivially-copyable and are intended to be passed by value.
+ * @note `Block` is used **only** to determine `block_words` via `cuda::std::tuple_size<Block>` and
+ * `word_type` via `Block::value_type` and does not represent the actual storage type of the filter.
+ * We recommend using `cuda::std::array`.
  *
  * @tparam Key Key type
+ * @tparam Block Type to determine the filter's block size and underlying word type
  * @tparam Extent Size type that is used to determine the number of blocks in the filter
  * @tparam Scope The scope in which operations will be performed by individual threads
  * @tparam Hash Hash function used to generate a key's fingerprint
- * @tparam BlockWords Number of machine words in a filter block
- * @tparam Word Underlying machine word type that can be updated atomically
  */
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 class bloom_filter_ref {
   using impl_type =
-    detail::bloom_filter_impl<Key, Extent, Scope, Hash, BlockWords, Word>;  ///< Implementation type
+    detail::bloom_filter_impl<Key, Block, Extent, Scope, Hash>;  ///< Implementation type
 
  public:
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
@@ -64,7 +61,7 @@ class bloom_filter_ref {
    *
    * @note The storage span starting at `data` must have an extent of at least `num_blocks`
    * elements.
-   * @note `data` must be aligned to at least `sizeof(word_type) * BlockWords`.
+   * @note `data` must be aligned to at least `sizeof(word_type) * block_words`.
    *
    * @param data Pointer to the storage span of the filter
    * @param num_blocks Number of sub-filters or blocks
@@ -117,7 +114,7 @@ class bloom_filter_ref {
   /**
    * @brief Device function that cooperatively adds a key to the filter.
    *
-   * @note Best performance is achieved if the size of the CG is equal to `BlockWords`.
+   * @note Best performance is achieved if the size of the CG is equal to `block_words`.
    *
    * @tparam CG Cooperative Group type
    * @tparam ProbeKey Input type that is implicitly convertible to `key_type`
@@ -127,10 +124,6 @@ class bloom_filter_ref {
    */
   template <class CG, class ProbeKey>
   __device__ void add(CG const& group, ProbeKey const& key);
-
-  // TODO
-  // template <class CG, class InputIt>
-  // __device__ void add(CG const& group, InputIt first, InputIt last);
 
   /**
    * @brief Adds all keys in the range `[first, last)` to the filter.

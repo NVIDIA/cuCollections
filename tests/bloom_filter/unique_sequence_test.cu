@@ -19,6 +19,7 @@
 #include <cuco/bloom_filter.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/array>
 #include <thrust/device_vector.h>
 #include <thrust/distance.h>
 #include <thrust/functional.h>
@@ -97,12 +98,10 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, cuco::default_hash_function<int32_t>, 8, uint64_t))
 {
   using filter_type = cuco::bloom_filter<Key,
+                                         cuda::std::array<Word, BlockWords>,
                                          cuco::extent<size_t>,
                                          cuda::thread_scope_device,
-                                         Hash,
-                                         cuco::cuda_allocator<std::byte>,
-                                         BlockWords,
-                                         Word>;
+                                         Hash>;
   constexpr size_type num_keys{400};
 
   uint32_t pattern_bits = GENERATE(1, 2, 4, 6);

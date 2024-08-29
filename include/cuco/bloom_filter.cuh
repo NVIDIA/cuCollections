@@ -24,6 +24,7 @@
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/atomic>
+#include <cuda/std/array>
 #include <cuda/stream_ref>
 
 #include <cstddef>
@@ -48,21 +49,23 @@ namespace cuco {
  * independent modify or lookup operations from device code. These operations are accessed through
  * non-owning, trivially copyable reference types (or "ref").
  *
+ * @note `Block` is used **only** to determine `block_words` via `cuda::std::tuple_size<Block>` and
+ * `word_type` via `Block::value_type` and does not represent the actual storage type of the filter.
+ * We recommend using `cuda::std::array`.
+ *
  * @tparam Key Key type
+ * @tparam Block Type to determine the filter's block size and underlying word type
  * @tparam Extent Size type that is used to determine the number of blocks in the filter
  * @tparam Scope The scope in which operations will be performed by individual threads
  * @tparam Hash Hash function used to generate a key's fingerprint
  * @tparam Allocator Type of allocator used for device-accessible storage
- * @tparam BlockWords Number of machine words in a filter block
- * @tparam Word Underlying machine word type that can be updated atomically
  */
 template <class Key,
+          class Block              = cuda::std::array<std::uint64_t, 4>,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class Hash               = cuco::xxhash_64<Key>,
-          class Allocator          = cuco::cuda_allocator<std::byte>,
-          std::uint32_t BlockWords = 4,
-          class Word               = std::uint64_t>
+          class Allocator          = cuco::cuda_allocator<std::byte>>
 class bloom_filter {
  public:
   /**
@@ -71,7 +74,7 @@ class bloom_filter {
    * @tparam NewScope Thead scope of the ref type
    */
   template <cuda::thread_scope NewScope = Scope>
-  using ref_type = bloom_filter_ref<Key, Extent, NewScope, Hash, BlockWords, Word>;
+  using ref_type = bloom_filter_ref<Key, Block, Extent, NewScope, Hash>;
 
   static constexpr auto thread_scope = ref_type<>::thread_scope;  ///< CUDA thread scope
   static constexpr auto block_words =

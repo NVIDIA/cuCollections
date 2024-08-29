@@ -25,183 +25,115 @@
 
 namespace cuco {
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
-__host__ __device__ bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::bloom_filter_ref(
-  word_type* data,
-  Extent num_blocks,
-  std::uint32_t pattern_bits,
-  cuda_thread_scope<Scope>,
-  Hash const& hash)
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
+__host__ __device__
+bloom_filter_ref<Key, Block, Extent, Scope, Hash>::bloom_filter_ref(word_type* data,
+                                                                    Extent num_blocks,
+                                                                    std::uint32_t pattern_bits,
+                                                                    cuda_thread_scope<Scope>,
+                                                                    Hash const& hash)
   : impl_{data, num_blocks, pattern_bits, {}, hash}
 {
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class CG>
-__device__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::clear(CG const& group)
+__device__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::clear(CG const& group)
 {
   impl_.clear(group);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
-__host__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::clear(
-  cuda::stream_ref stream)
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::clear(cuda::stream_ref stream)
 {
   impl_.clear(stream);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
-__host__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::clear_async(
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::clear_async(
   cuda::stream_ref stream)
 {
   impl_.clear_async(stream);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class ProbeKey>
-__device__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::add(
-  ProbeKey const& key)
+__device__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::add(ProbeKey const& key)
 {
   impl_.add(key);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class CG, class ProbeKey>
-__device__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::add(
-  CG const& group, ProbeKey const& key)
+__device__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::add(CG const& group,
+                                                                       ProbeKey const& key)
 {
   impl_.add(group, key);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class InputIt>
-__host__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::add(
-  InputIt first, InputIt last, cuda::stream_ref stream)
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::add(InputIt first,
+                                                                     InputIt last,
+                                                                     cuda::stream_ref stream)
 {
   impl_.add(first, last, stream);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class InputIt>
-__host__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::add_async(
-  InputIt first, InputIt last, cuda::stream_ref stream)
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::add_async(InputIt first,
+                                                                           InputIt last,
+                                                                           cuda::stream_ref stream)
 {
   impl_.add_async(first, last, stream);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class InputIt, class StencilIt, class Predicate>
-__host__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::add_if(
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::add_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
 {
   impl_.add_if(first, last, stencil, pred, stream);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class InputIt, class StencilIt, class Predicate>
-__host__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::add_if_async(
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::add_if_async(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream) noexcept
 {
   impl_.add_if_async(first, last, stencil, pred, stream);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class ProbeKey>
-[[nodiscard]] __device__ bool bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::test(
+[[nodiscard]] __device__ bool bloom_filter_ref<Key, Block, Extent, Scope, Hash>::test(
   ProbeKey const& key) const
 {
   return impl_.test(key);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class InputIt, class OutputIt>
-__host__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::test(
-  InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::test(InputIt first,
+                                                                      InputIt last,
+                                                                      OutputIt output_begin,
+                                                                      cuda::stream_ref stream) const
 {
   impl_.test(first, last, output_begin, stream);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class InputIt, class OutputIt>
-__host__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::test_async(
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::test_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const noexcept
 {
   impl_.test_async(first, last, output_begin, stream);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-__host__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::test_if(
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::test_if(
   InputIt first,
   InputIt last,
   StencilIt stencil,
@@ -212,14 +144,9 @@ __host__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::test
   impl_.test_if(first, last, stencil, pred, output_begin, stream);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-__host__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::test_if_async(
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::test_if_async(
   InputIt first,
   InputIt last,
   StencilIt stencil,
@@ -230,66 +157,40 @@ __host__ void bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::test
   impl_.test_if_async(first, last, stencil, pred, output_begin, stream);
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 [[nodiscard]] __host__ __device__
-  typename bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::word_type*
-  bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::data() noexcept
+  typename bloom_filter_ref<Key, Block, Extent, Scope, Hash>::word_type*
+  bloom_filter_ref<Key, Block, Extent, Scope, Hash>::data() noexcept
 {
   return impl_.data();
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 [[nodiscard]] __host__ __device__
-  typename bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::word_type const*
-  bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::data() const noexcept
+  typename bloom_filter_ref<Key, Block, Extent, Scope, Hash>::word_type const*
+  bloom_filter_ref<Key, Block, Extent, Scope, Hash>::data() const noexcept
 {
   return impl_.data();
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 [[nodiscard]] __host__ __device__
-  typename bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::extent_type
-  bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::block_extent() const noexcept
+  typename bloom_filter_ref<Key, Block, Extent, Scope, Hash>::extent_type
+  bloom_filter_ref<Key, Block, Extent, Scope, Hash>::block_extent() const noexcept
 {
   return impl_.block_extent();
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 [[nodiscard]] __host__ __device__ uint32_t
-bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::pattern_bits() const noexcept
+bloom_filter_ref<Key, Block, Extent, Scope, Hash>::pattern_bits() const noexcept
 {
   return impl_.pattern_bits();
 }
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          std::uint32_t BlockWords,
-          class Word>
-[[nodiscard]] __host__ __device__
-  typename bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::hasher
-  bloom_filter_ref<Key, Extent, Scope, Hash, BlockWords, Word>::hash_function() const noexcept
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
+[[nodiscard]] __host__ __device__ typename bloom_filter_ref<Key, Block, Extent, Scope, Hash>::hasher
+bloom_filter_ref<Key, Block, Extent, Scope, Hash>::hash_function() const noexcept
 {
   return impl_.hash_function();
 }

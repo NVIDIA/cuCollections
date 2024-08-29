@@ -26,6 +26,7 @@
 #include <cuda/atomic>
 #include <cuda/std/array>
 #include <cuda/std/bit>
+#include <cuda/std/tuple>
 #include <cuda/stream_ref>
 #include <thrust/functional.h>
 #include <thrust/iterator/constant_iterator.h>
@@ -37,25 +38,19 @@
 
 namespace cuco::detail {
 
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Hash,
-          uint32_t BlockWords,
-          class Word>
+template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 class bloom_filter_impl {
  public:
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
-  static constexpr auto block_words  = BlockWords;
-  // static constexpr auto alignment    = std::max(16, sizeof(Word) * BlockWords); // TODO include
+  static constexpr auto block_words  = cuda::std::tuple_size_v<Block>;
 
   using key_type    = Key;
   using extent_type = Extent;
   using size_type   = typename extent_type::value_type;
   using hasher      = Hash;
-  using word_type   = Word;  // TODO static_assert can use fetch_or() and load()
+  using word_type = typename Block::value_type;  // TODO static_assert can use fetch_or() and load()
 
-  static_assert(cuda::std::has_single_bit(BlockWords) and BlockWords <= 32,
+  static_assert(cuda::std::has_single_bit(block_words) and block_words <= 32,
                 "Number of words per block must be a power-of-two and less than or equal to 32");
 
   __host__ __device__ bloom_filter_impl(word_type* filter,
@@ -353,7 +348,7 @@ class bloom_filter_impl {
 
   __host__ __device__ static constexpr size_t required_alignment() noexcept
   {
-    return sizeof(word_type) * BlockWords;
+    return sizeof(word_type) * block_words;
   }
 
   word_type* words_;
