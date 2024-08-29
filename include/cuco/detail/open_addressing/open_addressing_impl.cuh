@@ -27,6 +27,7 @@
 #include <cuco/storage.cuh>
 #include <cuco/utility/traits.hpp>
 
+#include <cub/device/device_for.cuh>
 #include <cub/device/device_select.cuh>
 #include <cuda/atomic>
 #include <thrust/iterator/constant_iterator.h>
@@ -99,6 +100,7 @@ class open_addressing_impl {
 
   using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning window storage ref type
   using probing_scheme_type = ProbingScheme;                 ///< Probe scheme type
+  using hasher              = typename probing_scheme_type::hasher;  ///< Hash function type
 
   /**
    * @brief Constructs a statically-sized open addressing data structure with the specified initial
@@ -588,7 +590,7 @@ class open_addressing_impl {
   [[nodiscard]] size_type count(InputIt first,
                                 InputIt last,
                                 Ref container_ref,
-                                cuda::stream_ref stream) const noexcept
+                                cuda::stream_ref stream) const
   {
     auto constexpr is_outer = false;
     return this->count<is_outer>(first, last, container_ref, stream);
@@ -638,47 +640,124 @@ class open_addressing_impl {
   template <typename OutputIt>
   [[nodiscard]] OutputIt retrieve_all(OutputIt output_begin, cuda::stream_ref stream) const
   {
-    std::size_t temp_storage_bytes = 0;
     using temp_allocator_type =
       typename std::allocator_traits<allocator_type>::template rebind_alloc<char>;
+
+    cuco::detail::index_type constexpr stride = std::numeric_limits<int32_t>::max();
+
+    cuco::detail::index_type h_num_out{0};
     auto temp_allocator = temp_allocator_type{this->allocator()};
     auto d_num_out      = reinterpret_cast<size_type*>(
       std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type)));
-    auto const begin = thrust::make_transform_iterator(
-      thrust::counting_iterator<size_type>{0},
-      open_addressing_ns::detail::get_slot<has_payload, storage_ref_type>(this->storage_ref()));
-    auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
-      this->empty_key_sentinel(), this->erased_key_sentinel()};
-    CUCO_CUDA_TRY(cub::DeviceSelect::If(nullptr,
-                                        temp_storage_bytes,
-                                        begin,
-                                        output_begin,
-                                        d_num_out,
-                                        this->capacity(),
-                                        is_filled,
-                                        stream.get()));
 
-    // Allocate temporary storage
-    auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
+    // TODO: PR #580 to be reverted once https://github.com/NVIDIA/cccl/issues/1422 is resolved
+    for (cuco::detail::index_type offset = 0;
+         offset < static_cast<cuco::detail::index_type>(this->capacity());
+         offset += stride) {
+      auto const num_items =
+        std::min(static_cast<cuco::detail::index_type>(this->capacity()) - offset, stride);
+      auto const begin = thrust::make_transform_iterator(
+        thrust::counting_iterator{static_cast<size_type>(offset)},
+        open_addressing_ns::detail::get_slot<has_payload, storage_ref_type>(this->storage_ref()));
+      auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+        this->empty_key_sentinel(), this->erased_key_sentinel()};
 
-    CUCO_CUDA_TRY(cub::DeviceSelect::If(d_temp_storage,
-                                        temp_storage_bytes,
-                                        begin,
-                                        output_begin,
-                                        d_num_out,
-                                        this->capacity(),
-                                        is_filled,
-                                        stream.get()));
+      std::size_t temp_storage_bytes = 0;
 
-    size_type h_num_out;
-    CUCO_CUDA_TRY(cudaMemcpyAsync(
-      &h_num_out, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
-    stream.wait();
+      CUCO_CUDA_TRY(cub::DeviceSelect::If(nullptr,
+                                          temp_storage_bytes,
+                                          begin,
+                                          output_begin + h_num_out,
+                                          d_num_out,
+                                          static_cast<int32_t>(num_items),
+                                          is_filled,
+                                          stream.get()));
+
+      // Allocate temporary storage
+      auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes);
+
+      CUCO_CUDA_TRY(cub::DeviceSelect::If(d_temp_storage,
+                                          temp_storage_bytes,
+                                          begin,
+                                          output_begin + h_num_out,
+                                          d_num_out,
+                                          static_cast<int32_t>(num_items),
+                                          is_filled,
+                                          stream.get()));
+
+      size_type temp_count;
+      CUCO_CUDA_TRY(cudaMemcpyAsync(
+        &temp_count, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+      stream.wait();
+      h_num_out += temp_count;
+      temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
+    }
+
     std::allocator_traits<temp_allocator_type>::deallocate(
       temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(size_type));
-    temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
 
     return output_begin + h_num_out;
+  }
+
+  /**
+   * @brief Asynchronously applies the given function object `callback_op` to the copy of every
+   * filled slot in the container
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param callback_op Function to call on every filled slot in the container
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename CallbackOp>
+  void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream) const
+  {
+    auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+      this->empty_key_sentinel(), this->erased_key_sentinel()};
+
+    auto storage_ref = this->storage_ref();
+    auto const op    = [callback_op, is_filled, storage_ref] __device__(auto const window_slots) {
+      for (auto const slot : window_slots) {
+        if (is_filled(slot)) { callback_op(slot); }
+      }
+    };
+
+    CUCO_CUDA_TRY(cub::DeviceFor::ForEachCopyN(
+      storage_ref.data(), storage_ref.num_windows(), op, stream.get()));
+  }
+
+  /**
+   * @brief For each key in the range [first, last), asynchronously applies the function object
+   * `callback_op` to the copy of all corresponding matches found in the container.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam CallbackOp Type of unary callback function object
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param callback_op Function to call on every match found in the container
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename CallbackOp, typename Ref>
+  void for_each_async(InputIt first,
+                      InputIt last,
+                      CallbackOp&& callback_op,
+                      Ref container_ref,
+                      cuda::stream_ref stream) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::for_each_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+        first, num_keys, std::forward<CallbackOp>(callback_op), container_ref);
   }
 
   /**
@@ -853,6 +932,16 @@ class open_addressing_impl {
   [[nodiscard]] constexpr probing_scheme_type const& probing_scheme() const noexcept
   {
     return probing_scheme_;
+  }
+
+  /**
+   * @brief Gets the function(s) used to hash keys
+   *
+   * @return The function(s) used to hash keys
+   */
+  [[nodiscard]] constexpr hasher hash_function() const noexcept
+  {
+    return this->probing_scheme().hash_function();
   }
 
   /**

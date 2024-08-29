@@ -347,19 +347,11 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <typename InputIt, typename Init, typename Op>
+template <typename InputIt, typename Init, typename Op, typename>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   insert_or_apply_async(
     InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream) noexcept
 {
-  using shared_map_type   = cuco::static_map<Key,
-                                             T,
-                                             int32_t,
-                                             cuda::thread_scope_block,
-                                             KeyEqual,
-                                             ProbingScheme,
-                                             Allocator,
-                                             cuco::storage<1>>;
   auto constexpr has_init = true;
   static_map_ns::detail::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
     first, last, init, op, ref(op::insert_or_apply), stream);
@@ -497,6 +489,70 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
   impl_->find_async(first, last, output_begin, ref(op::find), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename CallbackOp>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
+  CallbackOp&& callback_op, cuda::stream_ref stream) const
+{
+  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
+  stream.wait();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename CallbackOp>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each_async(
+  CallbackOp&& callback_op, cuda::stream_ref stream) const
+{
+  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename CallbackOp>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
+  InputIt first, InputIt last, CallbackOp&& callback_op, cuda::stream_ref stream) const
+{
+  impl_->for_each_async(
+    first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
+  stream.wait();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename CallbackOp>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each_async(
+  InputIt first, InputIt last, CallbackOp&& callback_op, cuda::stream_ref stream) const noexcept
+{
+  impl_->for_each_async(
+    first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
 }
 
 template <class Key,
@@ -651,6 +707,36 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   erased_key_sentinel() const noexcept
 {
   return impl_->erased_key_sentinel();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_equal
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_eq()
+  const noexcept
+{
+  return impl_->key_eq();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::hasher
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::hash_function()
+  const noexcept
+{
+  return impl_->hash_function();
 }
 
 template <class Key,

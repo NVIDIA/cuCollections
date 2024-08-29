@@ -127,6 +127,13 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
     upper_bound};
 }
 
+template <int32_t CGSize, typename Hash>
+__host__ __device__ constexpr linear_probing<CGSize, Hash>::hasher
+linear_probing<CGSize, Hash>::hash_function() const noexcept
+{
+  return hash_;
+}
+
 template <int32_t CGSize, typename Hash1, typename Hash2>
 __host__ __device__ constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashing(
   Hash1 const& hash1, Hash2 const& hash2)
@@ -192,4 +199,12 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
       cg_size),
     upper_bound};  // TODO use fast_int operator
 }
+
+template <int32_t CGSize, typename Hash1, typename Hash2>
+__host__ __device__ constexpr double_hashing<CGSize, Hash1, Hash2>::hasher
+double_hashing<CGSize, Hash1, Hash2>::hash_function() const noexcept
+{
+  return {hash1_, hash2_};
+}
+
 }  // namespace cuco

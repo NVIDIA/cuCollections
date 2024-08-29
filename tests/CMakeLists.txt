@@ -77,6 +77,7 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/custom_type_test.cu
     static_map/duplicate_keys_test.cu
     static_map/erase_test.cu
+    static_map/for_each_test.cu
     static_map/hash_test.cu
     static_map/heterogeneous_lookup_test.cu
     static_map/insert_and_find_test.cu
@@ -108,6 +109,7 @@ ConfigureTest(STATIC_MULTISET_TEST
 ###################################################################################################
 # - static_multimap tests -------------------------------------------------------------------------
 ConfigureTest(STATIC_MULTIMAP_TEST
+    static_multimap/count_test.cu
     static_multimap/custom_pair_retrieve_test.cu
     static_multimap/custom_type_test.cu
     static_multimap/heterogeneous_lookup_test.cu

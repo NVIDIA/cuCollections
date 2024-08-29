@@ -74,9 +74,6 @@ class static_multimap_ref
   using impl_type = detail::
     open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef, allows_duplicates>;
 
-  static_assert(sizeof(T) == 4 or sizeof(T) == 8,
-                "sizeof(mapped_type) must be either 4 bytes or 8 bytes.");
-
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
     "Key type must have unique object representations or have been explicitly declared as safe for "
@@ -86,6 +83,7 @@ class static_multimap_ref
   using key_type            = Key;                                     ///< Key type
   using mapped_type         = T;                                       ///< Mapped type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
+  using hasher              = typename probing_scheme_type::hasher;    ///< Hash function type
   using storage_ref_type    = StorageRef;                              ///< Type of storage ref
   using window_type         = typename storage_ref_type::window_type;  ///< Window type
   using value_type          = typename storage_ref_type::value_type;   ///< Storage element type
@@ -191,6 +189,13 @@ class static_multimap_ref
    * @return The comparator used to compare keys
    */
   [[nodiscard]] __host__ __device__ constexpr key_equal key_eq() const noexcept;
+
+  /**
+   * @brief Gets the function(s) used to hash keys
+   *
+   * @return The function(s) used to hash keys
+   */
+  [[nodiscard]] __host__ __device__ constexpr hasher hash_function() const noexcept;
 
   /**
    * @brief Returns a const_iterator to one past the last slot.
