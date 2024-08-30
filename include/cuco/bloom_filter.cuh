@@ -41,12 +41,12 @@ namespace cuco {
  * - Device-side "singular" operations
  *
  * The host-side bulk operations include `add`, `test`, etc. These APIs should be used when
- * there are a large number of keys to modify or lookup. For example, given a range of keys
- * specified by device-accessible iterators, the bulk `add` function will insert all keys into
+ * there are a large number of keys to add or lookup. For example, given a range of keys
+ * specified by device-accessible iterators, the bulk `add` function will add all keys into
  * the filter.
  *
  * The singular device-side operations allow individual threads (or Cooperative Groups) to perform
- * independent modify or lookup operations from device code. These operations are accessed through
+ * independent add or lookup operations from device code. These operations are accessed through
  * non-owning, trivially copyable reference types (or "ref").
  *
  * @note `Block` is used **only** to determine `block_words` via `cuda::std::tuple_size<Block>` and
@@ -175,7 +175,7 @@ class bloom_filter {
    * @brief Adds keys in the range `[first, last)` if `pred` of the corresponding `stencil` returns
    * `true`.
    *
-   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns `true`.
+   * @note The key `*(first + i)` is added if `pred( *(stencil + i) )` returns `true`.
    * @note This function synchronizes the given stream and returns the number of successful
    * insertions. For asynchronous execution use `add_if_async`.
    *
@@ -202,7 +202,7 @@ class bloom_filter {
    * @brief Asynchronously adds keys in the range `[first, last)` if `pred` of the corresponding
    * `stencil` returns `true`.
    *
-   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns `true`.
+   * @note The key `*(first + i)` is added if `pred( *(stencil + i) )` returns `true`.
    *
    * @tparam InputIt Device-accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,

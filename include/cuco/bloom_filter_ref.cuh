@@ -160,7 +160,7 @@ class bloom_filter_ref {
    * @brief Adds keys in the range `[first, last)` if `pred` of the corresponding `stencil` returns
    * `true`.
    *
-   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns `true`.
+   * @note The key `*(first + i)` is added if `pred( *(stencil + i) )` returns `true`.
    * @note This function synchronizes the given stream and returns the number of successful
    * insertions. For asynchronous execution use `add_if_async`.
    *
@@ -187,7 +187,7 @@ class bloom_filter_ref {
    * @brief Asynchronously adds keys in the range `[first, last)` if `pred` of the corresponding
    * `stencil` returns `true`.
    *
-   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns `true`.
+   * @note The key `*(first + i)` is added if `pred( *(stencil + i) )` returns `true`.
    *
    * @tparam InputIt Device-accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
