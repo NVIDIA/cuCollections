@@ -71,7 +71,7 @@ class bloom_filter {
   /**
    * @brief Non-owning filter ref type
    *
-   * @tparam NewScope Thead scope of the ref type
+   * @tparam NewScope Thead scope of the to be updated ref type
    */
   template <cuda::thread_scope NewScope = Scope>
   using ref_type = bloom_filter_ref<Key, Block, Extent, NewScope, Hash>;
