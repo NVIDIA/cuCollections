@@ -334,6 +334,33 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+template <typename NewHash>
+__host__ __device__ constexpr auto
+static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  rebind_hash_function(NewHash const& hash) const
+{
+  auto const probing_scheme = this->probing_scheme().rebind_hash_function(hash);
+  return static_multimap_ref<Key,
+                             T,
+                             Scope,
+                             KeyEqual,
+                             cuda::std::decay_t<decltype(probing_scheme)>,
+                             StorageRef,
+                             Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
+                                           cuco::empty_value<T>{this->empty_value_sentinel()},
+                                           this->key_eq(),
+                                           probing_scheme,
+                                           {},
+                                           this->storage_ref()};
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename CG, cuda::thread_scope NewScope>
 __device__ constexpr auto
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(

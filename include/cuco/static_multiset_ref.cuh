@@ -254,7 +254,7 @@ class static_multiset_ref
     NewKeyEqual const& key_equal) const noexcept;
 
   /**
-   * @brief Makes a copy of the current device reference with given hasher
+   * @brief Makes a copy of the current device reference with the given hasher
    *
    * @tparam NewHash The new hasher type
    *
@@ -263,7 +263,7 @@ class static_multiset_ref
    * @return Copy of the current device ref
    */
   template <typename NewHash>
-  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(NewHash const& hash) const;
+  [[nodiscard]] __host__ __device__ constexpr auto rebind_hash_function(NewHash const& hash) const;
 
  private:
   impl_type impl_;

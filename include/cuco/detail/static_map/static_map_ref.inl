@@ -311,22 +311,44 @@ template <typename Key,
           typename StorageRef,
           typename... Operators>
 template <typename... NewOperators>
-__host__ __device__ auto constexpr static_map_ref<Key,
-                                                  T,
-                                                  Scope,
-                                                  KeyEqual,
-                                                  ProbingScheme,
-                                                  StorageRef,
-                                                  Operators...>::with_operators(NewOperators...)
-  const noexcept
+__host__ __device__ constexpr auto
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_operators(
+  NewOperators...) const noexcept
 {
   return static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     cuco::empty_value<T>{this->empty_value_sentinel()},
     this->key_eq(),
-    this->impl_.probing_scheme(),
+    this->probing_scheme(),
     {},
-    this->impl_.storage_ref()};
+    this->storage_ref()};
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename NewHash>
+__host__ __device__ constexpr auto
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  rebind_hash_function(NewHash const& hash) const
+{
+  auto const probing_scheme = this->probing_scheme().rebind_hash_function(hash);
+  return static_map_ref<Key,
+                        T,
+                        Scope,
+                        KeyEqual,
+                        cuda::std::decay_t<decltype(probing_scheme)>,
+                        StorageRef,
+                        Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
+                                      cuco::empty_value<T>{this->empty_value_sentinel()},
+                                      this->key_eq(),
+                                      probing_scheme,
+                                      {},
+                                      this->storage_ref()};
 }
 
 template <typename Key,
@@ -349,7 +371,7 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
     cuco::empty_value<T>{this->empty_value_sentinel()},
     cuco::erased_key<Key>{this->erased_key_sentinel()},
     this->key_eq(),
-    this->impl_.probing_scheme(),
+    this->probing_scheme(),
     scope,
     storage_ref_type{this->window_extent(), memory_to_use}};
 }

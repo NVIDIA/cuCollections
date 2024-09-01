@@ -310,7 +310,7 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 {
   return impl_->count(first,
                       last,
-                      ref(op::count).with_key_eq(probe_key_equal).with_hash_function(probe_hash),
+                      ref(op::count).with_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
                       stream);
 }
 
@@ -333,7 +333,7 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   return impl_->count_outer(
     first,
     last,
-    ref(op::count).with_key_eq(probe_key_equal).with_hash_function(probe_hash),
+    ref(op::count).with_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
     stream);
 }
 

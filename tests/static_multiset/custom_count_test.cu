@@ -61,21 +61,27 @@ void test_custom_count(Set& set, size_type num_keys)
 {
   using Key = typename Set::key_type;
 
+  auto const hash = []() {
+    if constexpr (cuco::is_double_hashing<typename Set::probing_scheme_type>::value) {
+      return cuco::pair{custom_hash{}, custom_hash{}};
+    } else {
+      return custom_hash{};
+    }
+  }();
+
   auto query_begin = thrust::make_transform_iterator(
     thrust::make_counting_iterator<size_type>(0),
     cuda::proclaim_return_type<Key>([] __device__(auto i) { return static_cast<Key>(i * XXX); }));
 
   SECTION("Count of empty set should be zero.")
   {
-    auto const count =
-      set.count(query_begin, query_begin + num_keys, custom_key_eq{}, custom_hash{});
+    auto const count = set.count(query_begin, query_begin + num_keys, custom_key_eq{}, hash);
     REQUIRE(count == 0);
   }
 
   SECTION("Outer count of empty set should be the same as input size.")
   {
-    auto const count =
-      set.count_outer(query_begin, query_begin + num_keys, custom_key_eq{}, custom_hash{});
+    auto const count = set.count_outer(query_begin, query_begin + num_keys, custom_key_eq{}, hash);
     REQUIRE(count == num_keys);
   }
 
@@ -84,15 +90,13 @@ void test_custom_count(Set& set, size_type num_keys)
 
   SECTION("Count of n unique keys should be n.")
   {
-    auto const count =
-      set.count(query_begin, query_begin + num_keys, custom_key_eq{}, custom_hash{});
+    auto const count = set.count(query_begin, query_begin + num_keys, custom_key_eq{}, hash);
     REQUIRE(count == num_keys);
   }
 
   SECTION("Outer count of n unique keys should be n.")
   {
-    auto const count =
-      set.count_outer(query_begin, query_begin + num_keys, custom_key_eq{}, custom_hash{});
+    auto const count = set.count_outer(query_begin, query_begin + num_keys, custom_key_eq{}, hash);
     REQUIRE(count == num_keys);
   }
 
@@ -102,15 +106,13 @@ void test_custom_count(Set& set, size_type num_keys)
 
   SECTION("Count of a key whose multiplicity equals n should be n.")
   {
-    auto const count =
-      set.count(query_begin, query_begin + num_keys, custom_key_eq{}, custom_hash{});
+    auto const count = set.count(query_begin, query_begin + num_keys, custom_key_eq{}, hash);
     REQUIRE(count == num_keys);
   }
 
   SECTION("Outer count of a key whose multiplicity equals n should be n + input_size - 1.")
   {
-    auto const count =
-      set.count_outer(query_begin, query_begin + num_keys, custom_key_eq{}, custom_hash{});
+    auto const count = set.count_outer(query_begin, query_begin + num_keys, custom_key_eq{}, hash);
     REQUIRE(count == 2 * num_keys - 1);
   }
 }

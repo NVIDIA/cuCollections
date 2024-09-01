@@ -272,9 +272,9 @@ static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators..
   return static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     this->key_eq(),
-    this->impl_.probing_scheme(),
+    this->probing_scheme(),
     {},
-    this->impl_.storage_ref()};
+    this->storage_ref()};
 }
 
 template <typename Key,
@@ -291,9 +291,9 @@ static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators..
   return static_multiset_ref<Key, Scope, NewKeyEqual, ProbingScheme, StorageRef, Operators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     key_equal,
-    this->impl_.probing_scheme(),
+    this->probing_scheme(),
     {},
-    this->impl_.storage_ref()};
+    this->storage_ref()};
 }
 
 template <typename Key,
@@ -305,19 +305,19 @@ template <typename Key,
 template <typename NewHash>
 __host__ __device__ constexpr auto
 static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
-  with_hash_function(NewHash const& hash) const
+  rebind_hash_function(NewHash const& hash) const
 {
-  auto const probing_scheme = this->impl_.probing_scheme().with_hash_function(hash);
+  auto const probing_scheme = this->probing_scheme().rebind_hash_function(hash);
   return static_multiset_ref<Key,
                              Scope,
                              KeyEqual,
                              cuda::std::decay_t<decltype(probing_scheme)>,
                              StorageRef,
                              Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
-                                           this->impl_.key_eq(),
+                                           this->key_eq(),
                                            probing_scheme,
                                            {},
-                                           this->impl_.storage_ref()};
+                                           this->storage_ref()};
 }
 
 namespace detail {
