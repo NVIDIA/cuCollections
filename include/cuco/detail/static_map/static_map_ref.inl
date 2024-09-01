@@ -296,11 +296,17 @@ template <typename Key,
           typename StorageRef,
           typename... Operators>
 template <typename... NewOperators>
-auto static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
-  NewOperators...) && noexcept
+__host__ __device__ constexpr auto
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_operators(
+  NewOperators...) const noexcept
 {
   return static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
-    std::move(*this)};
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
+    cuco::empty_value<T>{this->empty_value_sentinel()},
+    this->key_eq(),
+    this->probing_scheme(),
+    {},
+    this->storage_ref()};
 }
 
 template <typename Key,
@@ -312,7 +318,7 @@ template <typename Key,
           typename... Operators>
 template <typename... NewOperators>
 __host__ __device__ constexpr auto
-static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_operators(
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::rebind_operators(
   NewOperators...) const noexcept
 {
   return static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{

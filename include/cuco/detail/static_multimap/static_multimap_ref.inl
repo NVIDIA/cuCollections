@@ -294,11 +294,22 @@ template <typename Key,
           typename StorageRef,
           typename... Operators>
 template <typename... NewOperators>
-auto static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
-  NewOperators...) && noexcept
+__host__ __device__ auto constexpr static_multimap_ref<
+  Key,
+  T,
+  Scope,
+  KeyEqual,
+  ProbingScheme,
+  StorageRef,
+  Operators...>::with_operators(NewOperators...) const noexcept
 {
   return static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
-    std::move(*this)};
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
+    cuco::empty_value<T>{this->empty_value_sentinel()},
+    this->key_eq(),
+    impl_.probing_scheme(),
+    {},
+    impl_.storage_ref()};
 }
 
 template <typename Key,
@@ -316,7 +327,7 @@ __host__ __device__ auto constexpr static_multimap_ref<
   KeyEqual,
   ProbingScheme,
   StorageRef,
-  Operators...>::with_operators(NewOperators...) const noexcept
+  Operators...>::rebind_operators(NewOperators...) const noexcept
 {
   return static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
