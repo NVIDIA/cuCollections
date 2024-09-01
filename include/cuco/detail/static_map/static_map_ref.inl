@@ -331,6 +331,27 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+template <typename NewKeyEqual>
+__host__ __device__ constexpr auto
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::rebind_key_eq(
+  NewKeyEqual const& key_equal) const noexcept
+{
+  return static_map_ref<Key, T, Scope, NewKeyEqual, ProbingScheme, StorageRef, Operators...>{
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
+    cuco::empty_value<T>{this->empty_value_sentinel()},
+    key_equal,
+    this->probing_scheme(),
+    {},
+    this->storage_ref()};
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename NewHash>
 __host__ __device__ constexpr auto
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::

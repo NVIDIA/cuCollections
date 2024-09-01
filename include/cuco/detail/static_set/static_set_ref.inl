@@ -282,7 +282,7 @@ template <typename Key,
           typename... Operators>
 template <typename NewKeyEqual>
 __host__ __device__ constexpr auto
-static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_key_eq(
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::rebind_key_eq(
   NewKeyEqual const& key_equal) const noexcept
 {
   return static_set_ref<Key, Scope, NewKeyEqual, ProbingScheme, StorageRef, Operators...>{

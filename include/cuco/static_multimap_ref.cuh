@@ -261,6 +261,19 @@ class static_multimap_ref
     NewOperators... ops) const noexcept;
 
   /**
+   * @brief Makes a copy of the current device reference with the given key comparator
+   *
+   * @tparam NewKeyEqual The new key equal type
+   *
+   * @param key_equal New key comparator
+   *
+   * @return Copy of the current device ref
+   */
+  template <typename NewKeyEqual>
+  [[nodiscard]] __host__ __device__ constexpr auto rebind_key_eq(
+    NewKeyEqual const& key_equal) const noexcept;
+
+  /**
    * @brief Makes a copy of the current device reference with the given hasher
    *
    * @tparam NewHash The new hasher type

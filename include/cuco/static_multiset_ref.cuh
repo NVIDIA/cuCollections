@@ -241,7 +241,7 @@ class static_multiset_ref
     NewOperators... ops) const noexcept;
 
   /**
-   * @brief Makes a copy of the current device reference with given key comparator
+   * @brief Makes a copy of the current device reference with the given key comparator
    *
    * @tparam NewKeyEqual The new key equal type
    *
@@ -250,7 +250,7 @@ class static_multiset_ref
    * @return Copy of the current device ref
    */
   template <typename NewKeyEqual>
-  [[nodiscard]] __host__ __device__ constexpr auto with_key_eq(
+  [[nodiscard]] __host__ __device__ constexpr auto rebind_key_eq(
     NewKeyEqual const& key_equal) const noexcept;
 
   /**
