@@ -307,7 +307,7 @@ __host__ __device__ auto constexpr static_multimap_ref<
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     cuco::empty_value<T>{this->empty_value_sentinel()},
     this->key_eq(),
-    impl_.probing_scheme(),
+    this->probing_scheme(),
     {},
     impl_.storage_ref()};
 }
@@ -335,7 +335,7 @@ __host__ __device__ auto constexpr static_multimap_ref<
     this->key_eq(),
     impl_.probing_scheme(),
     {},
-    impl_.storage_ref()};
+    this->storage_ref()};
 }
 
 template <typename Key,
