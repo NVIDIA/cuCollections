@@ -143,7 +143,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    *
    * @param hash Hasher tuple
    */
-  __host__ __device__ constexpr double_hashing(cuco::pair<Hash1, Hash2> const& hash);
+  __host__ __device__ constexpr double_hashing(cuda::std::tuple<Hash1, Hash2> const& hash);
 
   /**
    *@brief Makes a copy of the current probing method with the given hasher

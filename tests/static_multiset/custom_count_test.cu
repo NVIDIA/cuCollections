@@ -63,7 +63,7 @@ void test_custom_count(Set& set, size_type num_keys)
 
   auto const hash = []() {
     if constexpr (cuco::is_double_hashing<typename Set::probing_scheme_type>::value) {
-      return cuco::pair{custom_hash{}, custom_hash{}};
+      return cuda::std::tuple{custom_hash{}, custom_hash{}};
     } else {
       return custom_hash{};
     }
