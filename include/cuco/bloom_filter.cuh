@@ -25,6 +25,7 @@
 
 #include <cuda/atomic>
 #include <cuda/std/array>
+#include <cuda/std/cstddef>
 #include <cuda/stream_ref>
 
 #include <cstddef>
@@ -65,7 +66,7 @@ template <class Key,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class Hash               = cuco::xxhash_64<Key>,
-          class Allocator          = cuco::cuda_allocator<std::byte>>
+          class Allocator          = cuco::cuda_allocator<cuda::std::byte>>
 class bloom_filter {
  public:
   /**
