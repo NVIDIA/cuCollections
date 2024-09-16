@@ -26,9 +26,9 @@
 int main(void)
 {
   // Generate 10'000 keys and insert the first 5'000 into the filter.
-  int const num_keys = 10'000;
-  int const num_tp   = num_keys * 0.5;
-  int const num_tn   = num_keys - num_tp;
+  int constexpr num_keys = 10'000;
+  int constexpr num_tp   = num_keys * 0.5;
+  int constexpr num_tn   = num_keys - num_tp;
 
   // Spawn a filter with 1000 sub-filters and 6-bit patterns for each key.
   cuco::bloom_filter<int> filter{1000, 6};
