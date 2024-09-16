@@ -57,12 +57,12 @@ template <int32_t BlockSize,
           class Predicate,
           class OutputIt,
           class Ref>
-CUCO_KERNEL __launch_bounds__(BlockSize) void test_if_n(InputIt first,
-                                                        cuco::detail::index_type n,
-                                                        StencilIt stencil,
-                                                        Predicate pred,
-                                                        OutputIt out,
-                                                        Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
+                                                            cuco::detail::index_type n,
+                                                            StencilIt stencil,
+                                                            Predicate pred,
+                                                            OutputIt out,
+                                                            Ref ref)
 {
   auto const loop_stride = cuco::detail::grid_stride();
   auto idx               = cuco::detail::global_thread_id();
@@ -70,7 +70,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void test_if_n(InputIt first,
   while (idx < n) {
     if (pred(*(stencil + idx))) {
       typename std::iterator_traits<InputIt>::value_type const& query{*(first + idx)};
-      *(out + idx) = ref.test(query);
+      *(out + idx) = ref.contains(query);
     } else {
       *(out + idx) = false;
     }

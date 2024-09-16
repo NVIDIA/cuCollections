@@ -107,33 +107,31 @@ __host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::add_if_async(
 
 template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class ProbeKey>
-[[nodiscard]] __device__ bool bloom_filter_ref<Key, Block, Extent, Scope, Hash>::test(
+[[nodiscard]] __device__ bool bloom_filter_ref<Key, Block, Extent, Scope, Hash>::contains(
   ProbeKey const& key) const
 {
-  return impl_.test(key);
+  return impl_.contains(key);
 }
 
 template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class InputIt, class OutputIt>
-__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::test(InputIt first,
-                                                                      InputIt last,
-                                                                      OutputIt output_begin,
-                                                                      cuda::stream_ref stream) const
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::contains(
+  InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
-  impl_.test(first, last, output_begin, stream);
+  impl_.contains(first, last, output_begin, stream);
 }
 
 template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class InputIt, class OutputIt>
-__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::test_async(
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::contains_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const noexcept
 {
-  impl_.test_async(first, last, output_begin, stream);
+  impl_.contains_async(first, last, output_begin, stream);
 }
 
 template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::test_if(
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::contains_if(
   InputIt first,
   InputIt last,
   StencilIt stencil,
@@ -141,12 +139,12 @@ __host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::test_if(
   OutputIt output_begin,
   cuda::stream_ref stream) const
 {
-  impl_.test_if(first, last, stencil, pred, output_begin, stream);
+  impl_.contains_if(first, last, stencil, pred, output_begin, stream);
 }
 
 template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
 template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::test_if_async(
+__host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::contains_if_async(
   InputIt first,
   InputIt last,
   StencilIt stencil,
@@ -154,7 +152,7 @@ __host__ void bloom_filter_ref<Key, Block, Extent, Scope, Hash>::test_if_async(
   OutputIt output_begin,
   cuda::stream_ref stream) const noexcept
 {
-  impl_.test_if_async(first, last, stencil, pred, output_begin, stream);
+  impl_.contains_if_async(first, last, stencil, pred, output_begin, stream);
 }
 
 template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>

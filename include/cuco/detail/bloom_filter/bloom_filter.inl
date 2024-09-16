@@ -132,10 +132,10 @@ template <class Key,
           class Hash,
           class Allocator>
 template <class InputIt, class OutputIt>
-__host__ void bloom_filter<Key, Block, Extent, Scope, Hash, Allocator>::test(
+__host__ void bloom_filter<Key, Block, Extent, Scope, Hash, Allocator>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
-  ref_.test(first, last, output_begin, stream);
+  ref_.contains(first, last, output_begin, stream);
 }
 
 template <class Key,
@@ -145,10 +145,10 @@ template <class Key,
           class Hash,
           class Allocator>
 template <class InputIt, class OutputIt>
-__host__ void bloom_filter<Key, Block, Extent, Scope, Hash, Allocator>::test_async(
+__host__ void bloom_filter<Key, Block, Extent, Scope, Hash, Allocator>::contains_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const noexcept
 {
-  ref_.test_async(first, last, output_begin, stream);
+  ref_.contains_async(first, last, output_begin, stream);
 }
 
 template <class Key,
@@ -158,7 +158,7 @@ template <class Key,
           class Hash,
           class Allocator>
 template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-__host__ void bloom_filter<Key, Block, Extent, Scope, Hash, Allocator>::test_if(
+__host__ void bloom_filter<Key, Block, Extent, Scope, Hash, Allocator>::contains_if(
   InputIt first,
   InputIt last,
   StencilIt stencil,
@@ -166,7 +166,7 @@ __host__ void bloom_filter<Key, Block, Extent, Scope, Hash, Allocator>::test_if(
   OutputIt output_begin,
   cuda::stream_ref stream) const
 {
-  ref_.test_if(first, last, stencil, pred, output_begin, stream);
+  ref_.contains_if(first, last, stencil, pred, output_begin, stream);
 }
 
 template <class Key,
@@ -176,7 +176,7 @@ template <class Key,
           class Hash,
           class Allocator>
 template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-__host__ void bloom_filter<Key, Block, Extent, Scope, Hash, Allocator>::test_if_async(
+__host__ void bloom_filter<Key, Block, Extent, Scope, Hash, Allocator>::contains_if_async(
   InputIt first,
   InputIt last,
   StencilIt stencil,
@@ -184,7 +184,7 @@ __host__ void bloom_filter<Key, Block, Extent, Scope, Hash, Allocator>::test_if_
   OutputIt output_begin,
   cuda::stream_ref stream) const noexcept
 {
-  ref_.test_if_async(first, last, stencil, pred, output_begin, stream);
+  ref_.contains_if_async(first, last, stencil, pred, output_begin, stream);
 }
 
 template <class Key,

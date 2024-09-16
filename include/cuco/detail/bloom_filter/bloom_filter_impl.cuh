@@ -181,7 +181,7 @@ class bloom_filter_impl {
   }
 
   template <class ProbeKey>
-  [[nodiscard]] __device__ bool test(ProbeKey const& key) const
+  [[nodiscard]] __device__ bool contains(ProbeKey const& key) const
   {
     auto const hash_value = hash_(key);
     auto const idx        = this->block_idx(hash_value);
@@ -200,52 +200,52 @@ class bloom_filter_impl {
 
   // TODO
   // template <class CG, class ProbeKey>
-  // [[nodiscard]] __device__ bool test(CG const& group, ProbeKey const& key) const;
+  // [[nodiscard]] __device__ bool contains(CG const& group, ProbeKey const& key) const;
 
   // TODO
   // template <class CG, class InputIt, class OutputIt>
-  // __device__ void test(CG const& group, InputIt first, InputIt last, OutputIt output_begin)
+  // __device__ void contains(CG const& group, InputIt first, InputIt last, OutputIt output_begin)
   // const;
 
   template <class InputIt, class OutputIt>
-  __host__ void test(InputIt first,
-                     InputIt last,
-                     OutputIt output_begin,
-                     cuda::stream_ref stream) const
+  __host__ void contains(InputIt first,
+                         InputIt last,
+                         OutputIt output_begin,
+                         cuda::stream_ref stream) const
   {
-    this->test_async(first, last, output_begin, stream);
+    this->contains_async(first, last, output_begin, stream);
     stream.wait();
   }
 
   template <class InputIt, class OutputIt>
-  __host__ void test_async(InputIt first,
-                           InputIt last,
-                           OutputIt output_begin,
-                           cuda::stream_ref stream) const noexcept
+  __host__ void contains_async(InputIt first,
+                               InputIt last,
+                               OutputIt output_begin,
+                               cuda::stream_ref stream) const noexcept
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
-    this->test_if_async(first, last, always_true, thrust::identity{}, output_begin, stream);
+    this->contains_if_async(first, last, always_true, thrust::identity{}, output_begin, stream);
   }
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ void test_if(InputIt first,
-                        InputIt last,
-                        StencilIt stencil,
-                        Predicate pred,
-                        OutputIt output_begin,
-                        cuda::stream_ref stream) const
+  __host__ void contains_if(InputIt first,
+                            InputIt last,
+                            StencilIt stencil,
+                            Predicate pred,
+                            OutputIt output_begin,
+                            cuda::stream_ref stream) const
   {
-    this->test_if_async(first, last, stencil, pred, output_begin, stream);
+    this->contains_if_async(first, last, stencil, pred, output_begin, stream);
     stream.wait();
   }
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ void test_if_async(InputIt first,
-                              InputIt last,
-                              StencilIt stencil,
-                              Predicate pred,
-                              OutputIt output_begin,
-                              cuda::stream_ref stream) const noexcept
+  __host__ void contains_if_async(InputIt first,
+                                  InputIt last,
+                                  StencilIt stencil,
+                                  Predicate pred,
+                                  OutputIt output_begin,
+                                  cuda::stream_ref stream) const noexcept
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
@@ -254,7 +254,7 @@ class bloom_filter_impl {
     auto const grid_size =
       cuco::detail::grid_size(num_keys, 1, cuco::detail::default_stride(), block_size);
 
-    detail::test_if_n<block_size><<<grid_size, block_size, 0, stream.get()>>>(
+    detail::contains_if_n<block_size><<<grid_size, block_size, 0, stream.get()>>>(
       first, num_keys, stencil, pred, output_begin, *this);
   }
 

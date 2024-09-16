@@ -232,7 +232,7 @@ class bloom_filter {
    * filter.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
-   * `test_async`.
+   * `contains_async`.
    *
    * @tparam InputIt Device-accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -245,10 +245,10 @@ class bloom_filter {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class OutputIt>
-  __host__ void test(InputIt first,
-                     InputIt last,
-                     OutputIt output_begin,
-                     cuda::stream_ref stream = {}) const;
+  __host__ void contains(InputIt first,
+                         InputIt last,
+                         OutputIt output_begin,
+                         cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously tests all keys in the range `[first, last)` if their fingerprints are
@@ -265,10 +265,10 @@ class bloom_filter {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class OutputIt>
-  __host__ void test_async(InputIt first,
-                           InputIt last,
-                           OutputIt output_begin,
-                           cuda::stream_ref stream = {}) const noexcept;
+  __host__ void contains_async(InputIt first,
+                               InputIt last,
+                               OutputIt output_begin,
+                               cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Tests all keys in the range `[first, last)` if their fingerprints are present in the
@@ -276,7 +276,7 @@ class bloom_filter {
    *
    * @note The key `*(first + i)` is queried if `pred( *(stencil + i) )` returns `true`.
    * @note This function synchronizes the given stream. For asynchronous execution use
-   * `test_if_async`.
+   * `contains_if_async`.
    *
    * @tparam InputIt Device-accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -296,12 +296,12 @@ class bloom_filter {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ void test_if(InputIt first,
-                        InputIt last,
-                        StencilIt stencil,
-                        Predicate pred,
-                        OutputIt output_begin,
-                        cuda::stream_ref stream = {}) const;
+  __host__ void contains_if(InputIt first,
+                            InputIt last,
+                            StencilIt stencil,
+                            Predicate pred,
+                            OutputIt output_begin,
+                            cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously tests all keys in the range `[first, last)` if their fingerprints are
@@ -327,12 +327,12 @@ class bloom_filter {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ void test_if_async(InputIt first,
-                              InputIt last,
-                              StencilIt stencil,
-                              Predicate pred,
-                              OutputIt output_begin,
-                              cuda::stream_ref stream = {}) const noexcept;
+  __host__ void contains_if_async(InputIt first,
+                                  InputIt last,
+                                  StencilIt stencil,
+                                  Predicate pred,
+                                  OutputIt output_begin,
+                                  cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Gets a pointer to the underlying filter storage.

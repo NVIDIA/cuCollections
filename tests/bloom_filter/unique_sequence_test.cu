@@ -50,32 +50,32 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
 
   SECTION("Non-inserted keys should not be contained.")
   {
-    filter.test(keys.begin(), keys.end(), contained.begin());
+    filter.contains(keys.begin(), keys.end(), contained.begin());
     REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("All inserted keys should be contained.")
   {
     filter.add(keys.begin(), keys.end());
-    filter.test(keys.begin(), keys.end(), contained.begin());
+    filter.contains(keys.begin(), keys.end(), contained.begin());
     REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("After clearing the flter no keys should be contained.")
   {
     filter.clear();
-    filter.test(keys.begin(), keys.end(), contained.begin());
+    filter.contains(keys.begin(), keys.end(), contained.begin());
     REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
   SECTION("All conditionally inserted keys should be contained")
   {
     filter.add_if(keys.begin(), keys.end(), thrust::counting_iterator<std::size_t>(0), is_even);
-    filter.test_if(keys.begin(),
-                   keys.end(),
-                   thrust::counting_iterator<std::size_t>(0),
-                   is_even,
-                   contained.begin());
+    filter.contains_if(keys.begin(),
+                       keys.end(),
+                       thrust::counting_iterator<std::size_t>(0),
+                       is_even,
+                       contained.begin());
     REQUIRE(cuco::test::equal(
       contained.begin(),
       contained.end(),
