@@ -206,7 +206,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
                                      ref.probing_scheme(),
                                          {},
                                      storage};
-  auto shared_map_ref = std::move(shared_map).with(cuco::op::insert_or_apply);
+  auto shared_map_ref = shared_map.rebind_operators(cuco::op::insert_or_apply);
   shared_map_ref.initialize(block);
   block.sync();
 
