@@ -271,11 +271,9 @@ class bloom_filter_impl {
 
  private:
   template <uint32_t NumWords>
-  __device__ auto vec_load_words(size_type index) const
+  __device__ cuda::std::array<word_type, NumWords> vec_load_words(size_type index) const
   {
-    using vec_type = cuda::std::array<word_type, NumWords>;
-
-    return *reinterpret_cast<vec_type*>(__builtin_assume_aligned(
+    return *reinterpret_cast<cuda::std::array<word_type, NumWords>*>(__builtin_assume_aligned(
       words_ + index, min(sizeof(word_type) * NumWords, required_alignment())));
   }
 
