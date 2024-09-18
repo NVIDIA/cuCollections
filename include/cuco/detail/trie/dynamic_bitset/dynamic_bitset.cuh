@@ -18,6 +18,7 @@
 #pragma once
 
 #include <cuda/std/array>
+#include <cuda/std/cstddef>
 #include <cuda/stream_ref>
 #include <thrust/device_malloc_allocator.h>
 #include <thrust/device_vector.h>
@@ -78,7 +79,7 @@ struct rank {
  * @tparam Allocator Type of allocator used for device storage
  */
 // TODO: have to use device_malloc_allocator for now otherwise the container cannot grow
-template <class Allocator = thrust::device_malloc_allocator<std::byte>>
+template <class Allocator = thrust::device_malloc_allocator<cuda::std::byte>>
 class dynamic_bitset {
  public:
   using size_type = std::size_t;  ///< size type to specify bit index

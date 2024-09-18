@@ -175,7 +175,7 @@ TEMPLATE_TEST_CASE_SIG(
                                     cuda::thread_scope_device,
                                     thrust::equal_to<Key>,
                                     probe,
-                                    cuco::cuda_allocator<std::byte>,
+                                    cuco::cuda_allocator<cuda::std::byte>,
                                     cuco::storage<2>>;
 
   SECTION("sentinel equals init; has_init = true")
@@ -213,7 +213,7 @@ TEMPLATE_TEST_CASE_SIG(
                                     cuda::thread_scope_device,
                                     thrust::equal_to<Key>,
                                     cuco::linear_probing<2, cuco::murmurhash3_32<Key>>,
-                                    cuco::cuda_allocator<std::byte>,
+                                    cuco::cuda_allocator<cuda::std::byte>,
                                     cuco::storage<2>>;
 
   SECTION("sentinel equals init; has_init = true")
@@ -249,7 +249,7 @@ TEMPLATE_TEST_CASE_SIG(
                                     cuda::thread_scope_device,
                                     thrust::equal_to<Key>,
                                     cuco::linear_probing<1, cuco::murmurhash3_32<Key>>,
-                                    cuco::cuda_allocator<std::byte>,
+                                    cuco::cuda_allocator<cuda::std::byte>,
                                     cuco::storage<2>>;
 
   SECTION("duplicate keys")

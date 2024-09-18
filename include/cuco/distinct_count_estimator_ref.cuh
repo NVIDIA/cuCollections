@@ -20,11 +20,10 @@
 #include <cuco/types.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
+#include <cuda/std/cstddef>
 #include <cuda/stream_ref>
 
 #include <cooperative_groups.h>
-
-#include <cstddef>
 
 namespace cuco {
 /**
@@ -64,8 +63,8 @@ class distinct_count_estimator_ref {
    * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
    */
-  __host__ __device__ constexpr distinct_count_estimator_ref(cuda::std::span<std::byte> sketch_span,
-                                                             Hash const& hash = {});
+  __host__ __device__ constexpr distinct_count_estimator_ref(
+    cuda::std::span<cuda::std::byte> sketch_span, Hash const& hash = {});
 
   /**
    * @brief Resets the estimator, i.e., clears the current count estimate.
@@ -211,7 +210,8 @@ class distinct_count_estimator_ref {
    *
    * @return The cuda::std::span of the sketch
    */
-  [[nodiscard]] __host__ __device__ constexpr cuda::std::span<std::byte> sketch() const noexcept;
+  [[nodiscard]] __host__ __device__ constexpr cuda::std::span<cuda::std::byte> sketch()
+    const noexcept;
 
   /**
    * @brief Gets the number of bytes required for the sketch storage.

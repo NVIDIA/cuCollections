@@ -121,8 +121,8 @@ constexpr auto distinct_count_estimator<T, Scope, Hash, Allocator>::hash_functio
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
-constexpr cuda::std::span<std::byte> distinct_count_estimator<T, Scope, Hash, Allocator>::sketch()
-  const noexcept
+constexpr cuda::std::span<cuda::std::byte>
+distinct_count_estimator<T, Scope, Hash, Allocator>::sketch() const noexcept
 {
   return this->impl_->sketch();
 }

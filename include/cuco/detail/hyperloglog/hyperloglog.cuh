@@ -22,9 +22,9 @@
 #include <cuco/types.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
+#include <cuda/std/cstddef>
 #include <cuda/stream_ref>
 
-#include <cstddef>
 #include <iterator>
 #include <memory>
 
@@ -74,7 +74,8 @@ class hyperloglog {
     : allocator_{alloc},
       sketch_{this->allocator_.allocate(sketch_size_b / sizeof(register_type)),
               custom_deleter{sketch_size_b / sizeof(register_type), this->allocator_}},
-      ref_{cuda::std::span{reinterpret_cast<std::byte*>(this->sketch_.get()), sketch_size_b}, hash}
+      ref_{cuda::std::span{reinterpret_cast<cuda::std::byte*>(this->sketch_.get()), sketch_size_b},
+           hash}
   {
     this->ref_.clear_async(stream);
   }
@@ -290,7 +291,7 @@ class hyperloglog {
    *
    * @return The cuda::std::span of the sketch
    */
-  [[nodiscard]] constexpr cuda::std::span<std::byte> sketch() const noexcept
+  [[nodiscard]] constexpr cuda::std::span<cuda::std::byte> sketch() const noexcept
   {
     return this->ref_.sketch();
   }

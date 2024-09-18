@@ -22,9 +22,9 @@
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
+#include <cuda/std/cstddef>
 #include <cuda/stream_ref>
 
-#include <cstddef>
 #include <iterator>
 #include <memory>
 
@@ -43,7 +43,7 @@ namespace cuco {
 template <class T,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class Hash               = cuco::xxhash_64<T>,
-          class Allocator          = cuco::cuda_allocator<std::byte>>
+          class Allocator          = cuco::cuda_allocator<cuda::std::byte>>
 class distinct_count_estimator {
   using impl_type = detail::hyperloglog<T, Scope, Hash, Allocator>;
 
@@ -243,7 +243,7 @@ class distinct_count_estimator {
    *
    * @return The cuda::std::span of the sketch
    */
-  [[nodiscard]] constexpr cuda::std::span<std::byte> sketch() const noexcept;
+  [[nodiscard]] constexpr cuda::std::span<cuda::std::byte> sketch() const noexcept;
 
   /**
    * @brief Gets the number of bytes required for the sketch storage.

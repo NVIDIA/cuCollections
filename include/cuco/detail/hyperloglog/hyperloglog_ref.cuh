@@ -27,6 +27,7 @@
 
 #include <cuda/atomic>
 #include <cuda/std/bit>
+#include <cuda/std/cstddef>
 #include <cuda/std/span>
 #include <cuda/std/utility>
 #include <cuda/stream_ref>
@@ -36,7 +37,6 @@
 #include <cooperative_groups/reduce.h>
 
 #include <algorithm>  // there is no <cuda/std/algorithm>
-#include <cstddef>
 #include <vector>
 
 namespace cuco::detail {
@@ -79,7 +79,7 @@ class hyperloglog_ref {
    * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
    */
-  __host__ __device__ constexpr hyperloglog_ref(cuda::std::span<std::byte> sketch_span,
+  __host__ __device__ constexpr hyperloglog_ref(cuda::std::span<cuda::std::byte> sketch_span,
                                                 Hash const& hash)
     : hash_{hash},
       precision_{cuda::std::countr_zero(
@@ -448,10 +448,11 @@ class hyperloglog_ref {
    *
    * @return The cuda::std::span of the sketch
    */
-  [[nodiscard]] __host__ __device__ constexpr cuda::std::span<std::byte> sketch() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr cuda::std::span<cuda::std::byte> sketch()
+    const noexcept
   {
-    return cuda::std::span<std::byte>(reinterpret_cast<std::byte*>(this->sketch_.data()),
-                                      this->sketch_bytes());
+    return cuda::std::span<cuda::std::byte>(
+      reinterpret_cast<cuda::std::byte*>(this->sketch_.data()), this->sketch_bytes());
   }
 
   /**
