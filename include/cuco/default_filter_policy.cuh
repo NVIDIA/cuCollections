@@ -25,12 +25,12 @@ namespace cuco {
 /**
  * @brief A policy that defines how a Blocked Bloom Filter generates and stores a key's fingerprint.
  *
- * @note `Block` is used **only** to determine `block_words` via `cuda::std::tuple_size<Block>` and
- * `word_type` via `Block::value_type` and does not represent the actual storage type of the filter.
- * We recommend using `cuda::std::array`.
+ * @note `Block` is used **only** to determine `words_per_block` via `cuda::std::tuple_size<Block>`
+ * and `word_type` via `Block::value_type` and does not represent the actual storage type of the
+ * filter. We recommend using `cuda::std::array`.
  *
  * @tparam Hash Hash function used to generate a key's fingerprint
- * @tparam Block Type to determine the filter's block size and underlying word type
+ * @tparam Block Type to determine the filter's block size and underlying word/segment type
  */
 template <class Hash, class Block>
 class default_filter_policy {
@@ -41,10 +41,10 @@ class default_filter_policy {
   using hash_argument_type = typename impl_type::hash_argument_type;  ///< Hash function input type
   using hash_result_type   = typename impl_type::hash_result_type;    ///< hash function output type
   using word_type =
-    typename impl_type::word_type;  ///< Underlying machine word type of the filter's storage
+    typename impl_type::word_type;  ///< Underlying word/segment type of a filter block
 
   static constexpr std::uint32_t words_per_block =
-    impl_type::words_per_block;  ///< Number of machine words in each filter block
+    impl_type::words_per_block;  ///< Number of words/segments in each filter block
 
  public:
   /**
@@ -96,16 +96,16 @@ class default_filter_policy {
   __device__ constexpr auto block_index(hash_result_type hash, Extent num_blocks) const;
 
   /**
-   * @brief Determines the fingerprint pattern for a word within the filter block for a given key's
-   * hash value.
+   * @brief Determines the fingerprint pattern for a word/segment within the filter block for a
+   * given key's hash value.
    *
    * @note This function is meant as a customization point and is only used in the internals of the
    * `bloom_filter(_ref)` implementation.
    *
    * @param hash Hash value of the key
-   * @param word_index Target word within the filter block
+   * @param word_index Target word/segment within the filter block
    *
-   * @return The bit pattern for the word in the filter block
+   * @return The bit pattern for the word/segment in the filter block
    */
   __device__ constexpr word_type word_pattern(hash_result_type hash,
                                               std::uint32_t word_index) const;

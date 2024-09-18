@@ -76,12 +76,13 @@ class bloom_filter {
 
   static constexpr auto thread_scope = ref_type<>::thread_scope;  ///< CUDA thread scope
   static constexpr auto words_per_block =
-    ref_type<>::words_per_block;  ///< Number of machine words in each filter block
+    ref_type<>::words_per_block;  ///< Number of machine words/segments in each filter block
 
   using key_type    = typename ref_type<>::key_type;     ///< Key Type
   using extent_type = typename ref_type<>::extent_type;  ///< Extent type
   using size_type   = typename extent_type::value_type;  ///< Underlying type of the extent type
-  using word_type   = typename ref_type<>::word_type;    ///< Machine word type
+  using word_type =
+    typename ref_type<>::word_type;  ///< Underlying word/segment type of a filter block
   using allocator_type =
     typename std::allocator_traits<Allocator>::template rebind_alloc<word_type>;  ///< Allocator
                                                                                   ///< type

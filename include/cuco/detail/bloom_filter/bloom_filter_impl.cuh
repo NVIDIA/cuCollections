@@ -281,7 +281,7 @@ class bloom_filter_impl {
 
   __host__ __device__ static constexpr size_t required_alignment() noexcept
   {
-    return sizeof(word_type) * words_per_block;  // TODO check if a maximum of 16byte is suffiecient
+    return sizeof(word_type) * words_per_block;  // TODO check if a maximum of 16byte is sufficient
   }
 
   word_type* words_;

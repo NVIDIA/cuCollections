@@ -42,12 +42,13 @@ class bloom_filter_ref {
  public:
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
   static constexpr auto words_per_block =
-    impl_type::words_per_block;  ///< Number of machine words in each filter block
+    impl_type::words_per_block;  ///< Number of words/segments in each filter block
 
   using key_type    = typename impl_type::key_type;      ///< Key Type
   using extent_type = typename impl_type::extent_type;   ///< Extent type
   using size_type   = typename extent_type::value_type;  ///< Underlying type of the extent type
-  using word_type   = typename impl_type::word_type;     ///< Machine word type
+  using word_type =
+    typename impl_type::word_type;  ///< Underlying word/segment type of a filter block
 
   /**
    * @brief Constructs the ref object from existing storage.
