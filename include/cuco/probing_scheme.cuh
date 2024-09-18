@@ -62,7 +62,7 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @return Copy of the current probing method
    */
   template <typename NewHash>
-  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(
+  [[nodiscard]] __host__ __device__ constexpr auto rebind_hash_function(
     NewHash const& hash) const noexcept;
 
   /**
@@ -143,23 +143,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    *
    * @param hash Hasher tuple
    */
-  __host__ __device__ constexpr double_hashing(cuco::pair<Hash1, Hash2> const& hash);
-
-  /**
-   *@brief Makes a copy of the current probing method with the given hasher
-   *
-   * @tparam NewHash1 First new hasher type
-   * @tparam NewHash2 Second new hasher type
-   *
-   * @param hash1 First hasher
-   * @param hash2 second hasher
-   *
-   * @return Copy of the current probing method
-   */
-  template <typename NewHash1, typename NewHash2 = NewHash1>
-  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(NewHash1 const& hash1,
-                                                                      NewHash2 const& hash2 = {
-                                                                        1}) const noexcept;
+  __host__ __device__ constexpr double_hashing(cuda::std::tuple<Hash1, Hash2> const& hash);
 
   /**
    *@brief Makes a copy of the current probing method with the given hasher
@@ -174,7 +158,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    */
   template <typename NewHash,
             typename Enable = cuda::std::enable_if_t<cuco::is_tuple_like<NewHash>::value>>
-  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(NewHash const& hash) const;
+  [[nodiscard]] __host__ __device__ constexpr auto rebind_hash_function(NewHash const& hash) const;
 
   /**
    * @brief Operator to return a probing iterator
