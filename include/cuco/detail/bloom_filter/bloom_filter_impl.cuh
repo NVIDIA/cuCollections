@@ -22,8 +22,10 @@
 #include <cuco/detail/utils.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
+// TODO #include <cuda/std/algorithm> once available
 #include <cub/device/device_for.cuh>
 #include <cuda/atomic>
+#include <cuda/std/__algorithm/max.h>
 #include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/tuple>
@@ -277,9 +279,14 @@ class bloom_filter_impl {
       words_ + index, min(sizeof(word_type) * NumWords, required_alignment())));
   }
 
+  __host__ __device__ static constexpr size_t max_vec_bytes() noexcept
+  {
+    return 16;  // LDG128 is the widest load we can perform
+  }
+
   __host__ __device__ static constexpr size_t required_alignment() noexcept
   {
-    return sizeof(word_type) * words_per_block;  // TODO check if a maximum of 16byte is sufficient
+    return cuda::std::max(sizeof(word_type) * words_per_block, max_vec_bytes());
   }
 
   word_type* words_;
