@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/bloom_filter_policy.cuh>
 #include <cuco/bloom_filter_ref.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/extent.cuh>
@@ -50,22 +51,17 @@ namespace cuco {
  * independent add or lookup operations from device code. These operations are accessed through
  * non-owning, trivially copyable reference types (or "ref").
  *
- * @note `Block` is used **only** to determine `block_words` via `cuda::std::tuple_size<Block>` and
- * `word_type` via `Block::value_type` and does not represent the actual storage type of the filter.
- * We recommend using `cuda::std::array`.
- *
  * @tparam Key Key type
- * @tparam Block Type to determine the filter's block size and underlying word type
  * @tparam Extent Size type that is used to determine the number of blocks in the filter
  * @tparam Scope The scope in which operations will be performed by individual threads
- * @tparam Hash Hash function used to generate a key's fingerprint
+ * @tparam Policy Type that defines how to generate and store key fingerprints (see
+ * `cuco/bloom_filter_policy.cuh`)
  * @tparam Allocator Type of allocator used for device-accessible storage
  */
 template <class Key,
-          class Block              = cuda::std::array<std::uint64_t, 4>,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class Hash               = cuco::xxhash_64<Key>,
+          class Policy             = cuco::default_filter_policy<Key>,
           class Allocator          = cuco::cuda_allocator<cuda::std::byte>>
 class bloom_filter {
  public:
@@ -75,16 +71,15 @@ class bloom_filter {
    * @tparam NewScope Thead scope of the to be updated ref type
    */
   template <cuda::thread_scope NewScope = Scope>
-  using ref_type = bloom_filter_ref<Key, Block, Extent, NewScope, Hash>;
+  using ref_type = bloom_filter_ref<Key, Extent, NewScope, Policy>;
 
   static constexpr auto thread_scope = ref_type<>::thread_scope;  ///< CUDA thread scope
-  static constexpr auto block_words =
-    ref_type<>::block_words;  ///< Number of machine words in each filter block
+  static constexpr auto words_per_block =
+    ref_type<>::words_per_block;  ///< Number of machine words in each filter block
 
   using key_type    = typename ref_type<>::key_type;     ///< Key Type
   using extent_type = typename ref_type<>::extent_type;  ///< Extent type
   using size_type   = typename extent_type::value_type;  ///< Underlying type of the extent type
-  using hasher      = typename ref_type<>::hasher;       ///< Hash function type
   using word_type   = typename ref_type<>::word_type;    ///< Machine word type
   using allocator_type =
     typename std::allocator_traits<Allocator>::template rebind_alloc<word_type>;  ///< Allocator
@@ -108,21 +103,20 @@ class bloom_filter {
   /**
    * @brief Constructs a statically-sized Bloom filter.
    *
-   * @note The total number of bits in the filter is determined by `block_words * num_blocks *
+   * @note The total number of bits in the filter is determined by `words_per_block * num_blocks *
    * sizeof(word_type) * CHAR_BIT`.
    *
    * @param num_blocks Number of sub-filters or blocks
-   * @param pattern_bits Number of bits in a key's fingerprint
-   * @param hash Hash function used to generate a key's fingerprint
+   * @param scope The scope in which operations will be performed
+   * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policy.cuh`)
    * @param alloc Allocator used for allocating device-accessible storage
    * @param stream CUDA stream used to initialize the filter
    */
   __host__ bloom_filter(Extent num_blocks,
-                        std::uint32_t pattern_bits,
-                        cuda_thread_scope<Scope> = {},
-                        Hash const& hash         = {},
-                        Allocator const& alloc   = {},
-                        cuda::stream_ref stream  = {});
+                        cuda_thread_scope<Scope> scope = {},
+                        Policy const& policy           = {},
+                        Allocator const& alloc         = {},
+                        cuda::stream_ref stream        = {});
 
   /**
    * @brief Erases all information from the filter.
@@ -354,20 +348,6 @@ class bloom_filter {
    * @return Number of sub-filter blocks
    */
   [[nodiscard]] __host__ extent_type block_extent() const noexcept;
-
-  /**
-   * @brief Gets the number of bits in a key's fingerprint
-   *
-   * @return The number of fingerprint bits
-   */
-  [[nodiscard]] __host__ hasher hash_function() const noexcept;
-
-  /**
-   * @brief Gets the function used to hash keys
-   *
-   * @return The function used to hash keys
-   */
-  [[nodiscard]] __host__ std::uint32_t pattern_bits() const noexcept;
 
   /**
    * @brief Gets the allocator.

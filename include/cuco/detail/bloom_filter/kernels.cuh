@@ -30,18 +30,18 @@ template <int32_t BlockSize, class InputIt, class StencilIt, class Predicate, cl
 CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
-  auto constexpr block_words = Ref::block_words;
+  auto constexpr words_per_block = Ref::words_per_block;
 
-  auto const loop_stride = cuco::detail::grid_stride() / block_words;
-  auto idx               = cuco::detail::global_thread_id() / block_words;
+  auto const loop_stride = cuco::detail::grid_stride() / words_per_block;
+  auto idx               = cuco::detail::global_thread_id() / words_per_block;
 
   [[maybe_unused]] auto const tile =
-    cooperative_groups::tiled_partition<block_words>(cooperative_groups::this_thread_block());
+    cooperative_groups::tiled_partition<words_per_block>(cooperative_groups::this_thread_block());
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
       typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};
-      if constexpr (block_words == 1) {
+      if constexpr (words_per_block == 1) {
         ref.add(insert_element);
       } else {
         ref.add(tile, insert_element);

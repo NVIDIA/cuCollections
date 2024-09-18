@@ -34,16 +34,14 @@ using HASH_RANGE       = nvbench::type_list<cuco::identity_hash<char>,
 // cuco::murmurhash3_x86_128<char>,
 // cuco::murmurhash3_x64_128<char>>; // TODO handle tuple-like hash value
 
-auto constexpr N              = 100'000'000;
-auto constexpr OCCUPANCY      = 0.5;
-auto constexpr MULTIPLICITY   = 1;
-auto constexpr MATCHING_RATE  = 1.0;
-auto constexpr MAX_NOISE      = 3;
-auto constexpr SKEW           = 0.5;
-auto constexpr BATCH_SIZE     = 1'000'000;
-auto constexpr INITIAL_SIZE   = 50'000'000;
-auto constexpr FILTER_SIZE_MB = 2'000;
-auto constexpr PATTERN_BITS   = 6;
+auto constexpr N             = 100'000'000;
+auto constexpr OCCUPANCY     = 0.5;
+auto constexpr MULTIPLICITY  = 1;
+auto constexpr MATCHING_RATE = 1.0;
+auto constexpr MAX_NOISE     = 3;
+auto constexpr SKEW          = 0.5;
+auto constexpr BATCH_SIZE    = 1'000'000;
+auto constexpr INITIAL_SIZE  = 50'000'000;
 
 auto const N_RANGE = nvbench::range(10'000'000, 100'000'000, 20'000'000);
 auto const N_RANGE_CACHE =
@@ -52,8 +50,5 @@ auto const OCCUPANCY_RANGE     = nvbench::range(0.1, 0.9, 0.1);
 auto const MULTIPLICITY_RANGE  = std::vector<nvbench::int64_t>{1, 2, 4, 8, 16};
 auto const MATCHING_RATE_RANGE = nvbench::range(0.1, 1., 0.1);
 auto const SKEW_RANGE          = nvbench::range(0.1, 1., 0.1);
-auto const FILTER_SIZE_MB_RANGE_CACHE =
-  std::vector<nvbench::int64_t>{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048};
-auto const PATTERN_BITS_RANGE = std::vector<nvbench::int64_t>{1, 2, 4, 6, 8};
 
 }  // namespace cuco::benchmark::defaults

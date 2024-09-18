@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include "defaults.hpp"
+
 #include <benchmark_defaults.hpp>
 #include <benchmark_utils.hpp>
 
@@ -22,6 +24,7 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/std/limits>
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/sequence.h>
@@ -64,19 +67,23 @@ void add_fpr_summary(nvbench::state& state, FilterType& filter)
 template <typename Key, typename Hash, typename Block, typename Dist>
 void bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Hash, Block, Dist>)
 {
-  using filter_type = cuco::bloom_filter<Key,
-                                         Block,
-                                         cuco::extent<size_t>,
-                                         cuda::thread_scope_device,
-                                         rebind_hasher_t<Hash, Key>>;
+  using filter_type =
+    cuco::bloom_filter<Key,
+                       cuco::extent<size_t>,
+                       cuda::thread_scope_device,
+                       cuco::bloom_filter_policy<rebind_hasher_t<Hash, Key>, Block>>;
 
   auto const num_keys       = state.get_int64("NumInputs");
   auto const filter_size_mb = state.get_int64("FilterSizeMB");
   auto const pattern_bits   = state.get_int64("PatternBits");
 
+  if (pattern_bits < filter_type::words_per_block and pattern_bits != defaults::BF_PATTERN_BITS) {
+    state.skip("pattern_bits must be at least words_per_block");
+  }
+
   std::size_t const num_sub_filters =
     (filter_size_mb * 1024 * 1024) /
-    (sizeof(typename filter_type::word_type) * filter_type::block_words);
+    (sizeof(typename filter_type::word_type) * filter_type::words_per_block);
 
   thrust::device_vector<Key> keys(num_keys);
 
@@ -85,9 +92,9 @@ void bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Hash, Block
 
   state.add_element_count(num_keys);
   state.add_global_memory_writes<typename filter_type::word_type>(num_keys *
-                                                                  filter_type::block_words);
+                                                                  filter_type::words_per_block);
 
-  filter_type filter{num_sub_filters, static_cast<uint32_t>(pattern_bits)};
+  filter_type filter{num_sub_filters, {}, {static_cast<uint32_t>(pattern_bits)}};
 
   add_fpr_summary(state, filter);
 
@@ -102,19 +109,23 @@ void bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Hash, Block
 template <typename Key, typename Hash, typename Block, typename Dist>
 void bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, Hash, Block, Dist>)
 {
-  using filter_type = cuco::bloom_filter<Key,
-                                         Block,
-                                         cuco::extent<size_t>,
-                                         cuda::thread_scope_device,
-                                         rebind_hasher_t<Hash, Key>>;
+  using filter_type =
+    cuco::bloom_filter<Key,
+                       cuco::extent<size_t>,
+                       cuda::thread_scope_device,
+                       cuco::bloom_filter_policy<rebind_hasher_t<Hash, Key>, Block>>;
 
   auto const num_keys       = state.get_int64("NumInputs");
   auto const filter_size_mb = state.get_int64("FilterSizeMB");
   auto const pattern_bits   = state.get_int64("PatternBits");
 
+  if (pattern_bits < filter_type::words_per_block and pattern_bits != defaults::BF_PATTERN_BITS) {
+    state.skip("pattern_bits must be at least words_per_block");
+  }
+
   std::size_t const num_sub_filters =
     (filter_size_mb * 1024 * 1024) /
-    (sizeof(typename filter_type::word_type) * filter_type::block_words);
+    (sizeof(typename filter_type::word_type) * filter_type::words_per_block);
 
   thrust::device_vector<Key> keys(num_keys);
   thrust::device_vector<bool> result(num_keys, false);
@@ -124,9 +135,9 @@ void bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, Hash, 
 
   state.add_element_count(num_keys);
   state.add_global_memory_reads<typename filter_type::word_type>(num_keys *
-                                                                 filter_type::block_words);
+                                                                 filter_type::words_per_block);
 
-  filter_type filter{num_sub_filters, static_cast<uint32_t>(pattern_bits)};
+  filter_type filter{num_sub_filters, {}, {static_cast<uint32_t>(pattern_bits)}};
 
   add_fpr_summary(state, filter);
 
@@ -137,37 +148,34 @@ void bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, Hash, 
   });
 }
 
-static constexpr auto BF_N = defaults::N * 2;
-using DEFAULT_BLOCK        = cuda::std::array<nvbench::uint64_t, 4>;
-
 NVBENCH_BENCH_TYPES(bloom_filter_add,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      nvbench::type_list<cuco::default_hash_function<char>>,
-                                      nvbench::type_list<DEFAULT_BLOCK>,
+                                      nvbench::type_list<defaults::BF_HASH>,
+                                      nvbench::type_list<defaults::BF_BLOCK>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_add_unique_size")
   .set_type_axes_names({"Key", "Hash", "Block", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
-  .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
+  .add_int64_axis("NumInputs", {defaults::BF_N})
+  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE)
+  .add_int64_axis("PatternBits", {defaults::BF_PATTERN_BITS});
 
 NVBENCH_BENCH_TYPES(bloom_filter_add,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::HASH_RANGE,
-                                      nvbench::type_list<DEFAULT_BLOCK>,
+                                      nvbench::type_list<defaults::BF_BLOCK>,
 
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_add_unique_hash")
   .set_type_axes_names({"Key", "Hash", "Block", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})
-  .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
+  .add_int64_axis("NumInputs", {defaults::BF_N})
+  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB})
+  .add_int64_axis("PatternBits", {defaults::BF_PATTERN_BITS});
 
 NVBENCH_BENCH_TYPES(bloom_filter_add,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      nvbench::type_list<cuco::default_hash_function<char>>,
+                                      nvbench::type_list<defaults::BF_HASH>,
                                       nvbench::type_list<cuda::std::array<nvbench::uint32_t, 1>,
                                                          cuda::std::array<nvbench::uint32_t, 2>,
                                                          cuda::std::array<nvbench::uint32_t, 4>,
@@ -180,39 +188,39 @@ NVBENCH_BENCH_TYPES(bloom_filter_add,
   .set_name("bloom_filter_add_unique_block_dim")
   .set_type_axes_names({"Key", "Hash", "Block", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})
-  .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
+  .add_int64_axis("NumInputs", {defaults::BF_N})
+  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB})
+  .add_int64_axis("PatternBits", {defaults::BF_PATTERN_BITS});
 
 NVBENCH_BENCH_TYPES(bloom_filter_contains,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      nvbench::type_list<cuco::default_hash_function<char>>,
-                                      nvbench::type_list<DEFAULT_BLOCK>,
+                                      nvbench::type_list<defaults::BF_HASH>,
+                                      nvbench::type_list<defaults::BF_BLOCK>,
 
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_contains_unique_size")
   .set_type_axes_names({"Key", "Hash", "Block", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
-  .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
+  .add_int64_axis("NumInputs", {defaults::BF_N})
+  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE)
+  .add_int64_axis("PatternBits", {defaults::BF_PATTERN_BITS});
 
 NVBENCH_BENCH_TYPES(bloom_filter_contains,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
                                       defaults::HASH_RANGE,
-                                      nvbench::type_list<DEFAULT_BLOCK>,
+                                      nvbench::type_list<defaults::BF_BLOCK>,
 
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_contains_unique_hash")
   .set_type_axes_names({"Key", "Hash", "Block", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})
-  .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
+  .add_int64_axis("NumInputs", {defaults::BF_N})
+  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB})
+  .add_int64_axis("PatternBits", {defaults::BF_PATTERN_BITS});
 
 NVBENCH_BENCH_TYPES(bloom_filter_contains,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      nvbench::type_list<cuco::default_hash_function<char>>,
+                                      nvbench::type_list<defaults::BF_HASH>,
                                       nvbench::type_list<cuda::std::array<nvbench::uint32_t, 1>,
                                                          cuda::std::array<nvbench::uint32_t, 2>,
                                                          cuda::std::array<nvbench::uint32_t, 4>,
@@ -225,9 +233,9 @@ NVBENCH_BENCH_TYPES(bloom_filter_contains,
   .set_name("bloom_filter_contains_unique_block_dim")
   .set_type_axes_names({"Key", "Hash", "Block", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::FILTER_SIZE_MB})
-  .add_int64_axis("PatternBits", {defaults::PATTERN_BITS});
+  .add_int64_axis("NumInputs", {defaults::BF_N})
+  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB})
+  .add_int64_axis("PatternBits", {defaults::BF_PATTERN_BITS});
 
 /*
 // benchmark outer product of configuration space
@@ -247,8 +255,8 @@ NVBENCH_BENCH_TYPES(
   .set_name("bloom_filter_add_unique_product")
   .set_type_axes_names({"Key", "Hash", "Block", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
+  .add_int64_axis("NumInputs", {defaults::BF_N})
+  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE)
   .add_int64_axis("PatternBits", {1, 2, 4, 6, 8, 10});
 
 NVBENCH_BENCH_TYPES(
@@ -267,7 +275,7 @@ NVBENCH_BENCH_TYPES(
   .set_name("bloom_filter_contains_unique_product")
   .set_type_axes_names({"Key", "Hash", "Block", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::FILTER_SIZE_MB_RANGE_CACHE)
+  .add_int64_axis("NumInputs", {defaults::BF_N})
+  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE)
   .add_int64_axis("PatternBits", {1, 2, 4, 6, 8, 10});
 */

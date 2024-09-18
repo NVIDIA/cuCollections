@@ -30,8 +30,8 @@ int main(void)
   int constexpr num_tp   = num_keys * 0.5;
   int constexpr num_tn   = num_keys - num_tp;
 
-  // Spawn a filter with 1000 sub-filters and 6-bit patterns for each key.
-  cuco::bloom_filter<int> filter{1000, 6};
+  // Spawn a filter with 200 sub-filters.
+  cuco::bloom_filter<int> filter{200};
 
   thrust::device_vector<int> keys(num_keys);
   thrust::sequence(keys.begin(), keys.end(), 1);

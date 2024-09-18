@@ -38,41 +38,36 @@
 
 namespace cuco::detail {
 
-template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 class bloom_filter_impl {
  public:
-  static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
-  static constexpr auto block_words  = cuda::std::tuple_size_v<Block>;
-
   using key_type    = Key;
   using extent_type = Extent;
   using size_type   = typename extent_type::value_type;
-  using hasher      = Hash;
-  using word_type = typename Block::value_type;  // TODO static_assert can use fetch_or() and load()
+  using policy_type = Policy;
+  using word_type =
+    typename policy_type::word_type;  // TODO static_assert can use fetch_or() and load()
 
-  static_assert(cuda::std::has_single_bit(block_words) and block_words <= 32,
-                "Number of words per block must be a power-of-two and less than or equal to 32");
+  static constexpr auto thread_scope    = Scope;  ///< CUDA thread scope
+  static constexpr auto words_per_block = policy_type::words_per_block;
 
-  __host__ __device__ bloom_filter_impl(word_type* filter,
-                                        Extent num_blocks,
-                                        uint32_t pattern_bits,
-                                        cuda_thread_scope<Scope>,
-                                        Hash const& hash)
-    : words_{filter}, num_blocks_{num_blocks}, pattern_bits_{pattern_bits}, hash_{hash}
+  __host__ __device__
+  bloom_filter_impl(word_type* filter, Extent num_blocks, cuda_thread_scope<Scope>, Policy policy)
+    : words_{filter}, num_blocks_{num_blocks}, policy_{policy}
   {
 #ifndef __CUDA_ARCH__
     auto const alignment =
       1ull << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(filter));
     CUCO_EXPECTS(alignment >= required_alignment(), "Invalid memory alignment", std::runtime_error);
 
-    CUCO_EXPECTS(this->num_blocks_ > 0, "Number of blocks cannot be zero", std::runtime_error);
+    CUCO_EXPECTS(num_blocks_ > 0, "Number of blocks cannot be zero", std::runtime_error);
 #endif
   }
 
   template <class CG>
   __device__ void clear(CG const& group)
   {
-    for (int i = group.thread_rank(); num_blocks_ * block_words; i += group.size()) {
+    for (int i = group.thread_rank(); num_blocks_ * words_per_block; i += group.size()) {
       words_[i] = 0;
     }
   }
@@ -87,7 +82,7 @@ class bloom_filter_impl {
   {
     CUCO_CUDA_TRY(cub::DeviceFor::ForEachN(
       words_,
-      num_blocks_ * block_words,
+      num_blocks_ * words_per_block,
       [] __device__(word_type & word) { word = 0; },
       stream.get()));
   }
@@ -95,32 +90,32 @@ class bloom_filter_impl {
   template <class ProbeKey>
   __device__ void add(ProbeKey const& key)
   {
-    auto const hash_value = hash_(key);
-    auto const idx        = this->block_idx(hash_value);
+    auto const hash_value = policy_.hash(key);
+    auto const idx        = policy_.block_index(hash_value, num_blocks_);
 
-#pragma unroll block_words
-    for (int32_t i = 0; i < block_words; ++i) {
-      auto const word = this->pattern_word(hash_value, i);
+#pragma unroll words_per_block
+    for (uint32_t i = 0; i < words_per_block; ++i) {
+      auto const word = policy_.word_pattern(hash_value, i);
       if (word != 0) {
         auto atom_word =
-          cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * block_words + i))};
+          cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * words_per_block + i))};
         atom_word.fetch_or(word, cuda::memory_order_relaxed);
       }
     }
   }
 
   template <class ProbeKey>
-  __device__ void add(cooperative_groups::thread_block_tile<block_words> const& tile,
+  __device__ void add(cooperative_groups::thread_block_tile<words_per_block> const& tile,
                       ProbeKey const& key)
   {
-    auto const hash_value = hash_(key);
-    auto const idx        = this->block_idx(hash_value);
+    auto const hash_value = policy_.hash(key);
+    auto const idx        = policy_.block_index(hash_value, num_blocks_);
     auto const rank       = tile.thread_rank();
 
-    auto const word = this->pattern_word(hash_value, rank);
+    auto const word = policy_.word_pattern(hash_value, rank);
     if (word != 0) {
       auto atom_word =
-        cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * block_words + rank))};
+        cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * words_per_block + rank))};
       atom_word.fetch_or(word, cuda::memory_order_relaxed);
     }
   }
@@ -142,7 +137,7 @@ class bloom_filter_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    if constexpr (block_words == 1) {
+    if constexpr (words_per_block == 1) {
       CUCO_CUDA_TRY(cub::DeviceFor::ForEachCopyN(
         first,
         num_keys,
@@ -173,8 +168,8 @@ class bloom_filter_impl {
     if (num_keys == 0) { return; }
 
     auto constexpr block_size = cuco::detail::default_block_size();
-    auto const grid_size =
-      cuco::detail::grid_size(num_keys, block_words, cuco::detail::default_stride(), block_size);
+    auto const grid_size      = cuco::detail::grid_size(
+      num_keys, words_per_block, cuco::detail::default_stride(), block_size);
 
     detail::add_if_n<block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, stencil, pred, *this);
@@ -183,16 +178,15 @@ class bloom_filter_impl {
   template <class ProbeKey>
   [[nodiscard]] __device__ bool contains(ProbeKey const& key) const
   {
-    auto const hash_value = hash_(key);
-    auto const idx        = this->block_idx(hash_value);
+    auto const hash_value = policy_.hash(key);
 
-    auto const stored_pattern =
-      this->vec_load_words<block_words>(idx * block_words);  // vectorized load
-    auto const expected_pattern = this->pattern(hash_value);
+    auto const stored_pattern = this->vec_load_words<words_per_block>(
+      policy_.block_index(hash_value, num_blocks_) * words_per_block);
 
-#pragma unroll block_words
-    for (int32_t i = 0; i < block_words; ++i) {
-      if ((stored_pattern[i] & expected_pattern[i]) != expected_pattern[i]) { return false; }
+#pragma unroll words_per_block
+    for (uint32_t i = 0; i < words_per_block; ++i) {
+      auto const expected_pattern = policy_.word_pattern(hash_value, i);
+      if ((stored_pattern[i] & expected_pattern) != expected_pattern) { return false; }
     }
 
     return true;
@@ -267,10 +261,6 @@ class bloom_filter_impl {
     return num_blocks_;
   }
 
-  [[nodiscard]] __host__ __device__ uint32_t pattern_bits() const noexcept { return pattern_bits_; }
-
-  [[nodiscard]] __host__ __device__ hasher hash_function() const noexcept { return hash_; }
-
   // TODO
   // [[nodiscard]] __host__ double occupancy() const;
   // [[nodiscard]] __host__ double expected_false_positive_rate(size_t unique_keys) const
@@ -280,80 +270,23 @@ class bloom_filter_impl {
   // memory_to_use, cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
  private:
-  template <class HashValue>
-  __device__ size_type block_idx(HashValue hash_value) const
-  {
-    // TODO use fast_int modulo
-    return hash_value % num_blocks_;
-  }
-
-  // we use the LSB bits of the hash value to determine the pattern bits for each word
-  template <class HashValue>
-  __device__ auto pattern(HashValue hash_value) const
-  {
-    cuda::std::array<word_type, block_words> pattern{};
-    auto constexpr word_bits           = sizeof(word_type) * CHAR_BIT;
-    auto constexpr bit_index_width     = cuda::std::bit_width(word_bits - 1);
-    word_type constexpr bit_index_mask = (word_type{1} << bit_index_width) - 1;
-
-    auto const bits_per_word = pattern_bits_ / block_words;
-    auto const remainder     = pattern_bits_ % block_words;
-
-    uint32_t k = 0;
-#pragma unroll block_words
-    for (int32_t i = 0; i < block_words; ++i) {
-      for (int32_t j = 0; j < bits_per_word + (i < remainder ? 1 : 0); ++j) {
-        if (k++ >= pattern_bits_) { return pattern; }
-        pattern[i] |= word_type{1} << (hash_value & bit_index_mask);
-        hash_value >>= bit_index_width;
-      }
-    }
-
-    return pattern;
-  }
-
-  template <class HashValue>
-  __device__ word_type pattern_word(HashValue hash_value, uint32_t i) const
-  {
-    auto constexpr word_bits           = sizeof(word_type) * CHAR_BIT;
-    auto constexpr bit_index_width     = cuda::std::bit_width(word_bits - 1);
-    word_type constexpr bit_index_mask = (word_type{1} << bit_index_width) - 1;
-
-    auto const bits_per_word = pattern_bits_ / block_words;
-    auto const remainder     = pattern_bits_ % block_words;
-    auto const bits_so_far   = bits_per_word * i + (i < remainder ? i : remainder);
-
-    hash_value >>= bits_so_far * bit_index_width;
-
-    // Compute the word at index i
-    word_type word  = 0;
-    int32_t j_limit = bits_per_word + (i < remainder ? 1 : 0);
-
-    for (int32_t j = 0; j < j_limit; ++j) {
-      word |= word_type{1} << (hash_value & bit_index_mask);
-      hash_value >>= bit_index_width;
-    }
-
-    return word;
-  }
-
   template <uint32_t NumWords>
   __device__ auto vec_load_words(size_type index) const
   {
     using vec_type = cuda::std::array<word_type, NumWords>;
 
-    return *reinterpret_cast<vec_type*>(
-      __builtin_assume_aligned(words_ + index, sizeof(word_type) * NumWords));
+    return *reinterpret_cast<vec_type*>(__builtin_assume_aligned(
+      words_ + index, min(sizeof(word_type) * NumWords, required_alignment())));
   }
 
   __host__ __device__ static constexpr size_t required_alignment() noexcept
   {
-    return sizeof(word_type) * block_words;
+    return sizeof(word_type) * words_per_block;  // TODO check if a maximum of 16byte is suffiecient
   }
 
   word_type* words_;
   extent_type num_blocks_;
-  uint32_t pattern_bits_;
-  hasher hash_;
+  policy_type policy_;
 };
+
 }  // namespace cuco::detail

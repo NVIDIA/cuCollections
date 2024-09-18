@@ -22,38 +22,31 @@
 #include <cuda/atomic>
 #include <cuda/stream_ref>
 
-#include <cstdint>
-
 namespace cuco {
 
 /**
  * @brief Non-owning "ref" type of `bloom_filter`.
  *
  * @note Ref types are trivially-copyable and are intended to be passed by value.
- * @note `Block` is used **only** to determine `block_words` via `cuda::std::tuple_size<Block>` and
- * `word_type` via `Block::value_type` and does not represent the actual storage type of the filter.
- * We recommend using `cuda::std::array`.
  *
  * @tparam Key Key type
- * @tparam Block Type to determine the filter's block size and underlying word type
  * @tparam Extent Size type that is used to determine the number of blocks in the filter
  * @tparam Scope The scope in which operations will be performed by individual threads
- * @tparam Hash Hash function used to generate a key's fingerprint
+ * @tparam Policy Type that defines how to generate and store key fingerprints (see
+ * `cuco/bloom_filter_policy.cuh`)
  */
-template <class Key, class Block, class Extent, cuda::thread_scope Scope, class Hash>
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 class bloom_filter_ref {
-  using impl_type =
-    detail::bloom_filter_impl<Key, Block, Extent, Scope, Hash>;  ///< Implementation type
+  using impl_type = detail::bloom_filter_impl<Key, Extent, Scope, Policy>;  ///< Implementation type
 
  public:
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
-  static constexpr auto block_words =
-    impl_type::block_words;  ///< Number of machine words in each filter block
+  static constexpr auto words_per_block =
+    impl_type::words_per_block;  ///< Number of machine words in each filter block
 
   using key_type    = typename impl_type::key_type;      ///< Key Type
   using extent_type = typename impl_type::extent_type;   ///< Extent type
   using size_type   = typename extent_type::value_type;  ///< Underlying type of the extent type
-  using hasher      = typename impl_type::hasher;        ///< Hash function type
   using word_type   = typename impl_type::word_type;     ///< Machine word type
 
   /**
@@ -61,18 +54,17 @@ class bloom_filter_ref {
    *
    * @note The storage span starting at `data` must have an extent of at least `num_blocks`
    * elements.
-   * @note `data` must be aligned to at least `sizeof(word_type) * block_words`.
+   * @note `data` must be aligned to at least `sizeof(word_type) * words_per_block`.
    *
    * @param data Pointer to the storage span of the filter
    * @param num_blocks Number of sub-filters or blocks
-   * @param pattern_bits Number of bits in a key's fingerprint
-   * @param hash Hash function used to generate a key's fingerprint
+   * @param scope The scope in which operations will be performed
+   * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policy.cuh`)
    */
   __host__ __device__ bloom_filter_ref(word_type* data,
                                        Extent num_blocks,
-                                       std::uint32_t pattern_bits,
-                                       cuda_thread_scope<Scope>,
-                                       Hash const& hash);
+                                       cuda_thread_scope<Scope> scope,
+                                       Policy const& policy);
 
   /**
    * @brief Device function that cooperatively erases all information from the filter.
@@ -114,7 +106,7 @@ class bloom_filter_ref {
   /**
    * @brief Device function that cooperatively adds a key to the filter.
    *
-   * @note Best performance is achieved if the size of the CG is equal to `block_words`.
+   * @note Best performance is achieved if the size of the CG is equal to `words_per_block`.
    *
    * @tparam CG Cooperative Group type
    * @tparam ProbeKey Input type that is implicitly convertible to `key_type`
@@ -359,20 +351,6 @@ class bloom_filter_ref {
    * @return Number of sub-filter blocks
    */
   [[nodiscard]] __host__ __device__ extent_type block_extent() const noexcept;
-
-  /**
-   * @brief Gets the number of sub-filter blocks.
-   *
-   * @return Number of sub-filter blocks
-   */
-  [[nodiscard]] __host__ __device__ std::uint32_t pattern_bits() const noexcept;
-
-  /**
-   * @brief Gets the number of bits in a key's fingerprint
-   *
-   * @return The number of fingerprint bits
-   */
-  [[nodiscard]] __host__ __device__ hasher hash_function() const noexcept;
 
  private:
   impl_type impl_;  ///< Object containing the Blocked Bloom filter implementation
