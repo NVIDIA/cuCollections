@@ -16,17 +16,11 @@
 
 #pragma once
 
-#include <cuco/detail/bloom_filter/bloom_filter_policy_impl.cuh>
-#include <cuco/hash_functions.cuh>
-
-#include <cuda/std/array>
+#include <cuco/detail/bloom_filter/default_filter_policy_impl.cuh>
 
 #include <cstdint>
 
 namespace cuco {
-
-// TODO Policies are meant as customization points so we need to ensure a user-defined policy
-// fulfills a certain concept.
 
 /**
  * @brief A policy that defines how a Blocked Bloom Filter generates and stores a key's fingerprint.
@@ -39,8 +33,8 @@ namespace cuco {
  * @tparam Block Type to determine the filter's block size and underlying word type
  */
 template <class Hash, class Block>
-class bloom_filter_policy {
-  using impl_type = cuco::detail::bloom_filter_policy_impl<Hash, Block>;
+class default_filter_policy {
+  using impl_type = cuco::detail::default_filter_policy_impl<Hash, Block>;
 
  public:
   using hasher             = typename impl_type::hasher;              ///< Type of the hash function
@@ -54,7 +48,7 @@ class bloom_filter_policy {
 
  public:
   /**
-   * @brief Constructs the `bloom_filter_policy`object.
+   * @brief Constructs the `default_filter_policy` object.
    *
    * @note This policy dynamically adjusts the `pattern_bits` to set at least one bit per word in
    * the filter block.
@@ -62,8 +56,8 @@ class bloom_filter_policy {
    * @param pattern_bits Number of bits in a key's fingerprint
    * @param hash Hash function used to generate a key's fingerprint
    */
-  __host__ __device__ constexpr bloom_filter_policy(std::uint32_t pattern_bits = words_per_block,
-                                                    Hash hash                  = {});
+  __host__ __device__ constexpr default_filter_policy(std::uint32_t pattern_bits = words_per_block,
+                                                      Hash hash                  = {});
 
   /**
    * @brief Generates the hash value for a given key.
@@ -112,15 +106,6 @@ class bloom_filter_policy {
   impl_type impl_;  ///< Policy implementation
 };
 
-/**
- * @brief Default Bloom filter policy
- *
- * @tparam Key The type of the values to hash
- */
-template <class Key>
-using default_filter_policy =
-  bloom_filter_policy<cuco::xxhash_64<Key>, cuda::std::array<std::uint32_t, 8>>;
-
 }  // namespace cuco
 
-#include <cuco/detail/bloom_filter/bloom_filter_policy.inl>
+#include <cuco/detail/bloom_filter/default_filter_policy.inl>

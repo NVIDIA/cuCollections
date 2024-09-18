@@ -16,12 +16,9 @@
 
 #pragma once
 
-#include <cuco/hash_functions.cuh>
-
 // TODO switch to <cuda/std/algorithm> once available
 #include <cuda/std/__algorithm/max.h>
 #include <cuda/std/__algorithm/min.h>
-#include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/limits>
 #include <cuda/std/tuple>
@@ -32,7 +29,7 @@
 namespace cuco::detail {
 
 template <class Hash, class Block>
-class bloom_filter_policy_impl {
+class default_filter_policy_impl {
  public:
   using hasher             = Hash;
   using word_type          = typename Block::value_type;
@@ -50,7 +47,7 @@ class bloom_filter_policy_impl {
   static_assert(cuda::std::has_single_bit(words_per_block) and words_per_block <= 32,
                 "Number of words per block must be a power-of-two and less than or equal to 32");
 
-  __host__ __device__ constexpr bloom_filter_policy_impl(uint32_t pattern_bits, Hash hash)
+  __host__ __device__ constexpr default_filter_policy_impl(uint32_t pattern_bits, Hash hash)
     : hash_{hash}
   {
     constexpr uint32_t hash_bits = cuda::std::numeric_limits<hash_result_type>::digits;

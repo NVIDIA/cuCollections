@@ -16,20 +16,20 @@
 
 #pragma once
 
-#include <cuco/bloom_filter_policy.cuh>
+#include <cuco/hash_functions.cuh>
 
 #include <nvbench/nvbench.cuh>
 
-#include <cstdint>
+#include <cuda/std/array>
+
 #include <vector>
 
 namespace cuco::benchmark::defaults {
 
 static constexpr auto BF_N       = 400'000'000;
 static constexpr auto BF_SIZE_MB = 2'000;
-using BF_POLICY                  = cuco::default_filter_policy<char>;
-using BF_HASH                    = typename BF_POLICY::hasher;
-using BF_BLOCK = cuda::std::array<typename BF_POLICY::word_type, BF_POLICY::words_per_block>;
+using BF_HASH                    = cuco::xxhash_64<char>;
+using BF_BLOCK                   = cuda::std::array<nvbench::uint32_t, 8>;
 // This is a dummy value which will be dynamically replaced with the filter's actual default
 auto constexpr BF_PATTERN_BITS = 0;
 auto const BF_SIZE_MB_RANGE_CACHE =
