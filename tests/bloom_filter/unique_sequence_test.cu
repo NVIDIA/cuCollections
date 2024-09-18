@@ -101,9 +101,10 @@ TEMPLATE_TEST_CASE_SIG(
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
   constexpr size_type num_keys{400};
 
-  uint32_t word_bits = GENERATE(1, 2, 4, 6);
+  uint32_t pattern_bits =
+    GENERATE(Policy::words_per_block, Policy::words_per_block + 1, Policy::words_per_block + 2);
 
-  auto filter = filter_type{1000, {}, {word_bits * Policy::words_per_block}};
+  auto filter = filter_type{1000, {}, {pattern_bits}};
 
   test_unique_sequence(filter, num_keys);
 }

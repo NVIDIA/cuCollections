@@ -29,6 +29,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/sequence.h>
 
+#include <exception>
+
 using namespace cuco::benchmark;  // defaults, dist_from_state, rebind_hasher_t
 using namespace cuco::utility;    // key_generator, distribution
 
@@ -67,18 +69,18 @@ void add_fpr_summary(nvbench::state& state, FilterType& filter)
 template <typename Key, typename Hash, typename Block, typename Dist>
 void bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Hash, Block, Dist>)
 {
+  using policy_type = cuco::default_filter_policy<rebind_hasher_t<Hash, Key>, Block>;
   using filter_type =
-    cuco::bloom_filter<Key,
-                       cuco::extent<size_t>,
-                       cuda::thread_scope_device,
-                       cuco::default_filter_policy<rebind_hasher_t<Hash, Key>, Block>>;
+    cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, policy_type>;
 
   auto const num_keys       = state.get_int64("NumInputs");
   auto const filter_size_mb = state.get_int64("FilterSizeMB");
   auto const pattern_bits   = state.get_int64("PatternBits");
 
-  if (pattern_bits < filter_type::words_per_block and pattern_bits != defaults::BF_PATTERN_BITS) {
-    state.skip("pattern_bits must be at least words_per_block");
+  try {
+    auto const policy = policy_type{static_cast<uint32_t>(pattern_bits)};
+  } catch (std::exception const& e) {
+    state.skip(e.what());  // skip invalid configurations
   }
 
   std::size_t const num_sub_filters =
@@ -109,6 +111,7 @@ void bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Hash, Block
 template <typename Key, typename Hash, typename Block, typename Dist>
 void bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, Hash, Block, Dist>)
 {
+  using policy_type = cuco::default_filter_policy<rebind_hasher_t<Hash, Key>, Block>;
   using filter_type =
     cuco::bloom_filter<Key,
                        cuco::extent<size_t>,
@@ -119,8 +122,10 @@ void bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, Hash, 
   auto const filter_size_mb = state.get_int64("FilterSizeMB");
   auto const pattern_bits   = state.get_int64("PatternBits");
 
-  if (pattern_bits < filter_type::words_per_block and pattern_bits != defaults::BF_PATTERN_BITS) {
-    state.skip("pattern_bits must be at least words_per_block");
+  try {
+    auto const policy = policy_type{static_cast<uint32_t>(pattern_bits)};
+  } catch (std::exception const& e) {
+    state.skip(e.what());  // skip invalid configurations
   }
 
   std::size_t const num_sub_filters =

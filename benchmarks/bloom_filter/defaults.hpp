@@ -26,12 +26,13 @@
 
 namespace cuco::benchmark::defaults {
 
-static constexpr auto BF_N       = 400'000'000;
-static constexpr auto BF_SIZE_MB = 2'000;
-using BF_HASH                    = cuco::xxhash_64<char>;
-using BF_BLOCK                   = cuda::std::array<nvbench::uint32_t, 8>;
-// This is a dummy value which will be dynamically replaced with the filter's actual default
-auto constexpr BF_PATTERN_BITS = 0;
+using BF_HASH  = cuco::xxhash_64<char>;
+using BF_BLOCK = cuda::std::array<nvbench::uint32_t, 8>;
+
+static constexpr auto BF_N            = 400'000'000;
+static constexpr auto BF_SIZE_MB      = 2'000;
+static constexpr auto BF_PATTERN_BITS = 8;
+
 auto const BF_SIZE_MB_RANGE_CACHE =
   std::vector<nvbench::int64_t>{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048};
 auto const BF_PATTERN_BITS_RANGE = std::vector<nvbench::int64_t>{1, 2, 4, 6, 8, 16};

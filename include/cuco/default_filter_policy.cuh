@@ -50,8 +50,16 @@ class default_filter_policy {
   /**
    * @brief Constructs the `default_filter_policy` object.
    *
-   * @note This policy dynamically adjusts the `pattern_bits` to set at least one bit per word in
-   * the filter block.
+   * @throws Compile-time error if the specified number of words in a filter block is not a
+   * power-of-two or is larger than 32. If called from host: throws exception; If called from
+   * device: Traps the kernel.
+   *
+   * @throws If the `hash_result_type` is too narrow to generate the requested number of
+   * `pattern_bits`. If called from host: throws exception; If called from device: Traps the kernel.
+   *
+   * @throws If `pattern_bits` is smaller than the number of words in a filter block or larger than
+   * the total number of bits in a filter block. If called from host: throws exception; If called
+   * from device: Traps the kernel.
    *
    * @param pattern_bits Number of bits in a key's fingerprint
    * @param hash Hash function used to generate a key's fingerprint

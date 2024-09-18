@@ -16,15 +16,15 @@
 
 #pragma once
 
-// TODO switch to <cuda/std/algorithm> once available
-#include <cuda/std/__algorithm/max.h>
-#include <cuda/std/__algorithm/min.h>
+#include <cuco/detail/error.hpp>
+
 #include <cuda/std/bit>
 #include <cuda/std/limits>
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 
 #include <cstdint>
+#include <nv/target>
 
 namespace cuco::detail {
 
@@ -48,32 +48,37 @@ class default_filter_policy_impl {
                 "Number of words per block must be a power-of-two and less than or equal to 32");
 
   __host__ __device__ constexpr default_filter_policy_impl(uint32_t pattern_bits, Hash hash)
-    : hash_{hash}
+    : pattern_bits_{pattern_bits},
+      min_bits_per_word_{pattern_bits_ / words_per_block},
+      remainder_bits_{pattern_bits_ % words_per_block},
+      hash_{hash}
   {
-    constexpr uint32_t hash_bits = cuda::std::numeric_limits<hash_result_type>::digits;
-
     // This ensures each word in the block has at least one bit set; otherwise we would never use
     // some of the words
     constexpr uint32_t min_pattern_bits = words_per_block;
 
-    // The maximum number of bits to be set for a key is capped by the number of bits in the hash
-    // value or the number of bits in the filter block
-    constexpr uint32_t max_pattern_bits =
-      cuda::std::min(hash_bits / bit_index_width, word_bits * words_per_block);
+    // The maximum number of bits to be set for a key is capped by the total number of bits in the
+    // filter block
+    constexpr uint32_t max_pattern_bits = word_bits * words_per_block;
 
-    // TODO do we want this to fail?
-    // constexpr uint32_t max_pattern_bits_from_hash = hash_bits / bit_index_width;
-    // static_assert(min_pattern_bits <= max_pattern_bits_from_hash, "Hash value too narrow for the
-    // specified filter block type");
+    constexpr uint32_t hash_bits = cuda::std::numeric_limits<hash_result_type>::digits;
+    constexpr uint32_t max_pattern_bits_from_hash = hash_bits / bit_index_width;
 
-    // TODO update this part once cuda::std::clamp is available
-    // Here we adjust the value dynamically; alternatively we could throw an error if the value is
-    // outside the expected range
-    pattern_bits_ =
-      cuda::std::min(cuda::std::max(min_pattern_bits, pattern_bits), max_pattern_bits);
-
-    min_bits_per_word_ = pattern_bits_ / words_per_block;
-    remainder_bits_    = pattern_bits_ % words_per_block;
+    NV_DISPATCH_TARGET(
+      NV_IS_HOST,
+      (CUCO_EXPECTS(
+         pattern_bits <= max_pattern_bits_from_hash,
+         "`hash_result_type` too narrow to generate the requested number of `pattern_bits`");
+       CUCO_EXPECTS(pattern_bits_ >= min_pattern_bits,
+                    "`pattern_bits` must be at least `words_per_block`");
+       CUCO_EXPECTS(
+         pattern_bits_ <= max_pattern_bits,
+         "`pattern_bits` must be less than the total number of bits in a filter block");),
+      NV_IS_DEVICE,
+      (if (pattern_bits_ > max_pattern_bits_from_hash or pattern_bits_ < min_pattern_bits or
+           pattern_bits_ > max_pattern_bits) {
+        __trap();  // kill the kernel;
+      }))
   }
 
   __device__ constexpr hash_result_type hash(hash_argument_type const& key) const
