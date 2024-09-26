@@ -19,7 +19,7 @@ namespace cuco {
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__
   __device__ constexpr distinct_count_estimator_ref<T, Scope, Hash>::distinct_count_estimator_ref(
-    cuda::std::span<std::byte> sketch_span, Hash const& hash)
+    cuda::std::span<cuda::std::byte> sketch_span, Hash const& hash)
   : impl_{sketch_span, hash}
 {
 }
@@ -114,7 +114,7 @@ __host__ __device__ constexpr auto distinct_count_estimator_ref<T, Scope, Hash>:
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
-__host__ __device__ constexpr cuda::std::span<std::byte>
+__host__ __device__ constexpr cuda::std::span<cuda::std::byte>
 distinct_count_estimator_ref<T, Scope, Hash>::sketch() const noexcept
 {
   return this->impl_.sketch();

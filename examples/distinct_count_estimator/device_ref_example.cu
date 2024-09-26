@@ -15,10 +15,10 @@
  */
 #include <cuco/distinct_count_estimator.cuh>
 
+#include <cuda/std/cstddef>
 #include <thrust/device_vector.h>
 #include <thrust/sequence.h>
 
-#include <cstddef>
 #include <iostream>
 
 /**
@@ -37,7 +37,7 @@ __global__ void fused_kernel(RefType ref, InputIt first, std::size_t n)
   using local_ref_type = typename RefType::with_scope<cuda::thread_scope_block>;
 
   // Shared memory storage for the block-local estimator
-  extern __shared__ std::byte local_sketch[];
+  extern __shared__ cuda::std::byte local_sketch[];
 
   // The following check is optional since the base address of dynamic shared memory is guaranteed
   // to meet the alignment requirements
@@ -94,7 +94,7 @@ __global__ void device_estimate_kernel(cuco::sketch_size_kb sketch_size_kb,
                                        size_t n,
                                        OutputIt out)
 {
-  extern __shared__ std::byte local_sketch[];
+  extern __shared__ cuda::std::byte local_sketch[];
 
   auto const block = cooperative_groups::this_thread_block();
 
