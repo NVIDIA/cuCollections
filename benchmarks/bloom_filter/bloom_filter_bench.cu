@@ -69,7 +69,7 @@ void add_fpr_summary(nvbench::state& state, FilterType& filter)
 template <typename Key, typename Hash, typename Block, typename Dist>
 void bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Hash, Block, Dist>)
 {
-  using policy_type = cuco::default_filter_policy<rebind_hasher_t<Hash, Key>, Block>;
+  using policy_type = cuco::bloom_filter_policy<rebind_hasher_t<Hash, Key>, Block>;
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, policy_type>;
 
@@ -111,12 +111,12 @@ void bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, Hash, 
 {
   // cudaDeviceSetLimit(cudaLimitMaxL2FetchGranularity, 32); // slightly improves peformance if
   // filter block fits into a 32B sector
-  using policy_type = cuco::default_filter_policy<rebind_hasher_t<Hash, Key>, Block>;
+  using policy_type = cuco::bloom_filter_policy<rebind_hasher_t<Hash, Key>, Block>;
   using filter_type =
     cuco::bloom_filter<Key,
                        cuco::extent<size_t>,
                        cuda::thread_scope_device,
-                       cuco::default_filter_policy<rebind_hasher_t<Hash, Key>, Block>>;
+                       cuco::bloom_filter_policy<rebind_hasher_t<Hash, Key>, Block>>;
 
   auto const num_keys       = state.get_int64("NumInputs");
   auto const filter_size_mb = state.get_int64("FilterSizeMB");

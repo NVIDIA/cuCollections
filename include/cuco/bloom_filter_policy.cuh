@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/bloom_filter/default_filter_policy_impl.cuh>
+#include <cuco/detail/bloom_filter/bloom_filter_policy_impl.cuh>
 
 #include <cstdint>
 
@@ -33,8 +33,8 @@ namespace cuco {
  * @tparam Block Type to determine the filter's block size and underlying word/segment type
  */
 template <class Hash, class Block>
-class default_filter_policy {
-  using impl_type = cuco::detail::default_filter_policy_impl<Hash, Block>;
+class bloom_filter_policy {
+  using impl_type = cuco::detail::bloom_filter_policy_impl<Hash, Block>;
 
  public:
   using hasher             = typename impl_type::hasher;              ///< Type of the hash function
@@ -48,7 +48,7 @@ class default_filter_policy {
 
  public:
   /**
-   * @brief Constructs the `default_filter_policy` object.
+   * @brief Constructs the `bloom_filter_policy` object.
    *
    * @throws Compile-time error if the specified number of words in a filter block is not a
    * power-of-two or is larger than 32. If called from host: throws exception; If called from
@@ -64,8 +64,8 @@ class default_filter_policy {
    * @param pattern_bits Number of bits in a key's fingerprint
    * @param hash Hash function used to generate a key's fingerprint
    */
-  __host__ __device__ constexpr default_filter_policy(std::uint32_t pattern_bits = words_per_block,
-                                                      Hash hash                  = {});
+  __host__ __device__ constexpr bloom_filter_policy(std::uint32_t pattern_bits = words_per_block,
+                                                    Hash hash                  = {});
 
   /**
    * @brief Generates the hash value for a given key.
@@ -116,4 +116,4 @@ class default_filter_policy {
 
 }  // namespace cuco
 
-#include <cuco/detail/bloom_filter/default_filter_policy.inl>
+#include <cuco/detail/bloom_filter/bloom_filter_policy.inl>

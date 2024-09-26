@@ -16,8 +16,8 @@
 
 #pragma once
 
+#include <cuco/bloom_filter_policy.cuh>
 #include <cuco/bloom_filter_ref.cuh>
-#include <cuco/default_filter_policy.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/hash_functions.cuh>
@@ -55,14 +55,14 @@ namespace cuco {
  * @tparam Extent Size type that is used to determine the number of blocks in the filter
  * @tparam Scope The scope in which operations will be performed by individual threads
  * @tparam Policy Type that defines how to generate and store key fingerprints (see
- * `cuco/default_filter_policy.cuh`)
+ * `cuco/bloom_filter_policy.cuh`)
  * @tparam Allocator Type of allocator used for device-accessible storage
  */
 template <class Key,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class Policy =
-            cuco::default_filter_policy<cuco::xxhash_64<Key>, cuda::std::array<std::uint32_t, 8>>,
+            cuco::bloom_filter_policy<cuco::xxhash_64<Key>, cuda::std::array<std::uint32_t, 8>>,
           class Allocator = cuco::cuda_allocator<cuda::std::byte>>
 class bloom_filter {
  public:
