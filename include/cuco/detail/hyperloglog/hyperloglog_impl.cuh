@@ -26,6 +26,7 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/atomic>
+#include <cuda/std/__algorithm/max.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/bit>
 #include <cuda/std/cstddef>
 #include <cuda/std/span>
@@ -36,7 +37,6 @@
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
 
-#include <algorithm>  // there is no <cuda/std/algorithm>
 #include <vector>
 
 namespace cuco::detail {
@@ -92,11 +92,9 @@ class hyperloglog_impl {
 #ifndef __CUDA_ARCH__
     auto const alignment =
       1ull << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(sketch_span.data()));
-    CUCO_EXPECTS(
-      alignment >= sketch_alignment(), "Insufficient sketch alignment", std::runtime_error);
+    CUCO_EXPECTS(alignment >= sketch_alignment(), "Insufficient sketch alignment");
 
-    CUCO_EXPECTS(
-      this->precision_ >= 4, "Minimum required sketch size is 0.0625KB or 64B", std::runtime_error);
+    CUCO_EXPECTS(this->precision_ >= 4, "Minimum required sketch size is 0.0625KB or 64B");
 #endif
   }
 
@@ -309,8 +307,7 @@ class hyperloglog_impl {
                                       cuda::stream_ref stream)
   {
     CUCO_EXPECTS(other.precision_ == this->precision_,
-                 "Cannot merge estimators with different sketch sizes",
-                 std::runtime_error);
+                 "Cannot merge estimators with different sketch sizes");
     auto constexpr block_size = 1024;
     cuco::hyperloglog_ns::detail::merge<<<1, block_size, 0, stream.get()>>>(other, *this);
   }
@@ -343,12 +340,12 @@ class hyperloglog_impl {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] __device__ std::size_t estimate(
-    cooperative_groups::thread_block const& group) const noexcept
+  [[nodiscard]] __device__ size_t
+  estimate(cooperative_groups::thread_block const& group) const noexcept
   {
     __shared__ cuda::atomic<fp_type, cuda::thread_scope_block> block_sum;
     __shared__ cuda::atomic<int, cuda::thread_scope_block> block_zeroes;
-    __shared__ std::size_t estimate;
+    __shared__ size_t estimate;
 
     if (group.thread_rank() == 0) {
       new (&block_sum) decltype(block_sum){0};
@@ -405,7 +402,7 @@ class hyperloglog_impl {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] __host__ constexpr std::size_t estimate(cuda::stream_ref stream) const
+  [[nodiscard]] __host__ constexpr size_t estimate(cuda::stream_ref stream) const
   {
     auto const num_regs = 1ull << this->precision_;
     std::vector<register_type> host_sketch(num_regs);
@@ -460,7 +457,7 @@ class hyperloglog_impl {
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] __host__ __device__ constexpr std::size_t sketch_bytes() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr size_t sketch_bytes() const noexcept
   {
     return (1ull << this->precision_) * sizeof(register_type);
   }
@@ -472,12 +469,12 @@ class hyperloglog_impl {
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
+  [[nodiscard]] __host__ __device__ static constexpr size_t sketch_bytes(
     cuco::sketch_size_kb sketch_size_kb) noexcept
   {
     // minimum precision is 4 or 64 bytes
-    return cuda::std::max(static_cast<std::size_t>(sizeof(register_type) * 1ull << 4),
-                          cuda::std::bit_floor(static_cast<std::size_t>(sketch_size_kb * 1024)));
+    return cuda::std::max(static_cast<size_t>(sizeof(register_type) * 1ull << 4),
+                          cuda::std::bit_floor(static_cast<size_t>(sketch_size_kb * 1024)));
   }
 
   /**
@@ -510,7 +507,7 @@ class hyperloglog_impl {
    *
    * @return The required alignment
    */
-  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_alignment() noexcept
+  [[nodiscard]] __host__ __device__ static constexpr size_t sketch_alignment() noexcept
   {
     return alignof(register_type);
   }
