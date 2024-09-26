@@ -17,7 +17,7 @@
 #include <benchmark_defaults.hpp>
 #include <benchmark_utils.hpp>
 
-#include <cuco/distinct_count_estimator.cuh>
+#include <cuco/hyperloglog.cuh>
 #include <cuco/static_set.cuh>
 #include <cuco/utility/key_generator.cuh>
 
@@ -74,12 +74,12 @@ template <class Estimator, class Dist>
 }
 
 /**
- * @brief A benchmark evaluating `cuco::distinct_count_estimator` end-to-end performance
+ * @brief A benchmark evaluating `cuco::hyperloglog` end-to-end performance
  */
 template <typename T, typename Dist>
-void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
+void hyperloglog_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
 {
-  using estimator_type = cuco::distinct_count_estimator<T>;
+  using estimator_type = cuco::hyperloglog<T>;
 
   auto const num_items      = state.get_int64("NumInputs");
   auto const sketch_size_kb = state.get_int64("SketchSizeKB");
@@ -114,12 +114,12 @@ void distinct_count_estimator_e2e(nvbench::state& state, nvbench::type_list<T, D
 }
 
 /**
- * @brief A benchmark evaluating `cuco::distinct_count_estimator::add_async` performance
+ * @brief A benchmark evaluating `cuco::hyperloglog::add_async` performance
  */
 template <typename T, typename Dist>
-void distinct_count_estimator_add(nvbench::state& state, nvbench::type_list<T, Dist>)
+void hyperloglog_add(nvbench::state& state, nvbench::type_list<T, Dist>)
 {
-  using estimator_type = cuco::distinct_count_estimator<T>;
+  using estimator_type = cuco::hyperloglog<T>;
 
   auto const num_items      = state.get_int64("NumInputs");
   auto const sketch_size_kb = state.get_int64("SketchSizeKB");
@@ -144,18 +144,18 @@ void distinct_count_estimator_add(nvbench::state& state, nvbench::type_list<T, D
 
 using TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t, __int128_t>;
 
-NVBENCH_BENCH_TYPES(distinct_count_estimator_e2e,
+NVBENCH_BENCH_TYPES(hyperloglog_e2e,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
-  .set_name("distinct_count_estimator_e2e_uniform")
+  .set_name("hyperloglog_e2e_uniform")
   .set_type_axes_names({"T", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
   .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})  // 256KB uses gmem fallback kernel
   .add_int64_axis("Multiplicity", {1})
   .set_max_noise(defaults::MAX_NOISE);
 
-NVBENCH_BENCH_TYPES(distinct_count_estimator_add,
+NVBENCH_BENCH_TYPES(hyperloglog_add,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
-  .set_name("distinct_count_estimator_add_uniform")
+  .set_name("hyperloglog_add_uniform")
   .set_type_axes_names({"T", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
   .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})

@@ -52,7 +52,7 @@ namespace cuco::detail {
  * @tparam Hash Hash function used to hash items
  */
 template <class T, cuda::thread_scope Scope, class Hash>
-class hyperloglog_ref {
+class hyperloglog_impl {
   // We use `int` here since this is the smallest type that supports native `atomicMax` on GPUs
   using fp_type = double;  ///< Floating point type used for reduction
   using hash_value_type =
@@ -65,11 +65,11 @@ class hyperloglog_ref {
   using register_type = int;   ///< HLL register type
 
   template <cuda::thread_scope NewScope>
-  using with_scope = hyperloglog_ref<T, NewScope, Hash>;  ///< Ref type with different
-                                                          ///< thread scope
+  using with_scope = hyperloglog_impl<T, NewScope, Hash>;  ///< Ref type with different
+                                                           ///< thread scope
 
   /**
-   * @brief Constructs a non-owning `hyperloglog_ref` object.
+   * @brief Constructs a non-owning `hyperloglog_impl` object.
    *
    * @throw If sketch size < 0.0625KB or 64B or standard deviation > 0.2765. Throws if called from
    * host; UB if called from device.
@@ -79,8 +79,8 @@ class hyperloglog_ref {
    * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
    */
-  __host__ __device__ constexpr hyperloglog_ref(cuda::std::span<cuda::std::byte> sketch_span,
-                                                Hash const& hash)
+  __host__ __device__ constexpr hyperloglog_impl(cuda::std::span<cuda::std::byte> sketch_span,
+                                                 Hash const& hash)
     : hash_{hash},
       precision_{cuda::std::countr_zero(
         sketch_bytes(cuco::sketch_size_kb(static_cast<double>(sketch_span.size() / 1024.0))) /
@@ -192,19 +192,19 @@ class hyperloglog_ref {
       switch (vector_size) {
         case 2:
           kernel = reinterpret_cast<void const*>(
-            cuco::hyperloglog_ns::detail::add_shmem_vectorized<2, hyperloglog_ref>);
+            cuco::hyperloglog_ns::detail::add_shmem_vectorized<2, hyperloglog_impl>);
           break;
         case 4:
           kernel = reinterpret_cast<void const*>(
-            cuco::hyperloglog_ns::detail::add_shmem_vectorized<4, hyperloglog_ref>);
+            cuco::hyperloglog_ns::detail::add_shmem_vectorized<4, hyperloglog_impl>);
           break;
         case 8:
           kernel = reinterpret_cast<void const*>(
-            cuco::hyperloglog_ns::detail::add_shmem_vectorized<8, hyperloglog_ref>);
+            cuco::hyperloglog_ns::detail::add_shmem_vectorized<8, hyperloglog_impl>);
           break;
         case 16:
           kernel = reinterpret_cast<void const*>(
-            cuco::hyperloglog_ns::detail::add_shmem_vectorized<16, hyperloglog_ref>);
+            cuco::hyperloglog_ns::detail::add_shmem_vectorized<16, hyperloglog_impl>);
           break;
       };
     }
@@ -227,7 +227,7 @@ class hyperloglog_ref {
       }
     } else {
       kernel = reinterpret_cast<void const*>(
-        cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_ref>);
+        cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_impl>);
       void* kernel_args[] = {(void*)(&first), (void*)(&num_items), reinterpret_cast<void*>(this)};
       if (this->try_reserve_shmem(kernel, shmem_bytes)) {
         CUCO_CUDA_TRY(
@@ -239,7 +239,7 @@ class hyperloglog_ref {
         // Computes sketch directly in global memory. (Fallback path in case there is not enough
         // shared memory avalable)
         kernel = reinterpret_cast<void const*>(
-          cuco::hyperloglog_ns::detail::add_gmem<InputIt, hyperloglog_ref>);
+          cuco::hyperloglog_ns::detail::add_gmem<InputIt, hyperloglog_impl>);
 
         CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, 0));
 
@@ -283,7 +283,7 @@ class hyperloglog_ref {
    */
   template <class CG, cuda::thread_scope OtherScope>
   __device__ constexpr void merge(CG const& group,
-                                  hyperloglog_ref<T, OtherScope, Hash> const& other)
+                                  hyperloglog_impl<T, OtherScope, Hash> const& other)
   {
     // TODO find a better way to do error handling in device code
     // if (other.precision_ != this->precision_) { __trap(); }
@@ -305,7 +305,7 @@ class hyperloglog_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ constexpr void merge_async(hyperloglog_ref<T, OtherScope, Hash> const& other,
+  __host__ constexpr void merge_async(hyperloglog_impl<T, OtherScope, Hash> const& other,
                                       cuda::stream_ref stream)
   {
     CUCO_EXPECTS(other.precision_ == this->precision_,
@@ -329,7 +329,7 @@ class hyperloglog_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ constexpr void merge(hyperloglog_ref<T, OtherScope, Hash> const& other,
+  __host__ constexpr void merge(hyperloglog_impl<T, OtherScope, Hash> const& other,
                                 cuda::stream_ref stream)
   {
     this->merge_async(other, stream);
@@ -565,6 +565,6 @@ class hyperloglog_ref {
   cuda::std::span<register_type> sketch_;  ///< HLL sketch storage
 
   template <class T_, cuda::thread_scope Scope_, class Hash_>
-  friend class hyperloglog_ref;
+  friend class hyperloglog_impl;
 };
 }  // namespace cuco::detail

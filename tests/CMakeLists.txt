@@ -130,8 +130,8 @@ ConfigureTest(DYNAMIC_BITSET_TEST
     dynamic_bitset/size_test.cu)
 
 ###################################################################################################
-# - distinct_count_estimator ----------------------------------------------------------------------
-ConfigureTest(DISTINCT_COUNT_ESTIMATOR_TEST
-    distinct_count_estimator/unique_sequence_test.cu
-    distinct_count_estimator/spark_parity_test.cu
-    distinct_count_estimator/device_ref_test.cu)
+# - hyperloglog ----------------------------------------------------------------------
+ConfigureTest(HYPERLOGLOG_TEST
+    hyperloglog/unique_sequence_test.cu
+    hyperloglog/spark_parity_test.cu
+    hyperloglog/device_ref_test.cu)

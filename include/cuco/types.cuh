@@ -46,7 +46,7 @@ CUCO_DEFINE_TEMPLATE_STRONG_TYPE(erased_key);
 
 /**
  * @brief A strong type wrapper `cuco::sketch_size_kb` for specifying the upper-bound sketch size of
- * `cuco::distinct_count_estimator(_ref)` in KB.
+ * `cuco::hyperloglog(_ref)` in KB.
  *
  * @note Values can also be specified as literals, e.g., 64.3_KB.
  */
@@ -54,7 +54,7 @@ CUCO_DEFINE_STRONG_TYPE(sketch_size_kb, double);
 
 /**
  * @brief A strong type wrapper `cuco::standard_deviation` for specifying the desired standard
- * deviation for the cardinality estimate of `cuco::distinct_count_estimator(_ref)`.
+ * deviation for the cardinality estimate of `cuco::hyperloglog(_ref)`.
  */
 CUCO_DEFINE_STRONG_TYPE(standard_deviation, double);
 

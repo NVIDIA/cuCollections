@@ -15,11 +15,11 @@
  */
 #pragma once
 
-#include <cuco/detail/error.hpp>
-#include <cuco/detail/hyperloglog/hyperloglog_ref.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/hash_functions.cuh>
+#include <cuco/hyperloglog_ref.cuh>
 #include <cuco/types.cuh>
+#include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/cstddef>
@@ -28,11 +28,11 @@
 #include <iterator>
 #include <memory>
 
-namespace cuco::detail {
+namespace cuco {
 /**
  * @brief A GPU-accelerated utility for approximating the number of distinct items in a multiset.
  *
- * @note This class implements the HyperLogLog/HyperLogLog++ algorithm:
+ * @note This implementation is based on the HyperLogLog++ algorithm:
  * https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf.
  *
  * @tparam T Type of items to count
@@ -40,7 +40,10 @@ namespace cuco::detail {
  * @tparam Hash Hash function used to hash items
  * @tparam Allocator Type of allocator used for device storage
  */
-template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
+template <class T,
+          cuda::thread_scope Scope = cuda::thread_scope_device,
+          class Hash               = cuco::xxhash_64<T>,
+          class Allocator          = cuco::cuda_allocator<cuda::std::byte>>
 class hyperloglog {
  public:
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
@@ -56,31 +59,7 @@ class hyperloglog {
     typename std::allocator_traits<Allocator>::template rebind_alloc<register_type>;  ///< Allocator
                                                                                       ///< type
 
- private:
-  /**
-   * @brief Constructs a `hyperloglog` host object.
-   *
-   * @note This function synchronizes the given stream.
-   *
-   * @param sketch_size_b Sketch size in bytes
-   * @param hash The hash function used to hash items
-   * @param alloc Allocator used for allocating device storage
-   * @param stream CUDA stream used to initialize the object
-   */
-  constexpr hyperloglog(std::size_t sketch_size_b,
-                        Hash const& hash,
-                        Allocator const& alloc,
-                        cuda::stream_ref stream)
-    : allocator_{alloc},
-      sketch_{this->allocator_.allocate(sketch_size_b / sizeof(register_type)),
-              custom_deleter{sketch_size_b / sizeof(register_type), this->allocator_}},
-      ref_{cuda::std::span{reinterpret_cast<cuda::std::byte*>(this->sketch_.get()), sketch_size_b},
-           hash}
-  {
-    this->ref_.clear_async(stream);
-  }
-
- public:
+  // TODO enable CTAD
   /**
    * @brief Constructs a `hyperloglog` host object.
    *
@@ -91,13 +70,10 @@ class hyperloglog {
    * @param alloc Allocator used for allocating device storage
    * @param stream CUDA stream used to initialize the object
    */
-  constexpr hyperloglog(cuco::sketch_size_kb sketch_size_kb,
-                        Hash const& hash,
-                        Allocator const& alloc,
-                        cuda::stream_ref stream)
-    : hyperloglog{sketch_bytes(sketch_size_kb), hash, alloc, stream}
-  {
-  }
+  constexpr hyperloglog(cuco::sketch_size_kb sketch_size_kb = 32_KB,
+                        Hash const& hash                    = {},
+                        Allocator const& alloc              = {},
+                        cuda::stream_ref stream             = {});
 
   /**
    * @brief Constructs a `hyperloglog` host object.
@@ -110,12 +86,9 @@ class hyperloglog {
    * @param stream CUDA stream used to initialize the object
    */
   constexpr hyperloglog(cuco::standard_deviation standard_deviation,
-                        Hash const& hash,
-                        Allocator const& alloc,
-                        cuda::stream_ref stream)
-    : hyperloglog{sketch_bytes(standard_deviation), hash, alloc, stream}
-  {
-  }
+                        Hash const& hash        = {},
+                        Allocator const& alloc  = {},
+                        cuda::stream_ref stream = {});
 
   ~hyperloglog() = default;
 
@@ -135,7 +108,7 @@ class hyperloglog {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  constexpr void clear_async(cuda::stream_ref stream) noexcept { this->ref_.clear_async(stream); }
+  constexpr void clear_async(cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Resets the estimator, i.e., clears the current count estimate.
@@ -145,7 +118,7 @@ class hyperloglog {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  constexpr void clear(cuda::stream_ref stream) { this->ref_.clear(stream); }
+  constexpr void clear(cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously adds to be counted items to the estimator.
@@ -159,10 +132,7 @@ class hyperloglog {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream)
-  {
-    this->ref_.add_async(first, last, stream);
-  }
+  constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Adds to be counted items to the estimator.
@@ -179,10 +149,7 @@ class hyperloglog {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream)
-  {
-    this->ref_.add(first, last, stream);
-  }
+  constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously merges the result of `other` estimator into `*this` estimator.
@@ -197,10 +164,7 @@ class hyperloglog {
    */
   template <cuda::thread_scope OtherScope, class OtherAllocator>
   constexpr void merge_async(hyperloglog<T, OtherScope, Hash, OtherAllocator> const& other,
-                             cuda::stream_ref stream)
-  {
-    this->ref_.merge_async(other.ref(), stream);
-  }
+                             cuda::stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator into `*this` estimator.
@@ -218,10 +182,7 @@ class hyperloglog {
    */
   template <cuda::thread_scope OtherScope, class OtherAllocator>
   constexpr void merge(hyperloglog<T, OtherScope, Hash, OtherAllocator> const& other,
-                       cuda::stream_ref stream)
-  {
-    this->ref_.merge(other.ref(), stream);
-  }
+                       cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously merges the result of `other` estimator reference into `*this` estimator.
@@ -234,10 +195,7 @@ class hyperloglog {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  constexpr void merge_async(ref_type<OtherScope> const& other_ref, cuda::stream_ref stream)
-  {
-    this->ref_.merge_async(other_ref, stream);
-  }
+  constexpr void merge_async(ref_type<OtherScope> const& other_ref, cuda::stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator.
@@ -253,10 +211,7 @@ class hyperloglog {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  constexpr void merge(ref_type<OtherScope> const& other_ref, cuda::stream_ref stream)
-  {
-    this->ref_.merge(other_ref, stream);
-  }
+  constexpr void merge(ref_type<OtherScope> const& other_ref, cuda::stream_ref stream = {});
 
   /**
    * @brief Compute the estimated distinct items count.
@@ -267,44 +222,35 @@ class hyperloglog {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] constexpr std::size_t estimate(cuda::stream_ref stream) const
-  {
-    return this->ref_.estimate(stream);
-  }
+  [[nodiscard]] constexpr std::size_t estimate(cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Get device ref.
    *
-   * @return Device ref object of the current `distinct_count_estimator` host object
+   * @return Device ref object of the current `hyperloglog` host object
    */
-  [[nodiscard]] constexpr ref_type<> ref() const noexcept { return this->ref_; }
+  [[nodiscard]] constexpr ref_type<> ref() const noexcept;
 
   /**
    * @brief Get hash function.
    *
    * @return The hash function
    */
-  [[nodiscard]] constexpr auto hash_function() const noexcept { return this->ref_.hash_function(); }
+  [[nodiscard]] constexpr auto hash_function() const noexcept;
 
   /**
    * @brief Gets the span of the sketch.
    *
    * @return The cuda::std::span of the sketch
    */
-  [[nodiscard]] constexpr cuda::std::span<cuda::std::byte> sketch() const noexcept
-  {
-    return this->ref_.sketch();
-  }
+  [[nodiscard]] constexpr cuda::std::span<cuda::std::byte> sketch() const noexcept;
 
   /**
    * @brief Gets the number of bytes required for the sketch storage.
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] constexpr std::size_t sketch_bytes() const noexcept
-  {
-    return this->ref_.sketch_bytes();
-  }
+  [[nodiscard]] constexpr std::size_t sketch_bytes() const noexcept;
 
   /**
    * @brief Gets the number of bytes required for the sketch storage.
@@ -314,10 +260,7 @@ class hyperloglog {
    * @return The number of bytes required for the sketch
    */
   [[nodiscard]] static constexpr std::size_t sketch_bytes(
-    cuco::sketch_size_kb sketch_size_kb) noexcept
-  {
-    return ref_type<>::sketch_bytes(sketch_size_kb);
-  }
+    cuco::sketch_size_kb sketch_size_kb) noexcept;
 
   /**
    * @brief Gets the number of bytes required for the sketch storage.
@@ -327,30 +270,26 @@ class hyperloglog {
    * @return The number of bytes required for the sketch
    */
   [[nodiscard]] static constexpr std::size_t sketch_bytes(
-    cuco::standard_deviation standard_deviation) noexcept
-  {
-    return ref_type<>::sketch_bytes(standard_deviation);
-  }
+    cuco::standard_deviation standard_deviation) noexcept;
 
   /**
    * @brief Gets the alignment required for the sketch storage.
    *
    * @return The required alignment
    */
-  [[nodiscard]] static constexpr std::size_t sketch_alignment() noexcept
-  {
-    return ref_type<>::sketch_alignment();
-  }
+  [[nodiscard]] static constexpr std::size_t sketch_alignment() noexcept;
 
  private:
-  allocator_type allocator_;  ///< Storage allocator
-  std::unique_ptr<register_type, custom_deleter<std::size_t, allocator_type>>
-    sketch_;        ///< Sketch storage
-  ref_type<> ref_;  //< Ref type
+  allocator_type allocator_;  ///< Allocator used to allocate device-accessible storage
+  std::unique_ptr<register_type, detail::custom_deleter<std::size_t, allocator_type>>
+    sketch_;        ///< Storage of the current `hyperloglog` object
+  ref_type<> ref_;  ///< Device ref of the current `hyperloglog` object
 
   // Needs to be friends with other instantiations of this class template to have access to their
   // storage
   template <class T_, cuda::thread_scope Scope_, class Hash_, class Allocator_>
   friend class hyperloglog;
 };
-}  // namespace cuco::detail
+}  // namespace cuco
+
+#include <cuco/detail/hyperloglog/hyperloglog.inl>
