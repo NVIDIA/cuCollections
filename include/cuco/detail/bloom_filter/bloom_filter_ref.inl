@@ -107,6 +107,14 @@ template <class ProbeKey>
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+template <class CG, class ProbeKey>
+[[nodiscard]] __device__ bool bloom_filter_ref<Key, Extent, Scope, Policy>::contains(
+  CG const& group, ProbeKey const& key) const
+{
+  return impl_.contains(group, key);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 template <class InputIt, class OutputIt>
 __host__ void bloom_filter_ref<Key, Extent, Scope, Policy>::contains(InputIt first,
                                                                      InputIt last,

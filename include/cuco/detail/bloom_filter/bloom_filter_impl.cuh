@@ -18,22 +18,21 @@
 
 #include <cuco/detail/bloom_filter/kernels.cuh>
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/utility/cuda.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
-// TODO #include <cuda/std/algorithm> once available
 #include <cub/device/device_for.cuh>
 #include <cuda/atomic>
 #include <cuda/std/__algorithm/max.h>
+#include <cuda/std/__algorithm/min.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/tuple>
 #include <cuda/stream_ref>
 #include <thrust/functional.h>
 #include <thrust/iterator/constant_iterator.h>
-
-#include <cooperative_groups.h>
 
 #include <cstdint>
 #include <type_traits>
@@ -106,25 +105,32 @@ class bloom_filter_impl {
     }
   }
 
-  template <class ProbeKey>
-  __device__ void add(cooperative_groups::thread_block_tile<words_per_block> const& tile,
-                      ProbeKey const& key)
+  template <class CG, class ProbeKey>
+  __device__ void add(CG const& group, ProbeKey const& key)
   {
-    auto const hash_value = policy_.hash(key);
-    auto const idx        = policy_.block_index(hash_value, num_blocks_);
-    auto const rank       = tile.thread_rank();
+    constexpr auto num_threads         = tile_size_v<CG>;
+    constexpr auto optimal_num_threads = add_optimal_cg_size();
+    constexpr auto words_per_thread    = words_per_block / optimal_num_threads;
 
-    auto const word = policy_.word_pattern(hash_value, rank);
-    if (word != 0) {
-      auto atom_word =
-        cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * words_per_block + rank))};
-      atom_word.fetch_or(word, cuda::memory_order_relaxed);
+    // If single thread is optimal, use scalar add
+    if constexpr (num_threads == 1 or optimal_num_threads == 1) {
+      this->add(key);
+    } else {
+      auto const rank = group.thread_rank();
+
+      auto const hash_value = policy_.hash(key);
+      auto const idx        = policy_.block_index(hash_value, num_blocks_);
+
+#pragma unroll
+      for (uint32_t i = rank; i < optimal_num_threads; i += num_threads) {
+        auto const word = policy_.word_pattern(hash_value, rank);
+
+        auto atom_word =
+          cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * words_per_block + rank))};
+        atom_word.fetch_or(word, cuda::memory_order_relaxed);
+      }
     }
   }
-
-  // TODO
-  // template <class CG, class InputIt>
-  // __device__ void add(CG const& group, InputIt first, InputIt last);
 
   template <class InputIt>
   __host__ void add(InputIt first, InputIt last, cuda::stream_ref stream)
@@ -169,11 +175,12 @@ class bloom_filter_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
+    auto constexpr cg_size    = add_optimal_cg_size();
     auto constexpr block_size = cuco::detail::default_block_size();
-    auto const grid_size      = cuco::detail::grid_size(
-      num_keys, words_per_block, cuco::detail::default_stride(), block_size);
+    auto const grid_size =
+      cuco::detail::grid_size(num_keys, cg_size, cuco::detail::default_stride(), block_size);
 
-    detail::add_if_n<block_size>
+    detail::add_if_n<cg_size, block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, stencil, pred, *this);
   }
 
@@ -194,9 +201,36 @@ class bloom_filter_impl {
     return true;
   }
 
-  // TODO
-  // template <class CG, class ProbeKey>
-  // [[nodiscard]] __device__ bool contains(CG const& group, ProbeKey const& key) const;
+  template <class CG, class ProbeKey>
+  [[nodiscard]] __device__ bool contains(CG const& group, ProbeKey const& key) const
+  {
+    constexpr auto num_threads         = tile_size_v<CG>;
+    constexpr auto optimal_num_threads = contains_optimal_cg_size();
+    constexpr auto words_per_thread    = words_per_block / optimal_num_threads;
+
+    // If single thread is optimal, use scalar contains
+    if constexpr (num_threads == 1 or optimal_num_threads == 1) {
+      return this->contains(key);
+    } else {
+      auto const rank       = group.thread_rank();
+      auto const hash_value = policy_.hash(key);
+      bool success          = true;
+
+#pragma unroll
+      for (uint32_t i = rank; i < optimal_num_threads; i += num_threads) {
+        auto const thread_offset  = i * words_per_thread;
+        auto const stored_pattern = this->vec_load_words<words_per_thread>(
+          policy_.block_index(hash_value, num_blocks_) * words_per_block + thread_offset);
+#pragma unroll words_per_thread
+        for (uint32_t j = 0; j < words_per_thread; ++j) {
+          auto const expected_pattern = policy_.word_pattern(hash_value, thread_offset + j);
+          if ((stored_pattern[j] & expected_pattern) != expected_pattern) { success = false; }
+        }
+      }
+
+      return group.all(success);
+    }
+  }
 
   // TODO
   // template <class CG, class InputIt, class OutputIt>
@@ -246,11 +280,12 @@ class bloom_filter_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
+    auto constexpr cg_size    = contains_optimal_cg_size();
     auto constexpr block_size = cuco::detail::default_block_size();
     auto const grid_size =
-      cuco::detail::grid_size(num_keys, 1, cuco::detail::default_stride(), block_size);
+      cuco::detail::grid_size(num_keys, cg_size, cuco::detail::default_stride(), block_size);
 
-    detail::contains_if_n<block_size><<<grid_size, block_size, 0, stream.get()>>>(
+    detail::contains_if_n<cg_size, block_size><<<grid_size, block_size, 0, stream.get()>>>(
       first, num_keys, stencil, pred, output_begin, *this);
   }
 
@@ -276,17 +311,32 @@ class bloom_filter_impl {
   __device__ cuda::std::array<word_type, NumWords> vec_load_words(size_type index) const
   {
     return *reinterpret_cast<cuda::std::array<word_type, NumWords>*>(__builtin_assume_aligned(
-      words_ + index, min(sizeof(word_type) * NumWords, required_alignment())));
+      words_ + index, cuda::std::min(sizeof(word_type) * NumWords, required_alignment())));
   }
 
   __host__ __device__ static constexpr size_t max_vec_bytes() noexcept
   {
-    return 16;  // LDG128 is the widest load we can perform
+    constexpr auto word_bytes  = sizeof(word_type);
+    constexpr auto block_bytes = word_bytes * words_per_block;
+    return cuda::std::min(cuda::std::max(word_bytes, 32ul),
+                          block_bytes);  // aiming for 2xLDG128 -> 1 sector per thread
+  }
+
+  [[nodiscard]] __host__ __device__ static constexpr int32_t add_optimal_cg_size()
+  {
+    return words_per_block;  // one thread per word so atomic updates can be coalesced
+  }
+
+  [[nodiscard]] __host__ __device__ static constexpr int32_t contains_optimal_cg_size()
+  {
+    constexpr auto word_bytes  = sizeof(word_type);
+    constexpr auto block_bytes = word_bytes * words_per_block;
+    return block_bytes / max_vec_bytes();  // one vector load per thread
   }
 
   __host__ __device__ static constexpr size_t required_alignment() noexcept
   {
-    return cuda::std::max(sizeof(word_type) * words_per_block, max_vec_bytes());
+    return cuda::std::min(sizeof(word_type) * words_per_block, max_vec_bytes());
   }
 
   word_type* words_;

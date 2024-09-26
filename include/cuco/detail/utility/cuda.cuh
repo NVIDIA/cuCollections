@@ -17,6 +17,10 @@
 
 #include <cuco/detail/utility/cuda.hpp>
 
+#include <cooperative_groups.h>
+
+#include <cstdint>
+
 #if defined(CUCO_DISABLE_KERNEL_VISIBILITY_WARNING_SUPPRESSION)
 #define CUCO_SUPPRESS_KERNEL_WARNINGS
 #elif defined(__NVCC__) && (defined(__GNUC__) || defined(__clang__))
@@ -58,6 +62,28 @@ __device__ static index_type grid_stride() noexcept
 {
   return index_type{gridDim.x} * index_type{blockDim.x};
 }
+
+/**
+ * @brief Constexpr helper to extract the size of a Cooperative Group.
+ *
+ * @tparam Tile The Cooperative Group type
+ */
+template <typename Tile>
+struct tile_size;
+
+/**
+ * @brief Specialization of `cuco::detail::tile_size` for 'cooperative_groups::thread_block_tile'.
+ *
+ * @tparam CGSize The Cooperative Group size
+ * @tparam ParentCG The Cooperative Group the tile has been created from
+ */
+template <uint32_t CGSize, class ParentCG>
+struct tile_size<cooperative_groups::thread_block_tile<CGSize, ParentCG>> {
+  static constexpr uint32_t value = CGSize;  ///< Size of the `thread_block_tile`
+};
+
+template <typename Tile>
+constexpr uint32_t tile_size_v = tile_size<Tile>::value;
 
 }  // namespace detail
 }  // namespace cuco

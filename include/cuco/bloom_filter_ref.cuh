@@ -216,9 +216,22 @@ class bloom_filter_ref {
   template <class ProbeKey>
   [[nodiscard]] __device__ bool contains(ProbeKey const& key) const;
 
-  // TODO
-  // template <class CG, class ProbeKey>
-  // [[nodiscard]] __device__ bool contains(CG const& group, ProbeKey const& key) const;
+  /**
+   * @brief Device function that tests if a key's fingerprint is present in the filter.
+   *
+   * @note Best performance is achieved if the size of the CG is equal to `(words_per_block *
+   * sizeof(word_type)) / 32`.
+   *
+   * @tparam CG Cooperative Group type
+   * @tparam ProbeKey Input type that is implicitly convertible to `key_type`
+   *
+   * @param group The Cooperative Group this operation is executed with
+   * @param key The key to be tested
+   *
+   * @return `true` iff the key's fingerprint was present in the filter
+   */
+  template <class CG, class ProbeKey>
+  [[nodiscard]] __device__ bool contains(CG const& group, ProbeKey const& key) const;
 
   // TODO
   // template <class CG, class InputIt, class OutputIt>

@@ -93,8 +93,6 @@ void bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Hash, Block
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   state.add_element_count(num_keys);
-  state.add_global_memory_writes<typename filter_type::word_type>(num_keys *
-                                                                  filter_type::words_per_block);
 
   filter_type filter{num_sub_filters, {}, {static_cast<uint32_t>(pattern_bits)}};
 
@@ -111,6 +109,8 @@ void bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Hash, Block
 template <typename Key, typename Hash, typename Block, typename Dist>
 void bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, Hash, Block, Dist>)
 {
+  // cudaDeviceSetLimit(cudaLimitMaxL2FetchGranularity, 32); // slightly improves peformance if
+  // filter block fits into a 32B sector
   using policy_type = cuco::default_filter_policy<rebind_hasher_t<Hash, Key>, Block>;
   using filter_type =
     cuco::bloom_filter<Key,
@@ -139,8 +139,6 @@ void bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, Hash, 
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   state.add_element_count(num_keys);
-  state.add_global_memory_reads<typename filter_type::word_type>(num_keys *
-                                                                 filter_type::words_per_block);
 
   filter_type filter{num_sub_filters, {}, {static_cast<uint32_t>(pattern_bits)}};
 
