@@ -242,4 +242,11 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 - [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/distinct_count_estimator/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/sMfofM6qd))
 - [Device-ref APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/distinct_count_estimator/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/156T9ox7h))
 
+### `bloom_filter`
+
+`cuco::bloom_filter` implements a Blocked Bloom filter for approximate set membership queries.
+
+#### Examples:
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/bloom_filter/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/EY7T5v5aE))
+
 
