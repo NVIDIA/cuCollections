@@ -61,8 +61,10 @@ class bloom_filter_impl {
   static constexpr auto thread_scope    = Scope;
   static constexpr auto words_per_block = policy_type::words_per_block;
 
-  __host__ __device__
-  bloom_filter_impl(word_type* filter, Extent num_blocks, cuda_thread_scope<Scope>, Policy policy)
+  __host__ __device__ explicit constexpr bloom_filter_impl(word_type* filter,
+                                                           Extent num_blocks,
+                                                           cuda_thread_scope<Scope>,
+                                                           Policy policy)
     : words_{filter}, num_blocks_{num_blocks}, policy_{policy}
   {
     auto const alignment =
@@ -79,20 +81,20 @@ class bloom_filter_impl {
   }
 
   template <class CG>
-  __device__ void clear(CG const& group)
+  __device__ constexpr void clear(CG const& group)
   {
     for (int i = group.thread_rank(); num_blocks_ * words_per_block; i += group.size()) {
       words_[i] = 0;
     }
   }
 
-  __host__ void clear(cuda::stream_ref stream)
+  __host__ constexpr void clear(cuda::stream_ref stream)
   {
     this->clear_async(stream);
     stream.wait();
   }
 
-  __host__ void clear_async(cuda::stream_ref stream)
+  __host__ constexpr void clear_async(cuda::stream_ref stream)
   {
     CUCO_CUDA_TRY(cub::DeviceFor::ForEachN(
       words_,
@@ -146,14 +148,14 @@ class bloom_filter_impl {
   }
 
   template <class InputIt>
-  __host__ void add(InputIt first, InputIt last, cuda::stream_ref stream)
+  __host__ constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream)
   {
     this->add_async(first, last, stream);
     stream.wait();
   }
 
   template <class InputIt>
-  __host__ void add_async(InputIt first, InputIt last, cuda::stream_ref stream)
+  __host__ constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream)
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
@@ -171,7 +173,7 @@ class bloom_filter_impl {
   }
 
   template <class InputIt, class StencilIt, class Predicate>
-  __host__ void add_if(
+  __host__ constexpr void add_if(
     InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
   {
     this->add_if_async(first, last, stencil, pred, stream);
@@ -179,11 +181,11 @@ class bloom_filter_impl {
   }
 
   template <class InputIt, class StencilIt, class Predicate>
-  __host__ void add_if_async(InputIt first,
-                             InputIt last,
-                             StencilIt stencil,
-                             Predicate pred,
-                             cuda::stream_ref stream) noexcept
+  __host__ constexpr void add_if_async(InputIt first,
+                                       InputIt last,
+                                       StencilIt stencil,
+                                       Predicate pred,
+                                       cuda::stream_ref stream) noexcept
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
@@ -251,44 +253,44 @@ class bloom_filter_impl {
   // const;
 
   template <class InputIt, class OutputIt>
-  __host__ void contains(InputIt first,
-                         InputIt last,
-                         OutputIt output_begin,
-                         cuda::stream_ref stream) const
+  __host__ constexpr void contains(InputIt first,
+                                   InputIt last,
+                                   OutputIt output_begin,
+                                   cuda::stream_ref stream) const
   {
     this->contains_async(first, last, output_begin, stream);
     stream.wait();
   }
 
   template <class InputIt, class OutputIt>
-  __host__ void contains_async(InputIt first,
-                               InputIt last,
-                               OutputIt output_begin,
-                               cuda::stream_ref stream) const noexcept
+  __host__ constexpr void contains_async(InputIt first,
+                                         InputIt last,
+                                         OutputIt output_begin,
+                                         cuda::stream_ref stream) const noexcept
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
     this->contains_if_async(first, last, always_true, thrust::identity{}, output_begin, stream);
   }
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ void contains_if(InputIt first,
-                            InputIt last,
-                            StencilIt stencil,
-                            Predicate pred,
-                            OutputIt output_begin,
-                            cuda::stream_ref stream) const
+  __host__ constexpr void contains_if(InputIt first,
+                                      InputIt last,
+                                      StencilIt stencil,
+                                      Predicate pred,
+                                      OutputIt output_begin,
+                                      cuda::stream_ref stream) const
   {
     this->contains_if_async(first, last, stencil, pred, output_begin, stream);
     stream.wait();
   }
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ void contains_if_async(InputIt first,
-                                  InputIt last,
-                                  StencilIt stencil,
-                                  Predicate pred,
-                                  OutputIt output_begin,
-                                  cuda::stream_ref stream) const noexcept
+  __host__ constexpr void contains_if_async(InputIt first,
+                                            InputIt last,
+                                            StencilIt stencil,
+                                            Predicate pred,
+                                            OutputIt output_begin,
+                                            cuda::stream_ref stream) const noexcept
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
@@ -302,11 +304,14 @@ class bloom_filter_impl {
       first, num_keys, stencil, pred, output_begin, *this);
   }
 
-  [[nodiscard]] __host__ __device__ word_type* data() noexcept { return words_; }
+  [[nodiscard]] __host__ __device__ constexpr word_type* data() noexcept { return words_; }
 
-  [[nodiscard]] __host__ __device__ word_type const* data() const noexcept { return words_; }
+  [[nodiscard]] __host__ __device__ constexpr word_type const* data() const noexcept
+  {
+    return words_;
+  }
 
-  [[nodiscard]] __host__ __device__ extent_type block_extent() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr extent_type block_extent() const noexcept
   {
     return num_blocks_;
   }
@@ -321,7 +326,7 @@ class bloom_filter_impl {
 
  private:
   template <uint32_t NumWords>
-  __device__ cuda::std::array<word_type, NumWords> vec_load_words(size_type index) const
+  __device__ constexpr cuda::std::array<word_type, NumWords> vec_load_words(size_type index) const
   {
     return *reinterpret_cast<cuda::std::array<word_type, NumWords>*>(__builtin_assume_aligned(
       words_ + index, cuda::std::min(sizeof(word_type) * NumWords, required_alignment())));

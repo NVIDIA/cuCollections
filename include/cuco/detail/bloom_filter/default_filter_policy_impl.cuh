@@ -47,7 +47,8 @@ class default_filter_policy_impl {
   static_assert(cuda::std::has_single_bit(words_per_block) and words_per_block <= 32,
                 "Number of words per block must be a power-of-two and less than or equal to 32");
 
-  __host__ __device__ constexpr default_filter_policy_impl(uint32_t pattern_bits, Hash hash)
+  __host__ __device__ explicit constexpr default_filter_policy_impl(uint32_t pattern_bits,
+                                                                    Hash hash)
     : pattern_bits_{pattern_bits},
       min_bits_per_word_{pattern_bits_ / words_per_block},
       remainder_bits_{pattern_bits_ % words_per_block},

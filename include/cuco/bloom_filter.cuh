@@ -114,11 +114,11 @@ class bloom_filter {
    * @param alloc Allocator used for allocating device-accessible storage
    * @param stream CUDA stream used to initialize the filter
    */
-  __host__ bloom_filter(Extent num_blocks,
-                        cuda_thread_scope<Scope> scope = {},
-                        Policy const& policy           = {},
-                        Allocator const& alloc         = {},
-                        cuda::stream_ref stream        = {});
+  __host__ explicit constexpr bloom_filter(Extent num_blocks,
+                                           cuda_thread_scope<Scope> scope = {},
+                                           Policy const& policy           = {},
+                                           Allocator const& alloc         = {},
+                                           cuda::stream_ref stream        = {});
 
   /**
    * @brief Erases all information from the filter.
@@ -128,14 +128,14 @@ class bloom_filter {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  __host__ void clear(cuda::stream_ref stream = {});
+  __host__ constexpr void clear(cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously erases all information from the filter.
    *
    * @param stream CUDA stream this operation is executed in
    */
-  __host__ void clear_async(cuda::stream_ref stream = {});
+  __host__ constexpr void clear_async(cuda::stream_ref stream = {});
 
   /**
    * @brief Adds all keys in the range `[first, last)` to the filter.
@@ -152,7 +152,7 @@ class bloom_filter {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  __host__ void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
+  __host__ constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchrounously adds all keys in the range `[first, last)` to the filter.
@@ -166,7 +166,7 @@ class bloom_filter {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  __host__ void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
+  __host__ constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Adds keys in the range `[first, last)` if `pred` of the corresponding `stencil` returns
@@ -192,7 +192,7 @@ class bloom_filter {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class StencilIt, class Predicate>
-  __host__ void add_if(
+  __host__ constexpr void add_if(
     InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
 
   /**
@@ -217,11 +217,11 @@ class bloom_filter {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class StencilIt, class Predicate>
-  __host__ void add_if_async(InputIt first,
-                             InputIt last,
-                             StencilIt stencil,
-                             Predicate pred,
-                             cuda::stream_ref stream = {}) noexcept;
+  __host__ constexpr void add_if_async(InputIt first,
+                                       InputIt last,
+                                       StencilIt stencil,
+                                       Predicate pred,
+                                       cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Tests all keys in the range `[first, last)` if their fingerprints are present in the
@@ -241,10 +241,10 @@ class bloom_filter {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class OutputIt>
-  __host__ void contains(InputIt first,
-                         InputIt last,
-                         OutputIt output_begin,
-                         cuda::stream_ref stream = {}) const;
+  __host__ constexpr void contains(InputIt first,
+                                   InputIt last,
+                                   OutputIt output_begin,
+                                   cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously tests all keys in the range `[first, last)` if their fingerprints are
@@ -261,10 +261,10 @@ class bloom_filter {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class OutputIt>
-  __host__ void contains_async(InputIt first,
-                               InputIt last,
-                               OutputIt output_begin,
-                               cuda::stream_ref stream = {}) const noexcept;
+  __host__ constexpr void contains_async(InputIt first,
+                                         InputIt last,
+                                         OutputIt output_begin,
+                                         cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Tests all keys in the range `[first, last)` if their fingerprints are present in the
@@ -292,12 +292,12 @@ class bloom_filter {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ void contains_if(InputIt first,
-                            InputIt last,
-                            StencilIt stencil,
-                            Predicate pred,
-                            OutputIt output_begin,
-                            cuda::stream_ref stream = {}) const;
+  __host__ constexpr void contains_if(InputIt first,
+                                      InputIt last,
+                                      StencilIt stencil,
+                                      Predicate pred,
+                                      OutputIt output_begin,
+                                      cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously tests all keys in the range `[first, last)` if their fingerprints are
@@ -323,47 +323,47 @@ class bloom_filter {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ void contains_if_async(InputIt first,
-                                  InputIt last,
-                                  StencilIt stencil,
-                                  Predicate pred,
-                                  OutputIt output_begin,
-                                  cuda::stream_ref stream = {}) const noexcept;
+  __host__ constexpr void contains_if_async(InputIt first,
+                                            InputIt last,
+                                            StencilIt stencil,
+                                            Predicate pred,
+                                            OutputIt output_begin,
+                                            cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Gets a pointer to the underlying filter storage.
    *
    * @return Pointer to the underlying filter storage
    */
-  [[nodiscard]] __host__ word_type* data() noexcept;
+  [[nodiscard]] __host__ constexpr word_type* data() noexcept;
 
   /**
    * @brief Gets a pointer to the underlying filter storage.
    *
    * @return Pointer to the underlying filter storage
    */
-  [[nodiscard]] __host__ word_type const* data() const noexcept;
+  [[nodiscard]] __host__ constexpr word_type const* data() const noexcept;
 
   /**
    * @brief Gets the number of sub-filter blocks.
    *
    * @return Number of sub-filter blocks
    */
-  [[nodiscard]] __host__ extent_type block_extent() const noexcept;
+  [[nodiscard]] __host__ constexpr extent_type block_extent() const noexcept;
 
   /**
    * @brief Gets the allocator.
    *
    * @return The allocator
    */
-  [[nodiscard]] __host__ allocator_type allocator() const noexcept;
+  [[nodiscard]] __host__ constexpr allocator_type allocator() const noexcept;
 
   /**
    * @brief Get device ref.
    *
    * @return Device ref of the current `bloom_filter` object
    */
-  [[nodiscard]] __host__ ref_type<> ref() const noexcept;
+  [[nodiscard]] __host__ constexpr ref_type<> ref() const noexcept;
 
  private:
   allocator_type allocator_;  ///< Allocator used to allocate device-accessible storage

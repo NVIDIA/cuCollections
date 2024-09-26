@@ -62,10 +62,10 @@ class bloom_filter_ref {
    * @param scope The scope in which operations will be performed
    * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policy.cuh`)
    */
-  __host__ __device__ bloom_filter_ref(word_type* data,
-                                       Extent num_blocks,
-                                       cuda_thread_scope<Scope> scope,
-                                       Policy const& policy);
+  __host__ __device__ explicit constexpr bloom_filter_ref(word_type* data,
+                                                          Extent num_blocks,
+                                                          cuda_thread_scope<Scope> scope,
+                                                          Policy const& policy);
 
   /**
    * @brief Device function that cooperatively erases all information from the filter.
@@ -75,7 +75,7 @@ class bloom_filter_ref {
    * @param group The Cooperative Group this operation is executed with
    */
   template <class CG>
-  __device__ void clear(CG const& group);
+  __device__ constexpr void clear(CG const& group);
 
   /**
    * @brief Erases all information from the filter.
@@ -85,14 +85,14 @@ class bloom_filter_ref {
    *
    * @param stream CUDA stream this operation is executed in
    */
-  __host__ void clear(cuda::stream_ref stream = {});
+  __host__ constexpr void clear(cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously erases all information from the filter.
    *
    * @param stream CUDA stream this operation is executed in
    */
-  __host__ void clear_async(cuda::stream_ref stream = {});
+  __host__ constexpr void clear_async(cuda::stream_ref stream = {});
 
   /**
    * @brief Device function that adds a key to the filter.
@@ -133,7 +133,7 @@ class bloom_filter_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  __host__ void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
+  __host__ constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchrounously adds all keys in the range `[first, last)` to the filter.
@@ -147,7 +147,7 @@ class bloom_filter_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt>
-  __host__ void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
+  __host__ constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
    * @brief Adds keys in the range `[first, last)` if `pred` of the corresponding `stencil` returns
@@ -173,7 +173,7 @@ class bloom_filter_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class StencilIt, class Predicate>
-  __host__ void add_if(
+  __host__ constexpr void add_if(
     InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
 
   /**
@@ -198,11 +198,11 @@ class bloom_filter_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class StencilIt, class Predicate>
-  __host__ void add_if_async(InputIt first,
-                             InputIt last,
-                             StencilIt stencil,
-                             Predicate pred,
-                             cuda::stream_ref stream = {}) noexcept;
+  __host__ constexpr void add_if_async(InputIt first,
+                                       InputIt last,
+                                       StencilIt stencil,
+                                       Predicate pred,
+                                       cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Device function that tests if a key's fingerprint is present in the filter.
@@ -256,10 +256,10 @@ class bloom_filter_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class OutputIt>
-  __host__ void contains(InputIt first,
-                         InputIt last,
-                         OutputIt output_begin,
-                         cuda::stream_ref stream = {}) const;
+  __host__ constexpr void contains(InputIt first,
+                                   InputIt last,
+                                   OutputIt output_begin,
+                                   cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously tests all keys in the range `[first, last)` if their fingerprints are
@@ -276,10 +276,10 @@ class bloom_filter_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class OutputIt>
-  __host__ void contains_async(InputIt first,
-                               InputIt last,
-                               OutputIt output_begin,
-                               cuda::stream_ref stream = {}) const noexcept;
+  __host__ constexpr void contains_async(InputIt first,
+                                         InputIt last,
+                                         OutputIt output_begin,
+                                         cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Tests all keys in the range `[first, last)` if their fingerprints are present in the
@@ -307,12 +307,12 @@ class bloom_filter_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ void contains_if(InputIt first,
-                            InputIt last,
-                            StencilIt stencil,
-                            Predicate pred,
-                            OutputIt output_begin,
-                            cuda::stream_ref stream = {}) const;
+  __host__ constexpr void contains_if(InputIt first,
+                                      InputIt last,
+                                      StencilIt stencil,
+                                      Predicate pred,
+                                      OutputIt output_begin,
+                                      cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously tests all keys in the range `[first, last)` if their fingerprints are
@@ -338,33 +338,33 @@ class bloom_filter_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ void contains_if_async(InputIt first,
-                                  InputIt last,
-                                  StencilIt stencil,
-                                  Predicate pred,
-                                  OutputIt output_begin,
-                                  cuda::stream_ref stream = {}) const noexcept;
+  __host__ constexpr void contains_if_async(InputIt first,
+                                            InputIt last,
+                                            StencilIt stencil,
+                                            Predicate pred,
+                                            OutputIt output_begin,
+                                            cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Gets a pointer to the underlying filter storage.
    *
    * @return Pointer to the underlying filter storage
    */
-  [[nodiscard]] __host__ __device__ word_type* data() noexcept;
+  [[nodiscard]] __host__ __device__ constexpr word_type* data() noexcept;
 
   /**
    * @brief Gets a pointer to the underlying filter storage.
    *
    * @return Pointer to the underlying filter storage
    */
-  [[nodiscard]] __host__ __device__ word_type const* data() const noexcept;
+  [[nodiscard]] __host__ __device__ constexpr word_type const* data() const noexcept;
 
   /**
    * @brief Gets the number of sub-filter blocks.
    *
    * @return Number of sub-filter blocks
    */
-  [[nodiscard]] __host__ __device__ extent_type block_extent() const noexcept;
+  [[nodiscard]] __host__ __device__ constexpr extent_type block_extent() const noexcept;
 
  private:
   impl_type impl_;  ///< Object containing the Blocked Bloom filter implementation
