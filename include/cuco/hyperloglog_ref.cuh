@@ -15,7 +15,7 @@
  */
 #pragma once
 
-#include <cuco/detail/hyperloglog/hyperloglog_ref.cuh>
+#include <cuco/detail/hyperloglog/hyperloglog_impl.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/types.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
@@ -39,21 +39,22 @@ namespace cuco {
 template <class T,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class Hash               = cuco::xxhash_64<T>>
-class distinct_count_estimator_ref {
-  using impl_type = detail::hyperloglog_ref<T, Scope, Hash>;
+class hyperloglog_ref {
+  using impl_type = detail::hyperloglog_impl<T, Scope, Hash>;
 
  public:
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
 
-  using value_type = typename impl_type::value_type;  ///< Type of items to count
-  using hasher     = typename impl_type::hasher;      ///< Type of hash function
+  using value_type    = typename impl_type::value_type;     ///< Type of items to count
+  using hasher        = typename impl_type::hasher;         ///< Type of hash function
+  using register_type = typename impl_type::register_type;  ///< HLL register type
 
   template <cuda::thread_scope NewScope>
-  using with_scope = distinct_count_estimator_ref<T, NewScope, Hash>;  ///< Ref type with different
-                                                                       ///< thread scope
+  using with_scope = hyperloglog_ref<T, NewScope, Hash>;  ///< Ref type with different
+                                                          ///< thread scope
 
   /**
-   * @brief Constructs a non-owning `distinct_count_estimator_ref` object.
+   * @brief Constructs a non-owning `hyperloglog_ref` object.
    *
    * @throw If sketch size < 0.0625KB or 64B or standard deviation > 0.2765. Throws if called from
    * host; UB if called from device.
@@ -63,8 +64,8 @@ class distinct_count_estimator_ref {
    * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
    */
-  __host__ __device__ constexpr distinct_count_estimator_ref(
-    cuda::std::span<cuda::std::byte> sketch_span, Hash const& hash = {});
+  __host__ __device__ constexpr hyperloglog_ref(cuda::std::span<cuda::std::byte> sketch_span,
+                                                Hash const& hash = {});
 
   /**
    * @brief Resets the estimator, i.e., clears the current count estimate.
@@ -144,7 +145,7 @@ class distinct_count_estimator_ref {
    */
   template <class CG, cuda::thread_scope OtherScope>
   __device__ constexpr void merge(CG const& group,
-                                  distinct_count_estimator_ref<T, OtherScope, Hash> const& other);
+                                  hyperloglog_ref<T, OtherScope, Hash> const& other);
 
   /**
    * @brief Asynchronously merges the result of `other` estimator reference into `*this` estimator.
@@ -157,8 +158,8 @@ class distinct_count_estimator_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ constexpr void merge_async(
-    distinct_count_estimator_ref<T, OtherScope, Hash> const& other, cuda::stream_ref stream = {});
+  __host__ constexpr void merge_async(hyperloglog_ref<T, OtherScope, Hash> const& other,
+                                      cuda::stream_ref stream = {});
 
   /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator.
@@ -174,7 +175,7 @@ class distinct_count_estimator_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ constexpr void merge(distinct_count_estimator_ref<T, OtherScope, Hash> const& other,
+  __host__ constexpr void merge(hyperloglog_ref<T, OtherScope, Hash> const& other,
                                 cuda::stream_ref stream = {});
 
   /**
@@ -251,8 +252,8 @@ class distinct_count_estimator_ref {
   impl_type impl_;  ///< Implementation object
 
   template <class T_, cuda::thread_scope Scope_, class Hash_>
-  friend class distinct_count_estimator_ref;
+  friend class hyperloglog_ref;
 };
 }  // namespace cuco
 
-#include <cuco/detail/distinct_count_estimator/distinct_count_estimator_ref.inl>
+#include <cuco/detail/hyperloglog/hyperloglog_ref.inl>

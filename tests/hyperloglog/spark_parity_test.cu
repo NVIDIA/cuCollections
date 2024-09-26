@@ -16,8 +16,8 @@
 
 #include <test_utils.hpp>
 
-#include <cuco/distinct_count_estimator.cuh>
 #include <cuco/hash_functions.cuh>
+#include <cuco/hyperloglog.cuh>
 
 #include <cuda/functional>
 #include <thrust/device_vector.h>
@@ -43,13 +43,12 @@
  */
 
 // TODO implement this test once add_if is available
-// TEST_CASE("distinct_count_estimator: Spark parity: add nulls", "")
+// TEST_CASE("hyperloglog: Spark parity: add nulls", "")
 
-TEST_CASE("distinct_count_estimator: Spark parity: deterministic cardinality estimation", "")
+TEST_CASE("hyperloglog: Spark parity: deterministic cardinality estimation", "")
 {
-  using T = int;
-  using estimator_type =
-    cuco::distinct_count_estimator<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
+  using T              = int;
+  using estimator_type = cuco::hyperloglog<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
 
   constexpr size_t repeats = 10;
   // This factor determines the error threshold for passing the test
@@ -101,13 +100,12 @@ TEST_CASE("distinct_count_estimator: Spark parity: deterministic cardinality est
 }
 
 // the following test is omitted since we refrain from doing randomized unit tests in cuco
-// TEST_CASE("distinct_count_estimator: Spark parity: random cardinality estimation", "")
+// TEST_CASE("hyperloglog: Spark parity: random cardinality estimation", "")
 
-TEST_CASE("distinct_count_estimator: Spark parity: merging HLL instances", "")
+TEST_CASE("hyperloglog: Spark parity: merging HLL instances", "")
 {
-  using T = int;
-  using estimator_type =
-    cuco::distinct_count_estimator<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
+  using T              = int;
+  using estimator_type = cuco::hyperloglog<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
 
   auto num_items          = 1000000;
   auto standard_deviation = cuco::standard_deviation(0.05);
@@ -148,11 +146,11 @@ TEST_CASE("distinct_count_estimator: Spark parity: merging HLL instances", "")
 The following unit tests fail since xxhash_64 does not deduplicate different bit patterns for NaN
 values and +-0.0. They are thus counted as distinct items.
 
-TEST_CASE("distinct_count_estimator: Spark parity: add 0.0 and -0.0", "")
+TEST_CASE("hyperloglog: Spark parity: add 0.0 and -0.0", "")
 {
   using T = double;
   using estimator_type =
-    cuco::distinct_count_estimator<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
+    cuco::hyperloglog<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
 
   auto standard_deviation = cuco::standard_deviation(0.05);
 
@@ -164,11 +162,11 @@ TEST_CASE("distinct_count_estimator: Spark parity: add 0.0 and -0.0", "")
   REQUIRE(estimator.estimate() == 1);
 }
 
-TEST_CASE("distinct_count_estimator: Spark parity: add NaN", "")
+TEST_CASE("hyperloglog: Spark parity: add NaN", "")
 {
   using T = double;
   using estimator_type =
-    cuco::distinct_count_estimator<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
+    cuco::hyperloglog<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
 
   auto standard_deviation = cuco::standard_deviation(0.05);
 

@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <cuco/distinct_count_estimator.cuh>
+#include <cuco/hyperloglog.cuh>
 
 #include <cuda/std/cstddef>
 #include <thrust/device_vector.h>
@@ -23,9 +23,9 @@
 
 /**
  * @file device_ref_example.cu
- * @brief Demonstrates usage of `cuco::distinct_count_estimator` device-side APIs.
+ * @brief Demonstrates usage of `cuco::hyperloglog` device-side APIs.
  *
- * This example demonstrates how the non-owning reference type `cuco::distinct_count_estimator_ref`
+ * This example demonstrates how the non-owning reference type `cuco::hyperloglog_ref`
  * can be used to implement a custom kernel that fuses the cardinality estimation step with any
  * other workload that traverses the input data.
  */
@@ -119,7 +119,7 @@ __global__ void device_estimate_kernel(cuco::sketch_size_kb sketch_size_kb,
 int main(void)
 {
   using T                         = int;
-  using estimator_type            = cuco::distinct_count_estimator<T>;
+  using estimator_type            = cuco::hyperloglog<T>;
   constexpr std::size_t num_items = 1ull << 28;  // 1GB
   auto const sketch_size_kb       = 32_KB;
 
