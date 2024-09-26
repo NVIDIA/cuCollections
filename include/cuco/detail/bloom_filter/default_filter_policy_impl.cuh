@@ -77,7 +77,7 @@ class default_filter_policy_impl {
       NV_IS_DEVICE,
       (if (pattern_bits_ > max_pattern_bits_from_hash or pattern_bits_ < min_pattern_bits or
            pattern_bits_ > max_pattern_bits) {
-        __trap();  // kill the kernel;
+        __trap();  // TODO this kills the kernel and corrupts the CUDA context. Not ideal.
       }))
   }
 

@@ -30,12 +30,13 @@
 #include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/tuple>
+#include <cuda/std/type_traits>
 #include <cuda/stream_ref>
 #include <thrust/functional.h>
 #include <thrust/iterator/constant_iterator.h>
 
 #include <cstdint>
-#include <type_traits>
+#include <nv/target>
 
 namespace cuco::detail {
 
@@ -46,23 +47,35 @@ class bloom_filter_impl {
   using extent_type = Extent;
   using size_type   = typename extent_type::value_type;
   using policy_type = Policy;
-  using word_type =
-    typename policy_type::word_type;  // TODO static_assert can use fetch_or() and load()
+  using word_type   = typename policy_type::word_type;
 
-  static constexpr auto thread_scope    = Scope;  ///< CUDA thread scope
+  static_assert(
+    cuda::std::is_constructible_v<cuda::atomic_ref<word_type, Scope>, word_type&> &&
+      cuda::std::is_invocable_r_v<word_type,
+                                  decltype(&cuda::atomic_ref<word_type, Scope>::fetch_or),
+                                  cuda::atomic_ref<word_type, Scope>*,
+                                  word_type,
+                                  cuda::std::memory_order>,
+    "Invalid word type");
+
+  static constexpr auto thread_scope    = Scope;
   static constexpr auto words_per_block = policy_type::words_per_block;
 
   __host__ __device__
   bloom_filter_impl(word_type* filter, Extent num_blocks, cuda_thread_scope<Scope>, Policy policy)
     : words_{filter}, num_blocks_{num_blocks}, policy_{policy}
   {
-#ifndef __CUDA_ARCH__
     auto const alignment =
       1ull << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(filter));
-    CUCO_EXPECTS(alignment >= required_alignment(), "Invalid memory alignment", std::runtime_error);
 
-    CUCO_EXPECTS(num_blocks_ > 0, "Number of blocks cannot be zero", std::runtime_error);
-#endif
+    NV_DISPATCH_TARGET(
+      NV_IS_HOST,
+      (CUCO_EXPECTS(alignment >= required_alignment(), "Invalid memory alignment");
+       CUCO_EXPECTS(num_blocks_ > 0, "Number of blocks cannot be zero");),
+      NV_IS_DEVICE,
+      (if (alignment < required_alignment() or num_blocks_ == 0) {
+        __trap();  // TODO this kills the kernel and corrupts the CUDA context. Not ideal.
+      }))
   }
 
   template <class CG>
