@@ -36,7 +36,7 @@
 namespace cuco {
 
 /**
- * @brief A GPU-accelerated Blocked Bloom filter.
+ * @brief A GPU-accelerated Blocked Bloom Filter.
  *
  * The `bloom_filter` supports two types of operations:
  * - Host-side "bulk" operations
