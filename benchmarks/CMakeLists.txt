@@ -102,4 +102,5 @@ ConfigureBench(DISTINCT_COUNT_ESTIMATOR_BENCH
 ###################################################################################################
 # - bloom_filter benchmarks -----------------------------------------------------------------------
 ConfigureBench(BLOOM_FILTER_BENCH
-  bloom_filter/bloom_filter_bench.cu)
+  bloom_filter/add_bench.cu
+  bloom_filter/contains_bench.cu)
