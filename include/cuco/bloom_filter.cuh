@@ -69,7 +69,7 @@ class bloom_filter {
   /**
    * @brief Non-owning filter ref type
    *
-   * @tparam NewScope Thead scope of the to be updated ref type
+   * @tparam NewScope Thread scope of the to be updated ref type
    */
   template <cuda::thread_scope NewScope = Scope>
   using ref_type = bloom_filter_ref<Key, Extent, NewScope, Policy>;
@@ -126,7 +126,7 @@ class bloom_filter {
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `clear_async`.
    *
-   * @param stream CUDA stream this operation is executed in
+   * @param stream CUDA stream used for device memory operations and kernel launches
    */
   __host__ constexpr void clear(cuda::stream_ref stream = {});
 
@@ -155,7 +155,7 @@ class bloom_filter {
   __host__ constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
-   * @brief Asynchrounously adds all keys in the range `[first, last)` to the filter.
+   * @brief Asynchronously adds all keys in the range `[first, last)` to the filter.
    *
    * @tparam InputIt Device-accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,

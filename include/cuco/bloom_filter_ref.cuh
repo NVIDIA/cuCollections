@@ -136,7 +136,7 @@ class bloom_filter_ref {
   __host__ constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
 
   /**
-   * @brief Asynchrounously adds all keys in the range `[first, last)` to the filter.
+   * @brief Asynchronously adds all keys in the range `[first, last)` to the filter.
    *
    * @tparam InputIt Device-accessible random access input iterator where
    * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
@@ -207,7 +207,7 @@ class bloom_filter_ref {
   /**
    * @brief Device function that tests if a key's fingerprint is present in the filter.
    *
-   * @tparam ProbeKey Input type that is implicitly convertible to `key_type`
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to be tested
    *
@@ -367,7 +367,7 @@ class bloom_filter_ref {
   [[nodiscard]] __host__ __device__ constexpr extent_type block_extent() const noexcept;
 
  private:
-  impl_type impl_;  ///< Object containing the Blocked Bloom filter implementation
+  impl_type impl_;  ///< Object containing the Blocked Bloom Filter implementation
 };
 }  // namespace cuco
 

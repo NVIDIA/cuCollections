@@ -244,7 +244,7 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 
 ### `bloom_filter`
 
-`cuco::bloom_filter` implements a Blocked Bloom filter for approximate set membership queries.
+`cuco::bloom_filter` implements a Blocked Bloom Filter for approximate set membership queries.
 
 #### Examples:
 - [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/bloom_filter/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/EY7T5v5aE))
