@@ -83,14 +83,14 @@ class bloom_filter_ref {
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `clear_async`.
    *
-   * @param stream CUDA stream this operation is executed in
+   * @param stream CUDA stream used for device memory operations and kernel launches
    */
   __host__ constexpr void clear(cuda::stream_ref stream = {});
 
   /**
    * @brief Asynchronously erases all information from the filter.
    *
-   * @param stream CUDA stream this operation is executed in
+   * @param stream CUDA stream used for device memory operations and kernel launches
    */
   __host__ constexpr void clear_async(cuda::stream_ref stream = {});
 
@@ -128,7 +128,7 @@ class bloom_filter_ref {
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param stream CUDA stream this operation is executed in
+   * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt>
   __host__ constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
@@ -140,7 +140,7 @@ class bloom_filter_ref {
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param stream CUDA stream this operation is executed in
+   * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt>
   __host__ constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
@@ -164,7 +164,7 @@ class bloom_filter_ref {
    * @param stencil Beginning of the stencil sequence
    * @param pred Predicate to test on every element in the range `[stencil, stencil +
    * std::distance(first, last))`
-   * @param stream CUDA stream this operation is executed in
+   * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt, class StencilIt, class Predicate>
   __host__ constexpr void add_if(
@@ -187,7 +187,7 @@ class bloom_filter_ref {
    * @param stencil Beginning of the stencil sequence
    * @param pred Predicate to test on every element in the range `[stencil, stencil +
    * std::distance(first, last))`
-   * @param stream CUDA stream this operation is executed in
+   * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt, class StencilIt, class Predicate>
   __host__ constexpr void add_if_async(InputIt first,
@@ -245,7 +245,7 @@ class bloom_filter_ref {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
-   * @param stream CUDA stream this operation is executed in
+   * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt, class OutputIt>
   __host__ constexpr void contains(InputIt first,
@@ -265,7 +265,7 @@ class bloom_filter_ref {
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
-   * @param stream CUDA stream this operation is executed in
+   * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt, class OutputIt>
   __host__ constexpr void contains_async(InputIt first,
@@ -296,7 +296,7 @@ class bloom_filter_ref {
    * @param pred Predicate to test on every element in the range `[stencil, stencil +
    * std::distance(first, last))`
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
-   * @param stream CUDA stream this operation is executed in
+   * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
   __host__ constexpr void contains_if(InputIt first,
@@ -327,7 +327,7 @@ class bloom_filter_ref {
    * @param pred Predicate to test on every element in the range `[stencil, stencil +
    * std::distance(first, last))`
    * @param output_begin Beginning of the sequence of booleans for the presence of each key
-   * @param stream CUDA stream this operation is executed in
+   * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
   __host__ constexpr void contains_if_async(InputIt first,
