@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "utils.hpp"
+
 #include <cuco/hash_functions.cuh>
 
 #include <nvbench/nvbench.cuh>
@@ -26,12 +28,14 @@
 
 namespace cuco::benchmark::defaults {
 
-using BF_HASH  = cuco::xxhash_64<char>;
-using BF_BLOCK = cuda::std::array<nvbench::uint32_t, 8>;
+using BF_KEY  = nvbench::int64_t;
+using BF_HASH = cuco::xxhash_64<char>;
+using BF_WORD = nvbench::uint32_t;
 
-static constexpr auto BF_N            = 400'000'000;
-static constexpr auto BF_SIZE_MB      = 2'000;
-static constexpr auto BF_PATTERN_BITS = 8;
+static constexpr auto BF_N               = 400'000'000;
+static constexpr auto BF_SIZE_MB         = 2'000;
+static constexpr auto BF_WORDS_PER_BLOCK = 8;
+static constexpr auto BF_PATTERN_BITS    = BF_WORDS_PER_BLOCK;
 
 auto const BF_SIZE_MB_RANGE_CACHE =
   std::vector<nvbench::int64_t>{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048};

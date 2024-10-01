@@ -25,16 +25,16 @@ namespace cuco {
 /**
  * @brief A policy that defines how a Blocked Bloom Filter generates and stores a key's fingerprint.
  *
- * @note `Block` is used **only** to determine `words_per_block` via `cuda::std::tuple_size<Block>`
- * and `word_type` via `Block::value_type` and does not represent the actual storage type of the
- * filter. We recommend using `cuda::std::array`.
+ * @note `Word` type must be an atomically updatable integral type. `WordsPerBlock` must
+ * be a power-of-two.
  *
  * @tparam Hash Hash function used to generate a key's fingerprint
- * @tparam Block Type to determine the filter's block size and underlying word/segment type
+ * @tparam Word Underlying word/segment type of a filter block
+ * @tparam WordsPerBlock Number of words/segments in each block
  */
-template <class Hash, class Block>
+template <class Hash, class Word, std::uint32_t WordsPerBlock>
 class bloom_filter_policy {
-  using impl_type = cuco::detail::bloom_filter_policy_impl<Hash, Block>;
+  using impl_type = cuco::detail::bloom_filter_policy_impl<Hash, Word, WordsPerBlock>;
 
  public:
   using hasher             = typename impl_type::hasher;              ///< Type of the hash function

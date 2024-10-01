@@ -20,33 +20,35 @@
 
 namespace cuco {
 
-template <class Hash, class Block>
-__host__ __device__ constexpr bloom_filter_policy<Hash, Block>::bloom_filter_policy(
+template <class Hash, class Word, uint32_t WordsPerBlock>
+__host__ __device__ constexpr bloom_filter_policy<Hash, Word, WordsPerBlock>::bloom_filter_policy(
   uint32_t pattern_bits, Hash hash)
   : impl_{pattern_bits, hash}
 {
 }
 
-template <class Hash, class Block>
-__device__ constexpr typename bloom_filter_policy<Hash, Block>::hash_result_type
-bloom_filter_policy<Hash, Block>::hash(
-  typename bloom_filter_policy<Hash, Block>::hash_argument_type const& key) const
+template <class Hash, class Word, uint32_t WordsPerBlock>
+__device__ constexpr typename bloom_filter_policy<Hash, Word, WordsPerBlock>::hash_result_type
+bloom_filter_policy<Hash, Word, WordsPerBlock>::hash(
+  typename bloom_filter_policy<Hash, Word, WordsPerBlock>::hash_argument_type const& key) const
 {
   return impl_.hash(key);
 }
 
-template <class Hash, class Block>
+template <class Hash, class Word, uint32_t WordsPerBlock>
 template <class Extent>
-__device__ constexpr auto bloom_filter_policy<Hash, Block>::block_index(
-  typename bloom_filter_policy<Hash, Block>::hash_result_type hash, Extent num_blocks) const
+__device__ constexpr auto bloom_filter_policy<Hash, Word, WordsPerBlock>::block_index(
+  typename bloom_filter_policy<Hash, Word, WordsPerBlock>::hash_result_type hash,
+  Extent num_blocks) const
 {
   return impl_.block_index(hash, num_blocks);
 }
 
-template <class Hash, class Block>
-__device__ constexpr typename bloom_filter_policy<Hash, Block>::word_type
-bloom_filter_policy<Hash, Block>::word_pattern(
-  bloom_filter_policy<Hash, Block>::hash_result_type hash, std::uint32_t word_index) const
+template <class Hash, class Word, uint32_t WordsPerBlock>
+__device__ constexpr typename bloom_filter_policy<Hash, Word, WordsPerBlock>::word_type
+bloom_filter_policy<Hash, Word, WordsPerBlock>::word_pattern(
+  bloom_filter_policy<Hash, Word, WordsPerBlock>::hash_result_type hash,
+  std::uint32_t word_index) const
 {
   return impl_.word_pattern(hash, word_index);
 }

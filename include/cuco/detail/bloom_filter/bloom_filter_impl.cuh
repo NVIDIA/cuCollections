@@ -49,6 +49,12 @@ class bloom_filter_impl {
   using policy_type = Policy;
   using word_type   = typename policy_type::word_type;
 
+  static constexpr auto thread_scope    = Scope;
+  static constexpr auto words_per_block = policy_type::words_per_block;
+
+  static_assert(cuda::std::has_single_bit(words_per_block) and words_per_block <= 32,
+                "Number of words per block must be a power-of-two and less than or equal to 32");
+
   static_assert(
     cuda::std::is_constructible_v<cuda::atomic_ref<word_type, Scope>, word_type&> &&
       cuda::std::is_invocable_r_v<word_type,
@@ -57,9 +63,6 @@ class bloom_filter_impl {
                                   word_type,
                                   cuda::std::memory_order>,
     "Invalid word type");
-
-  static constexpr auto thread_scope    = Scope;
-  static constexpr auto words_per_block = policy_type::words_per_block;
 
   __host__ __device__ explicit constexpr bloom_filter_impl(word_type* filter,
                                                            Extent num_blocks,

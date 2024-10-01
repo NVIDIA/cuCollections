@@ -28,25 +28,21 @@
 
 namespace cuco::detail {
 
-template <class Hash, class Block>
+template <class Hash, class Word, uint32_t WordsPerBlock>
 class bloom_filter_policy_impl {
  public:
   using hasher             = Hash;
-  using word_type          = typename Block::value_type;
+  using word_type          = Word;
   using hash_argument_type = typename hasher::argument_type;
   using hash_result_type   = decltype(std::declval<hasher>()(std::declval<hash_argument_type>()));
 
-  static constexpr std::uint32_t words_per_block = cuda::std::tuple_size_v<Block>;
+  static constexpr std::uint32_t words_per_block = WordsPerBlock;
 
  private:
-  static constexpr std::uint32_t word_bits =
-    cuda::std::numeric_limits<typename Block::value_type>::digits;
+  static constexpr std::uint32_t word_bits       = cuda::std::numeric_limits<word_type>::digits;
   static constexpr std::uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);
 
  public:
-  static_assert(cuda::std::has_single_bit(words_per_block) and words_per_block <= 32,
-                "Number of words per block must be a power-of-two and less than or equal to 32");
-
   __host__ __device__ explicit constexpr bloom_filter_policy_impl(uint32_t pattern_bits, Hash hash)
     : pattern_bits_{pattern_bits},
       min_bits_per_word_{pattern_bits_ / words_per_block},

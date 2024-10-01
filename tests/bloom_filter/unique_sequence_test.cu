@@ -88,14 +88,13 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
   // TODO test FPR but how?
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "Unique sequence",
-  "",
-  ((class Key, class Policy), Key, Policy),
-  (int32_t, cuco::bloom_filter_policy<cuco::xxhash_64<int32_t>, cuda::std::array<uint32_t, 1>>),
-  (int32_t, cuco::bloom_filter_policy<cuco::xxhash_64<int32_t>, cuda::std::array<uint32_t, 8>>),
-  (int32_t, cuco::bloom_filter_policy<cuco::xxhash_64<int32_t>, cuda::std::array<uint64_t, 1>>),
-  (int32_t, cuco::bloom_filter_policy<cuco::xxhash_64<int32_t>, cuda::std::array<uint64_t, 8>>))
+TEMPLATE_TEST_CASE_SIG("Unique sequence",
+                       "",
+                       ((class Key, class Policy), Key, Policy),
+                       (int32_t, cuco::bloom_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1>),
+                       (int32_t, cuco::bloom_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8>),
+                       (int32_t, cuco::bloom_filter_policy<cuco::xxhash_64<int32_t>, uint64_t, 1>),
+                       (int32_t, cuco::bloom_filter_policy<cuco::xxhash_64<int32_t>, uint64_t, 8>))
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;

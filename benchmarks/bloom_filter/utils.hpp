@@ -16,12 +16,31 @@
 
 #pragma once
 
+#include <cuco/hash_functions.cuh>
+
 #include <nvbench/nvbench.cuh>
 
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/sequence.h>
+
+#include <cstdint>
+
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::XXHash_64<char>, "xxhash_64", "cuco::xxhash_64");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::XXHash_32<char>, "xxhash_32", "cuco::xxhash_32");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_32<char>,
+                             "murmurhash3_32",
+                             "cuco::murmurhash3_32");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_x86_128<char>,
+                             "murmurhash3_x86_128",
+                             "cuco::murmurhash3_x86_128");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_x64_128<char>,
+                             "murmurhash3_x64_128",
+                             "cuco::murmurhash3_x64_128");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::identity_hash<char>,
+                             "identity_hash",
+                             "cuco::identity_hash");
 
 namespace cuco::benchmark {
 
