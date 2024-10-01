@@ -110,7 +110,7 @@ class bloom_filter_ref {
    * @note Best performance is achieved if the size of the CG is equal to `words_per_block`.
    *
    * @tparam CG Cooperative Group type
-   * @tparam ProbeKey Input type that is implicitly convertible to `key_type`
+   * @tparam ProbeKey Input key type
    *
    * @param group The Cooperative Group this operation is executed with
    * @param key The key to be added
@@ -124,9 +124,7 @@ class bloom_filter_ref {
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `add_async`.
    *
-   * @tparam InputIt Device-accessible random access input iterator where
-   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
-   * bloom_filter<K>::key_type></tt> is `true`
+   * @tparam InputIt Device-accessible random access input key iterator
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
@@ -138,9 +136,7 @@ class bloom_filter_ref {
   /**
    * @brief Asynchronously adds all keys in the range `[first, last)` to the filter.
    *
-   * @tparam InputIt Device-accessible random access input iterator where
-   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
-   * bloom_filter<K>::key_type></tt> is `true`
+   * @tparam InputIt Device-accessible random access input key iterator
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
@@ -157,9 +153,7 @@ class bloom_filter_ref {
    * @note This function synchronizes the given stream and returns the number of successful
    * insertions. For asynchronous execution use `add_if_async`.
    *
-   * @tparam InputIt Device-accessible random access input iterator where
-   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
-   * bloom_filter<K>::key_type></tt> is `true`
+   * @tparam InputIt Device-accessible random access input key iterator
    * @tparam StencilIt Device-accessible random-access iterator whose `value_type` is
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
@@ -182,9 +176,7 @@ class bloom_filter_ref {
    *
    * @note The key `*(first + i)` is added if `pred( *(stencil + i) )` returns `true`.
    *
-   * @tparam InputIt Device-accessible random access input iterator where
-   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
-   * bloom_filter<K>::key_type></tt> is `true`
+   * @tparam InputIt Device-accessible random access input key iterator
    * @tparam StencilIt Device-accessible random-access iterator whose `value_type` is
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
