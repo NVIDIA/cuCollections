@@ -19,15 +19,11 @@
 #include <cuco/bloom_filter.cuh>
 
 #include <cuda/functional>
-#include <cuda/std/array>
 #include <thrust/device_vector.h>
-#include <thrust/distance.h>
+#include <thrust/execution_policy.h>
 #include <thrust/functional.h>
-#include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
-#include <thrust/sort.h>
-#include <thrust/transform.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
