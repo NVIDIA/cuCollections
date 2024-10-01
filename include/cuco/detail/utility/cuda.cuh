@@ -83,7 +83,7 @@ struct tile_size<cooperative_groups::thread_block_tile<CGSize, ParentCG>> {
 };
 
 template <typename Tile>
-constexpr uint32_t tile_size_v = tile_size<Tile>::value;
+__device__ constexpr uint32_t tile_size_v = tile_size<Tile>::value;
 
 }  // namespace detail
 }  // namespace cuco
