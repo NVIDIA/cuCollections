@@ -234,13 +234,13 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 #### Examples:
 - [Host-bulk APIs (TODO)]()
 
-### `distinct_count_estimator`
+### `hyperloglog`
 
-`cuco::distinct_count_estimator` implements the well-established [HyperLogLog++ algorithm](https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf) for approximating the count of distinct items in a multiset/stream.
+`cuco::hyperloglog` implements the well-established [HyperLogLog++ algorithm](https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf) for approximating the count of distinct items in a multiset/stream.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/distinct_count_estimator/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/sMfofM6qd))
-- [Device-ref APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/distinct_count_estimator/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/156T9ox7h))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/hyperloglog/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/G4qdcTezE))
+- [Device-ref APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/hyperloglog/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/n88713o4n))
 
 ### `bloom_filter`
 

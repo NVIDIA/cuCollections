@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include <cuco/distinct_count_estimator.cuh>
+#include <cuco/hyperloglog.cuh>
 
 #include <thrust/device_vector.h>
 #include <thrust/sequence.h>
@@ -24,7 +24,7 @@
 
 /**
  * @file host_bulk_example.cu
- * @brief Demonstrates usage of `cuco::distinct_count_estimator` "bulk" host APIs.
+ * @brief Demonstrates usage of `cuco::hyperloglog` "bulk" host APIs.
  */
 int main(void)
 {
@@ -41,7 +41,7 @@ int main(void)
   auto const sd = cuco::standard_deviation{0.0122197};
 
   // Initialize the estimator
-  cuco::distinct_count_estimator<T> estimator{sd};
+  cuco::hyperloglog<T> estimator{sd};
 
   // Add all items to the estimator
   estimator.add(items.begin(), items.end());

@@ -26,6 +26,7 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/atomic>
+#include <cuda/std/__algorithm/max.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/bit>
 #include <cuda/std/cstddef>
 #include <cuda/std/span>
@@ -36,7 +37,6 @@
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
 
-#include <algorithm>  // there is no <cuda/std/algorithm>
 #include <vector>
 
 namespace cuco::detail {
@@ -52,7 +52,7 @@ namespace cuco::detail {
  * @tparam Hash Hash function used to hash items
  */
 template <class T, cuda::thread_scope Scope, class Hash>
-class hyperloglog_ref {
+class hyperloglog_impl {
   // We use `int` here since this is the smallest type that supports native `atomicMax` on GPUs
   using fp_type = double;  ///< Floating point type used for reduction
   using hash_value_type =
@@ -65,11 +65,11 @@ class hyperloglog_ref {
   using register_type = int;   ///< HLL register type
 
   template <cuda::thread_scope NewScope>
-  using with_scope = hyperloglog_ref<T, NewScope, Hash>;  ///< Ref type with different
-                                                          ///< thread scope
+  using with_scope = hyperloglog_impl<T, NewScope, Hash>;  ///< Ref type with different
+                                                           ///< thread scope
 
   /**
-   * @brief Constructs a non-owning `hyperloglog_ref` object.
+   * @brief Constructs a non-owning `hyperloglog_impl` object.
    *
    * @throw If sketch size < 0.0625KB or 64B or standard deviation > 0.2765. Throws if called from
    * host; UB if called from device.
@@ -79,8 +79,8 @@ class hyperloglog_ref {
    * @param sketch_span Reference to sketch storage
    * @param hash The hash function used to hash items
    */
-  __host__ __device__ constexpr hyperloglog_ref(cuda::std::span<cuda::std::byte> sketch_span,
-                                                Hash const& hash)
+  __host__ __device__ constexpr hyperloglog_impl(cuda::std::span<cuda::std::byte> sketch_span,
+                                                 Hash const& hash)
     : hash_{hash},
       precision_{cuda::std::countr_zero(
         sketch_bytes(cuco::sketch_size_kb(static_cast<double>(sketch_span.size() / 1024.0))) /
@@ -92,11 +92,9 @@ class hyperloglog_ref {
 #ifndef __CUDA_ARCH__
     auto const alignment =
       1ull << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(sketch_span.data()));
-    CUCO_EXPECTS(
-      alignment >= sketch_alignment(), "Insufficient sketch alignment", std::runtime_error);
+    CUCO_EXPECTS(alignment >= sketch_alignment(), "Insufficient sketch alignment");
 
-    CUCO_EXPECTS(
-      this->precision_ >= 4, "Minimum required sketch size is 0.0625KB or 64B", std::runtime_error);
+    CUCO_EXPECTS(this->precision_ >= 4, "Minimum required sketch size is 0.0625KB or 64B");
 #endif
   }
 
@@ -192,19 +190,19 @@ class hyperloglog_ref {
       switch (vector_size) {
         case 2:
           kernel = reinterpret_cast<void const*>(
-            cuco::hyperloglog_ns::detail::add_shmem_vectorized<2, hyperloglog_ref>);
+            cuco::hyperloglog_ns::detail::add_shmem_vectorized<2, hyperloglog_impl>);
           break;
         case 4:
           kernel = reinterpret_cast<void const*>(
-            cuco::hyperloglog_ns::detail::add_shmem_vectorized<4, hyperloglog_ref>);
+            cuco::hyperloglog_ns::detail::add_shmem_vectorized<4, hyperloglog_impl>);
           break;
         case 8:
           kernel = reinterpret_cast<void const*>(
-            cuco::hyperloglog_ns::detail::add_shmem_vectorized<8, hyperloglog_ref>);
+            cuco::hyperloglog_ns::detail::add_shmem_vectorized<8, hyperloglog_impl>);
           break;
         case 16:
           kernel = reinterpret_cast<void const*>(
-            cuco::hyperloglog_ns::detail::add_shmem_vectorized<16, hyperloglog_ref>);
+            cuco::hyperloglog_ns::detail::add_shmem_vectorized<16, hyperloglog_impl>);
           break;
       };
     }
@@ -227,7 +225,7 @@ class hyperloglog_ref {
       }
     } else {
       kernel = reinterpret_cast<void const*>(
-        cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_ref>);
+        cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_impl>);
       void* kernel_args[] = {(void*)(&first), (void*)(&num_items), reinterpret_cast<void*>(this)};
       if (this->try_reserve_shmem(kernel, shmem_bytes)) {
         CUCO_CUDA_TRY(
@@ -239,7 +237,7 @@ class hyperloglog_ref {
         // Computes sketch directly in global memory. (Fallback path in case there is not enough
         // shared memory avalable)
         kernel = reinterpret_cast<void const*>(
-          cuco::hyperloglog_ns::detail::add_gmem<InputIt, hyperloglog_ref>);
+          cuco::hyperloglog_ns::detail::add_gmem<InputIt, hyperloglog_impl>);
 
         CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, 0));
 
@@ -283,7 +281,7 @@ class hyperloglog_ref {
    */
   template <class CG, cuda::thread_scope OtherScope>
   __device__ constexpr void merge(CG const& group,
-                                  hyperloglog_ref<T, OtherScope, Hash> const& other)
+                                  hyperloglog_impl<T, OtherScope, Hash> const& other)
   {
     // TODO find a better way to do error handling in device code
     // if (other.precision_ != this->precision_) { __trap(); }
@@ -305,12 +303,11 @@ class hyperloglog_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ constexpr void merge_async(hyperloglog_ref<T, OtherScope, Hash> const& other,
+  __host__ constexpr void merge_async(hyperloglog_impl<T, OtherScope, Hash> const& other,
                                       cuda::stream_ref stream)
   {
     CUCO_EXPECTS(other.precision_ == this->precision_,
-                 "Cannot merge estimators with different sketch sizes",
-                 std::runtime_error);
+                 "Cannot merge estimators with different sketch sizes");
     auto constexpr block_size = 1024;
     cuco::hyperloglog_ns::detail::merge<<<1, block_size, 0, stream.get()>>>(other, *this);
   }
@@ -329,7 +326,7 @@ class hyperloglog_ref {
    * @param stream CUDA stream this operation is executed in
    */
   template <cuda::thread_scope OtherScope>
-  __host__ constexpr void merge(hyperloglog_ref<T, OtherScope, Hash> const& other,
+  __host__ constexpr void merge(hyperloglog_impl<T, OtherScope, Hash> const& other,
                                 cuda::stream_ref stream)
   {
     this->merge_async(other, stream);
@@ -343,12 +340,12 @@ class hyperloglog_ref {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] __device__ std::size_t estimate(
-    cooperative_groups::thread_block const& group) const noexcept
+  [[nodiscard]] __device__ size_t
+  estimate(cooperative_groups::thread_block const& group) const noexcept
   {
     __shared__ cuda::atomic<fp_type, cuda::thread_scope_block> block_sum;
     __shared__ cuda::atomic<int, cuda::thread_scope_block> block_zeroes;
-    __shared__ std::size_t estimate;
+    __shared__ size_t estimate;
 
     if (group.thread_rank() == 0) {
       new (&block_sum) decltype(block_sum){0};
@@ -405,7 +402,7 @@ class hyperloglog_ref {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] __host__ constexpr std::size_t estimate(cuda::stream_ref stream) const
+  [[nodiscard]] __host__ constexpr size_t estimate(cuda::stream_ref stream) const
   {
     auto const num_regs = 1ull << this->precision_;
     std::vector<register_type> host_sketch(num_regs);
@@ -460,7 +457,7 @@ class hyperloglog_ref {
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] __host__ __device__ constexpr std::size_t sketch_bytes() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr size_t sketch_bytes() const noexcept
   {
     return (1ull << this->precision_) * sizeof(register_type);
   }
@@ -472,12 +469,12 @@ class hyperloglog_ref {
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
+  [[nodiscard]] __host__ __device__ static constexpr size_t sketch_bytes(
     cuco::sketch_size_kb sketch_size_kb) noexcept
   {
     // minimum precision is 4 or 64 bytes
-    return cuda::std::max(static_cast<std::size_t>(sizeof(register_type) * 1ull << 4),
-                          cuda::std::bit_floor(static_cast<std::size_t>(sketch_size_kb * 1024)));
+    return cuda::std::max(static_cast<size_t>(sizeof(register_type) * 1ull << 4),
+                          cuda::std::bit_floor(static_cast<size_t>(sketch_size_kb * 1024)));
   }
 
   /**
@@ -510,7 +507,7 @@ class hyperloglog_ref {
    *
    * @return The required alignment
    */
-  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_alignment() noexcept
+  [[nodiscard]] __host__ __device__ static constexpr size_t sketch_alignment() noexcept
   {
     return alignof(register_type);
   }
@@ -565,6 +562,6 @@ class hyperloglog_ref {
   cuda::std::span<register_type> sketch_;  ///< HLL sketch storage
 
   template <class T_, cuda::thread_scope Scope_, class Hash_>
-  friend class hyperloglog_ref;
+  friend class hyperloglog_impl;
 };
 }  // namespace cuco::detail

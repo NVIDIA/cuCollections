@@ -95,9 +95,9 @@ ConfigureBench(HASH_FUNCTION_BENCH
   hash_function/hash_function_bench.cu)
 
 ###################################################################################################
-# - distinct_count_estimator benchmarks -----------------------------------------------------------
-ConfigureBench(DISTINCT_COUNT_ESTIMATOR_BENCH
-  distinct_count_estimator/distinct_count_estimator_bench.cu)
+# - hyperloglog benchmarks -----------------------------------------------------------
+ConfigureBench(HYPERLOGLOG_BENCH
+  hyperloglog/hyperloglog_bench.cu)
 
 ###################################################################################################
 # - bloom_filter benchmarks -----------------------------------------------------------------------
