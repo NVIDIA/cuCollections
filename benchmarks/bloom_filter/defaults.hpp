@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include "utils.hpp"
-
 #include <cuco/hash_functions.cuh>
 
 #include <nvbench/nvbench.cuh>
