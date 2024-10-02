@@ -70,6 +70,12 @@ void bloom_filter_add(nvbench::state& state,
 
   filter_type filter{num_sub_filters, {}, {static_cast<uint32_t>(pattern_bits)}};
 
+  state.collect_dram_throughput();
+  state.collect_l1_hit_rates();
+  state.collect_l2_hit_rates();
+  state.collect_loads_efficiency();
+  state.collect_stores_efficiency();
+
   add_fpr_summary(state, filter);
 
   state.exec([&](nvbench::launch& launch) {
