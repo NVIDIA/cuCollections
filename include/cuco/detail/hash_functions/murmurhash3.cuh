@@ -203,6 +203,26 @@ struct MurmurHash3_32 {
     return h1;
   }
 
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @note This API is to ensure backward compatibility with existing use cases using `std::byte`.
+   * Users are encouraged to use the appropriate `cuda::std::byte` overload whenever possible for
+   * better support and performance on the device.
+   *
+   * @tparam Extent The extent type
+   *
+   * @param bytes The input argument to hash
+   * @param size The extent of the data in bytes
+   * @return The resulting hash value
+   */
+  template <typename Extent>
+  constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
+                                                         Extent size) const noexcept
+  {
+    this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
+  }
+
  private:
   constexpr __host__ __device__ std::uint32_t rotl32(std::uint32_t x, std::int8_t r) const noexcept
   {
@@ -349,6 +369,26 @@ struct MurmurHash3_x64_128 {
     h2 += h1;
 
     return {h1, h2};
+  }
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @note This API is to ensure backward compatibility with existing use cases using `std::byte`.
+   * Users are encouraged to use the appropriate `cuda::std::byte` overload whenever possible for
+   * better support and performance on the device.
+   *
+   * @tparam Extent The extent type
+   *
+   * @param bytes The input argument to hash
+   * @param size The extent of the data in bytes
+   * @return The resulting hash value
+   */
+  template <typename Extent>
+  constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
+                                                         Extent size) const noexcept
+  {
+    this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
   }
 
  private:
@@ -546,6 +586,26 @@ struct MurmurHash3_x86_128 {
     h4 += h1;
 
     return {h1, h2, h3, h4};
+  }
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @note This API is to ensure backward compatibility with existing use cases using `std::byte`.
+   * Users are encouraged to use the appropriate `cuda::std::byte` overload whenever possible for
+   * better support and performance on the device.
+   *
+   * @tparam Extent The extent type
+   *
+   * @param bytes The input argument to hash
+   * @param size The extent of the data in bytes
+   * @return The resulting hash value
+   */
+  template <typename Extent>
+  constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
+                                                         Extent size) const noexcept
+  {
+    this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
   }
 
  private:
