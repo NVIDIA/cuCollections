@@ -39,6 +39,17 @@ auto dist_from_state(nvbench::state const& state)
   }
 }
 
+template <typename T, typename NewType>
+struct rebind_hasher;
+
+template <template <typename> class Template, typename OldType, typename NewType>
+struct rebind_hasher<Template<OldType>, NewType> {
+  using type = Template<NewType>;
+};
+
+template <typename T, typename NewType>
+using rebind_hasher_t = typename rebind_hasher<T, NewType>::type;
+
 }  // namespace cuco::benchmark
 
 NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::unique, "UNIQUE", "distribution::unique");

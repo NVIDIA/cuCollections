@@ -98,3 +98,9 @@ ConfigureBench(HASH_FUNCTION_BENCH
 # - hyperloglog benchmarks -----------------------------------------------------------
 ConfigureBench(HYPERLOGLOG_BENCH
   hyperloglog/hyperloglog_bench.cu)
+
+###################################################################################################
+# - bloom_filter benchmarks -----------------------------------------------------------------------
+ConfigureBench(BLOOM_FILTER_BENCH
+  bloom_filter/add_bench.cu
+  bloom_filter/contains_bench.cu)

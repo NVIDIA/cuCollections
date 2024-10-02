@@ -242,4 +242,11 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 - [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/hyperloglog/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/G4qdcTezE))
 - [Device-ref APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/hyperloglog/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/n88713o4n))
 
+### `bloom_filter`
+
+`cuco::bloom_filter` implements a Blocked Bloom Filter for approximate set membership queries.
+
+#### Examples:
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/bloom_filter/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/EY7T5v5aE))
+
 
