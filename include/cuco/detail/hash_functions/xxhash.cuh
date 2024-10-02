@@ -186,7 +186,7 @@ struct XXHash_32 {
   constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
                                                          Extent size) const noexcept
   {
-    this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
+    return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
   }
 
  private:
@@ -403,7 +403,7 @@ struct XXHash_64 {
   constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
                                                          Extent size) const noexcept
   {
-    this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
+    return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
   }
 
  private:

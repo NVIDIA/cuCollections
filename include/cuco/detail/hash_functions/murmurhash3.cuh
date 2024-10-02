@@ -220,7 +220,7 @@ struct MurmurHash3_32 {
   constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
                                                          Extent size) const noexcept
   {
-    this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
+    return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
   }
 
  private:
@@ -388,7 +388,7 @@ struct MurmurHash3_x64_128 {
   constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
                                                          Extent size) const noexcept
   {
-    this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
+    return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
   }
 
  private:
@@ -605,7 +605,7 @@ struct MurmurHash3_x86_128 {
   constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
                                                          Extent size) const noexcept
   {
-    this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
+    return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
   }
 
  private:
