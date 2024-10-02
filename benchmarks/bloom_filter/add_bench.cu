@@ -49,7 +49,7 @@ void bloom_filter_add(nvbench::state& state,
 
   auto const num_keys       = state.get_int64("NumInputs");
   auto const filter_size_mb = state.get_int64("FilterSizeMB");
-  auto const pattern_bits   = state.get_int64("PatternBits");
+  auto const pattern_bits   = state.get_int64_or_default("PatternBits", WordsPerBlock);
 
   try {
     auto const policy = policy_type{static_cast<uint32_t>(pattern_bits)};
@@ -93,8 +93,7 @@ NVBENCH_BENCH_TYPES(bloom_filter_add,
   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE)
-  .add_int64_axis("PatternBits", {defaults::BF_PATTERN_BITS});
+  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
 
 NVBENCH_BENCH_TYPES(bloom_filter_add,
                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
@@ -106,8 +105,7 @@ NVBENCH_BENCH_TYPES(bloom_filter_add,
   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB})
-  .add_int64_axis("PatternBits", {defaults::BF_PATTERN_BITS});
+  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
 
 NVBENCH_BENCH_TYPES(bloom_filter_add,
                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
@@ -119,5 +117,4 @@ NVBENCH_BENCH_TYPES(bloom_filter_add,
   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB})
-  .add_int64_axis("PatternBits", {defaults::BF_PATTERN_BITS});
+  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
