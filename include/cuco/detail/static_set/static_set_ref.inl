@@ -342,6 +342,20 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+template <typename NewHash>
+__host__ __device__ constexpr auto
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_hash_function(
+  NewHash const& hash) const
+{
+  return this->rebind_hash_function(hash);
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename CG, cuda::thread_scope NewScope>
 __device__ constexpr auto
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(

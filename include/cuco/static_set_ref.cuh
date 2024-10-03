@@ -271,6 +271,18 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ constexpr auto rebind_hash_function(NewHash const& hash) const;
 
   /**
+   * @brief Makes a copy of the current device reference with the given hasher
+   *
+   * @tparam NewHash The new hasher type
+   *
+   * @param hash New hasher
+   *
+   * @return Copy of the current device ref
+   */
+  template <typename NewHash>
+  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(NewHash const& hash) const;
+
+  /**
    * @brief Makes a copy of the current device reference using non-owned memory
    *
    * This function is intended to be used to create shared memory copies of small static sets,
