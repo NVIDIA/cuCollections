@@ -51,7 +51,7 @@ void bloom_filter_contains(
 
   auto const num_keys       = state.get_int64("NumInputs");
   auto const filter_size_mb = state.get_int64("FilterSizeMB");
-  auto const pattern_bits   = state.get_int64("PatternBits");
+  auto const pattern_bits   = state.get_int64_or_default("PatternBits", WordsPerBlock);
 
   try {
     auto const policy = policy_type{static_cast<uint32_t>(pattern_bits)};
@@ -73,6 +73,12 @@ void bloom_filter_contains(
 
   filter_type filter{num_sub_filters, {}, {static_cast<uint32_t>(pattern_bits)}};
 
+  state.collect_dram_throughput();
+  state.collect_l1_hit_rates();
+  state.collect_l2_hit_rates();
+  state.collect_loads_efficiency();
+  state.collect_stores_efficiency();
+
   add_fpr_summary(state, filter);
 
   filter.add(keys.begin(), keys.end());
@@ -92,8 +98,7 @@ NVBENCH_BENCH_TYPES(bloom_filter_contains,
   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE)
-  .add_int64_axis("PatternBits", {defaults::BF_PATTERN_BITS});
+  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
 
 NVBENCH_BENCH_TYPES(bloom_filter_contains,
                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
@@ -105,8 +110,7 @@ NVBENCH_BENCH_TYPES(bloom_filter_contains,
   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB})
-  .add_int64_axis("PatternBits", {defaults::BF_PATTERN_BITS});
+  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
 
 NVBENCH_BENCH_TYPES(bloom_filter_contains,
                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
@@ -118,5 +122,4 @@ NVBENCH_BENCH_TYPES(bloom_filter_contains,
   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB})
-  .add_int64_axis("PatternBits", {defaults::BF_PATTERN_BITS});
+  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
