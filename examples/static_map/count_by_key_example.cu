@@ -31,6 +31,8 @@
 /**
  * @file count_by_key_example.cu
  * @brief Demonstrates usage of the device side APIs for individual operations like insert/find in
+ *
+ *
  * the context of a count-by-key operation, i.e. for a histogram over keys.
  *
  * Individual operations like a single insert or find can be performed in device code via the
