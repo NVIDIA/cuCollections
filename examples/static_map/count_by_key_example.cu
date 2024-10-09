@@ -45,8 +45,11 @@
  * @brief Inserts keys and counts how often they occur in the input sequence.
  *
  * @tparam BlockSize CUDA block size
+ *
  * @tparam Map Type of the map device reference
+ *
  * @tparam KeyIter Input iterator whose value_type convertible to Map::key_type
+ *
  * @tparam UniqueIter Output iterator whose value_type is convertible to uint64_t
  *
  * @param[in] map_ref Reference of the map into which inserts will be performed
