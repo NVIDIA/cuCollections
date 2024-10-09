@@ -31,8 +31,6 @@
 /**
  * @file count_by_key_example.cu
  * @brief Demonstrates usage of the device side APIs for individual operations like insert/find in
- *
- *
  * the context of a count-by-key operation, i.e. for a histogram over keys.
  *
  * Individual operations like a single insert or find can be performed in device code via the
@@ -47,19 +45,13 @@
  * @brief Inserts keys and counts how often they occur in the input sequence.
  *
  * @tparam BlockSize CUDA block size
- *
  * @tparam Map Type of the map device reference
- *
  * @tparam KeyIter Input iterator whose value_type convertible to Map::key_type
- *
  * @tparam UniqueIter Output iterator whose value_type is convertible to uint64_t
  *
  * @param[in] map_ref Reference of the map into which inserts will be performed
- *
  * @param[in] key_begin The beginning of the range of keys to insert
- *
  * @param[in] num_keys The total number of keys and values
- *
  * @param[out] num_unique_keys The total number of distinct keys inserted
  */
 template <int64_t BlockSize, typename Map, typename KeyIter, typename UniqueIter>

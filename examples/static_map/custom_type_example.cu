@@ -24,13 +24,6 @@
 #include <thrust/transform.h>
 
 // User-defined key type
-// //
-//
-//
-//
-//
-//
-//
 struct custom_key_type {
   int32_t a;
   int32_t b;
@@ -76,7 +69,6 @@ int main(void)
       [] __device__(auto i) { return cuco::pair{custom_key_type{i}, custom_value_type{i}}; }));
 
   // Construct a map with 100,000 slots using the given empty key/value sentinels. Note the
-  //
   // capacity is chosen knowing we will insert 80,000 keys, for an load factor of 80%.
   auto map = cuco::static_map{cuco::extent<std::size_t, 100'000>{},
                               cuco::empty_key{empty_key_sentinel},
