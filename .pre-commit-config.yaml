@@ -25,6 +25,14 @@ repos:
                 language: system
                 pass_filenames: false
                 verbose: true
+              - id: godbolt-link
+                name: godbolt-link
+                entry: ./ci/pre-commit/update_links.py
+                files: ^examples/
+                types_or: [file]
+                language: system
+                pass_filenames: false
+                verbose: true
 
 default_language_version:
       python: python3
