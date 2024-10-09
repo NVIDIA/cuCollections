@@ -30,6 +30,7 @@
 //
 //
 //
+//
 struct custom_key_type {
   int32_t a;
   int32_t b;
