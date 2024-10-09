@@ -53,8 +53,11 @@
  * @tparam UniqueIter Output iterator whose value_type is convertible to uint64_t
  *
  * @param[in] map_ref Reference of the map into which inserts will be performed
+ *
  * @param[in] key_begin The beginning of the range of keys to insert
+ *
  * @param[in] num_keys The total number of keys and values
+ *
  * @param[out] num_unique_keys The total number of distinct keys inserted
  */
 template <int64_t BlockSize, typename Map, typename KeyIter, typename UniqueIter>
