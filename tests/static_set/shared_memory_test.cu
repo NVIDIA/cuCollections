@@ -45,7 +45,7 @@ __global__ void shared_memory_test_kernel(Ref* sets,
 
   auto g          = cuco::test::cg::this_thread_block();
   auto insert_ref = sets[set_id].make_copy(g, sm_buffer, cuco::thread_scope_block);
-  auto find_ref   = insert_ref.with_operators(cuco::op::find);
+  auto find_ref   = insert_ref.rebind_operators(cuco::op::find);
 
   for (int i = g.thread_rank(); i < number_of_elements; i += g.size()) {
     auto found_it = find_ref.find(insterted_keys[offset + i]);
@@ -176,11 +176,11 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
   auto const rank  = block.thread_rank();
 
   // insert {thread_rank, thread_rank} for each thread in thread-block
-  auto insert_ref = raw_ref.with_operators(cuco::op::insert);
+  auto insert_ref = raw_ref.rebind_operators(cuco::op::insert);
   insert_ref.insert(rank);
   block.sync();
 
-  auto find_ref           = insert_ref.with_operators(cuco::op::find);
+  auto find_ref           = insert_ref.rebind_operators(cuco::op::find);
   auto const retrieved_it = find_ref.find(rank);
   block.sync();
 
