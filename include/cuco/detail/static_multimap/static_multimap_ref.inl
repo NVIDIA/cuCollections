@@ -302,32 +302,6 @@ __host__ __device__ auto constexpr static_multimap_ref<
   KeyEqual,
   ProbingScheme,
   StorageRef,
-  Operators...>::with_operators(NewOperators...) const noexcept
-{
-  return static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
-    cuco::empty_key<Key>{this->empty_key_sentinel()},
-    cuco::empty_value<T>{this->empty_value_sentinel()},
-    this->key_eq(),
-    this->probing_scheme(),
-    {},
-    impl_.storage_ref()};
-}
-
-template <typename Key,
-          typename T,
-          cuda::thread_scope Scope,
-          typename KeyEqual,
-          typename ProbingScheme,
-          typename StorageRef,
-          typename... Operators>
-template <typename... NewOperators>
-__host__ __device__ auto constexpr static_multimap_ref<
-  Key,
-  T,
-  Scope,
-  KeyEqual,
-  ProbingScheme,
-  StorageRef,
   Operators...>::rebind_operators(NewOperators...) const noexcept
 {
   return static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
