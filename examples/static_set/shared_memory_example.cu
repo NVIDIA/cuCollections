@@ -47,7 +47,7 @@ __global__ void shmem_set_kernel(typename SetRef::extent_type window_extent,
 
   // The `set` object does not come with any functionality. We first have to transform it into an
   // object that supports the function we need (in this case `insert`).
-  auto insert_ref = set.with_operators(cuco::insert);
+  auto insert_ref = set.rebind_operators(cuco::insert);
 
   // Each thread inserts its thread id into the set.
   typename SetRef::key_type const key = block.thread_rank();
@@ -61,7 +61,7 @@ __global__ void shmem_set_kernel(typename SetRef::extent_type window_extent,
   // a new non-owning object based on the `insert_ref` that supports `contains` but no longer
   // supports `insert`.
   // CAVEAT: concurrent use of `insert_ref` and `contains_ref` is undefined behavior.
-  auto const contains_ref = insert_ref.with_operators(cuco::contains);
+  auto const contains_ref = insert_ref.rebind_operators(cuco::contains);
 
   // Check if all keys can be found
   if (not contains_ref.contains(key)) { printf("ERROR: Key %d not found\n", key); }
