@@ -135,12 +135,12 @@ def main():
         example_files = []
         for root, _, files in os.walk(os.path.join(repo_root, EXAMPLES_DIR)):
             for file_name in files:
-                if file_name.endswith('.cu') or file_name.endswith('.cuh'):
+                if file_name.endswith('.cu'):
                     example_files.append(os.path.relpath(os.path.join(root, file_name), repo_root))
     else:
         # Get the list of changed files between the current branch and the 'dev' branch
         changed_files = current_branch.commit.diff(dev_branch.commit)
-        example_files = [diff.b_path for diff in changed_files if diff.b_path.startswith(EXAMPLES_DIR) and (diff.b_path.endswith('.cu') or diff.b_path.endswith('.cuh'))]
+        example_files = [diff.b_path for diff in changed_files if diff.b_path.startswith(EXAMPLES_DIR) and (diff.b_path.endswith('.cu'))]
 
     # Iterate through the example files and create short links
     for file_path in example_files:
