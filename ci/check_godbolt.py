@@ -2,14 +2,11 @@
 
 import os
 import json
-import requests
 import git
 import re
 import argparse
-import json
 import zlib
 import base64
-import urllib.parse
 
 def open_file(file_path):
     with open(file_path, 'r') as file:
