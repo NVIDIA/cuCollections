@@ -6,6 +6,10 @@ import requests
 import git
 import re
 import argparse
+import json
+import zlib
+import base64
+import urllib.parse
 
 def open_file(file_path):
     with open(file_path, 'r') as file:
@@ -16,9 +20,9 @@ def write_file(file_path, data):
     with open(file_path, 'w') as file:
         file.write(data)
 
-def create_compiler_explorer_shortlink(file_path, COMPILER_ID, COMPILER_FLAGS):
+def create_compiler_explorer_url(file_path, COMPILER_ID, COMPILER_FLAGS):
     source_code = open_file(file_path)
-    # Step 1: Prepare the JSON payload
+    # Prepare the JSON payload
     payload = {
         "sessions": [
             {
@@ -45,27 +49,28 @@ def create_compiler_explorer_shortlink(file_path, COMPILER_ID, COMPILER_FLAGS):
         ]
     }
 
-    # Step 2: Send a POST request to the /api/shortener endpoint
-    url = 'https://godbolt.org/api/shortener'
-    headers = {'Content-Type': 'application/json'}
+    # Convert the payload to JSON
+    config_json = json.dumps(payload, separators=(',', ':'))
 
-    response = requests.post(url, headers=headers, data=json.dumps(payload))
+    # Compress the JSON using zlib (deflate)
+    compressed = zlib.compress(config_json.encode('utf-8'))
 
-    # Step 3: Parse the response
-    if response.status_code == 200:
-        data = response.json()
-        short_url = data.get('url')
-        if short_url:
-            return short_url
-        else:
-            print("Error: Short URL not found in response.")
-            return None
-    else:
-        print(f"Error: Request failed with status code {response.status_code}")
-        print(f"Response: {response.text}")
-        return None
+    # Base64 encode the compressed data
+    encoded = base64.urlsafe_b64encode(compressed).decode('utf-8')
 
-def update_readme_with_shortlinks(readme_path, shortlink_table):
+    # Replace problematic unicode characters
+    # As per the documentation, map characters in the range \u007F-\uFFFF
+    encoded = ''.join(
+        c if '\u0000' <= c <= '\u007F' else '\\u{:04x}'.format(ord(c))
+        for c in encoded
+    )
+
+    # Construct the final URL
+    url = f'https://godbolt.org/clientstate/{encoded}'
+
+    return url
+
+def update_readme_with_urls(readme_path, url_table):
     # Open and read the README.md file
     readme_content = open_file(readme_path)
     lines = readme_content.splitlines()
@@ -74,14 +79,14 @@ def update_readme_with_shortlinks(readme_path, shortlink_table):
     # Iterate through each line of the README
     for line in lines:
         updated_line = line
-        # Check each file in the shortlink_table
-        for file_name, shortlink in shortlink_table.items():
+        # Check each file in the url_table
+        for file_name, url in url_table.items():
             # Check if the file name exists in the line
             if file_name in line:
                 # Look for the specific godbolt link format and replace the URL
                 updated_line = re.sub(
                     r"\(see \[live example in godbolt\]\(https?://[^\)]+\)\)",
-                    f"(see [live example in godbolt]({shortlink}))",
+                    f"(see [live example in godbolt]({url}))",
                     line
                 )
         updated_lines.append(updated_line)
@@ -96,7 +101,7 @@ EXAMPLES_DIR = "examples"  # Path to the examples directory relative to the repo
 
 def main():
     # Parse command-line arguments
-    parser = argparse.ArgumentParser(description="Generate shortlinks for example CUDA files.")
+    parser = argparse.ArgumentParser(description="Generate urls for example CUDA files.")
     parser.add_argument('--force', action='store_true', help="Generate new links for all example files, even if unchanged.")
     args = parser.parse_args()
 
@@ -126,8 +131,8 @@ def main():
     # Get the 'dev' branch from the remote
     dev_branch = remote.refs.dev
 
-    # Initialize a hash table (dictionary) to store file shortlinks
-    shortlink_table = {}
+    # Initialize a hash table (dictionary) to store file urls
+    url_table = {}
 
     # Determine which files to process based on the --force flag
     if args.force:
@@ -145,14 +150,14 @@ def main():
     # Iterate through the example files and create short links
     for file_path in example_files:
         full_file_path = os.path.join(repo_root, file_path)
-        shortlink = create_compiler_explorer_shortlink(full_file_path, COMPILER_ID, COMPILER_FLAGS)
-        if shortlink:
-            shortlink_table[file_path] = shortlink  # Store the file and its shortlink in the hash table
-            print(f"File: {file_path}: Shortlink: {shortlink}")
+        url = create_compiler_explorer_url(full_file_path, COMPILER_ID, COMPILER_FLAGS)
+        if url:
+            url_table[file_path] = url  # Store the file and its url in the hash table
+            print(f"File: {file_path}: url: {url}")
 
-    # Update README.md with the shortlinks
+    # Update README.md with the urls
     readme_path = os.path.join(repo_root, "README.md")
-    update_readme_with_shortlinks(readme_path, shortlink_table)
+    update_readme_with_urls(readme_path, url_table)
 
 if __name__ == "__main__":
     main()
