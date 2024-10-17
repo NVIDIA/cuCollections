@@ -989,14 +989,13 @@ class open_addressing_ref_impl {
    * Use `count()` to determine the size of the output range.
    *
    * @tparam BlockSize Size of the thread block this operation is executed in
-   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
+   * @tparam InputProbeIt Device accessible input iterator
    * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
+   * convertible to the `InputProbeIt`'s `value_type`
    * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
    * convertible to the container's `value_type`
-   * @tparam AtomicCounter Atomic counter type that follows the same semantics as
-   * `cuda::atomic(_ref)`
+   * @tparam AtomicCounter Integral atomic counter type that follows the same semantics as
+   * `cuda::(std::)atomic(_ref)`
    *
    * @param block Thread block this operation is executed in
    * @param input_probe_begin Beginning of the input sequence of keys
@@ -1004,8 +1003,8 @@ class open_addressing_ref_impl {
    * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
    * `output_match`
    * @param output_match Beginning of the sequence of matching elements
-   * @param atomic_counter Counter that is used to determine the next free position in the output
-   * sequences
+   * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
+   * number of output elements
    */
   template <int32_t BlockSize,
             class InputProbeIt,
@@ -1039,14 +1038,13 @@ class open_addressing_ref_impl {
    * to the output sequence.
    *
    * @tparam BlockSize Size of the thread block this operation is executed in
-   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
+   * @tparam InputProbeIt Device accessible input iterator
    * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
+   * convertible to the `InputProbeIt`'s `value_type`
    * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
    * convertible to the container's `value_type`
-   * @tparam AtomicCounter Atomic counter type that follows the same semantics as
-   * `cuda::atomic(_ref)`
+   * @tparam AtomicCounter Integral atomic counter type that follows the same semantics as
+   * `cuda::(std::)atomic(_ref)`
    *
    * @param block Thread block this operation is executed in
    * @param input_probe_begin Beginning of the input sequence of keys
@@ -1054,8 +1052,8 @@ class open_addressing_ref_impl {
    * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
    * `output_match`
    * @param output_match Beginning of the sequence of matching elements
-   * @param atomic_counter Counter that is used to determine the next free position in the output
-   * sequences
+   * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
+   * number of output elements
    */
   template <int32_t BlockSize,
             class InputProbeIt,
@@ -1090,14 +1088,13 @@ class open_addressing_ref_impl {
    *
    * @tparam IsOuter Flag indicating if an inner or outer retrieve operation should be performed
    * @tparam BlockSize Size of the thread block this operation is executed in
-   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
+   * @tparam InputProbeIt Device accessible input iterator
    * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
+   * convertible to the `InputProbeIt`'s `value_type`
    * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
    * convertible to the container's `value_type`
-   * @tparam AtomicCounter Atomic counter type that follows the same semantics as
-   * `cuda::atomic(_ref)`
+   * @tparam AtomicCounter Integral atomic type that follows the same semantics as
+   * `cuda::(std::)atomic(_ref)`
    *
    * @param block Thread block this operation is executed in
    * @param input_probe_begin Beginning of the input sequence of keys
@@ -1105,8 +1102,8 @@ class open_addressing_ref_impl {
    * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
    * `output_match`
    * @param output_match Beginning of the sequence of matching elements
-   * @param atomic_counter Counter that is used to determine the next free position in the output
-   * sequences
+   * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
+   * number of output elements
    */
   template <bool IsOuter,
             int32_t BlockSize,

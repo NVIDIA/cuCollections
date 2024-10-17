@@ -399,7 +399,34 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
   }
 }
 
-// TODO docs
+/**
+ * @brief Retrieves the equivalent container elements of all keys in the range `[input_probe,
+ * input_probe + n)`.
+ *
+ * If key `k = *(input_probe + i)` has one or more matches in the container, copies `k` to
+ * `output_probe` and associated slot contents to `output_match`, respectively. The output order is
+ * unspecified.
+ *
+ * @tparam IsOuter Flag indicating whether it's an outer count or not
+ * @tparam block_size The size of the thread block
+ * @tparam InputProbeIt Device accessible input iterator
+ * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+ * convertible to the `InputProbeIt`'s `value_type`
+ * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+ * convertible to the container's `value_type`
+ * @tparam AtomicCounter Integral atomic type that follows the same semantics as
+ * `cuda::(std::)atomic(_ref)`
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param input_probe Beginning of the sequence of input keys
+ * @param n Number of the keys to query
+ * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+ * `output_match`
+ * @param output_match Beginning of the sequence of matching elements
+ * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
+ * number of output elements
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
 template <bool IsOuter,
           int32_t BlockSize,
           class InputProbeIt,

@@ -487,10 +487,9 @@ class static_multiset {
    *
    * This function synchronizes the given CUDA stream.
    *
-   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
+   * @tparam InputProbeIt Device accessible input iterator
    * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
+   * convertible to the `InputProbeIt`'s `value_type`
    * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
    * convertible to the container's `value_type`
    *
@@ -524,10 +523,9 @@ class static_multiset {
    *
    * This function synchronizes the given CUDA stream.
    *
-   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
+   * @tparam InputProbeIt Device accessible input iterator
    * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
+   * convertible to the `InputProbeIt`'s `value_type`
    * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
    * convertible to the container's `value_type`
    *
