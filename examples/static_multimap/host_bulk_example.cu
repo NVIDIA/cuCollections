@@ -35,6 +35,7 @@ int main(void)
 
   // Constructs a multimap with 100,000 slots using -1 and -1 as the empty key/value
   // sentinels. Note the capacity is chosen knowing we will insert 50,000 keys,
+  //
   // for an load factor of 50%.
   cuco::static_multimap<key_type, value_type> map{
     N * 2, cuco::empty_key{empty_key_sentinel}, cuco::empty_value{empty_value_sentinel}};
