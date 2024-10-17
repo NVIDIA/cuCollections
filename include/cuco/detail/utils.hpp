@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,20 +18,20 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/utility/cuda.hpp>
 
-#include <iterator>
-#include <type_traits>
+#include <cuda/std/iterator>
+#include <cuda/std/type_traits>
 
 namespace cuco {
 namespace detail {
 
 template <typename Iterator>
-constexpr inline index_type distance(Iterator begin, Iterator end)
+__host__ __device__ constexpr inline index_type distance(Iterator begin, Iterator end)
 {
-  using category = typename std::iterator_traits<Iterator>::iterator_category;
-  static_assert(std::is_base_of_v<std::random_access_iterator_tag, category>,
+  using category = typename cuda::std::iterator_traits<Iterator>::iterator_category;
+  static_assert(cuda::std::is_base_of_v<cuda::std::random_access_iterator_tag, category>,
                 "Input iterator should be a random access iterator.");
   // `int64_t` instead of arch-dependant `long int`
-  return static_cast<index_type>(std::distance(begin, end));
+  return static_cast<index_type>(cuda::std::distance(begin, end));
 }
 
 /**

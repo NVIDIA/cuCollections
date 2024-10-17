@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/utility/math.hpp>
+#include <cuco/detail/utility/math.cuh>
 
 #include <algorithm>
 #include <array>

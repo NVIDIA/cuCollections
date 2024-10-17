@@ -18,7 +18,7 @@
 
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/prime.hpp>  // TODO move to detail/extent/
-#include <cuco/detail/utility/math.hpp>
+#include <cuco/detail/utility/math.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/utility/fast_int.cuh>
 

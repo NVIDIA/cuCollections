@@ -575,6 +575,91 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
+   *
+   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
+   * slot contents to `output_match`, respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count()` to determine the size of the output range.
+   *
+   * This function synchronizes the given CUDA stream.
+   *
+   * @tparam InputProbeIt Device accessible input iterator
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the `InputProbeIt`'s `value_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the input sequence of keys
+   * @param last End of the input sequence of keys
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param container_ref Non-owning device reference to the container
+   * @param stream CUDA stream this operation is executed in
+   *
+   * @return Iterator pair indicating the the end of the output sequences
+   */
+  template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt, class Ref>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve(InputProbeIt first,
+                                                   InputProbeIt last,
+                                                   OutputProbeIt output_probe,
+                                                   OutputMatchIt output_match,
+                                                   Ref container_ref,
+                                                   cuda::stream_ref stream) const
+  {
+    auto constexpr is_outer = false;
+    return this->retrieve_impl<is_outer>(
+      first, last, output_probe, output_match, container_ref, stream);
+  }
+
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
+   *
+   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
+   * slot contents to `output_match`, respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count_outer()` to determine the size of the output range.
+   *
+   * If a key `k` has no matches in the container, then `{key, empty_slot_sentinel}` will be added
+   * to the output sequence.
+   *
+   * This function synchronizes the given CUDA stream.
+   *
+   * @tparam InputProbeIt Device accessible input iterator
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the `InputProbeIt`'s `value_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the input sequence of keys
+   * @param last End of the input sequence of keys
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param container_ref Non-owning device reference to the container
+   * @param stream CUDA stream this operation is executed in
+   *
+   * @return Iterator pair indicating the the end of the output sequences
+   */
+  template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt, class Ref>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_outer(InputProbeIt first,
+                                                         InputProbeIt last,
+                                                         OutputProbeIt output_probe,
+                                                         OutputMatchIt output_match,
+                                                         Ref container_ref,
+                                                         cuda::stream_ref stream) const
+  {
+    auto constexpr is_outer = true;
+    return this->retrieve_impl<is_outer>(
+      first, last, output_probe, output_match, container_ref, stream);
+  }
+
+  /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the container
    *
    * @tparam Input Device accessible input iterator
@@ -994,6 +1079,67 @@ class open_addressing_impl {
         first, num_keys, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
+  }
+
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
+   *
+   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
+   * slot contents to `output_match`, respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count()/count_outer()` to determine the size of the output range.
+   *
+   * If `IsOuter == true` and a key `k` has no matches in the container, then `{key,
+   * empty_slot_sentinel}` will be added to the output sequence.
+   *
+   * This function synchronizes the given CUDA stream.
+   *
+   * @tparam IsOuter Flag indicating if an inner or outer retrieve operation should be performed
+   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the input sequence of keys
+   * @param last End of the input sequence of keys
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param container_ref Non-owning device reference to the container
+   * @param stream CUDA stream this operation is executed in
+   *
+   * @return Iterator pair indicating the the end of the output sequences
+   */
+  template <bool IsOuter, class InputProbeIt, class OutputProbeIt, class OutputMatchIt, class Ref>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_impl(InputProbeIt first,
+                                                        InputProbeIt last,
+                                                        OutputProbeIt output_probe,
+                                                        OutputMatchIt output_match,
+                                                        Ref container_ref,
+                                                        cuda::stream_ref stream) const
+  {
+    auto const n = detail::distance(first, last);
+    if (n == 0) { return {output_probe, output_match}; }
+
+    using counter_type = detail::counter_storage<size_type, thread_scope, allocator_type>;
+    auto counter       = counter_type{this->allocator()};
+    counter.reset(stream.get());
+
+    int32_t constexpr block_size = cuco::detail::default_block_size();
+
+    auto constexpr grid_stride = 1;
+    auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);
+
+    detail::retrieve<IsOuter, block_size><<<grid_size, block_size, 0, stream.get()>>>(
+      first, n, output_probe, output_match, counter.data(), container_ref);
+
+    auto const num_retrieved = counter.load_to_host(stream.get());
+
+    return {output_probe + num_retrieved, output_match + num_retrieved};
   }
 
   /**

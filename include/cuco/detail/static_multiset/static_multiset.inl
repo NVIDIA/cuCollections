@@ -284,6 +284,46 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt>
+std::pair<OutputProbeIt, OutputMatchIt>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
+  InputProbeIt first,
+  InputProbeIt last,
+  OutputProbeIt output_probe,
+  OutputMatchIt output_match,
+  cuda::stream_ref stream) const
+{
+  return this->impl_->retrieve(
+    first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt>
+std::pair<OutputProbeIt, OutputMatchIt>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_outer(
+  InputProbeIt first,
+  InputProbeIt last,
+  OutputProbeIt output_probe,
+  OutputMatchIt output_match,
+  cuda::stream_ref stream) const
+{
+  return this->impl_->retrieve_outer(
+    first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename InputIt>
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
