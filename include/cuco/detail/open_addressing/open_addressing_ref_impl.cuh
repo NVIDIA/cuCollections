@@ -17,7 +17,7 @@
 #pragma once
 
 #include <cuco/detail/equal_wrapper.cuh>
-#include <cuco/detail/probing_scheme_base.cuh>
+#include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/pair.cuh>
@@ -110,6 +110,7 @@ class open_addressing_ref_impl {
  public:
   using key_type            = Key;                                     ///< Key type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
+  using hasher              = typename probing_scheme_type::hasher;    ///< Hash function type
   using storage_ref_type    = StorageRef;                              ///< Type of storage ref
   using window_type         = typename storage_ref_type::window_type;  ///< Window type
   using value_type          = typename storage_ref_type::value_type;   ///< Storage element type
@@ -213,8 +214,8 @@ class open_addressing_ref_impl {
    *
    * @return The key equality predicate
    */
-  [[nodiscard]] __device__ constexpr detail::equal_wrapper<key_type, key_equal> const& predicate()
-    const noexcept
+  [[nodiscard]] __host__ __device__ constexpr detail::equal_wrapper<key_type, key_equal> const&
+  predicate() const noexcept
   {
     return this->predicate_;
   }
@@ -234,9 +235,20 @@ class open_addressing_ref_impl {
    *
    * @return The probing scheme used for the container
    */
-  [[nodiscard]] __device__ constexpr probing_scheme_type const& probing_scheme() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr probing_scheme_type const& probing_scheme()
+    const noexcept
   {
     return probing_scheme_;
+  }
+
+  /**
+   * @brief Gets the function(s) used to hash keys
+   *
+   * @return The function(s) used to hash keys
+   */
+  [[nodiscard]] __host__ __device__ constexpr hasher hash_function() const noexcept
+  {
+    return this->probing_scheme().hash_function();
   }
 
   /**
@@ -244,7 +256,7 @@ class open_addressing_ref_impl {
    *
    * @return The non-owning storage ref of the container
    */
-  [[nodiscard]] __device__ constexpr storage_ref_type const& storage_ref() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr storage_ref_type const& storage_ref() const noexcept
   {
     return storage_ref_;
   }
@@ -744,7 +756,7 @@ class open_addressing_ref_impl {
    * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
    * false.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
    *
@@ -777,7 +789,7 @@ class open_addressing_ref_impl {
    * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
    * false.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
@@ -885,7 +897,7 @@ class open_addressing_ref_impl {
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
    *
@@ -923,7 +935,7 @@ class open_addressing_ref_impl {
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
@@ -1289,17 +1301,16 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Executes a callback on every element in the container with key equivalent to the probe
-   * key.
+   * @brief For a given key, applies the function object `callback_op` to the copy of all
+   * corresponding matches found in the container.
    *
-   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
-   * `key` to the callback.
+   * @note The return value of `callback_op`, if any, is ignored.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
-   * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Type of unary callback function object
    *
    * @param key The key to search for
-   * @param callback_op Function to call on every element found
+   * @param callback_op Function to apply to every matched slot
    */
   template <class ProbeKey, class CallbackOp>
   __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
@@ -1318,7 +1329,7 @@ class open_addressing_ref_impl {
             return;
           }
           case detail::equal_result::EQUAL: {
-            callback_op(const_iterator{&(*(this->storage_ref_.data() + *probing_iter))[i]});
+            callback_op(window_slots[i]);
             continue;
           }
           default: continue;
@@ -1329,24 +1340,23 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Executes a callback on every element in the container with key equivalent to the probe
-   * key.
-   *
-   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
-   * `key` to the callback.
+   * @brief For a given key, applies the function object `callback_op` to the copy of all
+   * corresponding matches found in the container.
    *
    * @note This function uses cooperative group semantics, meaning that any thread may call the
    * callback if it finds a matching element. If multiple elements are found within the same group,
    * each thread with a match will call the callback with its associated element.
    *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
    * @note Synchronizing `group` within `callback_op` is undefined behavior.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
-   * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Type of unary callback function object
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
-   * @param callback_op Function to call on every element found
+   * @param callback_op Function to apply to every matched slot
    */
   template <class ProbeKey, class CallbackOp>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
@@ -1368,7 +1378,7 @@ class open_addressing_ref_impl {
             continue;
           }
           case detail::equal_result::EQUAL: {
-            callback_op(const_iterator{&(*(this->storage_ref_.data() + *probing_iter))[i]});
+            callback_op(window_slots[i]);
             continue;
           }
           default: {
@@ -1383,12 +1393,9 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Executes a callback on every element in the container with key equivalent to the probe
-   * key and can additionally perform work that requires synchronizing the Cooperative Group
-   * performing this operation.
-   *
-   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
-   * `key` to the callback.
+   * @brief Applies the function object `callback_op` to the copy of every slot in the container
+   * with key equivalent to the probe key and can additionally perform work that requires
+   * synchronizing the Cooperative Group performing this operation.
    *
    * @note This function uses cooperative group semantics, meaning that any thread may call the
    * callback if it finds a matching element. If multiple elements are found within the same group,
@@ -1396,18 +1403,20 @@ class open_addressing_ref_impl {
    *
    * @note Synchronizing `group` within `callback_op` is undefined behavior.
    *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
    * @note The `sync_op` function can be used to perform work that requires synchronizing threads in
    * `group` inbetween probing steps, where the number of probing steps performed between
    * synchronization points is capped by `window_size * cg_size`. The functor will be called right
    * after the current probing window has been traversed.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
-   * @tparam CallbackOp Unary callback functor or device lambda
-   * @tparam SyncOp Functor or device lambda which accepts the current `group` object
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Type of unary callback function object
+   * @tparam SyncOp Type of function object which accepts the current `group` object
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
-   * @param callback_op Function to call on every element found
+   * @param callback_op Function to apply to every matched slot
    * @param sync_op Function that is allowed to synchronize `group` inbetween probing windows
    */
   template <class ProbeKey, class CallbackOp, class SyncOp>
@@ -1431,7 +1440,7 @@ class open_addressing_ref_impl {
             continue;
           }
           case detail::equal_result::EQUAL: {
-            callback_op(const_iterator{&(*(this->storage_ref_.data() + *probing_iter))[i]});
+            callback_op(window_slots[i]);
             continue;
           }
           default: {
@@ -1456,7 +1465,8 @@ class open_addressing_ref_impl {
    * @return The key
    */
   template <typename Value>
-  [[nodiscard]] __device__ constexpr auto const& extract_key(Value const& value) const noexcept
+  [[nodiscard]] __host__ __device__ constexpr auto const& extract_key(
+    Value const& value) const noexcept
   {
     if constexpr (this->has_payload) {
       return thrust::raw_reference_cast(value).first;

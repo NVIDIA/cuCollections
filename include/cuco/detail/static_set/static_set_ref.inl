@@ -117,6 +117,24 @@ __host__ __device__ constexpr static_set_ref<Key,
                                              KeyEqual,
                                              ProbingScheme,
                                              StorageRef,
+                                             Operators...>::hasher
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::hash_function()
+  const noexcept
+{
+  return impl_.hash_function();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr static_set_ref<Key,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
                                              Operators...>::const_iterator
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::end() const noexcept
 {
@@ -151,6 +169,32 @@ static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::c
   const noexcept
 {
   return impl_.capacity();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr auto
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::storage_ref()
+  const noexcept
+{
+  return this->impl_.storage_ref();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr auto
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::probing_scheme()
+  const noexcept
+{
+  return this->impl_.probing_scheme();
 }
 
 template <typename Key,
@@ -204,30 +248,16 @@ template <typename Key,
           typename StorageRef,
           typename... Operators>
 template <typename... NewOperators>
-auto static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
-  NewOperators...) && noexcept
-{
-  return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
-    std::move(*this)};
-}
-
-template <typename Key,
-          cuda::thread_scope Scope,
-          typename KeyEqual,
-          typename ProbingScheme,
-          typename StorageRef,
-          typename... Operators>
-template <typename... NewOperators>
 __host__ __device__ constexpr auto
-static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_operators(
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::rebind_operators(
   NewOperators...) const noexcept
 {
   return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     this->key_eq(),
-    this->impl_.probing_scheme(),
+    this->probing_scheme(),
     {},
-    this->impl_.storage_ref()};
+    this->storage_ref()};
 }
 
 template <typename Key,
@@ -238,15 +268,15 @@ template <typename Key,
           typename... Operators>
 template <typename NewKeyEqual>
 __host__ __device__ constexpr auto
-static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_key_eq(
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::rebind_key_eq(
   NewKeyEqual const& key_equal) const noexcept
 {
   return static_set_ref<Key, Scope, NewKeyEqual, ProbingScheme, StorageRef, Operators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     key_equal,
-    this->impl_.probing_scheme(),
+    this->probing_scheme(),
     {},
-    this->impl_.storage_ref()};
+    this->storage_ref()};
 }
 
 template <typename Key,
@@ -257,20 +287,20 @@ template <typename Key,
           typename... Operators>
 template <typename NewHash>
 __host__ __device__ constexpr auto
-static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_hash_function(
-  NewHash const& hash) const noexcept
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::rebind_hash_function(
+  NewHash const& hash) const
 {
-  auto const probing_scheme = this->impl_.probing_scheme().with_hash_function(hash);
+  auto const probing_scheme = this->probing_scheme().rebind_hash_function(hash);
   return static_set_ref<Key,
                         Scope,
                         KeyEqual,
                         cuda::std::decay_t<decltype(probing_scheme)>,
                         StorageRef,
                         Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
-                                      this->impl_.key_eq(),
+                                      this->key_eq(),
                                       probing_scheme,
                                       {},
-                                      this->impl_.storage_ref()};
+                                      this->storage_ref()};
 }
 
 template <typename Key,
@@ -291,7 +321,7 @@ static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::m
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     cuco::erased_key<Key>{this->erased_key_sentinel()},
     this->key_eq(),
-    this->impl_.probing_scheme(),
+    this->probing_scheme(),
     scope,
     storage_ref_type{this->window_extent(), memory_to_use}};
 }
@@ -503,7 +533,7 @@ class operator_impl<op::contains_tag,
    * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
    * false.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
    *
@@ -522,7 +552,7 @@ class operator_impl<op::contains_tag,
    * @note If the probe key `key` was inserted into the container, returns true. Otherwise, returns
    * false.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
@@ -563,7 +593,7 @@ class operator_impl<op::find_tag,
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
    *
@@ -583,7 +613,7 @@ class operator_impl<op::find_tag,
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for

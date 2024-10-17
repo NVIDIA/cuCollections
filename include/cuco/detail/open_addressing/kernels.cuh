@@ -183,6 +183,46 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void erase(InputIt first,
 }
 
 /**
+ * @brief For each key in the range [first, first + n), applies the function object `callback_op` to
+ * the copy of all corresponding matches found in the container.
+ *
+ * @note The return value of `callback_op`, if any, is ignored.
+ *
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIt Device accessible input iterator whose `value_type` is
+ * convertible to the `key_type` of the data structure
+ * @tparam CallbackOp Type of unary callback function object
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param callback_op Function to call on every matched slot found in the container
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
+template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename CallbackOp, typename Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void for_each_n(InputIt first,
+                                                         cuco::detail::index_type n,
+                                                         CallbackOp callback_op,
+                                                         Ref ref)
+{
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
+
+  while (idx < n) {
+    typename std::iterator_traits<InputIt>::value_type const& key{*(first + idx)};
+    if constexpr (CGSize == 1) {
+      ref.for_each(key, callback_op);
+    } else {
+      auto const tile =
+        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+      ref.for_each(tile, key, callback_op);
+    }
+    idx += loop_stride;
+  }
+}
+
+/**
  * @brief Indicates whether the keys in the range `[first, first + n)` are contained in the data
  * structure if `pred` of the corresponding stencil returns true.
  *
@@ -230,7 +270,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
 
   __shared__ bool output_buffer[BlockSize / CGSize];
 
-  while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
+  while ((idx - thread_idx / CGSize) < n) {  // the whole thread block falls into the same iteration
     if constexpr (CGSize == 1) {
       if (idx < n) {
         typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
@@ -331,7 +371,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
     }
   });
 
-  while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
+  while ((idx - thread_idx / CGSize) < n) {  // the whole thread block falls into the same iteration
     if constexpr (CGSize == 1) {
       if (idx < n) {
         typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
@@ -462,7 +502,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_and_find(InputIt first,
   __shared__ output_type output_location_buffer[BlockSize / CGSize];
   __shared__ bool output_inserted_buffer[BlockSize / CGSize];
 
-  while (idx - thread_idx < n) {  // the whole thread block falls into the same iteration
+  while ((idx - thread_idx / CGSize) < n) {  // the whole thread block falls into the same iteration
     if constexpr (CGSize == 1) {
       if (idx < n) {
         typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};

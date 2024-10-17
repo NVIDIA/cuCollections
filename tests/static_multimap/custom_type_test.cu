@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 
 #include <cuco/static_multimap.cuh>
 
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
@@ -25,11 +26,8 @@
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
-#include <thrust/tuple.h>
 
 #include <catch2/catch_template_test_macros.hpp>
-
-#include <tuple>
 
 // User-defined key type
 struct key_pair {
@@ -48,7 +46,7 @@ struct hash_key_pair {
 struct key_pair_equals {
   __device__ bool operator()(const key_pair& lhs, const key_pair& rhs)
   {
-    return std::tie(lhs.a, lhs.b) == std::tie(rhs.a, rhs.b);
+    return cuda::std::tie(lhs.a, lhs.b) == cuda::std::tie(rhs.a, rhs.b);
   }
 };
 

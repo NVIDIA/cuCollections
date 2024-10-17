@@ -74,6 +74,7 @@ class static_set_ref
  public:
   using key_type            = Key;                                     ///< Key Type
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
+  using hasher              = typename probing_scheme_type::hasher;    ///< Hash function type
   using storage_ref_type    = StorageRef;                              ///< Type of storage ref
   using window_type         = typename storage_ref_type::window_type;  ///< Window type
   using value_type          = typename storage_ref_type::value_type;   ///< Storage element type
@@ -168,6 +169,13 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ constexpr key_equal key_eq() const noexcept;
 
   /**
+   * @brief Gets the function(s) used to hash keys
+   *
+   * @return The function(s) used to hash keys
+   */
+  [[nodiscard]] __host__ __device__ constexpr hasher hash_function() const noexcept;
+
+  /**
    * @brief Returns a const_iterator to one past the last slot.
    *
    * @return A const_iterator to one past the last slot
@@ -182,42 +190,34 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept;
 
   /**
-   * @brief Creates a reference with new operators from the current object.
+   * @brief Gets the non-owning storage ref.
    *
-   * @deprecated This function is deprecated. Use the new `with_operators` instead.
-   *
-   * Note that this function uses move semantics and thus invalidates the current object.
-   *
-   * @warning Using two or more reference objects to the same container but with
-   * a different operator set at the same time results in undefined behavior.
-   *
-   * @tparam NewOperators List of `cuco::op::*_tag` types
-   *
-   * @param ops List of operators, e.g., `cuco::insert`
-   *
-   * @return `*this` with `NewOperators...`
+   * @return The non-owning storage ref of the container
    */
-  template <typename... NewOperators>
-  [[nodiscard]] __host__ __device__ auto with(NewOperators... ops) && noexcept;
+  [[nodiscard]] __host__ __device__ constexpr auto storage_ref() const noexcept;
 
   /**
-   * @brief Creates a reference with new operators from the current object
+   * @brief Gets the probing scheme.
    *
-   * @warning Using two or more reference objects to the same container but with
-   * a different operator set at the same time results in undefined behavior.
+   * @return The probing scheme used for the container
+   */
+  [[nodiscard]] __host__ __device__ constexpr auto probing_scheme() const noexcept;
+
+  /**
+   * @brief Creates a copy of the current non-owning reference using the given operators
    *
    * @tparam NewOperators List of `cuco::op::*_tag` types
    *
-   * @param ops List of operators, e.g., `cuco::insert`
+   * @param ops List of operators, e.g., `cuco::op::insert`
    *
-   * @return `*this` with `NewOperators...`
+   * @return Copy of the current device ref
    */
   template <typename... NewOperators>
-  [[nodiscard]] __host__ __device__ constexpr auto with_operators(
+  [[nodiscard]] __host__ __device__ constexpr auto rebind_operators(
     NewOperators... ops) const noexcept;
 
   /**
-   * @brief Makes a copy of the current device reference with given key comparator
+   * @brief Makes a copy of the current device reference with the given key comparator
    *
    * @tparam NewKeyEqual The new key equal type
    *
@@ -226,11 +226,11 @@ class static_set_ref
    * @return Copy of the current device ref
    */
   template <typename NewKeyEqual>
-  [[nodiscard]] __host__ __device__ constexpr auto with_key_eq(
+  [[nodiscard]] __host__ __device__ constexpr auto rebind_key_eq(
     NewKeyEqual const& key_equal) const noexcept;
 
   /**
-   * @brief Makes a copy of the current device reference with given hasher
+   * @brief Makes a copy of the current device reference with the given hasher
    *
    * @tparam NewHash The new hasher type
    *
@@ -239,8 +239,7 @@ class static_set_ref
    * @return Copy of the current device ref
    */
   template <typename NewHash>
-  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(
-    NewHash const& hash) const noexcept;
+  [[nodiscard]] __host__ __device__ constexpr auto rebind_hash_function(NewHash const& hash) const;
 
   /**
    * @brief Makes a copy of the current device reference using non-owned memory

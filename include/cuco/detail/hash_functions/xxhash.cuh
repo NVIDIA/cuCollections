@@ -19,7 +19,8 @@
 #include <cuco/detail/hash_functions/utils.cuh>
 #include <cuco/extent.cuh>
 
-#include <cstddef>
+#include <cuda/std/cstddef>
+
 #include <cstdint>
 
 namespace cuco::detail {
@@ -91,10 +92,10 @@ struct XXHash_32 {
   {
     if constexpr (sizeof(Key) <= 16) {
       Key const key_copy = key;
-      return compute_hash(reinterpret_cast<std::byte const*>(&key_copy),
+      return compute_hash(reinterpret_cast<cuda::std::byte const*>(&key_copy),
                           cuco::extent<std::size_t, sizeof(Key)>{});
     } else {
-      return compute_hash(reinterpret_cast<std::byte const*>(&key),
+      return compute_hash(reinterpret_cast<cuda::std::byte const*>(&key),
                           cuco::extent<std::size_t, sizeof(Key)>{});
     }
   }
@@ -109,7 +110,7 @@ struct XXHash_32 {
    * @return The resulting hash value
    */
   template <typename Extent>
-  constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
+  constexpr result_type __host__ __device__ compute_hash(cuda::std::byte const* bytes,
                                                          Extent size) const noexcept
   {
     std::size_t offset = 0;
@@ -159,13 +160,33 @@ struct XXHash_32 {
     // the following loop is only needed if the size of the key is not a multiple of the block size
     if (size % 4) {
       while (offset < size) {
-        h32 += (std::to_integer<std::uint32_t>(bytes[offset]) & 255) * prime5;
+        h32 += (cuda::std::to_integer<std::uint32_t>(bytes[offset]) & 255) * prime5;
         h32 = rotl32(h32, 11) * prime1;
         ++offset;
       }
     }
 
     return finalize(h32);
+  }
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @note This API is to ensure backward compatibility with existing use cases using `std::byte`.
+   * Users are encouraged to use the appropriate `cuda::std::byte` overload whenever possible for
+   * better support and performance on the device.
+   *
+   * @tparam Extent The extent type
+   *
+   * @param bytes The input argument to hash
+   * @param size The extent of the data in bytes
+   * @return The resulting hash value
+   */
+  template <typename Extent>
+  constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
+                                                         Extent size) const noexcept
+  {
+    return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
   }
 
  private:
@@ -254,10 +275,10 @@ struct XXHash_64 {
   {
     if constexpr (sizeof(Key) <= 16) {
       Key const key_copy = key;
-      return compute_hash(reinterpret_cast<std::byte const*>(&key_copy),
+      return compute_hash(reinterpret_cast<cuda::std::byte const*>(&key_copy),
                           cuco::extent<std::size_t, sizeof(Key)>{});
     } else {
-      return compute_hash(reinterpret_cast<std::byte const*>(&key),
+      return compute_hash(reinterpret_cast<cuda::std::byte const*>(&key),
                           cuco::extent<std::size_t, sizeof(Key)>{});
     }
   }
@@ -272,7 +293,7 @@ struct XXHash_64 {
    * @return The resulting hash value
    */
   template <typename Extent>
-  constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
+  constexpr result_type __host__ __device__ compute_hash(cuda::std::byte const* bytes,
                                                          Extent size) const noexcept
   {
     std::size_t offset = 0;
@@ -357,12 +378,32 @@ struct XXHash_64 {
     // block size
     if (size % 4) {
       while (offset < size) {
-        h64 ^= (std::to_integer<std::uint32_t>(bytes[offset]) & 0xff) * prime5;
+        h64 ^= (cuda::std::to_integer<std::uint32_t>(bytes[offset]) & 0xff) * prime5;
         h64 = rotl64(h64, 11) * prime1;
         ++offset;
       }
     }
     return finalize(h64);
+  }
+
+  /**
+   * @brief Returns a hash value for its argument, as a value of type `result_type`.
+   *
+   * @note This API is to ensure backward compatibility with existing use cases using `std::byte`.
+   * Users are encouraged to use the appropriate `cuda::std::byte` overload whenever possible for
+   * better support and performance on the device.
+   *
+   * @tparam Extent The extent type
+   *
+   * @param bytes The input argument to hash
+   * @param size The extent of the data in bytes
+   * @return The resulting hash value
+   */
+  template <typename Extent>
+  constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
+                                                         Extent size) const noexcept
+  {
+    return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
   }
 
  private:

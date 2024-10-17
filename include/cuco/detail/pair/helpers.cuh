@@ -15,10 +15,11 @@
 
 #pragma once
 
+#include <cuda/functional>
 #include <cuda/std/bit>
 #include <cuda/std/type_traits>
 
-#include <algorithm>
+#include <cstdint>
 
 namespace cuco::detail {
 
@@ -30,8 +31,8 @@ namespace cuco::detail {
 template <typename First, typename Second>
 __host__ __device__ constexpr std::size_t pair_alignment()
 {
-  // TODO: migrate to cuda::std::min once bumping to CCCL 2.3
-  return std::min(std::size_t{16}, cuda::std::bit_ceil(sizeof(First) + sizeof(Second)));
+  constexpr std::size_t alignment = cuda::std::bit_ceil(sizeof(First) + sizeof(Second));
+  return cuda::std::min(std::size_t{16}, alignment);
 }
 
 /**

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,14 @@
 
 #pragma once
 
+#include <cuda/std/cstddef>
+
 namespace cuco::detail {
 
 template <typename T, typename U, typename Extent>
 constexpr __host__ __device__ T load_chunk(U const* const data, Extent index) noexcept
 {
-  auto const bytes = reinterpret_cast<std::byte const*>(data);
+  auto const bytes = reinterpret_cast<cuda::std::byte const*>(data);
   T chunk;
   memcpy(&chunk, bytes + index * sizeof(T), sizeof(T));
   return chunk;

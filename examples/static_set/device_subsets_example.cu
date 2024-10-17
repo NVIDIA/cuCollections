@@ -64,7 +64,7 @@ using ref_type         = cuco::static_set_ref<key_type,
                                               storage_ref_type>;  ///< Set ref type
 
 /// Sample data to insert and query
-__device__ constexpr std::array<key_type, N> data = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19};
+__device__ constexpr cuda::std::array<key_type, N> data = {1, 3, 5, 7, 9, 11, 13, 15, 17, 19};
 /// Empty slots are represented by reserved "sentinel" values. These values should be selected such
 /// that they never occur in your input data.
 key_type constexpr empty_key_sentinel = -1;
@@ -85,7 +85,7 @@ __global__ void insert(ref_type* set_refs)
   auto const idx = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
   auto raw_set_ref    = *(set_refs + idx);
-  auto insert_set_ref = raw_set_ref.with_operators(cuco::insert);
+  auto insert_set_ref = raw_set_ref.rebind_operators(cuco::insert);
 
   // Insert `N` elemtns into the set with CG insert
   for (int i = 0; i < N; i++) {
@@ -109,7 +109,7 @@ __global__ void find(ref_type* set_refs)
   auto const idx  = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
   auto raw_set_ref  = *(set_refs + idx);
-  auto find_set_ref = raw_set_ref.with_operators(cuco::find);
+  auto find_set_ref = raw_set_ref.rebind_operators(cuco::find);
 
   // Result denoting if any of the inserted data is not found
   __shared__ int result;

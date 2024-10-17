@@ -21,6 +21,7 @@
 
 #include <cuda/atomic>
 #include <cuda/std/functional>
+#include <cuda/std/utility>
 
 #include <cooperative_groups.h>
 
@@ -135,6 +136,26 @@ __host__ __device__ constexpr static_multimap_ref<Key,
                                                   KeyEqual,
                                                   ProbingScheme,
                                                   StorageRef,
+                                                  Operators...>::hasher
+static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  hash_function() const noexcept
+{
+  return impl_.hash_function();
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr static_multimap_ref<Key,
+                                                  T,
+                                                  Scope,
+                                                  KeyEqual,
+                                                  ProbingScheme,
+                                                  StorageRef,
                                                   Operators...>::const_iterator
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::end()
   const noexcept
@@ -174,6 +195,34 @@ static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operator
   const noexcept
 {
   return impl_.capacity();
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr auto
+static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::storage_ref()
+  const noexcept
+{
+  return this->impl_.storage_ref();
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr auto
+static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  probing_scheme() const noexcept
+{
+  return this->impl_.probing_scheme();
 }
 
 template <typename Key,
@@ -246,11 +295,22 @@ template <typename Key,
           typename StorageRef,
           typename... Operators>
 template <typename... NewOperators>
-auto static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
-  NewOperators...) && noexcept
+__host__ __device__ auto constexpr static_multimap_ref<
+  Key,
+  T,
+  Scope,
+  KeyEqual,
+  ProbingScheme,
+  StorageRef,
+  Operators...>::rebind_operators(NewOperators...) const noexcept
 {
   return static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
-    std::move(*this)};
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
+    cuco::empty_value<T>{this->empty_value_sentinel()},
+    this->key_eq(),
+    impl_.probing_scheme(),
+    {},
+    this->storage_ref()};
 }
 
 template <typename Key,
@@ -260,23 +320,45 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
-template <typename... NewOperators>
-__host__ __device__ auto constexpr static_multimap_ref<
-  Key,
-  T,
-  Scope,
-  KeyEqual,
-  ProbingScheme,
-  StorageRef,
-  Operators...>::with_operators(NewOperators...) const noexcept
+template <typename NewKeyEqual>
+__host__ __device__ constexpr auto
+static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  rebind_key_eq(NewKeyEqual const& key_equal) const noexcept
 {
-  return static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
+  return static_multimap_ref<Key, T, Scope, NewKeyEqual, ProbingScheme, StorageRef, Operators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     cuco::empty_value<T>{this->empty_value_sentinel()},
-    this->key_eq(),
-    impl_.probing_scheme(),
+    key_equal,
+    this->probing_scheme(),
     {},
-    impl_.storage_ref()};
+    this->storage_ref()};
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename NewHash>
+__host__ __device__ constexpr auto
+static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  rebind_hash_function(NewHash const& hash) const
+{
+  auto const probing_scheme = this->probing_scheme().rebind_hash_function(hash);
+  return static_multimap_ref<Key,
+                             T,
+                             Scope,
+                             KeyEqual,
+                             cuda::std::decay_t<decltype(probing_scheme)>,
+                             StorageRef,
+                             Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
+                                           cuco::empty_value<T>{this->empty_value_sentinel()},
+                                           this->key_eq(),
+                                           probing_scheme,
+                                           {},
+                                           this->storage_ref()};
 }
 
 template <typename Key,
@@ -403,7 +485,7 @@ class operator_impl<
    * @note If the probe key `key` was inserted into the container, returns
    * true. Otherwise, returns false.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
    *
@@ -423,7 +505,7 @@ class operator_impl<
    * @note If the probe key `key` was inserted into the container, returns
    * true. Otherwise, returns false.
    *
-   * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
@@ -438,5 +520,171 @@ class operator_impl<
     return ref_.impl_.contains(group, key);
   }
 };
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::for_each_tag,
+  static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type =
+    static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+
+  static constexpr auto cg_size = base_type::cg_size;
+
+ public:
+  /**
+   * @brief Executes a callback on every element in the container with key equivalent to the probe
+   * key.
+   *
+   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
+   * `key` to the callback.
+   *
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Unary callback functor or device lambda
+   *
+   * @param key The key to search for
+   * @param callback_op Function to call on every element found
+   */
+  template <class ProbeKey, class CallbackOp>
+  __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.for_each(key, cuda::std::forward<CallbackOp>(callback_op));
+  }
+
+  /**
+   * @brief Executes a callback on every element in the container with key equivalent to the probe
+   * key.
+   *
+   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
+   * `key` to the callback.
+   *
+   * @note This function uses cooperative group semantics, meaning that any thread may call the
+   * callback if it finds a matching element. If multiple elements are found within the same group,
+   * each thread with a match will call the callback with its associated element.
+   *
+   * @note Synchronizing `group` within `callback_op` is undefined behavior.
+   *
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Unary callback functor or device lambda
+   *
+   * @param group The Cooperative Group used to perform this operation
+   * @param key The key to search for
+   * @param callback_op Function to call on every element found
+   */
+  template <class ProbeKey, class CallbackOp>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+                           ProbeKey const& key,
+                           CallbackOp&& callback_op) const noexcept
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.for_each(group, key, cuda::std::forward<CallbackOp>(callback_op));
+  }
+
+  /**
+   * @brief Executes a callback on every element in the container with key equivalent to the probe
+   * key and can additionally perform work that requires synchronizing the Cooperative Group
+   * performing this operation.
+   *
+   * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
+   * `key` to the callback.
+   *
+   * @note This function uses cooperative group semantics, meaning that any thread may call the
+   * callback if it finds a matching element. If multiple elements are found within the same group,
+   * each thread with a match will call the callback with its associated element.
+   *
+   * @note Synchronizing `group` within `callback_op` is undefined behavior.
+   *
+   * @note The `sync_op` function can be used to perform work that requires synchronizing threads in
+   * `group` inbetween probing steps, where the number of probing steps performed between
+   * synchronization points is capped by `window_size * cg_size`. The functor will be called right
+   * after the current probing window has been traversed.
+   *
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam SyncOp Functor or device lambda which accepts the current `group` object
+   *
+   * @param group The Cooperative Group used to perform this operation
+   * @param key The key to search for
+   * @param callback_op Function to call on every element found
+   * @param sync_op Function that is allowed to synchronize `group` inbetween probing windows
+   */
+  template <class ProbeKey, class CallbackOp, class SyncOp>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+                           ProbeKey const& key,
+                           CallbackOp&& callback_op,
+                           SyncOp&& sync_op) const noexcept
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.for_each(
+      group, key, cuda::std::forward<CallbackOp>(callback_op), cuda::std::forward<SyncOp>(sync_op));
+  }
+};
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::count_tag,
+  static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type =
+    static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type   = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+  using size_type  = typename base_type::size_type;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief Counts the occurrence of a given key contained in multimap
+   *
+   * @tparam ProbeKey Input type
+   *
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  __device__ size_type count(ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.count(key);
+  }
+
+  /**
+   * @brief Counts the occurrence of a given key contained in multimap
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param group The Cooperative Group used to perform group count
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  __device__ size_type count(cooperative_groups::thread_block_tile<cg_size> const& group,
+                             ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.count(group, key);
+  }
+};
+
 }  // namespace detail
 }  // namespace cuco

@@ -37,6 +37,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <type_traits>
 #include <utility>
 
 namespace cuco {
@@ -126,6 +127,7 @@ class static_map {
   /// Non-owning window storage ref type
   using storage_ref_type    = typename impl_type::storage_ref_type;
   using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
+  using hasher              = typename probing_scheme_type::hasher;     ///< Hash function type
 
   using mapped_type = T;  ///< Payload type
   template <typename... Operators>
@@ -314,6 +316,61 @@ class static_map {
   void insert_async(InputIt first, InputIt last, cuda::stream_ref stream = {}) noexcept;
 
   /**
+   * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
+   * true.
+   *
+   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   * @note This function synchronizes the given stream and returns the number of successful
+   * insertions. For asynchronous execution use `insert_if_async`.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for the operation
+   *
+   * @return Number of successful insertions
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  size_type insert_if(
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
+
+  /**
+   * @brief Asynchronously inserts keys in the range `[first, last)` if `pred` of the corresponding
+   * stencil returns true.
+   *
+   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
+   *
+   * @tparam InputIt Device accessible random access iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for the operation
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  void insert_if_async(InputIt first,
+                       InputIt last,
+                       StencilIt stencil,
+                       Predicate pred,
+                       cuda::stream_ref stream = {}) noexcept;
+
+  /**
    * @brief Asynchronously inserts all elements in the range `[first, last)`.
    *
    * @note: For a given element `*(first + i)`, if the container doesn't already contain an element
@@ -368,61 +425,6 @@ class static_map {
                        FoundIt found_begin,
                        InsertedIt inserted_begin,
                        cuda::stream_ref stream = {});
-
-  /**
-   * @brief Inserts keys in the range `[first, last)` if `pred` of the corresponding stencil returns
-   * true.
-   *
-   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
-   * @note This function synchronizes the given stream and returns the number of successful
-   * insertions. For asynchronous execution use `insert_if_async`.
-   *
-   * @tparam InputIt Device accessible random access iterator whose `value_type` is
-   * convertible to the container's `value_type`
-   * @tparam StencilIt Device accessible random access iterator whose value_type is
-   * convertible to Predicate's argument type
-   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
-   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
-   *
-   * @param first Beginning of the sequence of key/value pairs
-   * @param last End of the sequence of key/value pairs
-   * @param stencil Beginning of the stencil sequence
-   * @param pred Predicate to test on every element in the range `[stencil, stencil +
-   * std::distance(first, last))`
-   * @param stream CUDA stream used for the operation
-   *
-   * @return Number of successful insertions
-   */
-  template <typename InputIt, typename StencilIt, typename Predicate>
-  size_type insert_if(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
-
-  /**
-   * @brief Asynchronously inserts keys in the range `[first, last)` if `pred` of the corresponding
-   * stencil returns true.
-   *
-   * @note The key `*(first + i)` is inserted if `pred( *(stencil + i) )` returns true.
-   *
-   * @tparam InputIt Device accessible random access iterator whose `value_type` is
-   * convertible to the container's `value_type`
-   * @tparam StencilIt Device accessible random access iterator whose value_type is
-   * convertible to Predicate's argument type
-   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
-   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
-   *
-   * @param first Beginning of the sequence of key/value pairs
-   * @param last End of the sequence of key/value pairs
-   * @param stencil Beginning of the stencil sequence
-   * @param pred Predicate to test on every element in the range `[stencil, stencil +
-   * std::distance(first, last))`
-   * @param stream CUDA stream used for the operation
-   */
-  template <typename InputIt, typename StencilIt, typename Predicate>
-  void insert_if_async(InputIt first,
-                       InputIt last,
-                       StencilIt stencil,
-                       Predicate pred,
-                       cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief For any key-value pair `{k, v}` in the range `[first, last)`, if a key equivalent to `k`
@@ -494,6 +496,34 @@ class static_map {
    * object on the existing value at slot and the element to insert. If the key does not exist,
    * inserts the pair as if by insert.
    *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `insert_or_apply_async`.
+   * @note Callable object to perform binary operation should be able to invoke as
+   *  Op(cuda::atomic_ref<T, Scope>, T>)
+   * @note There could be performance improvements if `init` value passed here equals to the
+   *  `sentinel value` of the map.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_map<K, V>::value_type></tt> is `true`
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type used to peform `apply` operation.
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param init The identity value of the op
+   * @param op Callable object to perform apply operation.
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt, typename Init, typename Op>
+  void insert_or_apply(InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream = {});
+
+  /**
+   * @brief For any key-value pair `{k, v}` in the range `[first, first + n)`, if a key equivalent
+   * to `k` already exists in the container, then binary operation is applied using `op` callable
+   * object on the existing value at slot and the element to insert. If the key does not exist,
+   * inserts the pair as if by insert.
+   *
    * @note Callable object to perform binary operation should be able to invoke as
    *  Op(cuda::atomic_ref<T, Scope>, T>)
    *
@@ -512,6 +542,36 @@ class static_map {
                              InputIt last,
                              Op op,
                              cuda::stream_ref stream = {}) noexcept;
+
+  /**
+   * @brief For any key-value pair `{k, v}` in the range `[first, first + n)`, if a key equivalent
+   * to `k` already exists in the container, then binary operation is applied using `op` callable
+   * object on the existing value at slot and the element to insert. If the key does not exist,
+   * inserts the pair as if by insert.
+   *
+   * @note Callable object to perform binary operation should be able to invoke as
+   *  Op(cuda::atomic_ref<T, Scope>, T>)
+   * @note There could be performance improvements if `init` value passed here equals to the
+   *  `sentinel value` of the map.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * static_map<K, V>::value_type></tt> is `true`
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type used to peform `apply` operation.
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param init The identity value of the op
+   * @param op Callable object to perform apply operation.
+   * @param stream CUDA stream used for insert
+   */
+  template <typename InputIt,
+            typename Init,
+            typename Op,
+            typename = std::enable_if_t<std::is_convertible_v<Init, T>>>
+  void insert_or_apply_async(
+    InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Erases keys in the range `[first, last)`.
@@ -708,6 +768,74 @@ class static_map {
                   cuda::stream_ref stream = {}) const;
 
   /**
+   * @brief Applies the given function object `callback_op` to the copy of every filled slot in the
+   * container
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param callback_op Function to apply to the copy of the matched key-value pair
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename CallbackOp>
+  void for_each(CallbackOp&& callback_op, cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchronously applies the given function object `callback_op` to the copy of every
+   * filled slot in the container
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param callback_op Function to apply to the copy of the matched key-value pair
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename CallbackOp>
+  void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief For each key in the range [first, last), applies the function object `callback_op` to
+   * the copy of all corresponding matches found in the container.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param callback_op Function to apply to the copy of the matched key-value pair
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename CallbackOp>
+  void for_each(InputIt first,
+                InputIt last,
+                CallbackOp&& callback_op,
+                cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief For each key in the range [first, last), asynchronously applies the function object
+   * `callback_op` to the copy of all corresponding matches found in the container.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param callback_op Function to apply to the copy of the matched key-value pair
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename CallbackOp>
+  void for_each_async(InputIt first,
+                      InputIt last,
+                      CallbackOp&& callback_op,
+                      cuda::stream_ref stream = {}) const noexcept;
+
+  /**
    * @brief Retrieves all of the keys and their associated values.
    *
    * @note This API synchronizes the given stream.
@@ -826,6 +954,20 @@ class static_map {
   [[nodiscard]] constexpr key_type erased_key_sentinel() const noexcept;
 
   /**
+   * @brief Gets the function used to compare keys for equality
+   *
+   * @return The function used to compare keys for equality
+   */
+  [[nodiscard]] constexpr key_equal key_eq() const noexcept;
+
+  /**
+   * @brief Gets the function(s) used to hash keys
+   *
+   * @return The function(s) used to hash keys
+   */
+  [[nodiscard]] constexpr hasher hash_function() const noexcept;
+
+  /**
    * @brief Get device ref with operators.
    *
    * @tparam Operators Set of `cuco::op` to be provided by the ref
@@ -841,6 +983,18 @@ class static_map {
   std::unique_ptr<impl_type> impl_;   ///< Static map implementation
   mapped_type empty_value_sentinel_;  ///< Sentinel value that indicates an empty payload
 };
+
+namespace experimental {
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+class dynamic_map;
+}
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;

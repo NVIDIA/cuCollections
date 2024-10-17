@@ -206,8 +206,8 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 #### Examples:
 - [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/96re4zhjo))
 - [Device-ref APIs for individual operations](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/7aKWdGTfx))
-- [One single storage for multiple sets](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_subsets_example.cu) (see [live example in godbolt](https://godbolt.org/z/sMfqGxdha))
-- [Using shared memory as storage](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/shared_memory_example.cu) (see [live example in godbolt](https://godbolt.org/z/zdTnbE1q5))
+- [One single storage for multiple sets](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/device_subsets_example.cu) (see [live example in godbolt](https://godbolt.org/z/7f9KW44P4))
+- [Using shared memory as storage](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/shared_memory_example.cu) (see [live example in godbolt](https://godbolt.org/z/Ws5c71T4z))
 - [Using set as mapping table to handle large keys or indeterministic sentinels](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_set/mapping_table_example.cu) (see [live example in godbolt](https://godbolt.org/z/KfYo4nMss))
 
 ### `static_map`
@@ -234,12 +234,19 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 #### Examples:
 - [Host-bulk APIs (TODO)]()
 
-### `distinct_count_estimator`
+### `hyperloglog`
 
-`cuco::distinct_count_estimator` implements the well-established [HyperLogLog++ algorithm](https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf) for approximating the count of distinct items in a multiset/stream.
+`cuco::hyperloglog` implements the well-established [HyperLogLog++ algorithm](https://static.googleusercontent.com/media/research.google.com/de//pubs/archive/40671.pdf) for approximating the count of distinct items in a multiset/stream.
 
 #### Examples:
-- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/distinct_count_estimator/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/sMfofM6qd))
-- [Device-ref APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/distinct_count_estimator/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/156T9ox7h))
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/hyperloglog/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/G4qdcTezE))
+- [Device-ref APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/hyperloglog/device_ref_example.cu) (see [live example in godbolt](https://godbolt.org/z/n88713o4n))
+
+### `bloom_filter`
+
+`cuco::bloom_filter` implements a Blocked Bloom Filter for approximate set membership queries.
+
+#### Examples:
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/bloom_filter/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/EY7T5v5aE))
 
 

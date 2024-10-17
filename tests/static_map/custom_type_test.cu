@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -154,7 +154,7 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
                               insert_values.end(),
                               found_values.begin(),
                               cuda::proclaim_return_type<bool>([] __device__(Value lhs, Value rhs) {
-                                return std::tie(lhs.f, lhs.s) == std::tie(rhs.f, rhs.s);
+                                return cuda::std::tie(lhs.f, lhs.s) == cuda::std::tie(rhs.f, rhs.s);
                               })));
   }
 

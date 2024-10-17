@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,12 @@
 #include <cuco/detail/__config>
 #include <cuco/hash_functions.cuh>
 
+#include <cuda/std/cstddef>
+#include <cuda/std/limits>
 #include <thrust/device_vector.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
-
-#include <cstddef>
 
 template <int32_t Words>
 struct large_key {
@@ -56,15 +56,15 @@ __global__ void check_identity_hash_result_kernel(OutputIter result)
 
   result[i++] = check_hash_result<cuco::identity_hash<signed char>>(0, 0);
   result[i++] = check_hash_result<cuco::identity_hash<signed char>>(
-    std::numeric_limits<signed char>::max(), std::numeric_limits<signed char>::max());
+    cuda::std::numeric_limits<signed char>::max(), cuda::std::numeric_limits<signed char>::max());
 
   result[i++] = check_hash_result<cuco::identity_hash<int32_t>>(0, 0);
   result[i++] = check_hash_result<cuco::identity_hash<int32_t>>(
-    std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::max());
+    cuda::std::numeric_limits<int32_t>::max(), cuda::std::numeric_limits<int32_t>::max());
 
   result[i++] = check_hash_result<cuco::identity_hash<int64_t>>(0, 0);
   result[i++] = check_hash_result<cuco::identity_hash<int64_t>>(
-    std::numeric_limits<int64_t>::max(), std::numeric_limits<int64_t>::max());
+    cuda::std::numeric_limits<int64_t>::max(), cuda::std::numeric_limits<int64_t>::max());
 }
 
 TEST_CASE("Test cuco::identity_hash", "")
@@ -73,15 +73,16 @@ TEST_CASE("Test cuco::identity_hash", "")
   {
     CHECK(check_hash_result<cuco::identity_hash<signed char>>(0, 0));
     CHECK(check_hash_result<cuco::identity_hash<signed char>>(
-      std::numeric_limits<signed char>::max(), std::numeric_limits<signed char>::max()));
+      cuda::std::numeric_limits<signed char>::max(),
+      cuda::std::numeric_limits<signed char>::max()));
 
     CHECK(check_hash_result<cuco::identity_hash<int32_t>>(0, 0));
-    CHECK(check_hash_result<cuco::identity_hash<int32_t>>(std::numeric_limits<int32_t>::max(),
-                                                          std::numeric_limits<int32_t>::max()));
+    CHECK(check_hash_result<cuco::identity_hash<int32_t>>(
+      cuda::std::numeric_limits<int32_t>::max(), cuda::std::numeric_limits<int32_t>::max()));
 
     CHECK(check_hash_result<cuco::identity_hash<int64_t>>(0, 0));
-    CHECK(check_hash_result<cuco::identity_hash<int64_t>>(std::numeric_limits<int64_t>::max(),
-                                                          std::numeric_limits<int64_t>::max()));
+    CHECK(check_hash_result<cuco::identity_hash<int64_t>>(
+      cuda::std::numeric_limits<int64_t>::max(), cuda::std::numeric_limits<int64_t>::max()));
   }
   SECTION("Check if device-generated hash values match the identity function.")
   {
@@ -238,7 +239,7 @@ TEMPLATE_TEST_CASE_SIG("Static vs. dynamic key hash test",
   SECTION("Identical keys with static and dynamic key size should have the same hash value.")
   {
     CHECK(hash(key) ==
-          hash.compute_hash(reinterpret_cast<std::byte const*>(&key), sizeof(key_type)));
+          hash.compute_hash(reinterpret_cast<cuda::std::byte const*>(&key), sizeof(key_type)));
   }
 }
 

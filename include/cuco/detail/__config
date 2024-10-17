@@ -17,6 +17,7 @@
 #pragma once
 
 #include <nv/target>
+#include <cuda/std/version>
 
 #if !defined(__CUDACC_VER_MAJOR__) || !defined(__CUDACC_VER_MINOR__)
 #error "NVCC version not found"
@@ -24,12 +25,12 @@
 #error "NVCC version 11.5 or later is required"
 #endif
 
-#if !defined(__CUDACC_RELAXED_CONSTEXPR__)
-#error "Support for relaxed constexpr is required (nvcc flag --expt-relaxed-constexpr)"
-#endif
-
 #if !defined(__CUDACC_EXTENDED_LAMBDA__)
 #error "Support for extended device lambdas is required (nvcc flag --expt-extended-lambda)"
+#endif
+
+#if !defined(CCCL_VERSION) || (CCCL_VERSION < 2005000)
+#error "CCCL version 2.5.0 or later is required"
 #endif
 
 // WAR for libcudacxx/296

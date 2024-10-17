@@ -152,11 +152,11 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
-void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
 {
-  this->insert_if_async(first, last, stencil, pred, stream);
-  stream.wait();
+  return impl_->insert_if(first, last, stencil, pred, ref(op::insert), stream);
 }
 
 template <class Key,
@@ -329,7 +329,7 @@ template <class Key,
 template <typename InputIt>
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
-  InputIt first, InputIt last, cuda::stream_ref stream) const noexcept
+  InputIt first, InputIt last, cuda::stream_ref stream) const
 {
   return impl_->count(first, last, ref(op::count), stream);
 }
@@ -348,12 +348,13 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt last,
   ProbeKeyEqual const& probe_key_equal,
   ProbeHash const& probe_hash,
-  cuda::stream_ref stream) const noexcept
+  cuda::stream_ref stream) const
 {
-  return impl_->count(first,
-                      last,
-                      ref(op::count).with_key_eq(probe_key_equal).with_hash_function(probe_hash),
-                      stream);
+  return impl_->count(
+    first,
+    last,
+    ref(op::count).rebind_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
+    stream);
 }
 
 template <class Key,
@@ -370,12 +371,12 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt last,
   ProbeKeyEqual const& probe_key_equal,
   ProbeHash const& probe_hash,
-  cuda::stream_ref stream) const noexcept
+  cuda::stream_ref stream) const
 {
   return impl_->count_outer(
     first,
     last,
-    ref(op::count).with_key_eq(probe_key_equal).with_hash_function(probe_hash),
+    ref(op::count).rebind_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
     stream);
 }
 
@@ -433,6 +434,35 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   erased_key_sentinel() const noexcept
 {
   return impl_->erased_key_sentinel();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+constexpr static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  key_equal
+  static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_eq()
+    const noexcept
+{
+  return impl_->key_eq();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+constexpr static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::hasher
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::hash_function()
+  const noexcept
+{
+  return impl_->hash_function();
 }
 
 template <class Key,

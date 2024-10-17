@@ -39,7 +39,7 @@ function(ConfigureTest TEST_NAME)
     set_target_properties(${TEST_NAME} PROPERTIES
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     target_compile_options(${TEST_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      --expt-extended-lambda --expt-relaxed-constexpr -Xcompiler -Wno-subobject-linkage)
+      --expt-extended-lambda -Xcompiler -Wno-subobject-linkage)
     catch_discover_tests(${TEST_NAME} EXTRA_ARGS --allow-running-no-tests)
 endfunction(ConfigureTest)
 
@@ -77,6 +77,7 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/custom_type_test.cu
     static_map/duplicate_keys_test.cu
     static_map/erase_test.cu
+    static_map/for_each_test.cu
     static_map/hash_test.cu
     static_map/heterogeneous_lookup_test.cu
     static_map/insert_and_find_test.cu
@@ -92,6 +93,7 @@ ConfigureTest(STATIC_MAP_TEST
 # - dynamic_map tests -----------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_MAP_TEST
     dynamic_map/unique_sequence_test.cu
+    dynamic_map/unique_sequence_test_experimental.cu
     dynamic_map/erase_test.cu)
 
 ###################################################################################################
@@ -108,14 +110,16 @@ ConfigureTest(STATIC_MULTISET_TEST
 ###################################################################################################
 # - static_multimap tests -------------------------------------------------------------------------
 ConfigureTest(STATIC_MULTIMAP_TEST
+    static_multimap/count_test.cu
     static_multimap/custom_pair_retrieve_test.cu
     static_multimap/custom_type_test.cu
     static_multimap/heterogeneous_lookup_test.cu
-    static_multimap/insert_test.cu
+    static_multimap/insert_contains_test.cu
     static_multimap/insert_if_test.cu
     static_multimap/multiplicity_test.cu
     static_multimap/non_match_test.cu
-    static_multimap/pair_function_test.cu)
+    static_multimap/pair_function_test.cu
+    static_multimap/for_each_test.cu)
 
 ###################################################################################################
 # - dynamic_bitset tests --------------------------------------------------------------------------
@@ -127,8 +131,13 @@ ConfigureTest(DYNAMIC_BITSET_TEST
     dynamic_bitset/size_test.cu)
 
 ###################################################################################################
-# - distinct_count_estimator ----------------------------------------------------------------------
-ConfigureTest(DISTINCT_COUNT_ESTIMATOR_TEST
-    distinct_count_estimator/unique_sequence_test.cu
-    distinct_count_estimator/spark_parity_test.cu
-    distinct_count_estimator/device_ref_test.cu)
+# - hyperloglog ----------------------------------------------------------------------
+ConfigureTest(HYPERLOGLOG_TEST
+    hyperloglog/unique_sequence_test.cu
+    hyperloglog/spark_parity_test.cu
+    hyperloglog/device_ref_test.cu)
+
+###################################################################################################
+# - bloom_filter ----------------------------------------------------------------------------------
+ConfigureTest(BLOOM_FILTER_TEST
+    bloom_filter/unique_sequence_test.cu)

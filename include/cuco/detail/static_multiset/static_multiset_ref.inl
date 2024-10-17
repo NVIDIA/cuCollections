@@ -114,11 +114,55 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+__host__ __device__ constexpr static_multiset_ref<Key,
+                                                  Scope,
+                                                  KeyEqual,
+                                                  ProbingScheme,
+                                                  StorageRef,
+                                                  Operators...>::hasher
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::hash_function()
+  const noexcept
+{
+  return impl_.hash_function();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 __host__ __device__ constexpr auto
 static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
   const noexcept
 {
   return impl_.capacity();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr auto
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::storage_ref()
+  const noexcept
+{
+  return this->impl_.storage_ref();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr auto
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::probing_scheme()
+  const noexcept
+{
+  return this->impl_.probing_scheme();
 }
 
 template <typename Key,
@@ -207,30 +251,16 @@ template <typename Key,
           typename StorageRef,
           typename... Operators>
 template <typename... NewOperators>
-auto static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with(
-  NewOperators...) && noexcept
-{
-  return static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
-    std::move(*this)};
-}
-
-template <typename Key,
-          cuda::thread_scope Scope,
-          typename KeyEqual,
-          typename ProbingScheme,
-          typename StorageRef,
-          typename... Operators>
-template <typename... NewOperators>
 __host__ __device__ constexpr auto
-static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_operators(
-  NewOperators...) const noexcept
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  rebind_operators(NewOperators...) const noexcept
 {
   return static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     this->key_eq(),
-    this->impl_.probing_scheme(),
+    this->probing_scheme(),
     {},
-    this->impl_.storage_ref()};
+    this->storage_ref()};
 }
 
 template <typename Key,
@@ -241,15 +271,15 @@ template <typename Key,
           typename... Operators>
 template <typename NewKeyEqual>
 __host__ __device__ constexpr auto
-static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::with_key_eq(
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::rebind_key_eq(
   NewKeyEqual const& key_equal) const noexcept
 {
   return static_multiset_ref<Key, Scope, NewKeyEqual, ProbingScheme, StorageRef, Operators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     key_equal,
-    this->impl_.probing_scheme(),
+    this->probing_scheme(),
     {},
-    this->impl_.storage_ref()};
+    this->storage_ref()};
 }
 
 template <typename Key,
@@ -261,19 +291,19 @@ template <typename Key,
 template <typename NewHash>
 __host__ __device__ constexpr auto
 static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
-  with_hash_function(NewHash const& hash) const noexcept
+  rebind_hash_function(NewHash const& hash) const
 {
-  auto const probing_scheme = this->impl_.probing_scheme().with_hash_function(hash);
+  auto const probing_scheme = this->probing_scheme().rebind_hash_function(hash);
   return static_multiset_ref<Key,
                              Scope,
                              KeyEqual,
                              cuda::std::decay_t<decltype(probing_scheme)>,
                              StorageRef,
                              Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
-                                           this->impl_.key_eq(),
+                                           this->key_eq(),
                                            probing_scheme,
                                            {},
-                                           this->impl_.storage_ref()};
+                                           this->storage_ref()};
 }
 
 namespace detail {
@@ -354,7 +384,7 @@ class operator_impl<
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
    *
@@ -370,7 +400,7 @@ class operator_impl<
   /**
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
@@ -413,7 +443,7 @@ class operator_impl<
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to search for
    *
@@ -433,7 +463,7 @@ class operator_impl<
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
    * `key`. If no such element exists, returns `end()`.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
@@ -589,7 +619,7 @@ class operator_impl<
    * @note Passes an un-incrementable input iterator to the element whose key is equivalent to
    * `key` to the callback.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Unary callback functor or device lambda
    *
    * @param key The key to search for
@@ -616,7 +646,7 @@ class operator_impl<
    *
    * @note Synchronizing `group` within `callback_op` is undefined behavior.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Unary callback functor or device lambda
    *
    * @param group The Cooperative Group used to perform this operation
@@ -652,7 +682,7 @@ class operator_impl<
    * synchronization points is capped by `window_size * cg_size`. The functor will be called right
    * after the current probing window has been traversed.
    *
-   * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Unary callback functor or device lambda
    * @tparam SyncOp Functor or device lambda which accepts the current `group` object
    *
@@ -697,7 +727,7 @@ class operator_impl<
   /**
    * @brief Counts the occurrence of a given key contained in multiset
    *
-   * @tparam ProbeKey Input type
+   * @tparam ProbeKey Probe key type
    *
    * @param key The key to count for
    *

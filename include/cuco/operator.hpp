@@ -80,16 +80,6 @@ struct retrieve_tag {
 struct for_each_tag {
 } inline constexpr for_each;  ///< `cuco::for_each` operator
 
-namespace reduce {
-
-/**
- * @brief `sum` reduction operator tag
- */
-struct sum_tag {
-} inline constexpr sum;
-
-}  // namespace reduce
-
 }  // namespace op
 }  // namespace cuco
 

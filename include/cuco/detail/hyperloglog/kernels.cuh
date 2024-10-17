@@ -46,7 +46,7 @@ CUCO_KERNEL void add_shmem_vectorized(typename RefType::value_type const* first,
 
   // Base address of dynamic shared memory is guaranteed to be aligned to at least 16 bytes which is
   // sufficient for this purpose
-  extern __shared__ std::byte local_sketch[];
+  extern __shared__ cuda::std::byte local_sketch[];
 
   auto const loop_stride = cuco::detail::grid_stride();
   auto idx               = cuco::detail::global_thread_id();
@@ -94,7 +94,7 @@ CUCO_KERNEL void add_shmem(InputIt first, cuco::detail::index_type n, RefType re
   using local_ref_type = typename RefType::with_scope<cuda::thread_scope_block>;
 
   // TODO assert alignment
-  extern __shared__ std::byte local_sketch[];
+  extern __shared__ cuda::std::byte local_sketch[];
 
   auto const loop_stride = cuco::detail::grid_stride();
   auto idx               = cuco::detail::global_thread_id();

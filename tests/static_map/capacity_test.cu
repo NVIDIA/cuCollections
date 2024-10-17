@@ -24,7 +24,7 @@ TEST_CASE("Static map capacity", "")
   using T          = int32_t;
   using ProbeT     = cuco::double_hashing<1, cuco::default_hash_function<Key>>;
   using Equal      = thrust::equal_to<Key>;
-  using AllocatorT = cuco::cuda_allocator<std::byte>;
+  using AllocatorT = cuco::cuda_allocator<cuda::std::byte>;
   using StorageT   = cuco::storage<2>;
 
   SECTION("zero capacity is allowed.")

@@ -35,7 +35,7 @@ function(ConfigureBench BENCH_NAME)
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks")
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
-    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda --expt-relaxed-constexpr -lineinfo)
+    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda -lineinfo)
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         nvbench::main
                                         pthread
@@ -49,53 +49,59 @@ endfunction(ConfigureBench)
 ###################################################################################################
 # - static_set benchmarks -------------------------------------------------------------------------
 ConfigureBench(STATIC_SET_BENCH
-  hash_table/static_set/contains_bench.cu
-  hash_table/static_set/find_bench.cu
-  hash_table/static_set/insert_bench.cu
-  hash_table/static_set/retrieve_all_bench.cu
-  hash_table/static_set/size_bench.cu
-  hash_table/static_set/rehash_bench.cu)
+  static_set/contains_bench.cu
+  static_set/find_bench.cu
+  static_set/insert_bench.cu
+  static_set/retrieve_all_bench.cu
+  static_set/size_bench.cu
+  static_set/rehash_bench.cu)
 
 ###################################################################################################
 # - static_map benchmarks -------------------------------------------------------------------------
 ConfigureBench(STATIC_MAP_BENCH
-  hash_table/static_map/insert_bench.cu
-  hash_table/static_map/find_bench.cu
-  hash_table/static_map/contains_bench.cu
-  hash_table/static_map/erase_bench.cu
-  hash_table/static_map/insert_or_apply_bench.cu)
+  static_map/insert_bench.cu
+  static_map/find_bench.cu
+  static_map/contains_bench.cu
+  static_map/erase_bench.cu
+  static_map/insert_or_apply_bench.cu)
 
 ###################################################################################################
 # - static_multiset benchmarks --------------------------------------------------------------------
 ConfigureBench(STATIC_MULTISET_BENCH
-  hash_table/static_multiset/contains_bench.cu
-  hash_table/static_multiset/retrieve_bench.cu
-  hash_table/static_multiset/count_bench.cu
-  hash_table/static_multiset/find_bench.cu
-  hash_table/static_multiset/insert_bench.cu)
+  static_multiset/contains_bench.cu
+  static_multiset/retrieve_bench.cu
+  static_multiset/count_bench.cu
+  static_multiset/find_bench.cu
+  static_multiset/insert_bench.cu)
 
 ###################################################################################################
 # - static_multimap benchmarks --------------------------------------------------------------------
 ConfigureBench(STATIC_MULTIMAP_BENCH
-  hash_table/static_multimap/insert_bench.cu
-  hash_table/static_multimap/retrieve_bench.cu
-  hash_table/static_multimap/query_bench.cu
-  hash_table/static_multimap/count_bench.cu)
+  static_multimap/insert_bench.cu
+  static_multimap/retrieve_bench.cu
+  static_multimap/query_bench.cu
+  static_multimap/count_bench.cu)
 
 ###################################################################################################
 # - dynamic_map benchmarks ------------------------------------------------------------------------
 ConfigureBench(DYNAMIC_MAP_BENCH
-  hash_table/dynamic_map/insert_bench.cu
-  hash_table/dynamic_map/find_bench.cu
-  hash_table/dynamic_map/contains_bench.cu
-  hash_table/dynamic_map/erase_bench.cu)
+  dynamic_map/insert_bench.cu
+  dynamic_map/find_bench.cu
+  dynamic_map/contains_bench.cu
+  dynamic_map/erase_bench.cu)
 
 ###################################################################################################
 # - hash function benchmarks ----------------------------------------------------------------------
-ConfigureBench(HASH_BENCH
-  hash_bench.cu)
+ConfigureBench(HASH_FUNCTION_BENCH
+  hash_function/hash_function_bench.cu)
 
 ###################################################################################################
-# - distinct_count_estimator benchmarks -----------------------------------------------------------
-ConfigureBench(DISTINCT_COUNT_ESTIMATOR_BENCH
-  distinct_count_estimator_bench.cu)
+# - hyperloglog benchmarks -----------------------------------------------------------
+ConfigureBench(HYPERLOGLOG_BENCH
+  hyperloglog/hyperloglog_bench.cu)
+
+###################################################################################################
+# - bloom_filter benchmarks -----------------------------------------------------------------------
+ConfigureBench(BLOOM_FILTER_BENCH
+  bloom_filter/add_bench.cu
+  bloom_filter/contains_bench.cu)

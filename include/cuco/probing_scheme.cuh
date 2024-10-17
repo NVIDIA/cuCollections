@@ -16,7 +16,11 @@
 
 #pragma once
 
-#include <cuco/detail/probing_scheme_base.cuh>
+#include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
+#include <cuco/pair.cuh>
+
+#include <cuda/std/tuple>
+#include <cuda/std/type_traits>
 
 #include <cooperative_groups.h>
 
@@ -34,10 +38,12 @@ namespace cuco {
  */
 template <int32_t CGSize, typename Hash>
 class linear_probing : private detail::probing_scheme_base<CGSize> {
- public:
   using probing_scheme_base_type =
     detail::probing_scheme_base<CGSize>;  ///< The base probe scheme type
+
+ public:
   using probing_scheme_base_type::cg_size;
+  using hasher = Hash;  ///< Hash function type
 
   /**
    *@brief Constructs linear probing scheme with the hasher callable.
@@ -56,7 +62,7 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @return Copy of the current probing method
    */
   template <typename NewHash>
-  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(
+  [[nodiscard]] __host__ __device__ constexpr auto rebind_hash_function(
     NewHash const& hash) const noexcept;
 
   /**
@@ -90,6 +96,13 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
     ProbeKey const& probe_key,
     Extent upper_bound) const noexcept;
 
+  /**
+   * @brief Gets the function used to hash keys
+   *
+   * @return The function used to hash keys
+   */
+  __host__ __device__ constexpr hasher hash_function() const noexcept;
+
  private:
   Hash hash_;
 };
@@ -110,10 +123,12 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
  */
 template <int32_t CGSize, typename Hash1, typename Hash2 = Hash1>
 class double_hashing : private detail::probing_scheme_base<CGSize> {
- public:
   using probing_scheme_base_type =
     detail::probing_scheme_base<CGSize>;  ///< The base probe scheme type
+
+ public:
   using probing_scheme_base_type::cg_size;
+  using hasher = cuda::std::tuple<Hash1, Hash2>;  ///< Hash function type
 
   /**
    *@brief Constructs double hashing probing scheme with the two hasher callables.
@@ -124,20 +139,26 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   __host__ __device__ constexpr double_hashing(Hash1 const& hash1 = {}, Hash2 const& hash2 = {1});
 
   /**
+   *@brief Constructs double hashing probing scheme with the hasher tuple
+   *
+   * @param hash Hasher tuple
+   */
+  __host__ __device__ constexpr double_hashing(cuda::std::tuple<Hash1, Hash2> const& hash);
+
+  /**
    *@brief Makes a copy of the current probing method with the given hasher
    *
-   * @tparam NewHash1 First new hasher type
-   * @tparam NewHash2 Second new hasher type
+   * @tparam NewHash Tuple-like new hasher type
    *
-   * @param hash1 First hasher
-   * @param hash2 second hasher
+   * @throw If `cuco::is_tuple_like_v<NewHash>` is `false`
+   *
+   * @param hash Hasher
    *
    * @return Copy of the current probing method
    */
-  template <typename NewHash1, typename NewHash2 = NewHash1>
-  [[nodiscard]] __host__ __device__ constexpr auto with_hash_function(NewHash1 const& hash1,
-                                                                      NewHash2 const& hash2 = {
-                                                                        1}) const noexcept;
+  template <typename NewHash,
+            typename Enable = cuda::std::enable_if_t<cuco::is_tuple_like<NewHash>::value>>
+  [[nodiscard]] __host__ __device__ constexpr auto rebind_hash_function(NewHash const& hash) const;
 
   /**
    * @brief Operator to return a probing iterator
@@ -170,11 +191,36 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
     ProbeKey const& probe_key,
     Extent upper_bound) const noexcept;
 
+  /**
+   * @brief Gets the functions used to hash keys
+   *
+   * @return The functions used to hash keys
+   */
+  __host__ __device__ constexpr hasher hash_function() const noexcept;
+
  private:
   Hash1 hash1_;
   Hash2 hash2_;
 };
 
+/**
+ * @brief Trait indicating whether the given probing scheme is of `double_hashing` type or not
+ *
+ * @tparam T Input probing scheme type
+ */
+template <typename T>
+struct is_double_hashing : cuda::std::false_type {};
+
+/**
+ * @brief Trait indicating whether the given probing scheme is of `double_hashing` type or not
+ *
+ * @tparam CGSize Size of CUDA Cooperative Groups
+ * @tparam Hash1 Unary callable type
+ * @tparam Hash2 Unary callable type
+ */
+template <int32_t CGSize, typename Hash1, typename Hash2>
+struct is_double_hashing<cuco::double_hashing<CGSize, Hash1, Hash2>> : cuda::std::true_type {};
+
 }  // namespace cuco
 
-#include <cuco/detail/probing_scheme_impl.inl>
+#include <cuco/detail/probing_scheme/probing_scheme_impl.inl>
