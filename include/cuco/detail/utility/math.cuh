@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include <type_traits>
+#include <cuda/std/type_traits>
 
 namespace cuco {
 namespace detail {
@@ -35,10 +35,10 @@ namespace detail {
  * @return Ceiling of the integer division
  */
 template <typename T, typename U>
-constexpr T int_div_ceil(T dividend, U divisor) noexcept
+__host__ __device__ constexpr T int_div_ceil(T dividend, U divisor) noexcept
 {
-  static_assert(std::is_integral_v<T>);
-  static_assert(std::is_integral_v<U>);
+  static_assert(cuda::std::is_integral_v<T>);
+  static_assert(cuda::std::is_integral_v<U>);
   return (dividend + divisor - 1) / divisor;
 }
 

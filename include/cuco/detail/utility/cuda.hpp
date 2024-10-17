@@ -16,7 +16,7 @@
 #pragma once
 
 #include <cuco/detail/error.hpp>
-#include <cuco/detail/utility/math.hpp>
+#include <cuco/detail/utility/math.cuh>
 
 namespace cuco {
 namespace detail {
