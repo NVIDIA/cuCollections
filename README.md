@@ -227,6 +227,13 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 #### Examples:
 - [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_multimap/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/aq8jz8G9e))
 
+### `static_multiset`
+
+`cuco::static_multiset` is a fixed-size container that supports storing equivalent keys. It uses double hashing by default and supports switching to linear probing. See the Doxygen documentation in `static_multiset.cuh` for more detailed information.
+
+#### Examples:
+- [Host-bulk APIs](https://github.com/NVIDIA/cuCollections/blob/dev/examples/static_multiset/host_bulk_example.cu) (see [live example in godbolt](https://godbolt.org/z/oq6T5TTWb))
+
 ### `dynamic_map`
 
 `cuco::dynamic_map` links together multiple `cuco::static_map`s to provide a hash table that can grow as key-value pairs are inserted. It currently only provides host-bulk APIs. See the Doxygen documentation in `dynamic_map.cuh` for more detailed information.
