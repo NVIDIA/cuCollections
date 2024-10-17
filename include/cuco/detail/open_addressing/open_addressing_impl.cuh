@@ -1130,17 +1130,6 @@ class open_addressing_impl {
     counter.reset(stream.get());
 
     int32_t constexpr block_size = cuco::detail::default_block_size();
-    // int32_t grid_size =
-    //   detail::max_occupancy_grid_size(block_size,
-    //                                   detail::retrieve<IsOuter,
-    //                                                    block_size,
-    //                                                    InputProbeIt,
-    //                                                    OutputProbeIt,
-    //                                                    OutputMatchIt,
-    //                                                    typename counter_type::value_type,
-    //                                                    Ref>);
-    // grid_size *= 64;  // oversubscription factor
-    // // TODO shrink grid if n is very small
 
     auto constexpr grid_stride = 1;
     auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);

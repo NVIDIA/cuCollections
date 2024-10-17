@@ -277,7 +277,6 @@ void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Sto
   impl_->find_async(first, last, output_begin, ref(op::find), stream);
 }
 
-// TODO docs
 template <class Key,
           class Extent,
           cuda::thread_scope Scope,
@@ -298,7 +297,6 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
     first, last, output_probe, output_match, this->ref(op::retrieve), stream);
 }
 
-// TODO docs
 template <class Key,
           class Extent,
           cuda::thread_scope Scope,

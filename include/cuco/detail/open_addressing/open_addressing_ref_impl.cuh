@@ -1253,22 +1253,6 @@ class open_addressing_ref_impl {
                                ? sentinel_writers.size()
                                : active_flushing_tile.size() - sentinel_writers.size();
             }
-            //             if (finished and not found_any_match) {
-            // #if defined(CUCO_HAS_CG_INVOKE_ONE)
-            //               cg::invoke_one(probing_tile, [&]() {
-            //                 probe_buffers[flushing_tile_id][num_matches] = probe;
-            //                 probe_buffers[flushing_tile_id][num_matches] =
-            //                 this->empty_slot_sentinel();
-            //               });
-            // #else
-            //               if (probing_tile.thread_rank() == 0) {
-            //                 probe_buffers[flushing_tile_id][num_matches] = probe;
-            //                 probe_buffers[flushing_tile_id][num_matches] =
-            //                 this->empty_slot_sentinel();
-            //               }
-            // #endif
-            //               num_matches++;  // not really a match but a sentinel in the buffer
-            //             }
           }
 
           // if the buffer has not enough empty slots for the next iteration
