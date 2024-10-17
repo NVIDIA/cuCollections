@@ -17,14 +17,25 @@ repos:
                 args: ['-fallback-style=none', '-style=file', '-i']
       - repo: local
         hooks:
-              - id: doxygen-check
-                name: doxygen-check
+              - id: check-doxygen
+                name: check-doxygen
                 entry: ./ci/pre-commit/doxygen.sh
                 files: ^include/
                 types_or: [file]
                 language: system
                 pass_filenames: false
                 verbose: true
+              - id: check-example-links
+                name: check-example-links
+                entry: ./ci/pre-commit/example_links.py
+                files: ^examples/
+                types: [cuda]
+                language: python
+                pass_filenames: false
+                verbose: true
+                additional_dependencies:
+                  - --extra-index-url=https://pypi.anaconda.org/rapidsai-wheels-nightly/simple
+                  - gitpython
 
 default_language_version:
       python: python3
