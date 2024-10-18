@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <iostream>
 
 namespace cuco {
 namespace experimental {
@@ -75,15 +76,56 @@ template <typename Key,
           typename ProbingScheme,
           typename Allocator,
           typename Storage>
+constexpr dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  dynamic_map(Extent initial_capacity,
+              empty_key<Key> empty_key_sentinel,
+              empty_value<T> empty_value_sentinel,
+              erased_key<Key> erased_key_sentinel,
+              KeyEqual const& pred,
+              ProbingScheme const& probing_scheme,
+              cuda_thread_scope<Scope> scope,
+              Storage storage,
+              Allocator const& alloc,
+              cuda::stream_ref stream)
+  : size_{0},
+    capacity_{initial_capacity},
+    min_insert_size_{static_cast<size_type>(1E4)},
+    max_load_factor_{0.60},
+    alloc_{alloc}
+{
+  submaps_.push_back(
+    std::make_unique<
+      cuco::static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>>(
+      initial_capacity,
+      empty_key_sentinel,
+      empty_value_sentinel,
+      erased_key_sentinel,
+      pred,
+      probing_scheme,
+      scope,
+      storage,
+      alloc,
+      stream));
+}
+
+template <typename Key,
+          typename T,
+          typename Extent,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename Allocator,
+          typename Storage>
 template <typename InputIt>
 void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cuda::stream_ref stream)
 {
   auto num_to_insert = cuco::detail::distance(first, last);
+
   this->reserve(size_ + num_to_insert, stream);
 
   uint32_t submap_idx = 0;
-  while (num_to_insert > 0) {
+  while (num_to_insert > 0 && submap_idx < submaps_.size()) {
     auto& cur = submaps_[submap_idx];
 
     auto capacity_remaining = max_load_factor_ * cur->capacity() - cur->size();
@@ -91,7 +133,6 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
     // only if we meet the minimum insert size.
     if (capacity_remaining >= min_insert_size_) {
       auto const n = std::min(static_cast<detail::index_type>(capacity_remaining), num_to_insert);
-
       std::size_t h_num_successes = cur->insert(first, first + n, stream);
 
       size_ += h_num_successes;
@@ -126,21 +167,43 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
     else {
       empty_key<Key> empty_key_sentinel{submaps_.front()->empty_key_sentinel()};
       empty_value<T> empty_value_sentinel{submaps_.front()->empty_value_sentinel()};
-
+      erased_key<Key> erased_key_sentinel{submaps_.front()->erased_key_sentinel()};
+      if (erased_key_sentinel != empty_key_sentinel) {
+        submaps_.push_back(std::make_unique<map_type>(submap_capacity,
+                                                      empty_key_sentinel,
+                                                      empty_value_sentinel,
+                                                      erased_key_sentinel,
+                                                      KeyEqual{},
+                                                      ProbingScheme{},
+                                                      cuda_thread_scope<Scope>{},
+                                                      Storage{},
+                                                      alloc_,
+                                                      stream));
+      } else {
+        submaps_.push_back(std::make_unique<map_type>(submap_capacity,
+                                                      empty_key_sentinel,
+                                                      empty_value_sentinel,
+                                                      KeyEqual{},
+                                                      ProbingScheme{},
+                                                      cuda_thread_scope<Scope>{},
+                                                      Storage{},
+                                                      alloc_,
+                                                      stream));
+      }
       submap_capacity = capacity_;
-      submaps_.push_back(std::make_unique<map_type>(submap_capacity,
-                                                    empty_key_sentinel,
-                                                    empty_value_sentinel,
-                                                    KeyEqual{},
-                                                    ProbingScheme{},
-                                                    cuda_thread_scope<Scope>{},
-                                                    Storage{},
-                                                    alloc_,
-                                                    stream));
       capacity_ *= 2;
     }
 
-    num_elements_remaining -= max_load_factor_ * submap_capacity - min_insert_size_;
+    // for clamp to work
+    std::ptrdiff_t remaining =
+      static_cast<std::ptrdiff_t>(num_elements_remaining) -
+      static_cast<std::ptrdiff_t>(max_load_factor_ * submap_capacity - min_insert_size_);
+
+    // size_type is unsigned long. can underflow so clamp it
+    num_elements_remaining =
+      static_cast<size_type>(std::clamp(remaining,
+                                        static_cast<std::ptrdiff_t>(0),
+                                        static_cast<std::ptrdiff_t>(num_elements_remaining)));
     submap_idx++;
   }
 }
@@ -173,6 +236,39 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
     num_keys -= num_keys_to_process;
     submap_idx++;
     first += num_keys_to_process;
+  }
+}
+
+template <typename Key,
+          typename T,
+          typename Extent,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename Allocator,
+          typename Storage>
+template <typename InputIt>
+void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::erase(
+  InputIt first, InputIt last, cuda::stream_ref stream)
+{
+  auto num_keys         = cuco::detail::distance(first, last);
+  std::size_t traversed = 0;
+  uint32_t submap_idx   = 0;
+  while (num_keys > 0 && submap_idx < submaps_.size()) {
+    const auto& cur       = submaps_[submap_idx];
+    const size_t cur_size = cur->size();
+    const size_t num_keys_to_process =
+      std::min(static_cast<detail::index_type>(cur_size), num_keys);
+    CUCO_CUDA_TRY(cudaStreamSynchronize(stream.get()));
+
+    cur->erase(first, first + num_keys_to_process, stream);
+
+    traversed += num_keys_to_process;
+    num_keys -= num_keys_to_process;
+    submap_idx++;
+    first += num_keys_to_process;
+
+    size_ -= num_keys_to_process;
   }
 }
 
