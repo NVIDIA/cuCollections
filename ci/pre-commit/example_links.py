@@ -76,6 +76,8 @@ def update_readme_with_urls(readme_path, url_table, args):
 
     updated_lines = []
     mismatched_files = []
+    missing_files = []  # List of files not found in README.md
+
     # Iterate through each line of the README
     for line in lines:
         updated_line = line
@@ -91,10 +93,22 @@ def update_readme_with_urls(readme_path, url_table, args):
                 )
                 if updated_line != line:
                     mismatched_files.append(file_name)
+
         updated_lines.append(updated_line)
+
+    # After updating lines, check if any example files are missing from README
+    for file_name in url_table.keys():
+        # If the file name was not found in the README, add it to missing_files
+        if not any(file_name in line for line in lines):
+            missing_files.append(file_name)
 
     # Join the lines and write the updated content back to README.md
     updated_content = "\n".join(updated_lines)
+
+    if missing_files:
+        print(f"Error: The following example files are missing in README.md: {missing_files}")
+        sys.exit("FAILED: README.md is missing entries for the above example files")
+
     if args.fix:
         write_file(readme_path, updated_content)
     else:
