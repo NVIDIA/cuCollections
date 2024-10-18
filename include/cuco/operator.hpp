@@ -69,6 +69,12 @@ struct find_tag {
 } inline constexpr find;  ///< `cuco::find` operator
 
 /**
+ * @brief `retrieve` operator tag
+ */
+struct retrieve_tag {
+} inline constexpr retrieve;  ///< `cuco::retrieve` operator
+
+/**
  * @brief `for_each` operator tag
  */
 struct for_each_tag {

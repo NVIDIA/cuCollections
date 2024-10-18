@@ -69,6 +69,7 @@ ConfigureBench(STATIC_MAP_BENCH
 # - static_multiset benchmarks --------------------------------------------------------------------
 ConfigureBench(STATIC_MULTISET_BENCH
   static_multiset/contains_bench.cu
+  static_multiset/retrieve_bench.cu
   static_multiset/count_bench.cu
   static_multiset/find_bench.cu
   static_multiset/insert_bench.cu)
